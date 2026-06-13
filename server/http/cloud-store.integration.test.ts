@@ -2364,7 +2364,7 @@ async function signedWebhookHeaders(payload: string, overrides: Record<string, u
 }
 
 async function seedCloudPr16License(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  const { createLicenseBinding } = await import('../licensing/license-state.js')
+  const { createLicenseBindingRepo } = await import('../adapters/repos/license-binding.js')
   const issuedAt = Math.floor(Date.now() / 1000)
   const expiresAt = issuedAt + 3600
   const cachedCert = sign(EVENT_SECRET, {
@@ -2392,7 +2392,7 @@ async function seedCloudPr16License(db: Awaited<ReturnType<typeof createTestApp>
     expiresAt,
   })
 
-  await createLicenseBinding(db, {
+  await createLicenseBindingRepo(db).createLicenseBinding({
     cloudBindingId: 'binding_1',
     cloudStoreId: 'store-binding-1',
     instanceId: 'license_1',

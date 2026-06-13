@@ -2,10 +2,10 @@ import type { CloudOrderQuotaChange } from '@shared/schemas'
 import type { CloudStoreTarget } from '@shared/types'
 import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import { member, organization, user } from '../db/auth-schema'
 import { activityEvents, orgQuotaEntitlements, orgQuotas, webhookEvents } from '../db/schema'
 import { type AtomicQuery, executeRows, executeWriteTransaction } from '../db/transaction'
-import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
 
 export async function getAccessibleTargets(db: Database, userId: string): Promise<CloudStoreTarget[]> {
@@ -22,7 +22,7 @@ export async function getAccessibleTargets(db: Database, userId: string): Promis
 export async function getCloudStoreBinding(
   db: Database,
 ): Promise<{ boundLicenseId: string; storeId: string; refreshToken: string; instanceId: string }> {
-  const binding = await loadActiveLicenseBinding(db)
+  const binding = await createLicenseBindingRepo(db).loadActiveLicenseBinding()
   if (!binding?.refreshToken || !binding.cloudStoreId) throw new Error('quota_store_binding_missing')
   return {
     boundLicenseId: binding.cloudBindingId,

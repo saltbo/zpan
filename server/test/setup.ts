@@ -636,7 +636,7 @@ async function seedLicense(
     PUBLIC_KEYS.unshift(TEST_LICENSE_PUBLIC)
   }
 
-  const { createLicenseBinding } = await import('../licensing/license-state.js')
+  const { createLicenseBindingRepo } = await import('../adapters/repos/license-binding.js')
   const issuedAt = nowSec()
   const expiresAt = issuedAt + 3600
   const cachedCert = sign(TEST_LICENSE_SECRET, {
@@ -655,7 +655,7 @@ async function seedLicense(
     expiresAt,
   })
 
-  await createLicenseBinding(db, {
+  await createLicenseBindingRepo(db).createLicenseBinding({
     cloudBindingId: 'test-binding',
     cloudStoreId: 'store-test-binding',
     instanceId: 'test-instance',

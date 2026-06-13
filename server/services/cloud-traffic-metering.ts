@@ -2,10 +2,10 @@ import { asc, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import { cloudTrafficReports } from '../db/schema'
 import { currentTrafficPeriod } from '../domain/quota'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
-import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database, Platform } from '../platform/interface'
 import { createBoundCloudClient, requestCloudJson } from './licensing-cloud'
 
@@ -90,7 +90,7 @@ export async function reportTrafficEgress(params: {
     })
   }
 
-  const binding = await loadActiveLicenseBinding(platform.db)
+  const binding = await createLicenseBindingRepo(platform.db).loadActiveLicenseBinding()
   if (!binding?.refreshToken || !binding.cloudStoreId) {
     await updateTrafficReport(platform.db, eventId, 'skipped_unbound', null, now)
     return { status: 'skipped_unbound', eventId, duplicate: false }
@@ -117,7 +117,7 @@ export async function syncPendingCloudTrafficReports(params: {
   const { db, cloudBaseUrl, limit = 100, now = new Date() } = params
   if (!hasFeature('quota_store', await loadBindingState(db)))
     return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
-  const binding = await loadActiveLicenseBinding(db)
+  const binding = await createLicenseBindingRepo(db).loadActiveLicenseBinding()
   if (!binding?.refreshToken || !binding.cloudStoreId) return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
 
   const reports = await db

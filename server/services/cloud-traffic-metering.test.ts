@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import { cloudTrafficReports } from '../db/schema'
-import { createLicenseBinding } from '../licensing/license-state'
 import { createTestApp } from '../test/setup'
 import { CloudTrafficBlockedError, reportTrafficEgress, syncPendingCloudTrafficReports } from './cloud-traffic-metering'
 
@@ -27,7 +27,7 @@ function headerValue(headers: HeadersInit | undefined, name: string): string | n
 async function seedTrafficBinding(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   const issuedAt = Math.floor(Date.now() / 1000)
   const expiresAt = issuedAt + 3600
-  await createLicenseBinding(db, {
+  await createLicenseBindingRepo(db).createLicenseBinding({
     cloudBindingId: 'test-binding',
     cloudStoreId: 'store-test-binding',
     instanceId: 'test-instance',

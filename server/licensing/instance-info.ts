@@ -1,12 +1,10 @@
 import { release as osRelease } from 'node:os'
-import { eq } from 'drizzle-orm'
 import type { InstanceInfo } from '../../shared/types'
-import { systemOptions } from '../db/schema'
+import { createInstanceRepo } from '../adapters/repos/instance'
 import type { Database, Platform } from '../platform/interface'
 import { getDeployPlatform } from '../runtime-platform'
 import type { CloudInstanceInfo } from '../services/licensing-cloud'
 import { getAppCommit, getAppVersion } from '../version'
-import { getOrCreateInstanceId } from './instance-id'
 
 type RuntimeInfo = Pick<InstanceInfo, 'runtime' | 'platform' | 'server' | 'node'>
 
@@ -22,24 +20,14 @@ export function runtimeInfo(platform: Platform): RuntimeInfo {
   }
 }
 
-export async function getInstanceDisplayName(db: Database): Promise<string> {
-  const rows = await db
-    .select({ value: systemOptions.value })
-    .from(systemOptions)
-    .where(eq(systemOptions.key, 'site_title'))
-    .limit(1)
-
-  return rows[0]?.value ?? 'ZPan'
-}
-
 // Shown on the admin About page: flat runtime engine + deployment platform.
 export async function buildInstanceInfo(
   db: Database,
   params: { url: string; runtime?: RuntimeInfo },
 ): Promise<InstanceInfo> {
   return {
-    id: await getOrCreateInstanceId(db),
-    name: await getInstanceDisplayName(db),
+    id: await createInstanceRepo(db).getOrCreateInstanceId(),
+    name: await createInstanceRepo(db).getInstanceDisplayName(),
     url: params.url,
     version: getAppVersion(),
     commit: getAppCommit(),
@@ -67,8 +55,8 @@ export async function buildCloudInstanceInfo(
   params: { url: string; runtime?: RuntimeInfo },
 ): Promise<CloudInstanceInfo> {
   return {
-    id: await getOrCreateInstanceId(db),
-    name: await getInstanceDisplayName(db),
+    id: await createInstanceRepo(db).getOrCreateInstanceId(),
+    name: await createInstanceRepo(db).getInstanceDisplayName(),
     url: params.url,
     version: getAppVersion(),
     commit: getAppCommit(),

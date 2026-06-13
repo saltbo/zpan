@@ -22,6 +22,8 @@
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SignupMode } from '../../shared/constants'
+import { createInstanceRepo } from '../adapters/repos/instance'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import {
   CloudUnboundError,
   createPairing,
@@ -31,8 +33,6 @@ import {
 } from '../services/licensing-cloud'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup'
 import { hasFeature, loadBindingState } from './has-feature'
-import { getOrCreateInstanceId } from './instance-id'
-import { createLicenseBinding, loadLicenseState } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 
 const CLOUD_BASE_URL = process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev'
@@ -258,7 +258,7 @@ describe('E2E: Feature gates — expired certificate', () => {
 
     PUBLIC_KEYS.unshift(E2E_PUBLIC)
     const expiresAt = nowSec() - 1
-    await createLicenseBinding(db, {
+    await createLicenseBindingRepo(db).createLicenseBinding({
       cloudBindingId: 'expired-binding',
       cloudStoreId: 'store-expired',
       instanceId: 'test-instance',
@@ -364,7 +364,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     expect(pendingRes.status).toBe(200)
     expect(((await pendingRes.json()) as { status: string }).status).toBe('pending')
 
-    const instanceId = await getOrCreateInstanceId(db)
+    const instanceId = await createInstanceRepo(db).getOrCreateInstanceId()
     const cert = signLicenseAssertion({
       subject: 'e2e-binding',
       instanceId,
@@ -400,7 +400,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     expect(approvedBody.edition).toBe('pro')
 
     // Step 4: Verify binding stored in DB
-    const state2 = await loadLicenseState(db)
+    const state2 = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state2.refreshToken).toBe('rt-e2e-secret')
     expect(state2.cachedCert).toBeTruthy()
 
@@ -455,7 +455,7 @@ describe('E2E: PASETO cert verification chain', () => {
     const fakePaseto =
       'v4.public.eyJhY2NvdW50X2lkIjoiYTEiLCJpbnN0YW5jZV9pZCI6InRlc3QtaW5zdGFuY2UiLCJwbGFuIjoicHJvIiwiZmVhdHVyZXMiOlsid2hpdGVfbGFiZWwiXSwiZXhwaXJlc19hdCI6IjIwOTktMDEtMDFUMDA6MDA6MDBaIiwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMVQwMDowMDowMFoifQ.fakesignaturebytes'
 
-    await createLicenseBinding(db, {
+    await createLicenseBindingRepo(db).createLicenseBinding({
       cloudBindingId: 'fake-binding',
       cloudStoreId: 'store-fake',
       instanceId: 'test-instance',

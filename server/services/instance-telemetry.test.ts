@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getOrCreateInstanceId } from '../licensing/instance-id'
-import { getInstanceDisplayName } from '../licensing/instance-info'
 import type { Database } from '../platform/interface'
 import {
   INSTANCE_TELEMETRY_CRON,
@@ -22,12 +20,16 @@ const posthogMocks = vi.hoisted(() => {
   return { PostHog, captureImmediate: captureImmediateMock, shutdown: shutdownMock }
 })
 
-vi.mock('../licensing/instance-id', () => ({
+const instanceMocks = vi.hoisted(() => ({
   getOrCreateInstanceId: vi.fn(),
+  getInstanceDisplayName: vi.fn(),
 }))
 
-vi.mock('../licensing/instance-info', () => ({
-  getInstanceDisplayName: vi.fn(),
+vi.mock('../adapters/repos/instance', () => ({
+  createInstanceRepo: () => ({
+    getOrCreateInstanceId: instanceMocks.getOrCreateInstanceId,
+    getInstanceDisplayName: instanceMocks.getInstanceDisplayName,
+  }),
 }))
 
 vi.mock('posthog-node', () => ({
@@ -36,14 +38,14 @@ vi.mock('posthog-node', () => ({
 
 describe('instance telemetry', () => {
   beforeEach(() => {
-    vi.mocked(getOrCreateInstanceId).mockReset()
-    vi.mocked(getInstanceDisplayName).mockReset()
+    instanceMocks.getOrCreateInstanceId.mockReset()
+    instanceMocks.getInstanceDisplayName.mockReset()
     posthogMocks.PostHog.mockClear()
     posthogMocks.captureImmediate.mockReset()
     posthogMocks.shutdown.mockReset()
     posthogMocks.captureImmediate.mockResolvedValue(undefined)
     posthogMocks.shutdown.mockResolvedValue(undefined)
-    vi.mocked(getInstanceDisplayName).mockResolvedValue('Test Instance')
+    instanceMocks.getInstanceDisplayName.mockResolvedValue('Test Instance')
   })
 
   it('does not call the telemetry endpoint when PostHog project token is disabled', async () => {
@@ -56,12 +58,12 @@ describe('instance telemetry', () => {
 
     expect(result).toEqual({ reported: false, reason: 'disabled' })
     expect(posthogMocks.PostHog).not.toHaveBeenCalled()
-    expect(getOrCreateInstanceId).not.toHaveBeenCalled()
-    expect(getInstanceDisplayName).not.toHaveBeenCalled()
+    expect(instanceMocks.getOrCreateInstanceId).not.toHaveBeenCalled()
+    expect(instanceMocks.getInstanceDisplayName).not.toHaveBeenCalled()
   })
 
   it('captures the expected telemetry event with built-in PostHog host and project token', async () => {
-    vi.mocked(getOrCreateInstanceId).mockResolvedValue('inst-1')
+    instanceMocks.getOrCreateInstanceId.mockResolvedValue('inst-1')
 
     const result = await reportInstanceTelemetry({
       db: {} as Database,
@@ -81,8 +83,8 @@ describe('instance telemetry', () => {
     })
 
     expect(result).toEqual({ reported: true })
-    expect(getOrCreateInstanceId).toHaveBeenCalledWith({})
-    expect(getInstanceDisplayName).toHaveBeenCalledWith({})
+    expect(instanceMocks.getOrCreateInstanceId).toHaveBeenCalled()
+    expect(instanceMocks.getInstanceDisplayName).toHaveBeenCalled()
     expect(posthogMocks.PostHog).toHaveBeenCalledWith(INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN, {
       host: INSTANCE_TELEMETRY_POSTHOG_HOST,
       flushAt: 1,
@@ -168,7 +170,7 @@ describe('instance telemetry', () => {
   })
 
   it('disables GeoIP when IP reporting is explicitly disabled', async () => {
-    vi.mocked(getOrCreateInstanceId).mockResolvedValue('inst-1')
+    instanceMocks.getOrCreateInstanceId.mockResolvedValue('inst-1')
 
     await reportInstanceTelemetry({
       db: {} as Database,

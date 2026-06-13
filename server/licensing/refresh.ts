@@ -1,3 +1,4 @@
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import type { Database } from '../platform/interface'
 import {
   type CloudInstanceInfo,
@@ -7,12 +8,6 @@ import {
   refreshEntitlement,
 } from '../services/licensing-cloud'
 import { invalidateEntitlementCache } from './entitlement'
-import {
-  clearLicenseBinding,
-  loadLicenseState,
-  setLicenseRefreshError,
-  updateLicenseBindingAfterRefresh,
-} from './license-state'
 import { verifyCertificate } from './verify'
 
 const INVALID_CERTIFICATE_ERROR = 'Invalid certificate from cloud'
@@ -27,7 +22,7 @@ function normaliseCert(
 }
 
 export async function performRefresh(db: Database, baseUrl: string, instance?: CloudInstanceInfo): Promise<void> {
-  const state = await loadLicenseState(db)
+  const state = await createLicenseBindingRepo(db).loadLicenseState()
   if (!state.refreshToken || !state.instanceId) return
 
   try {
@@ -37,15 +32,15 @@ export async function performRefresh(db: Database, baseUrl: string, instance?: C
       cloudBaseUrl: baseUrl,
     })
     if (!certificateExpiresAt) {
-      await setLicenseRefreshError(db, state.id, INVALID_CERTIFICATE_ERROR)
+      await createLicenseBindingRepo(db).setLicenseRefreshError(state.id, INVALID_CERTIFICATE_ERROR)
       return
     }
     if (!data.binding?.storeId || !data.account) {
-      await setLicenseRefreshError(db, state.id, INVALID_ENTITLEMENT_RESPONSE_ERROR)
+      await createLicenseBindingRepo(db).setLicenseRefreshError(state.id, INVALID_ENTITLEMENT_RESPONSE_ERROR)
       return
     }
 
-    await updateLicenseBindingAfterRefresh(db, {
+    await createLicenseBindingRepo(db).updateLicenseBindingAfterRefresh({
       id: state.id,
       refreshToken: data.refreshToken,
       cloudStoreId: data.binding.storeId,
@@ -58,13 +53,13 @@ export async function performRefresh(db: Database, baseUrl: string, instance?: C
     invalidateEntitlementCache()
   } catch (err) {
     if (err instanceof CloudUnboundError) {
-      await clearLicenseBinding(db, 'revoked')
+      await createLicenseBindingRepo(db).clearLicenseBinding('revoked')
       invalidateEntitlementCache()
       return
     }
 
     if (err instanceof CloudInvalidResponseError || err instanceof CloudNetworkError || err instanceof Error) {
-      await setLicenseRefreshError(db, state.id, err.message)
+      await createLicenseBindingRepo(db).setLicenseRefreshError(state.id, err.message)
       return
     }
 

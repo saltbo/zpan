@@ -3,11 +3,11 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { invalidateEntitlementCache, loadEntitlement } from './entitlement'
 import { effectiveFeatures } from './has-feature'
-import { createLicenseBinding } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 
 const SCHEMA_SQL = `
@@ -81,7 +81,7 @@ function signAssertion(overrides: Record<string, unknown> = {}): string {
 
 async function seedBinding(db: DB, cachedCert: string | null) {
   const now = nowSec()
-  await createLicenseBinding(db, {
+  await createLicenseBindingRepo(db).createLicenseBinding({
     cloudBindingId: 'bind-1',
     instanceId: 'inst-1',
     cloudAccountId: 'acct-1',

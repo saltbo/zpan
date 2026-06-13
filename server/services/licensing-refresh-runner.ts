@@ -1,4 +1,4 @@
-import { loadLicenseState } from '../licensing/license-state'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import { performRefresh } from '../licensing/refresh'
 import type { Database } from '../platform/interface'
 import type { CloudInstanceInfo } from './licensing-cloud'
@@ -10,7 +10,7 @@ export async function runLicensingRefresh(
   cloudBaseUrl: string,
   instance?: CloudInstanceInfo,
 ): Promise<void> {
-  const state = await loadLicenseState(db)
+  const state = await createLicenseBindingRepo(db).loadLicenseState()
   if (!state.refreshToken) return // unbound — no-op
 
   const nowSec = Math.floor(Date.now() / 1000)

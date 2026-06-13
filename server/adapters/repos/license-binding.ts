@@ -1,34 +1,22 @@
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { licenseBindings } from '../db/schema'
-import { executeWriteTransaction } from '../db/transaction'
-import type { Database } from '../platform/interface'
+import { licenseBindings } from '../../db/schema'
+import { executeWriteTransaction } from '../../db/transaction'
+import type { Database } from '../../platform/interface'
+import type {
+  CreateLicenseBindingInput,
+  LicenseBindingRepo,
+  LicenseBindingStatus,
+  LicenseState,
+  UpdateLicenseBindingInput,
+} from '../../usecases/ports'
 
-export type LicenseBindingStatus = 'active' | 'disconnected' | 'revoked'
-
-export interface LicenseState {
-  id: string
-  cloudBindingId: string
-  cloudStoreId: string | null
-  instanceId: string
-  cloudAccountId: string
-  cloudAccountEmail: string | null
-  status: LicenseBindingStatus
-  refreshToken: string | null
-  cachedCert: string | null
-  cachedExpiresAt: number | null
-  boundAt: number
-  disconnectedAt: number | null
-  lastRefreshAt: number | null
-  lastRefreshError: string | null
-}
-
-export async function loadLicenseState(db: Database): Promise<LicenseState> {
+async function loadLicenseState(db: Database): Promise<LicenseState> {
   const row = await loadActiveLicenseBinding(db)
   return row ?? emptyLicenseState()
 }
 
-export async function loadActiveLicenseBinding(db: Database): Promise<LicenseState | null> {
+async function loadActiveLicenseBinding(db: Database): Promise<LicenseState | null> {
   const rows = await db.select().from(licenseBindings).where(eq(licenseBindings.status, 'active')).limit(1)
   const row = rows[0]
   if (!row) return null
@@ -51,20 +39,7 @@ export async function loadActiveLicenseBinding(db: Database): Promise<LicenseSta
   }
 }
 
-export async function createLicenseBinding(
-  db: Database,
-  input: {
-    cloudBindingId: string
-    cloudStoreId?: string | null
-    instanceId: string
-    cloudAccountId: string
-    cloudAccountEmail?: string | null
-    refreshToken: string
-    cachedCert: string
-    cachedExpiresAt: number
-    lastRefreshAt: number
-  },
-): Promise<void> {
+async function createLicenseBinding(db: Database, input: CreateLicenseBindingInput): Promise<void> {
   const now = Math.floor(Date.now() / 1000)
   await executeWriteTransaction(db, [
     db
@@ -97,18 +72,7 @@ export async function createLicenseBinding(
   ])
 }
 
-export async function updateLicenseBindingAfterRefresh(
-  db: Database,
-  input: {
-    id: string
-    refreshToken: string
-    cloudStoreId?: string | null
-    cachedCert: string
-    cachedExpiresAt: number
-    cloudAccountEmail?: string | null
-    lastRefreshAt: number
-  },
-): Promise<void> {
+async function updateLicenseBindingAfterRefresh(db: Database, input: UpdateLicenseBindingInput): Promise<void> {
   await db
     .update(licenseBindings)
     .set({
@@ -124,14 +88,14 @@ export async function updateLicenseBindingAfterRefresh(
     .where(eq(licenseBindings.id, input.id))
 }
 
-export async function setLicenseRefreshError(db: Database, id: string, error: string): Promise<void> {
+async function setLicenseRefreshError(db: Database, id: string, error: string): Promise<void> {
   await db
     .update(licenseBindings)
     .set({ lastRefreshError: error, updatedAt: Math.floor(Date.now() / 1000) })
     .where(eq(licenseBindings.id, id))
 }
 
-export async function clearLicenseBinding(db: Database, status: LicenseBindingStatus = 'disconnected'): Promise<void> {
+async function clearLicenseBinding(db: Database, status: LicenseBindingStatus = 'disconnected'): Promise<void> {
   const now = Math.floor(Date.now() / 1000)
   await db
     .update(licenseBindings)
@@ -162,5 +126,16 @@ function emptyLicenseState(): LicenseState {
     disconnectedAt: null,
     lastRefreshAt: null,
     lastRefreshError: null,
+  }
+}
+
+export function createLicenseBindingRepo(db: Database): LicenseBindingRepo {
+  return {
+    loadLicenseState: () => loadLicenseState(db),
+    loadActiveLicenseBinding: () => loadActiveLicenseBinding(db),
+    createLicenseBinding: (input) => createLicenseBinding(db, input),
+    updateLicenseBindingAfterRefresh: (input) => updateLicenseBindingAfterRefresh(db, input),
+    setLicenseRefreshError: (id, error) => setLicenseRefreshError(db, id, error),
+    clearLicenseBinding: (status) => clearLicenseBinding(db, status),
   }
 }

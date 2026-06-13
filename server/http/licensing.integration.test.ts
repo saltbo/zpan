@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding.js'
 import { cloudTrafficReports } from '../db/schema.js'
-import { createLicenseBinding } from '../licensing/license-state.js'
 import { createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
 
 describe('GET /api/licensing/status', () => {
@@ -20,7 +20,7 @@ describe('GET /api/licensing/status', () => {
   it('returns bound state with plan and features when binding row exists with cert', async () => {
     const { app, db } = await createTestApp()
 
-    await createLicenseBinding(db, {
+    await createLicenseBindingRepo(db).createLicenseBinding({
       cloudBindingId: 'bind-1',
       cloudStoreId: 'store-1',
       instanceId: 'inst-1',
@@ -46,7 +46,7 @@ describe('GET /api/licensing/status', () => {
   it('returns bound:true with no plan/features when cachedCert is null', async () => {
     const { app, db } = await createTestApp()
 
-    await createLicenseBinding(db, {
+    await createLicenseBindingRepo(db).createLicenseBinding({
       cloudBindingId: 'bind-1',
       cloudStoreId: 'store-1',
       instanceId: 'inst-1',

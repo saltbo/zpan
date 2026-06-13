@@ -1,9 +1,7 @@
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { invalidateEntitlementCache } from '../licensing/entitlement'
-import { getOrCreateInstanceId } from '../licensing/instance-id'
 import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
-import { clearLicenseBinding, createLicenseBinding, loadLicenseState } from '../licensing/license-state'
 import { performRefresh } from '../licensing/refresh'
 import { normalizeHost, verifyCertificateResult } from '../licensing/verify'
 import { requireAdmin } from '../middleware/auth'
@@ -78,7 +76,7 @@ const app = new Hono<Env>()
     const result = await pollPairing(baseUrl, code)
 
     if (result.status === 'approved') {
-      const instanceId = await getOrCreateInstanceId(db)
+      const instanceId = await c.get('deps').instance.getOrCreateInstanceId()
       const verification = result.certificate
         ? verifyCertificateResult(result.certificate, {
             instanceId,
@@ -98,7 +96,7 @@ const app = new Hono<Env>()
       }
 
       const assertion = verification.assertion
-      await createLicenseBinding(db, {
+      await c.get('deps').licenseBinding.createLicenseBinding({
         cloudBindingId: result.binding.id,
         cloudStoreId: result.binding.storeId,
         instanceId,
@@ -155,7 +153,7 @@ const app = new Hono<Env>()
 
     await performRefresh(db, baseUrl, instance)
 
-    const state = await loadLicenseState(db)
+    const state = await c.get('deps').licenseBinding.loadLicenseState()
 
     await c.get('deps').activity.record({
       orgId,
@@ -173,7 +171,7 @@ const app = new Hono<Env>()
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const baseUrl = getCloudBaseUrl(c)
-    const state = await loadLicenseState(db)
+    const state = await c.get('deps').licenseBinding.loadLicenseState()
     let cloudUnbindError: string | null = null
 
     if (state.refreshToken) {
@@ -184,7 +182,7 @@ const app = new Hono<Env>()
       }
     }
 
-    await clearLicenseBinding(db)
+    await c.get('deps').licenseBinding.clearLicenseBinding()
     invalidateEntitlementCache()
 
     await c.get('deps').activity.record({

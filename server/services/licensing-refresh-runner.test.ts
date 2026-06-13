@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding.js'
 import { licenseBindings } from '../db/schema.js'
-import { createLicenseBinding } from '../licensing/license-state.js'
 import * as refreshModule from '../licensing/refresh.js'
 import { createTestApp } from '../test/setup.js'
 import { runLicensingRefresh } from './licensing-refresh-runner.js'
@@ -12,7 +12,7 @@ async function seedLicenseBinding(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
   overrides: { lastRefreshAt?: number | null } = {},
 ) {
-  await createLicenseBinding(db, {
+  await createLicenseBindingRepo(db).createLicenseBinding({
     cloudBindingId: 'bind-1',
     cloudStoreId: 'store-1',
     instanceId: 'inst-1',

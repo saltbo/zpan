@@ -1,7 +1,7 @@
 import { PRO_GATE_KEYS } from '../../shared/feature-registry'
 import type { BindingState, LicenseFeature } from '../../shared/types'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import type { Database } from '../platform/interface'
-import { loadLicenseState } from './license-state'
 import { verifyCertificate } from './verify'
 
 export interface BindingStateOptions {
@@ -10,7 +10,7 @@ export interface BindingStateOptions {
 }
 
 export async function loadBindingState(db: Database, options: BindingStateOptions = {}): Promise<BindingState> {
-  const state = await loadLicenseState(db)
+  const state = await createLicenseBindingRepo(db).loadLicenseState()
   if (!state.refreshToken) return { bound: false }
 
   const result: BindingState = {

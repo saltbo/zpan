@@ -1,6 +1,5 @@
 import { PostHog } from 'posthog-node'
-import { getOrCreateInstanceId } from '../licensing/instance-id'
-import { getInstanceDisplayName } from '../licensing/instance-info'
+import { createInstanceRepo } from '../adapters/repos/instance'
 import type { Database } from '../platform/interface'
 import type { DeployPlatform } from '../runtime-platform'
 import { getAppVersion } from '../version'
@@ -47,8 +46,8 @@ export async function reportInstanceTelemetry(params: InstanceTelemetryParams): 
   const posthogProjectToken = (params.config.posthogProjectToken ?? INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN).trim()
   if (!posthogHost || !posthogProjectToken) return { reported: false, reason: 'disabled' }
 
-  const instanceId = await getOrCreateInstanceId(params.db)
-  const instanceName = await getInstanceDisplayName(params.db)
+  const instanceId = await createInstanceRepo(params.db).getOrCreateInstanceId()
+  const instanceName = await createInstanceRepo(params.db).getInstanceDisplayName()
   const instanceUrl =
     normalizePublicOrigin(params.config.siteUrl) ?? (await getSitePublicOrigin(params.db)) ?? undefined
   const appVersion = getAppVersion()

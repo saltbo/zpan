@@ -3,10 +3,11 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
+import type { CreateLicenseBindingInput } from '../usecases/ports'
 import { invalidateEntitlementCache } from './entitlement'
-import { createLicenseBinding, loadLicenseState } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 import { performRefresh } from './refresh'
 
@@ -79,13 +80,10 @@ function signAssertion(overrides: Record<string, unknown> = {}): string {
   })
 }
 
-async function seedBinding(
-  db: DB,
-  overrides: Partial<Parameters<typeof createLicenseBinding>[1]> & { lastRefreshError?: string } = {},
-) {
+async function seedBinding(db: DB, overrides: Partial<CreateLicenseBindingInput> & { lastRefreshError?: string } = {}) {
   const now = nowSec()
   const lastRefreshError = overrides.lastRefreshError
-  await createLicenseBinding(db, {
+  await createLicenseBindingRepo(db).createLicenseBinding({
     cloudBindingId: 'bind-1',
     cloudStoreId: 'store-old',
     instanceId: 'inst-abc',
@@ -137,7 +135,7 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('new-rt')
     expect(state.cloudStoreId).toBe('store-new')
     expect(state.cachedCert).toBe(cert)
@@ -167,7 +165,7 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('new-rt-paseto')
     expect(state.cachedCert).toBe(cert)
     expect(state.cachedExpiresAt).toBe(expiresAt)
@@ -186,7 +184,7 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBeNull()
   })
 
@@ -198,7 +196,7 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
     expect(state.lastRefreshError).toBe('Connection timeout')
   })
@@ -226,7 +224,7 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
     expect(state.cachedCert).toBe('old-cert')
     expect(state.cachedExpiresAt).toBe(1234567890)
@@ -250,7 +248,7 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
     expect(state.lastRefreshError).toBe('Cloud response missing certificate')
   })

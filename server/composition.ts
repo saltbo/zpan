@@ -9,7 +9,9 @@ import { createChangelogProvider } from './adapters/providers/changelog'
 import { createActivityRepo } from './adapters/repos/activity'
 import { createAnnouncementRepo } from './adapters/repos/announcement'
 import { createBackgroundJobRepo } from './adapters/repos/background-job'
+import { createInstanceRepo } from './adapters/repos/instance'
 import { createInviteRepo } from './adapters/repos/invite'
+import { createLicenseBindingRepo } from './adapters/repos/license-binding'
 import { createNotificationRepo } from './adapters/repos/notification'
 import { createOrgRepo } from './adapters/repos/org'
 import { createProfileRepo } from './adapters/repos/profile'
@@ -31,6 +33,8 @@ export function createDeps(platform: Platform): Deps {
     cfHostnames: createCfClient((key) => platform.getEnv(key)),
     changelog: createChangelogProvider(),
     invites: createInviteRepo(db),
+    instance: createInstanceRepo(db),
+    licenseBinding: createLicenseBindingRepo(db),
     notifications: createNotificationRepo(db),
     org: createOrgRepo(db),
     profiles: createProfileRepo(db),

@@ -1,7 +1,7 @@
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getOrCreateInstanceId } from '../licensing/instance-id.js'
-import { createLicenseBinding, loadLicenseState } from '../licensing/license-state.js'
+import { createInstanceRepo } from '../adapters/repos/instance.js'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding.js'
 import { PUBLIC_KEYS } from '../licensing/public-keys.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 
@@ -42,7 +42,7 @@ function signCert(instanceId: string, secret: string = TEST_SECRET): string {
 async function seedBinding(db: Awaited<ReturnType<typeof createTestApp>>['db'], instanceId = 'inst-1') {
   const now = nowSec()
   const cert = signCert(instanceId)
-  await createLicenseBinding(db, {
+  await createLicenseBindingRepo(db).createLicenseBinding({
     cloudBindingId: 'bind-1',
     instanceId,
     cloudAccountId: 'acct-1',
@@ -164,7 +164,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
   it('stores binding on approved and returns approved status', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    const instanceId = await getOrCreateInstanceId(db)
+    const instanceId = await createInstanceRepo(db).getOrCreateInstanceId()
 
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
@@ -184,7 +184,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     expect(body.cloud_store_id).toBe('store-1')
 
     // Check that binding was persisted
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('rt-secret')
     expect(state.cloudStoreId).toBe('store-1')
   })
@@ -192,7 +192,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
   it('stores the pairing certificate when approved', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    const instanceId = await getOrCreateInstanceId(db)
+    const instanceId = await createInstanceRepo(db).getOrCreateInstanceId()
     const certificate = signCert(instanceId)
 
     vi.mocked(fetch)
@@ -211,7 +211,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     const res = await app.request('/api/licensing/pair/CODE-1/poll', { headers })
 
     expect(res.status).toBe(200)
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('pair-rt')
     expect(state.cachedCert).toBe(certificate)
     // Poll + confirm (PATCH /licenses/:id { status: 'confirmed' }).
@@ -237,7 +237,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     const res = await app.request('/api/licensing/pair/CODE-1/poll', { headers })
 
     expect(res.status).toBe(502)
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBeNull()
   })
 
@@ -255,14 +255,14 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     const res = await app.request('/api/licensing/pair/CODE-1/poll', { headers })
 
     expect(res.status).toBe(502)
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBeNull()
   })
 
   it('rejects approved responses when binding metadata is missing', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    const instanceId = await getOrCreateInstanceId(db)
+    const instanceId = await createInstanceRepo(db).getOrCreateInstanceId()
 
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
@@ -279,7 +279,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
       error: 'invalid_certificate',
       reason: 'incomplete_response',
     })
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.status).toBe('disconnected')
     expect(state.refreshToken).toBeNull()
     expect(state.cachedCert).toBeNull()
@@ -288,7 +288,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
   it('reports an untrusted signing key and rolls back the orphaned cloud binding', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    const instanceId = await getOrCreateInstanceId(db)
+    const instanceId = await createInstanceRepo(db).getOrCreateInstanceId()
 
     // Sign with a key ZPan does not trust — simulates a rotated/mismatched cloud
     // signing key (the real-world "lost private key" scenario).
@@ -315,7 +315,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
       reason: 'signature',
     })
     // ZPan stored nothing; the cloud binding was released.
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBeNull()
     const unbindCall = vi.mocked(fetch).mock.calls.at(-1)
     expect(String(unbindCall?.[0])).toContain('cb-1')
@@ -399,7 +399,7 @@ describe('DELETE /api/licensing/binding', () => {
     expect(new Headers(init.headers).get('Authorization')).toBe('Bearer old-token')
 
     // Confirm binding is gone
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBeNull()
   })
 
@@ -417,7 +417,7 @@ describe('DELETE /api/licensing/binding', () => {
     expect(body.deleted).toBe(true)
     expect(body.cloud_unbind_error).toContain('Cloud unbind failed')
 
-    const state = await loadLicenseState(db)
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBeNull()
   })
 

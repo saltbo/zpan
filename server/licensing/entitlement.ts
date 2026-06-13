@@ -1,7 +1,7 @@
 import type { LicenseFeature } from '@shared/types'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import type { Database } from '../platform/interface'
 import { effectiveFeatures } from './has-feature'
-import { loadLicenseState } from './license-state'
 import { verifyCertificate } from './verify'
 
 export interface EntitlementSummary {
@@ -30,7 +30,7 @@ export async function loadEntitlement(db: Database): Promise<EntitlementSummary 
     // Cached cert has since expired — fall through to re-verify (yields null).
   }
 
-  const state = await loadLicenseState(db)
+  const state = await createLicenseBindingRepo(db).loadLicenseState()
   if (!state.cachedCert || !state.instanceId) {
     cachedSummary = null
     cachedAt = now
