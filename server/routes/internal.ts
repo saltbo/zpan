@@ -1,5 +1,6 @@
 import { release as osRelease } from 'node:os'
 import { Hono } from 'hono'
+import { constantTimeEqual } from '../lib/constant-time'
 import type { Env } from '../middleware/platform'
 import { getDeployPlatform } from '../runtime-platform'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../services/instance-telemetry'
@@ -18,7 +19,7 @@ internal.post('/instance-telemetry/report', async (c) => {
   if (!token) return c.json({ error: 'Not found' }, 404)
 
   const auth = c.req.header('authorization') ?? ''
-  if (auth !== `Bearer ${token}`) return c.json({ error: 'Unauthorized' }, 401)
+  if (!constantTimeEqual(auth, `Bearer ${token}`)) return c.json({ error: 'Unauthorized' }, 401)
 
   const runtime = platform.getBinding('DB')
     ? {
