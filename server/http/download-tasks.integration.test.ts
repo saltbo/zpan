@@ -140,7 +140,7 @@ async function registerDownloaderThroughDeviceLogin(
 }
 
 describe('Download tasks API integration', () => {
-  it('registers a downloader through BetterAuth device login', async () => {
+  it('registers a downloader through BetterAuth device login [spec: download-tasks/register-downloader]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const created = await registerDownloaderThroughDeviceLogin(app, 'device-login-downloader')
@@ -148,7 +148,7 @@ describe('Download tasks API integration', () => {
     expect(created.token).toBeTruthy()
   })
 
-  it('rejects download tasks whose source URL targets an internal host', async () => {
+  it('rejects download tasks whose source URL targets an internal host [spec: download-tasks/ssrf-guard]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const user = await authedHeaders(app, 'ssrf-user@example.com')
@@ -167,7 +167,7 @@ describe('Download tasks API integration', () => {
     }
   })
 
-  it('rejects a magnet task whose URI is not a magnet link', async () => {
+  it('rejects a magnet task whose URI is not a magnet link [spec: download-tasks/magnet-validation]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const user = await authedHeaders(app, 'magnet-user@example.com')
@@ -179,7 +179,7 @@ describe('Download tasks API integration', () => {
     expect(res.status).toBe(400)
   })
 
-  it('deletes a downloader and returns unfinished tasks to the queue', async () => {
+  it('deletes a downloader and returns unfinished tasks to the queue [spec: download-tasks/delete-downloader-requeues]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const admin = await adminHeaders(app)
@@ -222,7 +222,7 @@ describe('Download tasks API integration', () => {
     await expect(taskRes.json()).resolves.toMatchObject({ status: { state: 'queued', assignment: null } })
   })
 
-  it('does not assign new tasks to downloaders with stale heartbeats', async () => {
+  it('does not assign new tasks to downloaders with stale heartbeats [spec: download-tasks/stale-no-assign]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     await seedProLicense(db) // 2nd downloader requires downloaders_unlimited
@@ -275,7 +275,7 @@ describe('Download tasks API integration', () => {
     })
   })
 
-  it('keeps tasks queued when matching downloaders are at capacity', async () => {
+  it('keeps tasks queued when matching downloaders are at capacity [spec: download-tasks/capacity-queue]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const admin = await adminHeaders(app)
@@ -320,7 +320,7 @@ describe('Download tasks API integration', () => {
     })
   })
 
-  it('reports stale downloaders as offline in the admin list', async () => {
+  it('reports stale downloaders as offline in the admin list [spec: download-tasks/stale-offline]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const admin = await adminHeaders(app)
@@ -350,7 +350,7 @@ describe('Download tasks API integration', () => {
     expect(listed?.status).toBe('offline')
   })
 
-  it('reassigns unfinished tasks from stale downloaders on live heartbeat', async () => {
+  it('reassigns unfinished tasks from stale downloaders on live heartbeat [spec: download-tasks/reassign-on-heartbeat]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     await seedProLicense(db) // 2nd downloader requires downloaders_unlimited
@@ -406,7 +406,7 @@ describe('Download tasks API integration', () => {
     })
   })
 
-  it('runs the remote download task upload flow through the standard object upload API', async () => {
+  it('runs the remote download task upload flow through the standard object upload API [spec: download-tasks/upload-flow]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
 
@@ -644,7 +644,7 @@ describe('Download tasks API integration', () => {
     expect(task.status.progress.upload.bytes).toBe(10 * 1024 * 1024)
   })
 
-  it('accepts Cloud usage event ids that differ from local remote download idempotency keys', async () => {
+  it('accepts Cloud usage event ids that differ from local remote download idempotency keys [spec: download-tasks/cloud-usage-idempotency]', async () => {
     const { app, db } = await createTestApp({
       DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret',
       ZPAN_CLOUD_URL: 'https://cloud.example',
@@ -720,7 +720,7 @@ describe('Download tasks API integration', () => {
     ])
   })
 
-  it('stores downloader runtime reports as snapshots while progress remains patchable', async () => {
+  it('stores downloader runtime reports as snapshots while progress remains patchable [spec: download-tasks/runtime-reports]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
 
@@ -868,7 +868,7 @@ describe('Download tasks API integration', () => {
     expect(seedingTask.status.runtime).not.toHaveProperty('etaSeconds')
   })
 
-  it('returns storage failure details when multipart upload session creation fails', async () => {
+  it('returns storage failure details when multipart upload session creation fails [spec: download-tasks/upload-session-failure]', async () => {
     vi.mocked(S3Service.prototype.createMultipartUpload).mockRejectedValueOnce(
       new Error('bucket does not support multipart'),
     )
@@ -929,7 +929,7 @@ describe('Download tasks API integration', () => {
     })
   })
 
-  it('normalizes target folder paths when creating download tasks', async () => {
+  it('normalizes target folder paths when creating download tasks [spec: download-tasks/normalize-target]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     await registerDownloaderThroughDeviceLogin(app, 'target-folder-downloader')
@@ -955,7 +955,7 @@ describe('Download tasks API integration', () => {
     expect(rows[0].target_folder).toBe('media/Movies')
   })
 
-  it('returns storage failure details when multipart upload completion fails', async () => {
+  it('returns storage failure details when multipart upload completion fails [spec: download-tasks/upload-completion-failure]', async () => {
     vi.mocked(S3Service.prototype.completeMultipartUpload).mockRejectedValueOnce(new Error('InvalidPart: part missing'))
     const { app, db } = await createTestApp()
     await insertStorage(db)
@@ -997,7 +997,7 @@ describe('Download tasks API integration', () => {
     })
   })
 
-  it('submits user task actions through downloader polling state', async () => {
+  it('submits user task actions through downloader polling state [spec: download-tasks/user-actions]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
 
@@ -1101,7 +1101,7 @@ describe('Download tasks API integration', () => {
     await expect(deleteRes.json()).resolves.toEqual({ id: createdTask.id, deleted: true })
   })
 
-  it('lets the assigned downloader recover interrupted tasks without resuming user-paused tasks', async () => {
+  it('lets the assigned downloader recover interrupted tasks without resuming user-paused tasks [spec: download-tasks/recover-interrupted]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
 
@@ -1193,7 +1193,7 @@ describe('Download tasks API integration', () => {
     await expect(pausedProgressRes.json()).resolves.toEqual({ error: 'Task is paused' })
   })
 
-  it('preserves the completed download checkpoint when retrying an upload failure', async () => {
+  it('preserves the completed download checkpoint when retrying an upload failure [spec: download-tasks/checkpoint-on-retry]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
 
@@ -1376,7 +1376,7 @@ describe('Download tasks API integration', () => {
     })
   })
 
-  it('uses transitional states for downloading task pause and cancel actions', async () => {
+  it('uses transitional states for downloading task pause and cancel actions [spec: download-tasks/transitional-actions]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
 
@@ -1469,7 +1469,7 @@ describe('Download tasks API integration', () => {
     await expect(canceledRes.json()).resolves.toMatchObject({ status: { state: 'canceled' } })
   })
 
-  it('rejects pause for billing-paused and uploading tasks', async () => {
+  it('rejects pause for billing-paused and uploading tasks [spec: download-tasks/reject-invalid-pause]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
 
@@ -1525,7 +1525,7 @@ describe('Download tasks API integration', () => {
     expect(uploadingPauseRes.status).toBe(409)
   })
 
-  it('rejects invalid task actions', async () => {
+  it('rejects invalid task actions [spec: download-tasks/reject-invalid-action]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const user = await authedHeaders(app, 'invalid-download-actions-user@example.com')
@@ -1553,7 +1553,7 @@ describe('Download tasks API integration', () => {
     })
   })
 
-  it('sorts and filters download tasks on the server', async () => {
+  it('sorts and filters download tasks on the server [spec: download-tasks/sort-filter]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const user = await authedHeaders(app, 'download-sort-user@example.com')
@@ -1610,7 +1610,7 @@ describe('Downloaders — free plan limit', () => {
     })
   }
 
-  it('blocks the second downloader on the free plan with 402', async () => {
+  it('blocks the second downloader on the free plan with 402 [spec: download-tasks/free-limit]', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const admin = await adminHeaders(app)
 
@@ -1623,7 +1623,7 @@ describe('Downloaders — free plan limit', () => {
     expect(body.limit).toBe(1)
   })
 
-  it('allows additional downloaders with the downloaders_unlimited entitlement', async () => {
+  it('allows additional downloaders with the downloaders_unlimited entitlement [spec: download-tasks/unlimited-entitlement]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await seedProLicense(db)
     const admin = await adminHeaders(app)

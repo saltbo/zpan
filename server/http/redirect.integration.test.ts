@@ -104,7 +104,7 @@ async function getAccessCount(db: Awaited<ReturnType<typeof createTestApp>>['db'
 // ─── ds_ direct share tests ───────────────────────────────────────────────────
 
 describe('GET /r/:token (ds_ direct shares)', () => {
-  it('returns 302 with attachment disposition and no-store cache for valid direct share', async () => {
+  it('returns 302 with attachment disposition and no-store cache for valid direct share [spec: redirect/direct-share]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -119,13 +119,13 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     expect(res.headers.get('cache-control')).toContain('no-store')
   })
 
-  it('returns 404 for unknown ds_ token', async () => {
+  it('returns 404 for unknown ds_ token [spec: redirect/unknown-ds-token]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/r/ds_unknowntoken', { redirect: 'manual' })
     expect(res.status).toBe(404)
   })
 
-  it('returns 404 for landing share token at /r/', async () => {
+  it('returns 404 for landing share token at /r/ [spec: redirect/landing-token-rejected]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -139,7 +139,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns 422 when direct share traffic quota is exhausted', async () => {
+  it('returns 422 when direct share traffic quota is exhausted [spec: redirect/ds-quota-exhausted]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -170,7 +170,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     expect(shares[0].downloads).toBe(0)
   })
 
-  it('consumes traffic quota on successful direct share redirect', async () => {
+  it('consumes traffic quota on successful direct share redirect [spec: redirect/ds-consumes-quota]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -194,7 +194,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     expect(rows[0].trafficUsed).toBe(1280)
   })
 
-  it('refunds traffic and download count when direct share signing fails', async () => {
+  it('refunds traffic and download count when direct share signing fails [spec: redirect/ds-refund-on-failure]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -226,7 +226,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
 // ─── ih_ image hosting tests ──────────────────────────────────────────────────
 
 describe('GET /r/:token (ih_ image hosting)', () => {
-  it('returns 302 with inline disposition and no-store cache for active image', async () => {
+  it('returns 302 with inline disposition and no-store cache for active image [spec: redirect/image]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -240,7 +240,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(cc).toContain('no-store')
   })
 
-  it('strips .png extension and resolves same image', async () => {
+  it('strips .png extension and resolves same image [spec: redirect/image-strip-ext]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -264,13 +264,13 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
   })
 
-  it('returns 404 for non-existent ih_ token', async () => {
+  it('returns 404 for non-existent ih_ token [spec: redirect/unknown-ih-token]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/r/ih_doesnotexist', { redirect: 'manual' })
     expect(res.status).toBe(404)
   })
 
-  it('returns 404 for image with status=draft', async () => {
+  it('returns 404 for image with status=draft [spec: redirect/image-draft-hidden]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -281,7 +281,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(res.status).toBe(404)
   })
 
-  it('increments accessCount by 1 on successful redirect', async () => {
+  it('increments accessCount by 1 on successful redirect [spec: redirect/image-access-count]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -293,7 +293,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(await getAccessCount(db, 'ih-cnt1')).toBe(1)
   })
 
-  it('consumes traffic quota on successful image hosting redirect', async () => {
+  it('consumes traffic quota on successful image hosting redirect [spec: redirect/image-consumes-quota]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -315,7 +315,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(rows[0].trafficUsed).toBe(1280)
   })
 
-  it('refunds traffic when image hosting signing fails', async () => {
+  it('refunds traffic when image hosting signing fails [spec: redirect/image-refund-on-failure]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -339,7 +339,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(await getAccessCount(db, 'ih-sign-fail')).toBe(0)
   })
 
-  it('rejects the next image redirect after the first one consumes the remaining monthly traffic quota', async () => {
+  it('rejects the next image redirect after the first one consumes the remaining monthly traffic quota [spec: redirect/image-quota-boundary]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -364,7 +364,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(await getAccessCount(db, 'ih-quota-repeat')).toBe(1)
   })
 
-  it('does NOT increment accessCount on 404', async () => {
+  it('does NOT increment accessCount on 404 [spec: redirect/no-count-on-404]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -379,7 +379,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
 // ─── Referer allowlist tests ──────────────────────────────────────────────────
 
 describe('GET /r/:token — referer allowlist enforcement', () => {
-  it('allows any referer when allowlist is empty', async () => {
+  it('allows any referer when allowlist is empty [spec: redirect/referer-empty-allowlist]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -394,7 +394,7 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     expect(res.status).toBe(302)
   })
 
-  it('returns 302 when referer matches allowlist entry', async () => {
+  it('returns 302 when referer matches allowlist entry [spec: redirect/referer-match]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -409,7 +409,7 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     expect(res.status).toBe(302)
   })
 
-  it('allows access when referer is missing (direct access from tools/address bar)', async () => {
+  it('allows access when referer is missing (direct access from tools/address bar) [spec: redirect/referer-missing-ok]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -421,7 +421,7 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     expect(res.status).toBe(302)
   })
 
-  it('returns 403 when referer is from a different origin', async () => {
+  it('returns 403 when referer is from a different origin [spec: redirect/referer-mismatch]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -436,7 +436,7 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns 403 for subdomain mismatch (exact origin match required)', async () => {
+  it('returns 403 for subdomain mismatch (exact origin match required) [spec: redirect/referer-subdomain]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -451,7 +451,7 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     expect(res.status).toBe(403)
   })
 
-  it('does NOT increment accessCount on 403', async () => {
+  it('does NOT increment accessCount on 403 [spec: redirect/no-count-on-403]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
