@@ -1,6 +1,4 @@
-import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { user } from '../db/auth-schema'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deletePublicImageVariants, uploadPublicImage } from '../services/image-upload'
@@ -25,7 +23,7 @@ export const me = new Hono<Env>()
     const result = await uploadPublicImage(platform, AVATAR_PREFIX, userId, file)
     if (!result.ok) return c.json({ error: result.error }, result.status)
 
-    await platform.db.update(user).set({ image: result.url }).where(eq(user.id, userId))
+    await c.get('deps').profiles.setAvatar(userId, result.url)
     return c.json({ url: result.url })
   })
   .delete('/avatar', async (c) => {
@@ -33,7 +31,7 @@ export const me = new Hono<Env>()
     const userId = c.get('userId') as string
 
     // Clear DB first (authoritative); storage cleanup below is best-effort.
-    await platform.db.update(user).set({ image: null }).where(eq(user.id, userId))
+    await c.get('deps').profiles.setAvatar(userId, null)
     await deletePublicImageVariants(platform, AVATAR_PREFIX, userId)
     return c.json({ ok: true })
   })

@@ -16,5 +16,9 @@ export function createProfileRepo(db: Database): ProfileRepo {
       if (!row?.username) return null
       return { username: row.username, name: row.name, image: row.image ?? null }
     },
+
+    async setAvatar(userId, image) {
+      await db.update(user).set({ image }).where(eq(user.id, userId))
+    },
   }
 }

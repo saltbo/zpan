@@ -6,4 +6,5 @@ export interface PublicUser {
 
 export interface ProfileRepo {
   getUserByUsername(username: string): Promise<PublicUser | null>
+  setAvatar(userId: string, image: string | null): Promise<void>
 }
