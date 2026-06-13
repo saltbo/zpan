@@ -12,12 +12,12 @@ import { requirePermission } from '../middleware/authz'
 import type { Env } from '../middleware/platform'
 import {
   createDownloadTask,
-  DownloadError,
   getDownloadTask,
   listDownloadTasks,
   performDownloadTaskAction,
   updateDownloadTask,
-} from '../services/downloads'
+} from '../usecases/downloads'
+import { DownloadError } from '../usecases/ports'
 
 const errorSchema = z.object({ error: z.string() })
 
@@ -110,7 +110,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     const query = c.req.valid('query') as z.infer<typeof listDownloadTasksQuerySchema>
     if (query.assignedTo === 'me') {
       if (principal?.kind !== 'downloader') return c.json({ error: 'Unauthorized' }, 401)
-      const result = await listDownloadTasks(c.get('platform'), {
+      const result = await listDownloadTasks(c.get('deps'), c.get('platform'), {
         downloaderId: principal.downloaderId,
         status: query.status,
         category: query.category,
@@ -126,7 +126,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
 
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
-    const result = await listDownloadTasks(c.get('platform'), {
+    const result = await listDownloadTasks(c.get('deps'), c.get('platform'), {
       orgId,
       status: query.status,
       category: query.category,
@@ -147,7 +147,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
       c,
       async () =>
         createDownloadTask(
-          c.get('platform'),
+          c.get('deps'),
           orgId,
           actorId,
           c.req.valid('json') as z.infer<typeof createDownloadTaskSchema>,
@@ -159,14 +159,14 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
     const id = c.req.param('id') as string
-    return downloadTaskResponse(c, async () => getDownloadTask(c.get('platform'), orgId, id))
+    return downloadTaskResponse(c, async () => getDownloadTask(c.get('deps'), orgId, id))
   }) as never)
   .openapi(actionRoute, (async (c: OpenAPIContext) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
     const id = c.req.param('id') as string
     const { action } = c.req.valid('json') as z.infer<typeof downloadTaskActionInputSchema>
-    return downloadTaskResponse(c, async () => performDownloadTaskAction(c.get('platform'), orgId, id, action))
+    return downloadTaskResponse(c, async () => performDownloadTaskAction(c.get('deps'), orgId, id, action))
   }) as never)
   .openapi(updateRoute, (async (c: OpenAPIContext) => {
     const principal = c.get('principal')
@@ -175,18 +175,26 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
       return downloadTaskResponse(
         c,
         async () =>
-          updateDownloadTask(c.get('platform'), id, c.req.valid('json') as z.infer<typeof updateDownloadTaskSchema>, {
-            downloaderId: principal.downloaderId,
-          }),
+          updateDownloadTask(
+            c.get('deps'),
+            c.get('platform'),
+            id,
+            c.req.valid('json') as z.infer<typeof updateDownloadTaskSchema>,
+            { downloaderId: principal.downloaderId },
+          ),
         undefined,
       )
     }
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
     return downloadTaskResponse(c, async () =>
-      updateDownloadTask(c.get('platform'), id, c.req.valid('json') as z.infer<typeof updateDownloadTaskSchema>, {
-        orgId,
-      }),
+      updateDownloadTask(
+        c.get('deps'),
+        c.get('platform'),
+        id,
+        c.req.valid('json') as z.infer<typeof updateDownloadTaskSchema>,
+        { orgId },
+      ),
     )
   }) as never)
 

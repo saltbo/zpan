@@ -15,13 +15,13 @@ import { requireAdmin, requireDownloader } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
   createDownloader,
-  DownloadError,
   deleteDownloader,
   listDownloaders,
   recordDownloaderHeartbeat,
   updateDownloader,
-} from '../services/downloads'
+} from '../usecases/downloads'
 import { loadBindingState } from '../usecases/licensing'
+import { DownloadError } from '../usecases/ports'
 
 const errorSchema = z.object({ error: z.string() })
 
@@ -96,14 +96,14 @@ const heartbeatRoute = createRoute({
 
 const downloadersRoute = new OpenAPIHono<Env>()
   .openapi(listRoute, (async (c: OpenAPIContext) => {
-    const items = await listDownloaders(c.get('platform'))
+    const items = await listDownloaders(c.get('deps'))
     return c.json({ items, total: items.length })
   }) as never)
   .openapi(createRouteDoc, (async (c: OpenAPIContext) => {
     const userId = c.get('userId')
     if (!userId) return c.json({ error: 'Unauthorized' }, 401)
-    const platform = c.get('platform')
-    const [existing, state] = await Promise.all([listDownloaders(platform), loadBindingState(c.get('deps'))])
+    const deps = c.get('deps')
+    const [existing, state] = await Promise.all([listDownloaders(deps), loadBindingState(deps)])
     if (!hasFeature('downloaders_unlimited', state) && existing.length >= FREE_DOWNLOADER_LIMIT) {
       return c.json(
         {
@@ -117,7 +117,8 @@ const downloadersRoute = new OpenAPIHono<Env>()
       )
     }
     const result = await createDownloader(
-      platform,
+      deps,
+      c.get('platform'),
       c.req.valid('json') as z.infer<typeof createDownloaderSchema>,
       userId,
     )
@@ -132,11 +133,11 @@ const downloadersRoute = new OpenAPIHono<Env>()
         return c.json({ error: 'feature_not_available', feature: 'quota_store' }, 402)
       }
     }
-    return downloadResponse(c, async () => updateDownloader(c.get('platform'), id, input))
+    return downloadResponse(c, async () => updateDownloader(c.get('deps'), id, input))
   }) as never)
   .openapi(deleteRoute, (async (c: OpenAPIContext) => {
     const id = c.req.param('id') as string
-    return downloadResponse(c, async () => deleteDownloader(c.get('platform'), id))
+    return downloadResponse(c, async () => deleteDownloader(c.get('deps'), id))
   }) as never)
 
 export const downloaderSelfRoute = new OpenAPIHono<Env>().openapi(heartbeatRoute, (async (c: OpenAPIContext) => {
@@ -144,7 +145,7 @@ export const downloaderSelfRoute = new OpenAPIHono<Env>().openapi(heartbeatRoute
   if (principal?.kind !== 'downloader') return c.json({ error: 'Unauthorized' }, 401)
   return downloadResponse(c, async () =>
     recordDownloaderHeartbeat(
-      c.get('platform'),
+      c.get('deps'),
       principal.downloaderId,
       c.req.valid('json') as z.infer<typeof downloaderHeartbeatSchema>,
     ),

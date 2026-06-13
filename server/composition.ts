@@ -19,7 +19,9 @@ import { createArchiveTargetFolderRepo } from './adapters/repos/archive-target-f
 import { createBackgroundJobRepo } from './adapters/repos/background-job'
 import { createCloudStoreRepo } from './adapters/repos/cloud-store'
 import { createCloudTrafficReportRepo } from './adapters/repos/cloud-traffic-report'
+import { createDownloadTaskRepo } from './adapters/repos/download-task'
 import { createDownloadTokenGateway } from './adapters/repos/download-tokens'
+import { createDownloaderRepo } from './adapters/repos/downloader'
 import { createImageHostingRepo } from './adapters/repos/image-hosting'
 import { createImageHostingConfigRepo } from './adapters/repos/image-hosting-config'
 import { createInstanceRepo } from './adapters/repos/instance'
@@ -61,6 +63,8 @@ export function createDeps(platform: Platform): Deps {
     changelog: createChangelogProvider(),
     cloudStore: createCloudStoreRepo(db),
     cloudTrafficReports: createCloudTrafficReportRepo(db),
+    downloaders: createDownloaderRepo(db),
+    downloadTasks: createDownloadTaskRepo(db),
     downloadTokens: createDownloadTokenGateway(),
     email: createEmailGateway(createSystemOptionsRepo(db)),
     invites: createInviteRepo(db),

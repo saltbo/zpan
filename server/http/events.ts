@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { listDownloadTasks } from '../services/downloads'
+import { listDownloadTasks } from '../usecases/downloads'
 
 const encoder = new TextEncoder()
 // How often the stream re-reads each subscribed domain to detect changes. Kept
@@ -95,7 +95,7 @@ export const events = new Hono<Env>().use(requireAuth).get('/', (c) => {
           }
 
           if (wantsDownloadTasks && orgId) {
-            const result = await listDownloadTasks(platform, {
+            const result = await listDownloadTasks(deps, platform, {
               orgId,
               status: query.dtStatus,
               category: query.dtCategory,

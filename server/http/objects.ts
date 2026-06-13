@@ -17,8 +17,8 @@ import { mapDomainError } from '../lib/http-errors'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { assertTaskUploadAllowed } from '../services/downloads'
 import { S3Service } from '../services/s3'
+import { assertTaskUploadAllowed } from '../usecases/downloads'
 import { confirmUpload } from '../usecases/matter'
 import {
   createObjectUploadSession,
@@ -121,7 +121,7 @@ const app = new Hono<Env>()
     if (principal?.kind === 'download-task-upload') {
       if (!isWithinDownloadTarget(parent, principal.targetFolder))
         return c.json({ error: 'Target folder is outside task authorization' }, 403)
-      await assertTaskUploadAllowed(c.get('platform'), {
+      await assertTaskUploadAllowed(c.get('deps'), {
         taskId: principal.taskId,
         downloaderId: principal.downloaderId,
       })
@@ -184,7 +184,7 @@ const app = new Hono<Env>()
         if (principal?.kind === 'download-task-upload') {
           if (!isWithinDownloadTarget(matter.parent, principal.targetFolder))
             throw new ObjectUploadSessionError('invalid_state')
-          await assertTaskUploadAllowed(c.get('platform'), {
+          await assertTaskUploadAllowed(c.get('deps'), {
             taskId: principal.taskId,
             downloaderId: principal.downloaderId,
           })
@@ -291,7 +291,7 @@ const app = new Hono<Env>()
       const matter = await c.get('deps').matter.get(c.req.param('id'), orgId)
       if (!matter || !isWithinDownloadTarget(matter.parent, principal.targetFolder))
         return c.json({ error: 'Forbidden' }, 403)
-      await assertTaskUploadAllowed(c.get('platform'), {
+      await assertTaskUploadAllowed(c.get('deps'), {
         taskId: principal.taskId,
         downloaderId: principal.downloaderId,
       })
