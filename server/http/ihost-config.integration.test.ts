@@ -131,7 +131,7 @@ describe('DELETE /api/ihost/config — unauth', () => {
 // ─── Role enforcement ──────────────────────────────────────────────────────────
 
 describe('/api/ihost/config — role enforcement', () => {
-  it('GET allows any org member', async () => {
+  it('GET allows any org member [spec: image-hosting-config/read-any-member]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `member-get-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -153,7 +153,7 @@ describe('/api/ihost/config — role enforcement', () => {
     expect(res.status).toBe(200)
   })
 
-  it('PUT returns 403 for member role', async () => {
+  it('PUT returns 403 for member role [spec: image-hosting-config/write-requires-admin]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `member-put-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -230,7 +230,7 @@ describe('/api/ihost/config — role enforcement', () => {
 // ─── GET ───────────────────────────────────────────────────────────────────────
 
 describe('GET /api/ihost/config', () => {
-  it('returns { enabled: false } when no config row exists', async () => {
+  it('returns { enabled: false } when no config row exists [spec: image-hosting-config/default-disabled]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `get-no-config-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -243,7 +243,7 @@ describe('GET /api/ihost/config', () => {
     expect(body.enabled).toBe(false)
   })
 
-  it('returns domainStatus=none and null dnsInstructions when no customDomain set', async () => {
+  it('returns domainStatus=none and null dnsInstructions when no customDomain set [spec: image-hosting-config/no-domain]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `get-no-domain-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -259,7 +259,7 @@ describe('GET /api/ihost/config', () => {
     expect(body.dnsInstructions).toBeNull()
   })
 
-  it('returns domainStatus=verified when domainVerifiedAt is set', async () => {
+  it('returns domainStatus=verified when domainVerifiedAt is set [spec: image-hosting-config/domain-verified]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `get-verified-status-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -279,7 +279,7 @@ describe('GET /api/ihost/config', () => {
     expect(body.domainVerifiedAt).toBeGreaterThan(0)
   })
 
-  it('returns parsed refererAllowlist array', async () => {
+  it('returns parsed refererAllowlist array [spec: image-hosting-config/referer-allowlist]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `get-referer-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -296,7 +296,7 @@ describe('GET /api/ihost/config', () => {
     expect(body.refererAllowlist).toEqual(['https://blog.example.com', 'https://app.example.com'])
   })
 
-  it('does NOT call CF when domain already verified', async () => {
+  it('does NOT call CF when domain already verified [spec: image-hosting-config/no-recheck-verified]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `get-no-cf-call-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -321,7 +321,7 @@ describe('GET /api/ihost/config', () => {
     vi.unstubAllGlobals()
   })
 
-  it('lazily verifies domain when CF getStatus returns active', async () => {
+  it('lazily verifies domain when CF getStatus returns active [spec: image-hosting-config/lazy-verify]', async () => {
     const { app, db } = await createTestApp({
       CF_API_TOKEN: 'tok',
       CF_ZONE_ID: 'zone',
@@ -356,7 +356,7 @@ describe('GET /api/ihost/config', () => {
     vi.unstubAllGlobals()
   })
 
-  it('stays pending when CF getStatus returns non-active', async () => {
+  it('stays pending when CF getStatus returns non-active [spec: image-hosting-config/stays-pending]', async () => {
     const { app, db } = await createTestApp({
       CF_API_TOKEN: 'tok',
       CF_ZONE_ID: 'zone',
@@ -391,7 +391,7 @@ describe('GET /api/ihost/config', () => {
     vi.unstubAllGlobals()
   })
 
-  it('returns dnsInstructions with recordType=CNAME when CF is configured', async () => {
+  it('returns dnsInstructions with recordType=CNAME when CF is configured [spec: image-hosting-config/dns-cname]', async () => {
     const { app, db } = await createTestApp({
       CF_API_TOKEN: 'tok',
       CF_ZONE_ID: 'zone',
@@ -415,7 +415,7 @@ describe('GET /api/ihost/config', () => {
     expect(body.dnsInstructions?.target).toBe('ssl.zpan.io')
   })
 
-  it('returns dnsInstructions with recordType=manual when CF is not configured', async () => {
+  it('returns dnsInstructions with recordType=manual when CF is not configured [spec: image-hosting-config/dns-manual]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `get-manual-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -454,7 +454,7 @@ describe('PUT /api/ihost/config', () => {
     vi.restoreAllMocks()
   })
 
-  it('creates config row when enabled=true with no domain', async () => {
+  it('creates config row when enabled=true with no domain [spec: image-hosting-config/create]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `put-enabled-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -494,7 +494,7 @@ describe('PUT /api/ihost/config', () => {
     expect(body.domainStatus).toBe('pending')
   })
 
-  it('calls CF register when CF is configured and stores cfHostnameId', async () => {
+  it('calls CF register when CF is configured and stores cfHostnameId [spec: image-hosting-config/cf-register]', async () => {
     const { app, db } = await createTestApp({
       CF_API_TOKEN: 'tok',
       CF_ZONE_ID: 'zone',
@@ -522,7 +522,7 @@ describe('PUT /api/ihost/config', () => {
     expect(rows[0].domainVerifiedAt).toBeNull()
   })
 
-  it('changing customDomain calls CF delete then register', async () => {
+  it('changing customDomain calls CF delete then register [spec: image-hosting-config/domain-change]', async () => {
     const { app, db } = await createTestApp({
       CF_API_TOKEN: 'tok',
       CF_ZONE_ID: 'zone',
@@ -561,7 +561,7 @@ describe('PUT /api/ihost/config', () => {
     expect(rows[0].customDomain).toBe('new.example.com')
   })
 
-  it('returns 409 when CF register returns 409 conflict', async () => {
+  it('returns 409 when CF register returns 409 conflict [spec: image-hosting-config/cf-conflict]', async () => {
     const { app, db } = await createTestApp({
       CF_API_TOKEN: 'tok',
       CF_ZONE_ID: 'zone',
@@ -603,7 +603,7 @@ describe('PUT /api/ihost/config', () => {
     expect(rows).toHaveLength(1)
   })
 
-  it('returns 400 when enabled=false (must use DELETE to disable)', async () => {
+  it('returns 400 when enabled=false (must use DELETE to disable) [spec: image-hosting-config/disable-via-delete]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `put-disabled-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -618,7 +618,7 @@ describe('PUT /api/ihost/config', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when customDomain matches APP_HOST', async () => {
+  it('returns 400 when customDomain matches APP_HOST [spec: image-hosting-config/reject-app-host]', async () => {
     const { app, db } = await createTestApp({ APP_HOST: 'zpan.example.com' })
     const { headers, userId } = await signUpAndGetHeaders(app, `put-apphost-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)

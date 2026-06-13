@@ -23,7 +23,7 @@ describe('migration 0004_username_plugin.sql', () => {
 })
 
 describe('username plugin — sign-up with username', () => {
-  it('sign-up with username stores the username on the user record', async () => {
+  it('sign-up with username stores the username on the user record [spec: auth-username/signup-with-username]', async () => {
     const { app, db } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -39,7 +39,7 @@ describe('username plugin — sign-up with username', () => {
     expect(users[0].username).toBe('alice42')
   })
 
-  it('sign-up without username generates a username from the email prefix', async () => {
+  it('sign-up without username generates a username from the email prefix [spec: auth-username/signup-generates-username]', async () => {
     const { app, db } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -50,7 +50,7 @@ describe('username plugin — sign-up with username', () => {
     expect(users[0].username).toBe('bob')
   })
 
-  it('sign-up with duplicate username returns a non-200 response', async () => {
+  it('sign-up with duplicate username returns a non-200 response [spec: auth-username/duplicate-rejected]', async () => {
     const { app } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -75,7 +75,7 @@ describe('username plugin — sign-up with username', () => {
     expect(res.status).not.toBe(200)
   })
 
-  it('two users with different usernames both register successfully', async () => {
+  it('two users with different usernames both register successfully [spec: auth-username/distinct-usernames]', async () => {
     const { app, db } = await createTestApp()
     const res1 = await app.request('/api/auth/sign-up/email', {
       method: 'POST',

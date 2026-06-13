@@ -95,10 +95,10 @@ trashByIds,restoreActiveByIds,touch,applyUpload} + UserAdminRepo.{isBanned,match
 ### Product specs (BDD-lite) — DONE
 - [x] `spec/` Gherkin `.feature` (one per capability) + `spec/README.md`; `[spec: <id>]` breadcrumbs on home
       tests; `pnpm lint:spec` (CI) enforces traceability both ways.
-- [x] **376 scenarios across 26 capabilities**: storages, announcements, notifications, invite-codes,
+- [x] **418 scenarios across 30 capabilities**: storages, announcements, notifications, invite-codes,
       site-invitations, quotas, profile, licensing, users, audit, teams, avatar, background-jobs, events, health,
       branding, email-config, auth-providers, system, image-hosting, webdav, quota-store, redirect, download-tasks,
-      shares, objects.
+      shares, objects, image-hosting-config, licensing-admin, teams-admin, auth-username.
 
 ### Optional follow-ups (not blocking; tracked for later)
 - [ ] Remove the ~21 pre-existing dead `const db = c.get('platform').db` locals (non-blocking biome warnings).

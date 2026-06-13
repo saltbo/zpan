@@ -55,7 +55,7 @@ async function seedBinding(db: Awaited<ReturnType<typeof createTestApp>>['db'], 
 }
 
 describe('Licensing Admin API — auth guards', () => {
-  it('POST /api/licensing/pair returns 401 without auth', async () => {
+  it('POST /api/licensing/pair returns 401 without auth [spec: licensing-admin/auth-required]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/licensing/pair', { method: 'POST' })
     expect(res.status).toBe(401)
@@ -79,7 +79,7 @@ describe('Licensing Admin API — auth guards', () => {
     expect(res.status).toBe(401)
   })
 
-  it('POST /api/licensing/pair returns 403 for non-admin', async () => {
+  it('POST /api/licensing/pair returns 403 for non-admin [spec: licensing-admin/admin-only]', async () => {
     const { app } = await createTestApp()
     await authedHeaders(app, 'admin@example.com')
     await authedHeaders(app, 'regular@example.com')
@@ -108,7 +108,7 @@ describe('POST /api/licensing/pair', () => {
     for (const key of originalKeys.splice(0)) PUBLIC_KEYS.push(key)
   })
 
-  it('calls cloud and returns pairing info', async () => {
+  it('calls cloud and returns pairing info [spec: licensing-admin/pair-initiate]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -148,7 +148,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     for (const key of originalKeys.splice(0)) PUBLIC_KEYS.push(key)
   })
 
-  it('returns pending status when cloud returns pending', async () => {
+  it('returns pending status when cloud returns pending [spec: licensing-admin/poll-pending]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -161,7 +161,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     expect(body.status).toBe('pending')
   })
 
-  it('stores binding on approved and returns approved status', async () => {
+  it('stores binding on approved and returns approved status [spec: licensing-admin/poll-approved]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const instanceId = await createInstanceRepo(db).getOrCreateInstanceId()
@@ -189,7 +189,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     expect(state.cloudStoreId).toBe('store-1')
   })
 
-  it('stores the pairing certificate when approved', async () => {
+  it('stores the pairing certificate when approved [spec: licensing-admin/store-cert]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const instanceId = await createInstanceRepo(db).getOrCreateInstanceId()
@@ -222,7 +222,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     expect(JSON.parse(confirmInit.body as string)).toEqual({ status: 'confirmed' })
   })
 
-  it('rejects approved responses with an invalid certificate', async () => {
+  it('rejects approved responses with an invalid certificate [spec: licensing-admin/reject-invalid-cert]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -241,7 +241,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     expect(state.refreshToken).toBeNull()
   })
 
-  it('rejects approved responses when certificate is missing', async () => {
+  it('rejects approved responses when certificate is missing [spec: licensing-admin/reject-missing-cert]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -285,7 +285,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     expect(state.cachedCert).toBeNull()
   })
 
-  it('reports an untrusted signing key and rolls back the orphaned cloud binding', async () => {
+  it('reports an untrusted signing key and rolls back the orphaned cloud binding [spec: licensing-admin/untrusted-key-rollback]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const instanceId = await createInstanceRepo(db).getOrCreateInstanceId()
@@ -336,7 +336,7 @@ describe('POST /api/licensing/refresh', () => {
     for (const key of originalKeys.splice(0)) PUBLIC_KEYS.push(key)
   })
 
-  it('returns success when binding exists and cloud responds OK', async () => {
+  it('returns success when binding exists and cloud responds OK [spec: licensing-admin/refresh]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -358,7 +358,7 @@ describe('POST /api/licensing/refresh', () => {
     expect(body.success).toBe(true)
   })
 
-  it('returns success:true with null last_refresh_at when no binding exists', async () => {
+  it('returns success:true with null last_refresh_at when no binding exists [spec: licensing-admin/refresh-unbound]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -381,7 +381,7 @@ describe('DELETE /api/licensing/binding', () => {
     vi.unstubAllGlobals()
   })
 
-  it('unbinds from Cloud, deletes binding row, and returns deleted: true', async () => {
+  it('unbinds from Cloud, deletes binding row, and returns deleted: true [spec: licensing-admin/unbind]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -403,7 +403,7 @@ describe('DELETE /api/licensing/binding', () => {
     expect(state.refreshToken).toBeNull()
   })
 
-  it('clears the local binding when Cloud unbind fails', async () => {
+  it('clears the local binding when Cloud unbind fails [spec: licensing-admin/unbind-cloud-fail]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -421,7 +421,7 @@ describe('DELETE /api/licensing/binding', () => {
     expect(state.refreshToken).toBeNull()
   })
 
-  it('returns deleted: true even when no binding exists', async () => {
+  it('returns deleted: true even when no binding exists [spec: licensing-admin/unbind-idempotent]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 

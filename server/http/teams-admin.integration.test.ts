@@ -51,7 +51,7 @@ async function userId(db: TestDb, email: string): Promise<string> {
 }
 
 describe('Admin Teams API', () => {
-  it('requires admin', async () => {
+  it('requires admin [spec: teams-admin/admin-only]', async () => {
     const { app } = await createTestApp()
     const noAuth = await app.request('/api/admin/teams')
     expect(noAuth.status).toBe(401)
@@ -69,7 +69,7 @@ describe('Admin Teams API', () => {
     expect(forbidden.status).toBe(403)
   })
 
-  it('lists only team orgs with usage, members, and owner, excluding personal spaces', async () => {
+  it('lists only team orgs with usage, members, and owner, excluding personal spaces [spec: teams-admin/list]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const adminId = await userId(db, 'admin@example.com')
@@ -95,7 +95,7 @@ describe('Admin Teams API', () => {
     expect(beta.ownerName).toBeNull()
   })
 
-  it('returns a single team detail', async () => {
+  it('returns a single team detail [spec: teams-admin/detail]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedTeam(db, { id: 'team-x', name: 'Detail', quota: 10485760 })
@@ -108,7 +108,7 @@ describe('Admin Teams API', () => {
     expect(body.quotaTotal).toBe(10485760)
   })
 
-  it('returns 404 for a missing or personal org', async () => {
+  it('returns 404 for a missing or personal org [spec: teams-admin/detail-not-found]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -124,7 +124,7 @@ describe('Admin Teams API', () => {
 })
 
 describe('Admin Team Entitlements API', () => {
-  it('grants, lists, and revokes a storage entitlement for a team', async () => {
+  it('grants, lists, and revokes a storage entitlement for a team [spec: teams-admin/entitlement-lifecycle]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedTeam(db, { id: 'team-q1', name: 'Quota Team' })
@@ -160,7 +160,7 @@ describe('Admin Team Entitlements API', () => {
     expect(afterBody.items[0].status).toBe('revoked')
   })
 
-  it('updates an admin grant bytes', async () => {
+  it('updates an admin grant bytes [spec: teams-admin/update-entitlement]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedTeam(db, { id: 'team-q2', name: 'Quota Team 2' })
@@ -182,7 +182,7 @@ describe('Admin Team Entitlements API', () => {
     expect(updated.entitlement.bytes).toBe(4096)
   })
 
-  it('returns 404 for an unknown org and 403 for non-admin callers', async () => {
+  it('returns 404 for an unknown org and 403 for non-admin callers [spec: teams-admin/entitlement-guards]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const missing = await app.request('/api/admin/teams/no-such-org/entitlements', { headers })
