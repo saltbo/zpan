@@ -1,7 +1,8 @@
+import { createStorageRepo } from '../adapters/repos/storage'
 import { mimeToExt } from '../lib/mime-utils'
 import type { Platform } from '../platform/interface'
+import type { StorageRecord as S3Storage } from '../usecases/ports'
 import { S3Service } from './s3'
-import { type Storage as S3Storage, selectStorage } from './storage'
 
 const s3 = new S3Service()
 
@@ -47,7 +48,7 @@ async function getBackend(platform: Platform): Promise<Backend> {
     return { kind: 'r2', bucket: r2, publicUrlBase: publicUrl.replace(/\/$/, '') }
   }
   try {
-    const storage = await selectStorage(platform.db, 'public')
+    const storage = await createStorageRepo(platform.db).select('public')
     return { kind: 's3', storage }
   } catch {
     return { kind: 'none' }

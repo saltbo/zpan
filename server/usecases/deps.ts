@@ -2,8 +2,9 @@
 // argument and reach the outside world only through it; http routes read it from
 // context (`c.get('deps')`). It is assembled in composition.ts.
 
-import type { ActivityRepo } from './ports'
+import type { ActivityRepo, StorageRepo } from './ports'
 
 export interface Deps {
   activity: ActivityRepo
+  storages: StorageRepo
 }

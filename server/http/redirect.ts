@@ -10,7 +10,6 @@ import {
   incrementDownloadsAtomic,
   resolveShareByToken,
 } from '../services/share'
-import { getStorage } from '../services/storage'
 import { PRESIGN_TTL_SECS, s3 } from './share-utils'
 import { consumeAndReportDownloadTraffic, reportTrafficForDownload } from './traffic-metering-utils'
 
@@ -48,7 +47,7 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
 
   if (!(await hasDownloadsAvailable(db, share.id))) return c.json({ error: 'Download limit exceeded' }, 410)
 
-  const storage = await getStorage(db, matter.storageId)
+  const storage = await c.get('deps').storages.get(matter.storageId)
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
   const { ok } = await incrementDownloadsAtomic(db, share.id)
@@ -94,7 +93,7 @@ async function handleImageHosting(c: Context<Env>, db: Database, token: string):
     return c.json({ error: 'forbidden referer' }, 403)
   }
 
-  const storage = await getStorage(db, image.storageId)
+  const storage = await c.get('deps').storages.get(image.storageId)
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
   const trafficAllowed = await consumeTrafficIfQuotaAllows(db, image.orgId, image.size)

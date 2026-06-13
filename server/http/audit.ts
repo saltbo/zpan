@@ -9,7 +9,6 @@ export const adminAudit = new Hono<Env>()
   .use(requireAdmin)
   .use(requireFeature('audit_log'))
   .get('/', zValidator('query', listAdminAuditQuerySchema), async (c) => {
-    const db = c.get('platform').db
     const query = c.req.valid('query')
     const page = Math.max(1, Number(query.page ?? '1'))
     const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? '20')))

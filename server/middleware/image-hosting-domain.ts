@@ -6,7 +6,6 @@ import { reportTrafficForDownload } from '../http/traffic-metering-utils'
 import type { Env } from '../middleware/platform'
 import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import { getImageByOrgPath, incrementAccessCount, resolveCustomDomain } from '../services/image-hosting'
-import { getStorage } from '../services/storage'
 
 function stripPort(host: string): string {
   const lastColon = host.lastIndexOf(':')
@@ -61,7 +60,7 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
     return c.json({ error: 'forbidden referer' }, 403)
   }
 
-  const storage = await getStorage(db, image.storageId)
+  const storage = await c.get('deps').storages.get(image.storageId)
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
   const trafficAllowed = await consumeTrafficIfQuotaAllows(db, image.orgId, image.size)

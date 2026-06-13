@@ -12,7 +12,6 @@ import { refundTraffic } from '../services/effective-quota'
 import { copyMatter, createMatter, trashMatter, updateMatter } from '../services/matter'
 import { buildObjectKey, fileExt } from '../services/path-template'
 import { S3Service } from '../services/s3'
-import { getStorage, type Storage as S3Storage, selectStorage } from '../services/storage'
 import { reconcileStorageUsage, withStorageUsageReservation } from '../services/storage-usage'
 import {
   ensureFolder,
@@ -52,6 +51,7 @@ import {
   workspaceEntry,
   xmlResponse,
 } from '../services/webdav-xml'
+import type { StorageRecord as S3Storage } from '../usecases/ports'
 import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
 const s3 = new S3Service()
@@ -757,7 +757,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     const precondition = preconditionResponse(c, matter)
     if (precondition) return precondition
 
-    const storage = await getStorage(db, matter.storageId)
+    const storage = await c.get('deps').storages.get(matter.storageId)
     if (!storage) return c.text('Storage not found', 404)
     const headers = fileHeaders(matter)
     if (isMountedWebDavRead(c)) {
@@ -858,7 +858,9 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (contentLength instanceof Response) return contentLength
     const body = contentLength === 0 ? new Uint8Array() : c.req.raw.body
     if (!body) return c.text('Request body required', 400)
-    const storage = target.matter ? await getStorage(db, target.matter.storageId) : await selectStorage(db, 'private')
+    const storage = target.matter
+      ? await c.get('deps').storages.get(target.matter.storageId)
+      : await c.get('deps').storages.select('private')
     if (!storage) return c.text('Storage not found', 404)
     const objectKey =
       target.matter?.object && contentLength !== null
@@ -975,7 +977,7 @@ async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
     const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
     await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
-    const storage = await selectStorage(db, 'private')
+    const storage = await c.get('deps').storages.select('private')
     await createMatter(db, {
       orgId: workspace.id,
       userId: auth.userId,
@@ -1100,7 +1102,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
 
     let newObject = ''
     try {
-      const storage = sourceMatter.object ? await getStorage(db, sourceMatter.storageId) : null
+      const storage = sourceMatter.object ? await c.get('deps').storages.get(sourceMatter.storageId) : null
       if (sourceMatter.object && !storage) return c.text('Storage not found', 404)
       const bytes = sourceMatter.size ?? 0
 
@@ -1182,7 +1184,7 @@ async function copyCollection(
           item.parent === sourceRoot ? targetRoot : `${targetRoot}${item.parent.slice(sourceRoot.length)}`
         let objectKey = ''
         if (item.dirtype === DirType.FILE && item.object) {
-          const storage = await getStorage(db, item.storageId)
+          const storage = await c.get('deps').storages.get(item.storageId)
           if (!storage) return c.text('Storage not found', 404)
           objectKey = buildObjectKey({ uid: auth.userId, orgId: targetWorkspace.id, rawExt: fileExt(item.name) })
           await s3.copyObject(storage, item.object, storage, objectKey)
@@ -1273,7 +1275,7 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     const created = !target.matter && Boolean(target.name)
     if (created) {
       await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
-      const storage = await selectStorage(db, 'private')
+      const storage = await c.get('deps').storages.select('private')
       const objectKey = buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
       await s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
       target.matter = await createMatter(db, {

@@ -25,8 +25,8 @@ import {
   validatePath,
 } from '../services/image-hosting'
 import { S3Service } from '../services/s3'
-import { getStorage, type Storage as S3Storage, selectStorage } from '../services/storage'
 import { withStorageUsageReservation } from '../services/storage-usage'
+import type { StorageRecord as S3Storage } from '../usecases/ports'
 import { PRESIGN_TTL_SECS } from './share-utils'
 
 const s3 = new S3Service()
@@ -78,7 +78,7 @@ const app = new Hono<Env>()
 
     let storage: S3Storage
     try {
-      storage = await selectStorage(db, 'private')
+      storage = await c.get('deps').storages.select('private')
     } catch {
       return c.json({ error: 'No storage configured' }, 503)
     }
@@ -243,7 +243,7 @@ const app = new Hono<Env>()
 
       let storage: S3Storage
       try {
-        storage = await selectStorage(db, 'private')
+        storage = await c.get('deps').storages.select('private')
       } catch {
         return c.json({ error: 'No storage configured' }, 503)
       }
@@ -332,7 +332,7 @@ const app = new Hono<Env>()
     const existing = await getImageHosting(db, c.req.param('id'), orgId)
     if (!existing) return c.json({ error: 'Not found' }, 404)
 
-    const storage = await getStorage(db, existing.storageId)
+    const storage = await c.get('deps').storages.get(existing.storageId)
     if (storage) {
       try {
         await s3.deleteObject(storage, existing.storageKey)

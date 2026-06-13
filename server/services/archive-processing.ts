@@ -2,14 +2,15 @@ import type { CreateBackgroundJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
 import { and, eq } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
+import { createStorageRepo } from '../adapters/repos/storage'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
+import type { StorageRecord as S3StorageType } from '../usecases/ports'
 import { createBackgroundJob, updateBackgroundJob } from './background-jobs'
 import { createMatter, getMatter, purgeMatters } from './matter'
 import { createNotification } from './notification'
 import { buildObjectKey } from './path-template'
 import { S3Service } from './s3'
-import { getStorage, type Storage as S3StorageType, selectStorage } from './storage'
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 import { collectCompressionPlan, createZipArchiveStream } from './zip-compress'
 import { streamValidatedZip, validateZipDirectory } from './zip-extract'
@@ -98,7 +99,7 @@ async function runCompressionJob(
     })
   }
 
-  const targetStorage = await selectStorage(db, 'private')
+  const targetStorage = await createStorageRepo(db).select('private')
   const key = buildObjectKey({ uid: userId, orgId, rawExt: '.zip' })
   let objectWritten = false
   let outputBytes = 0
@@ -170,7 +171,7 @@ async function runExtractionJob(
   const progress = createArchiveProgressReporter(db, orgId, jobId, sourceHead.size, plan.fileCount)
   await progress.report(true)
   const targetFolder = request.targetFolder ?? zipMatter.parent
-  const targetStorage = await selectStorage(db, 'private')
+  const targetStorage = await createStorageRepo(db).select('private')
   const writtenKeys: string[] = []
   const createdMatterIds: string[] = []
   const folderParents = new Map<string, string>()
@@ -334,7 +335,7 @@ function trackReadableStream(
 }
 
 async function requireStorage(db: Database, storageId: string): Promise<S3StorageType> {
-  const storage = await getStorage(db, storageId)
+  const storage = await createStorageRepo(db).get(storageId)
   if (!storage) throw new Error('Storage not found')
   return storage
 }

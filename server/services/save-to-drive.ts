@@ -1,15 +1,16 @@
 import { and, eq, like, or } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
 import { createActivityRepo } from '../adapters/repos/activity'
+import { createStorageRepo } from '../adapters/repos/storage'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
+import type { StorageRecord as S3StorageType } from '../usecases/ports'
 import { hasQuotaForBytes } from './effective-quota'
 import type { Matter } from './matter'
 import { createMatter } from './matter'
 import { buildObjectKey, fileExt } from './path-template'
 import { S3Service } from './s3'
 import type { Share, ShareResolution } from './share'
-import { getStorage, type Storage as S3StorageType, selectStorage } from './storage'
 import { withStorageUsageReservation } from './storage-usage'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -233,10 +234,10 @@ async function saveFolderRecursive(
 export async function copyMatterToOrg(db: Database, input: CopyMatterToOrgInput): Promise<SaveShareResult> {
   const { sourceMatter, currentUserId, targetOrgId, targetParent, activity, teamQuotaEnabled = true } = input
 
-  const sourceStorage = await getStorage(db, sourceMatter.storageId)
+  const sourceStorage = await createStorageRepo(db).get(sourceMatter.storageId)
   if (!sourceStorage) throw new Error('Source storage not found')
 
-  const targetStorage = await selectStorage(db, 'private')
+  const targetStorage = await createStorageRepo(db).select('private')
 
   const src = sourceStorage
   const dst = targetStorage

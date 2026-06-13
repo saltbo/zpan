@@ -5,14 +5,6 @@ import { createStorageSchema, updateStorageSchema } from '../../shared/schemas'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import {
-  countStorages,
-  createStorage,
-  deleteStorage,
-  getStorage,
-  listStorages,
-  updateStorage,
-} from '../services/storage'
 
 function enablesEgressCreditBilling(input: { egressCreditBillingEnabled?: boolean }) {
   return input.egressCreditBillingEnabled === true
@@ -21,15 +13,14 @@ function enablesEgressCreditBilling(input: { egressCreditBillingEnabled?: boolea
 const app = new Hono<Env>()
   .use(requireAdmin)
   .get('/', async (c) => {
-    const db = c.get('platform').db
-    const result = await listStorages(db)
+    const result = await c.get('deps').storages.list()
     return c.json(result)
   })
   .post('/', zValidator('json', createStorageSchema), async (c) => {
     const db = c.get('platform').db
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
-    const [total, state] = await Promise.all([countStorages(db), loadBindingState(db)])
+    const [total, state] = await Promise.all([c.get('deps').storages.count(), loadBindingState(db)])
     if (!hasFeature('storages_unlimited', state) && total >= FREE_STORAGE_LIMIT) {
       return c.json(
         {
@@ -45,7 +36,7 @@ const app = new Hono<Env>()
     if (enablesEgressCreditBilling(input) && !hasFeature('quota_store', state)) {
       return c.json({ error: 'feature_not_available', feature: 'quota_store' }, 402)
     }
-    const storage = await createStorage(db, input)
+    const storage = await c.get('deps').storages.create(input)
     await c.get('deps').activity.record({
       orgId,
       userId,
@@ -58,9 +49,8 @@ const app = new Hono<Env>()
     return c.json(storage, 201)
   })
   .get('/:id', async (c) => {
-    const db = c.get('platform').db
     const id = c.req.param('id')
-    const storage = await getStorage(db, id)
+    const storage = await c.get('deps').storages.get(id)
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
     return c.json(storage)
   })
@@ -73,7 +63,7 @@ const app = new Hono<Env>()
     if (enablesEgressCreditBilling(input) && !hasFeature('quota_store', await loadBindingState(db))) {
       return c.json({ error: 'feature_not_available', feature: 'quota_store' }, 402)
     }
-    const storage = await updateStorage(db, id, input)
+    const storage = await c.get('deps').storages.update(id, input)
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
     await c.get('deps').activity.record({
       orgId,
@@ -87,12 +77,11 @@ const app = new Hono<Env>()
     return c.json(storage)
   })
   .delete('/:id', async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const id = c.req.param('id')
-    const existing = await getStorage(db, id)
-    const result = await deleteStorage(db, id)
+    const existing = await c.get('deps').storages.get(id)
+    const result = await c.get('deps').storages.delete(id)
     if (result === 'not_found') return c.json({ error: 'Storage not found' }, 404)
     if (result === 'in_use') return c.json({ error: 'Storage is referenced by existing files' }, 409)
     await c.get('deps').activity.record({

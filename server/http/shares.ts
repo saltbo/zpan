@@ -32,7 +32,6 @@ import {
   verifyPassword,
 } from '../services/share'
 import { dispatchShareCreated } from '../services/share-notification'
-import { getStorage } from '../services/storage'
 import {
   buildBreadcrumb,
   checkAccessGate,
@@ -268,7 +267,7 @@ export const publicShares = new Hono<Env>()
 
     if (!(await hasDownloadsAvailable(db, share.id))) return c.json({ error: 'Download limit exceeded' }, 410)
 
-    const storage = await getStorage(db, targetMatter.storageId)
+    const storage = await c.get('deps').storages.get(targetMatter.storageId)
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
     const { ok } = await incrementDownloadsAtomic(db, share.id)

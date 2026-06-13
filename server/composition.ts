@@ -5,6 +5,7 @@
 // function parameters, never stored here.
 
 import { createActivityRepo } from './adapters/repos/activity'
+import { createStorageRepo } from './adapters/repos/storage'
 import type { Platform } from './platform/interface'
 import type { Deps } from './usecases/deps'
 
@@ -12,5 +13,6 @@ export function createDeps(platform: Platform): Deps {
   const { db } = platform
   return {
     activity: createActivityRepo(db),
+    storages: createStorageRepo(db),
   }
 }

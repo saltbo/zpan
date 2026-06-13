@@ -1,7 +1,7 @@
 import { FREE_STORAGE_LIMIT } from '@shared/constants'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { selectStorage } from '../services/storage.js'
+import { createStorageRepo } from '../adapters/repos/storage.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 
 const validStorage = {
@@ -250,7 +250,7 @@ describe('selectStorage service', () => {
     const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 0, used: 0 })
 
-    const storage = await selectStorage(db, 'private')
+    const storage = await createStorageRepo(db).select('private')
     expect(storage.id).toBe('s1')
   })
 
@@ -258,7 +258,7 @@ describe('selectStorage service', () => {
     const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 100, used: 50 })
 
-    const storage = await selectStorage(db, 'private')
+    const storage = await createStorageRepo(db).select('private')
     expect(storage.id).toBe('s1')
   })
 
@@ -267,7 +267,7 @@ describe('selectStorage service', () => {
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 100, used: 100, createdAt: 1 })
     await insertStorage(db, { id: 's2', mode: 'private', capacity: 200, used: 50, createdAt: 2 })
 
-    const storage = await selectStorage(db, 'private')
+    const storage = await createStorageRepo(db).select('private')
     expect(storage.id).toBe('s2')
   })
 
@@ -276,7 +276,7 @@ describe('selectStorage service', () => {
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 100, used: 110, createdAt: 1 })
     await insertStorage(db, { id: 's2', mode: 'private', capacity: 0, used: 0, createdAt: 2 })
 
-    const storage = await selectStorage(db, 'private')
+    const storage = await createStorageRepo(db).select('private')
     expect(storage.id).toBe('s2')
   })
 
@@ -285,7 +285,7 @@ describe('selectStorage service', () => {
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 0, used: 0, createdAt: 1 })
     await insertStorage(db, { id: 's2', mode: 'private', capacity: 0, used: 0, createdAt: 2 })
 
-    const storage = await selectStorage(db, 'private')
+    const storage = await createStorageRepo(db).select('private')
     expect(storage.id).toBe('s1')
   })
 
@@ -294,7 +294,7 @@ describe('selectStorage service', () => {
     await insertStorage(db, { id: 's1', mode: 'private', status: 'disabled', capacity: 0, createdAt: 1 })
     await insertStorage(db, { id: 's2', mode: 'private', status: 'active', capacity: 0, createdAt: 2 })
 
-    const storage = await selectStorage(db, 'private')
+    const storage = await createStorageRepo(db).select('private')
     expect(storage.id).toBe('s2')
   })
 
@@ -302,13 +302,13 @@ describe('selectStorage service', () => {
     const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'public', capacity: 0 })
 
-    await expect(selectStorage(db, 'private')).rejects.toThrow('No available storage')
+    await expect(createStorageRepo(db).select('private')).rejects.toThrow('No available storage')
   })
 
   it('throws when no active storage exists for the requested mode', async () => {
     const { db } = await createTestApp()
 
-    await expect(selectStorage(db, 'private')).rejects.toThrow('No available storage')
+    await expect(createStorageRepo(db).select('private')).rejects.toThrow('No available storage')
   })
 
   it('throws when all storages of the mode are at full capacity', async () => {
@@ -316,14 +316,14 @@ describe('selectStorage service', () => {
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 50, used: 50 })
     await insertStorage(db, { id: 's2', mode: 'private', capacity: 100, used: 100 })
 
-    await expect(selectStorage(db, 'private')).rejects.toThrow('No available storage')
+    await expect(createStorageRepo(db).select('private')).rejects.toThrow('No available storage')
   })
 
   it('returns a public storage when mode is public', async () => {
     const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'public', capacity: 0 })
 
-    const storage = await selectStorage(db, 'public')
+    const storage = await createStorageRepo(db).select('public')
     expect(storage.id).toBe('s1')
   })
 
@@ -332,7 +332,7 @@ describe('selectStorage service', () => {
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 0, createdAt: 1 })
     await insertStorage(db, { id: 's2', mode: 'public', capacity: 0, createdAt: 2 })
 
-    const storage = await selectStorage(db, 'private')
+    const storage = await createStorageRepo(db).select('private')
     expect(storage.id).toBe('s1')
   })
 })

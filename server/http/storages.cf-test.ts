@@ -6,7 +6,6 @@ import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { user } from '../db/auth-schema'
 import { createCloudflarePlatform } from '../platform/cloudflare'
-import { createStorage as insertStorage } from '../services/storage'
 
 async function buildApp() {
   const platform = createCloudflarePlatform(env)

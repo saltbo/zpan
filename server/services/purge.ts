@@ -1,9 +1,10 @@
 import { DirType } from '../../shared/constants'
+import { createStorageRepo } from '../adapters/repos/storage'
 import type { Database } from '../platform/interface'
+import type { StorageRecord as S3Storage } from '../usecases/ports'
 import { type Matter, purgeMatters } from './matter'
 import { S3Service } from './s3'
 import { cascadeDeleteByMatter } from './share'
-import { getStorage, type Storage as S3Storage } from './storage'
 import { reconcileStorageUsage } from './storage-usage'
 
 const s3 = new S3Service()
@@ -22,7 +23,7 @@ export async function purgeRecursively(db: Database, orgId: string, matters: Mat
     if (!m.object) continue
     let entry = keysByStorage.get(m.storageId)
     if (!entry) {
-      const storage = await getStorage(db, m.storageId)
+      const storage = await createStorageRepo(db).get(m.storageId)
       entry = { storage, keys: [] }
       keysByStorage.set(m.storageId, entry)
     }
