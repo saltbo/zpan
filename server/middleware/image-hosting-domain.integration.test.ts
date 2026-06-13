@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { currentTrafficPeriod } from '../services/effective-quota'
-import { S3Service } from '../services/s3'
+import { S3Service } from '../adapters/gateways/s3'
+import { currentTrafficPeriod } from '../domain/quota'
 import { authedHeaders, createTestApp } from '../test/setup'
 
 const MOCK_INLINE_URL = 'https://presigned-inline.example.com/image.png'

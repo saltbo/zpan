@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
 import * as authSchema from '../db/auth-schema'
 import * as schema from '../db/schema'
-import { registerEnvPublicKeys } from '../licensing/public-keys'
+import { registerEnvPublicKeys } from '../domain/license-keys'
 import type { Platform } from './interface'
 
 interface LibsqlEnv {

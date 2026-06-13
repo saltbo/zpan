@@ -9,8 +9,8 @@ import {
   presignObjectUploadPartsResponseSchema,
   presignObjectUploadPartsSchema,
 } from '@shared/schemas'
-import downloadTasks from '../routes/download-tasks'
-import downloaders, { downloaderSelfRoute } from '../routes/downloaders'
+import downloadTasks from '../http/download-tasks'
+import downloaders, { downloaderSelfRoute } from '../http/downloaders'
 
 const errorSchema = z.object({ error: z.string() }).openapi('ErrorResponse')
 

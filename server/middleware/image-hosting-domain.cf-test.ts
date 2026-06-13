@@ -1,10 +1,10 @@
 import { env } from 'cloudflare:workers'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { createCloudflarePlatform } from '../platform/cloudflare'
-import { S3Service } from '../services/s3'
 
 const STORAGE_ID = 'st-cf-domain-test'
 const MOCK_INLINE_URL = 'https://presigned-inline-cf-domain.example.com/image.png'

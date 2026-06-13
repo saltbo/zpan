@@ -1,6 +1,7 @@
 import { apiKey } from '@better-auth/api-key'
 import { APIError, type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import type { CaptchaOptions } from 'better-auth/plugins'
 import { admin, bearer, captcha, deviceAuthorization, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
@@ -20,23 +21,27 @@ import {
   type OAuthProviderConfig,
   parseProviderConfig,
 } from '../shared/oauth-providers'
+import { createEmailGateway } from './adapters/gateways/email'
+import { createActivityRepo } from './adapters/repos/activity'
+import { createInviteRepo } from './adapters/repos/invite'
+import { createLicenseBindingRepo } from './adapters/repos/license-binding'
+import { createMemberCountRepo } from './adapters/repos/member-count'
+import { createNotificationRepo } from './adapters/repos/notification'
+import { createOrgRepo } from './adapters/repos/org'
+import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
+import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
+import { executeWriteTransaction } from './db/transaction'
+import { CAPTCHA_AUTH_ENDPOINTS, type CaptchaConfig } from './domain/captcha'
+import { currentTrafficPeriod } from './domain/quota'
 import { isLocalNetworkOrigin } from './lib/local-origin'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import { createDbProxy, createPlatformProxy } from './platform/context'
 import type { Database, Platform } from './platform/interface'
-import { recordActivity } from './services/activity'
-import { CAPTCHA_AUTH_ENDPOINTS, loadCaptchaConfig, toBetterAuthCaptchaOptions } from './services/captcha'
-import { executeWriteTransaction } from './services/db-transaction'
-import { currentTrafficPeriod } from './services/effective-quota'
-import { isEmailConfigured, sendEmail } from './services/email'
-import { redeemInviteCode, validateInviteCode } from './services/invite'
-import { createNotification } from './services/notification'
-import { findPersonalOrg } from './services/org'
-import { getEffectiveSignupMode } from './services/signup-mode-guard'
-import { acceptSiteInvitation, validateSiteInvitation } from './services/site-invitations'
-import { checkTeamLimit } from './services/team-count-guard'
+import { loadCaptchaConfig } from './usecases/captcha'
+import { getEffectiveSignupMode } from './usecases/signup-mode'
+import { checkTeamLimit } from './usecases/team-count'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
 // which blows past Cloudflare Workers' CPU budget and triggers error 1102.
@@ -83,6 +88,27 @@ async function loadProviderConfigs(db: Database): Promise<ProviderConfigs> {
   return configs
 }
 
+// Maps stored captcha config to the better-auth captcha plugin options. Lives
+// here because better-auth's CaptchaOptions type is delivery-framework-specific
+// and may not leak into the framework-free usecases/ layer.
+export function toBetterAuthCaptchaOptions(config: CaptchaConfig): CaptchaOptions {
+  const base = {
+    provider: config.provider,
+    secretKey: config.secretKey,
+    endpoints: [...CAPTCHA_AUTH_ENDPOINTS],
+  }
+
+  if (config.provider === 'google-recaptcha') {
+    return config.minScore === undefined ? base : { ...base, minScore: config.minScore }
+  }
+
+  if (config.provider === 'hcaptcha' || config.provider === 'captchafox') {
+    return { ...base, siteKey: config.siteKey }
+  }
+
+  return base
+}
+
 function dynamicCaptcha(db: Database): BetterAuthPlugin {
   return {
     id: 'dynamic-captcha',
@@ -91,7 +117,7 @@ function dynamicCaptcha(db: Database): BetterAuthPlugin {
       // for everything else (notably get-session, the hottest auth route).
       const path = new URL(request.url).pathname
       if (!CAPTCHA_AUTH_ENDPOINTS.some((endpoint) => path.endsWith(endpoint))) return
-      const config = await loadCaptchaConfig(db)
+      const config = await loadCaptchaConfig({ systemOptions: createSystemOptionsRepo(db) })
       if (!config) return
       const plugin = captcha(toBetterAuthCaptchaOptions(config))
       return plugin.onRequest?.(request, ctx)
@@ -161,7 +187,12 @@ export async function createAuth(
   const dbProxy = platformProxy ? platformProxy.db : createDbProxy(rawDb)
 
   const db = dbProxy
-  const source = platformProxy || dbProxy
+  // The email gateway needs a Platform for the Cloudflare EMAIL binding. On the
+  // bare-Database path (tests, Node fallbacks) there is no platform, so wrap the
+  // db proxy in a binding-free Platform — matching the previous behaviour where
+  // a Database source had no CF binding available.
+  const authPlatform: Platform = platformProxy ?? { db: dbProxy, getEnv: () => undefined, getBinding: () => undefined }
+  const email = createEmailGateway(createSystemOptionsRepo(db))
   const providerConfigs = await loadProviderConfigs(rawDb)
   const auth = betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
@@ -189,8 +220,8 @@ export async function createAuth(
         verify: authVerifyPassword,
       },
       sendResetPassword: async ({ user, url }) => {
-        if (!(await isEmailConfigured(source))) return
-        await sendEmail(source, {
+        if (!(await email.isConfigured(authPlatform))) return
+        await email.send(authPlatform, {
           to: user.email,
           subject: 'Reset your password - ZPan',
           html: buildResetPasswordEmailHtml(url),
@@ -199,8 +230,8 @@ export async function createAuth(
     },
     emailVerification: {
       sendVerificationEmail: async ({ user, url }) => {
-        if (!(await isEmailConfigured(source))) return
-        await sendEmail(source, {
+        if (!(await email.isConfigured(authPlatform))) return
+        await email.send(authPlatform, {
           to: user.email,
           subject: 'Verify your email - ZPan',
           html: buildVerificationEmailHtml(url),
@@ -228,8 +259,8 @@ export async function createAuth(
           viewer: memberAc,
         },
         sendInvitationEmail: async (data) => {
-          if (!(await isEmailConfigured(source))) return
-          await sendEmail(source, {
+          if (!(await email.isConfigured(authPlatform))) return
+          await email.send(authPlatform, {
             to: data.email,
             subject: `You've been invited to join ${data.organization.name} - ZPan`,
             html: buildInvitationEmailHtml(data),
@@ -237,7 +268,14 @@ export async function createAuth(
         },
         organizationHooks: {
           beforeCreateOrganization: async ({ user }) => {
-            const { allowed, count: current_count, limit } = await checkTeamLimit(db, user.id)
+            const {
+              allowed,
+              count: current_count,
+              limit,
+            } = await checkTeamLimit(
+              { memberCount: createMemberCountRepo(db), licenseBinding: createLicenseBindingRepo(db) },
+              user.id,
+            )
             if (!allowed) {
               throw new APIError('PAYMENT_REQUIRED', {
                 message:
@@ -254,7 +292,7 @@ export async function createAuth(
             await createOrgQuota(db, organization.id, new Date(), isTeam)
           },
           afterAcceptInvitation: async ({ member, user, organization }) => {
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId: organization.id,
               userId: user.id,
               action: 'team_member_join',
@@ -263,7 +301,7 @@ export async function createAuth(
               targetName: organization.name,
               metadata: { role: member.role },
             })
-            await createNotification(db, {
+            await createNotificationRepo(db).create({
               userId: user.id,
               type: 'team_join',
               title: `You joined ${organization.name}`,
@@ -276,7 +314,7 @@ export async function createAuth(
           afterRemoveMember: async ({ member, organization }) => {
             // Better Auth does not expose the actor (initiator) in this hook;
             // member.userId is the removed user — used here as the attributed userId.
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId: organization.id,
               userId: member.userId,
               action: 'team_member_remove',
@@ -289,7 +327,7 @@ export async function createAuth(
           afterUpdateMemberRole: async ({ member, previousRole, organization }) => {
             // Better Auth does not expose the actor in this hook;
             // member.userId is the user whose role changed.
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId: organization.id,
               userId: member.userId,
               action: 'team_member_role_update',
@@ -301,7 +339,7 @@ export async function createAuth(
           },
           afterUpdateOrganization: async ({ organization, user }) => {
             if (!organization?.id || !user?.id) return
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId: organization.id,
               userId: user.id,
               action: 'team_settings_update',
@@ -311,7 +349,7 @@ export async function createAuth(
             })
           },
           afterDeleteOrganization: async ({ organization, user }) => {
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId: organization.id,
               userId: user.id,
               action: 'team_delete',
@@ -386,14 +424,17 @@ export async function createAuth(
 
             // Registration gate: skip for the very first user so bootstrap works
             if (!firstUser) {
-              const mode = await getEffectiveSignupMode(db)
+              const mode = await getEffectiveSignupMode({
+                systemOptions: createSystemOptionsRepo(db),
+                licenseBinding: createLicenseBindingRepo(db),
+              })
               const email = String(user.email ?? '')
               const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
               if (mode === SignupMode.CLOSED) {
                 if (!siteInvitationToken) {
                   throw new Error('An invitation is required to register')
                 }
-                const validation = await validateSiteInvitation(db, siteInvitationToken, email)
+                const validation = await createSiteInvitationRepo(db).validateSiteInvitation(siteInvitationToken, email)
                 if (!validation.valid) {
                   throw new Error(validation.error ?? 'Invalid invitation')
                 }
@@ -403,7 +444,7 @@ export async function createAuth(
                 if (!inviteCode) {
                   throw new Error('An invite code is required to register')
                 }
-                const validation = await validateInviteCode(db, inviteCode)
+                const validation = await createInviteRepo(db).validate(inviteCode)
                 if (!validation.valid) {
                   throw new Error(validation.error ?? 'Invalid invite code')
                 }
@@ -429,17 +470,24 @@ export async function createAuth(
           },
           after: async (user, context) => {
             // Redeem invite code after user is created (user.id is now available)
-            const mode = await getEffectiveSignupMode(db)
+            const mode = await getEffectiveSignupMode({
+              systemOptions: createSystemOptionsRepo(db),
+              licenseBinding: createLicenseBindingRepo(db),
+            })
             if (mode === SignupMode.INVITE_ONLY) {
               const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
               if (inviteCode) {
-                await redeemInviteCode(db, inviteCode, user.id)
+                await createInviteRepo(db).redeem(inviteCode, user.id)
               }
             }
 
             const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
             if (siteInvitationToken) {
-              const result = await acceptSiteInvitation(db, siteInvitationToken, user.email, user.id)
+              const result = await createSiteInvitationRepo(db).acceptSiteInvitation(
+                siteInvitationToken,
+                user.email,
+                user.id,
+              )
               if (result !== 'ok' && result !== 'accepted') {
                 throw new Error(`Failed to redeem site invitation: ${result}`)
               }
@@ -450,7 +498,7 @@ export async function createAuth(
             // when autoSignIn is enabled the org is actually created by
             // session.create.before (which runs earlier, inside the txn).
             // The idempotent check ensures no duplicate is created.
-            const existing = await findPersonalOrg(db, user.id)
+            const existing = await createOrgRepo(db).findPersonalOrg(user.id)
             if (!existing) {
               await createPersonalOrg(db, user)
             }
@@ -461,7 +509,7 @@ export async function createAuth(
         create: {
           before: async (session) => {
             // Look up existing personal org (returning users)
-            let orgId = await findPersonalOrg(db, session.userId)
+            let orgId = await createOrgRepo(db).findPersonalOrg(session.userId)
 
             // For new sign-ups the org doesn't exist yet — create it now.
             // This runs inside the sign-up transaction, after the user row

@@ -3,6 +3,38 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
+import { createDeps } from './composition'
+import { adminAnnouncements, announcements } from './http/announcements'
+import { adminAudit } from './http/audit'
+import { adminAuthProviders, publicAuthProviders } from './http/auth-providers'
+import backgroundJobs from './http/background-jobs'
+import { brandingAdmin, publicBranding } from './http/branding'
+import { cloudStore, cloudStoreWebhooks } from './http/cloud-store'
+import downloadTasks from './http/download-tasks'
+import downloaders, { downloaderSelfRoute } from './http/downloaders'
+import emailConfig from './http/email-config'
+import { events } from './http/events'
+import ihost from './http/ihost'
+import ihostConfig from './http/ihost-config'
+import internal from './http/internal'
+import { adminInviteCodes, publicInviteCodes } from './http/invite-codes'
+import licensing from './http/licensing'
+import licensingAdmin from './http/licensing-admin'
+import { me } from './http/me'
+import { notifications } from './http/notifications'
+import objects from './http/objects'
+import profile from './http/profile'
+import { adminQuotas, userQuotas } from './http/quotas'
+import redirect from './http/redirect'
+import { authedShares, publicShares } from './http/shares'
+import { adminSiteInvitations, publicSiteInvitations } from './http/site-invitations'
+import storages from './http/storages'
+import system from './http/system'
+import { publicTeams, teams } from './http/teams'
+import { adminTeams } from './http/teams-admin'
+import trash from './http/trash'
+import users from './http/users'
+import webdav from './http/webdav'
 import { formatError } from './lib/errors'
 import { authMiddleware } from './middleware/auth'
 import { imageHostingDomain } from './middleware/image-hosting-domain'
@@ -11,55 +43,28 @@ import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
 import { downloaderOpenAPIDocument } from './openapi/downloader'
 import type { Platform } from './platform/interface'
-import { adminAnnouncements, announcements } from './routes/announcements'
-import { adminAudit } from './routes/audit'
-import { adminAuthProviders, publicAuthProviders } from './routes/auth-providers'
-import backgroundJobs from './routes/background-jobs'
-import { brandingAdmin, publicBranding } from './routes/branding'
-import { cloudStore, cloudStoreWebhooks } from './routes/cloud-store'
-import downloadTasks from './routes/download-tasks'
-import downloaders, { downloaderSelfRoute } from './routes/downloaders'
-import emailConfig from './routes/email-config'
-import { events } from './routes/events'
-import ihost from './routes/ihost'
-import ihostConfig from './routes/ihost-config'
-import internal from './routes/internal'
-import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
-import licensing from './routes/licensing'
-import licensingAdmin from './routes/licensing-admin'
-import { me } from './routes/me'
-import { notifications } from './routes/notifications'
-import objects from './routes/objects'
-import profile from './routes/profile'
-import { adminQuotas, userQuotas } from './routes/quotas'
-import redirect from './routes/redirect'
-import { authedShares, publicShares } from './routes/shares'
-import { adminSiteInvitations, publicSiteInvitations } from './routes/site-invitations'
-import storages from './routes/storages'
-import system from './routes/system'
-import { publicTeams, teams } from './routes/teams'
-import { adminTeams } from './routes/teams-admin'
-import trash from './routes/trash'
-import users from './routes/users'
-import webdav from './routes/webdav'
 import { getDeployPlatform } from './runtime-platform'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
-import { ensureSitePublicOrigin } from './services/site-public-origin'
+import type { Deps } from './usecases/deps'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/instance-telemetry'
+import { ensureSitePublicOrigin } from './usecases/site-public-origin'
 
-export function createApp(platform: Platform, auth: Auth) {
+export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
   const app = new Hono<Env>()
   const corsOrigins = getCorsOrigins(platform)
 
   app.use('/*', platformMiddleware(platform, auth))
   app.use('/*', async (c, next) => {
-    const result = await ensureSitePublicOrigin(platform.db, c.req.url).catch((err) => {
+    c.set('deps', deps)
+    await next()
+  })
+  app.use('/*', async (c, next) => {
+    const result = await ensureSitePublicOrigin(deps, c.req.url).catch((err) => {
       console.error(`site.public_origin.detect.error code=${formatError(err)}`)
       return { origin: null, created: false }
     })
 
     if (result.created && result.origin && shouldReportInitialTelemetry(c.req.url)) {
-      const task = reportInstanceTelemetry({
-        db: platform.db,
+      const task = reportInstanceTelemetry(deps, {
         config: {
           siteUrl: result.origin,
           allowIp: envAllowsIp(platform.getEnv('ZPAN_TELEMETRY_ALLOW_IP')),

@@ -5,10 +5,11 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { LicenseEdition } from '../../shared/types'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
+import { createDeps } from '../composition'
 import * as authSchema from '../db/auth-schema'
 import * as schema from '../db/schema'
 import type { Platform } from '../platform/interface'
-import { resetSitePublicOriginCache } from '../services/site-public-origin'
+import { resetSitePublicOriginCache } from '../usecases/site-public-origin'
 
 const AUTH_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS user (
@@ -570,9 +571,10 @@ export async function createTestApp(
     getBinding: <T = unknown>(key: string) => bindingOverrides[key] as T | undefined,
   }
   const auth = await createAuth(platform, 'test-secret', 'http://localhost:3000')
-  const app = createApp(platform, auth)
+  const deps = createDeps(platform)
+  const app = createApp(platform, auth, deps)
 
-  return { app, db, auth, platform }
+  return { app, db, auth, platform, deps }
 }
 
 export async function adminHeaders(app: ReturnType<typeof createApp>) {
@@ -629,12 +631,12 @@ async function seedLicense(
     edition: LicenseEdition
   },
 ) {
-  const { PUBLIC_KEYS } = await import('../licensing/public-keys.js')
+  const { PUBLIC_KEYS } = await import('../domain/license-keys.js')
   if (!PUBLIC_KEYS.includes(TEST_LICENSE_PUBLIC)) {
     PUBLIC_KEYS.unshift(TEST_LICENSE_PUBLIC)
   }
 
-  const { createLicenseBinding } = await import('../licensing/license-state.js')
+  const { createLicenseBindingRepo } = await import('../adapters/repos/license-binding.js')
   const issuedAt = nowSec()
   const expiresAt = issuedAt + 3600
   const cachedCert = sign(TEST_LICENSE_SECRET, {
@@ -653,7 +655,7 @@ async function seedLicense(
     expiresAt,
   })
 
-  await createLicenseBinding(db, {
+  await createLicenseBindingRepo(db).createLicenseBinding({
     cloudBindingId: 'test-binding',
     cloudStoreId: 'store-test-binding',
     instanceId: 'test-instance',

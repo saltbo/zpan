@@ -1,12 +1,13 @@
 // CF Workers scheduled() handler.
 
+import { createQuotaRepo } from '../server/adapters/repos/quota'
+import { createDeps } from '../server/composition'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
-import { syncPendingCloudTrafficReports } from '../server/services/cloud-traffic-metering'
-import { resetExpiredTrafficQuotas } from '../server/services/effective-quota'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/services/instance-telemetry'
-import { runLicensingRefresh } from '../server/services/licensing-refresh-runner'
-import { syncPendingRemoteDownloadUsageReports } from '../server/services/remote-download-usage'
-import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/services/trash-retention'
+import { syncPendingCloudTrafficReports } from '../server/usecases/cloud-traffic-metering'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/instance-telemetry'
+import { runLicensingRefresh } from '../server/usecases/licensing-refresh-runner'
+import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/remote-download-usage'
+import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/usecases/trash-retention'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 
 // Subset of the worker Env used by the scheduled handler.
@@ -30,26 +31,26 @@ function envAllowsIp(value: string | undefined): boolean {
 
 export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv): Promise<void> {
   const platform = createCloudflarePlatform(env)
+  const deps = createDeps(platform)
   const cloudBaseUrl = env.ZPAN_CLOUD_URL ?? ZPAN_CLOUD_URL_DEFAULT
   if (event.cron === TRAFFIC_SYNC_CRON) {
-    await syncPendingCloudTrafficReports({ db: platform.db, cloudBaseUrl })
-    await syncPendingRemoteDownloadUsageReports({ db: platform.db, cloudBaseUrl })
+    await syncPendingCloudTrafficReports(deps, { cloudBaseUrl })
+    await syncPendingRemoteDownloadUsageReports(deps, { cloudBaseUrl })
     return
   }
 
   if (event.cron === QUOTA_RESET_CRON) {
-    await resetExpiredTrafficQuotas(platform.db)
+    await createQuotaRepo(platform.db).resetExpiredTrafficQuotas()
     return
   }
 
   if (event.cron === TRASH_PURGE_CRON) {
-    await purgeExpiredTrash(platform.db, resolveTrashRetentionDays(env.ZPAN_TRASH_RETENTION_DAYS))
+    await purgeExpiredTrash(deps, resolveTrashRetentionDays(env.ZPAN_TRASH_RETENTION_DAYS))
     return
   }
 
   if (event.cron === INSTANCE_TELEMETRY_CRON) {
-    await reportInstanceTelemetry({
-      db: platform.db,
+    await reportInstanceTelemetry(deps, {
       config: {
         allowIp: envAllowsIp(env.ZPAN_TELEMETRY_ALLOW_IP),
       },
@@ -63,5 +64,5 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
     return
   }
 
-  await runLicensingRefresh(platform.db, cloudBaseUrl)
+  await runLicensingRefresh(deps, cloudBaseUrl)
 }

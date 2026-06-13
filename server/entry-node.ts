@@ -5,18 +5,19 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { resolveAppCommit, resolveAppVersion } from '../scripts/app-version.mjs'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
+import { createQuotaRepo } from './adapters/repos/quota'
 import { createBootstrap } from './bootstrap'
-import { buildCloudInstanceInfo, runtimeInfo } from './licensing/instance-info'
+import { createDeps } from './composition'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
-import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
-import { resetExpiredTrafficQuotas } from './services/effective-quota'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
-import { runLicensingRefresh } from './services/licensing-refresh-runner'
-import { syncPendingRemoteDownloadUsageReports } from './services/remote-download-usage'
-import { getSitePublicOrigin } from './services/site-public-origin'
-import { purgeExpiredTrash, resolveTrashRetentionDays } from './services/trash-retention'
+import { syncPendingCloudTrafficReports } from './usecases/cloud-traffic-metering'
+import { buildCloudInstanceInfo, runtimeInfo } from './usecases/instance-info'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/instance-telemetry'
+import { runLicensingRefresh } from './usecases/licensing-refresh-runner'
+import { syncPendingRemoteDownloadUsageReports } from './usecases/remote-download-usage'
+import { getSitePublicOrigin } from './usecases/site-public-origin'
+import { purgeExpiredTrash, resolveTrashRetentionDays } from './usecases/trash-retention'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
@@ -55,6 +56,7 @@ const platform = process.env.TURSO_DATABASE_URL
     })
   : createNodePlatform()
 
+const deps = createDeps(platform)
 const app = await createBootstrap(platform)
 
 const server = new Hono()
@@ -81,21 +83,21 @@ console.log('licensing.refresh.scheduler.started interval=6h')
 setInterval(() => {
   // runLicensingRefresh handles all errors internally and never rejects.
   void (async () => {
-    const instanceUrl = await getSitePublicOrigin(platform.db)
+    const instanceUrl = await getSitePublicOrigin(deps)
     const instance = instanceUrl
-      ? await buildCloudInstanceInfo(platform.db, {
+      ? await buildCloudInstanceInfo(deps, {
           url: instanceUrl,
           runtime: runtimeInfo(platform),
         })
       : undefined
-    await runLicensingRefresh(platform.db, cloudBaseUrl, instance)
+    await runLicensingRefresh(deps, cloudBaseUrl, instance)
   })()
 }, REFRESH_INTERVAL_MS)
 
 console.log('traffic.sync.scheduler.started interval=10m')
 setInterval(() => {
-  void syncPendingCloudTrafficReports({ db: platform.db, cloudBaseUrl })
-  void syncPendingRemoteDownloadUsageReports({ db: platform.db, cloudBaseUrl })
+  void syncPendingCloudTrafficReports(deps, { cloudBaseUrl })
+  void syncPendingRemoteDownloadUsageReports(deps, { cloudBaseUrl })
 }, TRAFFIC_SYNC_INTERVAL_MS)
 
 function reportNodeInstanceTelemetry(): void {
@@ -103,8 +105,7 @@ function reportNodeInstanceTelemetry(): void {
 
   void (async () => {
     try {
-      await reportInstanceTelemetry({
-        db: platform.db,
+      await reportInstanceTelemetry(deps, {
         config: {
           allowIp: envAllowsIp(process.env.ZPAN_TELEMETRY_ALLOW_IP),
         },
@@ -132,19 +133,16 @@ setInterval(reportNodeInstanceTelemetry, INSTANCE_TELEMETRY_INTERVAL_MS)
 
 console.log('quota.reset.scheduler.started interval=24h')
 // Run once at boot to catch a month boundary crossed while the server was down.
-void resetExpiredTrafficQuotas(platform.db)
+void createQuotaRepo(platform.db).resetExpiredTrafficQuotas()
 setInterval(() => {
-  void resetExpiredTrafficQuotas(platform.db)
+  void createQuotaRepo(platform.db).resetExpiredTrafficQuotas()
 }, QUOTA_RESET_INTERVAL_MS)
 
 console.log('trash.purge.scheduler.started interval=24h')
 function purgeExpiredTrashJob(): void {
   void (async () => {
     try {
-      const purged = await purgeExpiredTrash(
-        platform.db,
-        resolveTrashRetentionDays(process.env.ZPAN_TRASH_RETENTION_DAYS),
-      )
+      const purged = await purgeExpiredTrash(deps, resolveTrashRetentionDays(process.env.ZPAN_TRASH_RETENTION_DAYS))
       if (purged > 0) console.log(`trash.purge.done count=${purged}`)
     } catch (err) {
       console.error(`trash.purge.error code=${err instanceof Error ? err.message : String(err)}`)

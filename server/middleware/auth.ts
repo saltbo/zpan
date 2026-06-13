@@ -1,8 +1,5 @@
-import { sql } from 'drizzle-orm'
 import { createMiddleware } from 'hono/factory'
-import { ApiKeyRateLimitError, isOrgApiKey, verifyApiKey } from '../services/api-keys'
-import { resolveDownloaderToken, resolveTaskUploadToken } from '../services/download-tokens'
-import { findPersonalOrg, getMemberRole, isPersonalOrg } from '../services/org'
+import { ApiKeyRateLimitError } from '../usecases/ports'
 import type { Env } from './platform'
 
 // 'member' is the better-auth schema default; map it to viewer level so
@@ -24,7 +21,8 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice('Bearer '.length).trim()
     const platform = c.get('platform')
-    const taskUpload = await resolveTaskUploadToken(platform.db, platform, token)
+    const deps = c.get('deps')
+    const taskUpload = await deps.downloadTokens.resolveTaskUploadToken(platform.db, platform, token)
     if (taskUpload) {
       c.set('principal', { ...taskUpload, kind: 'download-task-upload', authMethod: 'bearer' })
       c.set('userId', null)
@@ -33,7 +31,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       await next()
       return
     }
-    const downloader = await resolveDownloaderToken(platform, token)
+    const downloader = await deps.downloadTokens.resolveDownloaderToken(platform, token)
     if (downloader) {
       c.set('principal', { kind: 'downloader', downloaderId: downloader.downloaderId, authMethod: 'bearer' })
       c.set('userId', null)
@@ -42,9 +40,9 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       await next()
       return
     }
-    let apiKey: Awaited<ReturnType<typeof verifyApiKey>>
+    let apiKey: Awaited<ReturnType<typeof deps.apiKeys.verifyApiKey>>
     try {
-      apiKey = await verifyApiKey(c.get('auth'), platform.db, token)
+      apiKey = await deps.apiKeys.verifyApiKey(c.get('auth'), platform.db, token)
     } catch (error) {
       if (error instanceof ApiKeyRateLimitError) {
         const res = c.json({ error: error.message }, 429)
@@ -55,8 +53,8 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       throw error
     }
     if (apiKey) {
-      const orgId = isOrgApiKey(apiKey.configId) ? apiKey.referenceId : null
-      const userId = isOrgApiKey(apiKey.configId) ? null : apiKey.referenceId
+      const orgId = deps.apiKeys.isOrgApiKey(apiKey.configId) ? apiKey.referenceId : null
+      const userId = deps.apiKeys.isOrgApiKey(apiKey.configId) ? null : apiKey.referenceId
       c.set('principal', {
         kind: 'api-key',
         keyId: apiKey.id,
@@ -78,9 +76,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   const result = (await auth.api.getSession({ headers: c.req.raw.headers })) as SessionWithPlugins | null
 
   if (result?.user?.id) {
-    const db = c.get('platform').db
-    const rows = await db.all<{ banned: number }>(sql`SELECT banned FROM user WHERE id = ${result.user.id}`)
-    if (rows[0]?.banned) {
+    if (await c.get('deps').userAdmin.isBanned(result.user.id)) {
       return c.json({ error: 'Account disabled' }, 403)
     }
   }
@@ -89,7 +85,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   c.set('userRole', result?.user?.role ?? null)
 
   if (result?.user?.id) {
-    const orgId = result.session?.activeOrganizationId ?? (await findPersonalOrg(c.get('platform').db, result.user.id))
+    const orgId = result.session?.activeOrganizationId ?? (await c.get('deps').org.findPersonalOrg(result.user.id))
     c.set('orgId', orgId)
     c.set('principal', {
       kind: 'user',
@@ -143,12 +139,10 @@ export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const db = c.get('platform').db
-
     // Query member role first — avoids an extra DB round trip for the common case.
     // Personal org owners always have a member row (guaranteed by findPersonalOrg),
     // so isPersonalOrg is only needed as a fallback when no member row exists.
-    const role = await getMemberRole(db, orgId, userId)
+    const role = await c.get('deps').org.getMemberRole(orgId, userId)
     if (role !== null) {
       const userLevel = ROLE_LEVELS[role] ?? 0
       if (userLevel < ROLE_LEVELS[minRole]) {
@@ -159,7 +153,7 @@ export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
     }
 
     // No member row — could be a personal org accessed without a session refresh.
-    if (await isPersonalOrg(db, orgId)) {
+    if (await c.get('deps').org.isPersonalOrg(orgId)) {
       await next()
       return
     }
