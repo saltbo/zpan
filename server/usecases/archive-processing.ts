@@ -2,11 +2,10 @@ import { DirType } from '@shared/constants'
 import type { CreateBackgroundJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
 import { buildObjectKey } from '../lib/path-template'
-import type { Database } from '../platform/interface'
-import { createMatter, getMatter, purgeMatters } from '../services/matter'
 import type {
   ArchiveTargetFolderRepo,
   BackgroundJobRepo,
+  MatterRepo,
   NotificationRepo,
   QuotaRepo,
   S3Gateway,
@@ -19,7 +18,7 @@ import type {
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 
 // Existing ports the archive orchestration composes. No new persistence beyond
-// the target-folder lookup; everything else is reused (matter service, zip
+// the target-folder lookup; everything else is reused (matter repo, zip
 // gateway/plan, s3, quota/usage reservation, background-job + notification repos).
 export type ArchiveProcessingDeps = {
   s3: S3Gateway
@@ -31,6 +30,7 @@ export type ArchiveProcessingDeps = {
   zip: ZipGateway
   zipPlan: ZipPlanRepo
   archiveTargetFolders: ArchiveTargetFolderRepo
+  matter: MatterRepo
 }
 
 export interface CreateArchiveJobInput {
@@ -48,11 +48,10 @@ const PROGRESS_REPORT_BYTES = 5 * 1024 * 1024
 
 export async function createArchiveJob(
   deps: ArchiveProcessingDeps,
-  db: Database,
   input: CreateArchiveJobInput,
 ): Promise<BackgroundJob> {
   const job = await enqueueArchiveJob(deps, input)
-  return processArchiveJob(deps, db, { ...input, jobId: job.id })
+  return processArchiveJob(deps, { ...input, jobId: job.id })
 }
 
 export async function enqueueArchiveJob(
@@ -72,7 +71,6 @@ export async function enqueueArchiveJob(
 
 export async function processArchiveJob(
   deps: ArchiveProcessingDeps,
-  db: Database,
   input: CreateArchiveJobInput & { jobId: string },
 ): Promise<BackgroundJob> {
   const s3 = input.s3 ?? deps.s3
@@ -80,8 +78,8 @@ export async function processArchiveJob(
     await deps.backgroundJobs.update(input.orgId, input.jobId, { status: 'running', startedAt: new Date() })
     const finished =
       input.request.type === 'archive_compress'
-        ? await runCompressionJob(deps, db, s3, input.jobId, input.orgId, input.userId, input.request)
-        : await runExtractionJob(deps, db, s3, input.jobId, input.orgId, input.userId, input.request)
+        ? await runCompressionJob(deps, s3, input.jobId, input.orgId, input.userId, input.request)
+        : await runExtractionJob(deps, s3, input.jobId, input.orgId, input.userId, input.request)
     await notifyArchiveJobFinished(deps, finished)
     return finished
   } catch (error) {
@@ -98,7 +96,6 @@ export async function processArchiveJob(
 
 async function runCompressionJob(
   deps: ArchiveProcessingDeps,
-  db: Database,
   s3: S3Gateway,
   jobId: string,
   orgId: string,
@@ -145,7 +142,7 @@ async function runCompressionJob(
       { orgId, storageId: targetStorage.id, bytes: outputBytes },
       async (ctx) => {
         ctx.onRollback(() => s3.deleteObject(targetStorage, key))
-        const matter = await createMatter(db, {
+        const matter = await deps.matter.create({
           orgId,
           userId,
           name: plan.outputName,
@@ -184,14 +181,13 @@ async function runCompressionJob(
 
 async function runExtractionJob(
   deps: ArchiveProcessingDeps,
-  db: Database,
   s3: S3Gateway,
   jobId: string,
   orgId: string,
   userId: string,
   request: Extract<CreateBackgroundJobRequest, { type: 'archive_extract' }>,
 ): Promise<BackgroundJob> {
-  const zipMatter = await getMatter(db, request.matterId, orgId)
+  const zipMatter = await deps.matter.get(request.matterId, orgId)
   if (!zipMatter || zipMatter.status !== 'active') throw new Error('ZIP matter not found')
   if (zipMatter.dirtype !== DirType.FILE || !zipMatter.name.toLowerCase().endsWith('.zip')) {
     throw new Error('Extraction source must be a .zip file')
@@ -218,7 +214,7 @@ async function runExtractionJob(
       { orgId, storageId: targetStorage.id, bytes: plan.totalBytes },
       async (ctx) => {
         ctx.onRollback(async () => {
-          await purgeMatters(db, orgId, createdMatterIds)
+          await deps.matter.purge(orgId, createdMatterIds)
           await s3.deleteObjects(targetStorage, writtenKeys)
         })
 
@@ -236,7 +232,7 @@ async function runExtractionJob(
           const size = await s3.putObject(targetStorage, key, file.stream, DEFAULT_FILE_MIME)
           await file.size
           writtenKeys.push(key)
-          const matter = await createMatter(db, {
+          const matter = await deps.matter.create({
             orgId,
             userId,
             name: file.name,
@@ -278,7 +274,7 @@ async function runExtractionJob(
     const parts = folderPath.split('/')
     const parentPath = parts.slice(0, -1).join('/')
     const parent = parentPath ? await ensureExtractedFolder(parentPath) : targetFolder
-    const folder = await createMatter(db, {
+    const folder = await deps.matter.create({
       orgId,
       userId,
       name: parts[parts.length - 1],

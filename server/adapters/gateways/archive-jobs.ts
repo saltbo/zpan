@@ -3,6 +3,7 @@ import { processArchiveJob } from '../../usecases/archive-processing'
 import type { ArchiveJobMessage, ArchiveJobsGateway } from '../../usecases/ports'
 import { createArchiveTargetFolderRepo } from '../repos/archive-target-folder'
 import { createBackgroundJobRepo } from '../repos/background-job'
+import { createMatterRepo } from '../repos/matter'
 import { createNotificationRepo } from '../repos/notification'
 import { createQuotaRepo } from '../repos/quota'
 import { createStorageRepo } from '../repos/storage'
@@ -67,10 +68,11 @@ export function createArchiveJobsGateway(platform: Platform): ArchiveJobsGateway
     zip: createZipGateway(),
     zipPlan: createZipPlanRepo(db),
     archiveTargetFolders: createArchiveTargetFolderRepo(db),
+    matter: createMatterRepo(db),
   }
 
   async function runMessage(message: ArchiveJobMessage): Promise<void> {
-    await processArchiveJob(deps, db, {
+    await processArchiveJob(deps, {
       orgId: message.orgId,
       userId: message.userId,
       request: message.request,

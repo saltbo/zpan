@@ -5,6 +5,7 @@ import { DirType } from '../../shared/constants'
 import type { CreateShareInput } from '../../shared/schemas/share'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { createActivityRepo } from '../adapters/repos/activity.js'
+import { createMatterRepo } from '../adapters/repos/matter.js'
 import { createQuotaRepo } from '../adapters/repos/quota.js'
 import { createShareRepo } from '../adapters/repos/share.js'
 import { createStorageRepo } from '../adapters/repos/storage.js'
@@ -34,10 +35,10 @@ function saveToDriveDeps(db: Database): SaveToDriveDeps {
     quota: createQuotaRepo(db),
     activity: createActivityRepo(db),
     share: createShareRepo(db),
+    matter: createMatterRepo(db),
   }
 }
-const saveShareToDrive = (db: Database, input: SaveShareInput) =>
-  saveShareToDriveUseCase(saveToDriveDeps(db), db, input)
+const saveShareToDrive = (db: Database, input: SaveShareInput) => saveShareToDriveUseCase(saveToDriveDeps(db), input)
 
 // ─── Test fixtures ────────────────────────────────────────────────────────────
 

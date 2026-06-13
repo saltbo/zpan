@@ -1,17 +1,42 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { DirType, ObjectStatus } from '../../shared/constants'
-import { createTestApp } from '../test/setup.js'
-import {
-  applyConflictResolution,
-  commitConflictPlan,
-  findActiveConflict,
-  NameConflictError,
-  planConflictResolution,
-} from './matter-name-conflict.js'
+import { DirType, ObjectStatus } from '../../../shared/constants'
+import { createTestApp } from '../../test/setup.js'
+import type { ConflictPlan, ConflictResolveOptions, ConflictStrategy } from '../../usecases/ports'
+import { NameConflictError } from '../../usecases/ports'
+import { createMatterRepo } from './matter.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
+
+// Thin adapters preserving the former matter-name-conflict service signature so
+// these behavioral tests exercise the migrated MatterRepo unchanged.
+function findActiveConflict(db: TestDb, orgId: string, parent: string, name: string, excludeId?: string) {
+  return createMatterRepo(db).findActiveConflict(orgId, parent, name, excludeId)
+}
+function applyConflictResolution(
+  db: TestDb,
+  orgId: string,
+  parent: string,
+  name: string,
+  strategy: ConflictStrategy,
+  options?: ConflictResolveOptions,
+) {
+  return createMatterRepo(db).applyConflictResolution(orgId, parent, name, strategy, options)
+}
+function planConflictResolution(
+  db: TestDb,
+  orgId: string,
+  parent: string,
+  name: string,
+  strategy: ConflictStrategy,
+  options?: ConflictResolveOptions,
+) {
+  return createMatterRepo(db).planConflictResolution(orgId, parent, name, strategy, options)
+}
+function commitConflictPlan(db: TestDb, orgId: string, plan: ConflictPlan, userId?: string) {
+  return createMatterRepo(db).commitConflictPlan(orgId, plan, userId)
+}
 
 async function insertStorage(db: TestDb, id = 'st-1') {
   const now = Date.now()

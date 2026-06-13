@@ -2,12 +2,12 @@ import { and, eq, like, or } from 'drizzle-orm'
 import { DirType } from '../../../shared/constants'
 import { matters } from '../../db/schema'
 import type { Database } from '../../platform/interface'
-import type { Matter } from '../../services/matter'
 import type {
   CollectCompressionPlanOptions,
   CompressionPlan,
   CompressionSourceDirectory,
   CompressionSourceFile,
+  Matter,
   ZipPlanRepo,
 } from '../../usecases/ports'
 import { ZIP_COMPRESS_LIMITS } from '../../usecases/ports'

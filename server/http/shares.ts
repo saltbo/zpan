@@ -8,7 +8,6 @@ import { isAccessibleByUser } from '../domain/share'
 import { verifyPassword as verifyPasswordHash } from '../lib/password'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { listMatters } from '../services/matter'
 import { CreateShareError, type ShareRecord } from '../usecases/ports'
 import { saveShareToDrive } from '../usecases/save-to-drive'
 import { dispatchShareCreated } from '../usecases/share-notification'
@@ -141,7 +140,6 @@ export const publicShares = new Hono<Env>()
   })
   .get('/:token/objects', zValidator('query', listObjectsQuerySchema), async (c) => {
     const token = c.req.param('token')
-    const db = c.get('platform').db
 
     const resolved = await c.get('deps').share.resolveByToken(token)
     if (resolved.status !== 'ok') {
@@ -171,7 +169,7 @@ export const publicShares = new Hono<Env>()
     const root = folderRootPath(matter)
     const queryParent = relativePath ? `${root}/${relativePath}` : root
 
-    const result = await listMatters(db, matter.orgId, {
+    const result = await c.get('deps').matter.list(matter.orgId, {
       parent: queryParent,
       status: 'active',
       page,
@@ -407,7 +405,6 @@ export const authedShares = new Hono<Env>()
     const token = c.req.param('token')
     const { targetOrgId, targetParent } = c.req.valid('json')
     const currentUserId = c.get('userId')!
-    const db = c.get('platform').db
     const deps = c.get('deps')
 
     const resolution = await deps.share.resolveByToken(token)
@@ -445,7 +442,7 @@ export const authedShares = new Hono<Env>()
       return c.json({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, 400)
     }
 
-    const result = await saveShareToDrive(deps, db, {
+    const result = await saveShareToDrive(deps, {
       share,
       matter,
       currentUserId,

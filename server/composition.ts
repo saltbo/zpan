@@ -25,6 +25,7 @@ import { createImageHostingConfigRepo } from './adapters/repos/image-hosting-con
 import { createInstanceRepo } from './adapters/repos/instance'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createLicenseBindingRepo } from './adapters/repos/license-binding'
+import { createMatterRepo } from './adapters/repos/matter'
 import { createMemberCountRepo } from './adapters/repos/member-count'
 import { createNotificationRepo } from './adapters/repos/notification'
 import { createObjectUploadSessionRepo } from './adapters/repos/object-upload-session'
@@ -69,6 +70,7 @@ export function createDeps(platform: Platform): Deps {
     instance: createInstanceRepo(db),
     licenseBinding: createLicenseBindingRepo(db),
     licensingCloud: createLicensingCloudGateway(),
+    matter: createMatterRepo(db),
     memberCount: createMemberCountRepo(db),
     notifications: createNotificationRepo(db),
     objectUploadSessions: createObjectUploadSessionRepo(db),

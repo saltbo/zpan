@@ -18,19 +18,8 @@ import { buildObjectKey, fileExt } from '../lib/path-template'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { assertTaskUploadAllowed } from '../services/downloads'
-import {
-  cancelDraftMatter,
-  collectForPurge,
-  confirmUpload,
-  copyMatter,
-  createMatter,
-  getMatter,
-  listMatters,
-  restoreMatter,
-  trashMatter,
-  updateMatter,
-} from '../services/matter'
 import { S3Service } from '../services/s3'
+import { confirmUpload } from '../usecases/matter'
 import {
   createObjectUploadSession,
   ObjectUploadSessionError,
@@ -116,8 +105,7 @@ const app = new Hono<Env>()
     const page = Number(c.req.query('page') ?? '1')
     const pageSize = Number(c.req.query('pageSize') ?? '20')
 
-    const db = c.get('platform').db
-    const result = await listMatters(db, orgId, { parent, status, typeFilter, search, page, pageSize })
+    const result = await c.get('deps').matter.list(orgId, { parent, status, typeFilter, search, page, pageSize })
     return c.json(result)
   })
   .post('/', requireObjectCreateAccess, zValidator('json', createMatterSchema), async (c) => {
@@ -125,7 +113,6 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const db = c.get('platform').db
     const userId = principal?.kind === 'download-task-upload' ? principal.createdByUserId : (c.get('userId') as string)
     const actorId =
       principal?.kind === 'download-task-upload' ? `downloader:${principal.downloaderId}` : (c.get('userId') as string)
@@ -158,7 +145,7 @@ const app = new Hono<Env>()
         })
 
     try {
-      const matter = await createMatter(db, {
+      const matter = await c.get('deps').matter.create({
         orgId,
         name,
         type: isFolder ? 'folder' : type,
@@ -187,7 +174,7 @@ const app = new Hono<Env>()
       async () => {
         const orgId = c.get('orgId')
         if (!orgId) throw new ObjectUploadSessionError('not_found')
-        const matter = await getMatter(c.get('platform').db, c.req.param('id'), orgId)
+        const matter = await c.get('deps').matter.get(c.req.param('id'), orgId)
         if (!matter || matter.status !== 'draft' || matter.dirtype !== DirType.FILE || !matter.object) {
           throw new ObjectUploadSessionError('not_found')
         }
@@ -223,7 +210,7 @@ const app = new Hono<Env>()
       objectUploadResponse(c, async () => {
         const orgId = c.get('orgId')
         if (!orgId) throw new ObjectUploadSessionError('not_found')
-        const matter = await getMatter(c.get('platform').db, c.req.param('id'), orgId)
+        const matter = await c.get('deps').matter.get(c.req.param('id'), orgId)
         if (!matter) throw new ObjectUploadSessionError('not_found')
         const storage = await c.get('deps').storages.get(matter.storageId)
         if (!storage) throw new ObjectUploadSessionError('not_found')
@@ -244,7 +231,7 @@ const app = new Hono<Env>()
       objectUploadResponse(c, async () => {
         const orgId = c.get('orgId')
         if (!orgId) throw new ObjectUploadSessionError('not_found')
-        const matter = await getMatter(c.get('platform').db, c.req.param('id'), orgId)
+        const matter = await c.get('deps').matter.get(c.req.param('id'), orgId)
         if (!matter) throw new ObjectUploadSessionError('not_found')
         const storage = await c.get('deps').storages.get(matter.storageId)
         if (!storage) throw new ObjectUploadSessionError('not_found')
@@ -261,8 +248,7 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const db = c.get('platform').db
-    const matter = await getMatter(db, c.req.param('id'), orgId)
+    const matter = await c.get('deps').matter.get(c.req.param('id'), orgId)
     if (!matter) return c.json({ error: 'Not found' }, 404)
 
     if (matter.dirtype !== DirType.FILE || !matter.object) {
@@ -296,14 +282,13 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const db = c.get('platform').db
     const userId = actorId(c)
     const body = c.req.valid('json')
     const principal = c.get('principal')
     if (principal?.kind === 'download-task-upload') {
       if (body.action !== 'confirm')
         return c.json({ error: 'Download task upload token can only confirm uploads' }, 403)
-      const matter = await getMatter(db, c.req.param('id'), orgId)
+      const matter = await c.get('deps').matter.get(c.req.param('id'), orgId)
       if (!matter || !isWithinDownloadTarget(matter.parent, principal.targetFolder))
         return c.json({ error: 'Forbidden' }, 403)
       await assertTaskUploadAllowed(c.get('platform'), {
@@ -315,7 +300,7 @@ const app = new Hono<Env>()
     switch (body.action) {
       case 'update': {
         try {
-          const matter = await updateMatter(db, c.req.param('id'), orgId, body, userId)
+          const matter = await c.get('deps').matter.update(c.req.param('id'), orgId, body, userId)
           if (!matter) return c.json({ error: 'Not found' }, 404)
           return c.json(matter)
         } catch (e) {
@@ -326,10 +311,10 @@ const app = new Hono<Env>()
       }
       case 'confirm': {
         try {
-          const { matter, quotaExceeded } = await confirmUpload(db, c.req.param('id'), orgId, {
+          const { matter, quotaExceeded } = await confirmUpload(c.get('deps'), c.req.param('id'), orgId, {
             onConflict: body.onConflict,
             userId,
-            purgeReplaced: (incumbent) => purgeRecursively(c.get('deps'), db, orgId, [incumbent]).then(() => undefined),
+            purgeReplaced: (incumbent) => purgeRecursively(c.get('deps'), orgId, [incumbent]).then(() => undefined),
           })
           if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
           if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
@@ -341,7 +326,7 @@ const app = new Hono<Env>()
         }
       }
       case 'cancel': {
-        const matter = await cancelDraftMatter(db, c.req.param('id'), orgId, userId)
+        const matter = await c.get('deps').matter.cancelDraft(c.req.param('id'), orgId, userId)
         if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
         if (matter.object) {
           const storage = await c.get('deps').storages.get(matter.storageId)
@@ -356,13 +341,13 @@ const app = new Hono<Env>()
         return c.json({ id: matter.id, cancelled: true })
       }
       case 'trash': {
-        const matter = await trashMatter(db, orgId, c.req.param('id'), userId)
+        const matter = await c.get('deps').matter.trash(orgId, c.req.param('id'), userId)
         if (!matter) return c.json({ error: 'Not found' }, 404)
         return c.json(matter)
       }
       case 'restore': {
         try {
-          const matter = await restoreMatter(db, orgId, c.req.param('id'), userId, body.onConflict ?? 'fail')
+          const matter = await c.get('deps').matter.restore(orgId, c.req.param('id'), userId, body.onConflict ?? 'fail')
           if (!matter) return c.json({ error: 'Not found' }, 404)
           return c.json(matter)
         } catch (e) {
@@ -377,13 +362,12 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
     const userId = c.get('userId')!
-    const db = c.get('platform').db
-    const ms = await collectForPurge(db, orgId, c.req.param('id'))
+    const ms = await c.get('deps').matter.collectForPurge(orgId, c.req.param('id'))
     if (!ms) return c.json({ error: 'Not found' }, 404)
     if (ms[0].status !== 'trashed') {
       return c.json({ error: 'Object must be trashed before permanent deletion' }, 409)
     }
-    const purged = await purgeRecursively(c.get('deps'), db, orgId, ms)
+    const purged = await purgeRecursively(c.get('deps'), orgId, ms)
     await c.get('deps').activity.record({
       orgId,
       userId,
@@ -399,10 +383,9 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const { copyFrom, parent, onConflict } = c.req.valid('json')
-    const source = await getMatter(db, copyFrom, orgId)
+    const source = await c.get('deps').matter.get(copyFrom, orgId)
     if (!source) return c.json({ error: 'Not found' }, 404)
 
     const sourceSize = source.size ?? 0
@@ -427,7 +410,7 @@ const app = new Hono<Env>()
             await s3.copyObject(objectStorage, source.object, objectStorage, newObject)
             ctx.onRollback(() => s3.deleteObject(objectStorage, newObject))
           }
-          return copyMatter(db, source, parent, newObject, { onConflict, userId })
+          return c.get('deps').matter.copy(source, parent, newObject, { onConflict, userId })
         },
       )
       return c.json(copy, 201)
@@ -441,12 +424,11 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const { targetOrgId, targetParent, mode } = c.req.valid('json')
     if (targetOrgId === orgId) return c.json({ error: 'Target must be a different space', code: 'SAME_ORG' }, 400)
 
-    const source = await getMatter(db, c.req.param('id'), orgId)
+    const source = await c.get('deps').matter.get(c.req.param('id'), orgId)
     if (!source || source.status !== 'active') return c.json({ error: 'Not found' }, 404)
 
     // Copying out only needs read access on the source space (granted by the
@@ -463,7 +445,7 @@ const app = new Hono<Env>()
       return c.json({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, 422)
     }
 
-    const result = await copyMatterToOrg(c.get('deps'), db, {
+    const result = await copyMatterToOrg(c.get('deps'), {
       sourceMatter: source,
       currentUserId: userId,
       targetOrgId,
@@ -481,8 +463,8 @@ const app = new Hono<Env>()
     // spaces. The independent copy already lives in the target space.
     let sourceDeleted = false
     if (mode === 'move' && result.skipped.length === 0) {
-      const subtree = await collectForPurge(db, orgId, source)
-      await purgeRecursively(c.get('deps'), db, orgId, subtree)
+      const subtree = await c.get('deps').matter.collectForPurge(orgId, source)
+      await purgeRecursively(c.get('deps'), orgId, subtree)
       sourceDeleted = true
       await c.get('deps').activity.record({
         orgId,

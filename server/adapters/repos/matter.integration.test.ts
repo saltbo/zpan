@@ -1,16 +1,42 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { createQuotaRepo } from '../adapters/repos/quota.js'
-import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
-import { orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
-import { createTestApp } from '../test/setup.js'
+import { orgQuotaEntitlements, orgQuotas } from '../../db/schema.js'
+import { createTestApp } from '../../test/setup.js'
+import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../../usecases/matter'
+import type { UpdateMatterInput } from '../../usecases/ports'
 import {
   reserveStorageUsage,
   StorageQuotaExceededError,
   withStorageUsageReservation,
-} from '../usecases/storage-usage.js'
-import { confirmUpload, listTrashedRoots, updateMatter } from './matter.js'
+} from '../../usecases/storage-usage.js'
+import { createActivityRepo } from './activity.js'
+import { createMatterRepo } from './matter.js'
+import { createQuotaRepo } from './quota.js'
+import { createStorageUsageRepo } from './storage-usage.js'
+
+type TestDbForRepo = Awaited<ReturnType<typeof createTestApp>>['db']
+
+// Thin adapters preserving the former matter service signatures.
+function confirmUpload(db: TestDbForRepo, id: string, orgId: string, opts: ConfirmUploadOptions = {}) {
+  return confirmUploadUsecase(
+    {
+      matter: createMatterRepo(db),
+      quota: createQuotaRepo(db),
+      storageUsage: createStorageUsageRepo(db),
+      activity: createActivityRepo(db),
+    },
+    id,
+    orgId,
+    opts,
+  )
+}
+function listTrashedRoots(db: TestDbForRepo, orgId: string) {
+  return createMatterRepo(db).listTrashedRoots(orgId)
+}
+function updateMatter(db: TestDbForRepo, id: string, orgId: string, input: UpdateMatterInput, userId?: string) {
+  return createMatterRepo(db).update(id, orgId, input, userId)
+}
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 

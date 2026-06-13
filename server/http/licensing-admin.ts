@@ -1,32 +1,33 @@
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import { originFromRequestUrl } from '../domain/site-public-origin'
 import { invalidateEntitlementCache } from '../licensing/entitlement'
 import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { performRefresh } from '../licensing/refresh'
 import { normalizeHost, verifyCertificateResult } from '../licensing/verify'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
 import type { PairingPollResponse } from '../usecases/ports'
+import { getSitePublicOrigin } from '../usecases/site-public-origin'
 
 function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 }
 
 async function getInstanceOrigin(c: {
-  get(key: 'platform'): { db: import('../platform/interface').Database }
+  get(key: 'deps'): Env['Variables']['deps']
   req: { url: string; header(name: string): string | undefined }
 }): Promise<string> {
-  const configured = await getSitePublicOrigin(c.get('platform').db)
+  const configured = await getSitePublicOrigin(c.get('deps'))
   if (configured) return configured
   return originFromRequestUrl(c.req.url) ?? new URL(c.req.url).origin
 }
 
 async function getRequestHost(c: {
-  get(key: 'platform'): { db: import('../platform/interface').Database }
+  get(key: 'deps'): Env['Variables']['deps']
   req: { url: string; header(name: string): string | undefined }
 }): Promise<string> {
-  const configured = await getSitePublicOrigin(c.get('platform').db)
+  const configured = await getSitePublicOrigin(c.get('deps'))
   if (configured) return new URL(configured).host
   const forwardedHost = c.req.header('x-forwarded-host') ?? c.req.header('host')
   return normalizeHost(forwardedHost) ?? new URL(c.req.url).host

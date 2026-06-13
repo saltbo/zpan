@@ -12,12 +12,13 @@ import { SignupMode } from '../../shared/constants'
 import { compareSemver } from '../../shared/semver'
 import { readCaptchaConfig } from '../domain/captcha'
 import { hasFeature } from '../domain/licensing'
+import { originFromRequestUrl } from '../domain/site-public-origin'
 import { buildInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
 import { loadCaptchaOptionValues } from '../usecases/captcha'
 import { loadBindingState } from '../usecases/licensing'
+import { getSitePublicOrigin } from '../usecases/site-public-origin'
 import { getAppVersion } from '../version'
 
 const setOptionSchema = z.object({
@@ -29,7 +30,8 @@ const app = new Hono<Env>()
   .get('/instance', requireAdmin, async (c) => {
     const platform = c.get('platform')
     const db = platform.db
-    const origin = (await getSitePublicOrigin(db)) ?? originFromRequestUrl(c.req.url) ?? new URL(c.req.url).origin
+    const origin =
+      (await getSitePublicOrigin(c.get('deps'))) ?? originFromRequestUrl(c.req.url) ?? new URL(c.req.url).origin
     const info = await buildInstanceInfo(db, { url: origin, runtime: runtimeInfo(platform) })
     return c.json(info)
   })

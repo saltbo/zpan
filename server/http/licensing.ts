@@ -3,14 +3,15 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { BindingState } from '../../shared/types'
+import { originFromRequestUrl } from '../domain/site-public-origin'
 import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { normalizeHost } from '../licensing/verify'
 import type { Env } from '../middleware/platform'
-import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
 import { syncPendingCloudTrafficReports } from '../usecases/cloud-traffic-metering'
 import { loadBindingState } from '../usecases/licensing'
 import { runLicensingRefresh } from '../usecases/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from '../usecases/remote-download-usage'
+import { getSitePublicOrigin } from '../usecases/site-public-origin'
 
 async function configuredPublicHost(c: Context<Env>): Promise<string | null> {
   const origin = await getInstanceOrigin(c)
@@ -18,7 +19,7 @@ async function configuredPublicHost(c: Context<Env>): Promise<string | null> {
 }
 
 async function getInstanceOrigin(c: Context<Env>): Promise<string | null> {
-  return (await getSitePublicOrigin(c.get('platform').db)) ?? originFromRequestUrl(c.req.url)
+  return (await getSitePublicOrigin(c.get('deps'))) ?? originFromRequestUrl(c.req.url)
 }
 
 function cloudDashboardUrl(cloudBaseUrl: string): string {

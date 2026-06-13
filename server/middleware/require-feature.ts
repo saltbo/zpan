@@ -4,12 +4,12 @@ import { createMiddleware } from 'hono/factory'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { hasFeature } from '../domain/licensing'
 import { normalizeHost } from '../licensing/verify'
-import { getSitePublicOrigin } from '../services/site-public-origin'
 import { loadBindingState } from '../usecases/licensing'
+import { getSitePublicOrigin } from '../usecases/site-public-origin'
 import type { Env } from './platform'
 
 async function configuredPublicHost(c: Context<Env>): Promise<string | null> {
-  const origin = await getSitePublicOrigin(c.get('platform').db)
+  const origin = await getSitePublicOrigin(c.get('deps'))
   return origin ? new URL(origin).host : null
 }
 

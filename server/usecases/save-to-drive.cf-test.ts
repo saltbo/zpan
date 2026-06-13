@@ -5,6 +5,7 @@ import { DirType } from '../../shared/constants'
 import type { CreateShareInput } from '../../shared/schemas/share'
 import { S3Service } from '../adapters/gateways/s3'
 import { createActivityRepo } from '../adapters/repos/activity'
+import { createMatterRepo } from '../adapters/repos/matter'
 import { createQuotaRepo } from '../adapters/repos/quota'
 import { createShareRepo } from '../adapters/repos/share'
 import { createStorageRepo } from '../adapters/repos/storage'
@@ -31,10 +32,10 @@ function saveToDriveDeps(db: Database): SaveToDriveDeps {
     quota: createQuotaRepo(db),
     activity: createActivityRepo(db),
     share: createShareRepo(db),
+    matter: createMatterRepo(db),
   }
 }
-const saveShareToDrive = (db: Database, input: SaveShareInput) =>
-  saveShareToDriveUseCase(saveToDriveDeps(db), db, input)
+const saveShareToDrive = (db: Database, input: SaveShareInput) => saveShareToDriveUseCase(saveToDriveDeps(db), input)
 
 async function seedStorage(db: ReturnType<typeof buildDb>, id: string) {
   await db.run(

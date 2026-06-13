@@ -45,7 +45,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
   }
 
   if (event.cron === TRASH_PURGE_CRON) {
-    await purgeExpiredTrash(deps, platform.db, resolveTrashRetentionDays(env.ZPAN_TRASH_RETENTION_DAYS))
+    await purgeExpiredTrash(deps, resolveTrashRetentionDays(env.ZPAN_TRASH_RETENTION_DAYS))
     return
   }
 

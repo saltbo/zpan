@@ -1,5 +1,6 @@
 import type { z } from 'zod'
-import { getSitePublicOrigin, originFromRequestUrl } from '../../services/site-public-origin'
+import { originFromRequestUrl } from '../../domain/site-public-origin'
+import { getSitePublicOrigin } from '../../usecases/site-public-origin'
 import {
   cloudOrdersResponseSchema,
   getBoundCloudClient,
@@ -34,7 +35,7 @@ export async function getCloudOrders(
 }
 
 export async function getInstanceOrigin(c: RouteContext): Promise<string> {
-  const configuredOrigin = await getSitePublicOrigin(c.get('platform').db)
+  const configuredOrigin = await getSitePublicOrigin(c.get('deps'))
   if (configuredOrigin) return configuredOrigin
   return originFromRequestUrl(c.req.url) ?? new URL(c.req.url).origin
 }

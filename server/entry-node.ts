@@ -12,11 +12,11 @@ import { buildCloudInstanceInfo, runtimeInfo } from './licensing/instance-info'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
-import { getSitePublicOrigin } from './services/site-public-origin'
 import { syncPendingCloudTrafficReports } from './usecases/cloud-traffic-metering'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/instance-telemetry'
 import { runLicensingRefresh } from './usecases/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from './usecases/remote-download-usage'
+import { getSitePublicOrigin } from './usecases/site-public-origin'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from './usecases/trash-retention'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
@@ -83,7 +83,7 @@ console.log('licensing.refresh.scheduler.started interval=6h')
 setInterval(() => {
   // runLicensingRefresh handles all errors internally and never rejects.
   void (async () => {
-    const instanceUrl = await getSitePublicOrigin(platform.db)
+    const instanceUrl = await getSitePublicOrigin(deps)
     const instance = instanceUrl
       ? await buildCloudInstanceInfo(platform.db, {
           url: instanceUrl,
@@ -142,11 +142,7 @@ console.log('trash.purge.scheduler.started interval=24h')
 function purgeExpiredTrashJob(): void {
   void (async () => {
     try {
-      const purged = await purgeExpiredTrash(
-        deps,
-        platform.db,
-        resolveTrashRetentionDays(process.env.ZPAN_TRASH_RETENTION_DAYS),
-      )
+      const purged = await purgeExpiredTrash(deps, resolveTrashRetentionDays(process.env.ZPAN_TRASH_RETENTION_DAYS))
       if (purged > 0) console.log(`trash.purge.done count=${purged}`)
     } catch (err) {
       console.error(`trash.purge.error code=${err instanceof Error ? err.message : String(err)}`)

@@ -6,12 +6,55 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { ObjectStatus } from '../../shared/constants'
-import { createTestApp } from '../test/setup.js'
-import { cancelDraftMatter, confirmUpload, copyMatter, createMatter, restoreMatter, updateMatter } from './matter.js'
-import { NameConflictError } from './matter-name-conflict.js'
+import { ObjectStatus } from '../../../shared/constants'
+import { createTestApp } from '../../test/setup.js'
+import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../../usecases/matter'
+import type {
+  ConflictStrategy,
+  CopyMatterOptions,
+  CreateMatterInput,
+  Matter,
+  UpdateMatterInput,
+} from '../../usecases/ports'
+import { NameConflictError } from '../../usecases/ports'
+import { createActivityRepo } from './activity.js'
+import { createMatterRepo } from './matter.js'
+import { createQuotaRepo } from './quota.js'
+import { createStorageUsageRepo } from './storage-usage.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
+
+// Thin adapters preserving the former matter service signatures so these
+// behavioral tests exercise the migrated MatterRepo + confirmUpload usecase
+// unchanged.
+function createMatter(db: TestDb, input: CreateMatterInput): Promise<Matter> {
+  return createMatterRepo(db).create(input)
+}
+function updateMatter(db: TestDb, id: string, orgId: string, input: UpdateMatterInput, userId?: string) {
+  return createMatterRepo(db).update(id, orgId, input, userId)
+}
+function copyMatter(db: TestDb, source: Matter, targetParent: string, newObject: string, opts?: CopyMatterOptions) {
+  return createMatterRepo(db).copy(source, targetParent, newObject, opts)
+}
+function restoreMatter(db: TestDb, orgId: string, id: string, userId?: string, onConflict?: ConflictStrategy) {
+  return createMatterRepo(db).restore(orgId, id, userId, onConflict)
+}
+function cancelDraftMatter(db: TestDb, id: string, orgId: string, userId?: string) {
+  return createMatterRepo(db).cancelDraft(id, orgId, userId)
+}
+function confirmUpload(db: TestDb, id: string, orgId: string, opts: ConfirmUploadOptions = {}) {
+  return confirmUploadUsecase(
+    {
+      matter: createMatterRepo(db),
+      quota: createQuotaRepo(db),
+      storageUsage: createStorageUsageRepo(db),
+      activity: createActivityRepo(db),
+    },
+    id,
+    orgId,
+    opts,
+  )
+}
 
 const STORAGE_ID = 'st-conflict'
 

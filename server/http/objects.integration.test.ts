@@ -1,18 +1,66 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createActivityRepo } from '../adapters/repos/activity.js'
+import { createMatterRepo } from '../adapters/repos/matter.js'
+import { createQuotaRepo } from '../adapters/repos/quota.js'
+import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
 import { cloudTrafficReports } from '../db/schema.js'
-import {
-  confirmUpload,
-  copyMatter,
-  createMatter,
-  deleteMatter,
-  getMatter,
-  getMatters,
-  listMatters,
-  updateMatter,
-} from '../services/matter.js'
 import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
+import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../usecases/matter.js'
+import type {
+  CopyMatterOptions,
+  CreateMatterInput,
+  Matter,
+  MatterListFilters,
+  UpdateMatterInput,
+} from '../usecases/ports.js'
+
+type TestDbForMatter = Awaited<ReturnType<typeof createTestApp>>['db']
+
+// Thin adapters preserving the former matter service signatures so these
+// behavioral tests exercise the migrated MatterRepo + confirmUpload usecase
+// unchanged.
+function createMatter(db: TestDbForMatter, input: CreateMatterInput): Promise<Matter> {
+  return createMatterRepo(db).create(input)
+}
+function getMatter(db: TestDbForMatter, id: string, orgId: string) {
+  return createMatterRepo(db).get(id, orgId)
+}
+function getMatters(db: TestDbForMatter, orgId: string, ids: string[]) {
+  return createMatterRepo(db).getMany(orgId, ids)
+}
+function listMatters(db: TestDbForMatter, orgId: string, filters: MatterListFilters) {
+  return createMatterRepo(db).list(orgId, filters)
+}
+function updateMatter(db: TestDbForMatter, id: string, orgId: string, input: UpdateMatterInput, userId?: string) {
+  return createMatterRepo(db).update(id, orgId, input, userId)
+}
+function copyMatter(
+  db: TestDbForMatter,
+  source: Matter,
+  targetParent: string,
+  newObject: string,
+  opts?: CopyMatterOptions,
+) {
+  return createMatterRepo(db).copy(source, targetParent, newObject, opts)
+}
+function deleteMatter(db: TestDbForMatter, id: string, orgId: string) {
+  return createMatterRepo(db).delete(id, orgId)
+}
+function confirmUpload(db: TestDbForMatter, id: string, orgId: string, opts: ConfirmUploadOptions = {}) {
+  return confirmUploadUsecase(
+    {
+      matter: createMatterRepo(db),
+      quota: createQuotaRepo(db),
+      storageUsage: createStorageUsageRepo(db),
+      activity: createActivityRepo(db),
+    },
+    id,
+    orgId,
+    opts,
+  )
+}
 
 beforeEach(() => {
   vi.restoreAllMocks()

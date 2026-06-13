@@ -1,6 +1,6 @@
 import { PostHog } from 'posthog-node'
+import { normalizePublicOrigin, SITE_PUBLIC_ORIGIN_KEY } from '../domain/site-public-origin'
 import type { DeployPlatform } from '../runtime-platform'
-import { normalizePublicOrigin, SITE_PUBLIC_ORIGIN_KEY } from '../services/site-public-origin'
 import { getAppVersion } from '../version'
 import type { InstanceRepo, SystemOptionsRepo } from './ports'
 

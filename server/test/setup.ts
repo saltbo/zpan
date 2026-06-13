@@ -9,7 +9,7 @@ import { createDeps } from '../composition'
 import * as authSchema from '../db/auth-schema'
 import * as schema from '../db/schema'
 import type { Platform } from '../platform/interface'
-import { resetSitePublicOriginCache } from '../services/site-public-origin'
+import { resetSitePublicOriginCache } from '../usecases/site-public-origin'
 
 const AUTH_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS user (

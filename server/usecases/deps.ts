@@ -22,6 +22,7 @@ import type {
   InviteRepo,
   LicenseBindingRepo,
   LicensingCloudGateway,
+  MatterRepo,
   MemberCountRepo,
   NotificationRepo,
   ObjectUploadSessionRepo,
@@ -65,6 +66,7 @@ export interface Deps {
   instance: InstanceRepo
   licenseBinding: LicenseBindingRepo
   licensingCloud: LicensingCloudGateway
+  matter: MatterRepo
   memberCount: MemberCountRepo
   notifications: NotificationRepo
   objectUploadSessions: ObjectUploadSessionRepo

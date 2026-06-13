@@ -1,5 +1,3 @@
-import type { Database } from '../platform/interface'
-import { collectForPurge, listOrgIdsWithExpiredTrash, listTrashedRoots } from '../services/matter'
 import { type PurgeDeps, purgeRecursively } from './purge'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -18,24 +16,19 @@ export function resolveTrashRetentionDays(raw: string | undefined): number {
  * reclaiming their quota. Retention of 0 disables auto-purge. Runs subtree at a
  * time via the same purge path as emptying the trash manually.
  */
-export async function purgeExpiredTrash(
-  deps: PurgeDeps,
-  db: Database,
-  retentionDays: number,
-  now = Date.now(),
-): Promise<number> {
+export async function purgeExpiredTrash(deps: PurgeDeps, retentionDays: number, now = Date.now()): Promise<number> {
   if (retentionDays <= 0) return 0
   const cutoff = now - retentionDays * DAY_MS
-  const orgIds = await listOrgIdsWithExpiredTrash(db, cutoff)
+  const orgIds = await deps.matter.listOrgIdsWithExpiredTrash(cutoff)
 
   let purged = 0
   for (const orgId of orgIds) {
-    const roots = await listTrashedRoots(db, orgId)
+    const roots = await deps.matter.listTrashedRoots(orgId)
     for (const root of roots) {
       if ((root.trashedAt ?? 0) >= cutoff) continue
-      const matters = await collectForPurge(db, orgId, root.id)
+      const matters = await deps.matter.collectForPurge(orgId, root.id)
       if (!matters) continue
-      purged += await purgeRecursively(deps, db, orgId, matters)
+      purged += await purgeRecursively(deps, orgId, matters)
     }
   }
   return purged

@@ -24,10 +24,10 @@ import {
 import { mapDomainError } from '../lib/http-errors'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import type { Env } from '../middleware/platform'
-import { copyMatter, createMatter, trashMatter, updateMatter } from '../services/matter'
 import { S3Service } from '../services/s3'
 import {
   ApiKeyRateLimitError,
+  type MatterRepo,
   type StorageRecord as S3Storage,
   WebDavPathError,
   type WebDavTarget,
@@ -873,6 +873,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
               async () => {
                 return persistWebDavUpload(
                   db,
+                  c.get('deps').matter,
                   workspace.id,
                   auth.userId,
                   target,
@@ -887,6 +888,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
           const response = await persistWebDavUpload(
             db,
+            c.get('deps').matter,
             workspace.id,
             auth.userId,
             target,
@@ -911,6 +913,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
 async function persistWebDavUpload(
   db: Env['Variables']['platform']['db'],
+  matterRepo: MatterRepo,
   orgId: string,
   userId: string,
   target: WebDavTarget,
@@ -929,7 +932,7 @@ async function persistWebDavUpload(
     return new Response(null, { status: 204 })
   }
 
-  await createMatter(db, {
+  await matterRepo.create({
     orgId,
     userId,
     name: target.name,
@@ -945,7 +948,6 @@ async function persistWebDavUpload(
 }
 
 async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
-  const db = c.get('platform').db
   try {
     const target = await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, davPath(c))
     const workspace = requireWorkspace(target)
@@ -961,7 +963,7 @@ async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
     if (ifFailed) return ifFailed
     await ensureParentCollection(c, auth.userId, workspace.slug, target.parent)
     const storage = await c.get('deps').storages.select('private')
-    await createMatter(db, {
+    await c.get('deps').matter.create({
       orgId: workspace.id,
       userId: auth.userId,
       name: target.name,
@@ -980,7 +982,6 @@ async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
 }
 
 async function deleteMatter(c: DavContext, auth: DavAuth): Promise<Response> {
-  const db = c.get('platform').db
   try {
     const target = await c.get('deps').webdavPath.resolveExistingWebDavPath(auth.userId, davPath(c))
     const workspace = requireWorkspace(target)
@@ -991,7 +992,7 @@ async function deleteMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
     await c.get('deps').webdavState.deleteWebDavState(workspace.id, resourcePath(target))
-    await trashMatter(db, workspace.id, matter.id, auth.userId)
+    await c.get('deps').matter.trash(workspace.id, matter.id, auth.userId)
     return new Response(null, { status: 204 })
   } catch (e) {
     return davError(c, e)
@@ -999,7 +1000,6 @@ async function deleteMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 }
 
 async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
-  const db = c.get('platform').db
   try {
     const source = await c.get('deps').webdavPath.resolveExistingWebDavPath(auth.userId, davPath(c))
     const sourceWorkspace = requireWorkspace(source)
@@ -1035,15 +1035,11 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     const newPath = joinMatterPath(target.parent, target.name)
     if (target.matter) {
       await c.get('deps').webdavState.deleteWebDavState(targetWorkspace.id, resourcePath(target))
-      await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
+      await c.get('deps').matter.trash(targetWorkspace.id, target.matter.id, auth.userId)
     }
-    await updateMatter(
-      db,
-      source.matter.id,
-      sourceWorkspace.id,
-      { name: target.name, parent: target.parent },
-      auth.userId,
-    )
+    await c
+      .get('deps')
+      .matter.update(source.matter.id, sourceWorkspace.id, { name: target.name, parent: target.parent }, auth.userId)
     await c.get('deps').webdavState.moveWebDavState(sourceWorkspace.id, oldPath, newPath)
     return new Response(null, { status: replacingTarget ? 204 : 201 })
   } catch (e) {
@@ -1052,7 +1048,6 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 }
 
 async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> {
-  const db = c.get('platform').db
   try {
     const source = await c.get('deps').webdavPath.resolveExistingWebDavPath(auth.userId, davPath(c))
     const sourceWorkspace = requireWorkspace(source)
@@ -1101,12 +1096,14 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
 
           if (target.matter) {
             await c.get('deps').webdavState.deleteWebDavState(targetWorkspace.id, resourcePath(target))
-            await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
+            await c.get('deps').matter.trash(targetWorkspace.id, target.matter.id, auth.userId)
           }
-          const copy = await copyMatter(db, { ...sourceMatter, name: target.name }, target.parent, newObject, {
-            onConflict: 'fail',
-            userId: auth.userId,
-          })
+          const copy = await c
+            .get('deps')
+            .matter.copy({ ...sourceMatter, name: target.name }, target.parent, newObject, {
+              onConflict: 'fail',
+              userId: auth.userId,
+            })
           await c
             .get('deps')
             .webdavState.copyDeadProperties(
@@ -1186,10 +1183,10 @@ async function copyCollection(
 
       if (target.matter) {
         await webdavState.deleteWebDavState(targetWorkspace.id, resourcePath(target))
-        await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
+        await c.get('deps').matter.trash(targetWorkspace.id, target.matter.id, auth.userId)
       }
 
-      const rootCopy = await copyMatter(db, { ...sourceMatter, name: target.name }, target.parent, '', {
+      const rootCopy = await c.get('deps').matter.copy({ ...sourceMatter, name: target.name }, target.parent, '', {
         onConflict: 'fail',
         userId: auth.userId,
       })
@@ -1201,7 +1198,7 @@ async function copyCollection(
       )
 
       for (const prepared of preparedCopies) {
-        const copy = await copyMatter(db, prepared.item, prepared.targetParent, prepared.objectKey, {
+        const copy = await c.get('deps').matter.copy(prepared.item, prepared.targetParent, prepared.objectKey, {
           onConflict: 'fail',
           userId: auth.userId,
         })
@@ -1235,7 +1232,6 @@ async function copyCollection(
 }
 
 async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
-  const db = c.get('platform').db
   const webdavState = c.get('deps').webdavState
   try {
     const target = await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, davPath(c))
@@ -1272,7 +1268,7 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       const storage = await c.get('deps').storages.select('private')
       const objectKey = buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
       await s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
-      target.matter = await createMatter(db, {
+      target.matter = await c.get('deps').matter.create({
         orgId: workspace.id,
         userId: auth.userId,
         name: target.name,

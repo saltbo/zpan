@@ -44,9 +44,9 @@ import { platformMiddleware } from './middleware/platform'
 import { downloaderOpenAPIDocument } from './openapi/downloader'
 import type { Platform } from './platform/interface'
 import { getDeployPlatform } from './runtime-platform'
-import { ensureSitePublicOrigin } from './services/site-public-origin'
 import type { Deps } from './usecases/deps'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/instance-telemetry'
+import { ensureSitePublicOrigin } from './usecases/site-public-origin'
 
 export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
   const app = new Hono<Env>()
@@ -58,7 +58,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     await next()
   })
   app.use('/*', async (c, next) => {
-    const result = await ensureSitePublicOrigin(platform.db, c.req.url).catch((err) => {
+    const result = await ensureSitePublicOrigin(deps, c.req.url).catch((err) => {
       console.error(`site.public_origin.detect.error code=${formatError(err)}`)
       return { origin: null, created: false }
     })

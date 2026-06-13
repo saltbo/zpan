@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NameConflictError } from '../services/matter-name-conflict'
-import { StorageQuotaExceededError, WebDavPathError } from '../usecases/ports'
+import { NameConflictError, StorageQuotaExceededError, WebDavPathError } from '../usecases/ports'
 import { mapDomainError } from './http-errors'
 
 describe('mapDomainError', () => {

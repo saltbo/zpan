@@ -4,6 +4,7 @@ import type { BackgroundJob } from '../../shared/types'
 import { createZipGateway } from '../adapters/gateways/zip'
 import { createArchiveTargetFolderRepo } from '../adapters/repos/archive-target-folder'
 import { createBackgroundJobRepo } from '../adapters/repos/background-job'
+import { createMatterRepo } from '../adapters/repos/matter'
 import { createNotificationRepo } from '../adapters/repos/notification'
 import { createQuotaRepo } from '../adapters/repos/quota'
 import { createStorageRepo } from '../adapters/repos/storage'
@@ -36,6 +37,7 @@ function archiveDeps(db: TestDb): ArchiveProcessingDeps {
     zip: createZipGateway(),
     zipPlan: createZipPlanRepo(db),
     archiveTargetFolders: createArchiveTargetFolderRepo(db),
+    matter: createMatterRepo(db),
   }
 }
 
@@ -217,7 +219,7 @@ describe('archive processing', () => {
     const s3 = new MemoryS3()
     s3.objects.set('source/archive.zip', createZip({ 'docs/hello.txt': bytes('hello') }))
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'zip-matter' },
@@ -251,7 +253,7 @@ describe('archive processing', () => {
 
     const s3 = new GeneratedObjectS3('unused', 0)
     s3.objects.set('source/large.zip', archive)
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'large-zip' },
@@ -272,7 +274,7 @@ describe('archive processing', () => {
     const s3 = new MemoryS3()
     s3.objects.set('objects/a.txt', bytes('hello'))
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_compress', matterIds: ['file-a'] },
@@ -297,7 +299,7 @@ describe('archive processing', () => {
     await seedMatter(db, { id: 'large-file', name: 'large.bin', object: 'objects/large.bin', size })
 
     const s3 = new GeneratedObjectS3('objects/large.bin', size)
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_compress', matterIds: ['large-file'] },
@@ -324,7 +326,7 @@ describe('archive processing', () => {
       request,
       s3: s3 as unknown as S3Gateway,
     })
-    const processing = processArchiveJob(archiveDeps(db), db, {
+    const processing = processArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request,
@@ -367,7 +369,7 @@ describe('archive processing', () => {
       request,
       s3: s3 as unknown as S3Gateway,
     })
-    const processing = processArchiveJob(archiveDeps(db), db, {
+    const processing = processArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request,
@@ -400,7 +402,7 @@ describe('archive processing', () => {
 
     const s3 = new MemoryS3()
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_compress', matterIds: ['empty-folder'] },
@@ -425,7 +427,7 @@ describe('archive processing', () => {
 
     const s3 = new MemoryS3()
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_compress', matterIds: ['parent-folder'] },
@@ -450,7 +452,7 @@ describe('archive processing', () => {
     const s3 = new MemoryS3()
     s3.objects.set('source/bad.zip', createZip({ '../evil.txt': bytes('no') }))
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'bad-zip' },
@@ -477,7 +479,7 @@ describe('archive processing', () => {
       ),
     )
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'large-zip' },
@@ -504,7 +506,7 @@ describe('archive processing', () => {
     const s3 = new MemoryS3()
     s3.objects.set('source/quota.zip', createZip({ 'hello.txt': bytes('hello') }))
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'quota-zip' },
@@ -530,7 +532,7 @@ describe('archive processing', () => {
     const s3 = new MemoryS3()
     s3.objects.set('objects/a.txt', bytes('hello'))
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_compress', matterIds: ['file-a'] },
@@ -551,13 +553,13 @@ describe('archive processing', () => {
 
     const s3 = new MemoryS3()
 
-    const missingTarget = await createArchiveJob(archiveDeps(db), db, {
+    const missingTarget = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_compress', matterIds: ['file-a'], targetFolder: 'missing' },
       s3: s3 as unknown as S3Gateway,
     })
-    const fileTarget = await createArchiveJob(archiveDeps(db), db, {
+    const fileTarget = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_compress', matterIds: ['file-a'], targetFolder: 'target.txt' },
@@ -576,13 +578,13 @@ describe('archive processing', () => {
 
     const s3 = new MemoryS3()
 
-    const missingJob = await createArchiveJob(archiveDeps(db), db, {
+    const missingJob = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'missing-zip' },
       s3: s3 as unknown as S3Gateway,
     })
-    const plainJob = await createArchiveJob(archiveDeps(db), db, {
+    const plainJob = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'plain-file' },
@@ -601,13 +603,13 @@ describe('archive processing', () => {
 
     const s3 = new MemoryS3()
 
-    const missingTarget = await createArchiveJob(archiveDeps(db), db, {
+    const missingTarget = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'zip-matter', targetFolder: 'missing' },
       s3: s3 as unknown as S3Gateway,
     })
-    const fileTarget = await createArchiveJob(archiveDeps(db), db, {
+    const fileTarget = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'zip-matter', targetFolder: 'target.txt' },
@@ -623,7 +625,7 @@ describe('archive processing', () => {
     const { db } = await createTestApp()
     await seedMatter(db, { id: 'zip-matter', name: 'archive.zip', object: 'source/archive.zip', size: 200 })
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'zip-matter' },
@@ -641,7 +643,7 @@ describe('archive processing', () => {
     const s3 = new FailingPutS3()
     s3.objects.set('source/archive.zip', createZip({ 'hello.txt': bytes('hello') }))
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'zip-matter' },
@@ -662,7 +664,7 @@ describe('archive processing', () => {
     const s3 = new FailingPutS3()
     s3.objects.set('source/archive.zip', createZip({ 'docs/hello.txt': bytes('hello') }))
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'zip-matter' },
@@ -689,7 +691,7 @@ describe('archive processing', () => {
       }),
     )
 
-    const job = await createArchiveJob(archiveDeps(db), db, {
+    const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
       request: { type: 'archive_extract', matterId: 'zip-matter' },

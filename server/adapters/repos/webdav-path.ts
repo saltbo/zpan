@@ -3,8 +3,13 @@ import { and, asc, desc, eq } from 'drizzle-orm'
 import { member, organization } from '../../db/auth-schema'
 import { matters } from '../../db/schema'
 import type { Database } from '../../platform/interface'
-import type { Matter } from '../../services/matter'
-import { WebDavPathError, type WebDavPathRepo, type WebDavTarget, type WebDavWorkspace } from '../../usecases/ports'
+import {
+  type Matter,
+  WebDavPathError,
+  type WebDavPathRepo,
+  type WebDavTarget,
+  type WebDavWorkspace,
+} from '../../usecases/ports'
 
 export function createWebDavPathRepo(db: Database): WebDavPathRepo {
   async function getUserWorkspace(userId: string, slugOrId: string): Promise<WebDavWorkspace | null> {

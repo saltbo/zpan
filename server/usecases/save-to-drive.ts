@@ -1,9 +1,9 @@
 import { DirType } from '@shared/constants'
 import { buildObjectKey, fileExt } from '../lib/path-template'
-import type { Database } from '../platform/interface'
-import { createMatter, type Matter } from '../services/matter'
 import type {
   ActivityRepo,
+  Matter,
+  MatterRepo,
   QuotaRepo,
   S3Gateway,
   ShareMatterRow,
@@ -16,8 +16,8 @@ import { withStorageUsageReservation } from './storage-usage'
 
 // Pure orchestration: copies a shared matter (file or folder) into another org,
 // reserving target-org quota per file via withStorageUsageReservation. Reaches
-// the outside world only through deps; matter creation is the (still-unmigrated)
-// matter service, imported transitionally.
+// the outside world only through deps; matter creation goes through the matter
+// repo port.
 
 export type SaveToDriveDeps = {
   s3: S3Gateway
@@ -26,6 +26,7 @@ export type SaveToDriveDeps = {
   quota: QuotaRepo
   activity: ActivityRepo
   share: ShareRepo
+  matter: MatterRepo
 }
 
 export interface SaveShareInput {
@@ -62,7 +63,6 @@ function buildPath(parent: string, name: string): string {
 
 async function saveFile(
   deps: SaveToDriveDeps,
-  db: Database,
   sourceMatter: ShareMatterRow,
   sourceStorage: StorageRecord,
   targetStorage: StorageRecord,
@@ -86,7 +86,7 @@ async function saveFile(
       }
       ctx.onRollback(() => deps.s3.deleteObject(targetStorage, dstKey))
 
-      const newMatter = await createMatter(db, {
+      const newMatter = await deps.matter.create({
         orgId: targetOrgId,
         name: sourceMatter.name,
         type: sourceMatter.type,
@@ -116,7 +116,6 @@ async function saveFile(
 
 async function saveFolderRecursive(
   deps: SaveToDriveDeps,
-  db: Database,
   sourceFolderMatter: ShareMatterRow,
   sourceStorage: StorageRecord,
   targetStorage: StorageRecord,
@@ -129,7 +128,7 @@ async function saveFolderRecursive(
   const saved: Matter[] = []
   const skipped: Array<{ name: string; reason: string }> = []
 
-  const rootFolder = await createMatter(db, {
+  const rootFolder = await deps.matter.create({
     orgId: targetOrgId,
     name: sourceFolderMatter.name,
     type: 'folder',
@@ -159,7 +158,6 @@ async function saveFolderRecursive(
         try {
           const newFile = await saveFile(
             deps,
-            db,
             child,
             sourceStorage,
             targetStorage,
@@ -174,7 +172,7 @@ async function saveFolderRecursive(
           skipped.push({ name: child.name, reason: (e as Error).message })
         }
       } else {
-        const newFolder = await createMatter(db, {
+        const newFolder = await deps.matter.create({
           orgId: targetOrgId,
           name: child.name,
           type: 'folder',
@@ -201,11 +199,7 @@ async function saveFolderRecursive(
 // Copy a file or folder (recursively) into another org. Quota is reserved in the
 // target org per file; files that fail (e.g. quota) are reported in `skipped`
 // rather than failing the whole operation.
-export async function copyMatterToOrg(
-  deps: SaveToDriveDeps,
-  db: Database,
-  input: CopyMatterToOrgInput,
-): Promise<SaveShareResult> {
+export async function copyMatterToOrg(deps: SaveToDriveDeps, input: CopyMatterToOrgInput): Promise<SaveShareResult> {
   const { sourceMatter, currentUserId, targetOrgId, targetParent, activity, teamQuotaEnabled = true } = input
 
   const sourceStorage = await deps.storages.get(sourceMatter.storageId)
@@ -216,7 +210,6 @@ export async function copyMatterToOrg(
   if (sourceMatter.dirtype === DirType.FILE) {
     const newMatter = await saveFile(
       deps,
-      db,
       sourceMatter,
       sourceStorage,
       targetStorage,
@@ -231,7 +224,6 @@ export async function copyMatterToOrg(
 
   return saveFolderRecursive(
     deps,
-    db,
     sourceMatter,
     sourceStorage,
     targetStorage,
@@ -243,13 +235,9 @@ export async function copyMatterToOrg(
   )
 }
 
-export async function saveShareToDrive(
-  deps: SaveToDriveDeps,
-  db: Database,
-  input: SaveShareInput,
-): Promise<SaveShareResult> {
+export async function saveShareToDrive(deps: SaveToDriveDeps, input: SaveShareInput): Promise<SaveShareResult> {
   const { share, matter: sourceMatter, ...rest } = input
-  return copyMatterToOrg(deps, db, {
+  return copyMatterToOrg(deps, {
     ...rest,
     sourceMatter,
     activity: { action: 'save_from_share', metadata: { sourceShareId: share.id } },
