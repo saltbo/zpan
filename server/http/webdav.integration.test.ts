@@ -145,7 +145,7 @@ async function folder(db: TestApp['db'], orgId: string, opts: { id: string; name
 }
 
 describe('WebDAV API', () => {
-  it('rejects missing and insufficient API keys without accepting session cookies', async () => {
+  it('rejects missing and insufficient API keys without accepting session cookies [spec: webdav/auth]', async () => {
     const { app, db, auth } = await createTestApp()
     const headers = await authedHeaders(app)
     const { slug } = await org(db)
@@ -171,7 +171,7 @@ describe('WebDAV API', () => {
     ).toBe(401)
   })
 
-  it('rejects org-bound image-hosting API keys for WebDAV Basic Auth', async () => {
+  it('rejects org-bound image-hosting API keys for WebDAV Basic Auth [spec: webdav/auth-key-scope]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     const workspace = await org(db)
@@ -186,7 +186,7 @@ describe('WebDAV API', () => {
     expect(res.headers.get('WWW-Authenticate')).toBe('Basic realm="ZPan WebDAV"')
   })
 
-  it('PROPFIND lists the mount root, workspace root, and folder children', async () => {
+  it('PROPFIND lists the mount root, workspace root, and folder children [spec: webdav/propfind]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -245,7 +245,7 @@ describe('WebDAV API', () => {
     expect(byId.status).toBe(207)
   })
 
-  it('PROPFIND mount root lists all member workspaces and hides non-member workspaces', async () => {
+  it('PROPFIND mount root lists all member workspaces and hides non-member workspaces [spec: webdav/propfind-workspaces]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     const workspace = await org(db)
@@ -268,7 +268,7 @@ describe('WebDAV API', () => {
     expect(hiddenRes.status).toBe(404)
   })
 
-  it('PROPFIND supports prop, propname, allprop include, explicit depths, and rejects infinity', async () => {
+  it('PROPFIND supports prop, propname, allprop include, explicit depths, and rejects infinity [spec: webdav/propfind-modes]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -337,7 +337,7 @@ describe('WebDAV API', () => {
     expect(await infinity.text()).toContain('propfind-finite-depth')
   })
 
-  it('PROPPATCH stores and removes dead properties visible to later PROPFIND', async () => {
+  it('PROPPATCH stores and removes dead properties visible to later PROPFIND [spec: webdav/proppatch]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -452,7 +452,7 @@ describe('WebDAV API', () => {
     expect(await rootFind.text()).toContain('yes</Z:root>')
   })
 
-  it('GET returns file bytes directly and HEAD returns coherent file headers', async () => {
+  it('GET returns file bytes directly and HEAD returns coherent file headers [spec: webdav/get]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -490,7 +490,7 @@ describe('WebDAV API', () => {
     expect(S3Service.prototype.getObjectBytes).not.toHaveBeenCalled()
   })
 
-  it('GET consumes WebDAV traffic while HEAD does not', async () => {
+  it('GET consumes WebDAV traffic while HEAD does not [spec: webdav/get-traffic]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -595,7 +595,7 @@ describe('WebDAV API', () => {
     expect(reports).toEqual([])
   })
 
-  it('GET supports valid byte ranges and rejects invalid ranges', async () => {
+  it('GET supports valid byte ranges and rejects invalid ranges [spec: webdav/get-range]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -738,7 +738,7 @@ describe('WebDAV API', () => {
     expect(unknownUnit.headers.get('Content-Range')).toBeNull()
   })
 
-  it('honors ETag preconditions and changes ETag after overwrite', async () => {
+  it('honors ETag preconditions and changes ETag after overwrite [spec: webdav/etag-preconditions]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -875,7 +875,7 @@ describe('WebDAV API', () => {
     expect(freshWrite.status).toBe(204)
   })
 
-  it('OPTIONS advertises DAV methods', async () => {
+  it('OPTIONS advertises DAV methods [spec: webdav/options]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     const account = await userAccount(db)
@@ -898,7 +898,7 @@ describe('WebDAV API', () => {
     expect(res.headers.get('WWW-Authenticate')).toBe('Basic realm="ZPan WebDAV"')
   })
 
-  it('PUT creates a file matter and writes through configured storage', async () => {
+  it('PUT creates a file matter and writes through configured storage [spec: webdav/put-create]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -960,7 +960,7 @@ describe('WebDAV API', () => {
     expect(rows[0]).toEqual({ name: 'upload.txt', size: 9 })
   })
 
-  it('PUT updates an existing file matter and rejects collection writes', async () => {
+  it('PUT updates an existing file matter and rejects collection writes [spec: webdav/put-update]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -997,7 +997,7 @@ describe('WebDAV API', () => {
     expect(folderWrite.status).toBe(409)
   })
 
-  it('PUT rolls back quota reservation when storage write fails', async () => {
+  it('PUT rolls back quota reservation when storage write fails [spec: webdav/put-rollback]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -1016,7 +1016,7 @@ describe('WebDAV API', () => {
     expect(rows[0]?.used).toBe(0)
   })
 
-  it('MKCOL creates a folder matter', async () => {
+  it('MKCOL creates a folder matter [spec: webdav/mkcol]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -1035,7 +1035,7 @@ describe('WebDAV API', () => {
     expect(rows[0]?.dirtype).toBe(1)
   })
 
-  it('MKCOL rejects existing targets and missing parent collections', async () => {
+  it('MKCOL rejects existing targets and missing parent collections [spec: webdav/mkcol-guards]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -1071,7 +1071,7 @@ describe('WebDAV API', () => {
     expect(unsupportedBody.status).toBe(415)
   })
 
-  it('MOVE, COPY, and DELETE stay within org scope; DELETE trashes instead of purging', async () => {
+  it('MOVE, COPY, and DELETE stay within org scope; DELETE trashes instead of purging [spec: webdav/org-scope]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -1171,7 +1171,7 @@ describe('WebDAV API', () => {
     expect(root.status).toBe(405)
   })
 
-  it('COPY recursively copies collections and rejects copying into own descendant', async () => {
+  it('COPY recursively copies collections and rejects copying into own descendant [spec: webdav/copy-recursive]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -1269,7 +1269,7 @@ describe('WebDAV API', () => {
     expect(partialRows).toEqual([])
   })
 
-  it('MOVE keeps collection descendant paths consistent and rejects descendant moves', async () => {
+  it('MOVE keeps collection descendant paths consistent and rejects descendant moves [spec: webdav/move-descendants]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -1302,7 +1302,7 @@ describe('WebDAV API', () => {
     expect(descendant.status).toBe(403)
   })
 
-  it('write methods enforce WebDAV If and lock preconditions before mutations', async () => {
+  it('write methods enforce WebDAV If and lock preconditions before mutations [spec: webdav/lock-preconditions]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -1599,7 +1599,7 @@ describe('WebDAV API', () => {
     expect(notMatched.status).toBe(204)
   })
 
-  it('LOCK and UNLOCK expose Class 2 state and enforce write tokens', async () => {
+  it('LOCK and UNLOCK expose Class 2 state and enforce write tokens [spec: webdav/lock-unlock]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -1900,7 +1900,7 @@ describe('WebDAV API', () => {
     expect(missingDelete.status).toBe(404)
   })
 
-  it('MOVE honors Overwrite header for existing destinations', async () => {
+  it('MOVE honors Overwrite header for existing destinations [spec: webdav/move-overwrite]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -1988,7 +1988,7 @@ describe('WebDAV API', () => {
     expect(collectionReplacement.status).toBe(204)
   })
 
-  it('COPY rolls back quota reservation when storage copy fails', async () => {
+  it('COPY rolls back quota reservation when storage copy fails [spec: webdav/copy-rollback]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -2007,7 +2007,7 @@ describe('WebDAV API', () => {
     expect(rows[0]?.used).toBe(0)
   })
 
-  it('rejects traversal, empty segments, and encoded path separators', async () => {
+  it('rejects traversal, empty segments, and encoded path separators [spec: webdav/path-validation]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     const workspace = await org(db)

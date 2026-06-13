@@ -418,7 +418,7 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('returns 402 for Cloud quota-change webhook when Pro quota_store is absent', async () => {
+  it('returns 402 for Cloud quota-change webhook when Pro quota_store is absent [spec: quota-store/feature-gated]', async () => {
     const { app } = await createTestApp()
     const payload = JSON.stringify({
       eventId: 'evt-no-pro',
@@ -436,7 +436,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(402)
   })
 
-  it('ignores spoofed forwarded origin for Cloud checkout return URLs', async () => {
+  it('ignores spoofed forwarded origin for Cloud checkout return URLs [spec: quota-store/checkout-origin-antispoof]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -490,7 +490,7 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('uses the detected site origin for checkout return URLs', async () => {
+  it('uses the detected site origin for checkout return URLs [spec: quota-store/checkout-return-origin]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -582,7 +582,7 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('rejects checkout target orgs the user cannot access', async () => {
+  it('rejects checkout target orgs the user cannot access [spec: quota-store/checkout-access]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -597,7 +597,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(200)
   })
 
-  it('rejects team checkout from non-owner members', async () => {
+  it('rejects team checkout from non-owner members [spec: quota-store/team-checkout-owner-only]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const { headers } = await memberInTeamOrg(app, db, 'editor')
@@ -612,7 +612,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(403)
   })
 
-  it('allows team checkout for the team owner and targets the team org', async () => {
+  it('allows team checkout for the team owner and targets the team org [spec: quota-store/team-checkout]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const { headers, teamOrgId } = await memberInTeamOrg(app, db, 'owner')
@@ -706,7 +706,7 @@ describe('Quota Store API', () => {
     expect(checkout.status).toBe(200)
   })
 
-  it('rejects recurring checkout when the workspace already has an active plan', async () => {
+  it('rejects recurring checkout when the workspace already has an active plan [spec: quota-store/no-double-plan]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -755,7 +755,7 @@ describe('Quota Store API', () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
   })
 
-  it('creates fixed-duration package checkouts without credit discount fields', async () => {
+  it('creates fixed-duration package checkouts without credit discount fields [spec: quota-store/fixed-checkout]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -770,7 +770,7 @@ describe('Quota Store API', () => {
     expect(checkout.status).toBe(200)
   })
 
-  it('creates a subscription portal for the active workspace plan', async () => {
+  it('creates a subscription portal for the active workspace plan [spec: quota-store/subscription-portal]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -797,7 +797,7 @@ describe('Quota Store API', () => {
     expect(JSON.parse(String(init.body))).toEqual({ customerId: orgId, returnUrl: 'http://localhost/storage' })
   })
 
-  it('lists purchasable packages, targets, checkout, and orders', async () => {
+  it('lists purchasable packages, targets, checkout, and orders [spec: quota-store/list-packages]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -873,7 +873,7 @@ describe('Quota Store API', () => {
     expect(parsedOrdersUrl.searchParams.get('customerId')).toBe(orgId)
   })
 
-  it('rejects checkout currency fields before proxying to Cloud', async () => {
+  it('rejects checkout currency fields before proxying to Cloud [spec: quota-store/checkout-currency-guard]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -926,7 +926,7 @@ describe('Quota Store API', () => {
     expect(calls.some(([url, init]) => init.method === 'POST' && String(url).endsWith('/orders'))).toBe(false)
   })
 
-  it('proxies credit balance and gift card redemption through credit endpoints', async () => {
+  it('proxies credit balance and gift card redemption through credit endpoints [spec: quota-store/credit-balance]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -962,7 +962,7 @@ describe('Quota Store API', () => {
     expect(JSON.parse(String(redeemInit.body))).toEqual({ codes: ['ZS-1234-5678'] })
   })
 
-  it('proxies credit ledger entries through credit endpoints', async () => {
+  it('proxies credit ledger entries through credit endpoints [spec: quota-store/credit-ledger]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1004,7 +1004,7 @@ describe('Quota Store API', () => {
     expect(ledgerInit.method).toBe('GET')
   })
 
-  it('continues payment and cancels orders through Cloud', async () => {
+  it('continues payment and cancels orders through Cloud [spec: quota-store/order-continue-cancel]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1061,7 +1061,7 @@ describe('Quota Store API', () => {
     expect(JSON.parse(String(cancelInit.body))).toEqual({ status: 'canceled' })
   })
 
-  it('rejects payment continuation and cancellation for another org order', async () => {
+  it('rejects payment continuation and cancellation for another org order [spec: quota-store/order-org-scope]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1087,7 +1087,7 @@ describe('Quota Store API', () => {
     ).toBe(false)
   })
 
-  it('hides self-service store endpoints until Cloud is bound', async () => {
+  it('hides self-service store endpoints until Cloud is bound [spec: quota-store/requires-binding]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1130,7 +1130,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toEqual({ error: 'invalid_cloud_response' })
   })
 
-  it('surfaces Cloud checkout error responses', async () => {
+  it('surfaces Cloud checkout error responses [spec: quota-store/checkout-error-surfacing]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1225,7 +1225,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toMatchObject({ success: true, duplicate: false })
   })
 
-  it('valid Cloud quota-change webhook records active entitlement once and records audit', async () => {
+  it('valid Cloud quota-change webhook records active entitlement once and records audit [spec: quota-store/webhook-records-entitlement]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
@@ -1280,7 +1280,7 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('delivers initial subscription storage and traffic entitlements under a stable source id', async () => {
+  it('delivers initial subscription storage and traffic entitlements under a stable source id [spec: quota-store/webhook-subscription-delivery]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
@@ -1372,7 +1372,7 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('renews subscription entitlements by replacing plan bytes and extending expiry', async () => {
+  it('renews subscription entitlements by replacing plan bytes and extending expiry [spec: quota-store/webhook-renewal]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
@@ -1448,7 +1448,7 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('accumulates repeated Cloud increases for the same order and resource', async () => {
+  it('accumulates repeated Cloud increases for the same order and resource [spec: quota-store/webhook-accumulate]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
@@ -1493,7 +1493,7 @@ describe('Quota Store API', () => {
     expect(quota.entitlementQuota).toBe(6144)
   })
 
-  it('decreases accumulated Cloud order entitlement bytes without revoking the remainder', async () => {
+  it('decreases accumulated Cloud order entitlement bytes without revoking the remainder [spec: quota-store/webhook-decrease]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
@@ -1815,7 +1815,7 @@ describe('Quota Store API', () => {
     expect(rows[0].quota).toBe(8192)
   })
 
-  it('replaying the same decrease event is idempotent and does not double-deduct', async () => {
+  it('replaying the same decrease event is idempotent and does not double-deduct [spec: quota-store/webhook-idempotent]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const orgId = await getFirstOrgId(db)
@@ -2018,7 +2018,7 @@ describe('Quota Store API', () => {
     expect(deliveries).toEqual([{ status: 'processed', error: null }])
   })
 
-  it('rejects missing Cloud quota-change webhook auth', async () => {
+  it('rejects missing Cloud quota-change webhook auth [spec: quota-store/webhook-auth-required]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
 
@@ -2067,7 +2067,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects expired Cloud quota-change webhook event tokens', async () => {
+  it('rejects expired Cloud quota-change webhook event tokens [spec: quota-store/webhook-token-expiry]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const payload = JSON.stringify({ eventId: 'evt-expired-token' })
@@ -2181,7 +2181,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects Cloud quota-change webhook event tokens with the wrong audience', async () => {
+  it('rejects Cloud quota-change webhook event tokens with the wrong audience [spec: quota-store/webhook-token-audience]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const payload = JSON.stringify({ eventId: 'evt-wrong-audience' })
@@ -2225,7 +2225,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
   })
 
-  it('rejects credit-only commerce fulfillment events on the quota webhook', async () => {
+  it('rejects credit-only commerce fulfillment events on the quota webhook [spec: quota-store/webhook-rejects-commerce]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const payload = JSON.stringify({

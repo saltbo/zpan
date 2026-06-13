@@ -39,7 +39,7 @@ describe('Auth Providers — public list', () => {
     expect(body.items).toEqual([])
   })
 
-  it('returns only enabled providers', async () => {
+  it('returns only enabled providers [spec: auth-providers/public-enabled-only]', async () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
     await seedProLicense(db) // 2nd provider requires social_login_unlimited
@@ -54,7 +54,7 @@ describe('Auth Providers — public list', () => {
     expect(body.items[0].providerId).toBe('github')
   })
 
-  it('does not include clientSecret in public response', async () => {
+  it('does not include clientSecret in public response [spec: auth-providers/public-no-secret]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -65,7 +65,7 @@ describe('Auth Providers — public list', () => {
     expect(body.items[0]).not.toHaveProperty('clientSecret')
   })
 
-  it('returns display name and icon from provider metadata', async () => {
+  it('returns display name and icon from provider metadata [spec: auth-providers/metadata]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -77,7 +77,7 @@ describe('Auth Providers — public list', () => {
     expect(body.items[0].icon).toBe('github')
   })
 
-  it('uses providerId as fallback name and icon for unknown OIDC provider', async () => {
+  it('uses providerId as fallback name and icon for unknown OIDC provider [spec: auth-providers/oidc-fallback]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -110,7 +110,7 @@ describe('Auth Providers — admin list', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 for non-admin user', async () => {
+  it('returns 403 for non-admin user [spec: auth-providers/admin-only]', async () => {
     const { app } = await createTestApp()
     // First sign-up makes admin; second is regular user
     await adminHeaders(app)
@@ -134,7 +134,7 @@ describe('Auth Providers — admin list', () => {
     expect(body.items).toEqual([])
   })
 
-  it('returns all configs including disabled providers', async () => {
+  it('returns all configs including disabled providers [spec: auth-providers/admin-list-all]', async () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
     await seedProLicense(db) // 2nd provider requires social_login_unlimited
@@ -147,7 +147,7 @@ describe('Auth Providers — admin list', () => {
     expect(body.items).toHaveLength(2)
   })
 
-  it('masks clientSecret leaving only last 4 chars visible', async () => {
+  it('masks clientSecret leaving only last 4 chars visible [spec: auth-providers/mask-secret]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -160,7 +160,7 @@ describe('Auth Providers — admin list', () => {
     expect(secret).not.toBe(githubConfig.clientSecret)
   })
 
-  it('masks short secret entirely with four asterisks', async () => {
+  it('masks short secret entirely with four asterisks [spec: auth-providers/mask-short-secret]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -183,7 +183,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect(res.status).toBe(401)
   })
 
-  it('admin can create a builtin provider', async () => {
+  it('admin can create a builtin provider [spec: auth-providers/create-builtin]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -196,7 +196,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect(body.enabled).toBe(true)
   })
 
-  it('blocks the second provider on the free plan with 402', async () => {
+  it('blocks the second provider on the free plan with 402 [spec: auth-providers/free-limit]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -210,7 +210,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect(body.limit).toBe(1)
   })
 
-  it('allows additional providers with the social_login_unlimited entitlement', async () => {
+  it('allows additional providers with the social_login_unlimited entitlement [spec: auth-providers/unlimited-entitlement]', async () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
     await seedProLicense(db)
@@ -219,7 +219,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect((await putProvider(app, admin, 'google', { ...githubConfig, clientId: 'google-id' })).status).toBe(200)
   })
 
-  it('updating the only provider is not blocked by the free limit', async () => {
+  it('updating the only provider is not blocked by the free limit [spec: auth-providers/update-not-limited]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -238,7 +238,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect((body.clientSecret as string).endsWith('alue')).toBe(true)
   })
 
-  it('updates an existing provider on second PUT', async () => {
+  it('updates an existing provider on second PUT [spec: auth-providers/update]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -255,7 +255,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect(listBody.items).toHaveLength(1)
   })
 
-  it('admin can create an OIDC provider with discoveryUrl', async () => {
+  it('admin can create an OIDC provider with discoveryUrl [spec: auth-providers/create-oidc]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -268,7 +268,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect(body.scopes).toEqual(oidcConfig.scopes)
   })
 
-  it('returns 400 for unknown builtin provider ID', async () => {
+  it('returns 400 for unknown builtin provider ID [spec: auth-providers/unknown-builtin]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -278,7 +278,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect(body.error).toMatch(/Unknown builtin provider/)
   })
 
-  it('returns 400 for OIDC provider missing discoveryUrl', async () => {
+  it('returns 400 for OIDC provider missing discoveryUrl [spec: auth-providers/oidc-missing-discovery]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 

@@ -127,7 +127,7 @@ async function insertImageHosting(
 // ─── POST /images — content type handling ────────────────────────────────────
 
 describe('POST /api/ihost/images (content type handling)', () => {
-  it('returns 400 for application/json without base64 file field', async () => {
+  it('returns 400 for application/json without base64 file field [spec: image-hosting/json-missing-file]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -144,7 +144,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
     expect(String(body.error)).toContain('file field')
   })
 
-  it('returns 401 for application/json without any auth', async () => {
+  it('returns 401 for application/json without any auth [spec: image-hosting/json-auth]', async () => {
     const { app } = await createTestApp()
 
     const res = await app.request('/api/ihost/images', {
@@ -155,7 +155,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 415 for text/plain', async () => {
+  it('returns 415 for text/plain [spec: image-hosting/unsupported-content-type]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -170,7 +170,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
     expect(res.status).toBe(415)
   })
 
-  it('accepts base64 PNG via application/json (uPic upload)', async () => {
+  it('accepts base64 PNG via application/json (uPic upload) [spec: image-hosting/upic-upload]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -191,7 +191,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
     expect(data.url).toBeDefined()
   })
 
-  it('accepts explicit path in JSON base64 upload', async () => {
+  it('accepts explicit path in JSON base64 upload [spec: image-hosting/json-explicit-path]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -208,7 +208,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
     expect(res.status).toBe(201)
   })
 
-  it('returns 400 for invalid base64 in JSON', async () => {
+  it('returns 400 for invalid base64 in JSON [spec: image-hosting/invalid-base64]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -239,7 +239,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 401 for API key (presign requires session auth)', async () => {
+  it('returns 401 for API key (presign requires session auth) [spec: image-hosting/presign-session-only]', async () => {
     const { app, db, auth } = await createTestApp()
     await insertStorage(db)
     await authedHeaders(app)
@@ -256,7 +256,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 when org has no image_hosting_configs row', async () => {
+  it('returns 403 when org has no image_hosting_configs row [spec: image-hosting/requires-config]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -271,7 +271,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(body.error).toContain('image hosting not enabled')
   })
 
-  it('returns 503 when no storage is configured', async () => {
+  it('returns 503 when no storage is configured [spec: image-hosting/requires-storage]', async () => {
     // Do NOT insertStorage — selectStorage will throw → 503
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
@@ -288,7 +288,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(String(body.error)).toContain('storage')
   })
 
-  it('returns 201 with draft row and presigned uploadUrl', async () => {
+  it('returns 201 with draft row and presigned uploadUrl [spec: image-hosting/presign]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -309,7 +309,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(String(body.storageKey)).toMatch(/^ih\//)
   })
 
-  it('returns 400 for path with ..', async () => {
+  it('returns 400 for path with .. [spec: image-hosting/path-traversal]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -326,7 +326,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(body.error).toBe('invalid path')
   })
 
-  it('returns 400 for path exceeding depth 5', async () => {
+  it('returns 400 for path exceeding depth 5 [spec: image-hosting/path-depth]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -344,7 +344,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(String(body.detail)).toContain('depth')
   })
 
-  it('returns 400 for disallowed mime (image/svg+xml)', async () => {
+  it('returns 400 for disallowed mime (image/svg+xml) [spec: image-hosting/disallowed-svg]', async () => {
     // zValidator rejects disallowed mimes with 400 (Zod enum check)
     const { app, db } = await createTestApp()
     await insertStorage(db)
@@ -376,7 +376,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 413 for size exceeding 20 MB', async () => {
+  it('returns 413 for size exceeding 20 MB [spec: image-hosting/size-limit]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -391,7 +391,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(res.status).toBe(413)
   })
 
-  it('auto-suffixes path on collision', async () => {
+  it('auto-suffixes path on collision [spec: image-hosting/collision-suffix]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -516,7 +516,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(String(body.detail)).toContain('invalid characters')
   })
 
-  it('derives default path from blob filename (uses nanoid fallback)', async () => {
+  it('derives default path from blob filename (uses nanoid fallback) [spec: image-hosting/default-path]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -565,7 +565,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
 // ─── POST multipart stream-proxy ─────────────────────────────────────────────
 
 describe('POST /api/ihost/images (multipart)', () => {
-  it('returns 201 with tool response on happy path, R2 put called', async () => {
+  it('returns 201 with tool response on happy path, R2 put called [spec: image-hosting/multipart-upload]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -592,7 +592,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     expect(S3Service.prototype.putObject).toHaveBeenCalledTimes(1)
   })
 
-  it('row status is active after multipart upload', async () => {
+  it('row status is active after multipart upload [spec: image-hosting/active-after-upload]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -652,7 +652,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     expect(res.status).toBe(413)
   })
 
-  it('returns 413 from Content-Length header before parsing body', async () => {
+  it('returns 413 from Content-Length header before parsing body [spec: image-hosting/content-length-guard]', async () => {
     // Sends explicit Content-Length > MAX_IMAGE_SIZE with a tiny body — triggers
     // the header-based early reject (before formData.get('file') is called)
     const { app, db } = await createTestApp()
@@ -676,7 +676,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     expect(res.status).toBe(413)
   })
 
-  it('uses custom domain in url when configured and verified', async () => {
+  it('uses custom domain in url when configured and verified [spec: image-hosting/custom-domain]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)

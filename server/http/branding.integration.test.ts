@@ -27,7 +27,7 @@ async function seedBrandingOption(db: Awaited<ReturnType<typeof createTestApp>>[
 // ─── GET /api/branding ────────────────────────────────────────────────────────
 
 describe('GET /api/branding', () => {
-  it('returns defaults when no branding configured', async () => {
+  it('returns defaults when no branding configured [spec: branding/defaults]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/branding')
     expect(res.status).toBe(200)
@@ -46,13 +46,13 @@ describe('GET /api/branding', () => {
     })
   })
 
-  it('is accessible without authentication', async () => {
+  it('is accessible without authentication [spec: branding/public]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/branding')
     expect(res.status).toBe(200)
   })
 
-  it('returns stored branding values when set', async () => {
+  it('returns stored branding values when set [spec: branding/stored-values]', async () => {
     const { app, db } = await createTestApp()
     await seedBrandingOption(db, 'branding_wordmark_text', 'MyCloud')
     await seedBrandingOption(db, 'branding_hide_powered_by', 'true')
@@ -80,7 +80,7 @@ describe('GET /api/branding', () => {
     })
   })
 
-  it('returns stored custom theme values when set', async () => {
+  it('returns stored custom theme values when set [spec: branding/custom-theme]', async () => {
     const { app, db } = await createTestApp()
     await seedBrandingOption(db, 'branding_theme_mode', 'custom')
     await seedBrandingOption(db, 'branding_theme_primary_color', '#123456')
@@ -124,7 +124,7 @@ describe('PUT /api/admin/branding', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 for non-admin', async () => {
+  it('returns 403 for non-admin [spec: branding/admin-only]', async () => {
     const { app } = await createTestApp()
     // First user is auto-promoted to admin — create them first, then the non-admin
     await adminHeaders(app)
@@ -133,7 +133,7 @@ describe('PUT /api/admin/branding', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns 402 when white_label feature is not available (no Pro)', async () => {
+  it('returns 402 when white_label feature is not available (no Pro) [spec: branding/white-label-gated]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/branding', { method: 'PUT', headers })
@@ -142,7 +142,7 @@ describe('PUT /api/admin/branding', () => {
     expect(body.feature).toBe('white_label')
   })
 
-  it('returns 415 when body is not multipart', async () => {
+  it('returns 415 when body is not multipart [spec: branding/multipart-required]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -154,7 +154,7 @@ describe('PUT /api/admin/branding', () => {
     expect(res.status).toBe(415)
   })
 
-  it('returns 422 when wordmark_text exceeds 24 chars', async () => {
+  it('returns 422 when wordmark_text exceeds 24 chars [spec: branding/wordmark-length]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -165,7 +165,7 @@ describe('PUT /api/admin/branding', () => {
     expect(res.status).toBe(422)
   })
 
-  it('saves wordmark_text and hide_powered_by without file upload', async () => {
+  it('saves wordmark_text and hide_powered_by without file upload [spec: branding/save-text]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -187,7 +187,7 @@ describe('PUT /api/admin/branding', () => {
     expect(getBody.hide_powered_by).toBe(true)
   })
 
-  it('saves a built-in theme selection', async () => {
+  it('saves a built-in theme selection [spec: branding/builtin-theme]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -206,7 +206,7 @@ describe('PUT /api/admin/branding', () => {
     expect(getBody.theme).toMatchObject({ mode: 'preset', preset: 'ocean', configured: true })
   })
 
-  it('saves custom theme colors when valid', async () => {
+  it('saves custom theme colors when valid [spec: branding/save-custom-theme]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -231,7 +231,7 @@ describe('PUT /api/admin/branding', () => {
     })
   })
 
-  it('returns 422 for invalid custom colors without changing stored theme', async () => {
+  it('returns 422 for invalid custom colors without changing stored theme [spec: branding/invalid-colors]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -267,7 +267,7 @@ describe('PUT /api/admin/branding', () => {
     expect(res.status).toBe(422)
   })
 
-  it('uploads logo file to S3 and stores URL', async () => {
+  it('uploads logo file to S3 and stores URL [spec: branding/logo-upload]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -284,7 +284,7 @@ describe('PUT /api/admin/branding', () => {
     expect(S3Service.prototype.putObject).toHaveBeenCalledTimes(1)
   })
 
-  it('returns 400 for invalid logo MIME type', async () => {
+  it('returns 400 for invalid logo MIME type [spec: branding/logo-mime]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -298,7 +298,7 @@ describe('PUT /api/admin/branding', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 413 for logo file exceeding 2MB', async () => {
+  it('returns 413 for logo file exceeding 2MB [spec: branding/logo-size]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -314,7 +314,7 @@ describe('PUT /api/admin/branding', () => {
     expect(res.status).toBe(413)
   })
 
-  it('returns 503 when no public storage is configured', async () => {
+  it('returns 503 when no public storage is configured [spec: branding/logo-needs-storage]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -345,7 +345,7 @@ describe('DELETE /api/admin/branding/:field', () => {
     expect(res.status).toBe(402)
   })
 
-  it('resets a text field', async () => {
+  it('resets a text field [spec: branding/reset-field]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)

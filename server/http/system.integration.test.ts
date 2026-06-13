@@ -22,13 +22,13 @@ async function putOption(
 }
 
 describe('System API — options CRUD', () => {
-  it('GET unknown key returns 404', async () => {
+  it('GET unknown key returns 404 [spec: system/option-not-found]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/system/options/site_name')
     expect(res.status).toBe(404)
   })
 
-  it('full admin CRUD lifecycle with public/private visibility', async () => {
+  it('full admin CRUD lifecycle with public/private visibility [spec: system/admin-crud]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -79,7 +79,7 @@ describe('System API — options CRUD', () => {
     expect(afterDel.status).toBe(404)
   })
 
-  it('unauthenticated mutations are rejected', async () => {
+  it('unauthenticated mutations are rejected [spec: system/mutations-require-admin]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/system/options/site_name', {
       method: 'PUT',
@@ -92,7 +92,7 @@ describe('System API — options CRUD', () => {
     expect(del.status).toBe(401)
   })
 
-  it('rejects invalid default organization quota values', async () => {
+  it('rejects invalid default organization quota values [spec: system/validate-org-quota]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -102,7 +102,7 @@ describe('System API — options CRUD', () => {
     }
   })
 
-  it('validates default monthly traffic quota values', async () => {
+  it('validates default monthly traffic quota values [spec: system/validate-traffic-quota]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -120,7 +120,7 @@ describe('System API — options CRUD', () => {
     await expect(updated.json()).resolves.toMatchObject({ value: '0' })
   })
 
-  it('exposes instance info to admins only', async () => {
+  it('exposes instance info to admins only [spec: system/instance-info-admin-only]', async () => {
     const { app } = await createTestApp()
 
     const anon = await app.request('/api/system/instance')
@@ -142,7 +142,7 @@ describe('System API — options CRUD', () => {
       resetChangelogCache()
     })
 
-    it('serves the release version and changelog markdown to admins only', async () => {
+    it('serves the release version and changelog markdown to admins only [spec: system/changelog-admin-only]', async () => {
       const { app } = await createTestApp()
       resetChangelogCache()
       const markdown = '## [2.8.0] - 2026-07-01\n- product-facing notes'
@@ -175,7 +175,7 @@ describe('System API — options CRUD', () => {
     })
   })
 
-  it('keeps captcha secret private and rejects enabling captcha before keys exist', async () => {
+  it('keeps captcha secret private and rejects enabling captcha before keys exist [spec: system/captcha-secret-private]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 

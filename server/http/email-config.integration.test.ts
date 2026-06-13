@@ -34,13 +34,13 @@ async function seedCloudflareConfig(db: Awaited<ReturnType<typeof createTestApp>
 }
 
 describe('Admin Email Config API — auth', () => {
-  it('GET returns 401 without auth', async () => {
+  it('GET returns 401 without auth [spec: email-config/auth-required]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/admin/email-config')
     expect(res.status).toBe(401)
   })
 
-  it('GET returns 403 for non-admin user', async () => {
+  it('GET returns 403 for non-admin user [spec: email-config/admin-only]', async () => {
     const { app } = await createTestApp()
     await authedHeaders(app, 'admin@example.com')
     await authedHeaders(app, 'regular@example.com')
@@ -76,7 +76,7 @@ describe('Admin Email Config API — auth', () => {
 })
 
 describe('Admin Email Config API — GET', () => {
-  it('returns disabled empty state when no config exists', async () => {
+  it('returns disabled empty state when no config exists [spec: email-config/empty-state]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/email-config', { headers })
@@ -85,7 +85,7 @@ describe('Admin Email Config API — GET', () => {
     expect(body).toEqual({ enabled: false, provider: null })
   })
 
-  it('returns enabled with null provider when email is enabled but sender/provider are incomplete', async () => {
+  it('returns enabled with null provider when email is enabled but sender/provider are incomplete [spec: email-config/incomplete-provider]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await db.insert(schema.systemOptions).values([{ key: 'email_enabled', value: 'true' }])
@@ -98,7 +98,7 @@ describe('Admin Email Config API — GET', () => {
     })
   })
 
-  it('returns masked SMTP config after SMTP config is saved', async () => {
+  it('returns masked SMTP config after SMTP config is saved [spec: email-config/mask-smtp]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedSmtpConfig(db)
@@ -120,7 +120,7 @@ describe('Admin Email Config API — GET', () => {
     expect(String(smtp.pass)).toMatch(/^\*+cret$/)
   })
 
-  it('returns masked HTTP config after HTTP config is saved', async () => {
+  it('returns masked HTTP config after HTTP config is saved [spec: email-config/mask-http]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedHttpConfig(db)
@@ -158,7 +158,7 @@ describe('Admin Email Config API — GET', () => {
 })
 
 describe('Admin Email Config API — PUT', () => {
-  it('saves SMTP config and returns success', async () => {
+  it('saves SMTP config and returns success [spec: email-config/save-smtp]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -213,7 +213,7 @@ describe('Admin Email Config API — PUT', () => {
     expect(smtp.port).toBe(465)
   })
 
-  it('saves HTTP config and returns success', async () => {
+  it('saves HTTP config and returns success [spec: email-config/save-http]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -261,7 +261,7 @@ describe('Admin Email Config API — PUT', () => {
     expect(http.url).toBe('https://api.sendgrid.com/v3/mail/send')
   })
 
-  it('returns 400 for invalid provider value', async () => {
+  it('returns 400 for invalid provider value [spec: email-config/invalid-provider]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -273,7 +273,7 @@ describe('Admin Email Config API — PUT', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 for invalid from email', async () => {
+  it('returns 400 for invalid from email [spec: email-config/invalid-from]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -285,7 +285,7 @@ describe('Admin Email Config API — PUT', () => {
     expect(res.status).toBe(400)
   })
 
-  it('updates existing config when PUT is called a second time', async () => {
+  it('updates existing config when PUT is called a second time [spec: email-config/update]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -319,7 +319,7 @@ describe('Admin Email Config API — PUT', () => {
     expect(smtp.port).toBe(587)
   })
 
-  it('saves Cloudflare config and returns success', async () => {
+  it('saves Cloudflare config and returns success [spec: email-config/save-cloudflare]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -358,7 +358,7 @@ describe('Admin Email Config API — PUT', () => {
     })
   })
 
-  it('persists disabled state even when provider config exists', async () => {
+  it('persists disabled state even when provider config exists [spec: email-config/persist-disabled]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -385,7 +385,7 @@ describe('Admin Email Config API — POST /test', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns success when sendEmail succeeds', async () => {
+  it('returns success when sendEmail succeeds [spec: email-config/test-success]', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -403,7 +403,7 @@ describe('Admin Email Config API — POST /test', () => {
     expect(body.success).toBe(true)
   })
 
-  it('returns 400 with error message when sendEmail fails', async () => {
+  it('returns 400 with error message when sendEmail fails [spec: email-config/test-failure]', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
@@ -426,7 +426,7 @@ describe('Admin Email Config API — POST /test', () => {
     expect(typeof body.error).toBe('string')
   })
 
-  it('returns 400 when no email config is set', async () => {
+  it('returns 400 when no email config is set [spec: email-config/test-no-config]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
