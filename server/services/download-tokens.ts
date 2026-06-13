@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { downloaders, downloadTasks } from '../db/schema'
+import { constantTimeEqual } from '../lib/constant-time'
 import type { Database, Platform } from '../platform/interface'
 
 const TOKEN_VERSION = 1
@@ -151,13 +152,4 @@ function base64UrlDecode(value: string): string {
     .replace(/_/g, '/')
     .padEnd(Math.ceil(value.length / 4) * 4, '=')
   return atob(padded)
-}
-
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let result = 0
-  for (let i = 0; i < a.length; i += 1) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  }
-  return result === 0
 }

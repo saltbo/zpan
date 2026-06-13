@@ -2,7 +2,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { generateKeys, sign } from 'paseto-ts/v4'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { invalidateEntitlementCache, loadEntitlement } from './entitlement'
@@ -159,6 +159,24 @@ describe('loadEntitlement', () => {
       features: effectiveFeatures('business'),
       licenseId: 'lic-business',
     })
+  })
+
+  it('stops serving a cached entitlement once the certificate expires mid-window', async () => {
+    vi.useFakeTimers()
+    try {
+      const db = makeDb()
+      await seedBinding(db, signAssertion({ expiresAt: nowSec() + 30 }))
+
+      const first = await loadEntitlement(db)
+      expect(first?.edition).toBe('pro')
+
+      // Advance past the cert's 30s expiry but within the 60s cache TTL.
+      vi.advanceTimersByTime(40_000)
+      const second = await loadEntitlement(db)
+      expect(second).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('returns null for an expired PASETO assertion', async () => {

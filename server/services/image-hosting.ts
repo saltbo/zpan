@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid'
 import type { AllowedImageMime } from '../../shared/schemas'
 import type { ImageHosting } from '../../shared/types'
 import { imageHostingConfigs, imageHostings } from '../db/schema'
+import { mimeToExt } from '../lib/mime-utils'
 import type { Database } from '../platform/interface'
 import { reconcileStorageUsage, StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 
@@ -69,17 +70,6 @@ const PATH_PATTERN = /^[a-zA-Z0-9._/-]+$/
 const MAX_DEPTH = 5
 const MAX_PATH_LENGTH = 256
 const MAX_COLLISION_RETRIES = 5
-
-const MIME_TO_EXT: Record<AllowedImageMime, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-}
-
-export function mimeToExt(mime: string): string {
-  return MIME_TO_EXT[mime as AllowedImageMime] ?? 'bin'
-}
 
 export type PathValidationError = { error: 'invalid path'; detail: string }
 

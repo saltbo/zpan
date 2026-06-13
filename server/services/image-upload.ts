@@ -1,3 +1,4 @@
+import { mimeToExt } from '../lib/mime-utils'
 import type { Platform } from '../platform/interface'
 import { S3Service } from './s3'
 import { type Storage as S3Storage, selectStorage } from './storage'
@@ -8,18 +9,12 @@ export const IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'] as const
 export type ImageMime = (typeof IMAGE_MIMES)[number]
 export const MAX_IMAGE_SIZE = 2 * 1024 * 1024 // 2 MiB
 
-const MIME_TO_EXT: Record<ImageMime, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/webp': 'webp',
-}
-
 export function isImageMime(v: unknown): v is ImageMime {
   return typeof v === 'string' && (IMAGE_MIMES as readonly string[]).includes(v)
 }
 
 export function imageKey(prefix: string, id: string, mime: ImageMime): string {
-  return `${prefix}/${id}.${MIME_TO_EXT[mime]}`
+  return `${prefix}/${id}.${mimeToExt(mime)}`
 }
 
 export type ImageUploadResult = { ok: true; url: string } | { ok: false; status: 400 | 413 | 503; error: string }

@@ -29,3 +29,10 @@ export function formatSize(bytes: number): string {
 export function formatMoney(amount: number, currency: string): string {
   return `${(amount / 100).toFixed(2)} ${currency.toUpperCase()}`
 }
+
+/** Locale-aware currency from a minor-unit (cents) amount, e.g. 1299 → "$12.99". */
+export function formatCurrency(amountCents: number, currency: string, locale?: string): string {
+  return new Intl.NumberFormat(locale, { style: 'currency', currency: currency.toUpperCase() }).format(
+    amountCents / 100,
+  )
+}

@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { listUsers, type UserWithOrg, updateUserStatus } from '@/lib/api'
-import { formatSize, getInitials } from '@/lib/format'
+import { formatDate, formatSize, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/users/')({
   component: UsersPage,
@@ -227,9 +227,4 @@ function UserTableRow({
 function formatQuota(used: number, total: number): string {
   if (total <= 0) return `${formatSize(used)} / --`
   return `${formatSize(used)} / ${formatSize(total)}`
-}
-
-function formatDate(timestamp: number): string {
-  const d = new Date(timestamp)
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString()
 }

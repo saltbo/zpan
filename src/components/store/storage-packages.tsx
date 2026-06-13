@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cloudProductIncludedCredits, cloudProductStorageBytes } from '@/lib/cloud-product'
-import { formatSize } from '@/lib/format'
+import { formatCurrency, formatSize } from '@/lib/format'
 
 export function StoragePackages({
   packages,
@@ -242,16 +242,12 @@ function selectPlanPrices(prices: CloudProduct['prices']) {
   }
 }
 
-function formatMoney(amount: number, currency: string, language: string) {
-  return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
-}
-
 function formatPlanPrice(
   price: CloudProduct['prices'][number],
   language: string,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
-  const amount = formatMoney(price.amount, price.currency, language)
+  const amount = formatCurrency(price.amount, price.currency, language)
   if (price.recurring?.interval === 'month' && price.recurring.intervalCount === 1)
     return t('storage.priceMonthly', { amount })
   if (price.recurring?.interval === 'year' && price.recurring.intervalCount === 1)

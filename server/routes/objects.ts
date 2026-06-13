@@ -13,6 +13,7 @@ import {
   presignObjectUploadPartsSchema,
   transferMatterSchema,
 } from '../../shared/schemas'
+import { mapDomainError } from '../lib/http-errors'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
@@ -30,7 +31,6 @@ import {
   trashMatter,
   updateMatter,
 } from '../services/matter'
-import { NameConflictError } from '../services/matter-name-conflict'
 import {
   createObjectUploadSession,
   ObjectUploadSessionError,
@@ -43,19 +43,10 @@ import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
 import { computeSourceBytes, copyMatterToOrg, isQuotaSufficient } from '../services/save-to-drive'
 import { getStorage, type Storage as S3Storage, selectStorage } from '../services/storage'
-import { StorageQuotaExceededError, withStorageUsageReservation } from '../services/storage-usage'
+import { withStorageUsageReservation } from '../services/storage-usage'
 import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
 const s3 = new S3Service()
-
-function conflictBody(err: NameConflictError) {
-  return {
-    error: err.message,
-    code: 'NAME_CONFLICT' as const,
-    conflictingName: err.conflictingName,
-    conflictingId: err.conflictingId,
-  }
-}
 
 function normalizeMatterPath(path: string): string {
   return path
@@ -188,7 +179,8 @@ const app = new Hono<Env>()
       const uploadUrl = await s3.presignUpload(storage, objectKey, type, name)
       return c.json({ ...matter, uploadUrl, contentDisposition }, 201)
     } catch (e) {
-      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+      const mapped = mapDomainError(e)
+      if (mapped) return c.json(mapped.json, mapped.status)
       throw e
     }
   })
@@ -330,7 +322,8 @@ const app = new Hono<Env>()
           if (!matter) return c.json({ error: 'Not found' }, 404)
           return c.json(matter)
         } catch (e) {
-          if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+          const mapped = mapDomainError(e)
+          if (mapped) return c.json(mapped.json, mapped.status)
           return c.json({ error: (e as Error).message }, 400)
         }
       }
@@ -344,7 +337,8 @@ const app = new Hono<Env>()
           if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
           return c.json(matter)
         } catch (e) {
-          if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+          const mapped = mapDomainError(e)
+          if (mapped) return c.json(mapped.json, mapped.status)
           throw e
         }
       }
@@ -374,7 +368,8 @@ const app = new Hono<Env>()
           if (!matter) return c.json({ error: 'Not found' }, 404)
           return c.json(matter)
         } catch (e) {
-          if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+          const mapped = mapDomainError(e)
+          if (mapped) return c.json(mapped.json, mapped.status)
           throw e
         }
       }
@@ -439,8 +434,8 @@ const app = new Hono<Env>()
       )
       return c.json(copy, 201)
     } catch (e) {
-      if (e instanceof StorageQuotaExceededError) return c.json({ error: 'Quota exceeded' }, 422)
-      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+      const mapped = mapDomainError(e)
+      if (mapped) return c.json(mapped.json, mapped.status)
       throw e
     }
   })

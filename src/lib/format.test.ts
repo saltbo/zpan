@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, formatSize } from './format'
+import { formatCurrency, formatDate, formatSize } from './format'
+
+describe('formatCurrency', () => {
+  it('formats minor-unit cents as locale currency', () => {
+    expect(formatCurrency(1299, 'usd', 'en-US')).toBe('$12.99')
+    expect(formatCurrency(0, 'usd', 'en-US')).toBe('$0.00')
+  })
+
+  it('uppercases the currency code', () => {
+    expect(formatCurrency(500, 'eur', 'en-US')).toBe('€5.00')
+  })
+})
 
 describe('formatSize', () => {
   it('returns "0 B" for 0 bytes', () => {
