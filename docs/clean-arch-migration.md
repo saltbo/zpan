@@ -95,8 +95,14 @@ Imports: relative within `server/` (matches existing code); `@shared/*` for shar
 - [ ] path-template, content-disposition (shared already), webdav-xml, url-safety (shared),
       mime-utils, constant-time, password, semver
 
-### Final enforcement
-- [ ] Move `Database` type into `db/` (keep drizzle out of `platform/`)
-- [ ] Add `.dependency-cruiser.cjs` + `lint:arch` script + wire into CI
-- [ ] Delete emptied `services/`; remove transitional shims
-- [ ] `pnpm lint:arch` green
+### Enforcement (DONE — now in CI, ratchet mode)
+- [x] `.dependency-cruiser.cjs` + `lint:arch` script + wired into CI (`pnpm lint:arch`)
+- [x] All clean-arch rules active and green. The `drizzle-only-in-repos` rule carries
+      a **ratchet** (`MIGRATION_PENDING` allowlist) covering the not-yet-migrated
+      files; **every future migration commit must delete its entry from that list.**
+      When the list is empty the architecture is fully locked.
+- [x] `platform/` (Database driver type) + `auth.ts` are permanent named exceptions.
+
+### Final cleanup (when ratchet empty)
+- [ ] Delete emptied `services/`; remove transitional shims + the ratchet allowlist
+- [ ] Remove dead `const db` locals; (optional) move `Database` type into `db/`
