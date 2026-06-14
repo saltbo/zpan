@@ -2,7 +2,7 @@
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PUBLIC_KEYS } from '../domain/license-keys'
-import { verifyCertificate, verifyCertificateResult } from './license-certificate'
+import { verifyCertificate, verifyCertificateResult } from './licensing'
 
 const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
 const originalKeys: string[] = []
