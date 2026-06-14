@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { deleteInviteCode, generateInviteCodes, listInviteCodes, validateInviteCode } from '../usecases/invite-code'
 
 const generateSchema = z.object({
   count: z.number().int().min(1).max(100),
@@ -25,46 +26,33 @@ export const adminInviteCodes = new Hono<Env>()
   .use(requireAdmin)
   .get('/', zValidator('query', paginationSchema), async (c) => {
     const { page, pageSize } = c.req.valid('query')
-    const result = await c.get('deps').invites.list(page, pageSize)
-    return c.json(result)
+    return c.json(await listInviteCodes(c.get('deps'), { page, pageSize }))
   })
   .post('/', zValidator('json', generateSchema), async (c) => {
     const userId = c.get('userId')
     if (!userId) return c.json({ error: 'Unauthorized' }, 401)
-    const orgId = c.get('orgId')!
     const { count, expiresInDays } = c.req.valid('json')
-    const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 86400000) : undefined
-    const codes = await c.get('deps').invites.generate(userId, count, expiresAt)
-    await c.get('deps').activity.record({
-      orgId,
+    const result = await generateInviteCodes(c.get('deps'), {
       userId,
-      action: 'invite_code_generate',
-      targetType: 'invite_code',
-      targetName: `${codes.length} codes`,
-      metadata: { count: codes.length, expiresInDays },
+      orgId: c.get('orgId')!,
+      count,
+      expiresInDays,
     })
-    return c.json({ codes }, 201)
+    return c.json(result, 201)
   })
   .delete('/:id', async (c) => {
-    const userId = c.get('userId')!
-    const orgId = c.get('orgId')!
     const id = c.req.param('id')
-    const result = await c.get('deps').invites.delete(id)
-    if (result === 'not_found') return c.json({ error: 'Invite code not found' }, 404)
-    if (result === 'already_used') return c.json({ error: 'Cannot delete a used invite code' }, 400)
-    await c.get('deps').activity.record({
-      orgId,
-      userId,
-      action: 'invite_code_delete',
-      targetType: 'invite_code',
-      targetId: id,
-      targetName: id,
+    const result = await deleteInviteCode(c.get('deps'), {
+      userId: c.get('userId')!,
+      orgId: c.get('orgId')!,
+      id,
     })
-    return c.json({ id, deleted: true })
+    if (result.ok) return c.json({ id, deleted: true })
+    if (result.reason === 'not_found') return c.json({ error: 'Invite code not found' }, 404)
+    return c.json({ error: 'Cannot delete a used invite code' }, 400)
   })
 
 export const publicInviteCodes = new Hono<Env>().post('/validations', zValidator('json', validateSchema), async (c) => {
   const { code } = c.req.valid('json')
-  const result = await c.get('deps').invites.validate(code)
-  return c.json(result)
+  return c.json(await validateInviteCode(c.get('deps'), code))
 })

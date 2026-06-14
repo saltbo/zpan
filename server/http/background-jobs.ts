@@ -5,7 +5,13 @@ import { Hono } from 'hono'
 import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { enqueueArchiveJob } from '../usecases/archive-processing'
+import {
+  cancelBackgroundJob,
+  createBackgroundJob,
+  getBackgroundJob,
+  listBackgroundJobs,
+  retryBackgroundJob,
+} from '../usecases/background-job'
 import { BackgroundJobError } from '../usecases/ports'
 
 const backgroundJobs = new Hono<Env>()
@@ -15,59 +21,29 @@ const backgroundJobs = new Hono<Env>()
     if (!orgId) return c.json({ error: 'No organization found' }, 404)
 
     const query = c.req.valid('query')
-    const result = await c.get('deps').backgroundJobs.list(orgId, query)
+    const result = await listBackgroundJobs(c.get('deps'), orgId, query)
     return c.json({ ...result, page: query.page, pageSize: query.pageSize })
   })
   .post('/', zValidator('json', createBackgroundJobRequestSchema), async (c) =>
     backgroundJobResponse(
       c,
-      async () => {
+      () => {
         const orgId = requireOrg(c)
         const userId = c.get('userId')
         if (!userId) throw new BackgroundJobError('not_found')
-        const request = c.req.valid('json')
-        const job = await enqueueArchiveJob(c.get('deps'), {
-          orgId,
-          userId,
-          request,
-        })
-        await c.get('deps').archiveJobs.dispatch({ orgId, userId, request, jobId: job.id })
-        return job
+        return createBackgroundJob(c.get('deps'), { orgId, userId, request: c.req.valid('json') })
       },
       201,
     ),
   )
   .get('/:id', async (c) =>
-    backgroundJobResponse(c, async () => {
-      const orgId = requireOrg(c)
-      return c.get('deps').backgroundJobs.get(orgId, c.req.param('id'))
-    }),
+    backgroundJobResponse(c, () => getBackgroundJob(c.get('deps'), requireOrg(c), c.req.param('id'))),
   )
   .post('/:id/cancel', async (c) =>
-    backgroundJobResponse(c, async () => {
-      const orgId = requireOrg(c)
-      return c.get('deps').backgroundJobs.cancel(orgId, c.req.param('id'))
-    }),
+    backgroundJobResponse(c, () => cancelBackgroundJob(c.get('deps'), requireOrg(c), c.req.param('id'))),
   )
   .post('/:id/retry', async (c) =>
-    backgroundJobResponse(
-      c,
-      async () => {
-        const orgId = requireOrg(c)
-        const job = await c.get('deps').backgroundJobs.retry(orgId, c.req.param('id'))
-        const request = createBackgroundJobRequestSchema.safeParse(job.metadata)
-        if (request.success) {
-          await c.get('deps').archiveJobs.dispatch({
-            orgId,
-            userId: job.userId,
-            request: request.data,
-            jobId: job.id,
-          })
-        }
-        return job
-      },
-      201,
-    ),
+    backgroundJobResponse(c, () => retryBackgroundJob(c.get('deps'), requireOrg(c), c.req.param('id')), 201),
   )
 
 export default backgroundJobs

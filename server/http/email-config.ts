@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import type { EmailConfig, SystemOptionsRepo } from '../usecases/ports'
+import { getEmailConfig, saveEmailConfig, sendTestEmail } from '../usecases/email-config'
 
 const smtpConfigSchema = z.object({
   enabled: z.boolean(),
@@ -40,95 +40,17 @@ const testEmailSchema = z.object({
   to: z.string().email(),
 })
 
-function maskSecret(value: string): string {
-  if (value.length === 0) return ''
-  return `****${value.slice(-4)}`
-}
-
-function maskConfig(config: EmailConfig): Record<string, unknown> {
-  if (config.provider === 'smtp') {
-    return {
-      provider: config.provider,
-      from: config.from,
-      smtp: {
-        host: config.smtp.host,
-        port: config.smtp.port,
-        user: config.smtp.user,
-        pass: maskSecret(config.smtp.pass),
-        secure: config.smtp.secure,
-      },
-    }
-  }
-  if (config.provider === 'cloudflare') {
-    return {
-      provider: config.provider,
-      from: config.from,
-    }
-  }
-  return {
-    provider: config.provider,
-    from: config.from,
-    http: {
-      url: config.http.url,
-      apiKey: maskSecret(config.http.apiKey),
-    },
-  }
-}
-
-async function saveOptions(repo: SystemOptionsRepo, entries: [string, string][]) {
-  for (const [key, value] of entries) {
-    await repo.set(key, value, false)
-  }
-}
-
 const app = new Hono<Env>()
   .use(requireAdmin)
-  .get('/', async (c) => {
-    const platform = c.get('platform')
-    const settings = await c.get('deps').email.getSettings(platform)
-    return c.json({
-      enabled: settings.enabled,
-      ...(settings.config ? maskConfig(settings.config) : { provider: null }),
-    })
-  })
+  .get('/', async (c) => c.json(await getEmailConfig(c.get('deps'), c.get('platform'))))
   .put('/', zValidator('json', emailConfigSchema), async (c) => {
-    const body = c.req.valid('json')
-
-    const entries: [string, string][] = [
-      ['email_enabled', String(body.enabled)],
-      ['email_provider', body.provider],
-      ['email_from', body.from],
-    ]
-
-    if (body.provider === 'smtp') {
-      entries.push(
-        ['email_smtp_host', body.smtp.host],
-        ['email_smtp_port', String(body.smtp.port)],
-        ['email_smtp_user', body.smtp.user],
-        ['email_smtp_pass', body.smtp.pass],
-        ['email_smtp_secure', String(body.smtp.secure)],
-      )
-    } else if (body.provider === 'http') {
-      entries.push(['email_http_url', body.http.url], ['email_http_api_key', body.http.apiKey])
-    }
-
-    await saveOptions(c.get('deps').systemOptions, entries)
+    await saveEmailConfig(c.get('deps'), c.req.valid('json'))
     return c.json({ success: true })
   })
   .post('/test-messages', zValidator('json', testEmailSchema), async (c) => {
-    const platform = c.get('platform')
-    const { to } = c.req.valid('json')
-    try {
-      await c.get('deps').email.send(platform, {
-        to,
-        subject: 'ZPan Test Email',
-        html: '<h1>Test Email</h1><p>Your email configuration is working correctly.</p>',
-      })
-      return c.json({ success: true })
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error'
-      return c.json({ success: false, error: message }, 400)
-    }
+    const result = await sendTestEmail(c.get('deps'), c.get('platform'), c.req.valid('json').to)
+    if (result.ok) return c.json({ success: true })
+    return c.json({ success: false, error: result.message }, 400)
   })
 
 export default app

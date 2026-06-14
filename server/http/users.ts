@@ -3,6 +3,18 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import {
+  deleteUser,
+  deleteUsers,
+  getUser,
+  grantUserEntitlement,
+  listUserEntitlements,
+  listUsers,
+  revokeUserEntitlement,
+  setUserStatus,
+  setUsersStatus,
+  updateUserEntitlement,
+} from '../usecases/user'
 
 const updateStatusSchema = z.object({
   status: z.enum(['active', 'disabled']),
@@ -39,193 +51,97 @@ const app = new Hono<Env>()
     const pageSize = Math.min(100, Math.max(1, Number(c.req.query('pageSize') ?? '20')))
     const search = c.req.query('search')
 
-    const result = await c.get('deps').userAdmin.listUsers(page, pageSize, search)
-    return c.json(result)
+    return c.json(await listUsers(c.get('deps'), { page, pageSize, search }))
   })
   .get('/:id', async (c) => {
-    const userId = c.req.param('id')
-    const result = await c.get('deps').userAdmin.getUser(userId)
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-    return c.json(result)
+    const result = await getUser(c.get('deps'), c.req.param('id'))
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json(result.user)
   })
   .patch('/batch', zValidator('json', batchPatchSchema), async (c) => {
-    const adminUserId = c.get('userId')!
-    const orgId = c.get('orgId')!
     const body = c.req.valid('json')
-
-    const status = body.action === 'disable' ? 'disabled' : 'active'
-    const result = await c.get('deps').userAdmin.setUsersStatus(body.ids, status)
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-
-    await c.get('deps').activity.record({
-      orgId,
-      userId: adminUserId,
-      action: status === 'disabled' ? 'user_disable' : 'user_enable',
-      targetType: 'user',
-      targetName: 'batch',
-      metadata: { ...result, status },
+    const result = await setUsersStatus(c.get('deps'), {
+      adminUserId: c.get('userId')!,
+      orgId: c.get('orgId')!,
+      ids: body.ids,
+      status: body.action === 'disable' ? 'disabled' : 'active',
     })
-    return c.json({ ...result, status })
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json({ ...result.result, status: result.status })
   })
   .get('/:id/entitlements', async (c) => {
-    const userId = c.req.param('id')
-    const result = await c.get('deps').userAdmin.listUserPersonalEntitlements(userId)
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-    return c.json(result)
+    const result = await listUserEntitlements(c.get('deps'), c.req.param('id'))
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json(result.result)
   })
   .post('/:id/entitlements', zValidator('json', grantEntitlementSchema), async (c) => {
-    const adminUserId = c.get('userId')!
-    const adminOrgId = c.get('orgId')!
-    const targetUserId = c.req.param('id')
     const body = c.req.valid('json')
-    const result = await c.get('deps').userAdmin.grantUserPersonalEntitlement({
-      adminUserId,
-      targetUserId,
+    const result = await grantUserEntitlement(c.get('deps'), {
+      adminUserId: c.get('userId')!,
+      adminOrgId: c.get('orgId')!,
+      targetUserId: c.req.param('id'),
       resourceType: body.resourceType,
       bytes: body.bytes,
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       note: body.note,
     })
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-
-    await c.get('deps').activity.record({
-      orgId: adminOrgId,
-      userId: adminUserId,
-      action: 'quota_entitlement_grant',
-      targetType: 'quota',
-      targetId: result.orgId,
-      targetName: targetUserId,
-      metadata: {
-        targetUserId,
-        entitlementId: result.entitlement.id,
-        resourceType: result.entitlement.resourceType,
-        bytes: result.entitlement.bytes,
-        expiresAt: result.entitlement.expiresAt?.toISOString() ?? null,
-      },
-    })
-
-    return c.json(result, 201)
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json(result.result, 201)
   })
   .patch('/:id/entitlements/:eid', zValidator('json', updateEntitlementSchema), async (c) => {
-    const adminUserId = c.get('userId')!
-    const adminOrgId = c.get('orgId')!
-    const targetUserId = c.req.param('id')
-    const entitlementId = c.req.param('eid')
     const body = c.req.valid('json')
-    const result = await c.get('deps').userAdmin.updateUserPersonalEntitlement({
-      adminUserId,
-      targetUserId,
-      entitlementId,
+    const result = await updateUserEntitlement(c.get('deps'), {
+      adminUserId: c.get('userId')!,
+      adminOrgId: c.get('orgId')!,
+      targetUserId: c.req.param('id'),
+      entitlementId: c.req.param('eid'),
       bytes: body.bytes,
       expiresAt: 'expiresAt' in body ? (body.expiresAt ? new Date(body.expiresAt) : null) : undefined,
       note: body.note,
     })
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-
-    await c.get('deps').activity.record({
-      orgId: adminOrgId,
-      userId: adminUserId,
-      action: 'quota_entitlement_update',
-      targetType: 'quota',
-      targetId: result.orgId,
-      targetName: targetUserId,
-      metadata: {
-        targetUserId,
-        entitlementId: result.entitlement.id,
-        bytes: result.entitlement.bytes,
-        expiresAt: result.entitlement.expiresAt?.toISOString() ?? null,
-      },
-    })
-
-    return c.json(result)
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json(result.result)
   })
   .delete('/:id/entitlements/:eid', async (c) => {
-    const adminUserId = c.get('userId')!
-    const adminOrgId = c.get('orgId')!
-    const targetUserId = c.req.param('id')
-    const entitlementId = c.req.param('eid')
-    const result = await c
-      .get('deps')
-      .userAdmin.revokeUserPersonalEntitlement({ adminUserId, targetUserId, entitlementId })
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-
-    await c.get('deps').activity.record({
-      orgId: adminOrgId,
-      userId: adminUserId,
-      action: 'quota_entitlement_revoke',
-      targetType: 'quota',
-      targetId: result.orgId,
-      targetName: targetUserId,
-      metadata: {
-        targetUserId,
-        entitlementId: result.entitlement.id,
-        bytes: result.entitlement.bytes,
-      },
+    const result = await revokeUserEntitlement(c.get('deps'), {
+      adminUserId: c.get('userId')!,
+      adminOrgId: c.get('orgId')!,
+      targetUserId: c.req.param('id'),
+      entitlementId: c.req.param('eid'),
     })
-
-    return c.json(result)
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json(result.result)
   })
   .delete('/batch', zValidator('json', userIdsSchema), async (c) => {
-    const adminUserId = c.get('userId')!
-    const orgId = c.get('orgId')!
     const { ids } = c.req.valid('json')
-
-    const result = await c.get('deps').userAdmin.deleteUsers(ids)
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-
-    await c.get('deps').activity.record({
-      orgId,
-      userId: adminUserId,
-      action: 'user_delete',
-      targetType: 'user',
-      targetName: 'batch',
-      metadata: result,
+    const result = await deleteUsers(c.get('deps'), {
+      adminUserId: c.get('userId')!,
+      orgId: c.get('orgId')!,
+      ids,
     })
-    return c.json(result)
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json(result.result)
   })
   .patch('/:id', zValidator('json', updateStatusSchema), async (c) => {
-    const adminUserId = c.get('userId')!
-    const orgId = c.get('orgId')!
     const userId = c.req.param('id')
     const { status } = c.req.valid('json')
-
-    const updated = await c.get('deps').userAdmin.setUserStatus(userId, status)
-    if (!updated) {
-      return c.json({ error: 'User not found' }, 404)
-    }
-
-    const action = status === 'disabled' ? 'user_disable' : 'user_enable'
-    await c.get('deps').activity.record({
-      orgId,
-      userId: adminUserId,
-      action,
-      targetType: 'user',
-      targetId: userId,
-      targetName: userId,
-      metadata: { status },
+    const result = await setUserStatus(c.get('deps'), {
+      adminUserId: c.get('userId')!,
+      orgId: c.get('orgId')!,
+      userId,
+      status,
     })
-
+    if (!result.ok) return c.json({ error: 'User not found' }, 404)
     return c.json({ id: userId, status })
   })
   .delete('/:id', async (c) => {
-    const adminUserId = c.get('userId')!
-    const orgId = c.get('orgId')!
     const userId = c.req.param('id')
-
-    const deleted = await c.get('deps').userAdmin.deleteUser(userId)
-    if (!deleted) {
-      return c.json({ error: 'User not found' }, 404)
-    }
-
-    await c.get('deps').activity.record({
-      orgId,
-      userId: adminUserId,
-      action: 'user_delete',
-      targetType: 'user',
-      targetId: userId,
-      targetName: userId,
+    const result = await deleteUser(c.get('deps'), {
+      adminUserId: c.get('userId')!,
+      orgId: c.get('orgId')!,
+      userId,
     })
-
+    if (!result.ok) return c.json({ error: 'User not found' }, 404)
     return c.json({ id: userId, deleted: true })
   })
 
