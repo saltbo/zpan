@@ -1,21 +1,11 @@
 import { FREE_TEAM_LIMIT } from '@shared/constants'
 import { nanoid } from 'nanoid'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding.js'
 import { createMemberCountRepo } from '../adapters/repos/member-count.js'
 import * as authSchema from '../db/auth-schema.js'
-import { createTestApp } from '../test/setup.js'
-import { checkTeamLimit } from './team-count.js'
-
-// ---------------------------------------------------------------------------
-// Mock the licensing layer — we test the guard logic, not the license DB reads
-// ---------------------------------------------------------------------------
-
-vi.mock('./licensing', () => ({ loadBindingState: vi.fn() }))
-vi.mock('../domain/licensing', () => ({ hasFeature: vi.fn() }))
-
-import { hasFeature } from '../domain/licensing'
-import { loadBindingState } from './licensing'
+import { createTestApp, seedProLicense } from '../test/setup.js'
+import { checkTeamLimit } from './licensing.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -116,15 +106,6 @@ describe('countUserOrgs', () => {
 // ---------------------------------------------------------------------------
 
 describe('checkTeamLimit', () => {
-  beforeEach(() => {
-    vi.mocked(loadBindingState).mockResolvedValue({ bound: false })
-    vi.mocked(hasFeature).mockReturnValue(false)
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('always returns limit equal to FREE_TEAM_LIMIT constant (2)', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
@@ -134,7 +115,7 @@ describe('checkTeamLimit', () => {
     expect(result.limit).toBe(2)
   })
 
-  it('allowed=true when user has 0 orgs and no teams_unlimited feature', async () => {
+  it('allowed=true when user has 0 orgs and no license', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
@@ -143,7 +124,7 @@ describe('checkTeamLimit', () => {
     expect(result.count).toBe(0)
   })
 
-  it('allowed=true when user has 1 org and no teams_unlimited feature', async () => {
+  it('allowed=true when user has 1 org and no license', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
     const orgA = await insertOrg(db)
@@ -154,7 +135,7 @@ describe('checkTeamLimit', () => {
     expect(result.count).toBe(1)
   })
 
-  it('allowed=false when user has 2 orgs and no teams_unlimited feature', async () => {
+  it('allowed=false when user has 2 orgs (at the free limit) and no license', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
     const orgA = await insertOrg(db)
@@ -167,7 +148,7 @@ describe('checkTeamLimit', () => {
     expect(result.count).toBe(2)
   })
 
-  it('allowed=false when user has exactly 3 orgs and no teams_unlimited feature', async () => {
+  it('allowed=false when user has 3 orgs and no license', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
     for (let i = 0; i < 3; i++) {
@@ -180,22 +161,9 @@ describe('checkTeamLimit', () => {
     expect(result.count).toBe(3)
   })
 
-  it('allowed=false when user has 4 orgs and no teams_unlimited feature', async () => {
+  it('allowed=true when user has 2 orgs but holds a license granting teams_unlimited', async () => {
     const { db } = await createTestApp()
-    const userId = await insertUser(db)
-    for (let i = 0; i < 4; i++) {
-      const orgId = await insertOrg(db)
-      await insertMember(db, orgId, userId)
-    }
-
-    const result = await checkTeamLimit(depsFor(db), userId)
-    expect(result.allowed).toBe(false)
-    expect(result.count).toBe(4)
-  })
-
-  it('allowed=true when user has 2 orgs but has teams_unlimited feature', async () => {
-    vi.mocked(hasFeature).mockReturnValue(true)
-    const { db } = await createTestApp()
+    await seedProLicense(db)
     const userId = await insertUser(db)
     for (let i = 0; i < 2; i++) {
       const orgId = await insertOrg(db)
@@ -207,9 +175,9 @@ describe('checkTeamLimit', () => {
     expect(result.count).toBe(2)
   })
 
-  it('allowed=true when user has 10 orgs with teams_unlimited feature', async () => {
-    vi.mocked(hasFeature).mockReturnValue(true)
+  it('allowed=true when user has 10 orgs with a teams_unlimited license', async () => {
     const { db } = await createTestApp()
+    await seedProLicense(db)
     const userId = await insertUser(db)
     for (let i = 0; i < 10; i++) {
       const orgId = await insertOrg(db)
@@ -219,35 +187,5 @@ describe('checkTeamLimit', () => {
     const result = await checkTeamLimit(depsFor(db), userId)
     expect(result.allowed).toBe(true)
     expect(result.count).toBe(10)
-  })
-
-  it('calls loadBindingState to determine licensing state', async () => {
-    const { db } = await createTestApp()
-    const userId = await insertUser(db)
-
-    await checkTeamLimit(depsFor(db), userId)
-
-    expect(loadBindingState).toHaveBeenCalled()
-  })
-
-  it('calls hasFeature with teams_unlimited and the binding state', async () => {
-    const mockState = { bound: true, features: ['teams_unlimited'] }
-    vi.mocked(loadBindingState).mockResolvedValue(mockState as Awaited<ReturnType<typeof loadBindingState>>)
-    const { db } = await createTestApp()
-    const userId = await insertUser(db)
-
-    await checkTeamLimit(depsFor(db), userId)
-
-    expect(hasFeature).toHaveBeenCalledWith('teams_unlimited', mockState)
-  })
-
-  it('returns correct count in the result', async () => {
-    const { db } = await createTestApp()
-    const userId = await insertUser(db)
-    const orgId = await insertOrg(db)
-    await insertMember(db, orgId, userId)
-
-    const result = await checkTeamLimit(depsFor(db), userId)
-    expect(result.count).toBe(1)
   })
 })

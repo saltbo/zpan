@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { syncPendingCloudTrafficReports } from '../server/usecases/cloud-traffic-metering'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/instance-telemetry'
-import { runLicensingRefresh } from '../server/usecases/licensing-refresh-runner'
+import { runLicensingRefresh } from '../server/usecases/licensing'
 import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/remote-download-usage'
 import { handleScheduled } from '../workers/scheduled'
 
@@ -37,7 +37,7 @@ vi.mock('../server/usecases/instance-telemetry', () => ({
   reportInstanceTelemetry: vi.fn(),
 }))
 
-vi.mock('../server/usecases/licensing-refresh-runner', () => ({
+vi.mock('../server/usecases/licensing', () => ({
   runLicensingRefresh: vi.fn(),
 }))
 

@@ -4,9 +4,7 @@ import { originFromRequestUrl } from '../domain/site-public-origin'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { buildCloudInstanceInfo, runtimeInfo } from '../usecases/instance-info'
-import { normalizeHost, verifyCertificateResult } from '../usecases/license-certificate'
-import { invalidateEntitlementCache } from '../usecases/license-entitlement'
-import { performRefresh } from '../usecases/license-refresh'
+import { normalizeHost, performRefresh, verifyCertificateResult } from '../usecases/licensing'
 import type { PairingPollResponse } from '../usecases/ports'
 import { getSitePublicOrigin } from '../usecases/site-public-origin'
 
@@ -105,8 +103,6 @@ const app = new Hono<Env>()
         lastRefreshAt: Math.floor(Date.now() / 1000),
       })
 
-      invalidateEntitlementCache()
-
       // Report back that we verified + stored the certificate, so the cloud pairing
       // page resolves to success instead of claiming it at approval time. Best-effort:
       // the binding is already active locally, so a failed confirm only leaves the
@@ -178,7 +174,6 @@ const app = new Hono<Env>()
     }
 
     await c.get('deps').licenseBinding.clearLicenseBinding()
-    invalidateEntitlementCache()
 
     await c.get('deps').activity.record({
       orgId,

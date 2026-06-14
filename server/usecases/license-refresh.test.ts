@@ -8,9 +8,8 @@ import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { PUBLIC_KEYS } from '../domain/license-keys'
-import { invalidateEntitlementCache } from './license-entitlement'
-import { performRefresh } from './license-refresh'
-import type { CreateLicenseBindingInput } from './ports'
+import { performRefresh, runLicensingRefresh } from './licensing'
+import type { CreateLicenseBindingInput, EntitlementRefreshResponse, LicensingCloudGateway } from './ports'
 
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS license_bindings (
@@ -103,7 +102,6 @@ async function seedBinding(db: DB, overrides: Partial<CreateLicenseBindingInput>
 describe('performRefresh', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-    invalidateEntitlementCache()
   })
 
   afterEach(() => {
@@ -275,5 +273,111 @@ describe('performRefresh', () => {
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
     expect(state.lastRefreshError).toBe('Cloud response missing certificate')
+  })
+})
+
+describe('runLicensingRefresh', () => {
+  const CLOUD_URL = 'https://cloud.zpan.space'
+
+  function fakeCloud(refreshEntitlement: LicensingCloudGateway['refreshEntitlement']): LicensingCloudGateway {
+    return { refreshEntitlement } as unknown as LicensingCloudGateway
+  }
+
+  function successPayload(): EntitlementRefreshResponse {
+    return {
+      refreshToken: 'new-rt',
+      certificate: signAssertion({ expiresAt: nowSec() + 86400 }),
+      binding: { id: 'bind-1', instanceId: 'inst-abc', storeId: 'store-new', authorizedHosts: [] },
+      account: { id: 'acct-1', email: 'acct@example.com' },
+    }
+  }
+
+  it('is a no-op (never calls cloud) when no binding exists', async () => {
+    const db = makeDb()
+    const refresh = vi.fn(async () => successPayload())
+
+    await expect(
+      runLicensingRefresh(
+        { licenseBinding: createLicenseBindingRepo(db), licensingCloud: fakeCloud(refresh) },
+        CLOUD_URL,
+      ),
+    ).resolves.toBeUndefined()
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('skips the refresh when lastRefreshAt is within the 5-minute dedup window', async () => {
+    const db = makeDb()
+    await seedBinding(db, { lastRefreshAt: nowSec() - 120 })
+    const refresh = vi.fn(async () => successPayload())
+
+    await runLicensingRefresh(
+      { licenseBinding: createLicenseBindingRepo(db), licensingCloud: fakeCloud(refresh) },
+      CLOUD_URL,
+    )
+
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('refreshes when lastRefreshAt is older than the dedup window', async () => {
+    const db = makeDb()
+    await seedBinding(db, { lastRefreshAt: nowSec() - 600 })
+    const refresh = vi.fn(async () => successPayload())
+
+    await runLicensingRefresh(
+      { licenseBinding: createLicenseBindingRepo(db), licensingCloud: fakeCloud(refresh) },
+      CLOUD_URL,
+    )
+
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
+  it('refreshes when lastRefreshAt is null', async () => {
+    const db = makeDb()
+    await seedBinding(db)
+    await db.update(appSchema.licenseBindings).set({ lastRefreshAt: null })
+    const refresh = vi.fn(async () => successPayload())
+
+    await runLicensingRefresh(
+      { licenseBinding: createLicenseBindingRepo(db), licensingCloud: fakeCloud(refresh) },
+      CLOUD_URL,
+    )
+
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
+  it('logs licensing.refresh.ok on a successful refresh', async () => {
+    const db = makeDb()
+    await seedBinding(db, { lastRefreshAt: nowSec() - 600 })
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const refresh = vi.fn(async () => successPayload())
+
+    await runLicensingRefresh(
+      { licenseBinding: createLicenseBindingRepo(db), licensingCloud: fakeCloud(refresh) },
+      CLOUD_URL,
+    )
+
+    expect(consoleSpy).toHaveBeenCalledWith('licensing.refresh.ok')
+    consoleSpy.mockRestore()
+  })
+
+  it('swallows and logs licensing.refresh.error when the refresh propagates a failure', async () => {
+    const db = makeDb()
+    await seedBinding(db, { lastRefreshAt: nowSec() - 600 })
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    // A non-Error rejection is the only failure performRefresh re-throws; an Error
+    // is swallowed internally as a refresh-error on the binding.
+    const refresh = vi.fn(async () => {
+      throw 'cloud exploded'
+    })
+
+    await expect(
+      runLicensingRefresh(
+        { licenseBinding: createLicenseBindingRepo(db), licensingCloud: fakeCloud(refresh) },
+        CLOUD_URL,
+      ),
+    ).resolves.toBeUndefined()
+
+    expect(consoleSpy).toHaveBeenCalledWith('licensing.refresh.error code=cloud exploded')
+    consoleSpy.mockRestore()
   })
 })
