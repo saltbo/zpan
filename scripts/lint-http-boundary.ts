@@ -37,11 +37,6 @@ const HTTP_DIR = join(ROOT, 'server/http')
 // resource is converted to the usecase-per-resource convention. Paths are
 // repo-relative with forward slashes.
 const RATCHET: ReadonlySet<string> = new Set<string>([
-  'server/http/cloud-store-helpers.ts',
-  'server/http/cloud-store/storefront.ts',
-  'server/http/cloud-store/webhooks.ts',
-  'server/http/events.ts',
-  'server/http/licensing-admin.ts',
   'server/http/objects.ts',
   'server/http/redirect.ts',
   'server/http/shares.ts',

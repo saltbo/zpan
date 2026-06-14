@@ -13,9 +13,15 @@ import {
 } from 'zpan-cloud-sdk'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
-import type { CloudStoreRepo } from '../usecases/ports'
+import { buildBoundCloudClient } from '../usecases/cloud-store'
 
-const CLOUD_STORE_REQUEST_TIMEOUT_MS = 10_000
+// The cloud-proxy plumbing (bound client, timeout, response unwrapping) and all
+// CloudStoreRepo / LicensingCloudGateway access live in the cloud-store usecase.
+// This module keeps only PURE helpers (schemas, request-derived values, hashing)
+// plus a thin `getBoundCloudClient(c)` that forwards `deps` whole to the usecase —
+// the latter exists so the orders helper in cloud-store/shared.ts keeps its
+// context-based call site. Re-exported usecase plumbing keeps that helper working.
+export { unwrapCloudResponse, withCloudRequestTimeout } from '../usecases/cloud-store'
 
 export type RouteContext = {
   get(key: 'platform'): Env['Variables']['platform']
@@ -64,55 +70,10 @@ export const cloudGiftCardCreateResponseSchema = z
   .transform((response) => (Array.isArray(response) ? response : response.items))
 export const giftCardListQuerySchema = z.object({ status: giftCardStatusSchema.optional() })
 
-export async function getUserStoreSettings(cloudStore: CloudStoreRepo) {
-  try {
-    await cloudStore.getCloudStoreBinding()
-    return { ready: true }
-  } catch (error) {
-    const message = (error as Error).message
-    if (message === 'quota_store_binding_missing') return { error: message }
-    throw error
-  }
-}
-
+// Forwards `deps` whole to the usecase, which owns the port access. Kept so the
+// orders helper (cloud-store/shared.ts) can build a bound client from a context.
 export async function getBoundCloudClient(c: RouteContext) {
-  const binding = await c.get('deps').cloudStore.getCloudStoreBinding()
-  return {
-    client: c.get('deps').licensingCloud.createBoundCloudClient(getCloudBaseUrl(c), binding.refreshToken),
-    storeId: binding.storeId,
-  }
-}
-
-export async function withCloudRequestTimeout<T>(request: Promise<T>): Promise<T> {
-  let timeout: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      request,
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error('cloud_request_timeout')), CLOUD_STORE_REQUEST_TIMEOUT_MS)
-      }),
-    ])
-  } finally {
-    if (timeout) clearTimeout(timeout)
-  }
-}
-
-export async function unwrapCloudResponse<T, U = T>(
-  response: {
-    status: number
-    ok: boolean
-    json(): Promise<T>
-  },
-  responseSchema?: z.ZodType<U>,
-): Promise<U> {
-  if (response.status === 204) return null as U
-  const data = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(cloudErrorCode(data) ?? `cloud_request_failed_${response.status}`)
-  const payload = data && typeof data === 'object' && 'data' in data ? data.data : data
-  if (!responseSchema) return payload as U
-  const parsed = responseSchema.safeParse(payload)
-  if (!parsed.success) throw new Error('invalid_cloud_response')
-  return parsed.data
+  return buildBoundCloudClient(c.get('deps'), getCloudBaseUrl(c))
 }
 
 export function parseJson(payload: string): unknown | null {
@@ -129,14 +90,6 @@ export async function sha256Hex(payload: string): Promise<string> {
 
 export function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
-}
-
-function cloudErrorCode(data: unknown) {
-  if (!data || typeof data !== 'object' || !('error' in data)) return null
-  const error = data.error
-  if (typeof error === 'string') return error
-  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') return error.code
-  return null
 }
 
 function hex(buffer: ArrayBuffer): string {
