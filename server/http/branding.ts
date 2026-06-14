@@ -3,25 +3,7 @@ import { type BrandingField, type BrandingThemeMode, isBrandingThemePresetId } f
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
-import {
-  type BRANDING_KEYS,
-  readBranding,
-  resetBrandingField,
-  resetBrandingTheme,
-  setBrandingField,
-  uploadBrandingImage,
-} from '../usecases/branding'
-
-type StoredBrandingField = keyof typeof BRANDING_KEYS
-type ThemeField =
-  | 'theme_mode'
-  | 'theme_preset'
-  | 'theme_primary_color'
-  | 'theme_primary_foreground'
-  | 'theme_canvas_color'
-  | 'theme_sidebar_accent_color'
-  | 'theme_ring_color'
-type ThemeUpdate = Partial<Record<ThemeField, string>>
+import { applyBrandingUpdate, readBranding, resetBranding, type ThemeUpdate } from '../usecases/branding'
 
 const VALID_RESET_FIELDS = new Set<BrandingField>([
   'logo',
@@ -93,87 +75,46 @@ export const brandingAdmin = new Hono<Env>()
   .use(requireAdmin)
   .use(requireFeature('white_label'))
   .put('/', async (c) => {
-    const deps = c.get('deps')
-    const userId = c.get('userId')!
-    const orgId = c.get('orgId')!
-
     // Multipart is not expressible via Hono RPC (same documented exception as avatar/team logo);
     // check content-type before calling formData() to give a clear 415 on wrong media type.
     if (!c.req.header('content-type')?.includes('multipart/form-data')) {
       return c.json({ error: 'Expected multipart/form-data' }, 415)
     }
     const form = await c.req.formData()
-    const changedFields: string[] = []
 
     const themeUpdate = parseThemeUpdate(form)
     if (!themeUpdate.ok) return c.json({ error: themeUpdate.error }, 422)
 
-    const logoFile = form.get('logo')
-    if (logoFile instanceof File && logoFile.size > 0) {
-      const result = await uploadBrandingImage(deps, 'logo', logoFile)
-      if (!result.ok) return c.json({ error: result.error }, result.status)
-      changedFields.push('logo')
-    }
-
-    const faviconFile = form.get('favicon')
-    if (faviconFile instanceof File && faviconFile.size > 0) {
-      const result = await uploadBrandingImage(deps, 'favicon', faviconFile)
-      if (!result.ok) return c.json({ error: result.error }, result.status)
-      changedFields.push('favicon')
-    }
-
     const wordmarkRaw = form.get('wordmark_text')
-    if (typeof wordmarkRaw === 'string') {
-      if (wordmarkRaw.length > 24) return c.json({ error: 'wordmark_text must be 24 characters or fewer' }, 422)
-      await setBrandingField(deps, 'wordmark_text', wordmarkRaw)
-      changedFields.push('wordmark_text')
+    if (typeof wordmarkRaw === 'string' && wordmarkRaw.length > 24) {
+      return c.json({ error: 'wordmark_text must be 24 characters or fewer' }, 422)
     }
 
     const hidePoweredByRaw = form.get('hide_powered_by')
-    if (hidePoweredByRaw !== null) {
-      const value = hidePoweredByRaw === 'true' || hidePoweredByRaw === '1' ? 'true' : 'false'
-      await setBrandingField(deps, 'hide_powered_by', value)
-      changedFields.push('hide_powered_by')
-    }
+    const logoFile = form.get('logo')
+    const faviconFile = form.get('favicon')
 
-    for (const [field, value] of Object.entries(themeUpdate.values) as [ThemeField, string][]) {
-      await setBrandingField(deps, field, value)
-      changedFields.push(field)
-    }
-
-    if (changedFields.length > 0) {
-      await deps.activity.record({
-        orgId,
-        userId,
-        action: 'branding_update',
-        targetType: 'branding',
-        targetName: 'branding',
-        metadata: { fields: changedFields },
-      })
-    }
-
-    return c.json(await readBranding(deps))
+    const result = await applyBrandingUpdate(c.get('deps'), {
+      userId: c.get('userId')!,
+      orgId: c.get('orgId')!,
+      logoFile: logoFile instanceof File && logoFile.size > 0 ? logoFile : null,
+      faviconFile: faviconFile instanceof File && faviconFile.size > 0 ? faviconFile : null,
+      wordmarkText: typeof wordmarkRaw === 'string' ? wordmarkRaw : null,
+      hidePoweredBy: hidePoweredByRaw !== null ? hidePoweredByRaw === 'true' || hidePoweredByRaw === '1' : null,
+      theme: themeUpdate.values,
+    })
+    if (!result.ok) return c.json({ error: result.error }, result.status)
+    return c.json(result.config)
   })
   .delete('/:field', async (c) => {
-    const deps = c.get('deps')
-    const userId = c.get('userId')!
-    const orgId = c.get('orgId')!
     const rawField = c.req.param('field')
     if (!VALID_RESET_FIELDS.has(rawField as BrandingField)) {
       return c.json({ error: `Invalid field. Valid fields: ${[...VALID_RESET_FIELDS].join(', ')}` }, 400)
     }
-    if (rawField.startsWith('theme')) {
-      await resetBrandingTheme(deps)
-    } else {
-      await resetBrandingField(deps, rawField as StoredBrandingField)
-    }
-    await deps.activity.record({
-      orgId,
-      userId,
-      action: 'branding_reset',
-      targetType: 'branding',
-      targetName: rawField,
-      metadata: { field: rawField },
+    await resetBranding(c.get('deps'), {
+      userId: c.get('userId')!,
+      orgId: c.get('orgId')!,
+      field: rawField as BrandingField,
     })
     return c.json({ field: rawField, reset: true })
   })

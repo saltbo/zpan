@@ -4,7 +4,12 @@ import { putIhostConfigSchema } from '../../shared/schemas'
 import type { IhostConfigResponse } from '../../shared/types'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { CfConflictError } from '../usecases/ports'
+import {
+  type CfSettings,
+  deleteImageHostingConfig,
+  getImageHostingConfig,
+  putImageHostingConfig,
+} from '../usecases/image-hosting-config'
 
 function toUnixMs(d: Date | null | undefined): number | null {
   if (!d) return null
@@ -51,11 +56,6 @@ function buildResponse(
   }
 }
 
-function catchUniqueViolation(e: unknown): boolean {
-  const msg = e instanceof Error ? e.message : String(e)
-  return msg.includes('UNIQUE constraint failed') || msg.includes('unique constraint')
-}
-
 const app = new Hono<Env>()
   .use(requireAuth)
   .get('/', async (c) => {
@@ -63,23 +63,13 @@ const app = new Hono<Env>()
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
 
     const getEnv = c.get('platform').getEnv.bind(c.get('platform'))
-    const cfClient = c.get('deps').cfHostnames
     const isCfConfigured = !!getEnv('CF_API_TOKEN')
     const cnameTarget = getEnv('CF_CNAME_TARGET') ?? ''
+    const cf: CfSettings = { isConfigured: isCfConfigured, appHost: getEnv('APP_HOST') ?? null }
 
-    const row = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
+    const row = await getImageHostingConfig(c.get('deps'), orgId, cf)
     if (!row) {
       return c.json({ enabled: false })
-    }
-
-    // Lazily refresh verification status when domain is unverified and CF is configured.
-    if (row.customDomain && !row.domainVerifiedAt && row.cfHostnameId && isCfConfigured) {
-      const status = await cfClient.getStatus(row.cfHostnameId)
-      if (status.status === 'active') {
-        const now = new Date()
-        await c.get('deps').imageHostingConfigs.update(orgId, { domainVerifiedAt: now })
-        row.domainVerifiedAt = now
-      }
     }
 
     return c.json(buildResponse(row, cnameTarget, isCfConfigured))
@@ -90,156 +80,25 @@ const app = new Hono<Env>()
 
     const body = c.req.valid('json')
     const getEnv = c.get('platform').getEnv.bind(c.get('platform'))
-    const cfClient = c.get('deps').cfHostnames
     const isCfConfigured = !!getEnv('CF_API_TOKEN')
     const cnameTarget = getEnv('CF_CNAME_TARGET') ?? ''
-    const appHost = getEnv('APP_HOST')
+    const cf: CfSettings = { isConfigured: isCfConfigured, appHost: getEnv('APP_HOST') ?? null }
 
-    // Reject the app's own default host as a custom domain.
-    if (body.customDomain && appHost && body.customDomain === appHost) {
-      return c.json({ error: 'Custom domain cannot be the application default host' }, 400)
+    const result = await putImageHostingConfig(c.get('deps'), orgId, body, cf)
+    if (!result.ok) {
+      if (result.reason === 'app_host') {
+        return c.json({ error: 'Custom domain cannot be the application default host' }, 400)
+      }
+      return c.json({ error: 'Domain already registered by another organization' }, 409)
     }
 
-    const existing = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
-
-    const now = new Date()
-    const newDomain = body.customDomain ?? null
-    const newReferers = body.refererAllowlist !== undefined ? body.refererAllowlist : null
-
-    if (!existing) {
-      // Insert new config row.
-      let cfHostnameId: string | null = null
-      if (newDomain && isCfConfigured) {
-        try {
-          const result = await cfClient.register(newDomain)
-          cfHostnameId = result.id || null
-        } catch (e) {
-          if (e instanceof CfConflictError) {
-            return c.json({ error: 'Domain already registered by another organization' }, 409)
-          }
-          throw e
-        }
-      }
-
-      try {
-        await c.get('deps').imageHostingConfigs.create({
-          orgId,
-          customDomain: newDomain,
-          cfHostnameId,
-          refererAllowlist: newReferers ? JSON.stringify(newReferers) : null,
-        })
-      } catch (e) {
-        if (catchUniqueViolation(e)) {
-          return c.json({ error: 'Domain already registered by another organization' }, 409)
-        }
-        throw e
-      }
-
-      return c.json(
-        buildResponse(
-          {
-            customDomain: newDomain,
-            cfHostnameId,
-            domainVerifiedAt: null,
-            refererAllowlist: newReferers ? JSON.stringify(newReferers) : null,
-            createdAt: now,
-          },
-          cnameTarget,
-          isCfConfigured,
-        ),
-      )
-    }
-
-    // Update existing config row.
-    const old = existing
-    const oldDomain = old.customDomain
-    let cfHostnameId = old.cfHostnameId
-    let domainVerifiedAt = old.domainVerifiedAt
-
-    if (newDomain !== oldDomain) {
-      // Delete old CF hostname if one existed.
-      if (oldDomain && cfHostnameId) {
-        try {
-          await cfClient.delete(cfHostnameId)
-        } catch {
-          // Best-effort — log but don't fail so DB stays consistent.
-          console.warn(`CF delete failed for hostname ${cfHostnameId}; continuing`)
-        }
-        cfHostnameId = null
-      }
-
-      domainVerifiedAt = null
-
-      // Register new CF hostname if needed.
-      if (newDomain && isCfConfigured) {
-        try {
-          const result = await cfClient.register(newDomain)
-          cfHostnameId = result.id || null
-        } catch (e) {
-          if (e instanceof CfConflictError) {
-            return c.json({ error: 'Domain already registered by another organization' }, 409)
-          }
-          throw e
-        }
-      }
-    }
-
-    const refererAllowlistValue =
-      body.refererAllowlist !== undefined
-        ? body.refererAllowlist
-          ? JSON.stringify(body.refererAllowlist)
-          : null
-        : old.refererAllowlist
-
-    try {
-      await c.get('deps').imageHostingConfigs.update(orgId, {
-        customDomain: newDomain,
-        cfHostnameId,
-        domainVerifiedAt,
-        refererAllowlist: refererAllowlistValue,
-      })
-    } catch (e) {
-      if (catchUniqueViolation(e)) {
-        return c.json({ error: 'Domain already registered by another organization' }, 409)
-      }
-      throw e
-    }
-
-    return c.json(
-      buildResponse(
-        {
-          customDomain: newDomain,
-          cfHostnameId,
-          domainVerifiedAt,
-          refererAllowlist: refererAllowlistValue,
-          createdAt: old.createdAt,
-        },
-        cnameTarget,
-        isCfConfigured,
-      ),
-    )
+    return c.json(buildResponse(result.config, cnameTarget, isCfConfigured))
   })
   .delete('/', requireTeamRole('owner'), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
 
-    const row = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
-    if (!row) {
-      return c.body(null, 204)
-    }
-
-    const cfClient = c.get('deps').cfHostnames
-
-    // Best-effort CF cleanup — do not fail if CF call errors.
-    if (row.cfHostnameId) {
-      try {
-        await cfClient.delete(row.cfHostnameId)
-      } catch {
-        console.warn(`CF delete failed for hostname ${row.cfHostnameId} during config DELETE; continuing`)
-      }
-    }
-
-    await c.get('deps').imageHostingConfigs.delete(orgId)
+    await deleteImageHostingConfig(c.get('deps'), orgId)
 
     return c.body(null, 204)
   })

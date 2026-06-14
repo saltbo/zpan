@@ -1,13 +1,19 @@
 import {
   type BrandingConfig,
+  type BrandingField,
   type BrandingThemeConfig,
   type BrandingThemeMode,
   isBrandingThemePresetId,
 } from '@shared/types'
 import { mimeToExt } from '../lib/mime-utils'
-import type { S3Gateway, StorageRecord, StorageRepo, SystemOptionsRepo } from './ports'
+import type { ActivityRepo, S3Gateway, StorageRecord, StorageRepo, SystemOptionsRepo } from './ports'
 
-export type BrandingDeps = { s3: S3Gateway; storages: StorageRepo; systemOptions: SystemOptionsRepo }
+export type BrandingDeps = {
+  s3: S3Gateway
+  storages: StorageRepo
+  systemOptions: SystemOptionsRepo
+  activity: ActivityRepo
+}
 
 const LOGO_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'] as const
 const FAVICON_MIMES = ['image/png', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/svg+xml'] as const
@@ -37,9 +43,33 @@ const THEME_KEYS = [
   'theme_ring_color',
 ] as const
 
+export type ThemeField = (typeof THEME_KEYS)[number]
+export type ThemeUpdate = Partial<Record<ThemeField, string>>
+
 export type BrandingUploadResult = { ok: true; url: string } | { ok: false; status: 400 | 413 | 503; error: string }
 
-export async function readBranding(deps: BrandingDeps): Promise<BrandingConfig> {
+// The parsed, already-validated PUT payload. Multipart parsing, theme/color
+// validation, and the wordmark-length check are http concerns; this usecase
+// receives the extracted Files and primitive values and owns every write +
+// the audit decision.
+export type BrandingUpdateInput = {
+  userId: string
+  orgId: string
+  logoFile: File | null
+  faviconFile: File | null
+  wordmarkText: string | null
+  hidePoweredBy: boolean | null
+  theme: ThemeUpdate
+}
+
+// On an image-upload failure the handler maps `status`/`error` straight to its
+// response (400 invalid type, 413 too large, 503 no public storage). On success
+// the freshly-read config is returned for serialization.
+export type BrandingUpdateOutcome =
+  | { ok: true; config: BrandingConfig }
+  | { ok: false; status: 400 | 413 | 503; error: string }
+
+export async function readBranding(deps: Pick<BrandingDeps, 'systemOptions'>): Promise<BrandingConfig> {
   const keys = Object.values(BRANDING_KEYS)
   const rows = await deps.systemOptions.listByKeyLike('branding_%')
   const map = new Map(rows.filter((r) => (keys as readonly string[]).includes(r.key)).map((r) => [r.key, r.value]))
@@ -61,8 +91,84 @@ export async function readBranding(deps: BrandingDeps): Promise<BrandingConfig> 
   }
 }
 
-export async function uploadBrandingImage(
+// Orchestrates the whole admin PUT: uploads each supplied image (short-circuit on
+// the first failure, preserving logo-before-favicon ordering), persists the
+// scalar + theme fields, records a single audit event when anything changed, and
+// returns the re-read config. Mirrors the prior inline handler order exactly.
+export async function applyBrandingUpdate(
   deps: BrandingDeps,
+  input: BrandingUpdateInput,
+): Promise<BrandingUpdateOutcome> {
+  const { userId, orgId, logoFile, faviconFile, wordmarkText, hidePoweredBy, theme } = input
+  const changedFields: string[] = []
+
+  if (logoFile) {
+    const result = await uploadBrandingImage(deps, 'logo', logoFile)
+    if (!result.ok) return { ok: false, status: result.status, error: result.error }
+    changedFields.push('logo')
+  }
+
+  if (faviconFile) {
+    const result = await uploadBrandingImage(deps, 'favicon', faviconFile)
+    if (!result.ok) return { ok: false, status: result.status, error: result.error }
+    changedFields.push('favicon')
+  }
+
+  if (wordmarkText !== null) {
+    await setBrandingField(deps, 'wordmark_text', wordmarkText)
+    changedFields.push('wordmark_text')
+  }
+
+  if (hidePoweredBy !== null) {
+    await setBrandingField(deps, 'hide_powered_by', hidePoweredBy ? 'true' : 'false')
+    changedFields.push('hide_powered_by')
+  }
+
+  for (const [field, value] of Object.entries(theme) as [ThemeField, string][]) {
+    await setBrandingField(deps, field, value)
+    changedFields.push(field)
+  }
+
+  if (changedFields.length > 0) {
+    await deps.activity.record({
+      orgId,
+      userId,
+      action: 'branding_update',
+      targetType: 'branding',
+      targetName: 'branding',
+      metadata: { fields: changedFields },
+    })
+  }
+
+  return { ok: true, config: await readBranding(deps) }
+}
+
+// Resets one branding field and audits it. A `theme*` field clears the entire
+// theme (mode + preset + every custom color) — resetting any single theme knob
+// returns the workspace to the unconfigured default. `field` is already
+// validated against the allow-list by the http layer.
+export async function resetBranding(
+  deps: BrandingDeps,
+  params: { userId: string; orgId: string; field: BrandingField },
+): Promise<void> {
+  const { userId, orgId, field } = params
+  if (field.startsWith('theme')) {
+    await resetBrandingTheme(deps)
+  } else {
+    await resetBrandingField(deps, field as keyof typeof BRANDING_KEYS)
+  }
+  await deps.activity.record({
+    orgId,
+    userId,
+    action: 'branding_reset',
+    targetType: 'branding',
+    targetName: field,
+    metadata: { field },
+  })
+}
+
+export async function uploadBrandingImage(
+  deps: Pick<BrandingDeps, 's3' | 'storages' | 'systemOptions'>,
   field: 'logo' | 'favicon',
   file: File,
 ): Promise<BrandingUploadResult> {
@@ -92,18 +198,21 @@ export async function uploadBrandingImage(
 }
 
 export async function setBrandingField(
-  deps: BrandingDeps,
-  field: 'wordmark_text' | 'hide_powered_by' | (typeof THEME_KEYS)[number],
+  deps: Pick<BrandingDeps, 'systemOptions'>,
+  field: 'wordmark_text' | 'hide_powered_by' | ThemeField,
   value: string,
 ): Promise<void> {
   await deps.systemOptions.set(BRANDING_KEYS[field], value, true)
 }
 
-export async function resetBrandingField(deps: BrandingDeps, field: keyof typeof BRANDING_KEYS): Promise<void> {
+export async function resetBrandingField(
+  deps: Pick<BrandingDeps, 'systemOptions'>,
+  field: keyof typeof BRANDING_KEYS,
+): Promise<void> {
   await deps.systemOptions.delete(BRANDING_KEYS[field])
 }
 
-export async function resetBrandingTheme(deps: BrandingDeps): Promise<void> {
+export async function resetBrandingTheme(deps: Pick<BrandingDeps, 'systemOptions'>): Promise<void> {
   for (const field of THEME_KEYS) {
     await deps.systemOptions.delete(BRANDING_KEYS[field])
   }
