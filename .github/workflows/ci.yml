@@ -56,6 +56,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm lint:arch
+      - run: pnpm lint:http
       - run: pnpm lint:spec
       - run: pnpm typecheck
       - run: pnpm openapi:downloader:check
