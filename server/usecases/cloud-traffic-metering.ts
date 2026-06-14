@@ -9,6 +9,7 @@ import type {
   CloudTrafficReportStatus,
   LicenseBindingRepo,
   LicensingCloudGateway,
+  QuotaRepo,
   TrafficReportSource,
 } from './ports'
 
@@ -215,5 +216,76 @@ function assertSameReport(
     report.creditsPerUnit !== params.creditsPerUnit
   ) {
     throw new Error('traffic_report_idempotency_conflict')
+  }
+}
+
+// ─── Download metering (egress quota + cloud report) ─────────────────────────
+// The end-to-end download meter, lifted out of the former http traffic helper:
+// consume the org's traffic quota, then report egress to Cloud (refunding the
+// quota if Cloud rejects). Returns a plain outcome; the http layer renders the
+// 422/402 responses. Shared by every download path (shares, objects, redirect,
+// webdav).
+
+export type DownloadTrafficStorage = {
+  id: string
+  egressCreditBillingEnabled: boolean
+  egressCreditUnitBytes: number
+  egressCreditPerUnit: number
+}
+
+export type DownloadTrafficParams = {
+  cloudBaseUrl: string
+  orgId: string
+  bytes: number
+  storage: DownloadTrafficStorage
+  source: TrafficReportSource
+  sourceId: string
+  // Compensating action run when traffic is rejected (quota or egress).
+  onRejected?: () => Promise<void>
+}
+
+export type DownloadTrafficOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'quota_exceeded' }
+  | { ok: false; reason: 'insufficient_credits' }
+
+type DownloadMeteringDeps = CloudTrafficMeteringDeps & { quota: QuotaRepo }
+
+// Consume traffic quota, then report egress.
+export async function meterDownloadTraffic(
+  deps: DownloadMeteringDeps,
+  params: DownloadTrafficParams,
+): Promise<DownloadTrafficOutcome> {
+  const allowed = await deps.quota.consumeTrafficIfQuotaAllows(params.orgId, params.bytes)
+  if (!allowed) {
+    await params.onRejected?.()
+    return { ok: false, reason: 'quota_exceeded' }
+  }
+  return reportDownloadEgress(deps, params)
+}
+
+// Report egress only (quota already consumed); refund + signal on a cloud block.
+export async function reportDownloadEgress(
+  deps: DownloadMeteringDeps,
+  params: DownloadTrafficParams,
+): Promise<DownloadTrafficOutcome> {
+  try {
+    await reportTrafficEgress(deps, {
+      cloudBaseUrl: params.cloudBaseUrl,
+      orgId: params.orgId,
+      bytes: params.bytes,
+      storageId: params.storage.id,
+      egressCreditBillingEnabled: params.storage.egressCreditBillingEnabled,
+      egressCreditUnitBytes: params.storage.egressCreditUnitBytes,
+      egressCreditPerUnit: params.storage.egressCreditPerUnit,
+      source: params.source,
+      sourceId: params.sourceId,
+    })
+    return { ok: true }
+  } catch (error) {
+    await deps.quota.refundTraffic(params.orgId, params.bytes)
+    await params.onRejected?.()
+    if (error instanceof CloudTrafficBlockedError) return { ok: false, reason: 'insufficient_credits' }
+    throw error
   }
 }

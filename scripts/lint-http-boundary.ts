@@ -40,7 +40,6 @@ const RATCHET: ReadonlySet<string> = new Set<string>([
   'server/http/objects.ts',
   'server/http/redirect.ts',
   'server/http/shares.ts',
-  'server/http/traffic-metering-utils.ts',
   'server/http/webdav.ts',
 ])
 

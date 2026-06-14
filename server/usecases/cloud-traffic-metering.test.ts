@@ -9,10 +9,12 @@ import { createTestApp } from '../test/setup'
 import {
   CloudTrafficBlockedError,
   type CloudTrafficMeteringDeps,
+  meterDownloadTraffic,
   reportTrafficEgress as reportTrafficEgressUsecase,
   syncPendingCloudTrafficReports as syncPendingCloudTrafficReportsUsecase,
   type TrafficReportSource,
 } from './cloud-traffic-metering'
+import type { QuotaRepo } from './ports'
 
 const hasFeatureMock = vi.hoisted(() => vi.fn(() => true))
 
@@ -375,5 +377,83 @@ describe('cloud traffic metering', () => {
     expect(second).toMatchObject({ status: 'reported', eventId: 'evt_unbound_dup', duplicate: false })
     expect(fetch).not.toHaveBeenCalled()
     await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
+  })
+})
+
+describe('download metering', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    hasFeatureMock.mockReset()
+    hasFeatureMock.mockReturnValue(true)
+  })
+
+  const downloadStorage = {
+    id: 'storage_1',
+    egressCreditBillingEnabled: true,
+    egressCreditUnitBytes: 100 * 1024 ** 2,
+    egressCreditPerUnit: 1,
+  }
+  const downloadParams = {
+    cloudBaseUrl: 'https://cloud.example',
+    orgId: 'org_1',
+    bytes: 1024,
+    storage: downloadStorage,
+    source: 'object_download' as const,
+    sourceId: 'matter_dl',
+  }
+
+  it('returns quota_exceeded and runs onRejected without reporting when the quota is exhausted', async () => {
+    const refundTraffic = vi.fn(async () => {})
+    const onRejected = vi.fn(async () => {})
+    const quota = { consumeTrafficIfQuotaAllows: async () => false, refundTraffic } as unknown as QuotaRepo
+    vi.stubGlobal('fetch', vi.fn())
+
+    const out = await meterDownloadTraffic({ quota } as unknown as CloudTrafficMeteringDeps & { quota: QuotaRepo }, {
+      ...downloadParams,
+      onRejected,
+    })
+
+    expect(out).toEqual({ ok: false, reason: 'quota_exceeded' })
+    expect(onRejected).toHaveBeenCalledTimes(1)
+    expect(refundTraffic).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('consumes the quota then reports egress on success', async () => {
+    const { db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
+    await seedTrafficBinding(db)
+    const refundTraffic = vi.fn(async () => {})
+    const quota = { consumeTrafficIfQuotaAllows: async () => true, refundTraffic } as unknown as QuotaRepo
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(makeResponse({ data: { accepted: true, duplicate: false, eventId: 'evt_dl' } })),
+    )
+
+    const out = await meterDownloadTraffic({ ...meteringDeps(db), quota }, downloadParams)
+
+    expect(out).toEqual({ ok: true })
+    expect(refundTraffic).not.toHaveBeenCalled()
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
+  })
+
+  it('refunds the quota and runs onRejected when the egress report throws, then rethrows', async () => {
+    const { db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
+    await seedTrafficBinding(db)
+    const refundTraffic = vi.fn(async () => {})
+    const onRejected = vi.fn(async () => {})
+    const quota = { consumeTrafficIfQuotaAllows: async () => true, refundTraffic } as unknown as QuotaRepo
+    vi.stubGlobal('fetch', vi.fn())
+
+    // egressCreditUnitBytes: 0 makes reportTrafficEgress throw the pricing error
+    // (a non-CloudTrafficBlockedError), exercising the refund + rethrow path.
+    await expect(
+      meterDownloadTraffic(
+        { ...meteringDeps(db), quota },
+        { ...downloadParams, storage: { ...downloadStorage, egressCreditUnitBytes: 0 }, onRejected },
+      ),
+    ).rejects.toThrow('storage_egress_pricing_missing')
+
+    expect(refundTraffic).toHaveBeenCalledWith('org_1', 1024)
+    expect(onRejected).toHaveBeenCalledTimes(1)
   })
 })
