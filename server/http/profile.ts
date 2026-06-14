@@ -1,17 +1,16 @@
 import { Hono } from 'hono'
 import type { Env } from '../middleware/platform'
+import { getPublicProfile } from '../usecases/profile'
 
 const app = new Hono<Env>()
   .get('/:username', async (c) => {
-    const { username } = c.req.param()
-    const profileUser = await c.get('deps').profiles.getUserByUsername(username)
-    if (!profileUser) return c.json({ error: 'User not found' }, 404)
-    return c.json({ user: profileUser, shares: [] })
+    const user = await getPublicProfile(c.get('deps'), c.req.param('username'))
+    if (!user) return c.json({ error: 'User not found' }, 404)
+    return c.json({ user, shares: [] })
   })
   .get('/:username/browse', async (c) => {
-    const { username } = c.req.param()
-    const profileUser = await c.get('deps').profiles.getUserByUsername(username)
-    if (!profileUser) return c.json({ error: 'User not found' }, 404)
+    const user = await getPublicProfile(c.get('deps'), c.req.param('username'))
+    if (!user) return c.json({ error: 'User not found' }, 404)
     return c.json({ items: [], breadcrumb: [] })
   })
 
