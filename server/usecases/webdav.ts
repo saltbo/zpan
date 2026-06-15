@@ -39,7 +39,7 @@ import { withStorageUsageReservation } from './storage-usage'
 export type WebDavAuthOutcome =
   | { ok: true; userId: string }
   | { ok: false; reason: 'unauthorized' }
-  | { ok: false; reason: 'rate_limited'; retryAfterMs?: number }
+  | { ok: false; reason: 'rate_limited'; retryAfterMs?: number; message: string }
 
 export async function resolveWebDavAuth(
   deps: Pick<Deps, 'apiKeys' | 'userAdmin'>,
@@ -69,7 +69,7 @@ export async function resolveWebDavAuth(
     return { ok: true, userId: key.referenceId }
   } catch (error) {
     if (error instanceof ApiKeyRateLimitError)
-      return { ok: false, reason: 'rate_limited', retryAfterMs: error.retryAfterMs }
+      return { ok: false, reason: 'rate_limited', retryAfterMs: error.retryAfterMs, message: error.message }
     return { ok: false, reason: 'unauthorized' }
   }
 }

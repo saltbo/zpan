@@ -56,6 +56,10 @@ const storage = {
   egressCreditPerUnit: 0,
 } as unknown as StorageRecord
 
+// Fixed so two file() calls compare equal (tests deep-equal a fixture against a
+// usecase result; argless new Date() per call would flake under load).
+const FIXED_DATE = new Date('2024-01-01T00:00:00.000Z')
+
 function file(id: string, overrides: Partial<Matter> = {}): Matter {
   return {
     id,
@@ -70,8 +74,8 @@ function file(id: string, overrides: Partial<Matter> = {}): Matter {
     storageId: 'st-1',
     status: 'active',
     trashedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: FIXED_DATE,
+    updatedAt: FIXED_DATE,
     ...overrides,
   }
 }

@@ -233,6 +233,7 @@ describe('webdav usecase', () => {
         ok: false,
         reason: 'rate_limited',
         retryAfterMs: 5000,
+        message: 'slow down',
       })
     })
 

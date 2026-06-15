@@ -77,7 +77,7 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
   })
   if (!result.ok) {
     if (result.reason === 'rate_limited')
-      return rateLimited(new ApiKeyRateLimitError('Rate limited', result.retryAfterMs))
+      return rateLimited(new ApiKeyRateLimitError(result.message, result.retryAfterMs))
     return unauthorized()
   }
   c.set('userId', result.userId)
