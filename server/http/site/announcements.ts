@@ -1,9 +1,9 @@
 import { zValidator } from '@hono/zod-validator'
 import { announcementInputSchema, listAnnouncementsQuerySchema } from '@shared/schemas'
 import { Hono } from 'hono'
-import { requireAdmin, requireAuth } from '../middleware/auth'
-import type { Env } from '../middleware/platform'
-import { requireFeature } from '../middleware/require-feature'
+import { requireAdmin, requireAuth } from '../../middleware/auth'
+import type { Env } from '../../middleware/platform'
+import { requireFeature } from '../../middleware/require-feature'
 import {
   createAnnouncement,
   deleteAnnouncement,
@@ -11,7 +11,7 @@ import {
   listAdminAnnouncements,
   listUserAnnouncements,
   updateAnnouncement,
-} from '../usecases/announcement'
+} from '../../usecases/site/announcement'
 
 function pagination(query: { page?: string; pageSize?: string }) {
   return {

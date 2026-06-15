@@ -1,5 +1,6 @@
 import type { AnnouncementInput } from '@shared/schemas'
 import { describe, expect, it, vi } from 'vitest'
+import type { AnnouncementRecord, AnnouncementRepo } from '../ports'
 import {
   createAnnouncement,
   deleteAnnouncement,
@@ -8,7 +9,6 @@ import {
   listUserAnnouncements,
   updateAnnouncement,
 } from './announcement'
-import type { AnnouncementRecord, AnnouncementRepo } from './ports'
 
 const sample = { id: 'a1', title: 'Hi' } as AnnouncementRecord
 const input = { title: 'Hi', body: 'Body' } as AnnouncementInput

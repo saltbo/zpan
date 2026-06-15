@@ -2289,7 +2289,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/announcements')
+      expect(url).toContain('/api/site/announcements')
       expect(url).toContain('page=1')
       expect(url).toContain('pageSize=20')
     })
@@ -2307,7 +2307,7 @@ describe('api', () => {
       await listActiveAnnouncements()
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/announcements')
+      expect(url).toContain('/api/site/announcements')
       expect(url).toContain('scope=active')
     })
 
@@ -2324,7 +2324,7 @@ describe('api', () => {
       await listAdminAnnouncements(1, 20, 'published')
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/announcements')
+      expect(url).toContain('/api/site/announcements')
       expect(url).toContain('scope=all')
       expect(url).toContain('status=published')
     })
@@ -2342,7 +2342,7 @@ describe('api', () => {
 
       expect(result).toEqual(announcement)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/announcements')
+      expect(url).toBe('/api/site/announcements')
       expect(init.method).toBe('POST')
       expect(JSON.parse(init.body as string)).toEqual(input)
     })
@@ -2353,7 +2353,7 @@ describe('api', () => {
       await getAnnouncement('ann-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/announcements/ann-1')
+      expect(url).toBe('/api/site/announcements/ann-1')
       expect(init.method).toBe('GET')
     })
 
@@ -2369,7 +2369,7 @@ describe('api', () => {
       await updateAnnouncement('ann-1', input)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/announcements/ann-1')
+      expect(url).toBe('/api/site/announcements/ann-1')
       expect(init.method).toBe('PUT')
       expect(JSON.parse(init.body as string)).toEqual(input)
     })
@@ -2387,7 +2387,7 @@ describe('api', () => {
 
       expect(result).toEqual({ id: 'ann-1', deleted: true })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/announcements/ann-1')
+      expect(url).toBe('/api/site/announcements/ann-1')
       expect(init.method).toBe('DELETE')
     })
 

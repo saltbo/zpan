@@ -11,7 +11,7 @@
 
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PUBLIC_KEYS } from '../domain/license-keys'
+import { PUBLIC_KEYS } from '../../domain/license-keys'
 import type {
   ActivityRepo,
   CloudInstanceInfo,
@@ -21,8 +21,8 @@ import type {
   LicensingCloudGateway,
   PairingPollResponse,
   PairingResponse,
-} from './ports'
-import { initiatePairing, pollPairing, triggerRefresh, unbindLicense } from './site/licensing'
+} from '../ports'
+import { initiatePairing, pollPairing, triggerRefresh, unbindLicense } from './licensing'
 
 const BASE_URL = 'https://cloud.zpan.space'
 const INSTANCE_ID = 'inst-1'

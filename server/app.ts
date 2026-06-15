@@ -4,7 +4,6 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
 import { createDeps } from './composition'
-import { announcements } from './http/announcements'
 import backgroundJobs from './http/background-jobs'
 import { cloudStore, cloudStoreWebhooks } from './http/cloud-store'
 import downloadTasks from './http/downloads/download-tasks'
@@ -18,6 +17,7 @@ import objects from './http/objects'
 import { adminQuotas, userQuotas } from './http/quotas'
 import redirect from './http/redirect'
 import { authedShares, publicShares } from './http/shares'
+import { announcements } from './http/site/announcements'
 import { adminAudit } from './http/site/audit'
 import { authProviders } from './http/site/auth-providers'
 import { brandingAdmin, publicBranding } from './http/site/branding'
@@ -123,7 +123,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/internal', internal)
 
   app.route('/api/users', users)
-  app.route('/api/announcements', announcements)
+  app.route('/api/site/announcements', announcements)
 
   // Mount routes separately to avoid deep type chain accumulation.
   // Each .route() call is independent — TypeScript doesn't stack types.

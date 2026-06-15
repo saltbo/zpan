@@ -62,7 +62,7 @@ export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
 export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
 export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)
 // One announcements resource (user feed + admin management, gated per-route).
-export const announcementsApi = hc<AnnouncementsRoute>('/api/announcements', opts)
+export const announcementsApi = hc<AnnouncementsRoute>('/api/site/announcements', opts)
 export const backgroundJobsApi = hc<BackgroundJobsRoute>('/api/background-jobs', opts)
 export const eventsUrlApi = hc<EventsRoute>(absoluteUrlBase('/api/events'), opts)
 

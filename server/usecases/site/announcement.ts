@@ -3,7 +3,7 @@
 // has one home and handlers stay free of deps access.
 
 import type { AnnouncementInput, AnnouncementStatus } from '@shared/schemas'
-import type { AnnouncementRecord, AnnouncementRepo, ListAnnouncementsResult } from './ports'
+import type { AnnouncementRecord, AnnouncementRepo, ListAnnouncementsResult } from '../ports'
 
 type AnnouncementDeps = { announcements: AnnouncementRepo }
 

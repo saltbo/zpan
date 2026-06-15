@@ -1,11 +1,11 @@
 import { FREE_TEAM_LIMIT } from '@shared/constants'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { createLicenseBindingRepo } from '../adapters/repos/license-binding.js'
-import { createMemberCountRepo } from '../adapters/repos/member-count.js'
-import * as authSchema from '../db/auth-schema.js'
-import { createTestApp, seedProLicense } from '../test/setup.js'
-import { checkTeamLimit } from './site/licensing.js'
+import { createLicenseBindingRepo } from '../../adapters/repos/license-binding.js'
+import { createMemberCountRepo } from '../../adapters/repos/member-count.js'
+import * as authSchema from '../../db/auth-schema.js'
+import { createTestApp, seedProLicense } from '../../test/setup.js'
+import { checkTeamLimit } from './licensing.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 

@@ -1,12 +1,12 @@
 import { env } from 'cloudflare:workers'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { FREE_STORAGE_LIMIT } from '../../shared/constants'
-import { createStorageRepo } from '../adapters/repos/storage'
-import { createApp } from '../app'
-import { createAuth } from '../auth'
-import { user } from '../db/auth-schema'
-import { createCloudflarePlatform } from '../platform/cloudflare'
+import { FREE_STORAGE_LIMIT } from '../../../shared/constants'
+import { createStorageRepo } from '../../adapters/repos/storage'
+import { createApp } from '../../app'
+import { createAuth } from '../../auth'
+import { user } from '../../db/auth-schema'
+import { createCloudflarePlatform } from '../../platform/cloudflare'
 
 async function buildApp() {
   const platform = createCloudflarePlatform(env)
