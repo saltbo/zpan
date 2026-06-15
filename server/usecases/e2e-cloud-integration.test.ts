@@ -175,11 +175,11 @@ describe('E2E: Feature gates — Community (unbound)', () => {
     expect(hasFeature('storages_unlimited', state)).toBe(false)
   })
 
-  it('PUT /api/system/options returns 402 when enabling open signup without Pro', async () => {
+  it('PUT /api/site/options returns 402 when enabling open signup without Pro', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/system/options/auth_signup_mode', {
+    const res = await app.request('/api/site/options/auth_signup_mode', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: SignupMode.OPEN }),
@@ -220,12 +220,12 @@ describe('E2E: Feature gates — Pro (active binding)', () => {
     expect(hasFeature('storages_unlimited', state)).toBe(true)
   })
 
-  it('PUT /api/system/options allows open signup with Pro license', async () => {
+  it('PUT /api/site/options allows open signup with Pro license', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/system/options/auth_signup_mode', {
+    const res = await app.request('/api/site/options/auth_signup_mode', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: SignupMode.OPEN }),
@@ -417,7 +417,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     expect(hasFeature('storages_unlimited', state)).toBe(true)
 
     // Step 6: Open registration is now allowed
-    const openRegRes = await app.request('/api/system/options/auth_signup_mode', {
+    const openRegRes = await app.request('/api/site/options/auth_signup_mode', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: SignupMode.OPEN }),
@@ -438,7 +438,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     expect(hasFeature('open_registration', stateAfter)).toBe(false)
 
     // Step 8: Open registration blocked again
-    const blockedRes = await app.request('/api/system/options/auth_signup_mode', {
+    const blockedRes = await app.request('/api/site/options/auth_signup_mode', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: SignupMode.OPEN }),

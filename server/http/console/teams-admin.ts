@@ -32,22 +32,22 @@ const updateEntitlementSchema = z.object({
 export const adminTeams = new Hono<Env>()
   .use(requireAdmin)
   .get('/', async (c) => c.json(await listTeams(c.get('deps'))))
-  .get('/:orgId', async (c) => {
-    const team = await getTeam(c.get('deps'), c.req.param('orgId'))
+  .get('/:teamId', async (c) => {
+    const team = await getTeam(c.get('deps'), c.req.param('teamId'))
     if (!team) return c.json({ error: 'Team not found' }, 404)
     return c.json(team)
   })
-  .get('/:orgId/entitlements', async (c) => {
-    const result = await listTeamEntitlements(c.get('deps'), c.req.param('orgId'))
+  .get('/:teamId/entitlements', async (c) => {
+    const result = await listTeamEntitlements(c.get('deps'), c.req.param('teamId'))
     if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
     return c.json(result.result)
   })
-  .post('/:orgId/entitlements', zValidator('json', grantEntitlementSchema), async (c) => {
+  .post('/:teamId/entitlements', zValidator('json', grantEntitlementSchema), async (c) => {
     const body = c.req.valid('json')
     const result = await grantTeamEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
       adminOrgId: c.get('orgId')!,
-      targetOrgId: c.req.param('orgId'),
+      targetOrgId: c.req.param('teamId'),
       resourceType: body.resourceType,
       bytes: body.bytes,
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
@@ -56,12 +56,12 @@ export const adminTeams = new Hono<Env>()
     if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
     return c.json(result.result, 201)
   })
-  .patch('/:orgId/entitlements/:eid', zValidator('json', updateEntitlementSchema), async (c) => {
+  .patch('/:teamId/entitlements/:eid', zValidator('json', updateEntitlementSchema), async (c) => {
     const body = c.req.valid('json')
     const result = await updateTeamEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
       adminOrgId: c.get('orgId')!,
-      targetOrgId: c.req.param('orgId'),
+      targetOrgId: c.req.param('teamId'),
       entitlementId: c.req.param('eid'),
       bytes: body.bytes,
       expiresAt: 'expiresAt' in body ? (body.expiresAt ? new Date(body.expiresAt) : null) : undefined,
@@ -70,11 +70,11 @@ export const adminTeams = new Hono<Env>()
     if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
     return c.json(result.result)
   })
-  .delete('/:orgId/entitlements/:eid', async (c) => {
+  .delete('/:teamId/entitlements/:eid', async (c) => {
     const result = await revokeTeamEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
       adminOrgId: c.get('orgId')!,
-      targetOrgId: c.req.param('orgId'),
+      targetOrgId: c.req.param('teamId'),
       entitlementId: c.req.param('eid'),
     })
     if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)

@@ -28,7 +28,7 @@ describe('Admin quota listing', () => {
       VALUES ('team-quota-listing-row', 'team-quota-listing', 2000, 100, 3000, 2500, '1970-01')
     `)
     await db.run(sql`UPDATE org_quotas SET traffic_quota = 1000, traffic_used = 900, traffic_period = '1970-01'`)
-    const res = await app.request('/api/admin/quotas', { headers })
+    const res = await app.request('/api/quotas', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
 

@@ -1,11 +1,11 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import {
-  confirmMatterSchema,
   createMatterSchema,
   createObjectUploadSessionSchema,
   objectDraftSchema,
+  objectStatusSchema,
   objectUploadSessionSchema,
-  patchObjectUploadSessionSchema,
+  objectUploadStatusSchema,
   presignObjectUploadPartsResponseSchema,
   presignObjectUploadPartsSchema,
 } from '@shared/schemas'
@@ -120,12 +120,12 @@ function mountObjectUploadRoutes(app: OpenAPIHono) {
 
   app.openapi(
     createRoute({
-      method: 'patch',
-      path: '/api/objects/{id}',
+      method: 'put',
+      path: '/api/objects/{id}/status',
       request: {
         params: z.object({ id: z.string() }),
         body: {
-          content: { 'application/json': { schema: confirmMatterSchema } },
+          content: { 'application/json': { schema: objectStatusSchema } },
           required: true,
         },
       },
@@ -182,17 +182,34 @@ function mountObjectUploadRoutes(app: OpenAPIHono) {
 
   app.openapi(
     createRoute({
-      method: 'patch',
-      path: '/api/objects/{id}/uploads/{uploadSessionId}',
+      method: 'put',
+      path: '/api/objects/{id}/uploads/{uploadSessionId}/status',
       request: {
         params: z.object({ id: z.string(), uploadSessionId: z.string() }),
         body: {
-          content: { 'application/json': { schema: patchObjectUploadSessionSchema } },
+          content: { 'application/json': { schema: objectUploadStatusSchema } },
           required: true,
         },
       },
       responses: {
-        200: jsonResponse(objectUploadSessionSchema, 'Updated object multipart upload session'),
+        200: jsonResponse(objectUploadSessionSchema, 'Completed object multipart upload session'),
+        400: jsonResponse(errorSchema, 'Invalid upload session'),
+        403: jsonResponse(errorSchema, 'Forbidden'),
+        404: jsonResponse(errorSchema, 'Not found'),
+      },
+    }),
+    (c) => c.json({} as z.infer<typeof objectUploadSessionSchema>, 200),
+  )
+
+  app.openapi(
+    createRoute({
+      method: 'delete',
+      path: '/api/objects/{id}/uploads/{uploadSessionId}',
+      request: {
+        params: z.object({ id: z.string(), uploadSessionId: z.string() }),
+      },
+      responses: {
+        200: jsonResponse(objectUploadSessionSchema, 'Aborted object multipart upload session'),
         400: jsonResponse(errorSchema, 'Invalid upload session'),
         403: jsonResponse(errorSchema, 'Forbidden'),
         404: jsonResponse(errorSchema, 'Not found'),
@@ -206,8 +223,8 @@ export function createDownloaderOpenAPIApp() {
   const app = new OpenAPIHono()
   mountBetterAuthDeviceRoutes(app)
   app.route('/api/download-tasks', downloadTasks)
-  app.route('/api/downloader', downloaderSelfRoute)
-  app.route('/api/admin/downloaders', downloaders)
+  app.route('/api/downloaders', downloaderSelfRoute)
+  app.route('/api/downloaders', downloaders)
   mountObjectUploadRoutes(app)
   return app
 }

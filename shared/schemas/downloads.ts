@@ -278,6 +278,18 @@ export const downloadTaskActionInputSchema = z.object({
   action: downloadTaskActionSchema,
 })
 
+// PUT /api/download-tasks/:id/status — pause/resume/cancel a task.
+//   paused   → pause      queued → resume      canceled → cancel
+export const downloadTaskStatusUpdateSchema = z.object({
+  status: z.enum(['paused', 'queued', 'canceled']),
+})
+
+// POST /api/download-tasks/:id/attempts — start a new run.
+//   fresh:false (default) = retry a failed task; fresh:true = restart from scratch.
+export const downloadTaskAttemptSchema = z.object({
+  fresh: z.boolean().optional(),
+})
+
 export const downloadTaskSortBySchema = z.enum(['createdAt', 'source', 'category', 'tags', 'status', 'progress', 'eta'])
 
 export const listDownloadTasksQuerySchema = z.object({
@@ -290,8 +302,6 @@ export const listDownloadTasksQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 })
-
-export const objectUploadActionSchema = z.enum(['complete', 'abort'])
 
 export const createObjectUploadSessionSchema = z.object({
   partSize: z
@@ -306,6 +316,9 @@ export const presignObjectUploadPartsSchema = z.object({
   partNumbers: z.array(z.number().int().min(1).max(10_000)).min(1).max(100),
 })
 
+// Internal command shape for the upload-session usecase. The HTTP boundary now
+// speaks REST — PUT /uploads/:sid/status {status:'completed', parts} to complete,
+// DELETE /uploads/:sid to abort — and translates into this union.
 export const patchObjectUploadSessionSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('complete'),
@@ -322,6 +335,19 @@ export const patchObjectUploadSessionSchema = z.discriminatedUnion('action', [
     action: z.literal('abort'),
   }),
 ])
+
+// PUT /api/objects/:id/uploads/:sid/status — complete a multipart upload.
+export const objectUploadStatusSchema = z.object({
+  status: z.literal('completed'),
+  parts: z
+    .array(
+      z.object({
+        partNumber: z.number().int().min(1).max(10_000),
+        etag: z.string().min(1),
+      }),
+    )
+    .min(1),
+})
 
 export type DownloaderHeartbeatInput = z.infer<typeof downloaderHeartbeatSchema>
 export type UpdateDownloaderInput = z.infer<typeof updateDownloaderSchema>

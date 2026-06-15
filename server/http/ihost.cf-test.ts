@@ -22,16 +22,16 @@ async function authedHeaders(app: ReturnType<typeof buildApp>) {
 }
 
 describe('[CF] IHost API routing regression', () => {
-  it('GET /api/ihost/images returns 401 without auth (route exists)', async () => {
+  it('GET /api/image-hosting/images returns 401 without auth (route exists)', async () => {
     const app = await buildApp()
-    const res = await app.request('/api/ihost/images')
+    const res = await app.request('/api/image-hosting/images')
     expect(res.status).toBe(401)
   })
 
-  it('POST /api/ihost/images returns 403 when image hosting not enabled', async () => {
+  it('POST /api/image-hosting/images returns 403 when image hosting not enabled', async () => {
     const app = await buildApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
@@ -39,10 +39,10 @@ describe('[CF] IHost API routing regression', () => {
     expect(res.status).toBe(403)
   })
 
-  it('POST /api/ihost/images/presign returns 403 when image hosting not enabled', async () => {
+  it('POST /api/image-hosting/images/presign returns 403 when image hosting not enabled', async () => {
     const app = await buildApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
@@ -51,9 +51,9 @@ describe('[CF] IHost API routing regression', () => {
     expect(res.status).toBe(403)
   })
 
-  it('GET /api/ihost/images/:id returns 401 without auth (route exists)', async () => {
+  it('GET /api/image-hosting/images/:id returns 401 without auth (route exists)', async () => {
     const app = await buildApp()
-    const res = await app.request('/api/ihost/images/some-id')
+    const res = await app.request('/api/image-hosting/images/some-id')
     expect(res.status).toBe(401)
   })
 })

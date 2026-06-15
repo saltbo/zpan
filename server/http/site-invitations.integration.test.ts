@@ -23,7 +23,7 @@ describe('Admin Site Invitations API — auth guards', () => {
 
   it('GET / returns 401 without auth [spec: site-invitations/admin-auth]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/admin/site-invitations')
+    const res = await app.request('/api/site-invitations')
     expect(res.status).toBe(401)
   })
 
@@ -32,7 +32,7 @@ describe('Admin Site Invitations API — auth guards', () => {
     stubEmailProvider()
     await adminHeaders(app)
     const headers = await authedHeaders(app, 'regular@example.com')
-    const res = await app.request('/api/admin/site-invitations', {
+    const res = await app.request('/api/site-invitations', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'invitee@example.com' }),
@@ -63,7 +63,7 @@ describe('Admin Site Invitations API', () => {
     await seedEmailOptions(ctx)
     const headers = await adminHeaders(ctx.app)
 
-    const res = await ctx.app.request('/api/admin/site-invitations', {
+    const res = await ctx.app.request('/api/site-invitations', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'invitee@example.com' }),
@@ -82,13 +82,13 @@ describe('Admin Site Invitations API', () => {
     await seedEmailOptions(ctx)
     const headers = await adminHeaders(ctx.app)
 
-    await ctx.app.request('/api/admin/site-invitations', {
+    await ctx.app.request('/api/site-invitations', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'invitee@example.com' }),
     })
 
-    const res = await ctx.app.request('/api/admin/site-invitations', { headers })
+    const res = await ctx.app.request('/api/site-invitations', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ email: string }>; total: number }
     expect(body.total).toBe(1)
@@ -101,14 +101,14 @@ describe('Admin Site Invitations API', () => {
     await seedEmailOptions(ctx)
     const headers = await adminHeaders(ctx.app)
 
-    const createRes = await ctx.app.request('/api/admin/site-invitations', {
+    const createRes = await ctx.app.request('/api/site-invitations', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'invitee@example.com' }),
     })
     const created = (await createRes.json()) as { id: string; token: string }
 
-    const resendRes = await ctx.app.request(`/api/admin/site-invitations/${created.id}/resend`, {
+    const resendRes = await ctx.app.request(`/api/site-invitations/${created.id}/deliveries`, {
       method: 'POST',
       headers,
     })
@@ -124,14 +124,14 @@ describe('Admin Site Invitations API', () => {
     await seedEmailOptions(ctx)
     const headers = await adminHeaders(ctx.app)
 
-    const createRes = await ctx.app.request('/api/admin/site-invitations', {
+    const createRes = await ctx.app.request('/api/site-invitations', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'invitee@example.com' }),
     })
     const created = (await createRes.json()) as { id: string }
 
-    const revokeRes = await ctx.app.request(`/api/admin/site-invitations/${created.id}`, {
+    const revokeRes = await ctx.app.request(`/api/site-invitations/${created.id}`, {
       method: 'DELETE',
       headers,
     })
@@ -147,13 +147,13 @@ describe('Admin Site Invitations API', () => {
     await seedEmailOptions(ctx)
     const headers = await adminHeaders(ctx.app)
 
-    await ctx.app.request('/api/admin/site-invitations', {
+    await ctx.app.request('/api/site-invitations', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'invitee@example.com' }),
     })
 
-    const duplicateRes = await ctx.app.request('/api/admin/site-invitations', {
+    const duplicateRes = await ctx.app.request('/api/site-invitations', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'invitee@example.com' }),

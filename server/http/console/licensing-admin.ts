@@ -33,7 +33,7 @@ async function getRequestHost(c: {
 const app = new Hono<Env>()
   .use(requireAdmin)
 
-  .post('/pair', async (c) => {
+  .post('/pairings', async (c) => {
     const pairing = await initiatePairing(c.get('deps'), {
       baseUrl: getCloudBaseUrl(c),
       instanceUrl: await getInstanceOrigin(c),
@@ -42,7 +42,7 @@ const app = new Hono<Env>()
     return c.json(pairing)
   })
 
-  .get('/pair/:code/poll', async (c) => {
+  .get('/pairings/:code', async (c) => {
     const result = await pollPairing(c.get('deps'), {
       baseUrl: getCloudBaseUrl(c),
       code: c.req.param('code'),
@@ -65,7 +65,7 @@ const app = new Hono<Env>()
     return c.json({ status: result.status })
   })
 
-  .post('/refresh', async (c) => {
+  .post('/refresh-runs', async (c) => {
     const { lastRefreshAt } = await triggerRefresh(c.get('deps'), {
       baseUrl: getCloudBaseUrl(c),
       instanceUrl: await getInstanceOrigin(c),

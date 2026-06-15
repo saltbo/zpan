@@ -24,12 +24,12 @@ async function seedBrandingOption(db: Awaited<ReturnType<typeof createTestApp>>[
   await db.insert(systemOptions).values({ key, value, public: true })
 }
 
-// ─── GET /api/branding ────────────────────────────────────────────────────────
+// ─── GET /api/site/branding ────────────────────────────────────────────────────────
 
-describe('GET /api/branding', () => {
+describe('GET /api/site/branding', () => {
   it('returns defaults when no branding configured [spec: branding/defaults]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/branding')
+    const res = await app.request('/api/site/branding')
     expect(res.status).toBe(200)
     const body = (await res.json()) as BrandingConfig
     expect(body).toMatchObject({
@@ -48,7 +48,7 @@ describe('GET /api/branding', () => {
 
   it('is accessible without authentication [spec: branding/public]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/branding')
+    const res = await app.request('/api/site/branding')
     expect(res.status).toBe(200)
   })
 
@@ -57,7 +57,7 @@ describe('GET /api/branding', () => {
     await seedBrandingOption(db, 'branding_wordmark_text', 'MyCloud')
     await seedBrandingOption(db, 'branding_hide_powered_by', 'true')
 
-    const res = await app.request('/api/branding')
+    const res = await app.request('/api/site/branding')
     expect(res.status).toBe(200)
     const body = (await res.json()) as { wordmark_text: string; hide_powered_by: boolean }
     expect(body.wordmark_text).toBe('MyCloud')
@@ -69,7 +69,7 @@ describe('GET /api/branding', () => {
     await seedBrandingOption(db, 'branding_theme_mode', 'preset')
     await seedBrandingOption(db, 'branding_theme_preset', 'forest')
 
-    const res = await app.request('/api/branding')
+    const res = await app.request('/api/site/branding')
     expect(res.status).toBe(200)
     const body = (await res.json()) as BrandingConfig
     expect(body.theme).toMatchObject({
@@ -89,7 +89,7 @@ describe('GET /api/branding', () => {
     await seedBrandingOption(db, 'branding_theme_sidebar_accent_color', '#dbeafe')
     await seedBrandingOption(db, 'branding_theme_ring_color', '#0f172a')
 
-    const res = await app.request('/api/branding')
+    const res = await app.request('/api/site/branding')
     expect(res.status).toBe(200)
     const body = (await res.json()) as BrandingConfig
     expect(body.theme).toMatchObject({
@@ -106,9 +106,9 @@ describe('GET /api/branding', () => {
   })
 })
 
-// ─── PUT /api/admin/branding ──────────────────────────────────────────────────
+// ─── PUT /api/site/branding ──────────────────────────────────────────────────
 
-describe('PUT /api/admin/branding', () => {
+describe('PUT /api/site/branding', () => {
   beforeEach(() => {
     vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(16)
     vi.spyOn(S3Service.prototype, 'getPublicUrl').mockReturnValue('https://cdn.example.com/logo.png')
@@ -120,7 +120,7 @@ describe('PUT /api/admin/branding', () => {
 
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/admin/branding', { method: 'PUT' })
+    const res = await app.request('/api/site/branding', { method: 'PUT' })
     expect(res.status).toBe(401)
   })
 
@@ -129,14 +129,14 @@ describe('PUT /api/admin/branding', () => {
     // First user is auto-promoted to admin — create them first, then the non-admin
     await adminHeaders(app)
     const headers = await authedHeaders(app, 'user@example.com')
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers })
     expect(res.status).toBe(403)
   })
 
   it('returns 402 when white_label feature is not available (no Pro) [spec: branding/white-label-gated]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers })
     expect(res.status).toBe(402)
     const body = (await res.json()) as { feature: string }
     expect(body.feature).toBe('white_label')
@@ -146,7 +146,7 @@ describe('PUT /api/admin/branding', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    const res = await app.request('/api/admin/branding', {
+    const res = await app.request('/api/site/branding', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -161,7 +161,7 @@ describe('PUT /api/admin/branding', () => {
 
     const form = new FormData()
     form.set('wordmark_text', 'x'.repeat(25))
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(422)
   })
 
@@ -174,14 +174,14 @@ describe('PUT /api/admin/branding', () => {
     form.set('wordmark_text', 'MyCloud')
     form.set('hide_powered_by', 'true')
 
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { wordmark_text: string; hide_powered_by: boolean }
     expect(body.wordmark_text).toBe('MyCloud')
     expect(body.hide_powered_by).toBe(true)
 
     // Verify GET reflects the update
-    const getRes = await app.request('/api/branding')
+    const getRes = await app.request('/api/site/branding')
     const getBody = (await getRes.json()) as { wordmark_text: string; hide_powered_by: boolean }
     expect(getBody.wordmark_text).toBe('MyCloud')
     expect(getBody.hide_powered_by).toBe(true)
@@ -196,12 +196,12 @@ describe('PUT /api/admin/branding', () => {
     form.set('theme_mode', 'preset')
     form.set('theme_preset', 'ocean')
 
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as BrandingConfig
     expect(body.theme).toMatchObject({ mode: 'preset', preset: 'ocean', configured: true })
 
-    const getRes = await app.request('/api/branding')
+    const getRes = await app.request('/api/site/branding')
     const getBody = (await getRes.json()) as BrandingConfig
     expect(getBody.theme).toMatchObject({ mode: 'preset', preset: 'ocean', configured: true })
   })
@@ -219,7 +219,7 @@ describe('PUT /api/admin/branding', () => {
     form.set('theme_sidebar_accent_color', '#dbeafe')
     form.set('theme_ring_color', '#0f172a')
 
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as BrandingConfig
     expect(body.theme.custom).toMatchObject({
@@ -246,10 +246,10 @@ describe('PUT /api/admin/branding', () => {
     form.set('theme_sidebar_accent_color', '#dbeafe')
     form.set('theme_ring_color', '#0f172a')
 
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(422)
 
-    const getRes = await app.request('/api/branding')
+    const getRes = await app.request('/api/site/branding')
     const getBody = (await getRes.json()) as BrandingConfig
     expect(getBody.theme).toMatchObject({ mode: 'preset', preset: 'forest', configured: true })
   })
@@ -263,7 +263,7 @@ describe('PUT /api/admin/branding', () => {
     form.set('theme_mode', 'preset')
     form.set('theme_preset', 'toString')
 
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(422)
   })
 
@@ -277,7 +277,7 @@ describe('PUT /api/admin/branding', () => {
     const form = new FormData()
     form.set('logo', logoFile)
 
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { logo_url: string }
     expect(body.logo_url).toBe('https://cdn.example.com/logo.png')
@@ -294,7 +294,7 @@ describe('PUT /api/admin/branding', () => {
     const form = new FormData()
     form.set('logo', badFile)
 
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(400)
   })
 
@@ -310,7 +310,7 @@ describe('PUT /api/admin/branding', () => {
     const form = new FormData()
     form.set('logo', bigFile)
 
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(413)
   })
 
@@ -324,24 +324,24 @@ describe('PUT /api/admin/branding', () => {
     const form = new FormData()
     form.set('logo', logoFile)
 
-    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(503)
   })
 })
 
-// ─── DELETE /api/admin/branding/:field ────────────────────────────────────────
+// ─── DELETE /api/site/branding/:field ────────────────────────────────────────
 
-describe('DELETE /api/admin/branding/:field', () => {
+describe('DELETE /api/site/branding/:field', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/admin/branding/logo', { method: 'DELETE' })
+    const res = await app.request('/api/site/branding/logo', { method: 'DELETE' })
     expect(res.status).toBe(401)
   })
 
   it('returns 402 without Pro feature', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/branding/logo', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/branding/logo', { method: 'DELETE', headers })
     expect(res.status).toBe(402)
   })
 
@@ -351,7 +351,7 @@ describe('DELETE /api/admin/branding/:field', () => {
     await seedProLicense(db)
     await seedBrandingOption(db, 'branding_wordmark_text', 'MyCloud')
 
-    const res = await app.request('/api/admin/branding/wordmark_text', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/branding/wordmark_text', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { reset: boolean }
     expect(body.reset).toBe(true)
@@ -370,9 +370,9 @@ describe('DELETE /api/admin/branding/:field', () => {
     await seedBrandingOption(db, 'branding_theme_mode', 'preset')
     await seedBrandingOption(db, 'branding_theme_preset', 'rose')
 
-    const res = await app.request('/api/admin/branding/theme', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/branding/theme', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
-    const getRes = await app.request('/api/branding')
+    const getRes = await app.request('/api/site/branding')
     const body = (await getRes.json()) as BrandingConfig
     expect(body.theme).toMatchObject({
       mode: 'preset',
@@ -389,9 +389,9 @@ describe('DELETE /api/admin/branding/:field', () => {
     await seedBrandingOption(db, 'branding_theme_mode', 'preset')
     await seedBrandingOption(db, 'branding_theme_preset', 'rose')
 
-    const res = await app.request('/api/admin/branding/theme_preset', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/branding/theme_preset', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
-    const getRes = await app.request('/api/branding')
+    const getRes = await app.request('/api/site/branding')
     const body = (await getRes.json()) as BrandingConfig
     expect(body.theme.configured).toBe(false)
   })
@@ -401,7 +401,7 @@ describe('DELETE /api/admin/branding/:field', () => {
     const headers = await adminHeaders(app)
     await seedProLicense(db)
 
-    const res = await app.request('/api/admin/branding/invalid_field', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/branding/invalid_field', { method: 'DELETE', headers })
     expect(res.status).toBe(400)
   })
 })

@@ -54,18 +54,12 @@ async function signUpAndGetUser(app: TestApp, email: string) {
   return { headers, userId: body.user?.id ?? '' }
 }
 
-// ─── Public invite-info ────────────────────────────────────────────────────────
+// ─── Public invite-link info ────────────────────────────────────────────────────
 
-describe('GET /api/teams/invite-info', () => {
-  it('returns 400 when token is missing [spec: teams/invite-token-missing]', async () => {
-    const { app } = await createTestApp()
-    const res = await app.request('/api/teams/invite-info')
-    expect(res.status).toBe(400)
-  })
-
+describe('GET /api/teams/invite-links/:token', () => {
   it('returns 404 for an invalid token', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/teams/invite-info?token=invalid')
+    const res = await app.request('/api/teams/invite-links/invalid')
     expect(res.status).toBe(404)
   })
 
@@ -75,7 +69,7 @@ describe('GET /api/teams/invite-info', () => {
     const inviterId = await insertUser(db)
     const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer')
 
-    const res = await app.request(`/api/teams/invite-info?token=${link.token}`)
+    const res = await app.request(`/api/teams/invite-links/${link.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as { organizationName: string; role: string }
     expect(body.organizationName).toBe('My Team')
@@ -83,12 +77,12 @@ describe('GET /api/teams/invite-info', () => {
   })
 })
 
-// ─── POST /:teamId/invite-link ─────────────────────────────────────────────────
+// ─── POST /:teamId/invite-links ────────────────────────────────────────────────
 
-describe('POST /api/teams/:teamId/invite-link', () => {
+describe('POST /api/teams/:teamId/invite-links', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/teams/some-org/invite-link', {
+    const res = await app.request('/api/teams/some-org/invite-links', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'viewer' }),
@@ -104,7 +98,7 @@ describe('POST /api/teams/:teamId/invite-link', () => {
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'member')
 
-    const res = await app.request(`/api/teams/${orgId}/invite-link`, {
+    const res = await app.request(`/api/teams/${orgId}/invite-links`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'viewer' }),
@@ -120,7 +114,7 @@ describe('POST /api/teams/:teamId/invite-link', () => {
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'owner')
 
-    const res = await app.request(`/api/teams/${orgId}/invite-link`, {
+    const res = await app.request(`/api/teams/${orgId}/invite-links`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'editor' }),

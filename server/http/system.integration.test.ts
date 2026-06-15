@@ -14,7 +14,7 @@ async function putOption(
   key: string,
   body: Record<string, unknown>,
 ) {
-  return app.request(`/api/system/options/${key}`, {
+  return app.request(`/api/site/options/${key}`, {
     method: 'PUT',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -24,7 +24,7 @@ async function putOption(
 describe('System API — options CRUD', () => {
   it('GET unknown key returns 404 [spec: system/option-not-found]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/system/options/site_name')
+    const res = await app.request('/api/site/options/site_name')
     expect(res.status).toBe(404)
   })
 
@@ -38,7 +38,7 @@ describe('System API — options CRUD', () => {
     expect(await put.json()).toEqual({ key: 'site_name', value: 'ZPan', public: true })
 
     // Anonymous can read public option
-    const anonGet = await app.request('/api/system/options/site_name')
+    const anonGet = await app.request('/api/site/options/site_name')
     expect(anonGet.status).toBe(200)
     expect(await anonGet.json()).toEqual({ key: 'site_name', value: 'ZPan', public: true })
 
@@ -49,21 +49,21 @@ describe('System API — options CRUD', () => {
 
     // Private option hidden from anonymous
     await putOption(app, admin, 'smtp_password', { value: 'secret', public: false })
-    const anonPrivate = await app.request('/api/system/options/smtp_password')
+    const anonPrivate = await app.request('/api/site/options/smtp_password')
     expect(anonPrivate.status).toBe(403)
 
     // Admin can read private option
-    const adminPrivate = await app.request('/api/system/options/smtp_password', { headers: admin })
+    const adminPrivate = await app.request('/api/site/options/smtp_password', { headers: admin })
     expect(adminPrivate.status).toBe(200)
     expect(await adminPrivate.json()).toEqual({ key: 'smtp_password', value: 'secret', public: false })
 
     // List: anon sees only public, admin sees all
-    const anonList = await app.request('/api/system/options')
+    const anonList = await app.request('/api/site/options')
     const anonBody = (await anonList.json()) as { items: { key: string }[]; total: number }
     expect(anonBody.total).toBe(1)
     expect(anonBody.items[0].key).toBe('site_name')
 
-    const adminList = await app.request('/api/system/options', { headers: admin })
+    const adminList = await app.request('/api/site/options', { headers: admin })
     const adminBody = (await adminList.json()) as { items: { key: string }[]; total: number }
     expect(adminBody.total).toBeGreaterThanOrEqual(2)
     expect(adminBody.items.map((item) => item.key)).toEqual(expect.arrayContaining(['site_name', 'smtp_password']))
@@ -73,22 +73,22 @@ describe('System API — options CRUD', () => {
     expect(bad.status).toBe(400)
 
     // Delete
-    const del = await app.request('/api/system/options/site_name', { method: 'DELETE', headers: admin })
+    const del = await app.request('/api/site/options/site_name', { method: 'DELETE', headers: admin })
     expect(del.status).toBe(200)
-    const afterDel = await app.request('/api/system/options/site_name')
+    const afterDel = await app.request('/api/site/options/site_name')
     expect(afterDel.status).toBe(404)
   })
 
   it('unauthenticated mutations are rejected [spec: system/mutations-require-admin]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/system/options/site_name', {
+    const res = await app.request('/api/site/options/site_name', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: 'ZPan' }),
     })
     expect(res.status).toBe(401)
 
-    const del = await app.request('/api/system/options/site_name', { method: 'DELETE' })
+    const del = await app.request('/api/site/options/site_name', { method: 'DELETE' })
     expect(del.status).toBe(401)
   })
 
@@ -123,11 +123,11 @@ describe('System API — options CRUD', () => {
   it('exposes instance info to admins only [spec: system/instance-info-admin-only]', async () => {
     const { app } = await createTestApp()
 
-    const anon = await app.request('/api/system/instance')
+    const anon = await app.request('/api/site/instance')
     expect(anon.status).toBe(401)
 
     const admin = await adminHeaders(app)
-    const res = await app.request('/api/system/instance', { headers: admin })
+    const res = await app.request('/api/site/instance', { headers: admin })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { id: string; version: string; runtime?: string; platform?: string }
     expect(body.id).toBeTruthy()
@@ -157,11 +157,11 @@ describe('System API — options CRUD', () => {
         ),
       )
 
-      const anon = await app.request('/api/system/changelog')
+      const anon = await app.request('/api/site/changelog')
       expect(anon.status).toBe(401)
 
       const admin = await adminHeaders(app)
-      const res = await app.request('/api/system/changelog', { headers: admin })
+      const res = await app.request('/api/site/changelog', { headers: admin })
       expect(res.status).toBe(200)
       const body = (await res.json()) as {
         currentVersion: string
@@ -189,13 +189,13 @@ describe('System API — options CRUD', () => {
     expect(enabled.status).toBe(201)
     expect(await enabled.json()).toEqual({ key: CAPTCHA_ENABLED_KEY, value: 'true', public: true })
 
-    const anonList = await app.request('/api/system/options')
+    const anonList = await app.request('/api/site/options')
     const anonBody = (await anonList.json()) as { items: { key: string }[] }
     expect(anonBody.items.map((item) => item.key)).toContain(CAPTCHA_SITE_KEY_KEY)
     expect(anonBody.items.map((item) => item.key)).toContain(CAPTCHA_PROVIDER_KEY)
     expect(anonBody.items.map((item) => item.key)).not.toContain(CAPTCHA_SECRET_OPTION_KEY)
 
-    const adminSecret = await app.request(`/api/system/options/${CAPTCHA_SECRET_OPTION_KEY}`, { headers: admin })
+    const adminSecret = await app.request(`/api/site/options/${CAPTCHA_SECRET_OPTION_KEY}`, { headers: admin })
     expect(adminSecret.status).toBe(200)
     expect(await adminSecret.json()).toEqual({ key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false })
   })

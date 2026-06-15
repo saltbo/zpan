@@ -58,17 +58,17 @@ describe('object multipart upload API with S3-compatible storage', () => {
     const etag = partRes.headers.get('etag')
     expect(etag).toBeTruthy()
 
-    const completeRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}`, {
-      method: 'PATCH',
+    const completeRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}/status`, {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'complete', parts: [{ partNumber: 1, etag }] }),
+      body: JSON.stringify({ status: 'completed', parts: [{ partNumber: 1, etag }] }),
     })
     expect(completeRes.status).toBe(200)
 
-    const confirmRes = await app.request(`/api/objects/${object.id}`, {
-      method: 'PATCH',
+    const confirmRes = await app.request(`/api/objects/${object.id}/status`, {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(confirmRes.status).toBe(200)
 

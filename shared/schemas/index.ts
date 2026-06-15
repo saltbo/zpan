@@ -102,11 +102,14 @@ export {
   downloadSourceTypeSchema,
   downloadTaskActionInputSchema,
   downloadTaskActionSchema,
+  downloadTaskAttemptSchema,
   downloadTaskPageSchema,
   downloadTaskRuntimeSchema,
   downloadTaskSchema,
   downloadTaskStatusSchema,
+  downloadTaskStatusUpdateSchema,
   listDownloadTasksQuerySchema,
+  objectUploadStatusSchema,
   patchObjectUploadSessionSchema,
   presignObjectUploadPartsSchema,
   updateDownloaderSchema,
@@ -159,11 +162,6 @@ export const updateMatterSchema = z.object({
 
 export type UpdateMatterInput = z.infer<typeof updateMatterSchema>
 
-export const confirmMatterSchema = z.object({
-  action: z.literal('confirm'),
-  onConflict: conflictStrategySchema.optional(),
-})
-
 export const objectDraftSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -193,45 +191,39 @@ export const presignObjectUploadPartsResponseSchema = z.object({
   parts: z.array(presignedObjectUploadPartSchema),
 })
 
-export const trashMatterSchema = z.object({
-  action: z.literal('trash'),
-})
-
-export const restoreMatterSchema = z.object({
-  action: z.literal('restore'),
+// PATCH /api/objects/:id — partial update of a live object (rename / move).
+export const patchMatterSchema = z.object({
+  name: z.string().min(1).optional(),
+  parent: z.string().optional(),
   onConflict: conflictStrategySchema.optional(),
 })
 
-export const patchMatterSchema = z.discriminatedUnion('action', [
-  z.object({
-    action: z.literal('update'),
-    name: z.string().min(1).optional(),
-    parent: z.string().optional(),
-    onConflict: conflictStrategySchema.optional(),
-  }),
-  z.object({
-    action: z.literal('confirm'),
-    onConflict: conflictStrategySchema.optional(),
-  }),
-  z.object({
-    action: z.literal('cancel'),
-  }),
-  z.object({
-    action: z.literal('trash'),
-  }),
-  z.object({
-    action: z.literal('restore'),
-    onConflict: conflictStrategySchema.optional(),
-  }),
-])
-
 export type PatchMatterInput = z.infer<typeof patchMatterSchema>
+
+// PUT /api/objects/:id/status — lifecycle transitions.
+//   { status: 'active' }  → confirm a draft, or restore from trash (server picks by current state)
+//   { status: 'trashed' } → move a live object to trash
+// Discarding a draft and purging a trashed object are both DELETE /api/objects/:id.
+export const objectStatusSchema = z.object({
+  status: z.enum(['active', 'trashed']),
+  onConflict: conflictStrategySchema.optional(),
+})
+
+export type ObjectStatusInput = z.infer<typeof objectStatusSchema>
 
 export const copyMatterSchema = z.object({
   copyFrom: z.string().min(1),
   parent: z.string().default(''),
   onConflict: conflictStrategySchema.optional(),
 })
+
+// POST /api/objects/:id/copies — the source object id comes from the path.
+export const copyObjectBodySchema = z.object({
+  parent: z.string().default(''),
+  onConflict: conflictStrategySchema.optional(),
+})
+
+export type CopyObjectBodyInput = z.infer<typeof copyObjectBodySchema>
 
 export const transferMatterSchema = z.object({
   targetOrgId: z.string().min(1),

@@ -85,7 +85,7 @@ const deleteRoute = createRoute({
 
 const heartbeatRoute = createRoute({
   method: 'post',
-  path: '/heartbeat',
+  path: '/me/heartbeats',
   middleware: [requireDownloader] as const,
   request: { body: { content: { 'application/json': { schema: downloaderHeartbeatSchema } }, required: true } },
   responses: {

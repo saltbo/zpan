@@ -38,7 +38,7 @@ export const adminSiteInvitations = new Hono<Env>()
     if (!result.ok) return c.json({ error: result.message }, 409)
     return c.json(result.invitation, 201)
   })
-  .post('/:id/resend', async (c) => {
+  .post('/:id/deliveries', async (c) => {
     const result = await resendSiteInvitation(c.get('deps'), c.get('platform'), {
       id: c.req.param('id'),
       requestUrl: c.req.url,

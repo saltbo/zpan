@@ -261,7 +261,7 @@ describe('api', () => {
       await listSiteInvitations(2, 10)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/site-invitations?')
+      expect(url).toContain('/api/site-invitations?')
       expect(url).toContain('page=2')
       expect(url).toContain('pageSize=10')
       expect(init.method).toBe('GET')
@@ -273,7 +273,7 @@ describe('api', () => {
       await createSiteInvitation('new@example.com')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/site-invitations')
+      expect(url).toContain('/api/site-invitations')
       expect(init.method).toBe('POST')
       expect(init.body).toBe(JSON.stringify({ email: 'new@example.com' }))
     })
@@ -284,7 +284,7 @@ describe('api', () => {
       await resendSiteInvitation('invite-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/site-invitations/invite-1/resend')
+      expect(url).toBe('/api/site-invitations/invite-1/deliveries')
       expect(init.method).toBe('POST')
     })
 
@@ -294,7 +294,7 @@ describe('api', () => {
       await revokeSiteInvitation('invite-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/site-invitations/invite-1')
+      expect(url).toBe('/api/site-invitations/invite-1')
       expect(init.method).toBe('DELETE')
     })
 
@@ -523,7 +523,7 @@ describe('api', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/objects/id1')
       expect(init.method).toBe('PATCH')
-      expect(init.body).toBe(JSON.stringify({ action: 'update', name: 'renamed.txt' }))
+      expect(init.body).toBe(JSON.stringify({ name: 'renamed.txt' }))
     })
 
     it('patches object by id with parent', async () => {
@@ -533,7 +533,7 @@ describe('api', () => {
       await updateObject('id1', { parent: 'folder2' })
 
       const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(init.body).toBe(JSON.stringify({ action: 'update', parent: 'folder2' }))
+      expect(init.body).toBe(JSON.stringify({ parent: 'folder2' }))
     })
 
     it('throws on error response', async () => {
@@ -544,7 +544,7 @@ describe('api', () => {
   })
 
   describe('confirmUpload', () => {
-    it('patches with action: confirm', async () => {
+    it('puts status: active to /status', async () => {
       const obj = { id: 'id1', status: 'active' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
 
@@ -552,10 +552,10 @@ describe('api', () => {
 
       expect(result).toEqual(obj)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/id1')
-      expect(init.method).toBe('PATCH')
+      expect(url).toBe('/api/objects/id1/status')
+      expect(init.method).toBe('PUT')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ action: 'confirm' })
+      expect(body).toMatchObject({ status: 'active' })
     })
 
     it('throws on error response', async () => {
@@ -566,8 +566,8 @@ describe('api', () => {
   })
 
   describe('cancelUpload', () => {
-    it('patches with action: cancel', async () => {
-      const payload = { id: 'id1', cancelled: true }
+    it('sends DELETE to discard the draft', async () => {
+      const payload = { id: 'id1', deleted: true, purged: false }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await cancelUpload('id1')
@@ -575,9 +575,7 @@ describe('api', () => {
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/objects/id1')
-      expect(init.method).toBe('PATCH')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ action: 'cancel' })
+      expect(init.method).toBe('DELETE')
     })
 
     it('throws on error response', async () => {
@@ -608,7 +606,7 @@ describe('api', () => {
   })
 
   describe('copyObject', () => {
-    it('posts to /copy endpoint with copyFrom and parent in body', async () => {
+    it('posts to /:id/copies with parent in body', async () => {
       const copy = { id: 'copy1', name: 'file.txt' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(copy))
 
@@ -616,10 +614,10 @@ describe('api', () => {
 
       expect(result).toEqual(copy)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/copy')
+      expect(url).toBe('/api/objects/id1/copies')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ copyFrom: 'id1', parent: 'folder2' })
+      expect(body).toMatchObject({ parent: 'folder2' })
       const headers =
         init.headers instanceof Headers ? init.headers : new Headers(init.headers as Record<string, string>)
       expect(headers.get('Content-Type')).toContain('application/json')
@@ -877,7 +875,7 @@ describe('api', () => {
   })
 
   describe('restoreObject', () => {
-    it('sends PATCH with action: restore for the given id', async () => {
+    it('puts status: active to /status for the given id', async () => {
       const obj = { id: 'id1', status: 'active' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
 
@@ -885,10 +883,10 @@ describe('api', () => {
 
       expect(result).toEqual(obj)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/id1')
-      expect(init.method).toBe('PATCH')
+      expect(url).toBe('/api/objects/id1/status')
+      expect(init.method).toBe('PUT')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ action: 'restore' })
+      expect(body).toMatchObject({ status: 'active' })
     })
 
     it('throws on error response', async () => {
@@ -951,18 +949,30 @@ describe('api', () => {
       expect(init.body).toBe(JSON.stringify({ partNumbers: [1] }))
     })
 
-    it('patches an upload session', async () => {
+    it('completes an upload session via PUT /status', async () => {
       const payload = { id: 'upload-1', status: 'completed', object: { id: 'obj-1' } }
-      const body = { action: 'complete' as const, parts: [{ partNumber: 1, etag: 'etag-1' }] }
+      const parts = [{ partNumber: 1, etag: 'etag-1' }]
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await patchObjectUploadSession('obj-1', 'upload-1', body)
+      const result = await patchObjectUploadSession('obj-1', 'upload-1', { action: 'complete', parts })
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/obj-1/uploads/upload-1')
-      expect(init.method).toBe('PATCH')
-      expect(init.body).toBe(JSON.stringify(body))
+      expect(url).toBe('/api/objects/obj-1/uploads/upload-1/status')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBe(JSON.stringify({ status: 'completed', parts }))
+    })
+
+    it('aborts an upload session via DELETE', async () => {
+      const payload = { id: 'upload-1', status: 'aborted' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await patchObjectUploadSession('obj-1', 'upload-1', { action: 'abort' })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/objects/obj-1/uploads/upload-1')
+      expect(init.method).toBe('DELETE')
     })
 
     it('throws ApiError on upload session failure', async () => {
@@ -1035,7 +1045,7 @@ describe('api', () => {
       expect(init.body).toBe(JSON.stringify(body))
     })
 
-    it('runs a download task action', async () => {
+    it('pauses a download task via PUT /status', async () => {
       const payload = { id: 'task-1', status: 'paused' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
@@ -1043,9 +1053,63 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/download-tasks/task-1/actions')
+      expect(url).toBe('/api/download-tasks/task-1/status')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBe(JSON.stringify({ status: 'paused' }))
+    })
+
+    it('resumes a download task via PUT /status with queued', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'task-1', status: 'queued' }))
+
+      await runDownloadTaskAction('task-1', 'resume')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/download-tasks/task-1/status')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBe(JSON.stringify({ status: 'queued' }))
+    })
+
+    it('cancels a download task via PUT /status with canceled', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'task-1', status: 'canceled' }))
+
+      await runDownloadTaskAction('task-1', 'cancel')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/download-tasks/task-1/status')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBe(JSON.stringify({ status: 'canceled' }))
+    })
+
+    it('retries a download task via POST /attempts', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'task-1', status: 'queued' }, true, 201))
+
+      await runDownloadTaskAction('task-1', 'retry')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/download-tasks/task-1/attempts')
       expect(init.method).toBe('POST')
-      expect(init.body).toBe(JSON.stringify({ action: 'pause' }))
+      expect(init.body).toBe(JSON.stringify({ fresh: false }))
+    })
+
+    it('restarts a download task via POST /attempts with fresh', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'task-1', status: 'queued' }, true, 201))
+
+      await runDownloadTaskAction('task-1', 'restart')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/download-tasks/task-1/attempts')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify({ fresh: true }))
+    })
+
+    it('deletes a download task via DELETE', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'task-1', deleted: true }))
+
+      await runDownloadTaskAction('task-1', 'delete')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/download-tasks/task-1')
+      expect(init.method).toBe('DELETE')
     })
 
     it('throws ApiError on download task action failure', async () => {
@@ -1072,7 +1136,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/downloaders')
+      expect(url).toContain('/api/downloaders')
       expect(init.method).toBe('GET')
     })
 
@@ -1085,7 +1149,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/downloaders/downloader-1')
+      expect(url).toContain('/api/downloaders/downloader-1')
       expect(init.method).toBe('PATCH')
       expect(init.body).toBe(JSON.stringify(body))
     })
@@ -1098,7 +1162,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/downloaders/downloader-1')
+      expect(url).toContain('/api/downloaders/downloader-1')
       expect(init.method).toBe('DELETE')
     })
 
@@ -1123,7 +1187,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/downloader/heartbeat')
+      expect(url).toContain('/api/downloaders/me/heartbeats')
       expect(init.method).toBe('POST')
       expect(init.body).toBe(JSON.stringify(body))
     })
@@ -1216,8 +1280,9 @@ describe('api', () => {
 
       expect(result.status).toBe('canceled')
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/background-jobs/job-1/cancel')
-      expect(init.method).toBe('POST')
+      expect(url).toBe('/api/background-jobs/job-1/status')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBe(JSON.stringify({ status: 'canceled' }))
     })
 
     it('retries a failed background job', async () => {
@@ -1227,7 +1292,7 @@ describe('api', () => {
 
       expect(result.id).toBe('job-2')
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/background-jobs/job-1/retry')
+      expect(url).toBe('/api/background-jobs/job-1/retries')
       expect(init.method).toBe('POST')
     })
 
@@ -1251,7 +1316,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/admin/storages')
+      expect(url).toContain('/api/storages')
     })
 
     it('throws on error response', async () => {
@@ -1281,7 +1346,7 @@ describe('api', () => {
 
       expect(result).toEqual(storage)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/storages')
+      expect(url).toContain('/api/storages')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ title: 'minio', bucket: 'files' })
@@ -1306,7 +1371,7 @@ describe('api', () => {
 
       expect(result).toEqual(storage)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/admin/storages/s1')
+      expect(url).toContain('/api/storages/s1')
     })
 
     it('throws on error response', async () => {
@@ -1325,7 +1390,7 @@ describe('api', () => {
 
       expect(result).toEqual(storage)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/storages/s1')
+      expect(url).toContain('/api/storages/s1')
       expect(init.method).toBe('PUT')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ title: 'updated-minio' })
@@ -1347,7 +1412,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/storages/s1')
+      expect(url).toContain('/api/storages/s1')
       expect(init.method).toBe('DELETE')
     })
 
@@ -1367,7 +1432,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/admin/users')
+      expect(url).toContain('/api/users')
       expect(url).toContain('page=2')
       expect(url).toContain('pageSize=20')
     })
@@ -1398,7 +1463,7 @@ describe('api', () => {
 
       expect(result).toEqual(updated)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/users/u1')
+      expect(url).toContain('/api/users/u1')
       expect(init.method).toBe('PATCH')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ status: 'active' })
@@ -1431,7 +1496,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/users/u1')
+      expect(url).toContain('/api/users/u1')
       expect(init.method).toBe('DELETE')
     })
 
@@ -1451,7 +1516,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/users/batch')
+      expect(url).toBe('/api/users')
       expect(init.method).toBe('PATCH')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ action: 'disable', ids: ['u1', 'u2'] })
@@ -1483,7 +1548,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/users/batch')
+      expect(url).toBe('/api/users')
       expect(init.method).toBe('DELETE')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ ids: ['u1', 'u2'] })
@@ -1524,7 +1589,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/users/u1/entitlements')
+      expect(url).toContain('/api/users/u1/entitlements')
       expect(init.method).toBe('GET')
     })
 
@@ -1553,7 +1618,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/users/u1/entitlements')
+      expect(url).toContain('/api/users/u1/entitlements')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ resourceType: 'storage', bytes: 2048, expiresAt: null })
@@ -1584,7 +1649,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/users/u1/entitlements/ent-2')
+      expect(url).toContain('/api/users/u1/entitlements/ent-2')
       expect(init.method).toBe('PATCH')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ bytes: 4096, expiresAt: null })
@@ -1615,7 +1680,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/users/u1/entitlements/ent-2')
+      expect(url).toContain('/api/users/u1/entitlements/ent-2')
       expect(init.method).toBe('DELETE')
     })
 
@@ -1655,7 +1720,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/admin/quotas')
+      expect(url).toContain('/api/quotas')
     })
 
     it('throws on error response', async () => {
@@ -1674,7 +1739,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/admin/teams')
+      expect(url).toContain('/api/teams')
     })
 
     it('gets a team detail', async () => {
@@ -1685,7 +1750,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/admin/teams/team-1')
+      expect(url).toContain('/api/teams/team-1')
     })
 
     it('throws on error response', async () => {
@@ -1704,7 +1769,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/admin/teams/team-1/entitlements')
+      expect(url).toContain('/api/teams/team-1/entitlements')
     })
 
     it('grants an entitlement to an org', async () => {
@@ -1715,7 +1780,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/teams/team-1/entitlements')
+      expect(url).toContain('/api/teams/team-1/entitlements')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ resourceType: 'storage', bytes: 1024, note: 'starter' })
@@ -1729,7 +1794,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/teams/team-1/entitlements/ent-1')
+      expect(url).toContain('/api/teams/team-1/entitlements/ent-1')
       expect(init.method).toBe('PATCH')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ bytes: 4096 })
@@ -1743,7 +1808,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/teams/team-1/entitlements/ent-1')
+      expect(url).toContain('/api/teams/team-1/entitlements/ent-1')
       expect(init.method).toBe('DELETE')
     })
 
@@ -1797,7 +1862,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/system/options')
+      expect(url).toContain('/api/site/options')
     })
 
     it('throws on error response', async () => {
@@ -1816,7 +1881,7 @@ describe('api', () => {
 
       expect(result).toEqual(option)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/system/options/site_name')
+      expect(url).toContain('/api/site/options/site_name')
     })
 
     it('throws on error response', async () => {
@@ -1835,7 +1900,7 @@ describe('api', () => {
 
       expect(result).toEqual(option)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/system/options/site_name')
+      expect(url).toContain('/api/site/options/site_name')
       expect(init.method).toBe('PUT')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toEqual({ value: 'MyZPan' })
@@ -1980,7 +2045,7 @@ describe('api', () => {
   })
 
   describe('trashObject', () => {
-    it('sends PATCH with action: trash for the given id', async () => {
+    it('puts status: trashed to /status for the given id', async () => {
       const obj = { id: 'id1', status: 'trashed' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
 
@@ -1988,10 +2053,10 @@ describe('api', () => {
 
       expect(result).toEqual(obj)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/id1')
-      expect(init.method).toBe('PATCH')
+      expect(url).toBe('/api/objects/id1/status')
+      expect(init.method).toBe('PUT')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ action: 'trash' })
+      expect(body).toMatchObject({ status: 'trashed' })
     })
 
     it('throws on error response', async () => {
@@ -2064,7 +2129,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/profiles/alice')
+      expect(url).toContain('/api/users/alice')
     })
 
     it('returns shares with download URLs', async () => {
@@ -2239,7 +2304,8 @@ describe('api', () => {
       await listAdminAnnouncements(1, 20, 'published')
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/admin/announcements')
+      expect(url).toContain('/api/announcements')
+      expect(url).toContain('scope=all')
       expect(url).toContain('status=published')
     })
 
@@ -2256,7 +2322,7 @@ describe('api', () => {
 
       expect(result).toEqual(announcement)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/announcements')
+      expect(url).toBe('/api/announcements')
       expect(init.method).toBe('POST')
       expect(JSON.parse(init.body as string)).toEqual(input)
     })
@@ -2267,7 +2333,7 @@ describe('api', () => {
       await getAnnouncement('ann-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/announcements/ann-1')
+      expect(url).toBe('/api/announcements/ann-1')
       expect(init.method).toBe('GET')
     })
 
@@ -2283,7 +2349,7 @@ describe('api', () => {
       await updateAnnouncement('ann-1', input)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/announcements/ann-1')
+      expect(url).toBe('/api/announcements/ann-1')
       expect(init.method).toBe('PUT')
       expect(JSON.parse(init.body as string)).toEqual(input)
     })
@@ -2301,7 +2367,7 @@ describe('api', () => {
 
       expect(result).toEqual({ id: 'ann-1', deleted: true })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/announcements/ann-1')
+      expect(url).toBe('/api/announcements/ann-1')
       expect(init.method).toBe('DELETE')
     })
 
@@ -2563,7 +2629,7 @@ describe('api', () => {
   })
 
   describe('getIhostConfig', () => {
-    it('calls GET /api/ihost/config and returns config when enabled', async () => {
+    it('calls GET /api/image-hosting/config and returns config when enabled', async () => {
       const payload = {
         enabled: true,
         customDomain: null,
@@ -2579,7 +2645,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/ihost/config')
+      expect(url).toContain('/api/image-hosting/config')
     })
 
     it('returns null when feature is not enabled', async () => {
@@ -2607,7 +2673,7 @@ describe('api', () => {
   })
 
   describe('enableIhostFeature', () => {
-    it('calls PUT /api/ihost/config with enabled: true and returns config', async () => {
+    it('calls PUT /api/image-hosting/config with enabled: true and returns config', async () => {
       const payload = {
         enabled: true,
         customDomain: null,
@@ -2623,7 +2689,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/ihost/config')
+      expect(url).toContain('/api/image-hosting/config')
       expect(init.method).toBe('PUT')
       expect(JSON.parse(init.body as string)).toEqual({ enabled: true })
     })
@@ -2677,7 +2743,7 @@ describe('api', () => {
       await updateIhostConfig({ customDomain: 'img.example.com' })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/ihost/config')
+      expect(url).toContain('/api/image-hosting/config')
       expect(init.method).toBe('PUT')
       const body = JSON.parse(init.body as string)
       expect(body.enabled).toBe(true)
@@ -2710,13 +2776,13 @@ describe('api', () => {
   })
 
   describe('deleteIhostConfig', () => {
-    it('sends DELETE to /api/ihost/config', async () => {
+    it('sends DELETE to /api/image-hosting/config', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
       await deleteIhostConfig()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/ihost/config')
+      expect(url).toContain('/api/image-hosting/config')
       expect(init.method).toBe('DELETE')
     })
 
@@ -3000,13 +3066,13 @@ describe('api', () => {
   })
 
   describe('listIhostImages', () => {
-    it('calls GET /api/ihost/images', async () => {
+    it('calls GET /api/image-hosting/images', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextCursor: null }))
 
       await listIhostImages()
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/ihost/images')
+      expect(url).toContain('/api/image-hosting/images')
     })
 
     it('passes pathPrefix, cursor, and limit as query params', async () => {
@@ -3037,7 +3103,7 @@ describe('api', () => {
   })
 
   describe('createIhostImagePresign', () => {
-    it('calls POST /api/ihost/images/presign with JSON body', async () => {
+    it('calls POST /api/image-hosting/images/presign with JSON body', async () => {
       const draft = {
         id: 'd1',
         token: 'ih_abc',
@@ -3050,7 +3116,7 @@ describe('api', () => {
       await createIhostImagePresign({ path: 'foo/bar.png', mime: 'image/png', size: 1024 })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/ihost/images/presign')
+      expect(url).toContain('/api/image-hosting/images/presign')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body?.path).toBe('foo/bar.png')
@@ -3083,17 +3149,15 @@ describe('api', () => {
   })
 
   describe('confirmIhostImage', () => {
-    it('calls PATCH /api/ihost/images/:id with action confirm', async () => {
+    it('calls PUT /api/image-hosting/images/:id/status', async () => {
       const image = { id: 'img-1', status: 'active' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(image))
 
       await confirmIhostImage('img-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/ihost/images/img-1')
-      expect(init.method).toBe('PATCH')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body?.action).toBe('confirm')
+      expect(url).toBe('/api/image-hosting/images/img-1/status')
+      expect(init.method).toBe('PUT')
     })
 
     it('resolves with confirmed image', async () => {
@@ -3113,13 +3177,13 @@ describe('api', () => {
   })
 
   describe('deleteIhostImage', () => {
-    it('calls DELETE /api/ihost/images/:id', async () => {
+    it('calls DELETE /api/image-hosting/images/:id', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204, json: async () => null } as unknown as Response)
 
       await deleteIhostImage('img-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/ihost/images/img-1')
+      expect(url).toContain('/api/image-hosting/images/img-1')
       expect(init.method).toBe('DELETE')
     })
 
@@ -3131,14 +3195,14 @@ describe('api', () => {
   })
 
   describe('uploadAvatar', () => {
-    it('PUTs multipart/form-data to /api/me/avatar with file field', async () => {
+    it('PUTs multipart/form-data to /api/users/me/avatar with file field', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ url: 'https://example.com/a.png' }, true, 200))
       const file = new File(['x'], 'a.png', { type: 'image/png' })
 
       await uploadAvatar(file)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/me/avatar')
+      expect(url).toBe('/api/users/me/avatar')
       expect(init.method).toBe('PUT')
       expect(init.body).toBeInstanceOf(FormData)
       expect((init.body as FormData).get('file')).toBe(file)
@@ -3162,12 +3226,12 @@ describe('api', () => {
   })
 
   describe('deleteAvatar', () => {
-    it('DELETEs /api/me/avatar', async () => {
+    it('DELETEs /api/users/me/avatar', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ ok: true }, true, 200))
       await deleteAvatar()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/me/avatar')
+      expect(url).toContain('/api/users/me/avatar')
       expect(init.method).toBe('DELETE')
     })
 
@@ -3283,7 +3347,7 @@ describe('api', () => {
       await getInstanceInfo()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/system/instance')
+      expect(url).toContain('/api/site/instance')
       expect(init?.method ?? 'GET').toBe('GET')
     })
 
@@ -3316,7 +3380,7 @@ describe('api', () => {
       await getChangelog()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/system/changelog')
+      expect(url).toContain('/api/site/changelog')
       expect(init?.method ?? 'GET').toBe('GET')
     })
 
@@ -3334,7 +3398,7 @@ describe('api', () => {
       await getChangelog({ refresh: true })
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/system/changelog')
+      expect(url).toContain('/api/site/changelog')
       expect(url).toContain('refresh=true')
     })
 
@@ -3357,7 +3421,7 @@ describe('api', () => {
       await connectCloud()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/licensing/pair')
+      expect(url).toContain('/api/licensing/pairings')
       expect(init.method).toBe('POST')
     })
 
@@ -3388,7 +3452,7 @@ describe('api', () => {
       await pollPairing('ABC-123')
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/licensing/pair/ABC-123/poll')
+      expect(url).toContain('/api/licensing/pairings/ABC-123')
     })
 
     it('returns pending status', async () => {
@@ -3422,7 +3486,7 @@ describe('api', () => {
       await refreshLicense()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/licensing/refresh')
+      expect(url).toContain('/api/licensing/refresh-runs')
       expect(init.method).toBe('POST')
     })
 
@@ -3469,7 +3533,7 @@ describe('api', () => {
   })
 
   describe('getBranding', () => {
-    it('calls GET /api/branding and returns config', async () => {
+    it('calls GET /api/site/branding and returns config', async () => {
       const payload = {
         logo_url: null,
         favicon_url: null,
@@ -3483,7 +3547,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/branding')
+      expect(url).toContain('/api/site/branding')
     })
 
     it('resolves with stored branding values', async () => {
@@ -3511,7 +3575,7 @@ describe('api', () => {
   })
 
   describe('saveBranding', () => {
-    it('sends PUT /api/admin/branding as multipart', async () => {
+    it('sends PUT /api/site/branding as multipart', async () => {
       const payload = {
         logo_url: null,
         favicon_url: null,
@@ -3524,7 +3588,7 @@ describe('api', () => {
       await saveBranding({ wordmark_text: 'MyCloud' })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/branding')
+      expect(url).toContain('/api/site/branding')
       expect(init.method).toBe('PUT')
       expect(init.body).toBeInstanceOf(FormData)
     })
@@ -3622,13 +3686,13 @@ describe('api', () => {
   })
 
   describe('resetBrandingField', () => {
-    it('sends DELETE /api/admin/branding/:field', async () => {
+    it('sends DELETE /api/site/branding/:field', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ field: 'logo', reset: true }))
 
       await resetBrandingField('logo')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/branding/logo')
+      expect(url).toContain('/api/site/branding/logo')
       expect(init.method).toBe('DELETE')
     })
 
@@ -3648,7 +3712,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/email-config')
+      expect(url).toContain('/api/site/email')
       expect(init.method).toBe('GET')
     })
 
@@ -3659,7 +3723,7 @@ describe('api', () => {
       await saveEmailConfig(payload)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/email-config')
+      expect(url).toContain('/api/site/email')
       expect(init.method).toBe('PUT')
       expect(init.body).toBe(JSON.stringify(payload))
     })
@@ -3678,7 +3742,7 @@ describe('api', () => {
       await testEmail('user@example.com')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/email-config/test-messages')
+      expect(url).toContain('/api/site/email/test-messages')
       expect(init.method).toBe('POST')
       expect(init.body).toBe(JSON.stringify({ to: 'user@example.com' }))
     })
@@ -3711,7 +3775,7 @@ describe('api', () => {
       await listAdminAuditLogs()
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/admin/audit')
+      expect(url).toContain('/api/audit-events')
       expect(url).toContain('page=1')
       expect(url).toContain('pageSize=20')
     })
@@ -3811,7 +3875,7 @@ describe('api', () => {
       await listAdminAuthProviders()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/auth-providers')
+      expect(url).toBe('/api/auth-providers')
       expect(init.method).toBe('GET')
     })
 
@@ -3822,7 +3886,7 @@ describe('api', () => {
       await upsertAuthProvider('google', data as never)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/auth-providers/google')
+      expect(url).toBe('/api/auth-providers/google')
       expect(init.method).toBe('PUT')
       expect(init.body).toBe(JSON.stringify(data))
     })
@@ -3833,7 +3897,7 @@ describe('api', () => {
       await deleteAuthProvider('google')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/auth-providers/google')
+      expect(url).toBe('/api/auth-providers/google')
       expect(init.method).toBe('DELETE')
     })
 
@@ -3851,7 +3915,7 @@ describe('api', () => {
       await listInviteCodes(3, 25)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/invite-codes?')
+      expect(url).toContain('/api/invite-codes?')
       expect(url).toContain('page=3')
       expect(url).toContain('pageSize=25')
       expect(init.method).toBe('GET')
@@ -3863,7 +3927,7 @@ describe('api', () => {
       await generateInviteCodes(5)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/invite-codes')
+      expect(url).toBe('/api/invite-codes')
       expect(init.method).toBe('POST')
       expect(init.body).toBe(JSON.stringify({ count: 5 }))
     })
@@ -3883,7 +3947,7 @@ describe('api', () => {
       await deleteInviteCode('code-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/invite-codes/code-1')
+      expect(url).toBe('/api/invite-codes/code-1')
       expect(init.method).toBe('DELETE')
     })
 

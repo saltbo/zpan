@@ -23,10 +23,10 @@ async function insertUser(
   return { orgId: `org-${opts.id}` }
 }
 
-describe('GET /api/profiles/:username', () => {
+describe('GET /api/users/:username', () => {
   it('returns 404 when user does not exist [spec: profile/user-not-found]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/profiles/nonexistent')
+    const res = await app.request('/api/users/nonexistent')
     expect(res.status).toBe(404)
     const body = await res.json()
     expect(body).toEqual({ error: 'User not found' })
@@ -36,7 +36,7 @@ describe('GET /api/profiles/:username', () => {
     const { app, db } = await createTestApp()
     await insertUser(db, { id: 'user-1', username: 'testuser', email: 'test@example.com' })
 
-    const res = await app.request('/api/profiles/testuser')
+    const res = await app.request('/api/users/testuser')
     expect(res.status).toBe(200)
     const body = (await res.json()) as { user: { username: string }; shares: unknown[] }
     expect(body.user.username).toBe('testuser')
@@ -47,7 +47,7 @@ describe('GET /api/profiles/:username', () => {
     const { app, db } = await createTestApp()
     await insertUser(db, { id: 'user-1', username: 'testuser', email: 'test@example.com' })
 
-    const res = await app.request('/api/profiles/testuser')
+    const res = await app.request('/api/users/testuser')
     expect(res.status).toBe(200)
   })
 
@@ -59,7 +59,7 @@ describe('GET /api/profiles/:username', () => {
       VALUES ('user-2', 'Orphan User', 'orphan@example.com', 1, 'orphanuser', ${now}, ${now})
     `)
 
-    const res = await app.request('/api/profiles/orphanuser')
+    const res = await app.request('/api/users/orphanuser')
     expect(res.status).toBe(200)
     const body = (await res.json()) as { user: { username: string }; shares: unknown[] }
     expect(body.user.username).toBe('orphanuser')
@@ -67,10 +67,10 @@ describe('GET /api/profiles/:username', () => {
   })
 })
 
-describe('GET /api/profiles/:username/browse', () => {
+describe('GET /api/users/:username/objects', () => {
   it('returns 404 for unknown username [spec: profile/unknown-username]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/profiles/nonexistent/browse')
+    const res = await app.request('/api/users/nonexistent/objects')
     expect(res.status).toBe(404)
     const body = await res.json()
     expect(body).toEqual({ error: 'User not found' })
@@ -80,7 +80,7 @@ describe('GET /api/profiles/:username/browse', () => {
     const { app, db } = await createTestApp()
     await insertUser(db, { id: 'user-1', username: 'testuser', email: 'test@example.com' })
 
-    const res = await app.request('/api/profiles/testuser/browse')
+    const res = await app.request('/api/users/testuser/objects')
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[]; breadcrumb: string[] }
     expect(body.items).toEqual([])

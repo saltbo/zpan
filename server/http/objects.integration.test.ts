@@ -291,7 +291,7 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/f1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', name: 'New Name' }),
+      body: JSON.stringify({ name: 'New Name' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -309,7 +309,7 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', parent: 'Target Folder' }),
+      body: JSON.stringify({ parent: 'Target Folder' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -322,7 +322,7 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/nonexistent', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', name: 'Nope' }),
+      body: JSON.stringify({ name: 'Nope' }),
     })
     expect(res.status).toBe(404)
   })
@@ -334,47 +334,45 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'uploading.txt', status: 'draft' })
 
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.status).toBe('active')
   })
 
-  it('PATCH /api/objects/:id (action: confirm) returns 404 for non-draft object [spec: objects/confirm-non-draft]', async () => {
+  it('PUT /api/objects/:id/status {active} is a no-op for an already-active object [spec: objects/confirm-non-draft]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'already-active.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('active')
   })
 
-  it('PATCH /api/objects/:id (action: cancel) deletes a draft upload and cleans up S3 [spec: objects/cancel-draft]', async () => {
+  it('DELETE /api/objects/:id discards a draft upload and cleans up S3 [spec: objects/cancel-draft]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'draft-cancel', name: 'cancel.txt', status: 'draft' })
 
-    const res = await app.request('/api/objects/draft-cancel', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel' }),
-    })
+    const res = await app.request('/api/objects/draft-cancel', { method: 'DELETE', headers })
 
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { id: string; cancelled: boolean }
-    expect(body).toEqual({ id: 'draft-cancel', cancelled: true })
+    const body = (await res.json()) as { id: string; deleted: boolean; purged: boolean }
+    expect(body).toEqual({ id: 'draft-cancel', deleted: true, purged: false })
     expect(S3Service.prototype.deleteObject).toHaveBeenCalledWith(
       expect.objectContaining({ id: validStorage.id }),
       'some/key.txt',
@@ -384,20 +382,16 @@ describe('Objects API', () => {
     expect(check.status).toBe(404)
   })
 
-  it('PATCH /api/objects/:id (action: cancel) returns 404 for active object', async () => {
+  it('DELETE /api/objects/:id rejects an active object with 409 (must trash first)', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'active-cancel', name: 'active.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/active-cancel', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel' }),
-    })
+    const res = await app.request('/api/objects/active-cancel', { method: 'DELETE', headers })
 
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(409)
   })
 
   it('DELETE /api/objects/:id rejects active object (must trash first) [spec: objects/delete-requires-trash]', async () => {
@@ -418,10 +412,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFolder(db, orgId, { id: 'f1', name: 'Delete Me' })
 
-    const trashRes = await app.request('/api/objects/f1', {
-      method: 'PATCH',
+    const trashRes = await app.request('/api/objects/f1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(trashRes.status).toBe(200)
 
@@ -444,10 +438,10 @@ describe('Objects API', () => {
     await insertFolder(db, orgId, { id: 'movie-folder', name: folderName })
     await insertFile(db, orgId, { id: 'movie-file', name: 'movie.mkv', parent: folderName })
 
-    const trashRes = await app.request('/api/objects/movie-folder', {
-      method: 'PATCH',
+    const trashRes = await app.request('/api/objects/movie-folder/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(trashRes.status).toBe(200)
 
@@ -467,10 +461,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt' })
 
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -489,10 +483,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
 
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -509,10 +503,10 @@ describe('Objects API', () => {
     await insertFolder(db, orgId, { id: 'f2', name: 'Sub', parent: 'Parent' })
     await insertFile(db, orgId, { id: 'm2', name: 'deep.txt', parent: 'f2' })
 
-    const res = await app.request('/api/objects/f1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/f1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(res.status).toBe(200)
 
@@ -522,10 +516,10 @@ describe('Objects API', () => {
     expect(tBody.total).toBe(1)
 
     // But all descendants are flagged trashed: restore restores them all
-    await app.request('/api/objects/f1', {
-      method: 'PATCH',
+    await app.request('/api/objects/f1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     const childRes = await app.request('/api/objects/m2', { headers })
     const childBody = (await childRes.json()) as Record<string, unknown>
@@ -542,10 +536,10 @@ describe('Objects API', () => {
     await insertFolder(db, orgId, { id: 'album', name: 'Album', parent: 'Media/Music' })
     await insertFile(db, orgId, { id: 'track', name: 'track.flac', parent: 'Media/Music/Album' })
 
-    const trashRes = await app.request('/api/objects/album', {
-      method: 'PATCH',
+    const trashRes = await app.request('/api/objects/album/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(trashRes.status).toBe(200)
 
@@ -592,10 +586,10 @@ describe('Objects API', () => {
     await insertFolder(db, orgId, { id: 'target', name: 'Dest' })
     await insertFolder(db, orgId, { id: 'f1', name: 'Original' })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/f1/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'f1', parent: 'Dest' }),
+      body: JSON.stringify({ parent: 'Dest' }),
     })
     expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
@@ -608,10 +602,10 @@ describe('Objects API', () => {
   it('POST /api/objects/copy returns 404 for missing source', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/nonexistent/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'nonexistent' }),
+      body: JSON.stringify({}),
     })
     expect(res.status).toBe(404)
   })
@@ -619,10 +613,10 @@ describe('Objects API', () => {
   it('PATCH /api/objects/:id (action: confirm) returns 404 for missing object', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/nonexistent', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/nonexistent/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(404)
   })
@@ -650,10 +644,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'doc.txt' })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/m1/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'm1', parent: '' }),
+      body: JSON.stringify({ parent: '' }),
     })
     expect(res.status).toBe(201)
     expect(S3Service.prototype.copyObject).toHaveBeenCalled()
@@ -666,10 +660,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'file.txt' })
 
-    await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     const res = await app.request('/api/objects/m1', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
@@ -687,10 +681,10 @@ describe('Objects API', () => {
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt', parent: 'Folder' })
     await insertFile(db, orgId, { id: 'm2', name: 'b.txt', parent: 'Folder' })
 
-    await app.request('/api/objects/f1', {
-      method: 'PATCH',
+    await app.request('/api/objects/f1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
@@ -702,10 +696,10 @@ describe('Objects API', () => {
   it('PATCH /api/objects/:id (action: trash) returns 404 for missing object', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/nonexistent', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/nonexistent/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(res.status).toBe(404)
   })
@@ -716,10 +710,10 @@ describe('Objects API', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -729,10 +723,10 @@ describe('Objects API', () => {
   it('PATCH /api/objects/:id (action: restore) returns 404 for missing object', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/nonexistent', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/nonexistent/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(404)
   })
@@ -744,10 +738,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -775,10 +769,10 @@ describe('Objects API', () => {
     await insertFile(db, orgId, { id: 'm1', name: 'child.txt', parent: 'Trash Folder' })
 
     // Trash the folder (cascades to child)
-    await app.request('/api/objects/f1', {
-      method: 'PATCH',
+    await app.request('/api/objects/f1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
 
     const res = await app.request('/api/trash', { method: 'DELETE', headers })
@@ -1080,7 +1074,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', name: 'beta.txt' }),
+      body: JSON.stringify({ name: 'beta.txt' }),
     })
 
     expect(res.status).toBe(409)
@@ -1100,7 +1094,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', name: 'beta.txt', onConflict: 'rename' }),
+      body: JSON.stringify({ name: 'beta.txt', onConflict: 'rename' }),
     })
 
     expect(res.status).toBe(200)
@@ -1119,7 +1113,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', parent: 'Dest' }),
+      body: JSON.stringify({ parent: 'Dest' }),
     })
 
     expect(res.status).toBe(409)
@@ -1138,7 +1132,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', parent: 'Dest', onConflict: 'rename' }),
+      body: JSON.stringify({ parent: 'Dest', onConflict: 'rename' }),
     })
 
     expect(res.status).toBe(200)
@@ -1156,10 +1150,10 @@ describe('Objects API — name conflict (409 responses)', () => {
     await insertFile(db, orgId, { id: 'draft1', name: 'upload.txt', status: 'draft' })
     await insertFile(db, orgId, { id: 'active1', name: 'upload.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/draft1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/draft1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
 
     expect(res.status).toBe(409)
@@ -1175,10 +1169,10 @@ describe('Objects API — name conflict (409 responses)', () => {
     await insertFile(db, orgId, { id: 'trashed1', name: 'note.txt', status: 'trashed' })
     await insertFile(db, orgId, { id: 'active2', name: 'note.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/trashed1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/trashed1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
+      body: JSON.stringify({ status: 'active' }),
     })
 
     expect(res.status).toBe(409)
@@ -1194,10 +1188,10 @@ describe('Objects API — name conflict (409 responses)', () => {
     await insertFile(db, orgId, { id: 'trashed2', name: 'note.txt', status: 'trashed' })
     await insertFile(db, orgId, { id: 'active3', name: 'note.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/trashed2', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/trashed2/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore', onConflict: 'rename' }),
+      body: JSON.stringify({ status: 'active', onConflict: 'rename' }),
     })
 
     expect(res.status).toBe(200)
@@ -1214,10 +1208,10 @@ describe('Objects API — name conflict (409 responses)', () => {
     await insertFile(db, orgId, { id: 'src1', name: 'doc.txt' })
     await insertFile(db, orgId, { id: 'dst1', name: 'doc.txt', parent: 'Dest' })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/src1/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'src1', parent: 'Dest', onConflict: 'fail' }),
+      body: JSON.stringify({ parent: 'Dest', onConflict: 'fail' }),
     })
 
     expect(res.status).toBe(409)
@@ -1233,10 +1227,10 @@ describe('Objects API — name conflict (409 responses)', () => {
     await insertFile(db, orgId, { id: 'src2', name: 'photo.jpg' })
     await insertFile(db, orgId, { id: 'dst2', name: 'photo.jpg', parent: 'Dest' })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/src2/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'src2', parent: 'Dest' }),
+      body: JSON.stringify({ parent: 'Dest' }),
     })
 
     expect(res.status).toBe(201)

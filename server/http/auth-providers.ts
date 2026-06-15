@@ -25,16 +25,15 @@ const upsertSchema = z.object({
   scopes: z.array(z.string()).optional(),
 })
 
-// Public: enabled providers only, no secrets (for login page buttons)
-export const publicAuthProviders = new Hono<Env>().get('/', async (c) =>
-  c.json(await listPublicAuthProviders(c.get('deps'))),
-)
-
-// Admin: full CRUD with secrets masked
-export const adminAuthProviders = new Hono<Env>()
-  .use(requireAdmin)
-  .get('/', async (c) => c.json(await listAuthProviders(c.get('deps'))))
-  .put('/:providerId', zValidator('json', upsertSchema), async (c) => {
+// One auth-providers resource. GET / serves the enabled list without secrets to
+// anonymous/login callers, and the full config to admins; writes are admin-only.
+export const authProviders = new Hono<Env>()
+  .get('/', async (c) =>
+    c.get('userRole') === 'admin'
+      ? c.json(await listAuthProviders(c.get('deps')))
+      : c.json(await listPublicAuthProviders(c.get('deps'))),
+  )
+  .put('/:providerId', requireAdmin, zValidator('json', upsertSchema), async (c) => {
     const result = await upsertAuthProvider(c.get('deps'), c.req.param('providerId'), c.req.valid('json'))
     if (result.ok) return c.json(result.config)
     if (result.reason === 'invalid_id') return c.json(invalidProviderId, 400)
@@ -45,7 +44,7 @@ export const adminAuthProviders = new Hono<Env>()
       return c.json({ error: 'discoveryUrl is required for OIDC providers' }, 400)
     return c.json(featureNotAvailable(result.block), 402)
   })
-  .delete('/:providerId', async (c) => {
+  .delete('/:providerId', requireAdmin, async (c) => {
     const providerId = c.req.param('providerId')
     const result = await deleteAuthProvider(c.get('deps'), providerId)
     if (!result.ok) return c.json(invalidProviderId, 400)

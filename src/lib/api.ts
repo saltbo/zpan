@@ -55,9 +55,7 @@ import type {
   StorageObject,
 } from '@shared/types'
 import {
-  adminAnnouncementsApi,
   adminAuditApi,
-  adminAuthProviders,
   adminDownloadersApi,
   adminQuotas,
   adminSiteInvitations,
@@ -77,10 +75,8 @@ import {
   inviteCodes,
   licensingAdminApi,
   licensingApi,
-  meApi,
   notificationsApi,
   objects,
-  profiles,
   publicBrandingApi,
   publicSharesApi,
   publicSiteInvitations,
@@ -195,19 +191,17 @@ export function createObject(data: {
 }
 
 export function updateObject(id: string, data: { name?: string; parent?: string; onConflict?: ConflictStrategy }) {
-  return unwrap<StorageObject>(objects[':id'].$patch({ param: { id }, json: { action: 'update' as const, ...data } }))
+  return unwrap<StorageObject>(objects[':id'].$patch({ param: { id }, json: data }))
 }
 
 export function confirmUpload(id: string, onConflict?: ConflictStrategy) {
   return unwrap<StorageObject>(
-    objects[':id'].$patch({ param: { id }, json: { action: 'confirm' as const, onConflict } }),
+    objects[':id'].status.$put({ param: { id }, json: { status: 'active' as const, onConflict } }),
   )
 }
 
 export function cancelUpload(id: string) {
-  return unwrap<{ id: string; cancelled: boolean }>(
-    objects[':id'].$patch({ param: { id }, json: { action: 'cancel' as const } }),
-  )
+  return unwrap<{ id: string; deleted: boolean; purged?: number }>(objects[':id'].$delete({ param: { id } }))
 }
 
 export function deleteObject(id: string) {
@@ -215,7 +209,7 @@ export function deleteObject(id: string) {
 }
 
 export function copyObject(id: string, parent: string, onConflict?: ConflictStrategy) {
-  return unwrap<StorageObject>(objects.copy.$post({ json: { copyFrom: id, parent, onConflict } }))
+  return unwrap<StorageObject>(objects[':id'].copies.$post({ param: { id }, json: { parent, onConflict } }))
 }
 
 export interface TransferObjectResult {
@@ -232,12 +226,12 @@ export function transferObject(
 }
 
 export function trashObject(id: string) {
-  return unwrap<StorageObject>(objects[':id'].$patch({ param: { id }, json: { action: 'trash' as const } }))
+  return unwrap<StorageObject>(objects[':id'].status.$put({ param: { id }, json: { status: 'trashed' as const } }))
 }
 
 export function restoreObject(id: string, onConflict?: ConflictStrategy) {
   return unwrap<StorageObject>(
-    objects[':id'].$patch({ param: { id }, json: { action: 'restore' as const, onConflict } }),
+    objects[':id'].status.$put({ param: { id }, json: { status: 'active' as const, onConflict } }),
   )
 }
 
@@ -261,11 +255,16 @@ export function presignObjectUploadParts(id: string, uploadSessionId: string, da
 }
 
 export function patchObjectUploadSession(id: string, uploadSessionId: string, data: PatchObjectUploadSessionInput) {
+  if (data.action === 'complete') {
+    return unwrap<ObjectUploadSession & { object?: StorageObject }>(
+      objects[':id'].uploads[':uploadSessionId'].status.$put({
+        param: { id, uploadSessionId },
+        json: { status: 'completed' as const, parts: data.parts },
+      }),
+    )
+  }
   return unwrap<ObjectUploadSession & { object?: StorageObject }>(
-    objects[':id'].uploads[':uploadSessionId'].$patch({
-      param: { id, uploadSessionId },
-      json: data,
-    }),
+    objects[':id'].uploads[':uploadSessionId'].$delete({ param: { id, uploadSessionId } }),
   )
 }
 
@@ -307,7 +306,17 @@ export function updateDownloadTask(id: string, data: UpdateDownloadTaskInput) {
 export type DownloadTaskActionResult = DownloadTask | { id: string; deleted: true }
 
 export function runDownloadTaskAction(id: string, action: DownloadTaskActionInput['action']) {
-  return unwrap<DownloadTaskActionResult>(downloadTasksApi[':id'].actions.$post({ param: { id }, json: { action } }))
+  if (action === 'delete') {
+    return unwrap<DownloadTaskActionResult>(downloadTasksApi[':id'].$delete({ param: { id } }))
+  }
+  if (action === 'retry' || action === 'restart') {
+    return unwrap<DownloadTaskActionResult>(
+      downloadTasksApi[':id'].attempts.$post({ param: { id }, json: { fresh: action === 'restart' } }),
+    )
+  }
+  const status =
+    action === 'pause' ? ('paused' as const) : action === 'resume' ? ('queued' as const) : ('canceled' as const)
+  return unwrap<DownloadTaskActionResult>(downloadTasksApi[':id'].status.$put({ param: { id }, json: { status } }))
 }
 
 // Unified server-sent events stream (background jobs, notifications, and the
@@ -332,7 +341,7 @@ export function deleteDownloader(id: string) {
 }
 
 export function sendDownloaderHeartbeat(data: DownloaderHeartbeatInput) {
-  return unwrap<Downloader>(downloaderSelfApi.heartbeat.$post({ json: data }))
+  return unwrap<Downloader>(downloaderSelfApi.me.heartbeats.$post({ json: data }))
 }
 
 // Background Jobs API
@@ -364,11 +373,13 @@ export function getBackgroundJob(id: string) {
 }
 
 export function cancelBackgroundJob(id: string) {
-  return unwrap<BackgroundJob>(backgroundJobsApi[':id'].cancel.$post({ param: { id } }))
+  return unwrap<BackgroundJob>(
+    backgroundJobsApi[':id'].status.$put({ param: { id }, json: { status: 'canceled' as const } }),
+  )
 }
 
 export function retryBackgroundJob(id: string) {
-  return unwrap<BackgroundJob>(backgroundJobsApi[':id'].retry.$post({ param: { id } }))
+  return unwrap<BackgroundJob>(backgroundJobsApi[':id'].retries.$post({ param: { id } }))
 }
 
 // Admin Storages API
@@ -420,28 +431,30 @@ export function listUsers(page: number, pageSize: number, search?: string) {
 }
 
 export function getUser(userId: string) {
-  return unwrap<UserWithOrg>(users[':id'].$get({ param: { id: userId } }))
+  return unwrap<UserWithOrg>(users[':username'].$get({ param: { username: userId } }))
 }
 
 export function updateUserStatus(userId: string, status: 'active' | 'disabled') {
-  return unwrap<{ id: string; status: string }>(users[':id'].$patch({ param: { id: userId }, json: { status } }))
+  return unwrap<{ id: string; status: string }>(
+    users[':username'].$patch({ param: { username: userId }, json: { status } }),
+  )
 }
 
 export function deleteUser(userId: string) {
-  return unwrap<{ id: string; deleted: boolean }>(users[':id'].$delete({ param: { id: userId } }))
+  return unwrap<{ id: string; deleted: boolean }>(users[':username'].$delete({ param: { username: userId } }))
 }
 
 export function batchUpdateUserStatus(ids: string[], status: 'active' | 'disabled') {
   const action = status === 'disabled' ? 'disable' : 'enable'
-  return unwrap<{ updated: number; ids: string[]; status: string }>(users.batch.$patch({ json: { action, ids } }))
+  return unwrap<{ updated: number; ids: string[]; status: string }>(users.index.$patch({ json: { action, ids } }))
 }
 
 export function batchDeleteUsers(ids: string[]) {
-  return unwrap<{ deleted: number; ids: string[] }>(users.batch.$delete({ json: { ids } }))
+  return unwrap<{ deleted: number; ids: string[] }>(users.index.$delete({ json: { ids } }))
 }
 
 export function listUserEntitlements(userId: string) {
-  return unwrap<UserEntitlementsResponse>(users[':id'].entitlements.$get({ param: { id: userId } }))
+  return unwrap<UserEntitlementsResponse>(users[':username'].entitlements.$get({ param: { username: userId } }))
 }
 
 export function grantUserEntitlement(
@@ -449,7 +462,7 @@ export function grantUserEntitlement(
   data: { resourceType: 'storage'; bytes: number; expiresAt?: string | null; note?: string | null },
 ) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    users[':id'].entitlements.$post({ param: { id: userId }, json: data }),
+    users[':username'].entitlements.$post({ param: { username: userId }, json: data }),
   )
 }
 
@@ -459,13 +472,13 @@ export function updateUserEntitlement(
   data: { bytes?: number; expiresAt?: string | null; note?: string | null },
 ) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    users[':id'].entitlements[':eid'].$patch({ param: { id: userId, eid: entitlementId }, json: data }),
+    users[':username'].entitlements[':eid'].$patch({ param: { username: userId, eid: entitlementId }, json: data }),
   )
 }
 
 export function revokeUserEntitlement(userId: string, entitlementId: string) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    users[':id'].entitlements[':eid'].$delete({ param: { id: userId, eid: entitlementId } }),
+    users[':username'].entitlements[':eid'].$delete({ param: { username: userId, eid: entitlementId } }),
   )
 }
 
@@ -511,12 +524,12 @@ export function listTeams() {
 }
 
 export function getTeam(orgId: string) {
-  return unwrap<TeamSummary>(adminTeams[':orgId'].$get({ param: { orgId } }))
+  return unwrap<TeamSummary>(adminTeams[':teamId'].$get({ param: { teamId: orgId } }))
 }
 
 export function listOrgEntitlements(orgId: string) {
   return unwrap<{ orgId: string; items: OrgQuotaEntitlement[] }>(
-    adminTeams[':orgId'].entitlements.$get({ param: { orgId } }),
+    adminTeams[':teamId'].entitlements.$get({ param: { teamId: orgId } }),
   )
 }
 
@@ -525,7 +538,7 @@ export function grantOrgEntitlement(
   data: { resourceType: 'storage'; bytes: number; expiresAt?: string | null; note?: string | null },
 ) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    adminTeams[':orgId'].entitlements.$post({ param: { orgId }, json: data }),
+    adminTeams[':teamId'].entitlements.$post({ param: { teamId: orgId }, json: data }),
   )
 }
 
@@ -535,13 +548,13 @@ export function updateOrgEntitlement(
   data: { bytes?: number; expiresAt?: string | null; note?: string | null },
 ) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    adminTeams[':orgId'].entitlements[':eid'].$patch({ param: { orgId, eid: entitlementId }, json: data }),
+    adminTeams[':teamId'].entitlements[':eid'].$patch({ param: { teamId: orgId, eid: entitlementId }, json: data }),
   )
 }
 
 export function revokeOrgEntitlement(orgId: string, entitlementId: string) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    adminTeams[':orgId'].entitlements[':eid'].$delete({ param: { orgId, eid: entitlementId } }),
+    adminTeams[':teamId'].entitlements[':eid'].$delete({ param: { teamId: orgId, eid: entitlementId } }),
   )
 }
 
@@ -642,16 +655,16 @@ export function listAuthProviders() {
 }
 
 export function listAdminAuthProviders() {
-  return unwrap<{ items: OAuthProviderConfig[] }>(adminAuthProviders.index.$get())
+  return unwrap<{ items: OAuthProviderConfig[] }>(authProviders.index.$get())
 }
 
 export function upsertAuthProvider(providerId: string, data: Omit<OAuthProviderConfig, 'providerId'>) {
-  return unwrap<OAuthProviderConfig>(adminAuthProviders[':providerId'].$put({ param: { providerId }, json: data }))
+  return unwrap<OAuthProviderConfig>(authProviders[':providerId'].$put({ param: { providerId }, json: data }))
 }
 
 export function deleteAuthProvider(providerId: string) {
   return unwrap<{ providerId: string; deleted: boolean }>(
-    adminAuthProviders[':providerId'].$delete({ param: { providerId } }),
+    authProviders[':providerId'].$delete({ param: { providerId } }),
   )
 }
 
@@ -696,7 +709,7 @@ export function createSiteInvitation(email: string) {
 }
 
 export function resendSiteInvitation(id: string) {
-  return unwrap<SiteInvitation>(adminSiteInvitations[':id'].resend.$post({ param: { id } }))
+  return unwrap<SiteInvitation>(adminSiteInvitations[':id'].deliveries.$post({ param: { id } }))
 }
 
 export function revokeSiteInvitation(id: string) {
@@ -761,7 +774,7 @@ export interface PublicMatter extends StorageObject {
 }
 
 export function getProfile(username: string) {
-  return unwrap<{ user: PublicUser; shares: PublicMatter[] }>(profiles[':username'].$get({ param: { username } }))
+  return unwrap<{ user: PublicUser; shares: PublicMatter[] }>(users[':username'].$get({ param: { username } }))
 }
 
 // Teams Activity API
@@ -828,28 +841,29 @@ export function listActiveAnnouncements() {
 }
 
 export function listAdminAnnouncements(page = 1, pageSize = 20, status?: Announcement['status']) {
-  const query: { page: string; pageSize: string; status?: Announcement['status'] } = {
+  const query: { scope: 'all'; page: string; pageSize: string; status?: Announcement['status'] } = {
+    scope: 'all',
     page: String(page),
     pageSize: String(pageSize),
   }
   if (status) query.status = status
-  return unwrap<AnnouncementListResult>(adminAnnouncementsApi.index.$get({ query }))
+  return unwrap<AnnouncementListResult>(announcementsApi.index.$get({ query }))
 }
 
 export function createAnnouncement(data: AnnouncementInput) {
-  return unwrap<Announcement>(adminAnnouncementsApi.index.$post({ json: data }))
+  return unwrap<Announcement>(announcementsApi.index.$post({ json: data }))
 }
 
 export function getAnnouncement(id: string) {
-  return unwrap<Announcement>(adminAnnouncementsApi[':id'].$get({ param: { id } }))
+  return unwrap<Announcement>(announcementsApi[':id'].$get({ param: { id } }))
 }
 
 export function updateAnnouncement(id: string, data: AnnouncementInput) {
-  return unwrap<Announcement>(adminAnnouncementsApi[':id'].$put({ param: { id }, json: data }))
+  return unwrap<Announcement>(announcementsApi[':id'].$put({ param: { id }, json: data }))
 }
 
 export function deleteAnnouncement(id: string) {
-  return unwrap<{ id: string; deleted: boolean }>(adminAnnouncementsApi[':id'].$delete({ param: { id } }))
+  return unwrap<{ id: string; deleted: boolean }>(announcementsApi[':id'].$delete({ param: { id } }))
 }
 
 // Shares API
@@ -1113,15 +1127,15 @@ export function getChangelog(opts?: { refresh?: boolean }) {
 }
 
 export function connectCloud() {
-  return unwrap<PairingInfo>(licensingAdminApi.pair.$post())
+  return unwrap<PairingInfo>(licensingAdminApi.pairings.$post())
 }
 
 export function pollPairing(code: string) {
-  return unwrap<PairingPollResult>(licensingAdminApi.pair[':code'].poll.$get({ param: { code } }))
+  return unwrap<PairingPollResult>(licensingAdminApi.pairings[':code'].$get({ param: { code } }))
 }
 
 export function refreshLicense() {
-  return unwrap<{ success: boolean; last_refresh_at: number | null }>(licensingAdminApi.refresh.$post())
+  return unwrap<{ success: boolean; last_refresh_at: number | null }>(licensingAdminApi['refresh-runs'].$post())
 }
 
 export function disconnectCloud() {
@@ -1320,7 +1334,7 @@ export function createIhostImagePresign(data: { path: string; mime: AllowedImage
 }
 
 export function confirmIhostImage(id: string) {
-  return unwrap<ImageHosting>(ihostApi.images[':id'].$patch({ param: { id }, json: { action: 'confirm' as const } }))
+  return unwrap<ImageHosting>(ihostApi.images[':id'].status.$put({ param: { id } }))
 }
 
 export async function deleteIhostImage(id: string) {
@@ -1354,11 +1368,11 @@ async function putImageMultipart(url: string, file: File): Promise<{ url: string
 }
 
 export function uploadAvatar(file: File) {
-  return putImageMultipart('/api/me/avatar', file)
+  return putImageMultipart('/api/users/me/avatar', file)
 }
 
 export async function deleteAvatar() {
-  const res = await meApi.avatar.$delete()
+  const res = await users.me.avatar.$delete()
   if (!res.ok) {
     const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
     throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
@@ -1413,7 +1427,7 @@ export async function saveBranding(data: {
     form.set('theme_ring_color', data.theme_custom.ring_color)
   }
 
-  const res = await fetch('/api/admin/branding', {
+  const res = await fetch('/api/site/branding', {
     method: 'PUT',
     body: form,
     credentials: 'include',

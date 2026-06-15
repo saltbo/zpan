@@ -14,11 +14,14 @@ describe('downloader OpenAPI', () => {
         '/api/auth/device/token',
         '/api/download-tasks',
         '/api/download-tasks/{id}',
-        '/api/downloader/heartbeat',
-        '/api/admin/downloaders',
-        '/api/admin/downloaders/{id}',
+        '/api/download-tasks/{id}/status',
+        '/api/download-tasks/{id}/attempts',
+        '/api/downloaders/me/heartbeats',
+        '/api/downloaders',
+        '/api/downloaders/{id}',
         '/api/objects',
-        '/api/objects/{id}',
+        '/api/objects/{id}/status',
+        '/api/objects/{id}/uploads/{uploadSessionId}/status',
       ]),
     )
   })

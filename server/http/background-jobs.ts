@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import type { BackgroundJob } from '@shared/types'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -13,6 +14,9 @@ import {
   retryBackgroundJob,
 } from '../usecases/background-job'
 import { BackgroundJobError } from '../usecases/ports'
+
+// The only client-driven status transition is cancellation.
+const cancelJobSchema = z.object({ status: z.literal('canceled') })
 
 const backgroundJobs = new Hono<Env>()
   .use(requireAuth)
@@ -39,10 +43,10 @@ const backgroundJobs = new Hono<Env>()
   .get('/:id', async (c) =>
     backgroundJobResponse(c, () => getBackgroundJob(c.get('deps'), requireOrg(c), c.req.param('id'))),
   )
-  .post('/:id/cancel', async (c) =>
+  .put('/:id/status', zValidator('json', cancelJobSchema), async (c) =>
     backgroundJobResponse(c, () => cancelBackgroundJob(c.get('deps'), requireOrg(c), c.req.param('id'))),
   )
-  .post('/:id/retry', async (c) =>
+  .post('/:id/retries', async (c) =>
     backgroundJobResponse(c, () => retryBackgroundJob(c.get('deps'), requireOrg(c), c.req.param('id')), 201),
   )
 

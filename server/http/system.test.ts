@@ -14,7 +14,7 @@ async function putOption(
   key: string,
   body: Record<string, unknown>,
 ) {
-  return app.request(`/api/system/options/${key}`, {
+  return app.request(`/api/site/options/${key}`, {
     method: 'PUT',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
