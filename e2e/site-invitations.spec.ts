@@ -52,7 +52,7 @@ test.describe('Site invitation signup flow', () => {
     await page.goto('/admin/users')
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/site-invitations') && r.request().method() === 'GET'),
+      page.waitForResponse((r) => r.url().includes('/api/invitations') && r.request().method() === 'GET'),
       page.getByRole('button', { name: 'Invite User' }).click(),
     ])
     const dialog = page.getByRole('dialog')
@@ -61,7 +61,7 @@ test.describe('Site invitation signup flow', () => {
 
     await page.getByLabel('Invite email').fill(invitationEmail)
     const [createResp] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/site-invitations') && r.request().method() === 'POST'),
+      page.waitForResponse((r) => r.url().includes('/api/invitations') && r.request().method() === 'POST'),
       page.getByRole('button', { name: 'Send Invite', exact: true }).click(),
     ])
     expect(createResp.status()).toBe(201)
@@ -95,7 +95,7 @@ test.describe('Site invitation signup flow', () => {
     await signInAsAdmin(page)
     await page.goto('/admin/users')
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/site-invitations') && r.request().method() === 'GET'),
+      page.waitForResponse((r) => r.url().includes('/api/invitations') && r.request().method() === 'GET'),
       page.getByRole('button', { name: 'Invite User' }).click(),
     ])
     const acceptedDialog = page.getByRole('dialog')

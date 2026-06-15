@@ -120,7 +120,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/auth-providers', authProviders)
   app.route('/api/licensing', licensing)
   app.route('/api/site/branding', publicBranding)
-  app.route('/api/site-invitations', publicSiteInvitations)
+  app.route('/api/invitations', publicSiteInvitations)
   app.route('/api/store', cloudStoreWebhooks)
   app.route('/api/internal', internal)
 
@@ -143,7 +143,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   // first would gate the public routes too.
   app.route('/api/invite-codes', publicInviteCodes)
   app.route('/api/invite-codes', adminInviteCodes)
-  app.route('/api/site-invitations', adminSiteInvitations)
+  app.route('/api/invitations', adminSiteInvitations)
   app.route('/api/quotas', userQuotas)
   app.route('/api/quotas', adminQuotas)
   app.route('/api/store', cloudStore)

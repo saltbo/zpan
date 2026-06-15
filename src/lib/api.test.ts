@@ -262,7 +262,7 @@ describe('api', () => {
       await listSiteInvitations(2, 10)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site-invitations?')
+      expect(url).toContain('/api/invitations?')
       expect(url).toContain('page=2')
       expect(url).toContain('pageSize=10')
       expect(init.method).toBe('GET')
@@ -274,7 +274,7 @@ describe('api', () => {
       await createSiteInvitation('new@example.com')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site-invitations')
+      expect(url).toContain('/api/invitations')
       expect(init.method).toBe('POST')
       expect(init.body).toBe(JSON.stringify({ email: 'new@example.com' }))
     })
@@ -285,7 +285,7 @@ describe('api', () => {
       await resendSiteInvitation('invite-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/site-invitations/invite-1/deliveries')
+      expect(url).toBe('/api/invitations/invite-1/deliveries')
       expect(init.method).toBe('POST')
     })
 
@@ -295,7 +295,7 @@ describe('api', () => {
       await revokeSiteInvitation('invite-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/site-invitations/invite-1')
+      expect(url).toBe('/api/invitations/invite-1')
       expect(init.method).toBe('DELETE')
     })
 
@@ -305,7 +305,7 @@ describe('api', () => {
       await getSiteInvitation('token-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/site-invitations/token-1')
+      expect(url).toBe('/api/invitations/token-1')
       expect(init.method).toBe('GET')
     })
 
