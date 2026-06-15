@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createTestApp } from '../../test/setup.js'
-import { ensureSitePublicOrigin, getSitePublicOrigin, resetSitePublicOriginCache } from './site-public-origin.js'
+import { ensureSitePublicOrigin, getSitePublicOrigin, resetSitePublicOriginCache } from './public-origin.js'
 
 beforeEach(() => {
   resetSitePublicOriginCache()

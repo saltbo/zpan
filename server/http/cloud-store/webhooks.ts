@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { processDeliveryWebhook } from '../../usecases/cloud-store'
-import { getCloudBaseUrl, parseJson, sha256Hex } from '../cloud-store-helpers'
+import { getCloudBaseUrl, parseJson, sha256Hex } from './helpers'
 
 export const cloudStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).post('/webhook', async (c) => {
   const rawPayload = await c.req.text()

@@ -4,7 +4,7 @@ import { createMiddleware } from 'hono/factory'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { hasFeature } from '../domain/licensing'
 import { loadBindingState, normalizeHost } from '../usecases/site/licensing'
-import { getSitePublicOrigin } from '../usecases/site/site-public-origin'
+import { getSitePublicOrigin } from '../usecases/site/public-origin'
 import type { Env } from './platform'
 
 async function configuredPublicHost(c: Context<Env>): Promise<string | null> {

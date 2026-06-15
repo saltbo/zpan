@@ -9,7 +9,7 @@ import {
   deleteImageHostingConfig,
   getImageHostingConfig,
   putImageHostingConfig,
-} from '../../usecases/image-hosting/image-hosting-config'
+} from '../../usecases/image-hosting/config'
 
 function toUnixMs(d: Date | null | undefined): number | null {
   if (!d) return null

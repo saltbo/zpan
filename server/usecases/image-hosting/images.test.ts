@@ -21,7 +21,7 @@ import {
   removeImageHosting,
   requireImageHostingEnabled,
   uploadImageHosting,
-} from './image-hosting'
+} from './images'
 
 // Fakes for the ports the image-hosting usecase touches. Each test overrides the
 // handful of methods it exercises; the rest throw so an unexpected call is loud.

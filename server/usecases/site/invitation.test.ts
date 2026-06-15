@@ -9,7 +9,7 @@ import {
   resendSiteInvitation,
   revokeSiteInvitation,
   type SiteInvitationDeps,
-} from './site-invitation'
+} from './invitation'
 
 const platform = {} as Platform
 

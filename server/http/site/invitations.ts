@@ -9,7 +9,7 @@ import {
   listSiteInvitations,
   resendSiteInvitation,
   revokeSiteInvitation,
-} from '../../usecases/site/site-invitation'
+} from '../../usecases/site/invitation'
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

@@ -23,7 +23,7 @@ import { loadCaptchaOptionValues } from '../captcha'
 import type { ActivityRepo, ChangelogProvider, InstanceRepo, LicenseBindingRepo, SystemOptionsRepo } from '../ports'
 import { buildInstanceInfo, type runtimeInfo } from './instance-info'
 import { loadBindingState } from './licensing'
-import { getSitePublicOrigin } from './site-public-origin'
+import { getSitePublicOrigin } from './public-origin'
 
 // instance-info keeps RuntimeInfo private; mirror it off the public helper rather
 // than reaching into the module. runtimeInfo needs the platform binding, which is

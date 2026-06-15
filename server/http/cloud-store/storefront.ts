@@ -19,7 +19,7 @@ import {
   listTargets,
   redeemGiftCard,
 } from '../../usecases/cloud-store'
-import { cloudStoreOrdersQuerySchema, getCloudBaseUrl } from '../cloud-store-helpers'
+import { cloudStoreOrdersQuerySchema, getCloudBaseUrl } from './helpers'
 import { getCloudOrders, getInstanceOrigin } from './shared'
 
 export const cloudStore = new Hono<Env>()

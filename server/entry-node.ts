@@ -17,7 +17,7 @@ import { purgeExpiredTrash, resolveTrashRetentionDays } from './usecases/purge'
 import { buildCloudInstanceInfo, runtimeInfo } from './usecases/site/instance-info'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/site/instance-telemetry'
 import { runLicensingRefresh } from './usecases/site/licensing'
-import { getSitePublicOrigin } from './usecases/site/site-public-origin'
+import { getSitePublicOrigin } from './usecases/site/public-origin'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes

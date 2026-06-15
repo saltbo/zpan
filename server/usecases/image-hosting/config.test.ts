@@ -12,7 +12,7 @@ import {
   getImageHostingConfig,
   type ImageHostingConfigDeps,
   putImageHostingConfig,
-} from './image-hosting-config'
+} from './config'
 
 const CF_ON: CfSettings = { isConfigured: true, appHost: null }
 const CF_OFF: CfSettings = { isConfigured: false, appHost: null }

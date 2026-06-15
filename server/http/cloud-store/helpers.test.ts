@@ -4,7 +4,7 @@ import {
   cloudGiftCardsResponseSchema,
   cloudOrdersResponseSchema,
   cloudPackageResponseSchema,
-} from './cloud-store-helpers'
+} from './helpers'
 
 describe('quota store helper schemas', () => {
   it('parses Cloud commerce order responses', () => {

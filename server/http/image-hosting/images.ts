@@ -21,7 +21,7 @@ import {
   removeImageHosting,
   requireImageHostingEnabled,
   uploadImageHosting,
-} from '../../usecases/image-hosting/image-hosting'
+} from '../../usecases/image-hosting/images'
 
 // Derive a storage path from the upload's filename, falling back to a random
 // name when the client sends an opaque blob.

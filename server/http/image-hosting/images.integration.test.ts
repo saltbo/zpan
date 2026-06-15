@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../../adapters/gateways/s3.js'
 import { authedHeaders, createTestApp } from '../../test/setup.js'
-import { confirmImageHosting, deleteImageHosting } from '../../usecases/image-hosting/image-hosting.js'
+import { confirmImageHosting, deleteImageHosting } from '../../usecases/image-hosting/images.js'
 
 beforeEach(() => {
   vi.restoreAllMocks()

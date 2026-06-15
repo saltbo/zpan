@@ -1,6 +1,6 @@
 import type { Context, Next } from 'hono'
+import { reportTrafficForDownload } from '../http/cloud-store/traffic-metering'
 import { PRESIGN_TTL_SECS } from '../http/share-utils'
-import { reportTrafficForDownload } from '../http/traffic-metering-utils'
 import type { Env } from '../middleware/platform'
 
 function stripPort(host: string): string {
