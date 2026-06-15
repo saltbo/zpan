@@ -15,13 +15,13 @@ import {
   processDeliveryWebhook,
   redeemGiftCard,
 } from './cloud-store'
-import { verifyCloudEventToken } from './licensing'
 import type { CloudStoreBinding, CloudStoreRepo, EffectiveQuota, LicensingCloudGateway, QuotaRepo } from './ports'
+import { verifyCloudEventToken } from './site/licensing'
 
 // Token verification derives from a signed PASETO + trusted keys — out of scope
 // for a usecase unit test. Mock it so each case chooses verified/invalid; the
 // real path is covered by cloud-store.integration.test.ts.
-vi.mock('./licensing', () => ({ verifyCloudEventToken: vi.fn() }))
+vi.mock('./site/licensing', () => ({ verifyCloudEventToken: vi.fn() }))
 
 const verified = (eventId: string) => vi.mocked(verifyCloudEventToken).mockReturnValue({ eventId } as never)
 const rejected = () => vi.mocked(verifyCloudEventToken).mockReturnValue(null)

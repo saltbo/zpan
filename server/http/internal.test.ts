@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestApp } from '../test/setup.js'
-import { reportInstanceTelemetry } from '../usecases/instance-telemetry'
+import { reportInstanceTelemetry } from '../usecases/site/instance-telemetry'
 
-vi.mock('../usecases/instance-telemetry', () => ({
+vi.mock('../usecases/site/instance-telemetry', () => ({
   INSTANCE_TELEMETRY_CRON: '0 */12 * * *',
   reportInstanceTelemetry: vi.fn(),
 }))

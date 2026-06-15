@@ -8,8 +8,8 @@ import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { PUBLIC_KEYS } from '../domain/license-keys'
-import { performRefresh, runLicensingRefresh } from './licensing'
 import type { CreateLicenseBindingInput, EntitlementRefreshResponse, LicensingCloudGateway } from './ports'
+import { performRefresh, runLicensingRefresh } from './site/licensing'
 
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS license_bindings (

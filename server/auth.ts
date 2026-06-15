@@ -40,7 +40,7 @@ import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/passwo
 import { createDbProxy, createPlatformProxy } from './platform/context'
 import type { Database, Platform } from './platform/interface'
 import { loadCaptchaConfig } from './usecases/captcha'
-import { checkTeamLimit, getEffectiveSignupMode } from './usecases/licensing'
+import { checkTeamLimit, getEffectiveSignupMode } from './usecases/site/licensing'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
 // which blows past Cloudflare Workers' CPU budget and triggers error 1102.

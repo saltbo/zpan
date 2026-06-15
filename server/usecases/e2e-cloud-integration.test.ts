@@ -28,8 +28,8 @@ import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import { PUBLIC_KEYS } from '../domain/license-keys'
 import { hasFeature } from '../domain/licensing'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup'
-import { loadBindingState } from './licensing'
 import { CloudUnboundError, type PairingResponse } from './ports'
+import { loadBindingState } from './site/licensing'
 
 const CLOUD_BASE_URL = process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev'
 const CLOUD_BASE_ORIGIN = new URL(CLOUD_BASE_URL).origin

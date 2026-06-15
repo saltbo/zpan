@@ -3,6 +3,8 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { removeAvatar, updateAvatar } from '../usecases/me'
+import { getPublicProfile } from '../usecases/profile'
 import {
   deleteUser,
   deleteUsers,
@@ -14,9 +16,7 @@ import {
   setUserStatus,
   setUsersStatus,
   updateUserEntitlement,
-} from '../usecases/console/user'
-import { removeAvatar, updateAvatar } from '../usecases/me'
-import { getPublicProfile } from '../usecases/profile'
+} from '../usecases/user'
 
 const updateStatusSchema = z.object({
   status: z.enum(['active', 'disabled']),

@@ -24,7 +24,7 @@ import type { ObjectUploadSession } from '@shared/types'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import { meterDownloadTraffic } from './cloud-traffic-metering'
 import type { Deps } from './deps'
-import { assertTaskUploadAllowed } from './downloads'
+import { assertTaskUploadAllowed } from './downloads/downloads'
 import { confirmUpload } from './matter'
 import {
   createObjectUploadSession,

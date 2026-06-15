@@ -12,7 +12,7 @@
 
 import type { Platform } from '../platform/interface'
 import type { Deps } from './deps'
-import { listDownloadTasks } from './downloads'
+import { listDownloadTasks } from './downloads/downloads'
 
 // How often the stream re-reads each subscribed domain to detect changes. Kept
 // short so background-job progress and download transfers surface quickly.

@@ -2,7 +2,6 @@ import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { hasFeature } from '../domain/licensing'
 import { currentTrafficPeriod } from '../domain/quota'
-import { loadBindingState } from './licensing'
 import type {
   CloudTrafficReportRecord,
   CloudTrafficReportRepo,
@@ -12,6 +11,7 @@ import type {
   QuotaRepo,
   TrafficReportSource,
 } from './ports'
+import { loadBindingState } from './site/licensing'
 
 export type { TrafficReportSource } from './ports'
 

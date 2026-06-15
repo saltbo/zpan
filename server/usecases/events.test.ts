@@ -2,14 +2,14 @@ import type { BackgroundJob, DownloadTask } from '@shared/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Platform } from '../platform/interface'
 import type { Deps } from './deps'
-import { listDownloadTasks } from './downloads'
+import { listDownloadTasks } from './downloads/downloads'
 import { type EventsMessage, type EventsParams, streamEvents } from './events'
 import type { BackgroundJobRepo, NotificationRepo } from './ports'
 
 // listDownloadTasks pulls in the whole downloader/upload-token machinery — out
 // of scope for this poll-loop unit test. Mock it so each case feeds a chosen
 // download-task list directly; the dedup logic under test then runs against it.
-vi.mock('./downloads', () => ({ listDownloadTasks: vi.fn() }))
+vi.mock('./downloads/downloads', () => ({ listDownloadTasks: vi.fn() }))
 
 const platform = {} as Platform
 
