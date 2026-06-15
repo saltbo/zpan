@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createInviteRepo } from '../adapters/repos/invite.js'
-import * as schema from '../db/schema.js'
-import { createTestApp, seedProLicense as seedProLicenseRow } from '../test/setup.js'
+import { createInviteRepo } from '../../adapters/repos/invite.js'
+import * as schema from '../../db/schema.js'
+import { createTestApp, seedProLicense as seedProLicenseRow } from '../../test/setup.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
 

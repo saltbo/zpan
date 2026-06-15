@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '../../shared/captcha.js'
-import * as authSchema from '../db/auth-schema.js'
-import * as schema from '../db/schema.js'
-import { createTestApp } from '../test/setup.js'
+import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '../../../shared/captcha.js'
+import * as authSchema from '../../db/auth-schema.js'
+import * as schema from '../../db/schema.js'
+import { createTestApp } from '../../test/setup.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()

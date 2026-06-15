@@ -1,32 +1,23 @@
 import {
   type APIRequestContext,
-  type APIResponse,
   type Browser,
   expect,
   type Page,
   request as playwrightRequest,
   test,
 } from '@playwright/test'
-import { ADMIN_EMAIL, ADMIN_PASSWORD, signInAsAdmin, signUpAndGoToFiles } from './helpers'
+import {
+  expectCloudOk,
+  getJson,
+  pairAndApprove,
+  postJson,
+  signInAsAdmin,
+  signUpAndGoToFiles,
+  unbindCurrentCloudBinding,
+} from './helpers'
 
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
-
-type BindingState = {
-  bound: boolean
-  active?: boolean
-  account_email?: string
-  cloud_dashboard_url?: string
-}
-
-type PairingInfo = {
-  code: string
-  pairingUrl: string
-}
-
-type PairingPollResult = {
-  status: string
-  cloud_store_id?: string
-}
+const CLOUD_BASE_ORIGIN = new URL(process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev').origin
 
 type CloudProduct = {
   id: string
@@ -43,10 +34,6 @@ type CloudOrder = {
   id: string
   paymentStatus: string
   fulfillmentStatus: string
-}
-
-type CloudLicense = {
-  id: string
 }
 
 type CloudStore = {
@@ -157,34 +144,8 @@ test.describe
   })
 
 async function ensureCloudBinding(page: Page): Promise<CloudBusinessContext> {
-  await unbindCurrentCloudBinding()
-
-  const pairing = await postJson<PairingInfo>(page, '/api/site/licensing/pairings')
-  await approvePairingInCloud(pairing)
-
-  let approved: PairingPollResult | null = null
-  await expect
-    .poll(
-      async () => {
-        const result = await getJson<PairingPollResult>(page, `/api/site/licensing/pairings/${pairing.code}`)
-        if (result.status === 'approved') approved = result
-        return result.status
-      },
-      {
-        timeout: 30_000,
-      },
-    )
-    .toBe('approved')
-
-  await expect
-    .poll(async () => {
-      const state = await getJson<BindingState>(page, '/api/site/licensing/status')
-      return state.bound && state.active
-    })
-    .toBe(true)
-
-  if (!approved?.cloud_store_id) throw new Error('Cloud pairing approval did not include cloud_store_id')
-  return createCloudBusinessContext(new URL(pairing.pairingUrl).origin, approved.cloud_store_id)
+  const approved = await pairAndApprove(page)
+  return createCloudBusinessContext(CLOUD_BASE_ORIGIN, approved.cloud_store_id)
 }
 
 async function createCloudBusinessContext(baseURL: string, storeId?: string): Promise<CloudBusinessContext> {
@@ -219,78 +180,6 @@ async function pollCloudBusinessStore(request: APIRequestContext): Promise<strin
     )
     .not.toBeNull()
   return storeId!
-}
-
-async function approvePairingInCloud(pairing: PairingInfo) {
-  const email = process.env.E2E_CLOUD_BUSINESS_EMAIL ?? process.env.E2E_CLOUD_PRO_EMAIL
-  const password = process.env.E2E_CLOUD_BUSINESS_PASSWORD ?? process.env.E2E_CLOUD_PRO_PASSWORD
-  if (!email || !password) {
-    throw new Error('E2E_CLOUD_BUSINESS_EMAIL and E2E_CLOUD_BUSINESS_PASSWORD are required')
-  }
-
-  const cloudOrigin = new URL(pairing.pairingUrl).origin
-  const cloudRequest = await playwrightRequest.newContext({ baseURL: cloudOrigin })
-  try {
-    const signIn = await cloudRequest.post('/api/auth/sign-in/email', {
-      data: { email, password },
-    })
-    await expectCloudOk(signIn, 'Cloud test account sign-in failed')
-
-    const approve = await cloudRequest.patch(`/api/pairings/${encodeURIComponent(pairing.code)}`, {
-      data: { action: 'approve' },
-    })
-    if (approve.status() === 409 && (await cloudErrorCode(approve)) === 'instance_limit') {
-      await unbindCloudTestLicenses(cloudRequest)
-      const retry = await cloudRequest.patch(`/api/pairings/${encodeURIComponent(pairing.code)}`, {
-        data: { action: 'approve' },
-      })
-      await expectCloudOk(retry, 'Cloud pairing approval failed after license cleanup')
-      return
-    }
-    await expectCloudOk(approve, 'Cloud pairing approval failed')
-  } finally {
-    await cloudRequest.dispose()
-  }
-}
-
-async function unbindCloudTestLicenses(cloudRequest: APIRequestContext) {
-  const response = await cloudRequest.get('/api/licenses')
-  await expectCloudOk(response, 'Cloud license list failed during pairing cleanup')
-
-  const body = (await response.json()) as { items: CloudLicense[] }
-  const licenses = body.items
-  for (const license of licenses) {
-    const deleted = await cloudRequest.delete(`/api/licenses/${encodeURIComponent(license.id)}`)
-    await expectCloudOk(deleted, 'Cloud license cleanup failed')
-  }
-}
-
-async function cloudErrorCode(response: APIResponse): Promise<string | null> {
-  const body = (await response.json().catch(() => null)) as { error?: { code?: string } } | null
-  return body?.error?.code ?? null
-}
-
-async function expectCloudOk(response: APIResponse, message: string) {
-  if (response.ok()) return
-  throw new Error(`${message}: ${response.status()} ${await response.text()}`)
-}
-
-async function unbindCurrentCloudBinding() {
-  const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5185'
-  const headers = { Origin: new URL(baseURL).origin }
-  const request = await playwrightRequest.newContext({ baseURL })
-  try {
-    const signIn = await request.post('/api/auth/sign-in/email', {
-      headers,
-      data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
-    })
-    await expectCloudOk(signIn, 'E2E admin sign-in failed during Cloud binding cleanup')
-
-    const unbind = await request.delete('/api/site/licensing/binding', { headers })
-    await expectCloudOk(unbind, 'Cloud binding cleanup failed')
-  } finally {
-    await request.dispose()
-  }
 }
 
 async function createStoragePlan(cloud: CloudBusinessContext, name: string) {
@@ -430,49 +319,6 @@ async function newBrowserContext(browser: Browser, baseURL: string | undefined) 
   return browser.newContext({ baseURL, locale: 'en-US' })
 }
 
-async function getJson<T>(page: Page, url: string): Promise<T> {
-  return browserJson<T>(page, 'GET', url)
-}
-
-async function postJson<T>(page: Page, url: string, data?: unknown): Promise<T> {
-  return browserJson<T>(page, 'POST', url, data)
-}
-
-async function browserJson<T>(page: Page, method: 'GET' | 'POST', url: string, data?: unknown): Promise<T> {
-  const retryDelays = [500, 1000, 3000, 7000, 15000]
-  const stripeRateLimitRetryDelays = [1000, 3000, 7000, 15000, 30000]
-  for (let attempt = 0; attempt <= stripeRateLimitRetryDelays.length; attempt += 1) {
-    try {
-      return (await page.evaluate(
-        async ({ method, url, data }) => {
-          const response = await fetch(url, {
-            method,
-            headers: data === undefined ? undefined : { 'Content-Type': 'application/json' },
-            body: data === undefined ? undefined : JSON.stringify(data),
-          })
-          const text = await response.text()
-          if (!response.ok) throw new Error(`${method} ${url} failed with ${response.status}: ${text}`)
-          return text ? JSON.parse(text) : null
-        },
-        { method, url, data },
-      )) as T
-    } catch (error) {
-      if (isStripeRateLimitBrowserJsonError(error) && attempt < stripeRateLimitRetryDelays.length) {
-        await page.waitForTimeout(stripeRateLimitRetryDelays[attempt] ?? 0)
-        continue
-      }
-
-      if (isTransientBrowserJsonError(error) && attempt < retryDelays.length) {
-        await page.waitForTimeout(retryDelays[attempt] ?? 0)
-        continue
-      }
-
-      throw error
-    }
-  }
-  throw new Error(`${method} ${url} failed`)
-}
-
 async function cloudJson<T>(
   cloud: CloudBusinessContext,
   method: 'GET' | 'POST',
@@ -496,20 +342,4 @@ async function expectResponseStatus(response: ResponseLike, status: number) {
 
 function isPlaywrightSkipError(error: unknown) {
   return error instanceof Error && error.message.startsWith('Test is skipped:')
-}
-
-function isStripeRateLimitBrowserJsonError(error: unknown) {
-  if (!(error instanceof Error)) return false
-  return error.message.includes('request_rate_limit_exceeded')
-}
-
-function isTransientBrowserJsonError(error: unknown) {
-  if (!(error instanceof Error)) return false
-  return (
-    error.message.includes('Failed to fetch') ||
-    error.message.includes('Execution context was destroyed') ||
-    error.message.includes('Incoming request ended abruptly') ||
-    error.message.includes('context canceled') ||
-    error.message.includes('Load failed')
-  )
 }

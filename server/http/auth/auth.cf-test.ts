@@ -1,8 +1,8 @@
 import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
-import { createApp } from '../app'
-import { createAuth } from '../auth'
-import { createCloudflarePlatform } from '../platform/cloudflare'
+import { createApp } from '../../app'
+import { createAuth } from '../../auth'
+import { createCloudflarePlatform } from '../../platform/cloudflare'
 
 async function buildApp() {
   const platform = createCloudflarePlatform(env)

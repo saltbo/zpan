@@ -1,5 +1,5 @@
-import { type CaptchaConfig, type CaptchaOptionValues, readCaptchaConfig } from '../domain/captcha'
-import type { SystemOptionsRepo } from './ports'
+import { type CaptchaConfig, type CaptchaOptionValues, readCaptchaConfig } from '../../domain/captcha'
+import type { SystemOptionsRepo } from '../ports'
 
 export type CaptchaDeps = { systemOptions: SystemOptionsRepo }
 

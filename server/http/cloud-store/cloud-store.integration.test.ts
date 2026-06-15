@@ -1,10 +1,10 @@
 import { sql } from 'drizzle-orm'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { PUBLIC_KEYS } from '../domain/license-keys.js'
-import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
-import { cloudGiftCardsResponseSchema, cloudPackageResponseSchema } from './cloud-store/helpers.js'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
+import { PUBLIC_KEYS } from '../../domain/license-keys.js'
+import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense } from '../../test/setup.js'
+import { cloudGiftCardsResponseSchema, cloudPackageResponseSchema } from './helpers.js'
 
 const REFRESH_TOKEN = 'test-refresh-token'
 const INSTANCE_STORE_PATH = '/api/stores/store-test-binding'
@@ -2364,7 +2364,7 @@ async function signedWebhookHeaders(payload: string, overrides: Record<string, u
 }
 
 async function seedCloudPr16License(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  const { createLicenseBindingRepo } = await import('../adapters/repos/license-binding.js')
+  const { createLicenseBindingRepo } = await import('../../adapters/repos/license-binding.js')
   const issuedAt = Math.floor(Date.now() / 1000)
   const expiresAt = issuedAt + 3600
   const cachedCert = sign(EVENT_SECRET, {

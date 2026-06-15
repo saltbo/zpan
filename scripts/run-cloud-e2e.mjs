@@ -7,7 +7,7 @@ const args = process.argv.slice(2)
 const require = createRequire(import.meta.url)
 const runtime = valueAfter('--runtime') ?? process.env.E2E_RUNTIME ?? 'node'
 const project = valueAfter('--project') ?? 'desktop'
-const spec = valueAfter('--spec') ?? 'cloud-store.spec.ts'
+const specs = (valueAfter('--spec') ?? 'cloud-store.spec.ts licensing.spec.ts').split(/\s+/).filter(Boolean)
 const local = args.includes('--local')
 const withS3Mock = args.includes('--with-s3-mock')
 const cloudflared = process.env.CLOUDFLARED_BIN ?? 'cloudflared'
@@ -54,7 +54,7 @@ if (runtime === 'cf') {
 }
 
 try {
-  await run(process.execPath, [require.resolve('@playwright/test/cli'), 'test', spec, `--project=${project}`], e2eEnv)
+  await run(process.execPath, [require.resolve('@playwright/test/cli'), 'test', ...specs, `--project=${project}`], e2eEnv)
 } finally {
   if (tunnel) {
     try {

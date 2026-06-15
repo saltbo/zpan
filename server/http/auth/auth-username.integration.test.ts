@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import * as authSchema from '../db/auth-schema.js'
-import { createTestApp } from '../test/setup.js'
+import * as authSchema from '../../db/auth-schema.js'
+import { createTestApp } from '../../test/setup.js'
 
 describe('migration 0004_username_plugin.sql', () => {
   const migrationPath = join(process.cwd(), 'migrations/0004_username_plugin.sql')
