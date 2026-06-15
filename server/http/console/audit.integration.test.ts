@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../../test/setup.js'
 
-describe('GET /api/admin/audit — auth guards', () => {
+describe('GET /api/audit-events — auth guards', () => {
   it('returns 401 without auth [spec: audit/auth-required]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/admin/audit')
+    const res = await app.request('/api/audit-events')
     expect(res.status).toBe(401)
   })
 
@@ -12,7 +12,7 @@ describe('GET /api/admin/audit — auth guards', () => {
     const { app } = await createTestApp()
     await adminHeaders(app)
     const headers = await authedHeaders(app, 'user@example.com')
-    const res = await app.request('/api/admin/audit', { headers })
+    const res = await app.request('/api/audit-events', { headers })
     expect(res.status).toBe(403)
   })
 
@@ -20,20 +20,20 @@ describe('GET /api/admin/audit — auth guards', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     // No Pro license seeded — feature gate should block
-    const res = await app.request('/api/admin/audit', { headers })
+    const res = await app.request('/api/audit-events', { headers })
     expect(res.status).toBe(402)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.feature).toBe('audit_log')
   })
 })
 
-describe('GET /api/admin/audit — licensed admin', () => {
+describe('GET /api/audit-events — licensed admin', () => {
   it('returns empty list when no events exist [spec: audit/empty]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/audit', { headers })
+    const res = await app.request('/api/audit-events', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
     expect(body.items).toEqual([])
@@ -76,7 +76,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
       },
     ])
 
-    const res = await app.request('/api/admin/audit', { headers })
+    const res = await app.request('/api/audit-events', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
     expect(body.total).toBe(2)
@@ -116,7 +116,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
       },
     ])
 
-    const res = await app.request('/api/admin/audit?orgId=org-x', { headers })
+    const res = await app.request('/api/audit-events?orgId=org-x', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ orgId: string }>; total: number }
     expect(body.total).toBe(1)
@@ -154,7 +154,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
       },
     ])
 
-    const res = await app.request('/api/admin/audit?userId=alice', { headers })
+    const res = await app.request('/api/audit-events?userId=alice', { headers })
     const body = (await res.json()) as { items: Array<{ userId: string }>; total: number }
     expect(body.total).toBe(1)
     expect(body.items[0].userId).toBe('alice')
@@ -191,7 +191,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
       },
     ])
 
-    const res = await app.request('/api/admin/audit?action=upload', { headers })
+    const res = await app.request('/api/audit-events?action=upload', { headers })
     const body = (await res.json()) as { items: Array<{ action: string }>; total: number }
     expect(body.total).toBe(1)
     expect(body.items[0].action).toBe('upload')
@@ -228,7 +228,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
       },
     ])
 
-    const res = await app.request('/api/admin/audit?targetType=folder', { headers })
+    const res = await app.request('/api/audit-events?targetType=folder', { headers })
     const body = (await res.json()) as { items: Array<{ targetType: string }>; total: number }
     expect(body.total).toBe(1)
     expect(body.items[0].targetType).toBe('folder')
@@ -255,7 +255,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
       })),
     )
 
-    const res = await app.request('/api/admin/audit?page=2&pageSize=2&orgId=org-pg', { headers })
+    const res = await app.request('/api/audit-events?page=2&pageSize=2&orgId=org-pg', { headers })
     const body = (await res.json()) as {
       items: Array<{ id: string }>
       total: number
@@ -295,7 +295,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
       createdAt: new Date(),
     })
 
-    const res = await app.request('/api/admin/audit', { headers })
+    const res = await app.request('/api/audit-events', { headers })
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.total).toBe(1)
     const item = body.items[0]

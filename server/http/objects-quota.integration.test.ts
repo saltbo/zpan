@@ -131,10 +131,10 @@ describe('POST /api/objects/copy — quota enforcement', () => {
     await setOrgQuota(db, orgId, 500, 450)
     await insertFile(db, orgId, { id: 'm-copy-over', name: 'big.txt', size: 100 })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/m-copy-over/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'm-copy-over', parent: '' }),
+      body: JSON.stringify({ parent: '' }),
     })
     expect(res.status).toBe(422)
     const body = (await res.json()) as Record<string, unknown>
@@ -150,10 +150,10 @@ describe('POST /api/objects/copy — quota enforcement', () => {
     await setOrgQuota(db, orgId, 1000, 100)
     await insertFile(db, orgId, { id: 'm-copy-ok', name: 'doc.txt', size: 100 })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/m-copy-ok/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'm-copy-ok', parent: '' }),
+      body: JSON.stringify({ parent: '' }),
     })
     expect(res.status).toBe(201)
 
@@ -169,10 +169,10 @@ describe('POST /api/objects/copy — quota enforcement', () => {
     await setOrgQuota(db, orgId, 10000, 50)
     await insertFile(db, orgId, { id: 'm-copy-st', name: 'img.png', size: 150 })
 
-    await app.request('/api/objects/copy', {
+    await app.request('/api/objects/m-copy-st/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'm-copy-st', parent: '' }),
+      body: JSON.stringify({ parent: '' }),
     })
 
     const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
@@ -188,10 +188,10 @@ describe('POST /api/objects/copy — quota enforcement', () => {
     await insertFile(db, orgId, { id: 'm-copy-s3-fail', name: 'fail.txt', size: 200 })
     vi.mocked(S3Service.prototype.copyObject).mockRejectedValueOnce(new Error('copy failed'))
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/m-copy-s3-fail/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'm-copy-s3-fail', parent: 'Archive' }),
+      body: JSON.stringify({ parent: 'Archive' }),
     })
 
     expect(res.status).toBe(500)
@@ -209,10 +209,10 @@ describe('POST /api/objects/copy — quota enforcement', () => {
     await setOrgQuota(db, orgId, 1000, 100)
     await insertFile(db, orgId, { id: 'm-copy-conflict', name: 'conflict.txt', size: 200 })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/m-copy-conflict/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'm-copy-conflict', parent: '', onConflict: 'fail' }),
+      body: JSON.stringify({ parent: '', onConflict: 'fail' }),
     })
 
     expect(res.status).toBe(409)
@@ -236,10 +236,10 @@ describe('POST /api/objects/copy — quota enforcement', () => {
               ${validStorage.id}, 'active', ${now}, ${now})
     `)
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/m-zero/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'm-zero', parent: '' }),
+      body: JSON.stringify({ parent: '' }),
     })
     expect(res.status).toBe(201)
 
@@ -255,10 +255,10 @@ describe('POST /api/objects/copy — quota enforcement', () => {
     // No org quota row at all — unlimited
     await insertFile(db, orgId, { id: 'm-copy-nolimit', name: 'nolimit.txt', size: 100 })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/m-copy-nolimit/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'm-copy-nolimit', parent: '' }),
+      body: JSON.stringify({ parent: '' }),
     })
     expect(res.status).toBe(201)
   })
@@ -271,10 +271,10 @@ describe('POST /api/objects/copy — quota enforcement', () => {
     await setOrgQuota(db, orgId, 0, 99999)
     await insertFile(db, orgId, { id: 'm-copy-qlimit', name: 'large.bin', size: 1000000 })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/m-copy-qlimit/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'm-copy-qlimit', parent: '' }),
+      body: JSON.stringify({ parent: '' }),
     })
     expect(res.status).toBe(201)
   })
@@ -283,10 +283,10 @@ describe('POST /api/objects/copy — quota enforcement', () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/nonexistent/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'nonexistent', parent: '' }),
+      body: JSON.stringify({ parent: '' }),
     })
     expect(res.status).toBe(404)
   })
@@ -301,10 +301,10 @@ describe('trash and purge — storage usage accounting', () => {
     await setOrgQuota(db, orgId, 1000, 300)
     await insertFile(db, orgId, { id: 'm-trash-usage', name: 'keep-accounted.txt', size: 300 })
 
-    const res = await app.request('/api/objects/m-trash-usage', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m-trash-usage/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
 
     expect(res.status).toBe(200)
@@ -475,10 +475,10 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
     await setOrgQuota(db, orgId, 10000, 0)
     await insertFile(db, orgId, { id: 'm-done', name: 'uploading.txt', size: 350, status: 'draft' })
 
-    const res = await app.request('/api/objects/m-done', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m-done/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -498,10 +498,10 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
     await addStorageEntitlement(db, orgId, 100)
     await insertFile(db, orgId, { id: 'm-done-entitlement', name: 'entitled.txt', size: 50, status: 'draft' })
 
-    const res = await app.request('/api/objects/m-done-entitlement', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m-done-entitlement/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
 
     expect(res.status).toBe(200)
@@ -521,10 +521,10 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
     await addStorageEntitlement(db, orgId, 100)
     await insertFile(db, orgId, { id: 'm-done-zero-base-entitlement', name: 'limited.txt', size: 11, status: 'draft' })
 
-    const res = await app.request('/api/objects/m-done-zero-base-entitlement', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m-done-zero-base-entitlement/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
 
     expect(res.status).toBe(422)
@@ -539,10 +539,10 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
     await setOrgQuota(db, orgId, 10000, 100)
     await insertFile(db, orgId, { id: 'm-done2', name: 'photo.jpg', size: 400, status: 'draft' })
 
-    await app.request('/api/objects/m-done2', {
-      method: 'PATCH',
+    await app.request('/api/objects/m-done2/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
 
     const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
@@ -559,10 +559,10 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
     await setOrgQuota(db, orgId, 100, 90)
     await insertFile(db, orgId, { id: 'm-done-quota', name: 'toobig.txt', size: 50, status: 'draft' })
 
-    const res = await app.request('/api/objects/m-done-quota', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m-done-quota/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(422)
     const body = (await res.json()) as Record<string, unknown>
@@ -577,10 +577,10 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
     await setOrgQuota(db, orgId, 10000, 50)
     await insertFile(db, orgId, { id: 'm-done3', name: 'empty.txt', size: 0, status: 'draft' })
 
-    await app.request('/api/objects/m-done3', {
-      method: 'PATCH',
+    await app.request('/api/objects/m-done3/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
 
     const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
@@ -597,10 +597,10 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
     // No quota row — unlimited
     await insertFile(db, orgId, { id: 'm-done-nolimit', name: 'nolimit.txt', size: 5000, status: 'draft' })
 
-    const res = await app.request('/api/objects/m-done-nolimit', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m-done-nolimit/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -633,10 +633,10 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
     const draft = (await createRes.json()) as { id: string }
 
     // Confirm with replace. Before the fix this 422'd (headroom for both copies).
-    const confirmRes = await app.request(`/api/objects/${draft.id}`, {
-      method: 'PATCH',
+    const confirmRes = await app.request(`/api/objects/${draft.id}/status`, {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm', onConflict: 'replace' }),
+      body: JSON.stringify({ status: 'active', onConflict: 'replace' }),
     })
     expect(confirmRes.status).toBe(200)
 

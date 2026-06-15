@@ -23,7 +23,7 @@ test.describe('Site announcements', () => {
       await expect(dialog.locator('li', { hasText: listItem })).toBeVisible()
 
       const [createResp] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/admin/announcements') && r.request().method() === 'POST'),
+        page.waitForResponse((r) => r.url().includes('/api/announcements') && r.request().method() === 'POST'),
         dialog.getByRole('button', { name: 'Save' }).click(),
       ])
       expect(createResp.status()).toBe(201)
@@ -34,7 +34,7 @@ test.describe('Site announcements', () => {
       const row = page.locator('tr', { hasText: title })
       await expect(row).toBeVisible()
       const [publishResp] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/admin/announcements') && r.request().method() === 'PUT'),
+        page.waitForResponse((r) => r.url().includes('/api/announcements') && r.request().method() === 'PUT'),
         row.getByRole('button', { name: 'Publish' }).click(),
       ])
       expect(publishResp.ok()).toBe(true)
@@ -59,7 +59,7 @@ test.describe('Site announcements', () => {
       if (announcementId) {
         await signInAsAdmin(page)
         const deleteResult = await page.evaluate(async (id) => {
-          const res = await fetch(`/api/admin/announcements/${id}`, {
+          const res = await fetch(`/api/announcements/${id}`, {
             method: 'DELETE',
             credentials: 'include',
           })

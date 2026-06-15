@@ -1,7 +1,5 @@
 import type {
-  AdminAnnouncementsRoute,
   AdminAuditRoute,
-  AdminAuthProvidersRoute,
   AdminInviteCodesRoute,
   AdminQuotasRoute,
   AdminSiteInvitationsRoute,
@@ -21,10 +19,8 @@ import type {
   IhostRoute,
   LicensingAdminRoute,
   LicensingRoute,
-  MeRoute,
   NotificationsRoute,
   ObjectsRoute,
-  ProfileRoute,
   PublicBrandingRoute,
   PublicSharesRoute,
   PublicSiteInvitationsRoute,
@@ -46,28 +42,27 @@ const absoluteUrlBase = (path: string) => {
 
 export const objects = hc<ObjectsRoute>('/api/objects', opts)
 export const downloadTasksApi = hc<DownloadTasksRoute>('/api/download-tasks', opts)
-export const downloaderSelfApi = hc<DownloaderSelfRoute>('/api/downloader', opts)
+export const downloaderSelfApi = hc<DownloaderSelfRoute>('/api/downloaders', opts)
 export const trash = hc<TrashRoute>('/api/trash', opts)
-export const storages = hc<StoragesRoute>('/api/admin/storages', opts)
-export const adminDownloadersApi = hc<DownloadersRoute>('/api/admin/downloaders', opts)
-export const users = hc<UsersRoute>('/api/admin/users', opts)
-export const adminQuotas = hc<AdminQuotasRoute>('/api/admin/quotas', opts)
-export const adminTeams = hc<AdminTeamsRoute>('/api/admin/teams', opts)
+export const storages = hc<StoragesRoute>('/api/storages', opts)
+export const adminDownloadersApi = hc<DownloadersRoute>('/api/downloaders', opts)
+// One users resource: self (/me/avatar), public profile (/:username), and admin management.
+export const users = hc<UsersRoute>('/api/users', opts)
+export const adminQuotas = hc<AdminQuotasRoute>('/api/quotas', opts)
+export const adminTeams = hc<AdminTeamsRoute>('/api/teams', opts)
 export const userQuotas = hc<UserQuotasRoute>('/api/quotas', opts)
 export const cloudStoreApi = hc<CloudStoreRoute>('/api/store', opts)
-export const system = hc<SystemRoute>('/api/system', opts)
+export const system = hc<SystemRoute>('/api/site', opts)
+// One auth-providers resource (public list + admin CRUD, gated per-route).
 export const authProviders = hc<AuthProvidersRoute>('/api/auth-providers', opts)
-export const adminAuthProviders = hc<AdminAuthProvidersRoute>('/api/admin/auth-providers', opts)
-export const inviteCodes = hc<AdminInviteCodesRoute>('/api/admin/invite-codes', opts)
-export const adminSiteInvitations = hc<AdminSiteInvitationsRoute>('/api/admin/site-invitations', opts)
-export const emailConfig = hc<EmailConfigRoute>('/api/admin/email-config', opts)
-export const profiles = hc<ProfileRoute>('/api/profiles')
-export const meApi = hc<MeRoute>('/api/me', opts)
+export const inviteCodes = hc<AdminInviteCodesRoute>('/api/invite-codes', opts)
+export const adminSiteInvitations = hc<AdminSiteInvitationsRoute>('/api/site-invitations', opts)
+export const emailConfig = hc<EmailConfigRoute>('/api/site/email', opts)
 export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
 export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
 export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)
+// One announcements resource (user feed + admin management, gated per-route).
 export const announcementsApi = hc<AnnouncementsRoute>('/api/announcements', opts)
-export const adminAnnouncementsApi = hc<AdminAnnouncementsRoute>('/api/admin/announcements', opts)
 export const backgroundJobsApi = hc<BackgroundJobsRoute>('/api/background-jobs', opts)
 export const eventsUrlApi = hc<EventsRoute>(absoluteUrlBase('/api/events'), opts)
 
@@ -76,11 +71,11 @@ export const eventsUrlApi = hc<EventsRoute>(absoluteUrlBase('/api/events'), opts
 export const publicSharesApi = hc<PublicSharesRoute>('/api/shares', opts)
 export const authedSharesApi = hc<AuthedSharesRoute>('/api/shares', opts)
 
-export const ihostConfigApi = hc<IhostConfigRoute>('/api/ihost/config', opts)
-export const ihostApi = hc<IhostRoute>('/api/ihost', opts)
+export const ihostConfigApi = hc<IhostConfigRoute>('/api/image-hosting/config', opts)
+export const ihostApi = hc<IhostRoute>('/api/image-hosting', opts)
 export const licensingApi = hc<LicensingRoute>('/api/licensing', opts)
 export const licensingAdminApi = hc<LicensingAdminRoute>('/api/licensing', opts)
-export const publicBrandingApi = hc<PublicBrandingRoute>('/api/branding', opts)
-export const brandingAdminApi = hc<BrandingAdminRoute>('/api/admin/branding', opts)
-export const adminAuditApi = hc<AdminAuditRoute>('/api/admin/audit', opts)
+export const publicBrandingApi = hc<PublicBrandingRoute>('/api/site/branding', opts)
+export const brandingAdminApi = hc<BrandingAdminRoute>('/api/site/branding', opts)
+export const adminAuditApi = hc<AdminAuditRoute>('/api/audit-events', opts)
 export const publicSiteInvitations = hc<PublicSiteInvitationsRoute>('/api/site-invitations', opts)

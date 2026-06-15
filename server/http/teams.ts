@@ -27,20 +27,15 @@ const activityQuerySchema = z.object({
   pageSize: z.string().optional(),
 })
 
-export const publicTeams = new Hono<Env>().get(
-  '/invite-info',
-  zValidator('query', z.object({ token: z.string().min(1) })),
-  async (c) => {
-    const { token } = c.req.valid('query')
-    const info = await getInviteLinkInfo(c.get('deps'), token)
-    if (!info) return c.json({ error: 'Invalid or expired invite link' }, 404)
-    return c.json(info)
-  },
-)
+export const publicTeams = new Hono<Env>().get('/invite-links/:token', async (c) => {
+  const info = await getInviteLinkInfo(c.get('deps'), c.req.param('token'))
+  if (!info) return c.json({ error: 'Invalid or expired invite link' }, 404)
+  return c.json(info)
+})
 
 export const teams = new Hono<Env>()
   .use(requireAuth)
-  .post('/:teamId/invite-link', zValidator('json', createLinkSchema), async (c) => {
+  .post('/:teamId/invite-links', zValidator('json', createLinkSchema), async (c) => {
     const { role, expiresIn } = c.req.valid('json')
     const result = await createInviteLink(c.get('deps'), {
       teamId: c.req.param('teamId'),

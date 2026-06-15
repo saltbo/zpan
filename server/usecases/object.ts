@@ -19,7 +19,6 @@ import type {
   PatchObjectUploadSessionInput,
   PresignObjectUploadPartsInput,
   TransferMatterInput,
-  UpdateMatterInput,
 } from '@shared/schemas'
 import type { ObjectUploadSession } from '@shared/types'
 import { buildObjectKey, fileExt } from '../lib/path-template'
@@ -327,7 +326,7 @@ export type UpdateObjectOutcome = { ok: true; matter: Matter } | { ok: false; re
 
 export async function updateObject(
   deps: Pick<Deps, 'matter'>,
-  params: { orgId: string; objectId: string; actorId: string; input: UpdateMatterInput },
+  params: { orgId: string; objectId: string; actorId: string; input: PatchMatterInput },
 ): Promise<UpdateObjectOutcome> {
   const { name, parent, onConflict } = params.input
   const matter = await deps.matter.update(params.objectId, params.orgId, { name, parent, onConflict }, params.actorId)
@@ -395,7 +394,7 @@ export async function restoreObject(
 }
 
 // Authorizes a download-task-upload token to confirm a specific object: it may
-// only confirm (no other patch action) and only within its target folder.
+// only confirm its draft (PUT /status {active}) and only within its target folder.
 export type ConfirmAuthorizationOutcome = { ok: true } | { ok: false; reason: 'forbidden' }
 
 export async function authorizeTaskUploadConfirm(
@@ -403,13 +402,11 @@ export async function authorizeTaskUploadConfirm(
   params: {
     orgId: string
     objectId: string
-    action: PatchMatterInput['action']
     taskId: string
     downloaderId: string
     targetFolder: string
   },
 ): Promise<ConfirmAuthorizationOutcome> {
-  if (params.action !== 'confirm') return { ok: false, reason: 'forbidden' }
   const matter = await deps.matter.get(params.objectId, params.orgId)
   if (!matter || !isWithinDownloadTarget(matter.parent, params.targetFolder)) {
     return { ok: false, reason: 'forbidden' }

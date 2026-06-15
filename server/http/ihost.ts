@@ -6,7 +6,6 @@ import {
   createIhostImageSchema,
   listIhostImagesSchema,
   MAX_IMAGE_SIZE,
-  patchIhostImageSchema,
 } from '../../shared/schemas'
 import { buildImageUrl, validatePath } from '../domain/image-hosting'
 import { mapDomainError } from '../lib/http-errors'
@@ -247,25 +246,19 @@ const app = new Hono<Env>()
     return c.json(row)
   })
 
-  .patch(
-    '/images/:id',
-    requireAuth,
-    requireTeamRole('editor'),
-    zValidator('json', patchIhostImageSchema),
-    async (c) => {
-      const orgId = c.get('orgId')
-      if (!orgId) return c.json({ error: 'No active organization' }, 400)
+  .put('/images/:id/status', requireAuth, requireTeamRole('editor'), async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-      const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
-      if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
+    if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
-      // action === 'confirm' is the only value the discriminated union allows
-      const { row, quotaExceeded } = await confirmImageHosting(c.get('deps'), c.req.param('id'), orgId)
-      if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
-      if (!row) return c.json({ error: 'Not found or not in draft status' }, 404)
-      return c.json(row)
-    },
-  )
+    // The only transition is confirming a freshly-uploaded draft (→ active).
+    const { row, quotaExceeded } = await confirmImageHosting(c.get('deps'), c.req.param('id'), orgId)
+    if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
+    if (!row) return c.json({ error: 'Not found or not in draft status' }, 404)
+    return c.json(row)
+  })
 
   .delete('/images/:id', requireAuth, requireTeamRole('editor'), async (c) => {
     const orgId = c.get('orgId')

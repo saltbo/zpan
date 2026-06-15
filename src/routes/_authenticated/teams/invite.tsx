@@ -30,7 +30,7 @@ function TeamInvitePage() {
   } = useQuery({
     queryKey: ['invite-info', token],
     queryFn: async () => {
-      const res = await publicTeamsApi['invite-info'].$get({ query: { token } })
+      const res = await publicTeamsApi['invite-links'][':token'].$get({ param: { token } })
       if (!res.ok) return null
       return res.json() as Promise<InviteInfo>
     },

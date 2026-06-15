@@ -16,7 +16,7 @@ export interface ToolConfigField {
 export function buildPicGoFields(params: ToolConfigParams): ToolConfigField[] {
   const { appHost, apiKey } = params
   return [
-    { label: 'API地址 (URL)', value: `${appHost}/api/ihost/images` },
+    { label: 'API地址 (URL)', value: `${appHost}/api/image-hosting/images` },
     { label: 'POST参数名 (paramName)', value: 'file' },
     { label: 'JSON路径 (jsonPath)', value: 'data.url' },
     { label: '自定义请求头 (customHeader)', value: JSON.stringify({ Authorization: `Bearer ${apiKey}` }) },
@@ -26,7 +26,7 @@ export function buildPicGoFields(params: ToolConfigParams): ToolConfigField[] {
 export function buildUPicFields(params: ToolConfigParams): ToolConfigField[] {
   const { appHost, apiKey } = params
   return [
-    { label: 'API 地址 (URL)', value: `${appHost}/api/ihost/images` },
+    { label: 'API 地址 (URL)', value: `${appHost}/api/image-hosting/images` },
     { label: '请求方式 (Method)', value: 'POST' },
     { label: '文件字段名 (File Field)', value: 'file' },
     { label: '请求头 (Header Name)', value: 'Authorization' },
@@ -42,7 +42,7 @@ export function buildShareXConfig(params: ToolConfigParams): object {
     Name: 'ZPan Image Host',
     DestinationType: 'ImageUploader, FileUploader',
     RequestMethod: 'POST',
-    RequestURL: `${appHost}/api/ihost/images`,
+    RequestURL: `${appHost}/api/image-hosting/images`,
     Headers: { Authorization: `Bearer ${apiKey}` },
     Body: 'MultipartFormData',
     FileFormName: 'file',

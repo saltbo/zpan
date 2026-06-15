@@ -17,7 +17,7 @@ const validStorage = {
 describe('Admin Storages API', () => {
   it('returns 401 without auth [spec: storages/auth-required]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/admin/storages')
+    const res = await app.request('/api/storages')
     expect(res.status).toBe(401)
   })
 
@@ -33,14 +33,14 @@ describe('Admin Storages API', () => {
       body: JSON.stringify({ email: 'regular@example.com', password: 'password123456' }),
     })
     const freshHeaders = { Cookie: signInRes.headers.getSetCookie().join('; ') }
-    const res = await app.request('/api/admin/storages', { headers: freshHeaders })
+    const res = await app.request('/api/storages', { headers: freshHeaders })
     expect(res.status).toBe(403)
   })
 
   it('GET / returns empty list', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/storages', { headers })
+    const res = await app.request('/api/storages', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[]; total: number }
     expect(body).toEqual({ items: [], total: 0 })
@@ -49,7 +49,7 @@ describe('Admin Storages API', () => {
   it('POST / creates a storage [spec: storages/create]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/storages', {
+    const res = await app.request('/api/storages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(validStorage),
@@ -70,7 +70,7 @@ describe('Admin Storages API', () => {
     const headers = await adminHeaders(app)
 
     for (let i = 0; i < FREE_STORAGE_LIMIT; i++) {
-      const res = await app.request('/api/admin/storages', {
+      const res = await app.request('/api/storages', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...validStorage, title: `Storage ${i}`, bucket: `bucket-${i}` }),
@@ -78,7 +78,7 @@ describe('Admin Storages API', () => {
       expect(res.status).toBe(201)
     }
 
-    const res = await app.request('/api/admin/storages', {
+    const res = await app.request('/api/storages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...validStorage, title: 'Storage overflow', bucket: 'bucket-overflow' }),
@@ -95,13 +95,13 @@ describe('Admin Storages API', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    await app.request('/api/admin/storages', {
+    await app.request('/api/storages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(validStorage),
     })
 
-    const res = await app.request('/api/admin/storages', { headers })
+    const res = await app.request('/api/storages', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.total).toBe(1)
@@ -113,14 +113,14 @@ describe('Admin Storages API', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const createRes = await app.request('/api/admin/storages', {
+    const createRes = await app.request('/api/storages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(validStorage),
     })
     const created = (await createRes.json()) as { id: string }
 
-    const res = await app.request(`/api/admin/storages/${created.id}`, { headers })
+    const res = await app.request(`/api/storages/${created.id}`, { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.id).toBe(created.id)
@@ -130,7 +130,7 @@ describe('Admin Storages API', () => {
   it('GET /:id returns 404 for missing storage', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/storages/nonexistent', { headers })
+    const res = await app.request('/api/storages/nonexistent', { headers })
     expect(res.status).toBe(404)
   })
 
@@ -138,14 +138,14 @@ describe('Admin Storages API', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const createRes = await app.request('/api/admin/storages', {
+    const createRes = await app.request('/api/storages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(validStorage),
     })
     const created = (await createRes.json()) as { id: string }
 
-    const res = await app.request(`/api/admin/storages/${created.id}`, {
+    const res = await app.request(`/api/storages/${created.id}`, {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Updated S3', status: 'disabled' }),
@@ -159,7 +159,7 @@ describe('Admin Storages API', () => {
   it('PUT /:id returns 404 for missing storage', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/storages/nonexistent', {
+    const res = await app.request('/api/storages/nonexistent', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Nope' }),
@@ -171,14 +171,14 @@ describe('Admin Storages API', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const createRes = await app.request('/api/admin/storages', {
+    const createRes = await app.request('/api/storages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(validStorage),
     })
     const created = (await createRes.json()) as { id: string }
 
-    const res = await app.request(`/api/admin/storages/${created.id}`, {
+    const res = await app.request(`/api/storages/${created.id}`, {
       method: 'DELETE',
       headers,
     })
@@ -190,7 +190,7 @@ describe('Admin Storages API', () => {
   it('DELETE /:id returns 404 for missing storage', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/storages/nonexistent', {
+    const res = await app.request('/api/storages/nonexistent', {
       method: 'DELETE',
       headers,
     })
@@ -201,7 +201,7 @@ describe('Admin Storages API', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const createRes = await app.request('/api/admin/storages', {
+    const createRes = await app.request('/api/storages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(validStorage),
@@ -214,7 +214,7 @@ describe('Admin Storages API', () => {
       VALUES ('m1', 'org-1', 'test-alias', 'test.txt', 'text/plain', ${created.id}, ${now}, ${now})
     `)
 
-    const res = await app.request(`/api/admin/storages/${created.id}`, {
+    const res = await app.request(`/api/storages/${created.id}`, {
       method: 'DELETE',
       headers,
     })

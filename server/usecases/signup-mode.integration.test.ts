@@ -142,7 +142,7 @@ describe('closed mode (non-Pro instance)', () => {
   })
 })
 
-// ─── PUT /api/system/options/auth_signup_mode ─────────────────────────────────
+// ─── PUT /api/site/options/auth_signup_mode ─────────────────────────────────
 
 describe('PUT auth_signup_mode via admin API', () => {
   async function adminHeaders(ctx: TestCtx) {
@@ -156,7 +156,7 @@ describe('PUT auth_signup_mode via admin API', () => {
   }
 
   async function putSignupMode(ctx: TestCtx, headers: Record<string, string>, value: string) {
-    return ctx.app.request('/api/system/options/auth_signup_mode', {
+    return ctx.app.request('/api/site/options/auth_signup_mode', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ value, public: true }),

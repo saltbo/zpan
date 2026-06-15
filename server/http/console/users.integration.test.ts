@@ -30,7 +30,7 @@ async function signUpUser(
 describe('Admin Users API', () => {
   it('returns 401 without auth [spec: users/auth-required]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/admin/users')
+    const res = await app.request('/api/users')
     expect(res.status).toBe(401)
   })
 
@@ -46,15 +46,15 @@ describe('Admin Users API', () => {
       body: JSON.stringify({ email: 'regular@example.com', password: 'password123456' }),
     })
     const freshHeaders = { Cookie: signInRes.headers.getSetCookie().join('; ') }
-    const res = await app.request('/api/admin/users', { headers: freshHeaders })
+    const res = await app.request('/api/users', { headers: freshHeaders })
     expect(res.status).toBe(403)
   })
 
-  it('GET /api/admin/users lists users with pagination [spec: users/list]', async () => {
+  it('GET /api/users lists users with pagination [spec: users/list]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/users', { headers })
+    const res = await app.request('/api/users', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.total).toBe(1)
@@ -63,7 +63,7 @@ describe('Admin Users API', () => {
     expect(body.items[0].orgName).toBeTruthy()
   })
 
-  it('GET /api/admin/users returns quota from the personal organization [spec: users/quota-personal-org]', async () => {
+  it('GET /api/users returns quota from the personal organization [spec: users/quota-personal-org]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'quota-list@example.com')
@@ -88,7 +88,7 @@ describe('Admin Users API', () => {
       sql`INSERT INTO member (id, organization_id, user_id, role) VALUES ('team-member', 'team-org', ${userId}, 'member')`,
     )
 
-    const res = await app.request('/api/admin/users?search=quota-list@example.com', { headers })
+    const res = await app.request('/api/users?search=quota-list@example.com', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
 
@@ -102,7 +102,7 @@ describe('Admin Users API', () => {
     })
   })
 
-  it('GET /api/admin/users computes quota total from active plan and extra storage entitlements [spec: users/quota-entitlements]', async () => {
+  it('GET /api/users computes quota total from active plan and extra storage entitlements [spec: users/quota-entitlements]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'quota-plan@example.com')
@@ -126,7 +126,7 @@ describe('Admin Users API', () => {
         ('ent-user-expired-storage', ${orgId}, 'storage', 'grant', 'test', 'expired-storage-pack', 9000, ${now}, ${now - 1}, 'active', '{"packageName":"Expired Pack"}', ${now}, ${now})
     `)
 
-    const res = await app.request('/api/admin/users?search=quota-plan@example.com', { headers })
+    const res = await app.request('/api/users?search=quota-plan@example.com', { headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
@@ -139,31 +139,69 @@ describe('Admin Users API', () => {
     })
   })
 
-  it('GET /api/admin/users filters by name, username, or email with filtered totals [spec: users/filter]', async () => {
+  it('GET /api/users filters by name, username, or email with filtered totals [spec: users/filter]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'match-email@example.com', 'Email Match')
     await signUpUser(app, 'username-target@example.com', 'Plain Name')
     await signUpUser(app, 'other@example.com', 'Other Person')
 
-    const byName = await app.request('/api/admin/users?search=email%20match', { headers })
+    const byName = await app.request('/api/users?search=email%20match', { headers })
     expect(byName.status).toBe(200)
     const byNameBody = (await byName.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(byNameBody.total).toBe(1)
     expect(byNameBody.items[0].email).toBe('match-email@example.com')
 
-    const byUsername = await app.request('/api/admin/users?search=username-target', { headers })
+    const byUsername = await app.request('/api/users?search=username-target', { headers })
     const byUsernameBody = (await byUsername.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(byUsernameBody.total).toBe(1)
     expect(byUsernameBody.items[0].email).toBe('username-target@example.com')
 
-    const byEmail = await app.request('/api/admin/users?search=other@example.com', { headers })
+    const byEmail = await app.request('/api/users?search=other@example.com', { headers })
     const byEmailBody = (await byEmail.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(byEmailBody.total).toBe(1)
     expect(byEmailBody.items[0].email).toBe('other@example.com')
   })
 
-  it('PATCH /api/admin/users/:id disables a user [spec: users/disable]', async () => {
+  it('GET /api/users/:id returns user detail for an admin', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'detail@example.com')
+    const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'detail@example.com'`)
+    const userId = rows[0].id
+
+    const res = await app.request(`/api/users/${userId}`, { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { id: string }
+    expect(body.id).toBe(userId)
+  })
+
+  it('GET /api/users/:id returns 404 for a missing user', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/users/nonexistent', { headers })
+    expect(res.status).toBe(404)
+  })
+
+  it('GET /api/users/:id/entitlements lists entitlements for an admin', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'entlist@example.com')
+    const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'entlist@example.com'`)
+    const userId = rows[0].id
+
+    const res = await app.request(`/api/users/${userId}/entitlements`, { headers })
+    expect(res.status).toBe(200)
+  })
+
+  it('GET /api/users/:id/entitlements returns 404 for a missing user', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/users/nonexistent/entitlements', { headers })
+    expect(res.status).toBe(404)
+  })
+
+  it('PATCH /api/users/:id disables a user [spec: users/disable]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -174,7 +212,7 @@ describe('Admin Users API', () => {
     const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'user2@example.com'`)
     const userId = users[0].id
 
-    const res = await app.request(`/api/admin/users/${userId}`, {
+    const res = await app.request(`/api/users/${userId}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'disabled' }),
@@ -188,10 +226,10 @@ describe('Admin Users API', () => {
     expect(updated[0].banned).toBe(1)
   })
 
-  it('PATCH /api/admin/users/:id rejects invalid status [spec: users/invalid-status]', async () => {
+  it('PATCH /api/users/:id rejects invalid status [spec: users/invalid-status]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/users/someid', {
+    const res = await app.request('/api/users/someid', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'invalid' }),
@@ -199,10 +237,10 @@ describe('Admin Users API', () => {
     expect(res.status).toBe(400)
   })
 
-  it('PATCH /api/admin/users/:id returns 404 for missing user [spec: users/patch-missing]', async () => {
+  it('PATCH /api/users/:id returns 404 for missing user [spec: users/patch-missing]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/users/nonexistent', {
+    const res = await app.request('/api/users/nonexistent', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'disabled' }),
@@ -210,7 +248,7 @@ describe('Admin Users API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /api/admin/users/:id deletes a user [spec: users/delete]', async () => {
+  it('DELETE /api/users/:id deletes a user [spec: users/delete]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -218,7 +256,7 @@ describe('Admin Users API', () => {
     const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'todelete@example.com'`)
     const userId = users[0].id
 
-    const res = await app.request(`/api/admin/users/${userId}`, {
+    const res = await app.request(`/api/users/${userId}`, {
       method: 'DELETE',
       headers,
     })
@@ -242,7 +280,7 @@ describe('Admin Users API', () => {
     const userId = users[0].id
 
     // Disable the user while they have an active session
-    await app.request(`/api/admin/users/${userId}`, {
+    await app.request(`/api/users/${userId}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'disabled' }),
@@ -255,17 +293,17 @@ describe('Admin Users API', () => {
     expect(body.error).toBe('Account disabled')
   })
 
-  it('DELETE /api/admin/users/:id returns 404 for missing user', async () => {
+  it('DELETE /api/users/:id returns 404 for missing user', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/users/nonexistent', {
+    const res = await app.request('/api/users/nonexistent', {
       method: 'DELETE',
       headers,
     })
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/admin/users/batch disables and enables users [spec: users/batch]', async () => {
+  it('PATCH /api/users disables and enables users [spec: users/batch]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'batch1@example.com')
@@ -275,7 +313,7 @@ describe('Admin Users API', () => {
     )
     const ids = users.map((row) => row.id)
 
-    const disable = await app.request('/api/admin/users/batch', {
+    const disable = await app.request('/api/users', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'disable', ids }),
@@ -285,7 +323,7 @@ describe('Admin Users API', () => {
     const disabled = await db.all<{ banned: number }>(sql`SELECT banned FROM user WHERE id IN (${ids[0]}, ${ids[1]})`)
     expect(disabled.every((row) => row.banned === 1)).toBe(true)
 
-    const enable = await app.request('/api/admin/users/batch', {
+    const enable = await app.request('/api/users', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'enable', ids }),
@@ -295,7 +333,7 @@ describe('Admin Users API', () => {
     expect(enabled.every((row) => row.banned === 0)).toBe(true)
   })
 
-  it('POST /api/admin/users/:id/entitlements grants storage entitlement for a personal org [spec: users/grant-entitlement]', async () => {
+  it('POST /api/users/:id/entitlements grants storage entitlement for a personal org [spec: users/grant-entitlement]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'grant-storage@example.com')
@@ -303,7 +341,7 @@ describe('Admin Users API', () => {
     const userId = users[0].id
     const orgs = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
 
-    const res = await app.request(`/api/admin/users/${userId}/entitlements`, {
+    const res = await app.request(`/api/users/${userId}/entitlements`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 123456, note: 'launch bonus' }),
@@ -326,13 +364,13 @@ describe('Admin Users API', () => {
     expect(entitlements).toEqual([{ bytes: 123456, entitlementType: 'grant', source: 'admin_grant' }])
   })
 
-  it('PATCH /api/admin/users/:id/entitlements/:eid updates an admin grant [spec: users/update-entitlement]', async () => {
+  it('PATCH /api/users/:id/entitlements/:eid updates an admin grant [spec: users/update-entitlement]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const user = (await signUpUser(app, 'edit-grant@example.com')) as { user: { id: string } }
     const userId = user.user.id
 
-    const grant = await app.request(`/api/admin/users/${userId}/entitlements`, {
+    const grant = await app.request(`/api/users/${userId}/entitlements`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 1000 }),
@@ -340,7 +378,7 @@ describe('Admin Users API', () => {
     const { entitlement } = (await grant.json()) as { entitlement: { id: string } }
 
     const expiresAt = '2030-01-01T00:00:00.000Z'
-    const res = await app.request(`/api/admin/users/${userId}/entitlements/${entitlement.id}`, {
+    const res = await app.request(`/api/users/${userId}/entitlements/${entitlement.id}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ bytes: 5000, expiresAt, note: 'bumped' }),
@@ -356,20 +394,20 @@ describe('Admin Users API', () => {
     expect(rows[0].expiresAt).toBe(new Date(expiresAt).getTime())
   })
 
-  it('DELETE /api/admin/users/:id/entitlements/:eid revokes an admin grant [spec: users/revoke-entitlement]', async () => {
+  it('DELETE /api/users/:id/entitlements/:eid revokes an admin grant [spec: users/revoke-entitlement]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const user = (await signUpUser(app, 'revoke-grant@example.com')) as { user: { id: string } }
     const userId = user.user.id
 
-    const grant = await app.request(`/api/admin/users/${userId}/entitlements`, {
+    const grant = await app.request(`/api/users/${userId}/entitlements`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 2000 }),
     })
     const { entitlement } = (await grant.json()) as { entitlement: { id: string } }
 
-    const res = await app.request(`/api/admin/users/${userId}/entitlements/${entitlement.id}`, {
+    const res = await app.request(`/api/users/${userId}/entitlements/${entitlement.id}`, {
       method: 'DELETE',
       headers,
     })
@@ -383,20 +421,20 @@ describe('Admin Users API', () => {
     expect(rows[0].status).toBe('revoked')
   })
 
-  it('PATCH /api/admin/users/:id/entitlements/:eid preserves unspecified fields', async () => {
+  it('PATCH /api/users/:id/entitlements/:eid preserves unspecified fields', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const user = (await signUpUser(app, 'patch-partial@example.com')) as { user: { id: string } }
     const userId = user.user.id
 
-    const grant = await app.request(`/api/admin/users/${userId}/entitlements`, {
+    const grant = await app.request(`/api/users/${userId}/entitlements`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 1000, expiresAt: '2030-01-01T00:00:00.000Z' }),
     })
     const { entitlement } = (await grant.json()) as { entitlement: { id: string } }
 
-    const bytesOnly = await app.request(`/api/admin/users/${userId}/entitlements/${entitlement.id}`, {
+    const bytesOnly = await app.request(`/api/users/${userId}/entitlements/${entitlement.id}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ bytes: 7000 }),
@@ -408,7 +446,7 @@ describe('Admin Users API', () => {
     expect(rows[0].bytes).toBe(7000)
     expect(rows[0].expiresAt).toBe(new Date('2030-01-01T00:00:00.000Z').getTime())
 
-    const expiryOnly = await app.request(`/api/admin/users/${userId}/entitlements/${entitlement.id}`, {
+    const expiryOnly = await app.request(`/api/users/${userId}/entitlements/${entitlement.id}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ expiresAt: null }),
@@ -421,7 +459,7 @@ describe('Admin Users API', () => {
     expect(rows[0].expiresAt).toBeNull()
   })
 
-  it('PATCH /api/admin/users/:id/entitlements/:eid handles a grant with no metadata', async () => {
+  it('PATCH /api/users/:id/entitlements/:eid handles a grant with no metadata', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'no-metadata-grant@example.com')
@@ -436,7 +474,7 @@ describe('Admin Users API', () => {
         ('ent-no-meta', ${orgs[0].id}, 'storage', 'grant', 'admin_grant', 'admin_grant:no-meta', 1000, ${now}, NULL, 'active', NULL, ${now}, ${now})
     `)
 
-    const res = await app.request(`/api/admin/users/${userId}/entitlements/ent-no-meta`, {
+    const res = await app.request(`/api/users/${userId}/entitlements/ent-no-meta`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ note: 'first note' }),
@@ -455,14 +493,14 @@ describe('Admin Users API', () => {
     const user = (await signUpUser(app, 'unknown-ent@example.com')) as { user: { id: string } }
     const userId = user.user.id
 
-    const patch = await app.request(`/api/admin/users/${userId}/entitlements/does-not-exist`, {
+    const patch = await app.request(`/api/users/${userId}/entitlements/does-not-exist`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ bytes: 1 }),
     })
     expect(patch.status).toBe(404)
 
-    const del = await app.request(`/api/admin/users/${userId}/entitlements/does-not-exist`, {
+    const del = await app.request(`/api/users/${userId}/entitlements/does-not-exist`, {
       method: 'DELETE',
       headers,
     })
@@ -477,21 +515,21 @@ describe('Admin Users API', () => {
     const userId = users[0].id
     await db.run(sql`DELETE FROM member WHERE user_id = ${userId}`)
 
-    const patch = await app.request(`/api/admin/users/${userId}/entitlements/any`, {
+    const patch = await app.request(`/api/users/${userId}/entitlements/any`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ bytes: 1 }),
     })
     expect(patch.status).toBe(404)
 
-    const del = await app.request(`/api/admin/users/${userId}/entitlements/any`, {
+    const del = await app.request(`/api/users/${userId}/entitlements/any`, {
       method: 'DELETE',
       headers,
     })
     expect(del.status).toBe(404)
   })
 
-  it('DELETE /api/admin/users/:id/entitlements/:eid rejects non-admin-grant sources [spec: users/entitlement-source-guard]', async () => {
+  it('DELETE /api/users/:id/entitlements/:eid rejects non-admin-grant sources [spec: users/entitlement-source-guard]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'free-plan-revoke@example.com')
@@ -502,7 +540,7 @@ describe('Admin Users API', () => {
       sql`SELECT id FROM org_quota_entitlements WHERE org_id = ${orgs[0].id} AND source = 'free_plan' LIMIT 1`,
     )
 
-    const res = await app.request(`/api/admin/users/${userId}/entitlements/${free[0].id}`, {
+    const res = await app.request(`/api/users/${userId}/entitlements/${free[0].id}`, {
       method: 'DELETE',
       headers,
     })
@@ -511,7 +549,7 @@ describe('Admin Users API', () => {
     expect(await res.json()).toEqual({ error: 'Only admin-granted entitlements can be modified' })
   })
 
-  it('PATCH /api/admin/users/:id/entitlements/:eid rejects non-admin-grant sources', async () => {
+  it('PATCH /api/users/:id/entitlements/:eid rejects non-admin-grant sources', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'free-plan-edit@example.com')
@@ -524,7 +562,7 @@ describe('Admin Users API', () => {
       sql`SELECT id FROM org_quota_entitlements WHERE org_id = ${orgId} AND source = 'free_plan' LIMIT 1`,
     )
 
-    const res = await app.request(`/api/admin/users/${userId}/entitlements/${free[0].id}`, {
+    const res = await app.request(`/api/users/${userId}/entitlements/${free[0].id}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ bytes: 9999 }),
@@ -534,12 +572,12 @@ describe('Admin Users API', () => {
     expect(await res.json()).toEqual({ error: 'Only admin-granted entitlements can be modified' })
   })
 
-  it('POST /api/admin/users/:id/entitlements rejects traffic grants', async () => {
+  it('POST /api/users/:id/entitlements rejects traffic grants', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const user = (await signUpUser(app, 'traffic-grant@example.com')) as { user: { id: string } }
 
-    const res = await app.request(`/api/admin/users/${user.user.id}/entitlements`, {
+    const res = await app.request(`/api/users/${user.user.id}/entitlements`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'traffic', bytes: 123456 }),
@@ -548,7 +586,7 @@ describe('Admin Users API', () => {
     expect(res.status).toBe(400)
   })
 
-  it('POST /api/admin/users/:id/entitlements fails when selected user has no personal org', async () => {
+  it('POST /api/users/:id/entitlements fails when selected user has no personal org', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'no-personal-org@example.com')
@@ -556,7 +594,7 @@ describe('Admin Users API', () => {
     const userId = users[0].id
     await db.run(sql`DELETE FROM member WHERE user_id = ${userId}`)
 
-    const res = await app.request(`/api/admin/users/${userId}/entitlements`, {
+    const res = await app.request(`/api/users/${userId}/entitlements`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 123456 }),
@@ -566,7 +604,7 @@ describe('Admin Users API', () => {
     expect(await res.json()).toEqual({ error: `Personal organization not found for user: ${userId}` })
   })
 
-  it('DELETE /api/admin/users/batch deletes selected users', async () => {
+  it('DELETE /api/users deletes selected users', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'delete1@example.com')
@@ -576,7 +614,7 @@ describe('Admin Users API', () => {
     )
     const ids = users.map((row) => row.id)
 
-    const res = await app.request('/api/admin/users/batch', {
+    const res = await app.request('/api/users', {
       method: 'DELETE',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),
@@ -591,7 +629,7 @@ describe('Admin Users API', () => {
   it('batch operations reject missing users instead of skipping them', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const patch = await app.request('/api/admin/users/batch', {
+    const patch = await app.request('/api/users', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'disable', ids: ['missing-user'] }),
@@ -599,7 +637,7 @@ describe('Admin Users API', () => {
     expect(patch.status).toBe(404)
     expect(await patch.json()).toEqual({ error: 'User not found: missing-user' })
 
-    const del = await app.request('/api/admin/users/batch', {
+    const del = await app.request('/api/users', {
       method: 'DELETE',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: ['missing-user'] }),
@@ -608,11 +646,11 @@ describe('Admin Users API', () => {
     expect(await del.json()).toEqual({ error: 'User not found: missing-user' })
   })
 
-  it('POST /api/admin/users/:id/entitlements rejects non-positive bytes', async () => {
+  it('POST /api/users/:id/entitlements rejects non-positive bytes', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const user = (await signUpUser(app, 'zero-grant@example.com')) as { user: { id: string } }
-    const res = await app.request(`/api/admin/users/${user.user.id}/entitlements`, {
+    const res = await app.request(`/api/users/${user.user.id}/entitlements`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 0 }),

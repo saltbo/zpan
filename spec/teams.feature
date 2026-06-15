@@ -2,12 +2,6 @@ Feature: Teams
   Users own a personal org and may belong to shared team orgs. Owners issue invite
   links; invitees join via token. Each org exposes an activity feed to its members.
 
-  @teams/invite-token-missing @api
-  Scenario: Reading invite info without a token fails
-    Given a request to the invite-info endpoint with no token
-    When it is called
-    Then the API responds 400
-
   @teams/invite-info-public @api
   Scenario: Invite info is readable without authentication
     Given a valid invite token

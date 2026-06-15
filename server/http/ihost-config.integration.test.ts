@@ -100,18 +100,18 @@ function isCfUrl(url: unknown): boolean {
 
 // ─── Unauthenticated access ────────────────────────────────────────────────────
 
-describe('GET /api/ihost/config — unauth', () => {
+describe('GET /api/image-hosting/config — unauth', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/ihost/config')
+    const res = await app.request('/api/image-hosting/config')
     expect(res.status).toBe(401)
   })
 })
 
-describe('PUT /api/ihost/config — unauth', () => {
+describe('PUT /api/image-hosting/config — unauth', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true }),
@@ -120,17 +120,17 @@ describe('PUT /api/ihost/config — unauth', () => {
   })
 })
 
-describe('DELETE /api/ihost/config — unauth', () => {
+describe('DELETE /api/image-hosting/config — unauth', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/ihost/config', { method: 'DELETE' })
+    const res = await app.request('/api/image-hosting/config', { method: 'DELETE' })
     expect(res.status).toBe(401)
   })
 })
 
 // ─── Role enforcement ──────────────────────────────────────────────────────────
 
-describe('/api/ihost/config — role enforcement', () => {
+describe('/api/image-hosting/config — role enforcement', () => {
   it('GET allows any org member [spec: image-hosting-config/read-any-member]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `member-get-${nanoid()}@example.com`)
@@ -138,7 +138,7 @@ describe('/api/ihost/config — role enforcement', () => {
     await insertMember(db, orgId, userId, 'member')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
   })
 
@@ -149,7 +149,7 @@ describe('/api/ihost/config — role enforcement', () => {
     await insertMember(db, orgId, userId, 'viewer')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
   })
 
@@ -160,7 +160,7 @@ describe('/api/ihost/config — role enforcement', () => {
     await insertMember(db, orgId, userId, 'member')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true }),
@@ -175,7 +175,7 @@ describe('/api/ihost/config — role enforcement', () => {
     await insertMember(db, orgId, userId, 'viewer')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true }),
@@ -190,7 +190,7 @@ describe('/api/ihost/config — role enforcement', () => {
     await insertMember(db, orgId, userId, 'editor')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true }),
@@ -205,7 +205,7 @@ describe('/api/ihost/config — role enforcement', () => {
     await insertMember(db, orgId, userId, 'member')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'DELETE',
       headers: { Cookie: updatedCookies },
     })
@@ -219,7 +219,7 @@ describe('/api/ihost/config — role enforcement', () => {
     await insertMember(db, orgId, userId, 'editor')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'DELETE',
       headers: { Cookie: updatedCookies },
     })
@@ -229,7 +229,7 @@ describe('/api/ihost/config — role enforcement', () => {
 
 // ─── GET ───────────────────────────────────────────────────────────────────────
 
-describe('GET /api/ihost/config', () => {
+describe('GET /api/image-hosting/config', () => {
   it('returns { enabled: false } when no config row exists [spec: image-hosting-config/default-disabled]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `get-no-config-${nanoid()}@example.com`)
@@ -237,7 +237,7 @@ describe('GET /api/ihost/config', () => {
     await insertMember(db, orgId, userId, 'owner')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { enabled: boolean }
     expect(body.enabled).toBe(false)
@@ -252,7 +252,7 @@ describe('GET /api/ihost/config', () => {
 
     await seedConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { domainStatus: string; dnsInstructions: null }
     expect(body.domainStatus).toBe('none')
@@ -272,7 +272,7 @@ describe('GET /api/ihost/config', () => {
       domainVerifiedAt: verifiedAt,
     })
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { domainStatus: string; domainVerifiedAt: number }
     expect(body.domainStatus).toBe('verified')
@@ -290,7 +290,7 @@ describe('GET /api/ihost/config', () => {
       refererAllowlist: JSON.stringify(['https://blog.example.com', 'https://app.example.com']),
     })
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { refererAllowlist: string[] }
     expect(body.refererAllowlist).toEqual(['https://blog.example.com', 'https://app.example.com'])
@@ -312,7 +312,7 @@ describe('GET /api/ihost/config', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
 
     const cfCalls = (fetchMock.mock.calls as unknown[][]).filter(([url]) => isCfUrl(url))
@@ -347,7 +347,7 @@ describe('GET /api/ihost/config', () => {
         ),
     )
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { domainStatus: string; domainVerifiedAt: number }
     expect(body.domainStatus).toBe('verified')
@@ -382,7 +382,7 @@ describe('GET /api/ihost/config', () => {
       ),
     )
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { domainStatus: string; domainVerifiedAt: null }
     expect(body.domainStatus).toBe('pending')
@@ -408,7 +408,7 @@ describe('GET /api/ihost/config', () => {
       domainVerifiedAt: verifiedAt,
     })
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { dnsInstructions: { recordType: string; target: string } }
     expect(body.dnsInstructions?.recordType).toBe('CNAME')
@@ -424,7 +424,7 @@ describe('GET /api/ihost/config', () => {
 
     await seedConfig(db, orgId, { customDomain: 'img.example.com' })
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { dnsInstructions: { recordType: string } }
     expect(body.dnsInstructions?.recordType).toBe('manual')
@@ -439,7 +439,7 @@ describe('GET /api/ihost/config', () => {
 
     await seedConfig(db, orgId, { customDomain: 'img.noenv.com', cfHostnameId: 'some-id' })
 
-    const res = await app.request('/api/ihost/config', { headers: { Cookie: updatedCookies } })
+    const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { domainStatus: string }
     expect(body.domainStatus).toBe('pending')
@@ -448,7 +448,7 @@ describe('GET /api/ihost/config', () => {
 
 // ─── PUT ───────────────────────────────────────────────────────────────────────
 
-describe('PUT /api/ihost/config', () => {
+describe('PUT /api/image-hosting/config', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
@@ -461,7 +461,7 @@ describe('PUT /api/ihost/config', () => {
     await insertMember(db, orgId, userId, 'owner')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true }),
@@ -482,7 +482,7 @@ describe('PUT /api/ihost/config', () => {
     await insertMember(db, orgId, userId, 'owner')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'img.example.com' }),
@@ -510,7 +510,7 @@ describe('PUT /api/ihost/config', () => {
       vi.fn().mockResolvedValue(new Response(JSON.stringify({ result: { id: 'cf-new-id-123' } }), { status: 200 })),
     )
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'img.cf-test.com' }),
@@ -544,7 +544,7 @@ describe('PUT /api/ihost/config', () => {
       }),
     )
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'new.example.com' }),
@@ -574,7 +574,7 @@ describe('PUT /api/ihost/config', () => {
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"errors":[{"code":1403}]}', { status: 409 })))
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'taken.example.com' }),
@@ -589,7 +589,7 @@ describe('PUT /api/ihost/config', () => {
     await insertMember(db, orgId, userId, 'owner')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'img.noclue.com' }),
@@ -610,7 +610,7 @@ describe('PUT /api/ihost/config', () => {
     await insertMember(db, orgId, userId, 'owner')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: false }),
@@ -625,7 +625,7 @@ describe('PUT /api/ihost/config', () => {
     await insertMember(db, orgId, userId, 'owner')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'zpan.example.com' }),
@@ -640,7 +640,7 @@ describe('PUT /api/ihost/config', () => {
     await insertMember(db, orgId, userId, 'owner')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, refererAllowlist: ['https://foo.com/path'] }),
@@ -655,7 +655,7 @@ describe('PUT /api/ihost/config', () => {
     await insertMember(db, orgId, userId, 'owner')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -677,7 +677,7 @@ describe('PUT /api/ihost/config', () => {
 
     await seedConfig(db, orgId, { refererAllowlist: JSON.stringify(['https://old.com']) })
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, refererAllowlist: null }),
@@ -694,13 +694,13 @@ describe('PUT /api/ihost/config', () => {
     await insertMember(db, orgId, userId, 'owner')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    await app.request('/api/ihost/config', {
+    await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true }),
     })
 
-    const res2 = await app.request('/api/ihost/config', {
+    const res2 = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, refererAllowlist: ['https://updated.com'] }),
@@ -719,7 +719,7 @@ describe('PUT /api/ihost/config', () => {
 
     await seedConfig(db, orgId, { customDomain: 'old.example.com' })
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: null }),
@@ -750,7 +750,7 @@ describe('PUT /api/ihost/config', () => {
     await seedConfig(db, orgId1, { customDomain: 'shared.example.com' })
 
     // Second org tries to register the same domain via API
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: cookies2, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'shared.example.com' }),
@@ -772,7 +772,7 @@ describe('PUT /api/ihost/config', () => {
     // No existing config row — triggers INSERT path
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Internal Server Error', { status: 500 })))
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'img.cf-insert-err.com' }),
@@ -804,7 +804,7 @@ describe('PUT /api/ihost/config', () => {
       }),
     )
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'new.warn.com' }),
@@ -841,7 +841,7 @@ describe('PUT /api/ihost/config', () => {
       }),
     )
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'new.update-err.com' }),
@@ -870,7 +870,7 @@ describe('PUT /api/ihost/config', () => {
     await seedConfig(db, orgId2, { customDomain: 'other.example.com' })
 
     // Org2 attempts to UPDATE its domain to org1's already-claimed domain
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'PUT',
       headers: { Cookie: cookies2, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, customDomain: 'claimed.example.com' }),
@@ -881,7 +881,7 @@ describe('PUT /api/ihost/config', () => {
 
 // ─── DELETE ────────────────────────────────────────────────────────────────────
 
-describe('DELETE /api/ihost/config', () => {
+describe('DELETE /api/image-hosting/config', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
@@ -896,7 +896,7 @@ describe('DELETE /api/ihost/config', () => {
 
     await seedConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'DELETE',
       headers: { Cookie: updatedCookies },
     })
@@ -913,7 +913,7 @@ describe('DELETE /api/ihost/config', () => {
     await insertMember(db, orgId, userId, 'owner')
     const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'DELETE',
       headers: { Cookie: updatedCookies },
     })
@@ -935,7 +935,7 @@ describe('DELETE /api/ihost/config', () => {
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })))
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'DELETE',
       headers: { Cookie: updatedCookies },
     })
@@ -966,7 +966,7 @@ describe('DELETE /api/ihost/config', () => {
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Forbidden', { status: 403 })))
 
-    const res = await app.request('/api/ihost/config', {
+    const res = await app.request('/api/image-hosting/config', {
       method: 'DELETE',
       headers: { Cookie: updatedCookies },
     })
@@ -1013,7 +1013,7 @@ describe('DELETE /api/ihost/config', () => {
       createdAt: new Date(),
     })
 
-    await app.request('/api/ihost/config', {
+    await app.request('/api/image-hosting/config', {
       method: 'DELETE',
       headers: { Cookie: updatedCookies },
     })

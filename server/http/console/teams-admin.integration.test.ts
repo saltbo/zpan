@@ -53,7 +53,7 @@ async function userId(db: TestDb, email: string): Promise<string> {
 describe('Admin Teams API', () => {
   it('requires admin [spec: teams-admin/admin-only]', async () => {
     const { app } = await createTestApp()
-    const noAuth = await app.request('/api/admin/teams')
+    const noAuth = await app.request('/api/teams')
     expect(noAuth.status).toBe(401)
 
     // First sign-up becomes admin; a later sign-up is a plain member.
@@ -65,7 +65,7 @@ describe('Admin Teams API', () => {
       body: JSON.stringify({ email: 'plain@example.com', password: 'password123456' }),
     })
     const headers = { Cookie: signIn.headers.getSetCookie().join('; ') }
-    const forbidden = await app.request('/api/admin/teams', { headers })
+    const forbidden = await app.request('/api/teams', { headers })
     expect(forbidden.status).toBe(403)
   })
 
@@ -76,7 +76,7 @@ describe('Admin Teams API', () => {
     await seedTeam(db, { id: 'team-a', name: 'Alpha', quota: 20971520, ownerId: adminId, memberIds: [adminId] })
     await seedTeam(db, { id: 'team-b', name: 'Beta' }) // unlimited, no members
 
-    const res = await app.request('/api/admin/teams', { headers })
+    const res = await app.request('/api/teams', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
 
@@ -100,7 +100,7 @@ describe('Admin Teams API', () => {
     const headers = await adminHeaders(app)
     await seedTeam(db, { id: 'team-x', name: 'Detail', quota: 10485760 })
 
-    const res = await app.request('/api/admin/teams/team-x', { headers })
+    const res = await app.request('/api/teams/team-x', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { id: string; name: string; quotaTotal: number }
     expect(body.id).toBe('team-x')
@@ -112,13 +112,13 @@ describe('Admin Teams API', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const missing = await app.request('/api/admin/teams/nope', { headers })
+    const missing = await app.request('/api/teams/nope', { headers })
     expect(missing.status).toBe(404)
 
     const personalOrg = await db.all<{ id: string }>(
       sql`SELECT id FROM organization WHERE slug LIKE 'personal-%' LIMIT 1`,
     )
-    const personal = await app.request(`/api/admin/teams/${personalOrg[0].id}`, { headers })
+    const personal = await app.request(`/api/teams/${personalOrg[0].id}`, { headers })
     expect(personal.status).toBe(404)
   })
 })
@@ -129,7 +129,7 @@ describe('Admin Team Entitlements API', () => {
     const headers = await adminHeaders(app)
     await seedTeam(db, { id: 'team-q1', name: 'Quota Team' })
 
-    const grant = await app.request('/api/admin/teams/team-q1/entitlements', {
+    const grant = await app.request('/api/teams/team-q1/entitlements', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 1024, note: 'starter' }),
@@ -139,23 +139,23 @@ describe('Admin Team Entitlements API', () => {
     expect(granted.orgId).toBe('team-q1')
     expect(granted.entitlement.bytes).toBe(1024)
 
-    const list = await app.request('/api/admin/teams/team-q1/entitlements', { headers })
+    const list = await app.request('/api/teams/team-q1/entitlements', { headers })
     expect(list.status).toBe(200)
     const listed = (await list.json()) as { items: Array<{ id: string; status: string }> }
     expect(listed.items).toHaveLength(1)
     expect(listed.items[0].status).toBe('active')
 
     // Effective quota (overview endpoint) reflects the grant
-    const quotas = await app.request('/api/admin/quotas', { headers })
+    const quotas = await app.request('/api/quotas', { headers })
     const quotasBody = (await quotas.json()) as { items: Array<{ orgId: string; entitlementQuota: number }> }
     expect(quotasBody.items.find((item) => item.orgId === 'team-q1')?.entitlementQuota).toBe(1024)
 
-    const revoke = await app.request(`/api/admin/teams/team-q1/entitlements/${granted.entitlement.id}`, {
+    const revoke = await app.request(`/api/teams/team-q1/entitlements/${granted.entitlement.id}`, {
       method: 'DELETE',
       headers,
     })
     expect(revoke.status).toBe(200)
-    const afterRevoke = await app.request('/api/admin/teams/team-q1/entitlements', { headers })
+    const afterRevoke = await app.request('/api/teams/team-q1/entitlements', { headers })
     const afterBody = (await afterRevoke.json()) as { items: Array<{ status: string }> }
     expect(afterBody.items[0].status).toBe('revoked')
   })
@@ -165,14 +165,14 @@ describe('Admin Team Entitlements API', () => {
     const headers = await adminHeaders(app)
     await seedTeam(db, { id: 'team-q2', name: 'Quota Team 2' })
 
-    const grant = await app.request('/api/admin/teams/team-q2/entitlements', {
+    const grant = await app.request('/api/teams/team-q2/entitlements', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 1024 }),
     })
     const granted = (await grant.json()) as { entitlement: { id: string } }
 
-    const update = await app.request(`/api/admin/teams/team-q2/entitlements/${granted.entitlement.id}`, {
+    const update = await app.request(`/api/teams/team-q2/entitlements/${granted.entitlement.id}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ bytes: 4096 }),
@@ -185,7 +185,7 @@ describe('Admin Team Entitlements API', () => {
   it('returns 404 for an unknown org and 403 for non-admin callers [spec: teams-admin/entitlement-guards]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const missing = await app.request('/api/admin/teams/no-such-org/entitlements', { headers })
+    const missing = await app.request('/api/teams/no-such-org/entitlements', { headers })
     expect(missing.status).toBe(404)
 
     await authedHeaders(app, 'plain@example.com')
@@ -195,7 +195,7 @@ describe('Admin Team Entitlements API', () => {
       body: JSON.stringify({ email: 'plain@example.com', password: 'password123456' }),
     })
     const plainHeaders = { Cookie: signIn.headers.getSetCookie().join('; ') }
-    const forbidden = await app.request('/api/admin/teams/no-such-org/entitlements', { headers: plainHeaders })
+    const forbidden = await app.request('/api/teams/no-such-org/entitlements', { headers: plainHeaders })
     expect(forbidden.status).toBe(403)
   })
 })

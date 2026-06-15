@@ -126,7 +126,7 @@ async function insertImageHosting(
 
 // ─── POST /images — content type handling ────────────────────────────────────
 
-describe('POST /api/ihost/images (content type handling)', () => {
+describe('POST /api/image-hosting/images (content type handling)', () => {
   it('returns 400 for application/json without base64 file field [spec: image-hosting/json-missing-file]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
@@ -134,7 +134,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
@@ -147,7 +147,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
   it('returns 401 for application/json without any auth [spec: image-hosting/json-auth]', async () => {
     const { app } = await createTestApp()
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file: 'abc' }),
@@ -162,7 +162,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'text/plain' },
       body: 'hello',
@@ -180,7 +180,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
     // Minimal 1x1 white PNG as base64
     const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ file: pngBase64 }),
@@ -200,7 +200,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
 
     const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ file: pngBase64, path: 'blog/hero.png' }),
@@ -215,7 +215,7 @@ describe('POST /api/ihost/images (content type handling)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ file: '!!!not-base64!!!' }),
@@ -228,10 +228,10 @@ describe('POST /api/ihost/images (content type handling)', () => {
 
 // ─── POST /images/presign (JSON two-stage) ────────────────────────────────────
 
-describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
+describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
@@ -248,7 +248,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     await insertImageHostingConfig(db, orgId)
 
     const key = await createTestApiKey(auth, orgId, userId)
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
@@ -261,7 +261,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     await insertStorage(db)
     const headers = await authedHeaders(app)
 
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
@@ -278,7 +278,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
@@ -295,7 +295,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'blog/2026/shot.png', mime: 'image/png', size: 2048 }),
@@ -316,7 +316,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: '../etc/passwd.png', mime: 'image/png', size: 1024 }),
@@ -333,7 +333,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'a/b/c/d/e/f.png', mime: 'image/png', size: 1024 }),
@@ -352,7 +352,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'icon.svg', mime: 'image/svg+xml', size: 512 }),
@@ -368,7 +368,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'doc.pdf', mime: 'application/pdf', size: 1024 }),
@@ -383,7 +383,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'big.png', mime: 'image/png', size: 21 * 1024 * 1024 }),
@@ -398,7 +398,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res1 = await app.request('/api/ihost/images/presign', {
+    const res1 = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'shot.png', mime: 'image/png', size: 1024 }),
@@ -406,7 +406,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(res1.status).toBe(201)
 
     // Same path — should auto-suffix
-    const res2 = await app.request('/api/ihost/images/presign', {
+    const res2 = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'shot.png', mime: 'image/png', size: 1024 }),
@@ -424,7 +424,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ mime: 'image/png' }), // missing path and size
@@ -439,7 +439,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/presign', {
+    const res = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'a//b.png', mime: 'image/png', size: 1024 }),
@@ -461,7 +461,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     formData.append('file', new File([new Uint8Array(50)], 'test.png', { type: 'image/png' }))
     formData.append('path', '/absolute/path.png') // starts with /
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -483,7 +483,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     formData.append('file', new File([new Uint8Array(50)], 'test.png', { type: 'image/png' }))
     formData.append('path', 'folder/') // ends with /
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -505,7 +505,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     formData.append('file', new File([new Uint8Array(50)], 'test.png', { type: 'image/png' }))
     formData.append('path', 'images/$bad.png') // $ not in [a-zA-Z0-9._/-]
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -527,7 +527,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     // Filename 'blob' triggers deriveDefaultPath's nanoid fallback
     formData.append('file', new File([new Uint8Array(50)], 'blob', { type: 'image/png' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -550,7 +550,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     formData.append('file', new File([new Uint8Array(50)], 'test.png', { type: 'image/png' }))
     formData.append('path', veryLongPath)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -564,7 +564,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
 
 // ─── POST multipart stream-proxy ─────────────────────────────────────────────
 
-describe('POST /api/ihost/images (multipart)', () => {
+describe('POST /api/image-hosting/images (multipart)', () => {
   it('returns 201 with tool response on happy path, R2 put called [spec: image-hosting/multipart-upload]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
@@ -575,7 +575,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     const formData = new FormData()
     formData.append('file', new File([new Uint8Array(100)], 'test.png', { type: 'image/png' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -603,7 +603,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     formData.append('file', new File([new Uint8Array(100)], 'active.png', { type: 'image/png' }))
     formData.append('path', 'check/active.png')
 
-    await app.request('/api/ihost/images', {
+    await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -625,7 +625,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     const formData = new FormData()
     formData.append('file', new File(['<svg/>'], 'icon.svg', { type: 'image/svg+xml' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -644,7 +644,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     const formData = new FormData()
     formData.append('file', new File([bigData], 'big.png', { type: 'image/png' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -664,7 +664,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     const boundary = '----FormBoundary'
     const bodyText = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="x.png"\r\nContent-Type: image/png\r\n\r\nXX\r\n--${boundary}--`
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers: {
         ...headers,
@@ -690,7 +690,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     formData.append('file', new File([new Uint8Array(100)], 'photo.png', { type: 'image/png' }))
     formData.append('path', 'blog/2026/04/photo.png')
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -710,7 +710,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     const formData = new FormData()
     formData.append('file', new File([new Uint8Array(100)], 'shot.png', { type: 'image/png' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -736,7 +736,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     formData.append('path', 'fail/upload.png')
 
     // Hono catches the thrown error and returns 500
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -769,7 +769,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     const formData = new FormData()
     formData.append('file', new File([new Uint8Array(100)], 'apikey.png', { type: 'image/png' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       body: formData,
       headers: { Authorization: `Bearer ${key}` },
@@ -787,7 +787,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     const formData = new FormData()
     formData.append('file', new File([new Uint8Array(100)], 'doc.pdf', { type: 'application/pdf' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -808,7 +808,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     // Simulate uPic/PicGo sending a .png file with octet-stream MIME
     formData.append('file', new File([new Uint8Array(100)], 'test.png', { type: 'application/octet-stream' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -828,7 +828,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     const formData = new FormData()
     formData.append('file', new File([new Uint8Array(100)], 'photo.jpg', { type: '' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -846,7 +846,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     const formData = new FormData()
     formData.append('other', 'value') // no 'file' field
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -869,7 +869,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     const formData = new FormData()
     formData.append('file', new File([new Uint8Array(100)], 'big.png', { type: 'image/png' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: formData,
@@ -893,7 +893,7 @@ describe('POST /api/ihost/images (multipart)', () => {
     await insertImageHosting(db, orgId, { path: 'retry.png' })
     await insertImageHosting(db, orgId, { path: 'retry-8000.png' })
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       headers,
       body: (() => {
@@ -912,7 +912,7 @@ describe('POST /api/ihost/images (multipart)', () => {
 
 // ─── PATCH action=confirm ────────────────────────────────────────────────────
 
-describe('PATCH /api/ihost/images/:id (confirm)', () => {
+describe('PUT /api/image-hosting/images/:id/status (confirm)', () => {
   it('transitions draft to active and increments quota', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
@@ -920,17 +920,16 @@ describe('PATCH /api/ihost/images/:id (confirm)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const createRes = await app.request('/api/ihost/images/presign', {
+    const createRes = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'confirm-test.png', mime: 'image/png', size: 512 }),
     })
     const { id } = (await createRes.json()) as { id: string }
 
-    const patchRes = await app.request(`/api/ihost/images/${id}`, {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+    const patchRes = await app.request(`/api/image-hosting/images/${id}/status`, {
+      method: 'PUT',
+      headers,
     })
     expect(patchRes.status).toBe(200)
     const body = (await patchRes.json()) as Record<string, unknown>
@@ -946,10 +945,9 @@ describe('PATCH /api/ihost/images/:id (confirm)', () => {
 
     const { id } = await insertImageHosting(db, orgId, { status: 'active' })
 
-    const res = await app.request(`/api/ihost/images/${id}`, {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+    const res = await app.request(`/api/image-hosting/images/${id}/status`, {
+      method: 'PUT',
+      headers,
     })
     expect(res.status).toBe(404)
   })
@@ -961,10 +959,9 @@ describe('PATCH /api/ihost/images/:id (confirm)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/nonexistent', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+    const res = await app.request('/api/image-hosting/images/nonexistent/status', {
+      method: 'PUT',
+      headers,
     })
     expect(res.status).toBe(404)
   })
@@ -979,7 +976,7 @@ describe('PATCH /api/ihost/images/:id (confirm)', () => {
     // Lower storage quota to 50 bytes so a 100-byte image exceeds it.
     await setStoragePlanEntitlement(db, orgId, 50)
 
-    const createRes = await app.request('/api/ihost/images/presign', {
+    const createRes = await app.request('/api/image-hosting/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'quota-test.png', mime: 'image/png', size: 100 }),
@@ -988,10 +985,9 @@ describe('PATCH /api/ihost/images/:id (confirm)', () => {
     const { id } = (await createRes.json()) as { id: string }
 
     // Confirm should fail — size (100) > quota (50)
-    const patchRes = await app.request(`/api/ihost/images/${id}`, {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+    const patchRes = await app.request(`/api/image-hosting/images/${id}/status`, {
+      method: 'PUT',
+      headers,
     })
     expect(patchRes.status).toBe(422)
     const body = (await patchRes.json()) as Record<string, unknown>
@@ -1001,10 +997,10 @@ describe('PATCH /api/ihost/images/:id (confirm)', () => {
 
 // ─── GET list ────────────────────────────────────────────────────────────────
 
-describe('GET /api/ihost/images', () => {
+describe('GET /api/image-hosting/images', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/ihost/images')
+    const res = await app.request('/api/image-hosting/images')
     expect(res.status).toBe(401)
   })
 
@@ -1015,7 +1011,7 @@ describe('GET /api/ihost/images', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', { headers })
+    const res = await app.request('/api/image-hosting/images', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[]; nextCursor: unknown }
     expect(body.items).toEqual([])
@@ -1033,7 +1029,7 @@ describe('GET /api/ihost/images', () => {
     await insertImageHosting(db, orgId, { path: 'blog/2026/shot2.png' })
     await insertImageHosting(db, orgId, { path: 'avatars/user1.png' })
 
-    const res = await app.request('/api/ihost/images?pathPrefix=blog/2026/', { headers })
+    const res = await app.request('/api/image-hosting/images?pathPrefix=blog/2026/', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ path: string }> }
     expect(body.items).toHaveLength(2)
@@ -1052,7 +1048,7 @@ describe('GET /api/ihost/images', () => {
     await insertImageHosting(db, orgId, { path: 'active.png', status: 'active' })
     await insertImageHosting(db, orgId, { path: 'draft.png', status: 'draft' })
 
-    const res = await app.request('/api/ihost/images', { headers })
+    const res = await app.request('/api/image-hosting/images', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ path: string }> }
     expect(body.items).toHaveLength(1)
@@ -1071,13 +1067,13 @@ describe('GET /api/ihost/images', () => {
       await insertImageHosting(db, orgId, { path: `cursor-item${i}.png` })
     }
 
-    const page1 = await app.request('/api/ihost/images?limit=2', { headers })
+    const page1 = await app.request('/api/image-hosting/images?limit=2', { headers })
     expect(page1.status).toBe(200)
     const body1 = (await page1.json()) as { items: unknown[]; nextCursor: string | null }
     expect(body1.items).toHaveLength(2)
     expect(body1.nextCursor).toBeTruthy()
 
-    const page2 = await app.request(`/api/ihost/images?limit=2&cursor=${body1.nextCursor}`, { headers })
+    const page2 = await app.request(`/api/image-hosting/images?limit=2&cursor=${body1.nextCursor}`, { headers })
     expect(page2.status).toBe(200)
     const body2 = (await page2.json()) as { items: unknown[]; nextCursor: string | null }
     expect(body2.items).toHaveLength(1)
@@ -1087,7 +1083,7 @@ describe('GET /api/ihost/images', () => {
 
 // ─── GET detail ──────────────────────────────────────────────────────────────
 
-describe('GET /api/ihost/images/:id', () => {
+describe('GET /api/image-hosting/images/:id', () => {
   it("returns 404 for another org's image (org isolation)", async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
@@ -1105,7 +1101,7 @@ describe('GET /api/ihost/images/:id', () => {
     `)
     await insertImageHosting(db, otherOrgId, { id: 'cross-org-img' })
 
-    const res = await app.request('/api/ihost/images/cross-org-img', { headers })
+    const res = await app.request('/api/image-hosting/images/cross-org-img', { headers })
     expect(res.status).toBe(404)
   })
 
@@ -1118,7 +1114,7 @@ describe('GET /api/ihost/images/:id', () => {
 
     const { id } = await insertImageHosting(db, orgId, { path: 'my-img.png' })
 
-    const res = await app.request(`/api/ihost/images/${id}`, { headers })
+    const res = await app.request(`/api/image-hosting/images/${id}`, { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.id).toBe(id)
@@ -1127,14 +1123,14 @@ describe('GET /api/ihost/images/:id', () => {
 
 // ─── DELETE ──────────────────────────────────────────────────────────────────
 
-describe('DELETE /api/ihost/images/:id', () => {
+describe('DELETE /api/image-hosting/images/:id', () => {
   it('returns 403 when image hosting is not configured', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
     // Do NOT call insertImageHostingConfig — config row will be absent
 
-    const res = await app.request('/api/ihost/images/fake-id', {
+    const res = await app.request('/api/image-hosting/images/fake-id', {
       method: 'DELETE',
       headers,
     })
@@ -1150,7 +1146,7 @@ describe('DELETE /api/ihost/images/:id', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images/nonexistent', {
+    const res = await app.request('/api/image-hosting/images/nonexistent', {
       method: 'DELETE',
       headers,
     })
@@ -1166,7 +1162,7 @@ describe('DELETE /api/ihost/images/:id', () => {
 
     const { id } = await insertImageHosting(db, orgId, { path: 'delete-me.png', size: 2048 })
 
-    const res = await app.request(`/api/ihost/images/${id}`, {
+    const res = await app.request(`/api/image-hosting/images/${id}`, {
       method: 'DELETE',
       headers,
     })
@@ -1175,7 +1171,7 @@ describe('DELETE /api/ihost/images/:id', () => {
     expect(S3Service.prototype.deleteObject).toHaveBeenCalledTimes(1)
 
     // Row gone — verify via GET
-    const checkRes = await app.request(`/api/ihost/images/${id}`, { headers })
+    const checkRes = await app.request(`/api/image-hosting/images/${id}`, { headers })
     expect(checkRes.status).toBe(404)
   })
 
@@ -1192,7 +1188,7 @@ describe('DELETE /api/ihost/images/:id', () => {
     // Remove the storage row so getStorage returns null
     await db.run(sql`DELETE FROM storages WHERE id = ${validStorage.id}`)
 
-    const res = await app.request(`/api/ihost/images/${id}`, {
+    const res = await app.request(`/api/image-hosting/images/${id}`, {
       method: 'DELETE',
       headers,
     })
@@ -1202,14 +1198,14 @@ describe('DELETE /api/ihost/images/:id', () => {
     expect(S3Service.prototype.deleteObject).not.toHaveBeenCalled()
 
     // DB row must be gone
-    const checkRes = await app.request(`/api/ihost/images/${id}`, { headers })
+    const checkRes = await app.request(`/api/image-hosting/images/${id}`, { headers })
     expect(checkRes.status).toBe(404)
   })
 })
 
-// ─── POST /api/ihost/images — API key auth error paths ───────────────────────
+// ─── POST /api/image-hosting/images — API key auth error paths ───────────────────────
 
-describe('POST /api/ihost/images — API key auth error paths', () => {
+describe('POST /api/image-hosting/images — API key auth error paths', () => {
   it('returns 401 when API key verification returns valid: false', async () => {
     const { app, db, auth } = await createTestApp()
     await insertStorage(db)
@@ -1230,7 +1226,7 @@ describe('POST /api/ihost/images — API key auth error paths', () => {
     const formData = new FormData()
     formData.append('file', new File([new Uint8Array(100)], 'test.png', { type: 'image/png' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       body: formData,
       headers: { Authorization: `Bearer ${key}` },
@@ -1255,7 +1251,7 @@ describe('POST /api/ihost/images — API key auth error paths', () => {
     const formData = new FormData()
     formData.append('file', new File([new Uint8Array(100)], 'test.png', { type: 'image/png' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       body: formData,
       headers: { Authorization: `Bearer ${key}` },
@@ -1278,7 +1274,7 @@ describe('POST /api/ihost/images — API key auth error paths', () => {
     const formData = new FormData()
     formData.append('file', new File([new Uint8Array(100)], 'test.png', { type: 'image/png' }))
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/image-hosting/images', {
       method: 'POST',
       body: formData,
       headers: { Authorization: `Bearer ${key}` },

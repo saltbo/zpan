@@ -114,10 +114,10 @@ describe('Object lifecycle audit events', () => {
     const { id: matterId } = (await createRes.json()) as { id: string }
 
     // Confirm upload
-    const confirmRes = await app.request(`/api/objects/${matterId}`, {
-      method: 'PATCH',
+    const confirmRes = await app.request(`/api/objects/${matterId}/status`, {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(confirmRes.status).toBe(200)
 
@@ -144,9 +144,8 @@ describe('Object lifecycle audit events', () => {
     const { id: matterId } = (await createRes.json()) as { id: string }
 
     const cancelRes = await app.request(`/api/objects/${matterId}`, {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel' }),
+      method: 'DELETE',
+      headers,
     })
     expect(cancelRes.status).toBe(200)
 
@@ -165,10 +164,10 @@ describe('Object lifecycle audit events', () => {
 
     await insertFile(db, orgId, { id: 'src-file', name: 'original.txt' })
 
-    const copyRes = await app.request('/api/objects/copy', {
+    const copyRes = await app.request('/api/objects/src-file/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'src-file', parent: '' }),
+      body: JSON.stringify({ parent: '' }),
     })
     expect(copyRes.status).toBe(201)
 
@@ -209,10 +208,10 @@ describe('Object lifecycle audit events', () => {
 
     await insertFile(db, orgId, { id: 'trash-file', name: 'file1.txt' })
 
-    const res = await app.request('/api/objects/trash-file', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/trash-file/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(res.status).toBe(200)
 
@@ -326,7 +325,7 @@ describe('Team lifecycle audit events', () => {
     const headers = await authedHeaders(app)
     const orgId = await getPersonalOrgId(db)
 
-    const res = await app.request(`/api/teams/${orgId}/invite-link`, {
+    const res = await app.request(`/api/teams/${orgId}/invite-links`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'viewer' }),
@@ -348,7 +347,7 @@ describe('Team lifecycle audit events', () => {
     const orgId = await getPersonalOrgId(db)
 
     // Create invite link as owner
-    const linkRes = await app.request(`/api/teams/${orgId}/invite-link`, {
+    const linkRes = await app.request(`/api/teams/${orgId}/invite-links`, {
       method: 'POST',
       headers: { ...ownerHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'viewer' }),
@@ -379,7 +378,7 @@ describe('System option audit events', () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
 
-    const res = await app.request('/api/system/options/site_title', {
+    const res = await app.request('/api/site/options/site_title', {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: 'My ZPan', public: true }),
@@ -398,13 +397,13 @@ describe('System option audit events', () => {
     const admin = await adminHeaders(app)
 
     // Create it first
-    await app.request('/api/system/options/temp_key', {
+    await app.request('/api/site/options/temp_key', {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: 'temp', public: false }),
     })
 
-    const res = await app.request('/api/system/options/temp_key', {
+    const res = await app.request('/api/site/options/temp_key', {
       method: 'DELETE',
       headers: admin,
     })
@@ -426,7 +425,7 @@ describe('Storage audit events', () => {
     await seedProLicense(db)
     const admin = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/storages', {
+    const res = await app.request('/api/storages', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -456,7 +455,7 @@ describe('Storage audit events', () => {
     await seedProLicense(db)
     const admin = await adminHeaders(app)
 
-    const createRes = await app.request('/api/admin/storages', {
+    const createRes = await app.request('/api/storages', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -471,7 +470,7 @@ describe('Storage audit events', () => {
     })
     const { id: storageId } = (await createRes.json()) as { id: string }
 
-    const updateRes = await app.request(`/api/admin/storages/${storageId}`, {
+    const updateRes = await app.request(`/api/storages/${storageId}`, {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Updated Storage' }),
@@ -490,7 +489,7 @@ describe('Storage audit events', () => {
     await seedProLicense(db)
     const admin = await adminHeaders(app)
 
-    const createRes = await app.request('/api/admin/storages', {
+    const createRes = await app.request('/api/storages', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -505,7 +504,7 @@ describe('Storage audit events', () => {
     })
     const { id: storageId } = (await createRes.json()) as { id: string }
 
-    const deleteRes = await app.request(`/api/admin/storages/${storageId}`, {
+    const deleteRes = await app.request(`/api/storages/${storageId}`, {
       method: 'DELETE',
       headers: admin,
     })
@@ -528,7 +527,7 @@ describe('Quota audit events', () => {
     const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'admin@example.com' LIMIT 1`)
     const userId = users[0].id
 
-    const res = await app.request(`/api/admin/users/${userId}/entitlements`, {
+    const res = await app.request(`/api/users/${userId}/entitlements`, {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 10737418240, note: 'audit grant' }),
@@ -553,7 +552,7 @@ describe('Invite code audit events', () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/invite-codes', {
+    const res = await app.request('/api/invite-codes', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ count: 3 }),
@@ -573,14 +572,14 @@ describe('Invite code audit events', () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
 
-    const createRes = await app.request('/api/admin/invite-codes', {
+    const createRes = await app.request('/api/invite-codes', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ count: 1 }),
     })
     const { codes } = (await createRes.json()) as { codes: Array<{ id: string }> }
 
-    const deleteRes = await app.request(`/api/admin/invite-codes/${codes[0].id}`, {
+    const deleteRes = await app.request(`/api/invite-codes/${codes[0].id}`, {
       method: 'DELETE',
       headers: admin,
     })
@@ -602,12 +601,12 @@ describe('User admin audit events', () => {
 
     // Create a non-admin user
     await authedHeaders(app, 'target@example.com')
-    const usersRes = await app.request('/api/admin/users', { headers: admin })
+    const usersRes = await app.request('/api/users', { headers: admin })
     const { items } = (await usersRes.json()) as { items: Array<{ id: string; email: string }> }
     const target = items.find((u) => u.email === 'target@example.com')
     expect(target).toBeDefined()
 
-    const res = await app.request(`/api/admin/users/${target!.id}`, {
+    const res = await app.request(`/api/users/${target!.id}`, {
       method: 'PATCH',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'disabled' }),
@@ -625,19 +624,19 @@ describe('User admin audit events', () => {
     const admin = await adminHeaders(app)
 
     await authedHeaders(app, 'reenable@example.com')
-    const usersRes = await app.request('/api/admin/users', { headers: admin })
+    const usersRes = await app.request('/api/users', { headers: admin })
     const { items } = (await usersRes.json()) as { items: Array<{ id: string; email: string }> }
     const target = items.find((u) => u.email === 'reenable@example.com')!
 
     // First disable
-    await app.request(`/api/admin/users/${target.id}`, {
+    await app.request(`/api/users/${target.id}`, {
       method: 'PATCH',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'disabled' }),
     })
 
     // Then re-enable
-    const res = await app.request(`/api/admin/users/${target.id}`, {
+    const res = await app.request(`/api/users/${target.id}`, {
       method: 'PATCH',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'active' }),
@@ -655,11 +654,11 @@ describe('User admin audit events', () => {
     const admin = await adminHeaders(app)
 
     await authedHeaders(app, 'todelete@example.com')
-    const usersRes = await app.request('/api/admin/users', { headers: admin })
+    const usersRes = await app.request('/api/users', { headers: admin })
     const { items } = (await usersRes.json()) as { items: Array<{ id: string; email: string }> }
     const target = items.find((u) => u.email === 'todelete@example.com')!
 
-    const res = await app.request(`/api/admin/users/${target.id}`, {
+    const res = await app.request(`/api/users/${target.id}`, {
       method: 'DELETE',
       headers: admin,
     })
@@ -886,7 +885,7 @@ describe('License refresh audit event', () => {
     const headers = await adminHeaders(app)
     await seedProLicense(db)
 
-    const res = await app.request('/api/licensing/refresh', {
+    const res = await app.request('/api/licensing/refresh-runs', {
       method: 'POST',
       headers,
     })
@@ -908,13 +907,13 @@ describe('Admin audit API with new event types', () => {
     const admin = await adminHeaders(app)
 
     // Seed a system_option_set event
-    await app.request('/api/system/options/audit_test_key', {
+    await app.request('/api/site/options/audit_test_key', {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: 'test', public: false }),
     })
 
-    const res = await app.request('/api/admin/audit?action=system_option_set', { headers: admin })
+    const res = await app.request('/api/audit-events?action=system_option_set', { headers: admin })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ action: string }>; total: number }
     expect(body.total).toBeGreaterThan(0)
@@ -927,13 +926,13 @@ describe('Admin audit API with new event types', () => {
     const admin = await adminHeaders(app)
 
     // Seed a system target type event
-    await app.request('/api/system/options/another_key', {
+    await app.request('/api/site/options/another_key', {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: 'value', public: false }),
     })
 
-    const res = await app.request('/api/admin/audit?targetType=system', { headers: admin })
+    const res = await app.request('/api/audit-events?targetType=system', { headers: admin })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ targetType: string }>; total: number }
     expect(body.total).toBeGreaterThan(0)
@@ -951,9 +950,9 @@ describe('Admin audit API with new event types', () => {
     // Create a folder (records 'create' event)
     await insertFile(db, orgId, { id: 'legacy-file', name: 'legacy.txt' })
 
-    await app.request('/api/admin/audit?action=upload', { headers: admin })
+    await app.request('/api/audit-events?action=upload', { headers: admin })
     // Upload events come from confirmUpload now but we can still filter on file create
-    const res2 = await app.request('/api/admin/audit?targetType=file', { headers: admin })
+    const res2 = await app.request('/api/audit-events?targetType=file', { headers: admin })
     expect(res2.status).toBe(200)
   })
 })

@@ -271,8 +271,16 @@ describe('background jobs API', () => {
     const completed = await createBackgroundJobRepo(db).create({ orgId, userId, type: 'archive_extract' })
     await createBackgroundJobRepo(db).update(orgId, completed.id, { status: 'completed' })
 
-    const canceledRes = await app.request(`/api/background-jobs/${queued.id}/cancel`, { method: 'POST', headers })
-    const rejectedRes = await app.request(`/api/background-jobs/${completed.id}/cancel`, { method: 'POST', headers })
+    const canceledRes = await app.request(`/api/background-jobs/${queued.id}/status`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+    const rejectedRes = await app.request(`/api/background-jobs/${completed.id}/status`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'canceled' }),
+    })
 
     expect(canceledRes.status).toBe(200)
     await expect(canceledRes.json()).resolves.toMatchObject({ id: queued.id, status: 'canceled' })
@@ -303,8 +311,8 @@ describe('background jobs API', () => {
       progress: { inputBytes: 128, fileCount: 4 },
     })
 
-    const retryRes = await app.request(`/api/background-jobs/${retryable.id}/retry`, { method: 'POST', headers })
-    const rejectedRes = await app.request(`/api/background-jobs/${notFailed.id}/retry`, { method: 'POST', headers })
+    const retryRes = await app.request(`/api/background-jobs/${retryable.id}/retries`, { method: 'POST', headers })
+    const rejectedRes = await app.request(`/api/background-jobs/${notFailed.id}/retries`, { method: 'POST', headers })
 
     expect(retryRes.status).toBe(201)
     const retried = (await retryRes.json()) as { id: string; retriedFromJobId: string; status: string }

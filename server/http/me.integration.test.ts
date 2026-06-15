@@ -17,7 +17,7 @@ function makeFile(type: string, bytes = 16): File {
   return new File([new Uint8Array(bytes)], `f.${type.split('/')[1]}`, { type })
 }
 
-describe('PUT /api/me/avatar', () => {
+describe('PUT /api/users/me/avatar', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(16)
@@ -27,14 +27,14 @@ describe('PUT /api/me/avatar', () => {
     const { app } = await createTestApp()
     const form = new FormData()
     form.set('file', makeFile('image/png'))
-    const res = await app.request('/api/me/avatar', { method: 'PUT', body: form })
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', body: form })
     expect(res.status).toBe(401)
   })
 
   it('returns 415 when Content-Type is not multipart [spec: avatar/multipart-required]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/me/avatar', {
+    const res = await app.request('/api/users/me/avatar', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ nope: true }),
@@ -47,7 +47,7 @@ describe('PUT /api/me/avatar', () => {
     const headers = await authedHeaders(app)
     const form = new FormData()
     form.set('notFile', 'x')
-    const res = await app.request('/api/me/avatar', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(400)
   })
 
@@ -57,7 +57,7 @@ describe('PUT /api/me/avatar', () => {
     const headers = await authedHeaders(app)
     const form = new FormData()
     form.set('file', makeFile('image/gif'))
-    const res = await app.request('/api/me/avatar', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(400)
   })
 
@@ -67,7 +67,7 @@ describe('PUT /api/me/avatar', () => {
     const headers = await authedHeaders(app)
     const form = new FormData()
     form.set('file', makeFile('image/png', 3 * 1024 * 1024))
-    const res = await app.request('/api/me/avatar', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(413)
   })
 
@@ -76,7 +76,7 @@ describe('PUT /api/me/avatar', () => {
     const headers = await authedHeaders(app)
     const form = new FormData()
     form.set('file', makeFile('image/png'))
-    const res = await app.request('/api/me/avatar', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(503)
   })
 
@@ -87,7 +87,7 @@ describe('PUT /api/me/avatar', () => {
     const form = new FormData()
     form.set('file', makeFile('image/webp'))
 
-    const res = await app.request('/api/me/avatar', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { url: string }
     expect(body.url).toContain('_system/avatars/')
@@ -105,19 +105,19 @@ describe('PUT /api/me/avatar', () => {
 
     const form1 = new FormData()
     form1.set('file', makeFile('image/png'))
-    const res1 = await app.request('/api/me/avatar', { method: 'PUT', headers, body: form1 })
+    const res1 = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form1 })
     const body1 = (await res1.json()) as { url: string }
 
     const form2 = new FormData()
     form2.set('file', makeFile('image/png'))
-    const res2 = await app.request('/api/me/avatar', { method: 'PUT', headers, body: form2 })
+    const res2 = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form2 })
     const body2 = (await res2.json()) as { url: string }
 
     expect(body1.url).toBe(body2.url)
   })
 })
 
-describe('DELETE /api/me/avatar', () => {
+describe('DELETE /api/users/me/avatar', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(S3Service.prototype, 'deleteObject').mockResolvedValue(undefined)
@@ -125,7 +125,7 @@ describe('DELETE /api/me/avatar', () => {
 
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/me/avatar', { method: 'DELETE' })
+    const res = await app.request('/api/users/me/avatar', { method: 'DELETE' })
     expect(res.status).toBe(401)
   })
 
@@ -135,7 +135,7 @@ describe('DELETE /api/me/avatar', () => {
     const headers = await authedHeaders(app)
     await db.run(sql`UPDATE user SET image = 'https://example.com/old.png'`)
 
-    const res = await app.request('/api/me/avatar', { method: 'DELETE', headers })
+    const res = await app.request('/api/users/me/avatar', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
 
     const rows = await db.all<{ image: string | null }>(sql`SELECT image FROM user LIMIT 1`)
@@ -149,7 +149,7 @@ describe('DELETE /api/me/avatar', () => {
     const headers = await authedHeaders(app)
     await db.run(sql`UPDATE user SET image = 'https://example.com/old.png'`)
 
-    const res = await app.request('/api/me/avatar', { method: 'DELETE', headers })
+    const res = await app.request('/api/users/me/avatar', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
     const rows = await db.all<{ image: string | null }>(sql`SELECT image FROM user LIMIT 1`)
     expect(rows[0]?.image).toBeNull()

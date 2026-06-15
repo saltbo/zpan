@@ -1,9 +1,10 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   createDownloadTaskSchema,
-  downloadTaskActionInputSchema,
+  downloadTaskAttemptSchema,
   downloadTaskPageSchema,
   downloadTaskSchema,
+  downloadTaskStatusUpdateSchema,
   listDownloadTasksQuerySchema,
   updateDownloadTaskSchema,
 } from '@shared/schemas'
@@ -84,23 +85,49 @@ const updateRoute = createRoute({
   },
 })
 
-const actionRoute = createRoute({
-  method: 'post',
-  path: '/{id}/actions',
+const taskErrorResponses = {
+  401: jsonResponse(errorSchema, 'Unauthorized'),
+  403: jsonResponse(errorSchema, 'Forbidden'),
+  404: jsonResponse(errorSchema, 'Not found'),
+  409: jsonResponse(errorSchema, 'Invalid task state'),
+}
+
+const statusRoute = createRoute({
+  method: 'put',
+  path: '/{id}/status',
   middleware: [requirePermission('remoteDownload', 'cancel')] as const,
   request: {
     params: z.object({ id: z.string() }),
-    body: { content: { 'application/json': { schema: downloadTaskActionInputSchema } }, required: true },
+    body: { content: { 'application/json': { schema: downloadTaskStatusUpdateSchema } }, required: true },
   },
   responses: {
-    200: jsonResponse(
-      z.union([downloadTaskSchema, z.object({ id: z.string(), deleted: z.literal(true) })]),
-      'Task action result',
-    ),
-    401: jsonResponse(errorSchema, 'Unauthorized'),
-    403: jsonResponse(errorSchema, 'Forbidden'),
-    404: jsonResponse(errorSchema, 'Not found'),
-    409: jsonResponse(errorSchema, 'Invalid task state'),
+    200: jsonResponse(downloadTaskSchema, 'Updated download task'),
+    ...taskErrorResponses,
+  },
+})
+
+const attemptRoute = createRoute({
+  method: 'post',
+  path: '/{id}/attempts',
+  middleware: [requirePermission('remoteDownload', 'cancel')] as const,
+  request: {
+    params: z.object({ id: z.string() }),
+    body: { content: { 'application/json': { schema: downloadTaskAttemptSchema } }, required: true },
+  },
+  responses: {
+    201: jsonResponse(downloadTaskSchema, 'New download attempt'),
+    ...taskErrorResponses,
+  },
+})
+
+const deleteRoute = createRoute({
+  method: 'delete',
+  path: '/{id}',
+  middleware: [requirePermission('remoteDownload', 'cancel')] as const,
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    200: jsonResponse(z.object({ id: z.string(), deleted: z.literal(true) }), 'Deleted download task'),
+    ...taskErrorResponses,
   },
 })
 
@@ -161,12 +188,30 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     const id = c.req.param('id') as string
     return downloadTaskResponse(c, async () => getDownloadTask(c.get('deps'), orgId, id))
   }) as never)
-  .openapi(actionRoute, (async (c: OpenAPIContext) => {
+  .openapi(statusRoute, (async (c: OpenAPIContext) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
     const id = c.req.param('id') as string
-    const { action } = c.req.valid('json') as z.infer<typeof downloadTaskActionInputSchema>
+    const { status } = c.req.valid('json') as z.infer<typeof downloadTaskStatusUpdateSchema>
+    const action = status === 'paused' ? 'pause' : status === 'queued' ? 'resume' : 'cancel'
     return downloadTaskResponse(c, async () => performDownloadTaskAction(c.get('deps'), orgId, id, action))
+  }) as never)
+  .openapi(attemptRoute, (async (c: OpenAPIContext) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
+    const id = c.req.param('id') as string
+    const { fresh } = c.req.valid('json') as z.infer<typeof downloadTaskAttemptSchema>
+    return downloadTaskResponse(
+      c,
+      async () => performDownloadTaskAction(c.get('deps'), orgId, id, fresh ? 'restart' : 'retry'),
+      201,
+    )
+  }) as never)
+  .openapi(deleteRoute, (async (c: OpenAPIContext) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
+    const id = c.req.param('id') as string
+    return downloadTaskResponse(c, async () => performDownloadTaskAction(c.get('deps'), orgId, id, 'delete'))
   }) as never)
   .openapi(updateRoute, (async (c: OpenAPIContext) => {
     const principal = c.get('principal')

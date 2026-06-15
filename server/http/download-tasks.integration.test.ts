@@ -130,7 +130,7 @@ async function registerDownloaderThroughDeviceLogin(
   expect(tokenRes.status).toBe(200)
   const token = (await tokenRes.json()) as { access_token: string }
 
-  const createDownloaderRes = await app.request('/api/admin/downloaders', {
+  const createDownloaderRes = await app.request('/api/downloaders', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token.access_token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, heartbeat }),
@@ -189,7 +189,7 @@ describe('Download tasks API integration', () => {
       'Content-Type': 'application/json',
     }
     expect(
-      await app.request('/api/downloader/heartbeat', {
+      await app.request('/api/downloaders/me/heartbeats', {
         method: 'POST',
         headers: downloaderHeaders,
         body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
@@ -210,7 +210,7 @@ describe('Download tasks API integration', () => {
     expect(task.status.state).toBe('assigned')
     expect(task.status.assignment?.downloaderId).toBe(createdDownloader.downloader.id)
 
-    const deleteRes = await app.request(`/api/admin/downloaders/${createdDownloader.downloader.id}`, {
+    const deleteRes = await app.request(`/api/downloaders/${createdDownloader.downloader.id}`, {
       method: 'DELETE',
       headers: admin,
     })
@@ -239,14 +239,14 @@ describe('Download tasks API integration', () => {
     }
 
     expect(
-      await app.request('/api/downloader/heartbeat', {
+      await app.request('/api/downloaders/me/heartbeats', {
         method: 'POST',
         headers: staleHeaders,
         body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
       }),
     ).toHaveProperty('status', 200)
     expect(
-      await app.request('/api/downloader/heartbeat', {
+      await app.request('/api/downloaders/me/heartbeats', {
         method: 'POST',
         headers: liveHeaders,
         body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
@@ -285,7 +285,7 @@ describe('Download tasks API integration', () => {
       'Content-Type': 'application/json',
     }
     expect(
-      await app.request('/api/downloader/heartbeat', {
+      await app.request('/api/downloaders/me/heartbeats', {
         method: 'POST',
         headers: downloaderHeaders,
         body: JSON.stringify({ ...heartbeat, currentTasks: heartbeat.maxConcurrentTasks }),
@@ -306,7 +306,7 @@ describe('Download tasks API integration', () => {
     expect(createdTask.status).toMatchObject({ state: 'queued', assignment: null })
 
     expect(
-      await app.request('/api/downloader/heartbeat', {
+      await app.request('/api/downloaders/me/heartbeats', {
         method: 'POST',
         headers: downloaderHeaders,
         body: JSON.stringify({ ...heartbeat, currentTasks: heartbeat.maxConcurrentTasks - 1 }),
@@ -326,7 +326,7 @@ describe('Download tasks API integration', () => {
     const admin = await adminHeaders(app)
     const staleDownloader = await registerDownloaderThroughDeviceLogin(app, 'admin-stale-downloader', admin)
     expect(
-      await app.request('/api/downloader/heartbeat', {
+      await app.request('/api/downloaders/me/heartbeats', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${staleDownloader.token}`,
@@ -343,7 +343,7 @@ describe('Download tasks API integration', () => {
       WHERE id = ${staleDownloader.downloader.id}
     `)
 
-    const listRes = await app.request('/api/admin/downloaders', { headers: admin })
+    const listRes = await app.request('/api/downloaders', { headers: admin })
     expect(listRes.status).toBe(200)
     const body = (await listRes.json()) as { items: Downloader[] }
     const listed = body.items.find((item) => item.id === staleDownloader.downloader.id)
@@ -361,7 +361,7 @@ describe('Download tasks API integration', () => {
       'Content-Type': 'application/json',
     }
     expect(
-      await app.request('/api/downloader/heartbeat', {
+      await app.request('/api/downloaders/me/heartbeats', {
         method: 'POST',
         headers: staleHeaders,
         body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
@@ -389,7 +389,7 @@ describe('Download tasks API integration', () => {
     `)
 
     const liveDownloader = await registerDownloaderThroughDeviceLogin(app, 'reassign-live-downloader', admin)
-    const liveHeartbeatRes = await app.request('/api/downloader/heartbeat', {
+    const liveHeartbeatRes = await app.request('/api/downloaders/me/heartbeats', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${liveDownloader.token}`,
@@ -416,7 +416,7 @@ describe('Download tasks API integration', () => {
       'Content-Type': 'application/json',
     }
 
-    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+    const heartbeatRes = await app.request('/api/downloaders/me/heartbeats', {
       method: 'POST',
       headers: downloaderHeaders,
       body: JSON.stringify({ ...heartbeat, currentTasks: 0, downloadBps: 128_000 }),
@@ -533,10 +533,10 @@ describe('Download tasks API integration', () => {
     expect(nestedObject.status).toBe('draft')
     expect(nestedObject.uploadUrl).toBe('https://presigned-upload.example.com')
 
-    const nestedConfirmRes = await app.request(`/api/objects/${nestedObject.id}`, {
-      method: 'PATCH',
+    const nestedConfirmRes = await app.request(`/api/objects/${nestedObject.id}/status`, {
+      method: 'PUT',
       headers: uploadHeaders,
-      body: JSON.stringify({ action: 'confirm', onConflict: 'fail' }),
+      body: JSON.stringify({ status: 'active', onConflict: 'fail' }),
     })
     expect(nestedConfirmRes.status).toBe(200)
 
@@ -586,17 +586,17 @@ describe('Download tasks API integration', () => {
     const parts = (await partsRes.json()) as { parts: Array<{ partNumber: number; url: string }> }
     expect(parts.parts).toEqual([{ partNumber: 1, url: 'https://presigned-part.example.com' }])
 
-    const completeUploadRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}`, {
-      method: 'PATCH',
+    const completeUploadRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}/status`, {
+      method: 'PUT',
       headers: uploadHeaders,
-      body: JSON.stringify({ action: 'complete', parts: [{ partNumber: 1, etag: 'etag-1' }] }),
+      body: JSON.stringify({ status: 'completed', parts: [{ partNumber: 1, etag: 'etag-1' }] }),
     })
     expect(completeUploadRes.status).toBe(200)
 
-    const confirmRes = await app.request(`/api/objects/${object.id}`, {
-      method: 'PATCH',
+    const confirmRes = await app.request(`/api/objects/${object.id}/status`, {
+      method: 'PUT',
       headers: uploadHeaders,
-      body: JSON.stringify({ action: 'confirm', onConflict: 'fail' }),
+      body: JSON.stringify({ status: 'active', onConflict: 'fail' }),
     })
     expect(confirmRes.status).toBe(200)
     const confirmed = (await confirmRes.json()) as { id: string; status: string }
@@ -672,7 +672,7 @@ describe('Download tasks API integration', () => {
       Authorization: `Bearer ${createdDownloader.token}`,
       'Content-Type': 'application/json',
     }
-    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+    const heartbeatRes = await app.request('/api/downloaders/me/heartbeats', {
       method: 'POST',
       headers: downloaderHeaders,
       body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
@@ -729,7 +729,7 @@ describe('Download tasks API integration', () => {
       Authorization: `Bearer ${createdDownloader.token}`,
       'Content-Type': 'application/json',
     }
-    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+    const heartbeatRes = await app.request('/api/downloaders/me/heartbeats', {
       method: 'POST',
       headers: downloaderHeaders,
       body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
@@ -879,7 +879,7 @@ describe('Download tasks API integration', () => {
       Authorization: `Bearer ${createdDownloader.token}`,
       'Content-Type': 'application/json',
     }
-    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+    const heartbeatRes = await app.request('/api/downloaders/me/heartbeats', {
       method: 'POST',
       headers: downloaderHeaders,
       body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
@@ -985,10 +985,10 @@ describe('Download tasks API integration', () => {
     expect(sessionRes.status).toBe(201)
     const session = (await sessionRes.json()) as { id: string }
 
-    const completeRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}`, {
-      method: 'PATCH',
+    const completeRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}/status`, {
+      method: 'PUT',
       headers,
-      body: JSON.stringify({ action: 'complete', parts: [{ partNumber: 1, etag: '"etag-1"' }] }),
+      body: JSON.stringify({ status: 'completed', parts: [{ partNumber: 1, etag: '"etag-1"' }] }),
     })
 
     expect(completeRes.status).toBe(502)
@@ -1006,7 +1006,7 @@ describe('Download tasks API integration', () => {
       Authorization: `Bearer ${createdDownloader.token}`,
       'Content-Type': 'application/json',
     }
-    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+    const heartbeatRes = await app.request('/api/downloaders/me/heartbeats', {
       method: 'POST',
       headers: downloaderHeaders,
       body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
@@ -1027,10 +1027,10 @@ describe('Download tasks API integration', () => {
     expect(createdTask.status.state).toBe('assigned')
     expect(createdTask.status.assignment?.downloaderId).toBe(createdDownloader.downloader.id)
 
-    const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
-      method: 'POST',
+    const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/status`, {
+      method: 'PUT',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'pause' }),
+      body: JSON.stringify({ status: 'paused' }),
     })
     expect(pauseRes.status).toBe(200)
     await expect(pauseRes.json()).resolves.toMatchObject({ status: { state: 'paused' } })
@@ -1050,18 +1050,18 @@ describe('Download tasks API integration', () => {
     expect(pausedProgressRes.status).toBe(409)
     await expect(pausedProgressRes.json()).resolves.toEqual({ error: 'Task is paused' })
 
-    const resumeRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
-      method: 'POST',
+    const resumeRes = await app.request(`/api/download-tasks/${createdTask.id}/status`, {
+      method: 'PUT',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'resume' }),
+      body: JSON.stringify({ status: 'queued' }),
     })
     expect(resumeRes.status).toBe(200)
     await expect(resumeRes.json()).resolves.toMatchObject({ status: { state: 'assigned' } })
 
-    const cancelRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
-      method: 'POST',
+    const cancelRes = await app.request(`/api/download-tasks/${createdTask.id}/status`, {
+      method: 'PUT',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel' }),
+      body: JSON.stringify({ status: 'canceled' }),
     })
     expect(cancelRes.status).toBe(200)
     await expect(cancelRes.json()).resolves.toMatchObject({ status: { state: 'canceling' } })
@@ -1092,10 +1092,9 @@ describe('Download tasks API integration', () => {
     expect(canceledCompleteRes.status).toBe(409)
     await expect(canceledCompleteRes.json()).resolves.toEqual({ error: 'Task is canceled' })
 
-    const deleteRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
-      method: 'POST',
+    const deleteRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'DELETE',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'delete' }),
     })
     expect(deleteRes.status).toBe(200)
     await expect(deleteRes.json()).resolves.toEqual({ id: createdTask.id, deleted: true })
@@ -1110,7 +1109,7 @@ describe('Download tasks API integration', () => {
       Authorization: `Bearer ${createdDownloader.token}`,
       'Content-Type': 'application/json',
     }
-    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+    const heartbeatRes = await app.request('/api/downloaders/me/heartbeats', {
       method: 'POST',
       headers: downloaderHeaders,
       body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
@@ -1169,10 +1168,10 @@ describe('Download tasks API integration', () => {
     })
     expect(resumedProgress.status.runtime?.message).toBeUndefined()
 
-    const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
-      method: 'POST',
+    const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/status`, {
+      method: 'PUT',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'pause' }),
+      body: JSON.stringify({ status: 'paused' }),
     })
     expect(pauseRes.status).toBe(200)
     await expect(pauseRes.json()).resolves.toMatchObject({ status: { state: 'pausing' } })
@@ -1202,7 +1201,7 @@ describe('Download tasks API integration', () => {
       Authorization: `Bearer ${createdDownloader.token}`,
       'Content-Type': 'application/json',
     }
-    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+    const heartbeatRes = await app.request('/api/downloaders/me/heartbeats', {
       method: 'POST',
       headers: downloaderHeaders,
       body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
@@ -1250,12 +1249,12 @@ describe('Download tasks API integration', () => {
       },
     })
 
-    const retryRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+    const retryRes = await app.request(`/api/download-tasks/${createdTask.id}/attempts`, {
       method: 'POST',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'retry' }),
+      body: JSON.stringify({ fresh: false }),
     })
-    expect(retryRes.status).toBe(200)
+    expect(retryRes.status).toBe(201)
     const retriedTask = (await retryRes.json()) as DownloadTask
     expect(retriedTask).toMatchObject({
       status: {
@@ -1288,12 +1287,12 @@ describe('Download tasks API integration', () => {
     })
     expect(task?.status.assignment?.uploadToken).toBeTruthy()
 
-    const restartRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+    const restartRes = await app.request(`/api/download-tasks/${createdTask.id}/attempts`, {
       method: 'POST',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restart' }),
+      body: JSON.stringify({ fresh: true }),
     })
-    expect(restartRes.status).toBe(200)
+    expect(restartRes.status).toBe(201)
     await expect(restartRes.json()).resolves.toMatchObject({
       status: {
         state: 'assigned',
@@ -1385,7 +1384,7 @@ describe('Download tasks API integration', () => {
       Authorization: `Bearer ${createdDownloader.token}`,
       'Content-Type': 'application/json',
     }
-    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+    const heartbeatRes = await app.request('/api/downloaders/me/heartbeats', {
       method: 'POST',
       headers: downloaderHeaders,
       body: JSON.stringify({ ...heartbeat, currentTasks: 1 }),
@@ -1411,10 +1410,10 @@ describe('Download tasks API integration', () => {
     })
     expect(downloadingRes.status).toBe(200)
 
-    const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
-      method: 'POST',
+    const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/status`, {
+      method: 'PUT',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'pause' }),
+      body: JSON.stringify({ status: 'paused' }),
     })
     expect(pauseRes.status).toBe(200)
     await expect(pauseRes.json()).resolves.toMatchObject({ status: { state: 'pausing' } })
@@ -1435,10 +1434,10 @@ describe('Download tasks API integration', () => {
     expect(pausedRes.status).toBe(200)
     await expect(pausedRes.json()).resolves.toMatchObject({ status: { state: 'paused' } })
 
-    const resumeRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
-      method: 'POST',
+    const resumeRes = await app.request(`/api/download-tasks/${createdTask.id}/status`, {
+      method: 'PUT',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'resume' }),
+      body: JSON.stringify({ status: 'queued' }),
     })
     expect(resumeRes.status).toBe(200)
     await expect(resumeRes.json()).resolves.toMatchObject({
@@ -1452,10 +1451,10 @@ describe('Download tasks API integration', () => {
     })
     expect(rerunRes.status).toBe(200)
 
-    const cancelRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
-      method: 'POST',
+    const cancelRes = await app.request(`/api/download-tasks/${createdTask.id}/status`, {
+      method: 'PUT',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel' }),
+      body: JSON.stringify({ status: 'canceled' }),
     })
     expect(cancelRes.status).toBe(200)
     await expect(cancelRes.json()).resolves.toMatchObject({ status: { state: 'canceling' } })
@@ -1478,7 +1477,7 @@ describe('Download tasks API integration', () => {
       Authorization: `Bearer ${createdDownloader.token}`,
       'Content-Type': 'application/json',
     }
-    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+    const heartbeatRes = await app.request('/api/downloaders/me/heartbeats', {
       method: 'POST',
       headers: downloaderHeaders,
       body: JSON.stringify({ ...heartbeat, currentTasks: 1 }),
@@ -1503,10 +1502,10 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ status: 'suspended' }),
     })
     expect(billingUpdateRes.status).toBe(200)
-    const billingPauseRes = await app.request(`/api/download-tasks/${billingTask.id}/actions`, {
-      method: 'POST',
+    const billingPauseRes = await app.request(`/api/download-tasks/${billingTask.id}/status`, {
+      method: 'PUT',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'pause' }),
+      body: JSON.stringify({ status: 'paused' }),
     })
     expect(billingPauseRes.status).toBe(409)
 
@@ -1517,10 +1516,10 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ status: 'uploading' }),
     })
     expect(uploadingUpdateRes.status).toBe(200)
-    const uploadingPauseRes = await app.request(`/api/download-tasks/${uploadingTask.id}/actions`, {
-      method: 'POST',
+    const uploadingPauseRes = await app.request(`/api/download-tasks/${uploadingTask.id}/status`, {
+      method: 'PUT',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'pause' }),
+      body: JSON.stringify({ status: 'paused' }),
     })
     expect(uploadingPauseRes.status).toBe(409)
   })
@@ -1542,10 +1541,9 @@ describe('Download tasks API integration', () => {
     const createdTask = (await createTaskRes.json()) as DownloadTask
     expect(createdTask.status.state).toBe('queued')
 
-    const deleteRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
-      method: 'POST',
+    const deleteRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'DELETE',
       headers: { ...user, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'delete' }),
     })
     expect(deleteRes.status).toBe(409)
     await expect(deleteRes.json()).resolves.toMatchObject({
@@ -1603,7 +1601,7 @@ describe('Downloaders — free plan limit', () => {
     admin: Record<string, string>,
     name: string,
   ) {
-    return app.request('/api/admin/downloaders', {
+    return app.request('/api/downloaders', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, heartbeat }),
