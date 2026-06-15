@@ -159,14 +159,14 @@ test.describe
 async function ensureCloudBinding(page: Page): Promise<CloudBusinessContext> {
   await unbindCurrentCloudBinding()
 
-  const pairing = await postJson<PairingInfo>(page, '/api/licensing/pair')
+  const pairing = await postJson<PairingInfo>(page, '/api/licensing/pairings')
   await approvePairingInCloud(pairing)
 
   let approved: PairingPollResult | null = null
   await expect
     .poll(
       async () => {
-        const result = await getJson<PairingPollResult>(page, `/api/licensing/pair/${pairing.code}/poll`)
+        const result = await getJson<PairingPollResult>(page, `/api/licensing/pairings/${pairing.code}`)
         if (result.status === 'approved') approved = result
         return result.status
       },
