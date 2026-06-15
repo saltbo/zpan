@@ -36,9 +36,7 @@ const HTTP_DIR = join(ROOT, 'server/http')
 // Handlers still containing direct deps.<port> access. Shrinks to empty as each
 // resource is converted to the usecase-per-resource convention. Paths are
 // repo-relative with forward slashes.
-const RATCHET: ReadonlySet<string> = new Set<string>([
-  'server/http/webdav.ts',
-])
+const RATCHET: ReadonlySet<string> = new Set<string>([])
 
 type Violation = { file: string; line: number; col: number; text: string }
 
