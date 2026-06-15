@@ -3,11 +3,11 @@ import { createLicenseBindingRepo } from '../adapters/repos/license-binding.js'
 import { cloudTrafficReports } from '../db/schema.js'
 import { createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
 
-describe('GET /api/licensing/status', () => {
+describe('GET /api/site/licensing/status', () => {
   it('returns { bound: false } when no binding row exists [spec: licensing/state-unbound]', async () => {
     const { app } = await createTestApp()
 
-    const res = await app.request('/api/licensing/status')
+    const res = await app.request('/api/site/licensing/status')
 
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -32,7 +32,7 @@ describe('GET /api/licensing/status', () => {
       lastRefreshAt: Math.floor(Date.now() / 1000),
     })
 
-    const res = await app.request('/api/licensing/status')
+    const res = await app.request('/api/site/licensing/status')
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -57,7 +57,7 @@ describe('GET /api/licensing/status', () => {
       lastRefreshAt: Math.floor(Date.now() / 1000),
     })
 
-    const res = await app.request('/api/licensing/status')
+    const res = await app.request('/api/site/licensing/status')
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -66,7 +66,7 @@ describe('GET /api/licensing/status', () => {
 
   it('is accessible without authentication [spec: licensing/public]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/licensing/status')
+    const res = await app.request('/api/site/licensing/status')
     expect(res.status).toBe(200)
   })
 })
@@ -81,7 +81,7 @@ function makeCloudResponse(body: unknown, status = 200): Response {
   } as unknown as Response
 }
 
-describe('POST /api/licensing/refresh-cron', () => {
+describe('POST /api/site/licensing/refresh-cron', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
   })
@@ -93,7 +93,7 @@ describe('POST /api/licensing/refresh-cron', () => {
   it('returns 401 when REFRESH_CRON_SECRET env is not set [spec: licensing/refresh-auth]', async () => {
     const { app } = await createTestApp()
 
-    const res = await app.request('/api/licensing/refresh-cron?secret=anything', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/refresh-cron?secret=anything', { method: 'POST' })
 
     expect(res.status).toBe(401)
     const body = (await res.json()) as Record<string, unknown>
@@ -103,7 +103,7 @@ describe('POST /api/licensing/refresh-cron', () => {
   it('returns 401 when secret param does not match REFRESH_CRON_SECRET', async () => {
     const { app } = await createTestApp({ REFRESH_CRON_SECRET: 'correct-secret' })
 
-    const res = await app.request('/api/licensing/refresh-cron?secret=wrong-secret', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/refresh-cron?secret=wrong-secret', { method: 'POST' })
 
     expect(res.status).toBe(401)
     const body = (await res.json()) as Record<string, unknown>
@@ -113,7 +113,7 @@ describe('POST /api/licensing/refresh-cron', () => {
   it('returns 401 when secret query param is missing', async () => {
     const { app } = await createTestApp({ REFRESH_CRON_SECRET: 'correct-secret' })
 
-    const res = await app.request('/api/licensing/refresh-cron', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/refresh-cron', { method: 'POST' })
 
     expect(res.status).toBe(401)
   })
@@ -121,7 +121,7 @@ describe('POST /api/licensing/refresh-cron', () => {
   it('returns 200 with { ok: true } when secret is correct and no binding exists [spec: licensing/refresh-noop]', async () => {
     const { app } = await createTestApp({ REFRESH_CRON_SECRET: 'correct-secret' })
 
-    const res = await app.request('/api/licensing/refresh-cron?secret=correct-secret', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/refresh-cron?secret=correct-secret', { method: 'POST' })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -140,7 +140,7 @@ describe('POST /api/licensing/refresh-cron', () => {
       }),
     )
 
-    const res = await app.request('/api/licensing/refresh-cron?secret=cron-secret', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/refresh-cron?secret=cron-secret', { method: 'POST' })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -155,7 +155,7 @@ describe('POST /api/licensing/refresh-cron', () => {
     // Simulate a network failure from the cloud endpoint
     vi.mocked(fetch).mockRejectedValueOnce(new Error('network failure'))
 
-    const res = await app.request('/api/licensing/refresh-cron?secret=cron-secret', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/refresh-cron?secret=cron-secret', { method: 'POST' })
 
     // runLicensingRefresh catches all errors and logs them — never rethrows
     expect(res.status).toBe(200)
@@ -166,7 +166,7 @@ describe('POST /api/licensing/refresh-cron', () => {
   it('is accessible without authentication (public route) [spec: licensing/traffic-cron-public]', async () => {
     const { app } = await createTestApp({ REFRESH_CRON_SECRET: 'my-secret' })
 
-    const res = await app.request('/api/licensing/refresh-cron?secret=my-secret', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/refresh-cron?secret=my-secret', { method: 'POST' })
 
     // Should not return 401 due to missing auth session
     expect(res.status).toBe(200)
@@ -195,7 +195,7 @@ describe('POST /api/licensing/refresh-cron', () => {
       makeCloudResponse({ data: { accepted: true, duplicate: false, eventId: 'evt_traffic_cron' } }, 201),
     )
 
-    const res = await app.request('/api/licensing/traffic-sync-runs?secret=traffic-secret', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/traffic-sync-runs?secret=traffic-secret', { method: 'POST' })
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ ok: true, attempted: 1, reported: 1, blocked: 0, failed: 0 })
@@ -208,7 +208,7 @@ describe('POST /api/licensing/refresh-cron', () => {
   it('requires the cron secret for the dedicated traffic cron endpoint [spec: licensing/traffic-cron-secret]', async () => {
     const { app } = await createTestApp({ REFRESH_CRON_SECRET: 'traffic-secret' })
 
-    const res = await app.request('/api/licensing/traffic-sync-runs?secret=wrong-secret', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/traffic-sync-runs?secret=wrong-secret', { method: 'POST' })
 
     expect(res.status).toBe(401)
     await expect(res.json()).resolves.toEqual({ error: 'Unauthorized' })

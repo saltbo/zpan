@@ -1,5 +1,5 @@
 // The auth-providers resource usecase. Owns every business decision behind the
-// /api/admin/auth-providers (full CRUD, secrets masked) and /api/auth-providers
+// /api/admin/auth-providers (full CRUD, secrets masked) and /api/site/auth-providers
 // (public, enabled-only, no secrets) routes — provider-id validation, the
 // builtin/OIDC shape rules, and the Community social-login-count gate — so the
 // http handlers only validate the request body, call these functions, and

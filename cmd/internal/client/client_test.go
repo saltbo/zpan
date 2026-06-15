@@ -58,7 +58,7 @@ func TestCreateObjectUsesRenameConflictStrategy(t *testing.T) {
 func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
 	var statuses []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/download-tasks" {
+		if r.URL.Path != "/api/downloads/tasks" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -87,7 +87,7 @@ func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
 func TestUpdateTaskUsesGeneratedRequestShape(t *testing.T) {
 	var body map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPatch || r.URL.Path != "/api/download-tasks/task-1" {
+		if r.Method != http.MethodPatch || r.URL.Path != "/api/downloads/tasks/task-1" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {

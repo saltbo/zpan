@@ -1,5 +1,5 @@
 // The site-invitations resource usecase. Owns every business decision behind the
-// /api/invitations routes — duplicate
+// /api/site/invitations routes — duplicate
 // detection on create, the resend/revoke state machine, the invite email (link
 // construction + HTML body), and activity logging — so the http handlers only
 // validate input, call these functions, and serialize the result.

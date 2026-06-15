@@ -365,7 +365,7 @@ export async function getEffectiveSignupMode(deps: SignupModeDeps): Promise<Sign
   return hasFeature('open_registration', state) ? SignupMode.OPEN : SignupMode.INVITE_ONLY
 }
 
-// ─── Admin operations (/api/licensing admin routes) ──────────────────────────
+// ─── Admin operations (/api/site/licensing admin routes) ──────────────────────────
 // The pairing handshake, manual refresh, and unbind that the admin UI drives.
 // All cloud-gateway + binding-repo orchestration lives here; the http handlers
 // only resolve request-derived inputs (cloud base url, instance origin/host,

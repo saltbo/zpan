@@ -159,14 +159,14 @@ test.describe
 async function ensureCloudBinding(page: Page): Promise<CloudBusinessContext> {
   await unbindCurrentCloudBinding()
 
-  const pairing = await postJson<PairingInfo>(page, '/api/licensing/pairings')
+  const pairing = await postJson<PairingInfo>(page, '/api/site/licensing/pairings')
   await approvePairingInCloud(pairing)
 
   let approved: PairingPollResult | null = null
   await expect
     .poll(
       async () => {
-        const result = await getJson<PairingPollResult>(page, `/api/licensing/pairings/${pairing.code}`)
+        const result = await getJson<PairingPollResult>(page, `/api/site/licensing/pairings/${pairing.code}`)
         if (result.status === 'approved') approved = result
         return result.status
       },
@@ -178,7 +178,7 @@ async function ensureCloudBinding(page: Page): Promise<CloudBusinessContext> {
 
   await expect
     .poll(async () => {
-      const state = await getJson<BindingState>(page, '/api/licensing/status')
+      const state = await getJson<BindingState>(page, '/api/site/licensing/status')
       return state.bound && state.active
     })
     .toBe(true)
@@ -286,7 +286,7 @@ async function unbindCurrentCloudBinding() {
     })
     await expectCloudOk(signIn, 'E2E admin sign-in failed during Cloud binding cleanup')
 
-    const unbind = await request.delete('/api/licensing/binding', { headers })
+    const unbind = await request.delete('/api/site/licensing/binding', { headers })
     await expectCloudOk(unbind, 'Cloud binding cleanup failed')
   } finally {
     await request.dispose()

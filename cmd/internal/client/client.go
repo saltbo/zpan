@@ -292,36 +292,36 @@ func New(baseURL, token string) (*Client, error) {
 }
 
 func (c *Client) Heartbeat(ctx context.Context, heartbeat Heartbeat) error {
-	res, err := c.api.PostApiDownloadersMeHeartbeatsWithResponse(ctx, heartbeatRequestBody(heartbeat), bearer(c.token))
+	res, err := c.api.PostApiDownloadsDownloadersMeHeartbeatsWithResponse(ctx, heartbeatRequestBody(heartbeat), bearer(c.token))
 	if err != nil {
 		return err
 	}
-	return expectStatus("POST", "/api/downloaders/me/heartbeats", res.StatusCode(), res.Body, http.StatusOK)
+	return expectStatus("POST", "/api/downloads/downloaders/me/heartbeats", res.StatusCode(), res.Body, http.StatusOK)
 }
 
 func (c *Client) AssignedTasks(ctx context.Context) ([]DownloadTask, error) {
-	return c.assignedTasks(ctx, []openapi.GetApiDownloadTasksParamsStatus{
-		openapi.GetApiDownloadTasksParamsStatusAssigned,
-		openapi.GetApiDownloadTasksParamsStatusDownloading,
-		openapi.GetApiDownloadTasksParamsStatusInterrupted,
-		openapi.GetApiDownloadTasksParamsStatusUploading,
+	return c.assignedTasks(ctx, []openapi.GetApiDownloadsTasksParamsStatus{
+		openapi.GetApiDownloadsTasksParamsStatusAssigned,
+		openapi.GetApiDownloadsTasksParamsStatusDownloading,
+		openapi.GetApiDownloadsTasksParamsStatusInterrupted,
+		openapi.GetApiDownloadsTasksParamsStatusUploading,
 	})
 }
 
 func (c *Client) AssignedControlTasks(ctx context.Context) ([]DownloadTask, error) {
-	return c.assignedTasks(ctx, []openapi.GetApiDownloadTasksParamsStatus{
-		openapi.GetApiDownloadTasksParamsStatus("pausing"),
-		openapi.GetApiDownloadTasksParamsStatus("canceling"),
+	return c.assignedTasks(ctx, []openapi.GetApiDownloadsTasksParamsStatus{
+		openapi.GetApiDownloadsTasksParamsStatus("pausing"),
+		openapi.GetApiDownloadsTasksParamsStatus("canceling"),
 	})
 }
 
-func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.GetApiDownloadTasksParamsStatus) ([]DownloadTask, error) {
+func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.GetApiDownloadsTasksParamsStatus) ([]DownloadTask, error) {
 	tasks := make([]DownloadTask, 0)
 	for _, status := range statuses {
 		page := 1
 		pageSize := 20
 		assignedTo := openapi.Me
-		res, err := c.api.GetApiDownloadTasksWithResponse(ctx, &openapi.GetApiDownloadTasksParams{
+		res, err := c.api.GetApiDownloadsTasksWithResponse(ctx, &openapi.GetApiDownloadsTasksParams{
 			AssignedTo: &assignedTo,
 			Status:     &status,
 			Page:       &page,
@@ -330,16 +330,16 @@ func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.GetApiDow
 		if err != nil {
 			return nil, err
 		}
-		if err := expectStatus("GET", "/api/download-tasks", res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		if err := expectStatus("GET", "/api/downloads/tasks", res.StatusCode(), res.Body, http.StatusOK); err != nil {
 			return nil, err
 		}
 		if res.JSON200 == nil {
-			return nil, fmt.Errorf("GET /api/download-tasks failed: empty response")
+			return nil, fmt.Errorf("GET /api/downloads/tasks failed: empty response")
 		}
 		for _, item := range res.JSON200.Items {
 			task, err := downloadTaskFromOpenAPI(item)
 			if err != nil {
-				return nil, fmt.Errorf("GET /api/download-tasks failed: %w", err)
+				return nil, fmt.Errorf("GET /api/downloads/tasks failed: %w", err)
 			}
 			tasks = append(tasks, task)
 		}
@@ -395,11 +395,11 @@ func (c *Client) PollDeviceToken(ctx context.Context, deviceCode string) (Device
 }
 
 func (c *Client) CreateDownloader(ctx context.Context, accessToken string, req CreateDownloaderRequest) (CreateDownloaderResponse, error) {
-	res, err := c.api.PostApiDownloadersWithResponse(ctx, createDownloaderRequestBody(req), bearer(accessToken))
+	res, err := c.api.PostApiDownloadsDownloadersWithResponse(ctx, createDownloaderRequestBody(req), bearer(accessToken))
 	if err != nil {
 		return CreateDownloaderResponse{}, err
 	}
-	if err := expectStatus("POST", "/api/downloaders", res.StatusCode(), res.Body, http.StatusCreated); err != nil {
+	if err := expectStatus("POST", "/api/downloads/downloaders", res.StatusCode(), res.Body, http.StatusCreated); err != nil {
 		return CreateDownloaderResponse{}, err
 	}
 	if res.JSON201 == nil {
@@ -410,13 +410,13 @@ func (c *Client) CreateDownloader(ctx context.Context, accessToken string, req C
 	return out, nil
 }
 
-func heartbeatRequestBody(heartbeat Heartbeat) openapi.PostApiDownloadersMeHeartbeatsJSONRequestBody {
-	return openapi.PostApiDownloadersMeHeartbeatsJSONRequestBody{
+func heartbeatRequestBody(heartbeat Heartbeat) openapi.PostApiDownloadsDownloadersMeHeartbeatsJSONRequestBody {
+	return openapi.PostApiDownloadsDownloadersMeHeartbeatsJSONRequestBody{
 		Arch:               heartbeat.Arch,
 		Capabilities:       heartbeat.Capabilities,
 		CurrentTasks:       heartbeat.CurrentTasks,
 		DownloadBps:        &heartbeat.DownloadBps,
-		Engine:             openapi.PostApiDownloadersMeHeartbeatsJSONBodyEngine(heartbeat.Engine),
+		Engine:             openapi.PostApiDownloadsDownloadersMeHeartbeatsJSONBodyEngine(heartbeat.Engine),
 		FreeDiskBytes:      &heartbeat.FreeDiskBytes,
 		Hostname:           heartbeat.Hostname,
 		MaxConcurrentTasks: heartbeat.MaxConcurrentTasks,
@@ -426,27 +426,27 @@ func heartbeatRequestBody(heartbeat Heartbeat) openapi.PostApiDownloadersMeHeart
 	}
 }
 
-func createDownloaderRequestBody(req CreateDownloaderRequest) openapi.PostApiDownloadersJSONRequestBody {
-	return openapi.PostApiDownloadersJSONRequestBody{
+func createDownloaderRequestBody(req CreateDownloaderRequest) openapi.PostApiDownloadsDownloadersJSONRequestBody {
+	return openapi.PostApiDownloadsDownloadersJSONRequestBody{
 		Name: req.Name,
 		Heartbeat: struct {
-			Arch               string                                            `json:"arch"`
-			Capabilities       []string                                          `json:"capabilities"`
-			CurrentTasks       int                                               `json:"currentTasks"`
-			DownloadBps        *int64                                            `json:"downloadBps,omitempty"`
-			Engine             openapi.PostApiDownloadersJSONBodyHeartbeatEngine `json:"engine"`
-			FreeDiskBytes      *int64                                            `json:"freeDiskBytes,omitempty"`
-			Hostname           string                                            `json:"hostname"`
-			MaxConcurrentTasks int                                               `json:"maxConcurrentTasks"`
-			Platform           string                                            `json:"platform"`
-			UploadBps          *int64                                            `json:"uploadBps,omitempty"`
-			Version            string                                            `json:"version"`
+			Arch               string                                                     `json:"arch"`
+			Capabilities       []string                                                   `json:"capabilities"`
+			CurrentTasks       int                                                        `json:"currentTasks"`
+			DownloadBps        *int64                                                     `json:"downloadBps,omitempty"`
+			Engine             openapi.PostApiDownloadsDownloadersJSONBodyHeartbeatEngine `json:"engine"`
+			FreeDiskBytes      *int64                                                     `json:"freeDiskBytes,omitempty"`
+			Hostname           string                                                     `json:"hostname"`
+			MaxConcurrentTasks int                                                        `json:"maxConcurrentTasks"`
+			Platform           string                                                     `json:"platform"`
+			UploadBps          *int64                                                     `json:"uploadBps,omitempty"`
+			Version            string                                                     `json:"version"`
 		}{
 			Arch:               req.Heartbeat.Arch,
 			Capabilities:       req.Heartbeat.Capabilities,
 			CurrentTasks:       req.Heartbeat.CurrentTasks,
 			DownloadBps:        &req.Heartbeat.DownloadBps,
-			Engine:             openapi.PostApiDownloadersJSONBodyHeartbeatEngine(req.Heartbeat.Engine),
+			Engine:             openapi.PostApiDownloadsDownloadersJSONBodyHeartbeatEngine(req.Heartbeat.Engine),
 			FreeDiskBytes:      &req.Heartbeat.FreeDiskBytes,
 			Hostname:           req.Heartbeat.Hostname,
 			MaxConcurrentTasks: req.Heartbeat.MaxConcurrentTasks,
@@ -457,14 +457,14 @@ func createDownloaderRequestBody(req CreateDownloaderRequest) openapi.PostApiDow
 	}
 }
 
-func taskPatchRequestBody(patch TaskPatch) (openapi.PatchApiDownloadTasksIdJSONRequestBody, error) {
+func taskPatchRequestBody(patch TaskPatch) (openapi.PatchApiDownloadsTasksIdJSONRequestBody, error) {
 	data, err := json.Marshal(patch)
 	if err != nil {
-		return openapi.PatchApiDownloadTasksIdJSONRequestBody{}, err
+		return openapi.PatchApiDownloadsTasksIdJSONRequestBody{}, err
 	}
-	var body openapi.PatchApiDownloadTasksIdJSONRequestBody
+	var body openapi.PatchApiDownloadsTasksIdJSONRequestBody
 	if err := json.Unmarshal(data, &body); err != nil {
-		return openapi.PatchApiDownloadTasksIdJSONRequestBody{}, err
+		return openapi.PatchApiDownloadsTasksIdJSONRequestBody{}, err
 	}
 	return body, nil
 }
@@ -486,19 +486,19 @@ func (c *Client) UpdateTask(ctx context.Context, id string, patch TaskPatch) (Do
 	if err != nil {
 		return DownloadTask{}, err
 	}
-	res, err := c.api.PatchApiDownloadTasksIdWithResponse(ctx, id, body, bearer(c.token))
+	res, err := c.api.PatchApiDownloadsTasksIdWithResponse(ctx, id, body, bearer(c.token))
 	if err != nil {
 		return DownloadTask{}, err
 	}
-	if err := expectStatus("PATCH", "/api/download-tasks/"+id, res.StatusCode(), res.Body, http.StatusOK); err != nil {
+	if err := expectStatus("PATCH", "/api/downloads/tasks/"+id, res.StatusCode(), res.Body, http.StatusOK); err != nil {
 		return DownloadTask{}, err
 	}
 	if res.JSON200 == nil {
-		return DownloadTask{}, fmt.Errorf("PATCH /api/download-tasks/%s failed: empty response", id)
+		return DownloadTask{}, fmt.Errorf("PATCH /api/downloads/tasks/%s failed: empty response", id)
 	}
 	task, err := downloadTaskFromOpenAPI(*res.JSON200)
 	if err != nil {
-		return DownloadTask{}, fmt.Errorf("PATCH /api/download-tasks/%s failed: %w", id, err)
+		return DownloadTask{}, fmt.Errorf("PATCH /api/downloads/tasks/%s failed: %w", id, err)
 	}
 	return task, nil
 }

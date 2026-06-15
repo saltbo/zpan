@@ -1,5 +1,5 @@
 // The invite-codes resource usecase. Owns every business decision behind the
-// /api/admin/invite-codes and /api/invite-codes routes — the expiry policy
+// /api/admin/invite-codes and /api/site/invite-codes routes — the expiry policy
 // (days → absolute timestamp), the delete guards (unused-only), and activity
 // logging — so the http handlers only validate input, call these functions, and
 // serialize the result.

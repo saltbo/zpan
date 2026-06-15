@@ -280,16 +280,16 @@ describe('E2E: Feature gates — expired certificate', () => {
 // ─── Phase 5: Unbind → features revoked ──────────────────────────────────────
 
 describe('E2E: Unbind flow', () => {
-  it('DELETE /api/licensing/binding unbinds a staging-approved binding and revokes features', async () => {
+  it('DELETE /api/site/licensing/binding unbinds a staging-approved binding and revokes features', async () => {
     const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: CLOUD_BASE_URL })
     const headers = await adminHeaders(app)
 
-    const pairRes = await app.request('/api/licensing/pair', { method: 'POST', headers })
+    const pairRes = await app.request('/api/site/licensing/pairings', { method: 'POST', headers })
     expect(pairRes.status).toBe(200)
     const pairing = (await pairRes.json()) as PairingResponse
     await approvePairingInCloud(pairing)
 
-    const pollRes = await app.request(`/api/licensing/pair/${pairing.code}/poll`, { headers })
+    const pollRes = await app.request(`/api/site/licensing/pairings/${pairing.code}`, { headers })
     expect(pollRes.status).toBe(200)
     const pollBody = (await pollRes.json()) as { status: string; edition?: string }
     expect(pollBody.status).toBe('approved')
@@ -302,7 +302,7 @@ describe('E2E: Unbind flow', () => {
     expect(state.bound).toBe(true)
     expect(hasFeature('open_registration', state)).toBe(true)
 
-    const res = await app.request('/api/licensing/binding', {
+    const res = await app.request('/api/site/licensing/binding', {
       method: 'DELETE',
       headers,
     })
@@ -347,7 +347,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
       ),
     )
 
-    const pairRes = await app.request('/api/licensing/pair', {
+    const pairRes = await app.request('/api/site/licensing/pairings', {
       method: 'POST',
       headers,
     })
@@ -362,7 +362,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
       }),
     )
 
-    const pendingRes = await app.request('/api/licensing/pair/E2E-TST/poll', { headers })
+    const pendingRes = await app.request('/api/site/licensing/pairings/E2E-TST', { headers })
     expect(pendingRes.status).toBe(200)
     expect(((await pendingRes.json()) as { status: string }).status).toBe('pending')
 
@@ -392,7 +392,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
       ),
     )
 
-    const approvedRes = await app.request('/api/licensing/pair/E2E-TST/poll', { headers })
+    const approvedRes = await app.request('/api/site/licensing/pairings/E2E-TST', { headers })
     expect(approvedRes.status).toBe(200)
     const approvedBody = (await approvedRes.json()) as {
       status: string
@@ -427,7 +427,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     // Step 7: Unbind — features revoked
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }))
 
-    const unbindRes = await app.request('/api/licensing/binding', {
+    const unbindRes = await app.request('/api/site/licensing/binding', {
       method: 'DELETE',
       headers,
     })

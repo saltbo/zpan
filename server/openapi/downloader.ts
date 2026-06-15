@@ -222,9 +222,9 @@ function mountObjectUploadRoutes(app: OpenAPIHono) {
 export function createDownloaderOpenAPIApp() {
   const app = new OpenAPIHono()
   mountBetterAuthDeviceRoutes(app)
-  app.route('/api/download-tasks', downloadTasks)
-  app.route('/api/downloaders', downloaderSelfRoute)
-  app.route('/api/downloaders', downloaders)
+  app.route('/api/downloads/tasks', downloadTasks)
+  app.route('/api/downloads/downloaders', downloaderSelfRoute)
+  app.route('/api/downloads/downloaders', downloaders)
   mountObjectUploadRoutes(app)
   return app
 }

@@ -41,7 +41,7 @@ const app = new Hono<Env>()
     return c.json({ ...state, cloud_dashboard_url: cloudDashboardUrl(cloudBaseUrl) } satisfies BindingState)
   })
 
-  // POST /api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>
+  // POST /api/site/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>
   // External schedulers (Vercel Cron, Netlify Scheduled Functions, etc.) call
   // this endpoint every 6 hours instead of running a native cron trigger.
   // Set REFRESH_CRON_SECRET to a random string (e.g. openssl rand -hex 32)

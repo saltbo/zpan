@@ -214,7 +214,7 @@ setup('seed admin and storage', async () => {
     // local test environment into OPEN mode so existing dev DB settings do not
     // make the suite depend on invite codes.
     // Check if storage already exists
-    const list = await request.get('/api/storages', { headers })
+    const list = await request.get('/api/site/storages', { headers })
     if (list.ok()) {
       const data = (await list.json()) as { items?: StorageItem[] }
       const storages = data.items ?? []
@@ -222,7 +222,7 @@ setup('seed admin and storage', async () => {
 
       const existing = storages[0]
       if (existing) {
-        const resp = await request.put(`/api/storages/${existing.id}`, {
+        const resp = await request.put(`/api/site/storages/${existing.id}`, {
           headers,
           data: storageConfig,
         })
@@ -232,7 +232,7 @@ setup('seed admin and storage', async () => {
     }
 
     // Seed storage
-    const storageResp = await request.post('/api/storages', {
+    const storageResp = await request.post('/api/site/storages', {
       headers,
       data: storageConfig,
     })

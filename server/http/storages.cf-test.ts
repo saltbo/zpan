@@ -46,23 +46,23 @@ const validStorage = {
 describe('[CF] Admin Storages API', () => {
   it('returns 401 without auth', async () => {
     const app = await buildApp()
-    const res = await app.request('/api/storages')
+    const res = await app.request('/api/site/storages')
     expect(res.status).toBe(401)
   })
 
-  it('GET /api/storages returns empty list', async () => {
+  it('GET /api/site/storages returns empty list', async () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/storages', { headers })
+    const res = await app.request('/api/site/storages', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[]; total: number }
     expect(body).toEqual({ items: [], total: 0 })
   })
 
-  it('POST /api/storages creates a storage', async () => {
+  it('POST /api/site/storages creates a storage', async () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/storages', {
+    const res = await app.request('/api/site/storages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -84,12 +84,12 @@ describe('[CF] Admin Storages API', () => {
     expect(body.id).toBeTruthy()
   })
 
-  it('POST /api/storages returns 402 when Community storage limit is reached', async () => {
+  it('POST /api/site/storages returns 402 when Community storage limit is reached', async () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
 
     for (let i = 0; i <= FREE_STORAGE_LIMIT; i++) {
-      const res = await app.request('/api/storages', {
+      const res = await app.request('/api/site/storages', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -111,7 +111,7 @@ describe('[CF] Admin Storages API', () => {
     throw new Error('expected storage limit enforcement in Community mode')
   })
 
-  it('GET /api/storages/:id returns storage detail', async () => {
+  it('GET /api/site/storages/:id returns storage detail', async () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
     const platform = createCloudflarePlatform(env)
@@ -121,13 +121,13 @@ describe('[CF] Admin Storages API', () => {
       bucket: `cf-detail-${Date.now()}`,
     })
 
-    const res = await app.request(`/api/storages/${created.id}`, { headers })
+    const res = await app.request(`/api/site/storages/${created.id}`, { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.id).toBe(created.id)
   })
 
-  it('PUT /api/storages/:id updates a storage', async () => {
+  it('PUT /api/site/storages/:id updates a storage', async () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
     const platform = createCloudflarePlatform(env)
@@ -137,7 +137,7 @@ describe('[CF] Admin Storages API', () => {
       bucket: `cf-update-${Date.now()}`,
     })
 
-    const res = await app.request(`/api/storages/${created.id}`, {
+    const res = await app.request(`/api/site/storages/${created.id}`, {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Updated CF S3' }),
@@ -147,7 +147,7 @@ describe('[CF] Admin Storages API', () => {
     expect(body.title).toBe('Updated CF S3')
   })
 
-  it('DELETE /api/storages/:id deletes a storage', async () => {
+  it('DELETE /api/site/storages/:id deletes a storage', async () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
     const platform = createCloudflarePlatform(env)
@@ -157,7 +157,7 @@ describe('[CF] Admin Storages API', () => {
       bucket: `cf-delete-${Date.now()}`,
     })
 
-    const res = await app.request(`/api/storages/${created.id}`, {
+    const res = await app.request(`/api/site/storages/${created.id}`, {
       method: 'DELETE',
       headers,
     })

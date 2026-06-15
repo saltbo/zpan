@@ -55,31 +55,31 @@ async function seedBinding(db: Awaited<ReturnType<typeof createTestApp>>['db'], 
 }
 
 describe('Licensing Admin API — auth guards', () => {
-  it('POST /api/licensing/pairings returns 401 without auth [spec: licensing-admin/auth-required]', async () => {
+  it('POST /api/site/licensing/pairings returns 401 without auth [spec: licensing-admin/auth-required]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/licensing/pairings', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/pairings', { method: 'POST' })
     expect(res.status).toBe(401)
   })
 
-  it('GET /api/licensing/pairings/:code returns 401 without auth', async () => {
+  it('GET /api/site/licensing/pairings/:code returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/licensing/pairings/ABC-123')
+    const res = await app.request('/api/site/licensing/pairings/ABC-123')
     expect(res.status).toBe(401)
   })
 
-  it('POST /api/licensing/refresh-runs returns 401 without auth', async () => {
+  it('POST /api/site/licensing/refresh-runs returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/licensing/refresh-runs', { method: 'POST' })
+    const res = await app.request('/api/site/licensing/refresh-runs', { method: 'POST' })
     expect(res.status).toBe(401)
   })
 
-  it('DELETE /api/licensing/binding returns 401 without auth', async () => {
+  it('DELETE /api/site/licensing/binding returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/licensing/binding', { method: 'DELETE' })
+    const res = await app.request('/api/site/licensing/binding', { method: 'DELETE' })
     expect(res.status).toBe(401)
   })
 
-  it('POST /api/licensing/pairings returns 403 for non-admin [spec: licensing-admin/admin-only]', async () => {
+  it('POST /api/site/licensing/pairings returns 403 for non-admin [spec: licensing-admin/admin-only]', async () => {
     const { app } = await createTestApp()
     await authedHeaders(app, 'admin@example.com')
     await authedHeaders(app, 'regular@example.com')
@@ -89,12 +89,12 @@ describe('Licensing Admin API — auth guards', () => {
       body: JSON.stringify({ email: 'regular@example.com', password: 'password123456' }),
     })
     const headers = { Cookie: signInRes.headers.getSetCookie().join('; ') }
-    const res = await app.request('/api/licensing/pairings', { method: 'POST', headers })
+    const res = await app.request('/api/site/licensing/pairings', { method: 'POST', headers })
     expect(res.status).toBe(403)
   })
 })
 
-describe('POST /api/licensing/pairings', () => {
+describe('POST /api/site/licensing/pairings', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
     originalKeys.push(...PUBLIC_KEYS)
@@ -119,7 +119,7 @@ describe('POST /api/licensing/pairings', () => {
     }
     vi.mocked(fetch).mockResolvedValueOnce(makeCloudResponse(cloudPayload))
 
-    const res = await app.request('/api/licensing/pairings', {
+    const res = await app.request('/api/site/licensing/pairings', {
       method: 'POST',
       headers,
     })
@@ -134,7 +134,7 @@ describe('POST /api/licensing/pairings', () => {
   })
 })
 
-describe('GET /api/licensing/pairings/:code', () => {
+describe('GET /api/site/licensing/pairings/:code', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
     originalKeys.push(...PUBLIC_KEYS)
@@ -154,7 +154,7 @@ describe('GET /api/licensing/pairings/:code', () => {
 
     vi.mocked(fetch).mockResolvedValueOnce(makeCloudResponse({ status: 'pending' }))
 
-    const res = await app.request('/api/licensing/pairings/ABC-123', { headers })
+    const res = await app.request('/api/site/licensing/pairings/ABC-123', { headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -176,7 +176,7 @@ describe('GET /api/licensing/pairings/:code', () => {
       }),
     )
 
-    const res = await app.request('/api/licensing/pairings/CODE-1', { headers })
+    const res = await app.request('/api/site/licensing/pairings/CODE-1', { headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -208,7 +208,7 @@ describe('GET /api/licensing/pairings/:code', () => {
       // The confirm callback to the cloud after the cert is verified + stored.
       .mockResolvedValueOnce(makeCloudResponse(null, 204))
 
-    const res = await app.request('/api/licensing/pairings/CODE-1', { headers })
+    const res = await app.request('/api/site/licensing/pairings/CODE-1', { headers })
 
     expect(res.status).toBe(200)
     const state = await createLicenseBindingRepo(db).loadLicenseState()
@@ -234,7 +234,7 @@ describe('GET /api/licensing/pairings/:code', () => {
       }),
     )
 
-    const res = await app.request('/api/licensing/pairings/CODE-1', { headers })
+    const res = await app.request('/api/site/licensing/pairings/CODE-1', { headers })
 
     expect(res.status).toBe(502)
     const state = await createLicenseBindingRepo(db).loadLicenseState()
@@ -252,7 +252,7 @@ describe('GET /api/licensing/pairings/:code', () => {
       }),
     )
 
-    const res = await app.request('/api/licensing/pairings/CODE-1', { headers })
+    const res = await app.request('/api/site/licensing/pairings/CODE-1', { headers })
 
     expect(res.status).toBe(502)
     const state = await createLicenseBindingRepo(db).loadLicenseState()
@@ -272,7 +272,7 @@ describe('GET /api/licensing/pairings/:code', () => {
       }),
     )
 
-    const res = await app.request('/api/licensing/pairings/CODE-1', { headers })
+    const res = await app.request('/api/site/licensing/pairings/CODE-1', { headers })
 
     expect(res.status).toBe(502)
     await expect(res.json()).resolves.toMatchObject({
@@ -307,7 +307,7 @@ describe('GET /api/licensing/pairings/:code', () => {
       // The rollback unbind call to the cloud.
       .mockResolvedValueOnce(makeCloudResponse({ ok: true }))
 
-    const res = await app.request('/api/licensing/pairings/CODE-1', { headers })
+    const res = await app.request('/api/site/licensing/pairings/CODE-1', { headers })
 
     expect(res.status).toBe(502)
     await expect(res.json()).resolves.toMatchObject({
@@ -322,7 +322,7 @@ describe('GET /api/licensing/pairings/:code', () => {
   })
 })
 
-describe('POST /api/licensing/refresh-runs', () => {
+describe('POST /api/site/licensing/refresh-runs', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
     originalKeys.push(...PUBLIC_KEYS)
@@ -351,7 +351,7 @@ describe('POST /api/licensing/refresh-runs', () => {
       }),
     )
 
-    const res = await app.request('/api/licensing/refresh-runs', { method: 'POST', headers })
+    const res = await app.request('/api/site/licensing/refresh-runs', { method: 'POST', headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -363,7 +363,7 @@ describe('POST /api/licensing/refresh-runs', () => {
     const headers = await adminHeaders(app)
 
     // No binding exists — performRefresh is a no-op
-    const res = await app.request('/api/licensing/refresh-runs', { method: 'POST', headers })
+    const res = await app.request('/api/site/licensing/refresh-runs', { method: 'POST', headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -372,7 +372,7 @@ describe('POST /api/licensing/refresh-runs', () => {
   })
 })
 
-describe('DELETE /api/licensing/binding', () => {
+describe('DELETE /api/site/licensing/binding', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
   })
@@ -388,7 +388,7 @@ describe('DELETE /api/licensing/binding', () => {
     await seedBinding(db)
     vi.mocked(fetch).mockResolvedValueOnce(makeCloudResponse(null, 204))
 
-    const res = await app.request('/api/licensing/binding', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/licensing/binding', { method: 'DELETE', headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -410,7 +410,7 @@ describe('DELETE /api/licensing/binding', () => {
     await seedBinding(db)
     vi.mocked(fetch).mockResolvedValueOnce(makeCloudResponse({ error: 'unbound' }, 401))
 
-    const res = await app.request('/api/licensing/binding', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/licensing/binding', { method: 'DELETE', headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -425,7 +425,7 @@ describe('DELETE /api/licensing/binding', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/licensing/binding', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/licensing/binding', { method: 'DELETE', headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>

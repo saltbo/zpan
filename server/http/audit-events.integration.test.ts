@@ -425,7 +425,7 @@ describe('Storage audit events', () => {
     await seedProLicense(db)
     const admin = await adminHeaders(app)
 
-    const res = await app.request('/api/storages', {
+    const res = await app.request('/api/site/storages', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -455,7 +455,7 @@ describe('Storage audit events', () => {
     await seedProLicense(db)
     const admin = await adminHeaders(app)
 
-    const createRes = await app.request('/api/storages', {
+    const createRes = await app.request('/api/site/storages', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -470,7 +470,7 @@ describe('Storage audit events', () => {
     })
     const { id: storageId } = (await createRes.json()) as { id: string }
 
-    const updateRes = await app.request(`/api/storages/${storageId}`, {
+    const updateRes = await app.request(`/api/site/storages/${storageId}`, {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Updated Storage' }),
@@ -489,7 +489,7 @@ describe('Storage audit events', () => {
     await seedProLicense(db)
     const admin = await adminHeaders(app)
 
-    const createRes = await app.request('/api/storages', {
+    const createRes = await app.request('/api/site/storages', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -504,7 +504,7 @@ describe('Storage audit events', () => {
     })
     const { id: storageId } = (await createRes.json()) as { id: string }
 
-    const deleteRes = await app.request(`/api/storages/${storageId}`, {
+    const deleteRes = await app.request(`/api/site/storages/${storageId}`, {
       method: 'DELETE',
       headers: admin,
     })
@@ -552,7 +552,7 @@ describe('Invite code audit events', () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
 
-    const res = await app.request('/api/invite-codes', {
+    const res = await app.request('/api/site/invite-codes', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ count: 3 }),
@@ -572,14 +572,14 @@ describe('Invite code audit events', () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
 
-    const createRes = await app.request('/api/invite-codes', {
+    const createRes = await app.request('/api/site/invite-codes', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ count: 1 }),
     })
     const { codes } = (await createRes.json()) as { codes: Array<{ id: string }> }
 
-    const deleteRes = await app.request(`/api/invite-codes/${codes[0].id}`, {
+    const deleteRes = await app.request(`/api/site/invite-codes/${codes[0].id}`, {
       method: 'DELETE',
       headers: admin,
     })
@@ -885,7 +885,7 @@ describe('License refresh audit event', () => {
     const headers = await adminHeaders(app)
     await seedProLicense(db)
 
-    const res = await app.request('/api/licensing/refresh-runs', {
+    const res = await app.request('/api/site/licensing/refresh-runs', {
       method: 'POST',
       headers,
     })
@@ -913,7 +913,7 @@ describe('Admin audit API with new event types', () => {
       body: JSON.stringify({ value: 'test', public: false }),
     })
 
-    const res = await app.request('/api/audit-events?action=system_option_set', { headers: admin })
+    const res = await app.request('/api/site/audit-events?action=system_option_set', { headers: admin })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ action: string }>; total: number }
     expect(body.total).toBeGreaterThan(0)
@@ -932,7 +932,7 @@ describe('Admin audit API with new event types', () => {
       body: JSON.stringify({ value: 'value', public: false }),
     })
 
-    const res = await app.request('/api/audit-events?targetType=system', { headers: admin })
+    const res = await app.request('/api/site/audit-events?targetType=system', { headers: admin })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ targetType: string }>; total: number }
     expect(body.total).toBeGreaterThan(0)
@@ -950,9 +950,9 @@ describe('Admin audit API with new event types', () => {
     // Create a folder (records 'create' event)
     await insertFile(db, orgId, { id: 'legacy-file', name: 'legacy.txt' })
 
-    await app.request('/api/audit-events?action=upload', { headers: admin })
+    await app.request('/api/site/audit-events?action=upload', { headers: admin })
     // Upload events come from confirmUpload now but we can still filter on file create
-    const res2 = await app.request('/api/audit-events?targetType=file', { headers: admin })
+    const res2 = await app.request('/api/site/audit-events?targetType=file', { headers: admin })
     expect(res2.status).toBe(200)
   })
 })

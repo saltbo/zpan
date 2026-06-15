@@ -171,7 +171,7 @@
         }
       }
     },
-    "/api/download-tasks": {
+    "/api/downloads/tasks": {
       "get": {
         "parameters": [
           {
@@ -1524,7 +1524,7 @@
         }
       }
     },
-    "/api/download-tasks/{id}": {
+    "/api/downloads/tasks/{id}": {
       "get": {
         "parameters": [
           {
@@ -3184,7 +3184,7 @@
         }
       }
     },
-    "/api/download-tasks/{id}/status": {
+    "/api/downloads/tasks/{id}/status": {
       "put": {
         "parameters": [
           {
@@ -3835,7 +3835,7 @@
         }
       }
     },
-    "/api/download-tasks/{id}/attempts": {
+    "/api/downloads/tasks/{id}/attempts": {
       "post": {
         "parameters": [
           {
@@ -4478,7 +4478,7 @@
         }
       }
     },
-    "/api/downloaders/me/heartbeats": {
+    "/api/downloads/downloaders/me/heartbeats": {
       "post": {
         "requestBody": {
           "required": true,
@@ -4677,7 +4677,7 @@
         }
       }
     },
-    "/api/downloaders": {
+    "/api/downloads/downloaders": {
       "get": {
         "responses": {
           "200": {
@@ -5051,7 +5051,7 @@
         }
       }
     },
-    "/api/downloaders/{id}": {
+    "/api/downloads/downloaders/{id}": {
       "patch": {
         "parameters": [
           {
