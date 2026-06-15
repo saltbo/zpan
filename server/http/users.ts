@@ -3,18 +3,19 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { removeAvatar, updateAvatar } from '../usecases/me'
-import { getPublicProfile } from '../usecases/profile'
 import {
   deleteUser,
   deleteUsers,
+  getPublicProfile,
   getUser,
   grantUserEntitlement,
   listUserEntitlements,
   listUsers,
+  removeAvatar,
   revokeUserEntitlement,
   setUserStatus,
   setUsersStatus,
+  updateAvatar,
   updateUserEntitlement,
 } from '../usecases/user'
 

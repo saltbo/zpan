@@ -1,19 +1,25 @@
-// The admin users resource usecase. Owns every business decision behind the
-// /api/admin/users routes — user listing/lookup, status (disable/enable) and
-// delete (single + batch), and the personal-org storage-entitlement grants — plus
-// the activity logging that accompanies the mutating operations, so the http
-// handlers only validate input, call these functions, and serialize the result.
+// The users resource usecase. Owns every business decision behind the
+// /api/users routes — admin user listing/lookup, status (disable/enable) and
+// delete (single + batch) and personal-org storage-entitlement grants; the
+// authenticated user's own avatar (PUT/DELETE /api/users/me/avatar); and the
+// read-only public profile lookup (GET /api/users/:username) — plus the activity
+// logging that accompanies the mutating operations, so the http handlers only
+// validate input, call these functions, and serialize the result.
 //
-// The deeper rules (last-admin / self-protection, missing-user-in-batch,
+// The deeper admin rules (last-admin / self-protection, missing-user-in-batch,
 // admin-grant-only source guard, personal-org-not-found) live in the
 // UserAdminRepo adapter and surface here as a UserOperationFailure ({ error,
 // status }); these functions thread that failure outward unchanged so the http
 // layer maps {status} directly. The boolean-returning setUserStatus/deleteUser
 // instead signal absence, which becomes a flat `not_found`.
 
+import type { Platform } from '../platform/interface'
 import type {
   ActivityRepo,
   EntitlementResult,
+  ImageUpload,
+  ProfileRepo,
+  PublicUser,
   QuotaEntitlementItem,
   UserAdminRepo,
   UserOperationFailure,
@@ -246,4 +252,44 @@ export async function deleteUser(
     targetName: userId,
   })
   return { ok: true }
+}
+
+// ── self: the authenticated user's own avatar ────────────────────────────────
+
+const AVATAR_PREFIX = '_system/avatars'
+
+export type AvatarDeps = {
+  imageUpload: ImageUpload
+  profiles: ProfileRepo
+}
+
+// The image gateway can reject with a status (400 bad mime, 413 too large, 503
+// no public storage). The http layer turns this into the error body + status;
+// the decision of *which* status lives in the gateway, surfaced verbatim here.
+export type UpdateAvatarOutcome = { ok: true; url: string } | { ok: false; status: 400 | 413 | 503; error: string }
+
+// `platform` is a request-bound capability (R2 binding + public-URL env are
+// request-scoped), so it is a plain function param — not stored on AvatarDeps.
+export async function updateAvatar(
+  deps: AvatarDeps,
+  params: { platform: Platform; userId: string; file: File },
+): Promise<UpdateAvatarOutcome> {
+  const { platform, userId, file } = params
+  const result = await deps.imageUpload.uploadPublicImage(platform, AVATAR_PREFIX, userId, file)
+  if (!result.ok) return result
+  await deps.profiles.setAvatar(userId, result.url)
+  return { ok: true, url: result.url }
+}
+
+export async function removeAvatar(deps: AvatarDeps, params: { platform: Platform; userId: string }): Promise<void> {
+  const { platform, userId } = params
+  // Clear DB first (authoritative); storage cleanup below is best-effort.
+  await deps.profiles.setAvatar(userId, null)
+  await deps.imageUpload.deletePublicImageVariants(platform, AVATAR_PREFIX, userId)
+}
+
+// ── public: read-only profile lookup by username ─────────────────────────────
+
+export function getPublicProfile(deps: { profiles: ProfileRepo }, username: string): Promise<PublicUser | null> {
+  return deps.profiles.getUserByUsername(username)
 }

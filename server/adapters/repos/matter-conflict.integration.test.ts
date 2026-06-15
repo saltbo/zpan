@@ -8,7 +8,7 @@ import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { ObjectStatus } from '../../../shared/constants'
 import { createTestApp } from '../../test/setup.js'
-import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../../usecases/matter'
+import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../../usecases/object'
 import type {
   ConflictStrategy,
   CopyMatterOptions,

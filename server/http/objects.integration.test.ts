@@ -7,7 +7,7 @@ import { createQuotaRepo } from '../adapters/repos/quota.js'
 import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
 import { cloudTrafficReports } from '../db/schema.js'
 import { authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
-import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../usecases/matter.js'
+import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../usecases/object.js'
 import type {
   CopyMatterOptions,
   CreateMatterInput,
