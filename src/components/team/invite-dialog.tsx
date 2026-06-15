@@ -86,7 +86,7 @@ function LinkInviteTab({ orgId }: { orgId: string }) {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const res = await teamsApi[':teamId']['invite-link'].$post({
+      const res = await teamsApi[':teamId']['invite-links'].$post({
         param: { teamId: orgId },
         json: { role },
       })

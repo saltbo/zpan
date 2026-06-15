@@ -171,7 +171,7 @@
         }
       }
     },
-    "/api/download-tasks": {
+    "/api/downloads/tasks": {
       "get": {
         "parameters": [
           {
@@ -1524,7 +1524,7 @@
         }
       }
     },
-    "/api/download-tasks/{id}": {
+    "/api/downloads/tasks/{id}": {
       "get": {
         "parameters": [
           {
@@ -2079,6 +2079,117 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted download task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid task state",
             "content": {
               "application/json": {
                 "schema": {
@@ -3073,8 +3184,8 @@
         }
       }
     },
-    "/api/download-tasks/{id}/actions": {
-      "post": {
+    "/api/downloads/tasks/{id}/status": {
+      "put": {
         "parameters": [
           {
             "schema": {
@@ -3092,20 +3203,17 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "action": {
+                  "status": {
                     "type": "string",
                     "enum": [
-                      "pause",
-                      "resume",
-                      "cancel",
-                      "retry",
-                      "restart",
-                      "delete"
+                      "paused",
+                      "queued",
+                      "canceled"
                     ]
                   }
                 },
                 "required": [
-                  "action"
+                  "status"
                 ]
               }
             }
@@ -3113,130 +3221,258 @@
         },
         "responses": {
           "200": {
-            "description": "Task action result",
+            "description": "Updated download task",
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "orgId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "spec": {
                       "type": "object",
                       "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "orgId": {
-                          "type": "string"
-                        },
-                        "createdBy": {
-                          "type": "string"
-                        },
-                        "spec": {
+                        "source": {
                           "type": "object",
                           "properties": {
-                            "source": {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "http",
-                                    "magnet",
-                                    "torrent_url"
-                                  ]
-                                },
-                                "uri": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "uri"
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "http",
+                                "magnet",
+                                "torrent_url"
                               ]
                             },
-                            "destination": {
+                            "uri": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "uri"
+                          ]
+                        },
+                        "destination": {
+                          "type": "object",
+                          "properties": {
+                            "folder": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "folder",
+                            "name"
+                          ]
+                        },
+                        "labels": {
+                          "type": "object",
+                          "properties": {
+                            "category": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "tags": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "tags"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "destination",
+                        "labels"
+                      ]
+                    },
+                    "status": {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "assigned",
+                            "downloading",
+                            "suspended",
+                            "pausing",
+                            "paused",
+                            "interrupted",
+                            "uploading",
+                            "canceling",
+                            "completed",
+                            "failed",
+                            "canceled"
+                          ]
+                        },
+                        "attempt": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "assignment": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "downloaderId": {
+                              "type": "string"
+                            },
+                            "assignedAt": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "uploadToken": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "downloaderId"
+                          ]
+                        },
+                        "progress": {
+                          "type": "object",
+                          "properties": {
+                            "download": {
                               "type": "object",
                               "properties": {
-                                "folder": {
-                                  "type": "string"
+                                "bytes": {
+                                  "type": "integer",
+                                  "format": "int64"
                                 },
-                                "name": {
-                                  "type": "string",
+                                "totalBytes": {
+                                  "type": "integer",
+                                  "format": "int64",
                                   "nullable": true
+                                },
+                                "bytesPerSecond": {
+                                  "type": "integer",
+                                  "format": "int64"
                                 }
                               },
                               "required": [
-                                "folder",
-                                "name"
+                                "bytes",
+                                "bytesPerSecond"
                               ]
                             },
-                            "labels": {
+                            "upload": {
                               "type": "object",
                               "properties": {
-                                "category": {
-                                  "type": "string",
+                                "bytes": {
+                                  "type": "integer",
+                                  "format": "int64"
+                                },
+                                "totalBytes": {
+                                  "type": "integer",
+                                  "format": "int64",
                                   "nullable": true
                                 },
-                                "tags": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                "bytesPerSecond": {
+                                  "type": "integer",
+                                  "format": "int64"
                                 }
                               },
                               "required": [
-                                "category",
-                                "tags"
+                                "bytes",
+                                "bytesPerSecond"
                               ]
                             }
                           },
                           "required": [
-                            "source",
-                            "destination",
-                            "labels"
+                            "download",
+                            "upload"
                           ]
                         },
-                        "status": {
+                        "billing": {
                           "type": "object",
                           "properties": {
                             "state": {
                               "type": "string",
                               "enum": [
-                                "queued",
-                                "assigned",
-                                "downloading",
-                                "suspended",
-                                "pausing",
-                                "paused",
-                                "interrupted",
-                                "uploading",
-                                "canceling",
-                                "completed",
-                                "failed",
-                                "canceled"
+                                "none",
+                                "ok",
+                                "insufficient_credits"
                               ]
                             },
-                            "attempt": {
+                            "authorizedBytes": {
                               "type": "integer",
-                              "minimum": 1
+                              "format": "int64"
                             },
-                            "assignment": {
-                              "type": "object",
-                              "nullable": true,
-                              "properties": {
-                                "downloaderId": {
-                                  "type": "string"
-                                },
-                                "assignedAt": {
-                                  "type": "string",
-                                  "nullable": true
-                                },
-                                "uploadToken": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "downloaderId"
+                            "chargedBytes": {
+                              "type": "integer",
+                              "format": "int64"
+                            },
+                            "chargedCredits": {
+                              "type": "integer",
+                              "format": "int64"
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "authorizedBytes",
+                            "chargedBytes",
+                            "chargedCredits"
+                          ]
+                        },
+                        "output": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "objectId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "objectId"
+                          ]
+                        },
+                        "runtime": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "engine": {
+                              "type": "string",
+                              "enum": [
+                                "builtin",
+                                "aria2",
+                                "qbittorrent"
                               ]
+                            },
+                            "state": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "phase": {
+                              "type": "string",
+                              "enum": [
+                                "metadata",
+                                "downloading",
+                                "uploading",
+                                "seeding",
+                                "completed",
+                                "error"
+                              ]
+                            },
+                            "message": {
+                              "type": "string",
+                              "maxLength": 500
+                            },
+                            "updatedAt": {
+                              "type": "string"
                             },
                             "progress": {
                               "type": "object",
@@ -3291,384 +3527,234 @@
                                 "upload"
                               ]
                             },
-                            "billing": {
+                            "torrent": {
                               "type": "object",
                               "properties": {
-                                "state": {
+                                "infoHash": {
                                   "type": "string",
-                                  "enum": [
-                                    "none",
-                                    "ok",
-                                    "insufficient_credits"
-                                  ]
+                                  "maxLength": 120
                                 },
-                                "authorizedBytes": {
-                                  "type": "integer",
-                                  "format": "int64"
-                                },
-                                "chargedBytes": {
-                                  "type": "integer",
-                                  "format": "int64"
-                                },
-                                "chargedCredits": {
-                                  "type": "integer",
-                                  "format": "int64"
-                                }
-                              },
-                              "required": [
-                                "state",
-                                "authorizedBytes",
-                                "chargedBytes",
-                                "chargedCredits"
-                              ]
-                            },
-                            "output": {
-                              "type": "object",
-                              "nullable": true,
-                              "properties": {
-                                "objectId": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "objectId"
-                              ]
-                            },
-                            "runtime": {
-                              "type": "object",
-                              "nullable": true,
-                              "properties": {
-                                "engine": {
+                                "name": {
                                   "type": "string",
-                                  "enum": [
-                                    "builtin",
-                                    "aria2",
-                                    "qbittorrent"
-                                  ]
+                                  "maxLength": 255
                                 },
-                                "state": {
-                                  "type": "string",
-                                  "maxLength": 80
-                                },
-                                "phase": {
-                                  "type": "string",
-                                  "enum": [
-                                    "metadata",
-                                    "downloading",
-                                    "uploading",
-                                    "seeding",
-                                    "completed",
-                                    "error"
-                                  ]
-                                },
-                                "message": {
-                                  "type": "string",
-                                  "maxLength": 500
-                                },
-                                "updatedAt": {
-                                  "type": "string"
-                                },
-                                "progress": {
-                                  "type": "object",
-                                  "properties": {
-                                    "download": {
-                                      "type": "object",
-                                      "properties": {
-                                        "bytes": {
-                                          "type": "integer",
-                                          "format": "int64"
-                                        },
-                                        "totalBytes": {
-                                          "type": "integer",
-                                          "format": "int64",
-                                          "nullable": true
-                                        },
-                                        "bytesPerSecond": {
-                                          "type": "integer",
-                                          "format": "int64"
-                                        }
-                                      },
-                                      "required": [
-                                        "bytes",
-                                        "bytesPerSecond"
-                                      ]
-                                    },
-                                    "upload": {
-                                      "type": "object",
-                                      "properties": {
-                                        "bytes": {
-                                          "type": "integer",
-                                          "format": "int64"
-                                        },
-                                        "totalBytes": {
-                                          "type": "integer",
-                                          "format": "int64",
-                                          "nullable": true
-                                        },
-                                        "bytesPerSecond": {
-                                          "type": "integer",
-                                          "format": "int64"
-                                        }
-                                      },
-                                      "required": [
-                                        "bytes",
-                                        "bytesPerSecond"
-                                      ]
-                                    }
-                                  },
-                                  "required": [
-                                    "download",
-                                    "upload"
-                                  ]
-                                },
-                                "torrent": {
-                                  "type": "object",
-                                  "properties": {
-                                    "infoHash": {
-                                      "type": "string",
-                                      "maxLength": 120
-                                    },
-                                    "name": {
-                                      "type": "string",
-                                      "maxLength": 255
-                                    },
-                                    "seeders": {
-                                      "type": "integer",
-                                      "minimum": 0
-                                    },
-                                    "leechers": {
-                                      "type": "integer",
-                                      "minimum": 0
-                                    },
-                                    "peers": {
-                                      "type": "integer",
-                                      "minimum": 0
-                                    }
-                                  }
-                                },
-                                "seeding": {
-                                  "type": "object",
-                                  "properties": {
-                                    "enabled": {
-                                      "type": "boolean"
-                                    },
-                                    "active": {
-                                      "type": "boolean"
-                                    },
-                                    "uploadedBytes": {
-                                      "type": "integer",
-                                      "format": "int64"
-                                    },
-                                    "uploadBytesPerSecond": {
-                                      "type": "integer",
-                                      "format": "int64"
-                                    },
-                                    "ratio": {
-                                      "type": "number",
-                                      "minimum": 0
-                                    },
-                                    "startedAt": {
-                                      "type": "string",
-                                      "nullable": true
-                                    },
-                                    "expiresAt": {
-                                      "type": "string",
-                                      "nullable": true
-                                    }
-                                  }
-                                },
-                                "connections": {
+                                "seeders": {
                                   "type": "integer",
                                   "minimum": 0
                                 },
-                                "etaSeconds": {
+                                "leechers": {
                                   "type": "integer",
-                                  "nullable": true,
                                   "minimum": 0
-                                },
-                                "trackers": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "url": {
-                                        "type": "string",
-                                        "maxLength": 1024
-                                      },
-                                      "status": {
-                                        "type": "string",
-                                        "maxLength": 80
-                                      },
-                                      "peers": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "seeds": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "leechers": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "message": {
-                                        "type": "string",
-                                        "maxLength": 500
-                                      }
-                                    },
-                                    "required": [
-                                      "url"
-                                    ]
-                                  },
-                                  "maxItems": 20
                                 },
                                 "peers": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "address": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "client": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "progress": {
-                                        "type": "number",
-                                        "minimum": 0,
-                                        "maximum": 1
-                                      },
-                                      "downloadBps": {
-                                        "type": "integer",
-                                        "format": "int64"
-                                      },
-                                      "uploadBps": {
-                                        "type": "integer",
-                                        "format": "int64"
-                                      },
-                                      "countryCode": {
-                                        "type": "string",
-                                        "minLength": 2,
-                                        "maxLength": 2
-                                      },
-                                      "regionCode": {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "maxLength": 16
-                                      }
-                                    },
-                                    "required": [
-                                      "address"
-                                    ]
-                                  },
-                                  "maxItems": 20
-                                },
-                                "files": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "path": {
-                                        "type": "string",
-                                        "maxLength": 1024
-                                      },
-                                      "size": {
-                                        "type": "integer",
-                                        "format": "int64"
-                                      },
-                                      "completedBytes": {
-                                        "type": "integer",
-                                        "format": "int64"
-                                      },
-                                      "selected": {
-                                        "type": "boolean"
-                                      }
-                                    },
-                                    "required": [
-                                      "path",
-                                      "size"
-                                    ]
-                                  },
-                                  "maxItems": 50
+                                  "type": "integer",
+                                  "minimum": 0
                                 }
                               }
                             },
-                            "error": {
+                            "seeding": {
                               "type": "object",
-                              "nullable": true,
                               "properties": {
-                                "code": {
-                                  "type": "string",
-                                  "nullable": true,
-                                  "maxLength": 80
+                                "enabled": {
+                                  "type": "boolean"
                                 },
-                                "message": {
+                                "active": {
+                                  "type": "boolean"
+                                },
+                                "uploadedBytes": {
+                                  "type": "integer",
+                                  "format": "int64"
+                                },
+                                "uploadBytesPerSecond": {
+                                  "type": "integer",
+                                  "format": "int64"
+                                },
+                                "ratio": {
+                                  "type": "number",
+                                  "minimum": 0
+                                },
+                                "startedAt": {
                                   "type": "string",
-                                  "nullable": true,
-                                  "maxLength": 1000
+                                  "nullable": true
+                                },
+                                "expiresAt": {
+                                  "type": "string",
+                                  "nullable": true
                                 }
+                              }
+                            },
+                            "connections": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "etaSeconds": {
+                              "type": "integer",
+                              "nullable": true,
+                              "minimum": 0
+                            },
+                            "trackers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "url": {
+                                    "type": "string",
+                                    "maxLength": 1024
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "maxLength": 80
+                                  },
+                                  "peers": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "seeds": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "leechers": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "message": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  }
+                                },
+                                "required": [
+                                  "url"
+                                ]
                               },
-                              "required": [
-                                "message"
-                              ]
+                              "maxItems": 20
                             },
-                            "startedAt": {
+                            "peers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "address": {
+                                    "type": "string",
+                                    "maxLength": 160
+                                  },
+                                  "client": {
+                                    "type": "string",
+                                    "maxLength": 160
+                                  },
+                                  "progress": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1
+                                  },
+                                  "downloadBps": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                  },
+                                  "uploadBps": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                  },
+                                  "countryCode": {
+                                    "type": "string",
+                                    "minLength": 2,
+                                    "maxLength": 2
+                                  },
+                                  "regionCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 16
+                                  }
+                                },
+                                "required": [
+                                  "address"
+                                ]
+                              },
+                              "maxItems": 20
+                            },
+                            "files": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "path": {
+                                    "type": "string",
+                                    "maxLength": 1024
+                                  },
+                                  "size": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                  },
+                                  "completedBytes": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                  },
+                                  "selected": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "path",
+                                  "size"
+                                ]
+                              },
+                              "maxItems": 50
+                            }
+                          }
+                        },
+                        "error": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "code": {
                               "type": "string",
-                              "nullable": true
+                              "nullable": true,
+                              "maxLength": 80
                             },
-                            "finishedAt": {
+                            "message": {
                               "type": "string",
-                              "nullable": true
-                            },
-                            "updatedAt": {
-                              "type": "string"
+                              "nullable": true,
+                              "maxLength": 1000
                             }
                           },
                           "required": [
-                            "state",
-                            "attempt",
-                            "assignment",
-                            "progress",
-                            "billing",
-                            "output",
-                            "runtime",
-                            "error",
-                            "startedAt",
-                            "finishedAt",
-                            "updatedAt"
+                            "message"
                           ]
                         },
-                        "createdAt": {
+                        "startedAt": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "finishedAt": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "updatedAt": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "id",
-                        "spec",
-                        "status",
-                        "createdAt"
+                        "state",
+                        "attempt",
+                        "assignment",
+                        "progress",
+                        "billing",
+                        "output",
+                        "runtime",
+                        "error",
+                        "startedAt",
+                        "finishedAt",
+                        "updatedAt"
                       ]
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "deleted": {
-                          "type": "boolean",
-                          "enum": [
-                            true
-                          ]
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "deleted"
-                      ]
+                    "createdAt": {
+                      "type": "string"
                     }
+                  },
+                  "required": [
+                    "id",
+                    "spec",
+                    "status",
+                    "createdAt"
                   ]
                 }
               }
@@ -3749,7 +3835,650 @@
         }
       }
     },
-    "/api/downloader/heartbeat": {
+    "/api/downloads/tasks/{id}/attempts": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fresh": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "New download attempt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "orgId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "spec": {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "http",
+                                "magnet",
+                                "torrent_url"
+                              ]
+                            },
+                            "uri": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "uri"
+                          ]
+                        },
+                        "destination": {
+                          "type": "object",
+                          "properties": {
+                            "folder": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "folder",
+                            "name"
+                          ]
+                        },
+                        "labels": {
+                          "type": "object",
+                          "properties": {
+                            "category": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "tags": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "tags"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "destination",
+                        "labels"
+                      ]
+                    },
+                    "status": {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "assigned",
+                            "downloading",
+                            "suspended",
+                            "pausing",
+                            "paused",
+                            "interrupted",
+                            "uploading",
+                            "canceling",
+                            "completed",
+                            "failed",
+                            "canceled"
+                          ]
+                        },
+                        "attempt": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "assignment": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "downloaderId": {
+                              "type": "string"
+                            },
+                            "assignedAt": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "uploadToken": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "downloaderId"
+                          ]
+                        },
+                        "progress": {
+                          "type": "object",
+                          "properties": {
+                            "download": {
+                              "type": "object",
+                              "properties": {
+                                "bytes": {
+                                  "type": "integer",
+                                  "format": "int64"
+                                },
+                                "totalBytes": {
+                                  "type": "integer",
+                                  "format": "int64",
+                                  "nullable": true
+                                },
+                                "bytesPerSecond": {
+                                  "type": "integer",
+                                  "format": "int64"
+                                }
+                              },
+                              "required": [
+                                "bytes",
+                                "bytesPerSecond"
+                              ]
+                            },
+                            "upload": {
+                              "type": "object",
+                              "properties": {
+                                "bytes": {
+                                  "type": "integer",
+                                  "format": "int64"
+                                },
+                                "totalBytes": {
+                                  "type": "integer",
+                                  "format": "int64",
+                                  "nullable": true
+                                },
+                                "bytesPerSecond": {
+                                  "type": "integer",
+                                  "format": "int64"
+                                }
+                              },
+                              "required": [
+                                "bytes",
+                                "bytesPerSecond"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "download",
+                            "upload"
+                          ]
+                        },
+                        "billing": {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "ok",
+                                "insufficient_credits"
+                              ]
+                            },
+                            "authorizedBytes": {
+                              "type": "integer",
+                              "format": "int64"
+                            },
+                            "chargedBytes": {
+                              "type": "integer",
+                              "format": "int64"
+                            },
+                            "chargedCredits": {
+                              "type": "integer",
+                              "format": "int64"
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "authorizedBytes",
+                            "chargedBytes",
+                            "chargedCredits"
+                          ]
+                        },
+                        "output": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "objectId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "objectId"
+                          ]
+                        },
+                        "runtime": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "engine": {
+                              "type": "string",
+                              "enum": [
+                                "builtin",
+                                "aria2",
+                                "qbittorrent"
+                              ]
+                            },
+                            "state": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "phase": {
+                              "type": "string",
+                              "enum": [
+                                "metadata",
+                                "downloading",
+                                "uploading",
+                                "seeding",
+                                "completed",
+                                "error"
+                              ]
+                            },
+                            "message": {
+                              "type": "string",
+                              "maxLength": 500
+                            },
+                            "updatedAt": {
+                              "type": "string"
+                            },
+                            "progress": {
+                              "type": "object",
+                              "properties": {
+                                "download": {
+                                  "type": "object",
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "integer",
+                                      "format": "int64"
+                                    },
+                                    "totalBytes": {
+                                      "type": "integer",
+                                      "format": "int64",
+                                      "nullable": true
+                                    },
+                                    "bytesPerSecond": {
+                                      "type": "integer",
+                                      "format": "int64"
+                                    }
+                                  },
+                                  "required": [
+                                    "bytes",
+                                    "bytesPerSecond"
+                                  ]
+                                },
+                                "upload": {
+                                  "type": "object",
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "integer",
+                                      "format": "int64"
+                                    },
+                                    "totalBytes": {
+                                      "type": "integer",
+                                      "format": "int64",
+                                      "nullable": true
+                                    },
+                                    "bytesPerSecond": {
+                                      "type": "integer",
+                                      "format": "int64"
+                                    }
+                                  },
+                                  "required": [
+                                    "bytes",
+                                    "bytesPerSecond"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "download",
+                                "upload"
+                              ]
+                            },
+                            "torrent": {
+                              "type": "object",
+                              "properties": {
+                                "infoHash": {
+                                  "type": "string",
+                                  "maxLength": 120
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "maxLength": 255
+                                },
+                                "seeders": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "leechers": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "peers": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                }
+                              }
+                            },
+                            "seeding": {
+                              "type": "object",
+                              "properties": {
+                                "enabled": {
+                                  "type": "boolean"
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                },
+                                "uploadedBytes": {
+                                  "type": "integer",
+                                  "format": "int64"
+                                },
+                                "uploadBytesPerSecond": {
+                                  "type": "integer",
+                                  "format": "int64"
+                                },
+                                "ratio": {
+                                  "type": "number",
+                                  "minimum": 0
+                                },
+                                "startedAt": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "expiresAt": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
+                              }
+                            },
+                            "connections": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "etaSeconds": {
+                              "type": "integer",
+                              "nullable": true,
+                              "minimum": 0
+                            },
+                            "trackers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "url": {
+                                    "type": "string",
+                                    "maxLength": 1024
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "maxLength": 80
+                                  },
+                                  "peers": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "seeds": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "leechers": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "message": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  }
+                                },
+                                "required": [
+                                  "url"
+                                ]
+                              },
+                              "maxItems": 20
+                            },
+                            "peers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "address": {
+                                    "type": "string",
+                                    "maxLength": 160
+                                  },
+                                  "client": {
+                                    "type": "string",
+                                    "maxLength": 160
+                                  },
+                                  "progress": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1
+                                  },
+                                  "downloadBps": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                  },
+                                  "uploadBps": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                  },
+                                  "countryCode": {
+                                    "type": "string",
+                                    "minLength": 2,
+                                    "maxLength": 2
+                                  },
+                                  "regionCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 16
+                                  }
+                                },
+                                "required": [
+                                  "address"
+                                ]
+                              },
+                              "maxItems": 20
+                            },
+                            "files": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "path": {
+                                    "type": "string",
+                                    "maxLength": 1024
+                                  },
+                                  "size": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                  },
+                                  "completedBytes": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                  },
+                                  "selected": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "path",
+                                  "size"
+                                ]
+                              },
+                              "maxItems": 50
+                            }
+                          }
+                        },
+                        "error": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "code": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 80
+                            },
+                            "message": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 1000
+                            }
+                          },
+                          "required": [
+                            "message"
+                          ]
+                        },
+                        "startedAt": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "finishedAt": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "state",
+                        "attempt",
+                        "assignment",
+                        "progress",
+                        "billing",
+                        "output",
+                        "runtime",
+                        "error",
+                        "startedAt",
+                        "finishedAt",
+                        "updatedAt"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "spec",
+                    "status",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid task state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/downloads/downloaders/me/heartbeats": {
       "post": {
         "requestBody": {
           "required": true,
@@ -3948,7 +4677,7 @@
         }
       }
     },
-    "/api/admin/downloaders": {
+    "/api/downloads/downloaders": {
       "get": {
         "responses": {
           "200": {
@@ -4322,7 +5051,7 @@
         }
       }
     },
-    "/api/admin/downloaders/{id}": {
+    "/api/downloads/downloaders/{id}": {
       "patch": {
         "parameters": [
           {
@@ -4663,8 +5392,8 @@
         }
       }
     },
-    "/api/objects/{id}": {
-      "patch": {
+    "/api/objects/{id}/status": {
+      "put": {
         "parameters": [
           {
             "schema": {
@@ -4682,10 +5411,11 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "action": {
+                  "status": {
                     "type": "string",
                     "enum": [
-                      "confirm"
+                      "active",
+                      "trashed"
                     ]
                   },
                   "onConflict": {
@@ -4698,7 +5428,7 @@
                   }
                 },
                 "required": [
-                  "action"
+                  "status"
                 ]
               }
             }
@@ -4990,8 +5720,8 @@
         }
       }
     },
-    "/api/objects/{id}/uploads/{uploadSessionId}": {
-      "patch": {
+    "/api/objects/{id}/uploads/{uploadSessionId}/status": {
+      "put": {
         "parameters": [
           {
             "schema": {
@@ -5015,58 +5745,40 @@
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "enum": [
-                          "complete"
-                        ]
-                      },
-                      "parts": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "partNumber": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 10000
-                            },
-                            "etag": {
-                              "type": "string",
-                              "minLength": 1
-                            }
-                          },
-                          "required": [
-                            "partNumber",
-                            "etag"
-                          ]
-                        },
-                        "minItems": 1
-                      }
-                    },
-                    "required": [
-                      "action",
-                      "parts"
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "completed"
                     ]
                   },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "enum": [
-                          "abort"
-                        ]
-                      }
+                  "parts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "partNumber": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10000
+                        },
+                        "etag": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "partNumber",
+                        "etag"
+                      ]
                     },
-                    "required": [
-                      "action"
-                    ]
+                    "minItems": 1
                   }
+                },
+                "required": [
+                  "status",
+                  "parts"
                 ]
               }
             }
@@ -5074,7 +5786,112 @@
         },
         "responses": {
           "200": {
-            "description": "Updated object multipart upload session",
+            "description": "Completed object multipart upload session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "objectId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "partSize": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "completed",
+                        "aborted"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "objectId",
+                    "uploadId",
+                    "partSize",
+                    "status",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid upload session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objects/{id}/uploads/{uploadSessionId}": {
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "uploadSessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aborted object multipart upload session",
             "content": {
               "application/json": {
                 "schema": {

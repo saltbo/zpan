@@ -1,13 +1,17 @@
-import { sql } from 'drizzle-orm'
+import { createHash, randomUUID } from 'node:crypto'
+import { createServer, type IncomingMessage, type Server } from 'node:http'
+import { eq, sql } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { createActivityRepo } from '../adapters/repos/activity.js'
 import { createMatterRepo } from '../adapters/repos/matter.js'
 import { createQuotaRepo } from '../adapters/repos/quota.js'
 import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
-import { cloudTrafficReports } from '../db/schema.js'
-import { authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
-import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../usecases/matter.js'
+import { cloudTrafficReports, orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
+import { currentTrafficPeriod } from '../domain/quota.js'
+import { authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
+import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../usecases/object.js'
 import type {
   CopyMatterOptions,
   CreateMatterInput,
@@ -291,7 +295,7 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/f1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', name: 'New Name' }),
+      body: JSON.stringify({ name: 'New Name' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -309,7 +313,7 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', parent: 'Target Folder' }),
+      body: JSON.stringify({ parent: 'Target Folder' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -322,7 +326,7 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/nonexistent', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', name: 'Nope' }),
+      body: JSON.stringify({ name: 'Nope' }),
     })
     expect(res.status).toBe(404)
   })
@@ -334,47 +338,45 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'uploading.txt', status: 'draft' })
 
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.status).toBe('active')
   })
 
-  it('PATCH /api/objects/:id (action: confirm) returns 404 for non-draft object [spec: objects/confirm-non-draft]', async () => {
+  it('PUT /api/objects/:id/status {active} is a no-op for an already-active object [spec: objects/confirm-non-draft]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'already-active.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('active')
   })
 
-  it('PATCH /api/objects/:id (action: cancel) deletes a draft upload and cleans up S3 [spec: objects/cancel-draft]', async () => {
+  it('DELETE /api/objects/:id discards a draft upload and cleans up S3 [spec: objects/cancel-draft]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'draft-cancel', name: 'cancel.txt', status: 'draft' })
 
-    const res = await app.request('/api/objects/draft-cancel', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel' }),
-    })
+    const res = await app.request('/api/objects/draft-cancel', { method: 'DELETE', headers })
 
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { id: string; cancelled: boolean }
-    expect(body).toEqual({ id: 'draft-cancel', cancelled: true })
+    const body = (await res.json()) as { id: string; deleted: boolean; purged: boolean }
+    expect(body).toEqual({ id: 'draft-cancel', deleted: true, purged: false })
     expect(S3Service.prototype.deleteObject).toHaveBeenCalledWith(
       expect.objectContaining({ id: validStorage.id }),
       'some/key.txt',
@@ -384,20 +386,16 @@ describe('Objects API', () => {
     expect(check.status).toBe(404)
   })
 
-  it('PATCH /api/objects/:id (action: cancel) returns 404 for active object', async () => {
+  it('DELETE /api/objects/:id rejects an active object with 409 (must trash first)', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'active-cancel', name: 'active.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/active-cancel', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel' }),
-    })
+    const res = await app.request('/api/objects/active-cancel', { method: 'DELETE', headers })
 
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(409)
   })
 
   it('DELETE /api/objects/:id rejects active object (must trash first) [spec: objects/delete-requires-trash]', async () => {
@@ -418,10 +416,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFolder(db, orgId, { id: 'f1', name: 'Delete Me' })
 
-    const trashRes = await app.request('/api/objects/f1', {
-      method: 'PATCH',
+    const trashRes = await app.request('/api/objects/f1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(trashRes.status).toBe(200)
 
@@ -444,10 +442,10 @@ describe('Objects API', () => {
     await insertFolder(db, orgId, { id: 'movie-folder', name: folderName })
     await insertFile(db, orgId, { id: 'movie-file', name: 'movie.mkv', parent: folderName })
 
-    const trashRes = await app.request('/api/objects/movie-folder', {
-      method: 'PATCH',
+    const trashRes = await app.request('/api/objects/movie-folder/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(trashRes.status).toBe(200)
 
@@ -467,10 +465,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt' })
 
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -489,10 +487,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
 
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -509,10 +507,10 @@ describe('Objects API', () => {
     await insertFolder(db, orgId, { id: 'f2', name: 'Sub', parent: 'Parent' })
     await insertFile(db, orgId, { id: 'm2', name: 'deep.txt', parent: 'f2' })
 
-    const res = await app.request('/api/objects/f1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/f1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(res.status).toBe(200)
 
@@ -522,10 +520,10 @@ describe('Objects API', () => {
     expect(tBody.total).toBe(1)
 
     // But all descendants are flagged trashed: restore restores them all
-    await app.request('/api/objects/f1', {
-      method: 'PATCH',
+    await app.request('/api/objects/f1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     const childRes = await app.request('/api/objects/m2', { headers })
     const childBody = (await childRes.json()) as Record<string, unknown>
@@ -542,10 +540,10 @@ describe('Objects API', () => {
     await insertFolder(db, orgId, { id: 'album', name: 'Album', parent: 'Media/Music' })
     await insertFile(db, orgId, { id: 'track', name: 'track.flac', parent: 'Media/Music/Album' })
 
-    const trashRes = await app.request('/api/objects/album', {
-      method: 'PATCH',
+    const trashRes = await app.request('/api/objects/album/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(trashRes.status).toBe(200)
 
@@ -592,10 +590,10 @@ describe('Objects API', () => {
     await insertFolder(db, orgId, { id: 'target', name: 'Dest' })
     await insertFolder(db, orgId, { id: 'f1', name: 'Original' })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/f1/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'f1', parent: 'Dest' }),
+      body: JSON.stringify({ parent: 'Dest' }),
     })
     expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
@@ -608,10 +606,10 @@ describe('Objects API', () => {
   it('POST /api/objects/copy returns 404 for missing source', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/nonexistent/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'nonexistent' }),
+      body: JSON.stringify({}),
     })
     expect(res.status).toBe(404)
   })
@@ -619,10 +617,10 @@ describe('Objects API', () => {
   it('PATCH /api/objects/:id (action: confirm) returns 404 for missing object', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/nonexistent', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/nonexistent/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(404)
   })
@@ -650,10 +648,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'doc.txt' })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/m1/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'm1', parent: '' }),
+      body: JSON.stringify({ parent: '' }),
     })
     expect(res.status).toBe(201)
     expect(S3Service.prototype.copyObject).toHaveBeenCalled()
@@ -666,10 +664,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'file.txt' })
 
-    await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     const res = await app.request('/api/objects/m1', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
@@ -687,10 +685,10 @@ describe('Objects API', () => {
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt', parent: 'Folder' })
     await insertFile(db, orgId, { id: 'm2', name: 'b.txt', parent: 'Folder' })
 
-    await app.request('/api/objects/f1', {
-      method: 'PATCH',
+    await app.request('/api/objects/f1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
@@ -702,10 +700,10 @@ describe('Objects API', () => {
   it('PATCH /api/objects/:id (action: trash) returns 404 for missing object', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/nonexistent', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/nonexistent/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(res.status).toBe(404)
   })
@@ -716,10 +714,10 @@ describe('Objects API', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -729,10 +727,10 @@ describe('Objects API', () => {
   it('PATCH /api/objects/:id (action: restore) returns 404 for missing object', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/nonexistent', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/nonexistent/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(404)
   })
@@ -744,10 +742,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/m1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/m1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
+      body: JSON.stringify({ status: 'active' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -775,10 +773,10 @@ describe('Objects API', () => {
     await insertFile(db, orgId, { id: 'm1', name: 'child.txt', parent: 'Trash Folder' })
 
     // Trash the folder (cascades to child)
-    await app.request('/api/objects/f1', {
-      method: 'PATCH',
+    await app.request('/api/objects/f1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash' }),
+      body: JSON.stringify({ status: 'trashed' }),
     })
 
     const res = await app.request('/api/trash', { method: 'DELETE', headers })
@@ -1080,7 +1078,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', name: 'beta.txt' }),
+      body: JSON.stringify({ name: 'beta.txt' }),
     })
 
     expect(res.status).toBe(409)
@@ -1100,7 +1098,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', name: 'beta.txt', onConflict: 'rename' }),
+      body: JSON.stringify({ name: 'beta.txt', onConflict: 'rename' }),
     })
 
     expect(res.status).toBe(200)
@@ -1119,7 +1117,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', parent: 'Dest' }),
+      body: JSON.stringify({ parent: 'Dest' }),
     })
 
     expect(res.status).toBe(409)
@@ -1138,7 +1136,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', parent: 'Dest', onConflict: 'rename' }),
+      body: JSON.stringify({ parent: 'Dest', onConflict: 'rename' }),
     })
 
     expect(res.status).toBe(200)
@@ -1156,10 +1154,10 @@ describe('Objects API — name conflict (409 responses)', () => {
     await insertFile(db, orgId, { id: 'draft1', name: 'upload.txt', status: 'draft' })
     await insertFile(db, orgId, { id: 'active1', name: 'upload.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/draft1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/draft1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'confirm' }),
+      body: JSON.stringify({ status: 'active' }),
     })
 
     expect(res.status).toBe(409)
@@ -1175,10 +1173,10 @@ describe('Objects API — name conflict (409 responses)', () => {
     await insertFile(db, orgId, { id: 'trashed1', name: 'note.txt', status: 'trashed' })
     await insertFile(db, orgId, { id: 'active2', name: 'note.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/trashed1', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/trashed1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
+      body: JSON.stringify({ status: 'active' }),
     })
 
     expect(res.status).toBe(409)
@@ -1194,10 +1192,10 @@ describe('Objects API — name conflict (409 responses)', () => {
     await insertFile(db, orgId, { id: 'trashed2', name: 'note.txt', status: 'trashed' })
     await insertFile(db, orgId, { id: 'active3', name: 'note.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/trashed2', {
-      method: 'PATCH',
+    const res = await app.request('/api/objects/trashed2/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore', onConflict: 'rename' }),
+      body: JSON.stringify({ status: 'active', onConflict: 'rename' }),
     })
 
     expect(res.status).toBe(200)
@@ -1214,10 +1212,10 @@ describe('Objects API — name conflict (409 responses)', () => {
     await insertFile(db, orgId, { id: 'src1', name: 'doc.txt' })
     await insertFile(db, orgId, { id: 'dst1', name: 'doc.txt', parent: 'Dest' })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/src1/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'src1', parent: 'Dest', onConflict: 'fail' }),
+      body: JSON.stringify({ parent: 'Dest', onConflict: 'fail' }),
     })
 
     expect(res.status).toBe(409)
@@ -1233,10 +1231,10 @@ describe('Objects API — name conflict (409 responses)', () => {
     await insertFile(db, orgId, { id: 'src2', name: 'photo.jpg' })
     await insertFile(db, orgId, { id: 'dst2', name: 'photo.jpg', parent: 'Dest' })
 
-    const res = await app.request('/api/objects/copy', {
+    const res = await app.request('/api/objects/src2/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ copyFrom: 'src2', parent: 'Dest' }),
+      body: JSON.stringify({ parent: 'Dest' }),
     })
 
     expect(res.status).toBe(201)
@@ -1418,5 +1416,849 @@ describe('POST /api/objects/:id/transfers', () => {
 
     const res = await transferRequest(app, headers, 'src-same', { targetOrgId: orgId, mode: 'copy' })
     expect(res.status).toBe(400)
+  })
+})
+
+// ─── Quota enforcement ────────────────────────────────────────────────────────
+// Scoped helpers below shadow the top-level fixtures (distinct storage id and a
+// quota-focused insertStorage/insertFile signature) so they stay isolated.
+
+describe('Objects API — quota enforcement', () => {
+  const validStorage = {
+    id: 'st-quota',
+    title: 'Quota S3',
+    mode: 'private',
+    bucket: 'test-bucket',
+    endpoint: 'https://s3.amazonaws.com',
+    region: 'us-east-1',
+    accessKey: 'AKIAIOSFODNN7EXAMPLE',
+    secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+  }
+
+  async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db'], used = 0) {
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES (${validStorage.id}, ${validStorage.title}, ${validStorage.mode}, ${validStorage.bucket},
+              ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey},
+              ${validStorage.secretKey}, '', '', 0, ${used}, 'active', ${now}, ${now})
+    `)
+  }
+
+  async function insertFile(
+    db: Awaited<ReturnType<typeof createTestApp>>['db'],
+    orgId: string,
+    opts: { id: string; name: string; size?: number; status?: string },
+  ) {
+    const now = Date.now()
+    const size = opts.size ?? 100
+    const status = opts.status ?? 'active'
+    await db.run(sql`
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', ${size}, 0, '',
+              'some/key.txt', ${validStorage.id}, ${status}, ${now}, ${now})
+    `)
+  }
+
+  async function getOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {
+    const rows = await db.all<{ id: string }>(sql`
+      SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1
+    `)
+    return rows[0].id
+  }
+
+  async function setOrgQuota(
+    db: Awaited<ReturnType<typeof createTestApp>>['db'],
+    orgId: string,
+    quota: number,
+    used = 0,
+  ) {
+    const existing = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
+    if (existing.length > 0) {
+      await db.update(orgQuotas).set({ quota, used }).where(eq(orgQuotas.orgId, orgId))
+    } else {
+      await db.insert(orgQuotas).values({
+        id: nanoid(),
+        orgId,
+        quota,
+        used,
+        trafficQuota: 0,
+        trafficUsed: 0,
+        trafficPeriod: currentTrafficPeriod(),
+      })
+    }
+    const now = Date.now()
+    await db.run(sql`
+      UPDATE org_quota_entitlements
+      SET status = 'revoked', updated_at = ${now}
+      WHERE org_id = ${orgId}
+        AND resource_type = 'storage'
+        AND entitlement_type = 'plan'
+        AND status = 'active'
+    `)
+    if (quota > 0) {
+      await db.run(sql`
+        INSERT INTO org_quota_entitlements
+          (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+        VALUES
+          (${nanoid()}, ${orgId}, 'storage', 'plan', 'test', ${`test-storage-plan:${orgId}:${nanoid()}`}, ${quota}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
+      `)
+    }
+  }
+
+  async function addStorageEntitlement(
+    db: Awaited<ReturnType<typeof createTestApp>>['db'],
+    orgId: string,
+    bytes: number,
+  ) {
+    const now = new Date()
+    await db.insert(orgQuotaEntitlements).values({
+      id: nanoid(),
+      orgId,
+      resourceType: 'storage',
+      source: 'test',
+      sourceId: nanoid(),
+      bytes,
+      startsAt: now,
+      expiresAt: null,
+      status: 'active',
+      metadata: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
+  // ─── POST /api/objects/copy — quota enforcement ──────────────────────────
+
+  describe('POST /api/objects/copy — quota enforcement', () => {
+    it('returns 422 when copying a file would exceed quota', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      // quota = 500, used = 450, file size = 100 → copy would exceed
+      await setOrgQuota(db, orgId, 500, 450)
+      await insertFile(db, orgId, { id: 'm-copy-over', name: 'big.txt', size: 100 })
+
+      const res = await app.request('/api/objects/m-copy-over/copies', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: '' }),
+      })
+      expect(res.status).toBe(422)
+      const body = (await res.json()) as Record<string, unknown>
+      expect(body.error).toBe('Quota exceeded')
+    })
+
+    it('returns 201 and increments orgQuotas.used when copy succeeds within quota', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      // quota = 1000, used = 100, file size = 100 → copy is fine
+      await setOrgQuota(db, orgId, 1000, 100)
+      await insertFile(db, orgId, { id: 'm-copy-ok', name: 'doc.txt', size: 100 })
+
+      const res = await app.request('/api/objects/m-copy-ok/copies', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: '' }),
+      })
+      expect(res.status).toBe(201)
+
+      const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+      expect(quotaRows[0].used).toBe(200)
+    })
+
+    it('returns 201 and increments storages.used when copy succeeds', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db, 50)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 10000, 50)
+      await insertFile(db, orgId, { id: 'm-copy-st', name: 'img.png', size: 150 })
+
+      await app.request('/api/objects/m-copy-st/copies', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: '' }),
+      })
+
+      const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+      expect(storageRows[0].used).toBe(200)
+    })
+
+    it('rolls back usage when S3 copy fails after quota reservation', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db, 100)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 1000, 100)
+      await insertFile(db, orgId, { id: 'm-copy-s3-fail', name: 'fail.txt', size: 200 })
+      vi.mocked(S3Service.prototype.copyObject).mockRejectedValueOnce(new Error('copy failed'))
+
+      const res = await app.request('/api/objects/m-copy-s3-fail/copies', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: 'Archive' }),
+      })
+
+      expect(res.status).toBe(500)
+      const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+      const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+      expect(storageRows[0].used).toBe(100)
+      expect(quotaRows[0].used).toBe(100)
+    })
+
+    it('rolls back usage when copy fails on name conflict after quota reservation', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db, 100)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 1000, 100)
+      await insertFile(db, orgId, { id: 'm-copy-conflict', name: 'conflict.txt', size: 200 })
+
+      const res = await app.request('/api/objects/m-copy-conflict/copies', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: '', onConflict: 'fail' }),
+      })
+
+      expect(res.status).toBe(409)
+      const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+      const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+      expect(storageRows[0].used).toBe(100)
+      expect(quotaRows[0].used).toBe(100)
+    })
+
+    it('returns 201 without incrementing usage when copying a zero-size file', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      // quota is fully consumed, but zero-size should still pass
+      await setOrgQuota(db, orgId, 500, 500)
+      const now = Date.now()
+      await db.run(sql`
+        INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+        VALUES ('m-zero', ${orgId}, 'm-zero-alias', 'empty.txt', 'text/plain', 0, 0, '', '',
+                ${validStorage.id}, 'active', ${now}, ${now})
+      `)
+
+      const res = await app.request('/api/objects/m-zero/copies', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: '' }),
+      })
+      expect(res.status).toBe(201)
+
+      const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+      expect(quotaRows[0].used).toBe(500) // unchanged
+    })
+
+    it('returns 201 when no quota row exists (unlimited)', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      // No org quota row at all — unlimited
+      await insertFile(db, orgId, { id: 'm-copy-nolimit', name: 'nolimit.txt', size: 100 })
+
+      const res = await app.request('/api/objects/m-copy-nolimit/copies', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: '' }),
+      })
+      expect(res.status).toBe(201)
+    })
+
+    it('returns 201 when quota is 0 (unlimited) regardless of file size', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 0, 99999)
+      await insertFile(db, orgId, { id: 'm-copy-qlimit', name: 'large.bin', size: 1000000 })
+
+      const res = await app.request('/api/objects/m-copy-qlimit/copies', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: '' }),
+      })
+      expect(res.status).toBe(201)
+    })
+
+    it('returns 404 when source file does not exist', async () => {
+      const { app } = await createTestApp()
+      const headers = await authedHeaders(app)
+
+      const res = await app.request('/api/objects/nonexistent/copies', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: '' }),
+      })
+      expect(res.status).toBe(404)
+    })
+  })
+
+  describe('trash and purge — storage usage accounting', () => {
+    it('does not change usage when an active file is moved to trash', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db, 300)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 1000, 300)
+      await insertFile(db, orgId, { id: 'm-trash-usage', name: 'keep-accounted.txt', size: 300 })
+
+      const res = await app.request('/api/objects/m-trash-usage/status', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'trashed' }),
+      })
+
+      expect(res.status).toBe(200)
+      const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+      const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+      expect(storageRows[0].used).toBe(300)
+      expect(quotaRows[0].used).toBe(300)
+    })
+
+    it('emptying trash releases only purged files and keeps active file usage', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db, 500)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 1000, 500)
+      await insertFile(db, orgId, { id: 'm-active-after-empty', name: 'active.txt', size: 300 })
+      await insertFile(db, orgId, { id: 'm-trashed-empty', name: 'trashed.txt', size: 200, status: 'trashed' })
+
+      const res = await app.request('/api/trash', { method: 'DELETE', headers })
+
+      expect(res.status).toBe(200)
+      const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+      const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+      expect(storageRows[0].used).toBe(300)
+      expect(quotaRows[0].used).toBe(300)
+    })
+
+    it('emptying trash recalculates usage when counters had drifted below active file bytes', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db, 200)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 1000, 200)
+      await insertFile(db, orgId, { id: 'm-active-drift', name: 'active.txt', size: 300 })
+      await insertFile(db, orgId, { id: 'm-trashed-drift', name: 'trashed.txt', size: 200, status: 'trashed' })
+
+      const res = await app.request('/api/trash', { method: 'DELETE', headers })
+
+      expect(res.status).toBe(200)
+      const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+      const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+      expect(storageRows[0].used).toBe(300)
+      expect(quotaRows[0].used).toBe(300)
+    })
+  })
+
+  describe('GET /api/objects/:id — traffic quota enforcement', () => {
+    it('returns download URL and consumes traffic quota when allowed', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await insertFile(db, orgId, { id: 'm-download-ok', name: 'download.txt', size: 100 })
+      const trafficPeriod = currentTrafficPeriod()
+      await db.run(sql`
+        UPDATE org_quotas
+        SET traffic_quota = 500, traffic_used = 25, traffic_period = ${trafficPeriod}
+        WHERE org_id = ${orgId}
+      `)
+
+      const res = await app.request('/api/objects/m-download-ok', { headers })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as Record<string, unknown>
+      expect(body.downloadUrl).toBe('https://presigned-download.example.com')
+
+      const rows = await db.all<{ trafficUsed: number }>(
+        sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+      )
+      expect(rows[0].trafficUsed).toBe(125)
+    })
+
+    it('resets stale monthly traffic period before consuming traffic', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await insertFile(db, orgId, { id: 'm-download-reset', name: 'download.txt', size: 100 })
+      const trafficPeriod = currentTrafficPeriod()
+      await db.run(sql`
+        UPDATE org_quotas
+        SET traffic_quota = 500, traffic_used = 500, traffic_period = '1970-01'
+        WHERE org_id = ${orgId}
+      `)
+
+      const res = await app.request('/api/objects/m-download-reset', { headers })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as Record<string, unknown>
+      expect(body.downloadUrl).toBe('https://presigned-download.example.com')
+
+      const rows = await db.all<{ trafficUsed: number; trafficPeriod: string }>(
+        sql`SELECT traffic_used AS trafficUsed, traffic_period AS trafficPeriod FROM org_quotas WHERE org_id = ${orgId}`,
+      )
+      expect(rows[0]).toEqual({ trafficUsed: 100, trafficPeriod })
+    })
+
+    it('refunds traffic when download URL signing fails', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await insertFile(db, orgId, { id: 'm-download-sign-fail', name: 'download.txt', size: 100 })
+      const trafficPeriod = currentTrafficPeriod()
+      await db.run(sql`
+        UPDATE org_quotas
+        SET traffic_quota = 500, traffic_used = 25, traffic_period = ${trafficPeriod}
+        WHERE org_id = ${orgId}
+      `)
+      vi.mocked(S3Service.prototype.presignDownload).mockRejectedValueOnce(new Error('sign failed'))
+
+      const res = await app.request('/api/objects/m-download-sign-fail', { headers })
+      expect(res.status).toBe(500)
+
+      const rows = await db.all<{ trafficUsed: number }>(
+        sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+      )
+      expect(rows[0].trafficUsed).toBe(25)
+    })
+
+    it('returns 422 when download traffic quota is exhausted', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await insertFile(db, orgId, { id: 'm-download-over', name: 'download.txt', size: 100 })
+      const trafficPeriod = currentTrafficPeriod()
+      await db.run(sql`
+        UPDATE org_quotas
+        SET traffic_quota = 0, traffic_used = 0, traffic_period = ${trafficPeriod}
+        WHERE org_id = ${orgId}
+      `)
+      const now = Date.now()
+      await db.run(sql`
+        UPDATE org_quota_entitlements
+        SET status = 'revoked', updated_at = ${now}
+        WHERE org_id = ${orgId}
+          AND resource_type = 'traffic'
+          AND entitlement_type = 'plan'
+          AND status = 'active'
+      `)
+      await db.run(sql`
+        INSERT INTO org_quota_entitlements
+          (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+        VALUES
+          (${nanoid()}, ${orgId}, 'traffic', 'plan', 'test', ${`test-traffic-plan:${orgId}`}, 50, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
+      `)
+
+      const res = await app.request('/api/objects/m-download-over', { headers })
+      expect(res.status).toBe(422)
+      await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+      expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
+
+      const rows = await db.all<{ trafficUsed: number }>(
+        sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+      )
+      expect(rows[0].trafficUsed).toBe(0)
+    })
+  })
+
+  // ─── PATCH /api/objects/:id (action: confirm) — quota enforcement via confirmUpload ─────────
+
+  describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via confirmUpload', () => {
+    it('returns 200 and increments usage when quota allows', async () => {
+      const { app, db } = await createTestApp()
+      await seedProLicense(db)
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 10000, 0)
+      await insertFile(db, orgId, { id: 'm-done', name: 'uploading.txt', size: 350, status: 'draft' })
+
+      const res = await app.request('/api/objects/m-done/status', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as Record<string, unknown>
+      expect(body.status).toBe('active')
+
+      const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+      expect(quotaRows[0].used).toBe(350)
+    })
+
+    it('uses active storage entitlements when confirming upload', async () => {
+      const { app, db } = await createTestApp()
+      await seedProLicense(db)
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 100, 90)
+      await addStorageEntitlement(db, orgId, 100)
+      await insertFile(db, orgId, { id: 'm-done-entitlement', name: 'entitled.txt', size: 50, status: 'draft' })
+
+      const res = await app.request('/api/objects/m-done-entitlement/status', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      })
+
+      expect(res.status).toBe(200)
+      const quotaRows = await db.all<{ used: number; quota: number }>(
+        sql`SELECT used, quota FROM org_quotas WHERE org_id = ${orgId}`,
+      )
+      expect(quotaRows[0]).toEqual({ used: 140, quota: 100 })
+    })
+
+    it('enforces storage entitlements when base quota is unlimited', async () => {
+      const { app, db } = await createTestApp()
+      await seedProLicense(db)
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 0, 90)
+      await addStorageEntitlement(db, orgId, 100)
+      await insertFile(db, orgId, {
+        id: 'm-done-zero-base-entitlement',
+        name: 'limited.txt',
+        size: 11,
+        status: 'draft',
+      })
+
+      const res = await app.request('/api/objects/m-done-zero-base-entitlement/status', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      })
+
+      expect(res.status).toBe(422)
+      await expect(res.json()).resolves.toMatchObject({ error: 'Quota exceeded' })
+    })
+
+    it('returns 200 and increments storages.used when quota allows', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db, 100)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 10000, 100)
+      await insertFile(db, orgId, { id: 'm-done2', name: 'photo.jpg', size: 400, status: 'draft' })
+
+      await app.request('/api/objects/m-done2/status', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      })
+
+      const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+      expect(storageRows[0].used).toBe(500)
+    })
+
+    it('returns 422 when confirming upload would exceed quota', async () => {
+      const { app, db } = await createTestApp()
+      await seedProLicense(db)
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      // quota = 100, used = 90, file size = 50 → exceeds
+      await setOrgQuota(db, orgId, 100, 90)
+      await insertFile(db, orgId, { id: 'm-done-quota', name: 'toobig.txt', size: 50, status: 'draft' })
+
+      const res = await app.request('/api/objects/m-done-quota/status', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      })
+      expect(res.status).toBe(422)
+      const body = (await res.json()) as Record<string, unknown>
+      expect(body.error).toBe('Quota exceeded')
+    })
+
+    it('does not change usage when a file with size 0 is confirmed', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db, 50)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 10000, 50)
+      await insertFile(db, orgId, { id: 'm-done3', name: 'empty.txt', size: 0, status: 'draft' })
+
+      await app.request('/api/objects/m-done3/status', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      })
+
+      const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+      const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+      expect(storageRows[0].used).toBe(50)
+      expect(quotaRows[0].used).toBe(50)
+    })
+
+    it('returns 200 when no quota row exists (unlimited)', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      // No quota row — unlimited
+      await insertFile(db, orgId, { id: 'm-done-nolimit', name: 'nolimit.txt', size: 5000, status: 'draft' })
+
+      const res = await app.request('/api/objects/m-done-nolimit/status', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as Record<string, unknown>
+      expect(body.status).toBe('active')
+    })
+
+    it('replaces a same-size file at full quota — net-neutral, incumbent purged', async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      // Quota exactly full: the 100-byte incumbent fills the 100-byte quota.
+      await insertFile(db, orgId, { id: 'incumbent', name: 'doc.txt', size: 100 })
+      await setOrgQuota(db, orgId, 100, 100)
+
+      // Create the replacement draft (incumbent stays active — overwrite deferred).
+      const createRes = await app.request('/api/objects', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'doc.txt',
+          type: 'text/plain',
+          size: 100,
+          parent: '',
+          dirtype: 0,
+          onConflict: 'replace',
+        }),
+      })
+      expect(createRes.status).toBe(201)
+      const draft = (await createRes.json()) as { id: string }
+
+      // Confirm with replace. Before the fix this 422'd (headroom for both copies).
+      const confirmRes = await app.request(`/api/objects/${draft.id}/status`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active', onConflict: 'replace' }),
+      })
+      expect(confirmRes.status).toBe(200)
+
+      // Incumbent purged (overwritten, not trashed) and usage unchanged.
+      const incumbent = await db.all(sql`SELECT id FROM matters WHERE id = 'incumbent'`)
+      expect(incumbent).toHaveLength(0)
+      const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+      expect(quotaRows[0].used).toBe(100)
+    })
+  })
+})
+
+// ─── Multipart upload against a live S3-compatible mock ───────────────────────
+// Self-contained: spins up an in-process S3 mock and uses its own storage row.
+
+describe('object multipart upload API with S3-compatible storage', () => {
+  let server: Server | undefined
+
+  // Undo the file-level S3Service spies so this test exercises the real gateway
+  // against its in-process mock instead of the stubbed presign URLs.
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db'], endpoint: string) {
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (
+        id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
+        capacity, used, status, egress_credit_billing_enabled, egress_credit_unit_bytes,
+        egress_credit_per_unit, created_at, updated_at
+      )
+      VALUES (
+        'multipart-live-storage', 'Multipart Live Storage', 'private', 'test-bucket',
+        ${endpoint}, 'auto', 'test-access-key', 'test-secret-key',
+        '$UID/$RAW_NAME', '', 0, 0, 'active', 0, ${100 * 1024 * 1024}, 1, ${now}, ${now}
+      )
+    `)
+  }
+
+  async function startMultipartS3Mock(): Promise<{ endpoint: string; server: Server }> {
+    const objects = new Map<string, Uint8Array>()
+    const uploads = new Map<string, { bucket: string; key: string; parts: Map<number, Uint8Array> }>()
+    const server = createServer(async (req, res) => {
+      try {
+        const url = new URL(req.url ?? '/', `http://${req.headers.host}`)
+        const { bucket, key } = parsePath(url.pathname)
+        const objectKey = `${bucket}/${key}`
+
+        if (req.method === 'POST' && url.searchParams.has('uploads')) {
+          const uploadId = randomUUID()
+          uploads.set(uploadId, { bucket, key, parts: new Map() })
+          res.writeHead(200, { 'Content-Type': 'application/xml' })
+          res.end(`<CreateMultipartUploadResult><UploadId>${uploadId}</UploadId></CreateMultipartUploadResult>`)
+          return
+        }
+
+        if (req.method === 'PUT' && url.searchParams.has('uploadId') && url.searchParams.has('partNumber')) {
+          const upload = uploads.get(url.searchParams.get('uploadId') ?? '')
+          if (!upload) {
+            res.writeHead(404)
+            res.end('Upload not found')
+            return
+          }
+          const body = await readBody(req)
+          upload.parts.set(Number(url.searchParams.get('partNumber')), body)
+          res.writeHead(200, { etag: etag(body) })
+          res.end('')
+          return
+        }
+
+        if (req.method === 'POST' && url.searchParams.has('uploadId')) {
+          const uploadId = url.searchParams.get('uploadId') ?? ''
+          const upload = uploads.get(uploadId)
+          if (!upload) {
+            res.writeHead(404)
+            res.end('Upload not found')
+            return
+          }
+          const parts = [...upload.parts.entries()].sort(([left], [right]) => left - right)
+          const body = concat(parts.map(([, part]) => part))
+          objects.set(`${upload.bucket}/${upload.key}`, body)
+          uploads.delete(uploadId)
+          res.writeHead(200, { 'Content-Type': 'application/xml' })
+          res.end('<CompleteMultipartUploadResult />')
+          return
+        }
+
+        if (req.method === 'GET') {
+          const object = objects.get(objectKey)
+          if (!object) {
+            res.writeHead(404)
+            res.end('Not found')
+            return
+          }
+          res.writeHead(200, { 'Content-Length': object.byteLength, etag: etag(object) })
+          res.end(object)
+          return
+        }
+
+        res.writeHead(405)
+        res.end('Method not allowed')
+      } catch (error) {
+        res.writeHead(500)
+        res.end(error instanceof Error ? error.message : String(error))
+      }
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('S3 mock did not bind to a TCP port')
+    return { endpoint: `http://127.0.0.1:${address.port}`, server }
+  }
+
+  function parsePath(pathname: string): { bucket: string; key: string } {
+    const parts = pathname.split('/').filter(Boolean).map(decodeURIComponent)
+    return { bucket: parts[0] ?? '', key: parts.slice(1).join('/') }
+  }
+
+  async function readBody(req: IncomingMessage): Promise<Uint8Array> {
+    const chunks: Buffer[] = []
+    for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    return new Uint8Array(Buffer.concat(chunks))
+  }
+
+  function concat(parts: Uint8Array[]): Uint8Array {
+    const body = new Uint8Array(parts.reduce((sum, part) => sum + part.byteLength, 0))
+    let offset = 0
+    for (const part of parts) {
+      body.set(part, offset)
+      offset += part.byteLength
+    }
+    return body
+  }
+
+  function etag(body: Uint8Array): string {
+    return `"${createHash('md5').update(body).digest('hex')}"`
+  }
+
+  afterEach(async () => {
+    if (!server) return
+    await new Promise<void>((resolve, reject) => {
+      server?.close((error) => (error ? reject(error) : resolve()))
+    })
+    server = undefined
+  })
+
+  it('uploads a small object through the multipart API without a large fixture', async () => {
+    const s3 = await startMultipartS3Mock()
+    server = s3.server
+    const { app, db } = await createTestApp()
+    await insertStorage(db, s3.endpoint)
+    const headers = await authedHeaders(app)
+
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'multipart-smoke.txt',
+        type: 'text/plain',
+        size: 11,
+        parent: '',
+      }),
+    })
+    expect(createRes.status).toBe(201)
+    const object = (await createRes.json()) as { id: string }
+
+    const sessionRes = await app.request(`/api/objects/${object.id}/uploads`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partSize: 5 * 1024 * 1024 }),
+    })
+    expect(sessionRes.status).toBe(201)
+    const session = (await sessionRes.json()) as { id: string; uploadId: string }
+    expect(session.uploadId).toBeTruthy()
+
+    const partsRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}/parts`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partNumbers: [1] }),
+    })
+    expect(partsRes.status).toBe(200)
+    const presigned = (await partsRes.json()) as { parts: Array<{ partNumber: number; url: string }> }
+    expect(presigned.parts).toHaveLength(1)
+
+    const partRes = await fetch(presigned.parts[0].url, { method: 'PUT', body: 'hello world' })
+    expect(partRes.status).toBe(200)
+    const etagHeader = partRes.headers.get('etag')
+    expect(etagHeader).toBeTruthy()
+
+    const completeRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}/status`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed', parts: [{ partNumber: 1, etag: etagHeader }] }),
+    })
+    expect(completeRes.status).toBe(200)
+
+    const confirmRes = await app.request(`/api/objects/${object.id}/status`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'active' }),
+    })
+    expect(confirmRes.status).toBe(200)
+
+    const objectRes = await app.request(`/api/objects/${object.id}`, { headers })
+    expect(objectRes.status).toBe(200)
+    const active = (await objectRes.json()) as { downloadUrl: string }
+    const downloadRes = await fetch(active.downloadUrl)
+    expect(downloadRes.status).toBe(200)
+    await expect(downloadRes.text()).resolves.toBe('hello world')
   })
 })

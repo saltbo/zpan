@@ -16,7 +16,6 @@ import { DirType, ObjectStatus } from '@shared/constants'
 import { joinMatterPath } from '../domain/webdav'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import type { Database } from '../platform/interface'
-import { type DownloadTrafficStorage, meterDownloadTraffic, type TrafficReportSource } from './cloud-traffic-metering'
 import type { Deps } from './deps'
 import {
   type ApiKeyAuth,
@@ -31,6 +30,7 @@ import {
   type WebDavWorkspace,
 } from './ports'
 import { withStorageUsageReservation } from './storage-usage'
+import { type DownloadTrafficStorage, meterDownloadTraffic, type TrafficReportSource } from './store/traffic-metering'
 
 // ─── Auth resolution ──────────────────────────────────────────────────────────
 // The middleware parses the Authorization header (http) and renders the 401 / 429;

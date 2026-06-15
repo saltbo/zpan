@@ -152,7 +152,7 @@ jobs:
           E2E_STORAGE_SECRET_KEY=e2e-secret-key \
           BETTER_AUTH_URL=http://localhost:5185 \
           TRUSTED_ORIGINS=http://localhost:5185 \
-          pnpm e2e --project=desktop --grep-invert "Cloud store|Archive jobs|Site announcements"
+          pnpm e2e --project=desktop --grep-invert "Cloud store|Cloud licensing|Archive jobs|Site announcements"
       - name: Install cloudflared
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
@@ -216,7 +216,7 @@ jobs:
           E2E_STORAGE_SECRET_KEY=e2e-secret-key \
           BETTER_AUTH_URL=http://localhost:5185 \
           TRUSTED_ORIGINS=http://localhost:5185 \
-          pnpm e2e --project=desktop --grep-invert "Cloud store|Archive jobs|Site announcements"
+          pnpm e2e --project=desktop --grep-invert "Cloud store|Cloud licensing|Archive jobs|Site announcements"
       - name: Install cloudflared
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64

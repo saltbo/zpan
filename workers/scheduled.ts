@@ -3,11 +3,11 @@
 import { createQuotaRepo } from '../server/adapters/repos/quota'
 import { createDeps } from '../server/composition'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
-import { syncPendingCloudTrafficReports } from '../server/usecases/cloud-traffic-metering'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/instance-telemetry'
-import { runLicensingRefresh } from '../server/usecases/licensing'
-import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/usecases/purge'
-import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/remote-download-usage'
+import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/downloads/remote-download-usage'
+import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/usecases/object'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
+import { runLicensingRefresh } from '../server/usecases/site/licensing'
+import { syncPendingCloudTrafficReports } from '../server/usecases/store/traffic-metering'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 
 // Subset of the worker Env used by the scheduled handler.

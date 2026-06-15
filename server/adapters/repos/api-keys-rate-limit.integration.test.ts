@@ -107,8 +107,8 @@ describe('API key rate limits', () => {
     const apiKey = await createOrgApiKey(auth, 'remote-download', orgId, userId, 1)
     const headers = { Authorization: `Bearer ${apiKey.key}` }
 
-    const allowed = await app.request('/api/download-tasks', { headers })
-    const limited = await app.request('/api/download-tasks', { headers })
+    const allowed = await app.request('/api/downloads/tasks', { headers })
+    const limited = await app.request('/api/downloads/tasks', { headers })
 
     expect(allowed.status).toBe(200)
     expect(limited.status).toBe(429)

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { syncPendingCloudTrafficReports } from '../server/usecases/cloud-traffic-metering'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/instance-telemetry'
-import { runLicensingRefresh } from '../server/usecases/licensing'
-import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/remote-download-usage'
+import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/downloads/remote-download-usage'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
+import { runLicensingRefresh } from '../server/usecases/site/licensing'
+import { syncPendingCloudTrafficReports } from '../server/usecases/store/traffic-metering'
 import { handleScheduled } from '../workers/scheduled'
 
 vi.mock('../server/platform/cloudflare', () => ({
@@ -16,7 +16,7 @@ vi.mock('../server/composition', () => ({
   createDeps: vi.fn(() => fakeDeps),
 }))
 
-vi.mock('../server/usecases/cloud-traffic-metering', () => ({
+vi.mock('../server/usecases/store/traffic-metering', () => ({
   syncPendingCloudTrafficReports: vi.fn(),
 }))
 
@@ -32,16 +32,16 @@ vi.mock('../server/adapters/repos/quota', () => ({
   createQuotaRepo: mockCreateQuotaRepo,
 }))
 
-vi.mock('../server/usecases/instance-telemetry', () => ({
+vi.mock('../server/usecases/site/instance-telemetry', () => ({
   INSTANCE_TELEMETRY_CRON: '0 */12 * * *',
   reportInstanceTelemetry: vi.fn(),
 }))
 
-vi.mock('../server/usecases/licensing', () => ({
+vi.mock('../server/usecases/site/licensing', () => ({
   runLicensingRefresh: vi.fn(),
 }))
 
-vi.mock('../server/usecases/remote-download-usage', () => ({
+vi.mock('../server/usecases/downloads/remote-download-usage', () => ({
   syncPendingRemoteDownloadUsageReports: vi.fn(),
 }))
 

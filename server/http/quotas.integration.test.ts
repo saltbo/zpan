@@ -17,7 +17,7 @@ async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']
 describe('Admin Quotas API', () => {
   it('returns 401 without auth [spec: quotas/admin-auth-required]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/admin/quotas')
+    const res = await app.request('/api/quotas')
     expect(res.status).toBe(401)
   })
 
@@ -31,14 +31,14 @@ describe('Admin Quotas API', () => {
       body: JSON.stringify({ email: 'regular@example.com', password: 'password123456' }),
     })
     const freshHeaders = { Cookie: signInRes.headers.getSetCookie().join('; ') }
-    const res = await app.request('/api/admin/quotas', { headers: freshHeaders })
+    const res = await app.request('/api/quotas', { headers: freshHeaders })
     expect(res.status).toBe(403)
   })
 
-  it('GET /api/admin/quotas returns the default quota row created at signup [spec: quotas/default-row]', async () => {
+  it('GET /api/quotas returns the default quota row created at signup [spec: quotas/default-row]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/quotas', { headers })
+    const res = await app.request('/api/quotas', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.items).toHaveLength(1)
@@ -49,12 +49,12 @@ describe('Admin Quotas API', () => {
     expect(body.items[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
   })
 
-  it('GET /api/admin/quotas normalizes stale monthly traffic period in the response without writing [spec: quotas/normalizes-stale-period]', async () => {
+  it('GET /api/quotas normalizes stale monthly traffic period in the response without writing [spec: quotas/normalizes-stale-period]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await db.run(sql`UPDATE org_quotas SET traffic_quota = 1000, traffic_used = 900, traffic_period = '1970-01'`)
 
-    const res = await app.request('/api/admin/quotas', { headers })
+    const res = await app.request('/api/quotas', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.items[0].trafficUsed).toBe(0)
@@ -69,7 +69,7 @@ describe('Admin Quotas API', () => {
     expect(rows[0].trafficPeriod).toBe('1970-01')
   })
 
-  it('GET /api/admin/quotas lists quotas with org info [spec: quotas/list-with-org]', async () => {
+  it('GET /api/quotas lists quotas with org info [spec: quotas/list-with-org]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -78,7 +78,7 @@ describe('Admin Quotas API', () => {
     )
     const orgId = orgs[0].id
 
-    const res = await app.request('/api/admin/quotas', { headers })
+    const res = await app.request('/api/quotas', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.items).toHaveLength(1)
@@ -91,7 +91,7 @@ describe('Admin Quotas API', () => {
     expect(body.items[0].orgType).toBe('personal')
   })
 
-  it('GET /api/admin/quotas lists effective quota with active entitlements [spec: quotas/effective-with-entitlements]', async () => {
+  it('GET /api/quotas lists effective quota with active entitlements [spec: quotas/effective-with-entitlements]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const orgs = await db.all<{ id: string }>(
@@ -112,7 +112,7 @@ describe('Admin Quotas API', () => {
         ('ent-admin-revoked', ${orgId}, 'storage', 'grant', 'test', 'admin-revoked', 9000, ${now}, NULL, 'revoked', NULL, ${now}, ${now})
     `)
 
-    const res = await app.request('/api/admin/quotas', { headers })
+    const res = await app.request('/api/quotas', { headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>> }
@@ -126,7 +126,7 @@ describe('Admin Quotas API', () => {
     })
   })
 
-  it('GET /api/admin/quotas exposes active plan and extra quota labels [spec: quotas/plan-labels]', async () => {
+  it('GET /api/quotas exposes active plan and extra quota labels [spec: quotas/plan-labels]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const orgs = await db.all<{ id: string }>(
@@ -147,7 +147,7 @@ describe('Admin Quotas API', () => {
         ('ent-admin-extra-traffic', ${orgId}, 'traffic', 'grant', 'test', 'traffic-pack', 900, ${now}, NULL, 'active', '{"packageName":"Traffic Boost"}', ${now}, ${now})
     `)
 
-    const res = await app.request('/api/admin/quotas', { headers })
+    const res = await app.request('/api/quotas', { headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>> }
@@ -240,5 +240,35 @@ describe('User Quotas API — /api/quotas', () => {
       trafficPlanName: 'Free',
       trafficExtraNames: ['Traffic Boost'],
     })
+  })
+})
+
+describe('Admin quota listing', () => {
+  it('normalizes stale traffic periods without historical grant aggregation', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const now = Date.now()
+    const adminOrg = await db.all<{ id: string }>(sql`SELECT id FROM organization LIMIT 1`)
+
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata, created_at, updated_at)
+      VALUES ('team-quota-listing', 'Team Quota Listing', 'team-quota-listing', '{"type":"team"}', ${now}, ${now})
+    `)
+    await db.run(sql`
+      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+      VALUES ('team-quota-listing-row', 'team-quota-listing', 2000, 100, 3000, 2500, '1970-01')
+    `)
+    await db.run(sql`UPDATE org_quotas SET traffic_quota = 1000, traffic_used = 900, traffic_period = '1970-01'`)
+    const res = await app.request('/api/quotas', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
+
+    expect(body.total).toBe(2)
+    expect(body.items).toHaveLength(2)
+    expect(body.items.every((item) => item.trafficUsed === 0)).toBe(true)
+    expect(body.items.every((item) => /^\d{4}-\d{2}$/.test(String(item.trafficPeriod)))).toBe(true)
+
+    const adminItem = body.items.find((item) => item.orgId === adminOrg[0].id)
+    expect(adminItem).toMatchObject({ baseQuota: 10485760, quota: 10485760 })
   })
 })

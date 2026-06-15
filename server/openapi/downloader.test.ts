@@ -12,13 +12,16 @@ describe('downloader OpenAPI', () => {
       expect.arrayContaining([
         '/api/auth/device/code',
         '/api/auth/device/token',
-        '/api/download-tasks',
-        '/api/download-tasks/{id}',
-        '/api/downloader/heartbeat',
-        '/api/admin/downloaders',
-        '/api/admin/downloaders/{id}',
+        '/api/downloads/tasks',
+        '/api/downloads/tasks/{id}',
+        '/api/downloads/tasks/{id}/status',
+        '/api/downloads/tasks/{id}/attempts',
+        '/api/downloads/downloaders/me/heartbeats',
+        '/api/downloads/downloaders',
+        '/api/downloads/downloaders/{id}',
         '/api/objects',
-        '/api/objects/{id}',
+        '/api/objects/{id}/status',
+        '/api/objects/{id}/uploads/{uploadSessionId}/status',
       ]),
     )
   })

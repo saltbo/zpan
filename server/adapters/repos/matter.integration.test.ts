@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { orgQuotaEntitlements, orgQuotas } from '../../db/schema.js'
 import { createTestApp } from '../../test/setup.js'
-import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../../usecases/matter'
+import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../../usecases/object'
 import type { UpdateMatterInput } from '../../usecases/ports'
 import {
   reserveStorageUsage,

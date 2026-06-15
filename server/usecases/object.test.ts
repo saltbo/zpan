@@ -1,6 +1,5 @@
 import { DirType } from '@shared/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { meterDownloadTraffic } from './cloud-traffic-metering'
 import {
   authorizeTaskUploadConfirm,
   cancelObject,
@@ -40,12 +39,13 @@ import type {
   StorageRepo,
   StorageUsageRepo,
 } from './ports'
+import { meterDownloadTraffic } from './store/traffic-metering'
 
 // Download metering is an end-to-end usecase of its own (quota + cloud report +
 // refund); object.getObject only orchestrates around it. Mock it and assert the
 // outcome mapping + presign rollback here; cloud-traffic-metering.test.ts owns
 // the metering internals.
-vi.mock('./cloud-traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
+vi.mock('./store/traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
 
 const storage = {
   id: 'st-1',
@@ -479,7 +479,7 @@ describe('object usecase', () => {
         orgId: 'o1',
         objectId: 'm1',
         actorId: 'u1',
-        input: { action: 'update', name: 'New.txt' },
+        input: { name: 'New.txt' },
       })
       expect(out).toEqual({ ok: true, matter: file('m1', { name: 'New.txt' }) })
       expect(update).toHaveBeenCalledWith(
@@ -496,7 +496,7 @@ describe('object usecase', () => {
         orgId: 'o1',
         objectId: 'x',
         actorId: 'u1',
-        input: { action: 'update', name: 'X' },
+        input: { name: 'X' },
       })
       expect(out).toEqual({ ok: false, reason: 'not_found' })
     })
@@ -838,17 +838,9 @@ describe('object usecase', () => {
       targetFolder: 'Inbox',
     }
 
-    it('forbids any action other than confirm', async () => {
-      const { deps } = makeDeps()
-      expect(await authorizeTaskUploadConfirm(deps, { ...taskParams, action: 'update' })).toEqual({
-        ok: false,
-        reason: 'forbidden',
-      })
-    })
-
     it('forbids confirming an object outside the target folder', async () => {
       const { deps } = makeDeps({ matter: { get: async () => file('m1', { parent: 'Other' }) } })
-      expect(await authorizeTaskUploadConfirm(deps, { ...taskParams, action: 'confirm' })).toEqual({
+      expect(await authorizeTaskUploadConfirm(deps, taskParams)).toEqual({
         ok: false,
         reason: 'forbidden',
       })
@@ -862,7 +854,7 @@ describe('object usecase', () => {
             ({ id: 't1', assignedDownloaderId: 'd1', status: 'uploading' }) as unknown as DownloadTaskRecord,
         },
       })
-      expect(await authorizeTaskUploadConfirm(deps, { ...taskParams, action: 'confirm' })).toEqual({ ok: true })
+      expect(await authorizeTaskUploadConfirm(deps, taskParams)).toEqual({ ok: true })
     })
   })
 })

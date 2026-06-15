@@ -3,7 +3,10 @@ import { z } from 'zod'
 export const announcementStatusSchema = z.enum(['draft', 'published', 'archived'])
 
 export const listAnnouncementsQuerySchema = z.object({
-  scope: z.enum(['active']).optional(),
+  // `active` = the caller's live feed (any authed user); `all` = full management
+  // list (admin only). Absent = live feed.
+  scope: z.enum(['active', 'all']).optional(),
+  status: announcementStatusSchema.optional(),
   page: z.string().regex(/^\d+$/).optional(),
   pageSize: z.string().regex(/^\d+$/).optional(),
 })

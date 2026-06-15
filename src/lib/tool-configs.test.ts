@@ -22,7 +22,7 @@ describe('buildPicGoFields', () => {
   it('injects appHost into URL field', () => {
     const fields = buildPicGoFields(paramsWithKey)
     const urlField = fields.find((f) => f.label.includes('URL'))
-    expect(urlField?.value).toBe('https://zpan.example.com/api/ihost/images')
+    expect(urlField?.value).toBe('https://zpan.example.com/api/image-hosting/images')
   })
 
   it('injects apiKey into customHeader', () => {
@@ -93,7 +93,7 @@ describe('buildShareXConfig', () => {
         },
         "Name": "ZPan Image Host",
         "RequestMethod": "POST",
-        "RequestURL": "https://zpan.example.com/api/ihost/images",
+        "RequestURL": "https://zpan.example.com/api/image-hosting/images",
         "URL": "{json:data.url}",
         "Version": "15.0.0",
       }

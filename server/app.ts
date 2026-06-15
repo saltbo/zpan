@@ -4,36 +4,32 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
 import { createDeps } from './composition'
-import { adminAnnouncements, announcements } from './http/announcements'
-import { adminAuthProviders, publicAuthProviders } from './http/auth-providers'
 import backgroundJobs from './http/background-jobs'
-import { brandingAdmin, publicBranding } from './http/branding'
-import { cloudStore, cloudStoreWebhooks } from './http/cloud-store'
-import { adminAudit } from './http/console/audit'
-import emailConfig from './http/console/email-config'
-import licensingAdmin from './http/console/licensing-admin'
-import storages from './http/console/storages'
-import { adminTeams } from './http/console/teams-admin'
-import users from './http/console/users'
-import downloadTasks from './http/download-tasks'
-import downloaders, { downloaderSelfRoute } from './http/downloaders'
+import downloadTasks from './http/downloads/download-tasks'
+import downloaders, { downloaderSelfRoute } from './http/downloads/downloaders'
 import { events } from './http/events'
-import ihost from './http/ihost'
-import ihostConfig from './http/ihost-config'
+import ihostConfig from './http/image-hosting/config'
+import ihost from './http/image-hosting/images'
 import internal from './http/internal'
-import { adminInviteCodes, publicInviteCodes } from './http/invite-codes'
-import licensing from './http/licensing'
-import { me } from './http/me'
 import { notifications } from './http/notifications'
 import objects from './http/objects'
-import profile from './http/profile'
 import { adminQuotas, userQuotas } from './http/quotas'
 import redirect from './http/redirect'
 import { authedShares, publicShares } from './http/shares'
-import { adminSiteInvitations, publicSiteInvitations } from './http/site-invitations'
-import system from './http/system'
-import { publicTeams, teams } from './http/teams'
+import { announcements } from './http/site/announcements'
+import { adminAudit } from './http/site/audit'
+import { authProviders } from './http/site/auth-providers'
+import { brandingAdmin, publicBranding } from './http/site/branding'
+import emailConfig from './http/site/email-config'
+import { adminSiteInvitations, publicSiteInvitations } from './http/site/invitations'
+import { adminInviteCodes, publicInviteCodes } from './http/site/invite-codes'
+import { licensing, licensingAdmin } from './http/site/licensing'
+import storages from './http/site/storages'
+import system from './http/site/system'
+import { cloudStore, cloudStoreWebhooks } from './http/store'
+import { adminTeams, publicTeams, teams } from './http/teams'
 import trash from './http/trash'
+import { users } from './http/users'
 import webdav from './http/webdav'
 import { formatError } from './lib/errors'
 import { authMiddleware } from './middleware/auth'
@@ -45,8 +41,8 @@ import { downloaderOpenAPIDocument } from './openapi/downloader'
 import type { Platform } from './platform/interface'
 import { getDeployPlatform } from './runtime-platform'
 import type { Deps } from './usecases/deps'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/instance-telemetry'
-import { ensureSitePublicOrigin } from './usecases/site-public-origin'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/site/instance-telemetry'
+import { ensureSitePublicOrigin } from './usecases/site/public-origin'
 
 export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
   const app = new Hono<Env>()
@@ -105,56 +101,62 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.all('/dav', (c) => c.redirect('/dav/', 308))
   app.route('/dav', webdav)
 
-  // Public routes — no auth required; mount before authMiddleware.
+  // Resolve the caller's principal for every /api/* route. authMiddleware is
+  // soft-fail: it populates userId/orgId/principal (or null) and never rejects an
+  // anonymous caller — per-route guards (requireAuth/requireAdmin/requireTeamRole,
+  // or a shared-secret/signature check) do the gating. Running it ahead of every
+  // /api route lets one router per resource mix public and authed endpoints.
+  app.use('/api/*', authMiddleware)
+
+  // Public routes — no per-route auth guard.
   // /api/shares/:token endpoints are covered by run_worker_first=["/api/*"] in wrangler.toml.
   // /r/* is listed separately in run_worker_first.
   // /s/:token is intentionally left for the SPA landing page.
   app.route('/api/shares', publicShares)
   app.route('/r', redirect)
-  app.route('/api/profiles', profile)
   app.route('/api/teams', publicTeams)
-  app.route('/api/auth-providers', publicAuthProviders)
-  app.route('/api/licensing', licensing)
-  app.route('/api/branding', publicBranding)
-  app.route('/api/site-invitations', publicSiteInvitations)
+  app.route('/api/site/auth-providers', authProviders)
+  app.route('/api/site/licensing', licensing)
+  app.route('/api/site/branding', publicBranding)
+  app.route('/api/site/invitations', publicSiteInvitations)
   app.route('/api/store', cloudStoreWebhooks)
   app.route('/api/internal', internal)
 
-  app.use('/api/*', authMiddleware)
-
-  app.route('/api/me', me)
-  app.route('/api/announcements', announcements)
+  app.route('/api/users', users)
+  app.route('/api/site/announcements', announcements)
 
   // Mount routes separately to avoid deep type chain accumulation.
   // Each .route() call is independent — TypeScript doesn't stack types.
+  // Authorization is per-route (requireAuth/requireAdmin/requireTeamRole), so a
+  // single resource path serves both public/user and admin callers.
   app.route('/api/objects', objects)
   app.route('/api/shares', authedShares)
   app.route('/api/trash', trash)
   app.route('/api/teams', teams)
-  app.route('/api/admin/storages', storages)
-  app.route('/api/admin/users', users)
-  app.route('/api/admin/email-config', emailConfig)
-  app.route('/api/admin/invite-codes', adminInviteCodes)
-  app.route('/api/invite-codes', publicInviteCodes)
-  app.route('/api/admin/site-invitations', adminSiteInvitations)
-  app.route('/api/admin/quotas', adminQuotas)
-  app.route('/api/admin/teams', adminTeams)
+  app.route('/api/teams', adminTeams)
+  app.route('/api/site/storages', storages)
+  app.route('/api/site/email', emailConfig)
+  // Public/user router mounts BEFORE the admin router on a shared path: a sub-app's
+  // blanket `.use(requireAdmin)` becomes prefix-wide middleware, so mounting admin
+  // first would gate the public routes too.
+  app.route('/api/site/invite-codes', publicInviteCodes)
+  app.route('/api/site/invite-codes', adminInviteCodes)
+  app.route('/api/site/invitations', adminSiteInvitations)
   app.route('/api/quotas', userQuotas)
+  app.route('/api/quotas', adminQuotas)
   app.route('/api/store', cloudStore)
-  app.route('/api/system', system)
-  app.route('/api/admin/auth-providers', adminAuthProviders)
+  app.route('/api/site', system)
   app.route('/api/notifications', notifications)
   app.route('/api/background-jobs', backgroundJobs)
-  app.route('/api/download-tasks', downloadTasks)
+  app.route('/api/downloads/tasks', downloadTasks)
   app.route('/api/events', events)
-  app.route('/api/downloader', downloaderSelfRoute)
-  app.route('/api/ihost', ihost)
-  app.route('/api/ihost/config', ihostConfig)
-  app.route('/api/licensing', licensingAdmin)
-  app.route('/api/admin/branding', brandingAdmin)
-  app.route('/api/admin/announcements', adminAnnouncements)
-  app.route('/api/admin/audit', adminAudit)
-  app.route('/api/admin/downloaders', downloaders)
+  app.route('/api/downloads/downloaders', downloaderSelfRoute)
+  app.route('/api/image-hosting', ihost)
+  app.route('/api/image-hosting/config', ihostConfig)
+  app.route('/api/site/licensing', licensingAdmin)
+  app.route('/api/site/branding', brandingAdmin)
+  app.route('/api/site/audit-events', adminAudit)
+  app.route('/api/downloads/downloaders', downloaders)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
@@ -235,9 +237,7 @@ export type AdminInviteCodesRoute = typeof adminInviteCodes
 export type PublicInviteCodesRoute = typeof publicInviteCodes
 export type AdminSiteInvitationsRoute = typeof adminSiteInvitations
 export type PublicSiteInvitationsRoute = typeof publicSiteInvitations
-export type AuthProvidersRoute = typeof publicAuthProviders
-export type AdminAuthProvidersRoute = typeof adminAuthProviders
-export type ProfileRoute = typeof profile
+export type AuthProvidersRoute = typeof authProviders
 export type CloudStoreRoute = typeof cloudStore
 export type CloudStoreWebhooksRoute = typeof cloudStoreWebhooks
 export type TeamsRoute = typeof teams
@@ -250,9 +250,7 @@ export type DownloadersRoute = typeof downloaders
 export type DownloaderSelfRoute = typeof downloaderSelfRoute
 export type IhostRoute = typeof ihost
 export type IhostConfigRoute = typeof ihostConfig
-export type MeRoute = typeof me
 export type AnnouncementsRoute = typeof announcements
-export type AdminAnnouncementsRoute = typeof adminAnnouncements
 export type LicensingRoute = typeof licensing
 export type LicensingAdminRoute = typeof licensingAdmin
 export type PublicBrandingRoute = typeof publicBranding
