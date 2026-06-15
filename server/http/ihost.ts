@@ -14,9 +14,15 @@ import { mimeToExt } from '../lib/mime-utils'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import { requirePermission } from '../middleware/authz'
 import type { Env } from '../middleware/platform'
-import { confirmImageHosting, deleteImageHosting, finalizeImageHostingUpload } from '../usecases/image-hosting'
-import type { StorageRecord as S3Storage } from '../usecases/ports'
-import { PRESIGN_TTL_SECS } from './share-utils'
+import {
+  confirmImageHosting,
+  getImageHosting,
+  listImageHostings,
+  presignImageHostingUpload,
+  removeImageHosting,
+  requireImageHostingEnabled,
+  uploadImageHosting,
+} from '../usecases/image-hosting'
 
 // Derive a storage path from the upload's filename, falling back to a random
 // name when the client sends an opaque blob.
@@ -67,15 +73,9 @@ const app = new Hono<Env>()
 
     const contentType = c.req.header('Content-Type') ?? ''
 
-    const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
-    if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
-
-    let storage: S3Storage
-    try {
-      storage = await c.get('deps').storages.select('private')
-    } catch {
-      return c.json({ error: 'No storage configured' }, 503)
-    }
+    const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
+    if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    const config = enabled.config
 
     // Parse the upload from either multipart/form-data or JSON base64.
     // uPic sends JSON: {"file": "<base64>"}; PicGo/ShareX send multipart.
@@ -157,13 +157,14 @@ const app = new Hono<Env>()
     if (pathErr) return c.json(pathErr, 400)
 
     try {
-      const row = await finalizeImageHostingUpload(c.get('deps'), {
+      const result = await uploadImageHosting(c.get('deps'), {
         orgId,
-        storage,
         path: requestedPath,
         mime: mime as (typeof ALLOWED_IMAGE_MIMES)[number],
         bytes: fileBytes,
       })
+      if (!result.ok) return c.json({ error: 'No storage configured' }, 503)
+      const row = result.row
 
       const origin = new URL(c.req.url).origin
       const tokenUrl = `${origin}/r/${row.token}`
@@ -201,8 +202,8 @@ const app = new Hono<Env>()
       const orgId = c.get('orgId')
       if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-      const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
-      if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+      const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
+      if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
       const { path: requestedPath, mime, size } = c.req.valid('json')
 
@@ -213,34 +214,10 @@ const app = new Hono<Env>()
       const pathErr = validatePath(requestedPath)
       if (pathErr) return c.json(pathErr, 400)
 
-      let storage: S3Storage
-      try {
-        storage = await c.get('deps').storages.select('private')
-      } catch {
-        return c.json({ error: 'No storage configured' }, 503)
-      }
+      const result = await presignImageHostingUpload(c.get('deps'), { orgId, path: requestedPath, mime, size })
+      if (!result.ok) return c.json({ error: 'No storage configured' }, 503)
 
-      const row = await c.get('deps').imageHosting.create({
-        orgId,
-        path: requestedPath,
-        mime,
-        size,
-        storageId: storage.id,
-        status: 'draft',
-      })
-
-      const uploadUrl = await c.get('deps').s3.presignUpload(storage, row.storageKey, mime, PRESIGN_TTL_SECS)
-
-      return c.json(
-        {
-          id: row.id,
-          token: row.token,
-          path: row.path,
-          uploadUrl,
-          storageKey: row.storageKey,
-        },
-        201,
-      )
+      return c.json(result.result, 201)
     },
   )
 
@@ -250,11 +227,11 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
-    if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
+    if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
     const { pathPrefix, cursor, limit } = c.req.valid('query')
-    const result = await c.get('deps').imageHosting.list(orgId, { pathPrefix, cursor, limit })
+    const result = await listImageHostings(c.get('deps'), orgId, { pathPrefix, cursor, limit })
     return c.json(result)
   })
 
@@ -262,10 +239,10 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
-    if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
+    if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
-    const row = await c.get('deps').imageHosting.get(c.req.param('id'), orgId)
+    const row = await getImageHosting(c.get('deps'), c.req.param('id'), orgId)
     if (!row) return c.json({ error: 'Not found' }, 404)
     return c.json(row)
   })
@@ -279,8 +256,8 @@ const app = new Hono<Env>()
       const orgId = c.get('orgId')
       if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-      const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
-      if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+      const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
+      if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
       // action === 'confirm' is the only value the discriminated union allows
       const { row, quotaExceeded } = await confirmImageHosting(c.get('deps'), c.req.param('id'), orgId)
@@ -294,14 +271,10 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
-    if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
+    if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
-    const existing = await c.get('deps').imageHosting.get(c.req.param('id'), orgId)
-    if (!existing) return c.json({ error: 'Not found' }, 404)
-
-    const storage = await c.get('deps').storages.get(existing.storageId)
-    const deleted = await deleteImageHosting(c.get('deps'), existing.id, orgId, storage)
+    const deleted = await removeImageHosting(c.get('deps'), c.req.param('id'), orgId)
     if (!deleted) return c.json({ error: 'Not found' }, 404)
 
     return new Response(null, { status: 204 })

@@ -3,8 +3,15 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-
-const LOGO_PREFIX = '_system/org-logos'
+import {
+  createInviteLink,
+  deleteTeamLogo,
+  getInviteLinkInfo,
+  joinTeam,
+  listActivity,
+  listInvitations,
+  setTeamLogo,
+} from '../usecases/team'
 
 const createLinkSchema = z.object({
   role: z.enum(['editor', 'viewer']).default('viewer'),
@@ -25,7 +32,7 @@ export const publicTeams = new Hono<Env>().get(
   zValidator('query', z.object({ token: z.string().min(1) })),
   async (c) => {
     const { token } = c.req.valid('query')
-    const info = await c.get('deps').teamInvites.getInviteLinkInfo(token)
+    const info = await getInviteLinkInfo(c.get('deps'), token)
     if (!info) return c.json({ error: 'Invalid or expired invite link' }, 404)
     return c.json(info)
   },
@@ -34,122 +41,72 @@ export const publicTeams = new Hono<Env>().get(
 export const teams = new Hono<Env>()
   .use(requireAuth)
   .post('/:teamId/invite-link', zValidator('json', createLinkSchema), async (c) => {
-    const userId = c.get('userId')!
-    const { teamId } = c.req.param()
     const { role, expiresIn } = c.req.valid('json')
-
-    const memberRole = await c.get('deps').org.getMemberRole(teamId, userId)
-    if (memberRole !== 'owner') return c.json({ error: 'Forbidden' }, 403)
-
-    const link = await c.get('deps').teamInvites.createInviteLink(teamId, userId, role, expiresIn)
-
-    await c.get('deps').activity.record({
-      orgId: teamId,
-      userId,
-      action: 'team_invite_link_create',
-      targetType: 'team',
-      targetId: teamId,
-      targetName: teamId,
-      metadata: { role, expiresIn },
+    const result = await createInviteLink(c.get('deps'), {
+      teamId: c.req.param('teamId'),
+      userId: c.get('userId')!,
+      role,
+      expiresIn,
     })
-
-    return c.json({ token: link.token, expiresAt: link.expiresAt }, 201)
+    if (!result.ok) return c.json({ error: 'Forbidden' }, 403)
+    return c.json({ token: result.token, expiresAt: result.expiresAt }, 201)
   })
   .get('/:teamId/invitations', async (c) => {
-    const userId = c.get('userId')!
-    const { teamId } = c.req.param()
-
-    const memberRole = await c.get('deps').org.getMemberRole(teamId, userId)
-    if (memberRole !== 'owner') return c.json({ error: 'Forbidden' }, 403)
-
-    const invitations = await c.get('deps').teamInvites.listPendingInvitations(teamId)
-    return c.json({ invitations })
+    const result = await listInvitations(c.get('deps'), {
+      teamId: c.req.param('teamId'),
+      userId: c.get('userId')!,
+    })
+    if (!result.ok) return c.json({ error: 'Forbidden' }, 403)
+    return c.json({ invitations: result.invitations })
   })
   .post('/:teamId/members', zValidator('json', joinSchema), async (c) => {
-    const userId = c.get('userId')!
-    const { token } = c.req.valid('json')
-    const { teamId } = c.req.param()
-
-    const result = await c.get('deps').teamInvites.acceptInviteLink(token, userId)
-    if (result === 'invalid') return c.json({ error: 'Invalid invite link' }, 404)
-    if (result === 'expired') return c.json({ error: 'Invite link has expired' }, 410)
-    if (result === 'already_member') return c.json({ error: 'Already a member of this team' }, 409)
-
-    await c.get('deps').activity.record({
-      orgId: teamId,
-      userId,
-      action: 'team_member_join',
-      targetType: 'team',
-      targetId: teamId,
-      targetName: teamId,
+    const result = await joinTeam(c.get('deps'), {
+      teamId: c.req.param('teamId'),
+      userId: c.get('userId')!,
+      token: c.req.valid('json').token,
     })
-
-    return c.json({ ok: true })
+    if (result.ok) return c.json({ ok: true })
+    if (result.reason === 'invalid') return c.json({ error: 'Invalid invite link' }, 404)
+    if (result.reason === 'expired') return c.json({ error: 'Invite link has expired' }, 410)
+    return c.json({ error: 'Already a member of this team' }, 409)
   })
   .get('/:teamId/activity', zValidator('query', activityQuerySchema), async (c) => {
-    const userId = c.get('userId')!
-    const teamId = c.req.param('teamId')
-
-    const role = await c.get('deps').org.getMemberRole(teamId, userId)
-    if (role === null && !(await c.get('deps').org.isPersonalOrg(teamId))) {
-      return c.json({ error: 'Forbidden' }, 403)
-    }
-
     const { page: pageStr, pageSize: pageSizeStr } = c.req.valid('query')
     const page = Number(pageStr ?? '1')
     const pageSize = Number(pageSizeStr ?? '20')
-    const result = await c.get('deps').activity.list(teamId, { page, pageSize })
-    return c.json({ ...result, page, pageSize })
+    const result = await listActivity(c.get('deps'), {
+      teamId: c.req.param('teamId'),
+      userId: c.get('userId')!,
+      page,
+      pageSize,
+    })
+    if (!result.ok) return c.json({ error: 'Forbidden' }, 403)
+    return c.json({ ...result.result, page, pageSize })
   })
   // ── Org logo (public-bucket image) ───────────────────────────────────────────
   .put('/:teamId/logo', async (c) => {
-    const platform = c.get('platform')
-    const userId = c.get('userId') as string
     const { teamId } = c.req.param()
-
-    const role = await c.get('deps').org.getMemberRole(teamId, userId)
-    if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
-
     const form = await c.req.formData().catch(() => null)
     if (!form) return c.json({ error: 'Expected multipart/form-data with a file field' }, 415)
     const file = form.get('file')
     if (!(file instanceof File)) return c.json({ error: 'file field is required' }, 400)
 
-    const result = await c.get('deps').imageUpload.uploadPublicImage(platform, LOGO_PREFIX, teamId, file)
-    if (!result.ok) return c.json({ error: result.error }, result.status)
-
-    await c.get('deps').teams.setLogo(teamId, result.url)
-
-    await c.get('deps').activity.record({
-      orgId: teamId,
-      userId,
-      action: 'team_logo_update',
-      targetType: 'team',
-      targetId: teamId,
-      targetName: teamId,
+    const result = await setTeamLogo(c.get('deps'), {
+      platform: c.get('platform'),
+      teamId,
+      userId: c.get('userId') as string,
+      file,
     })
-
-    return c.json({ url: result.url })
+    if (result.ok) return c.json({ url: result.url })
+    if (result.reason === 'forbidden') return c.json({ error: 'Forbidden' }, 403)
+    return c.json({ error: result.error }, result.status)
   })
   .delete('/:teamId/logo', async (c) => {
-    const platform = c.get('platform')
-    const userId = c.get('userId') as string
-    const { teamId } = c.req.param()
-
-    const role = await c.get('deps').org.getMemberRole(teamId, userId)
-    if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
-
-    await c.get('deps').teams.setLogo(teamId, null)
-    await c.get('deps').imageUpload.deletePublicImageVariants(platform, LOGO_PREFIX, teamId)
-
-    await c.get('deps').activity.record({
-      orgId: teamId,
-      userId,
-      action: 'team_logo_delete',
-      targetType: 'team',
-      targetId: teamId,
-      targetName: teamId,
+    const result = await deleteTeamLogo(c.get('deps'), {
+      platform: c.get('platform'),
+      teamId: c.req.param('teamId'),
+      userId: c.get('userId') as string,
     })
-
+    if (!result.ok) return c.json({ error: 'Forbidden' }, 403)
     return c.json({ ok: true })
   })

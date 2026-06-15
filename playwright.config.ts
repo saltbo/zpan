@@ -1,4 +1,16 @@
+import { mkdirSync, rmSync } from 'node:fs'
 import { defineConfig, devices } from '@playwright/test'
+
+// e2e runs against its OWN throwaway SQLite database, wiped on every run, so it
+// never reads or writes the dev ./zpan.db. entry-node and e2e/global-setup both
+// honor DATABASE_URL, so setting it here (before the web servers spawn) isolates
+// the whole stack. The CF runtime uses D1, not this file; set DATABASE_URL
+// yourself to opt out.
+if (process.env.E2E_RUNTIME !== 'cf' && !process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = '.e2e/e2e.db'
+  rmSync('.e2e', { recursive: true, force: true })
+  mkdirSync('.e2e', { recursive: true })
+}
 
 const isCF = process.env.E2E_RUNTIME === 'cf'
 const envFile = process.env.CI ? '' : '--env-file=.dev.vars'
@@ -13,7 +25,7 @@ const s3MockServer = process.env.E2E_S3_MOCK
       {
         command: `node scripts/s3-mock.mjs`,
         port: s3MockPort,
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: false,
       },
     ]
   : []
@@ -23,12 +35,12 @@ const nodeServers = [
   {
     command: `PORT=${apiPort} ${nodeCommand} ${envFile} node_modules/tsx/dist/cli.mjs server/entry-node.ts`,
     port: apiPort,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
   {
     command: `${nodeCommand} ${envFile} node_modules/vite/bin/vite.js --mode node --host 127.0.0.1 --port ${appPort} --strictPort`,
     port: appPort,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 ]
 
@@ -37,15 +49,16 @@ const cfServers = [
   {
     command: `vite dev --host 127.0.0.1 --port ${appPort} --strictPort`,
     port: appPort,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 ]
 
 export default defineConfig({
   testDir: './e2e',
   timeout: process.env.CI ? 180000 : 30000,
-  // The suite shares one local dev server pair and one SQLite database. Keep
-  // execution serial to avoid flaky connection resets and cross-test bleed.
+  // The suite shares one local dev server pair and its own (throwaway) SQLite
+  // database. Keep execution serial to avoid flaky connection resets and
+  // cross-test bleed.
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',

@@ -2,17 +2,9 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { listDownloadTasks } from '../usecases/downloads'
+import { type EventsMessage, streamEvents } from '../usecases/events'
 
 const encoder = new TextEncoder()
-// How often the stream re-reads each subscribed domain to detect changes. Kept
-// short so background-job progress and download transfers surface quickly.
-const POLL_INTERVAL_MS = 2000
-// How long the stream may stay silent before emitting a keep-alive. Decoupled
-// from POLL_INTERVAL_MS so an idle connection isn't chatty.
-const HEARTBEAT_INTERVAL_MS = 25_000
-const ACTIVE_JOB_SCAN_SIZE = 100
-const DOWNLOAD_TASK_PAGE_SIZE = 50
 
 // Per-connection subscription, carried in the EventSource URL. Always-on domains
 // (jobs, notifications) need no opt-in; page-scoped domains (download tasks) are
@@ -40,101 +32,52 @@ const eventsQuerySchema = z.object({
 // The browser opens a single EventSource and dispatches by event name; each
 // handler refreshes the matching React Query cache. See src/hooks/useServerEvents.ts.
 //
-// Mirrors the fingerprint approach of the old /api/download-tasks/events: re-read
-// each domain on a fixed interval, emit only when a cheap fingerprint changes —
-// a pure change-notifier with no pub/sub.
+// This handler owns only the wire: it builds the ReadableStream, encodes each
+// domain event the usecase emits as an SSE frame, and returns the Response. All
+// polling / fingerprint / change-detection lives in streamEvents (usecases/events.ts).
 export const events = new Hono<Env>().use(requireAuth).get('/', (c) => {
-  const platform = c.get('platform')
   const deps = c.get('deps')
-  const orgId = c.get('orgId')
-  const userId = c.get('userId')
   const query = eventsQuerySchema.parse(c.req.query())
-  const wantsDownloadTasks = query.downloadTasks === '1'
-  const signal = c.req.raw.signal
-  let closed = false
-  let lastEmitAt = Date.now()
-  let jobsFingerprint = ''
-  let unreadFingerprint = ''
-  let downloadTasksFingerprint = ''
 
+  // One controller, aborted from BOTH teardown paths. In Workers the request
+  // signal and ReadableStream.cancel() are independent: passing c.req.raw.signal
+  // straight to the usecase would leak the poll loop when only the body consumer
+  // cancels. So we own the controller and bridge both into it.
+  const abort = new AbortController()
+  c.req.raw.signal.addEventListener('abort', () => abort.abort())
+
+  const params = {
+    platform: c.get('platform'),
+    orgId: c.get('orgId'),
+    userId: c.get('userId'),
+    wantsDownloadTasks: query.downloadTasks === '1',
+    dtStatus: query.dtStatus,
+    dtCategory: query.dtCategory,
+    dtTag: query.dtTag,
+    dtSortBy: query.dtSortBy,
+    dtSortDir: query.dtSortDir,
+  }
+
+  // One teardown signal fed from both independent Workers paths (request abort
+  // AND body-consumer cancel). streamClosed guards the controller: a consumer
+  // cancel() already closes the controller before it fires the abort listener,
+  // so closing again would throw ERR_INVALID_STATE.
+  let streamClosed = false
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const send = (event: string, data: unknown) => {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
-        lastEmitAt = Date.now()
+      const emit = (message: EventsMessage) => {
+        controller.enqueue(encoder.encode(`event: ${message.event}\ndata: ${JSON.stringify(message.data)}\n\n`))
       }
-
-      const tick = async () => {
-        if (closed) return
-        try {
-          let changed = false
-
-          if (orgId) {
-            const [queued, running] = await Promise.all([
-              deps.backgroundJobs.list(orgId, { status: 'queued', page: 1, pageSize: ACTIVE_JOB_SCAN_SIZE }),
-              deps.backgroundJobs.list(orgId, { status: 'running', page: 1, pageSize: ACTIVE_JOB_SCAN_SIZE }),
-            ])
-            const fingerprint = [...queued.items, ...running.items]
-              .map((job) => `${job.id}:${job.status}:${job.updatedAt}:${job.progress.processedBytes}`)
-              .join('|')
-            if (fingerprint !== jobsFingerprint) {
-              jobsFingerprint = fingerprint
-              send('jobs', { activeCount: queued.total + running.total })
-              changed = true
-            }
-          }
-
-          if (userId) {
-            const count = await deps.notifications.unreadCount(userId)
-            const fingerprint = String(count)
-            if (fingerprint !== unreadFingerprint) {
-              unreadFingerprint = fingerprint
-              send('notifications', { unreadCount: count })
-              changed = true
-            }
-          }
-
-          if (wantsDownloadTasks && orgId) {
-            const result = await listDownloadTasks(deps, platform, {
-              orgId,
-              status: query.dtStatus,
-              category: query.dtCategory,
-              tag: query.dtTag,
-              sortBy: query.dtSortBy,
-              sortDir: query.dtSortDir,
-              page: 1,
-              pageSize: DOWNLOAD_TASK_PAGE_SIZE,
-            })
-            const fingerprint = result.items.map((task) => `${task.id}:${task.status.updatedAt}`).join('|')
-            if (fingerprint !== downloadTasksFingerprint) {
-              downloadTasksFingerprint = fingerprint
-              send('download-tasks', {
-                items: result.items,
-                total: result.total,
-                page: 1,
-                pageSize: DOWNLOAD_TASK_PAGE_SIZE,
-              })
-              changed = true
-            }
-          }
-
-          if (!changed && Date.now() - lastEmitAt >= HEARTBEAT_INTERVAL_MS) {
-            send('heartbeat', { at: new Date().toISOString() })
-          }
-        } catch (error) {
-          send('error', { message: error instanceof Error ? error.message : 'unknown error' })
-        }
-        if (!closed) setTimeout(tick, POLL_INTERVAL_MS)
-      }
-
-      signal.addEventListener('abort', () => {
-        closed = true
+      abort.signal.addEventListener('abort', () => {
+        if (streamClosed) return
+        streamClosed = true
         controller.close()
       })
-      void tick()
+      void streamEvents(deps, params, abort.signal, emit)
     },
     cancel() {
-      closed = true
+      streamClosed = true
+      abort.abort()
     },
   })
 

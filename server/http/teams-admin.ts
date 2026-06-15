@@ -3,6 +3,14 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import {
+  getTeam,
+  grantTeamEntitlement,
+  listTeamEntitlements,
+  listTeams,
+  revokeTeamEntitlement,
+  updateTeamEntitlement,
+} from '../usecases/team'
 
 const grantEntitlementSchema = z.object({
   resourceType: z.literal('storage'),
@@ -23,109 +31,52 @@ const updateEntitlementSchema = z.object({
 // team admin UI is their only consumer.
 export const adminTeams = new Hono<Env>()
   .use(requireAdmin)
-  .get('/', async (c) => {
-    const items = await c.get('deps').teams.listTeams()
-    return c.json({ items, total: items.length })
-  })
+  .get('/', async (c) => c.json(await listTeams(c.get('deps'))))
   .get('/:orgId', async (c) => {
-    const team = await c.get('deps').teams.getTeam(c.req.param('orgId'))
+    const team = await getTeam(c.get('deps'), c.req.param('orgId'))
     if (!team) return c.json({ error: 'Team not found' }, 404)
     return c.json(team)
   })
   .get('/:orgId/entitlements', async (c) => {
-    const result = await c.get('deps').userAdmin.listOrgEntitlements(c.req.param('orgId'))
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-    return c.json(result)
+    const result = await listTeamEntitlements(c.get('deps'), c.req.param('orgId'))
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json(result.result)
   })
   .post('/:orgId/entitlements', zValidator('json', grantEntitlementSchema), async (c) => {
-    const adminUserId = c.get('userId')!
-    const adminOrgId = c.get('orgId')!
-    const targetOrgId = c.req.param('orgId')
     const body = c.req.valid('json')
-    const result = await c.get('deps').userAdmin.grantOrgEntitlement({
-      adminUserId,
-      orgId: targetOrgId,
+    const result = await grantTeamEntitlement(c.get('deps'), {
+      adminUserId: c.get('userId')!,
+      adminOrgId: c.get('orgId')!,
+      targetOrgId: c.req.param('orgId'),
       resourceType: body.resourceType,
       bytes: body.bytes,
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       note: body.note,
     })
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-
-    await c.get('deps').activity.record({
-      orgId: adminOrgId,
-      userId: adminUserId,
-      action: 'quota_entitlement_grant',
-      targetType: 'quota',
-      targetId: targetOrgId,
-      targetName: targetOrgId,
-      metadata: {
-        targetOrgId,
-        entitlementId: result.entitlement.id,
-        resourceType: result.entitlement.resourceType,
-        bytes: result.entitlement.bytes,
-        expiresAt: result.entitlement.expiresAt?.toISOString() ?? null,
-      },
-    })
-
-    return c.json(result, 201)
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json(result.result, 201)
   })
   .patch('/:orgId/entitlements/:eid', zValidator('json', updateEntitlementSchema), async (c) => {
-    const adminUserId = c.get('userId')!
-    const adminOrgId = c.get('orgId')!
-    const targetOrgId = c.req.param('orgId')
     const body = c.req.valid('json')
-    const result = await c.get('deps').userAdmin.updateOrgEntitlement({
-      adminUserId,
-      orgId: targetOrgId,
+    const result = await updateTeamEntitlement(c.get('deps'), {
+      adminUserId: c.get('userId')!,
+      adminOrgId: c.get('orgId')!,
+      targetOrgId: c.req.param('orgId'),
       entitlementId: c.req.param('eid'),
       bytes: body.bytes,
       expiresAt: 'expiresAt' in body ? (body.expiresAt ? new Date(body.expiresAt) : null) : undefined,
       note: body.note,
     })
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-
-    await c.get('deps').activity.record({
-      orgId: adminOrgId,
-      userId: adminUserId,
-      action: 'quota_entitlement_update',
-      targetType: 'quota',
-      targetId: targetOrgId,
-      targetName: targetOrgId,
-      metadata: {
-        targetOrgId,
-        entitlementId: result.entitlement.id,
-        bytes: result.entitlement.bytes,
-        expiresAt: result.entitlement.expiresAt?.toISOString() ?? null,
-      },
-    })
-
-    return c.json(result)
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json(result.result)
   })
   .delete('/:orgId/entitlements/:eid', async (c) => {
-    const adminUserId = c.get('userId')!
-    const adminOrgId = c.get('orgId')!
-    const targetOrgId = c.req.param('orgId')
-    const result = await c.get('deps').userAdmin.revokeOrgEntitlement({
-      adminUserId,
-      orgId: targetOrgId,
+    const result = await revokeTeamEntitlement(c.get('deps'), {
+      adminUserId: c.get('userId')!,
+      adminOrgId: c.get('orgId')!,
+      targetOrgId: c.req.param('orgId'),
       entitlementId: c.req.param('eid'),
     })
-    if ('error' in result) return c.json({ error: result.error }, result.status)
-
-    await c.get('deps').activity.record({
-      orgId: adminOrgId,
-      userId: adminUserId,
-      action: 'quota_entitlement_revoke',
-      targetType: 'quota',
-      targetId: targetOrgId,
-      targetName: targetOrgId,
-      metadata: {
-        targetOrgId,
-        entitlementId: result.entitlement.id,
-        bytes: result.entitlement.bytes,
-      },
-    })
-
-    return c.json(result)
+    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    return c.json(result.result)
   })
