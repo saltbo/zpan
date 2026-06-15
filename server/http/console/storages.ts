@@ -1,8 +1,8 @@
 import { zValidator } from '@hono/zod-validator'
 import { createStorageSchema, updateStorageSchema } from '@shared/schemas'
 import { Hono } from 'hono'
-import { requireAdmin } from '../middleware/auth'
-import type { Env } from '../middleware/platform'
+import { requireAdmin } from '../../middleware/auth'
+import type { Env } from '../../middleware/platform'
 import {
   createStorage,
   deleteStorage,
@@ -10,7 +10,7 @@ import {
   listStorages,
   type StorageFeatureBlock,
   updateStorage,
-} from '../usecases/storage'
+} from '../../usecases/console/storage'
 
 const featureNotAvailable = (block: StorageFeatureBlock) => ({ error: 'feature_not_available', ...block }) as const
 

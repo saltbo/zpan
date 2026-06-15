@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { authedHeaders, createTestApp } from '../test/setup.js'
+import { authedHeaders, createTestApp } from '../../test/setup.js'
 
-async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']>) {
+async function adminHeaders(app: ReturnType<typeof import('../../app')['createApp']>) {
   // Sign up first user (gets promoted to admin via hook)
   await authedHeaders(app, 'admin@example.com', 'password123456')
   // Sign in again to get a session that reflects the admin role
@@ -14,7 +14,11 @@ async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']
   return { Cookie: signInRes.headers.getSetCookie().join('; ') }
 }
 
-async function signUpUser(app: ReturnType<typeof import('../app')['createApp']>, email: string, name = 'Other User') {
+async function signUpUser(
+  app: ReturnType<typeof import('../../app')['createApp']>,
+  email: string,
+  name = 'Other User',
+) {
   const res = await app.request('/api/auth/sign-up/email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

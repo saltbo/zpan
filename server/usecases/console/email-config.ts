@@ -9,8 +9,8 @@
 // EmailGateway reads them back (and decides whether email is "configured").
 // All reads/writes go through the ports — nothing here touches infrastructure.
 
-import type { Platform } from '../platform/interface'
-import type { EmailConfig, EmailGateway, EmailProvider, SmtpConfig, SystemOptionsRepo } from './ports'
+import type { Platform } from '../../platform/interface'
+import type { EmailConfig, EmailGateway, EmailProvider, SmtpConfig, SystemOptionsRepo } from '../ports'
 
 export type EmailConfigDeps = {
   email: EmailGateway

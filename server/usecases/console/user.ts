@@ -18,7 +18,7 @@ import type {
   UserAdminRepo,
   UserOperationFailure,
   UserWithOrg,
-} from './ports'
+} from '../ports'
 
 export type UserDeps = {
   userAdmin: UserAdminRepo

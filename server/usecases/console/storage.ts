@@ -9,9 +9,9 @@
 
 import { FREE_STORAGE_LIMIT } from '@shared/constants'
 import type { CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
-import { hasFeature } from '../domain/licensing'
-import { loadBindingState } from './licensing'
-import type { ActivityRepo, LicenseBindingRepo, StorageRecord, StorageRepo } from './ports'
+import { hasFeature } from '../../domain/licensing'
+import { loadBindingState } from '../licensing'
+import type { ActivityRepo, LicenseBindingRepo, StorageRecord, StorageRepo } from '../ports'
 
 export type StorageDeps = {
   storages: StorageRepo

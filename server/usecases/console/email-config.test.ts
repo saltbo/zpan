@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Platform } from '../platform/interface'
+import type { Platform } from '../../platform/interface'
+import type { EmailConfig, EmailGateway, EmailMessage, EmailSettings, SystemOptionsRepo } from '../ports'
 import {
   type EmailConfigDeps,
   getEmailConfig,
@@ -7,7 +8,6 @@ import {
   saveEmailConfig,
   sendTestEmail,
 } from './email-config'
-import type { EmailConfig, EmailGateway, EmailMessage, EmailSettings, SystemOptionsRepo } from './ports'
 
 // The usecase never inspects the platform — it only forwards it to the gateway,
 // which is a fake here — so a bare object stands in.

@@ -1,10 +1,10 @@
 import { zValidator } from '@hono/zod-validator'
 import { listAdminAuditQuerySchema } from '@shared/schemas'
 import { Hono } from 'hono'
-import { requireAdmin } from '../middleware/auth'
-import type { Env } from '../middleware/platform'
-import { requireFeature } from '../middleware/require-feature'
-import { listAuditEvents } from '../usecases/audit'
+import { requireAdmin } from '../../middleware/auth'
+import type { Env } from '../../middleware/platform'
+import { requireFeature } from '../../middleware/require-feature'
+import { listAuditEvents } from '../../usecases/console/audit'
 
 export const adminAudit = new Hono<Env>()
   .use(requireAdmin)

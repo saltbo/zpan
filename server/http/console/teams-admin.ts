@@ -1,8 +1,8 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { requireAdmin } from '../middleware/auth'
-import type { Env } from '../middleware/platform'
+import { requireAdmin } from '../../middleware/auth'
+import type { Env } from '../../middleware/platform'
 import {
   getTeam,
   grantTeamEntitlement,
@@ -10,7 +10,7 @@ import {
   listTeams,
   revokeTeamEntitlement,
   updateTeamEntitlement,
-} from '../usecases/team'
+} from '../../usecases/team'
 
 const grantEntitlementSchema = z.object({
   resourceType: z.literal('storage'),
