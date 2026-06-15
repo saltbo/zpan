@@ -163,6 +163,44 @@ describe('Admin Users API', () => {
     expect(byEmailBody.items[0].email).toBe('other@example.com')
   })
 
+  it('GET /api/users/:id returns user detail for an admin', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'detail@example.com')
+    const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'detail@example.com'`)
+    const userId = rows[0].id
+
+    const res = await app.request(`/api/users/${userId}`, { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { id: string }
+    expect(body.id).toBe(userId)
+  })
+
+  it('GET /api/users/:id returns 404 for a missing user', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/users/nonexistent', { headers })
+    expect(res.status).toBe(404)
+  })
+
+  it('GET /api/users/:id/entitlements lists entitlements for an admin', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'entlist@example.com')
+    const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'entlist@example.com'`)
+    const userId = rows[0].id
+
+    const res = await app.request(`/api/users/${userId}/entitlements`, { headers })
+    expect(res.status).toBe(200)
+  })
+
+  it('GET /api/users/:id/entitlements returns 404 for a missing user', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/users/nonexistent/entitlements', { headers })
+    expect(res.status).toBe(404)
+  })
+
   it('PATCH /api/users/:id disables a user [spec: users/disable]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)

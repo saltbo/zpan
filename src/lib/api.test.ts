@@ -63,6 +63,7 @@ import {
   getSystemOption,
   getTeam,
   getUnreadCount,
+  getUser,
   getUserQuota,
   grantOrgEntitlement,
   grantUserEntitlement,
@@ -1420,6 +1421,25 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
 
       await expect(deleteStorage('missing')).rejects.toThrow('not found')
+    })
+  })
+
+  describe('getUser', () => {
+    it('fetches a single user and returns it', async () => {
+      const payload = { id: 'u1', name: 'Alice', username: 'alice' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getUser('u1')
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/users/u1')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'User not found' }, false, 404))
+
+      await expect(getUser('missing')).rejects.toThrow('User not found')
     })
   })
 
