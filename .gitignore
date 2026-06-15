@@ -60,3 +60,6 @@ skills-lock.json
 
 # agent skills (managed by daemon)
 .claude/skills/
+
+# e2e throwaway database
+.e2e/
