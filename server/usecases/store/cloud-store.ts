@@ -34,8 +34,8 @@ import {
   paymentCreateResponseSchema,
   productListResponseSchema,
 } from 'zpan-cloud-sdk'
-import type { CloudStoreRepo, LicensingCloudGateway, QuotaRepo } from './ports'
-import { verifyCloudEventToken } from './site/licensing'
+import type { CloudStoreRepo, LicensingCloudGateway, QuotaRepo } from '../ports'
+import { verifyCloudEventToken } from '../site/licensing'
 
 // The Cloud commerce response schemas. Aliased to keep call sites readable; the
 // matching aliases in cloud-store-helpers serve the orders helper + tests.

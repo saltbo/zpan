@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { createLicensingCloudGateway } from '../adapters/gateways/licensing-cloud'
-import { createCloudTrafficReportRepo } from '../adapters/repos/cloud-traffic-report'
-import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
-import { cloudTrafficReports } from '../db/schema'
-import type { Database, Platform } from '../platform/interface'
-import { createTestApp } from '../test/setup'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
+import { createLicensingCloudGateway } from '../../adapters/gateways/licensing-cloud'
+import { createCloudTrafficReportRepo } from '../../adapters/repos/cloud-traffic-report'
+import { createLicenseBindingRepo } from '../../adapters/repos/license-binding'
+import { cloudTrafficReports } from '../../db/schema'
+import type { Database, Platform } from '../../platform/interface'
+import { createTestApp } from '../../test/setup'
+import type { QuotaRepo } from '../ports'
 import {
   CloudTrafficBlockedError,
   type CloudTrafficMeteringDeps,
@@ -14,11 +15,10 @@ import {
   syncPendingCloudTrafficReports as syncPendingCloudTrafficReportsUsecase,
   type TrafficReportSource,
 } from './cloud-traffic-metering'
-import type { QuotaRepo } from './ports'
 
 const hasFeatureMock = vi.hoisted(() => vi.fn(() => true))
 
-vi.mock('../domain/licensing', () => ({
+vi.mock('../../domain/licensing', () => ({
   hasFeature: hasFeatureMock,
 }))
 vi.mock('./licensing', () => ({

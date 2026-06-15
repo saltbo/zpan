@@ -13,7 +13,7 @@ import {
 } from 'zpan-cloud-sdk'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import type { Env } from '../../middleware/platform'
-import { buildBoundCloudClient } from '../../usecases/cloud-store'
+import { buildBoundCloudClient } from '../../usecases/store/cloud-store'
 
 // The cloud-proxy plumbing (bound client, timeout, response unwrapping) and all
 // CloudStoreRepo / LicensingCloudGateway access live in the cloud-store usecase.
@@ -21,7 +21,7 @@ import { buildBoundCloudClient } from '../../usecases/cloud-store'
 // plus a thin `getBoundCloudClient(c)` that forwards `deps` whole to the usecase —
 // the latter exists so the orders helper in cloud-store/shared.ts keeps its
 // context-based call site. Re-exported usecase plumbing keeps that helper working.
-export { unwrapCloudResponse, withCloudRequestTimeout } from '../../usecases/cloud-store'
+export { unwrapCloudResponse, withCloudRequestTimeout } from '../../usecases/store/cloud-store'
 
 export type RouteContext = {
   get(key: 'platform'): Env['Variables']['platform']

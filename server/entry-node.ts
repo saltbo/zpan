@@ -11,13 +11,13 @@ import { createDeps } from './composition'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
-import { syncPendingCloudTrafficReports } from './usecases/cloud-traffic-metering'
 import { syncPendingRemoteDownloadUsageReports } from './usecases/downloads/remote-download-usage'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from './usecases/object'
 import { buildCloudInstanceInfo, runtimeInfo } from './usecases/site/instance-info'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/site/instance-telemetry'
 import { runLicensingRefresh } from './usecases/site/licensing'
 import { getSitePublicOrigin } from './usecases/site/public-origin'
+import { syncPendingCloudTrafficReports } from './usecases/store/cloud-traffic-metering'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes

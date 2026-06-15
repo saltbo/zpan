@@ -15,8 +15,6 @@ import type { CreateShareRequest } from '@shared/schemas/share'
 import { isAccessibleByUser } from '../domain/share'
 import { verifyPassword as verifyPasswordHash } from '../lib/password'
 import type { Platform } from '../platform/interface'
-import type { CloudTrafficMeteringDeps } from './cloud-traffic-metering'
-import { meterDownloadTraffic } from './cloud-traffic-metering'
 import { type SaveToDriveDeps, saveShareToDrive } from './object'
 import {
   type ActivityRepo,
@@ -36,6 +34,8 @@ import {
   type ShareRepo,
   type StorageRepo,
 } from './ports'
+import type { CloudTrafficMeteringDeps } from './store/cloud-traffic-metering'
+import { meterDownloadTraffic } from './store/cloud-traffic-metering'
 
 // The ports + sub-usecase deps this resource touches. `c.get('deps')` (the full
 // Deps) structurally satisfies this, so the handler passes it whole. The

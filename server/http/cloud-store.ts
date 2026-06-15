@@ -1,2 +1,2 @@
-export { cloudStore } from './cloud-store/storefront'
-export { cloudStoreWebhooks } from './cloud-store/webhooks'
+export { cloudStore } from './store/storefront'
+export { cloudStoreWebhooks } from './store/webhooks'

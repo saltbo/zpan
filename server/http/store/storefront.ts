@@ -18,7 +18,7 @@ import {
   listPackages,
   listTargets,
   redeemGiftCard,
-} from '../../usecases/cloud-store'
+} from '../../usecases/store/cloud-store'
 import { cloudStoreOrdersQuerySchema, getCloudBaseUrl } from './helpers'
 import { getCloudOrders, getInstanceOrigin } from './shared'
 

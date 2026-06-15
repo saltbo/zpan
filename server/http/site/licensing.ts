@@ -6,7 +6,6 @@ import type { BindingState } from '../../../shared/types'
 import { originFromRequestUrl } from '../../domain/site-public-origin'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
-import { syncPendingCloudTrafficReports } from '../../usecases/cloud-traffic-metering'
 import { syncPendingRemoteDownloadUsageReports } from '../../usecases/downloads/remote-download-usage'
 import { buildCloudInstanceInfo, runtimeInfo } from '../../usecases/site/instance-info'
 import {
@@ -19,6 +18,7 @@ import {
   unbindLicense,
 } from '../../usecases/site/licensing'
 import { getSitePublicOrigin } from '../../usecases/site/public-origin'
+import { syncPendingCloudTrafficReports } from '../../usecases/store/cloud-traffic-metering'
 
 function getCloudBaseUrl(c: Context<Env>): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT

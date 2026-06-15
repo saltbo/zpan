@@ -1,6 +1,5 @@
 import { DirType } from '@shared/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { meterDownloadTraffic } from './cloud-traffic-metering'
 import {
   authorizeTaskUploadConfirm,
   cancelObject,
@@ -40,12 +39,13 @@ import type {
   StorageRepo,
   StorageUsageRepo,
 } from './ports'
+import { meterDownloadTraffic } from './store/cloud-traffic-metering'
 
 // Download metering is an end-to-end usecase of its own (quota + cloud report +
 // refund); object.getObject only orchestrates around it. Mock it and assert the
 // outcome mapping + presign rollback here; cloud-traffic-metering.test.ts owns
 // the metering internals.
-vi.mock('./cloud-traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
+vi.mock('./store/cloud-traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
 
 const storage = {
   id: 'st-1',

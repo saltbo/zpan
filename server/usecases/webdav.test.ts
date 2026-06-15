@@ -1,7 +1,6 @@
 import { DirType } from '@shared/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '../platform/interface'
-import { meterDownloadTraffic } from './cloud-traffic-metering'
 import type {
   ApiKeyAuth,
   ApiKeyGateway,
@@ -23,6 +22,7 @@ import type {
   WebDavWorkspace,
 } from './ports'
 import { ApiKeyRateLimitError, NameConflictError } from './ports'
+import { meterDownloadTraffic } from './store/cloud-traffic-metering'
 import {
   applyWebDavDeadProperties,
   copyWebDavCollection,
@@ -43,7 +43,7 @@ import {
 // refund); the webdav usecase only orchestrates around it. Mock it and assert
 // the wiring + outcome mapping here; cloud-traffic-metering.test.ts owns the
 // internals.
-vi.mock('./cloud-traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
+vi.mock('./store/cloud-traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
 
 const storage = {
   id: 'st-1',

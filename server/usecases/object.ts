@@ -22,7 +22,6 @@ import type {
 } from '@shared/schemas'
 import type { ObjectUploadSession } from '@shared/types'
 import { buildObjectKey, fileExt } from '../lib/path-template'
-import { meterDownloadTraffic } from './cloud-traffic-metering'
 import type { Deps } from './deps'
 import { assertTaskUploadAllowed } from './downloads/downloads'
 import {
@@ -41,6 +40,7 @@ import {
   type StorageUsageRepo,
 } from './ports'
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
+import { meterDownloadTraffic } from './store/cloud-traffic-metering'
 
 export { ObjectUploadSessionError } from './ports'
 

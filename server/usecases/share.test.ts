@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { encodeChildRef } from '../http/share-utils'
 import { hashPassword } from '../lib/password'
 import type { Platform } from '../platform/interface'
-import { type DownloadTrafficOutcome, meterDownloadTraffic } from './cloud-traffic-metering'
 import { saveShareToDrive } from './object'
 import {
   type ActivityRepo,
@@ -32,6 +31,7 @@ import {
   verifySharePassword,
   viewShare,
 } from './share'
+import { type DownloadTrafficOutcome, meterDownloadTraffic } from './store/cloud-traffic-metering'
 
 // The end-to-end metering (quota consume → cloud egress report → refund) is
 // covered by cloud-traffic-metering.test.ts; the recipient fan-out and the copy
@@ -39,8 +39,8 @@ import {
 // collaborators with mocks so each share case feeds a chosen outcome and we can
 // assert the share routes' gates, ordering, DTO shaping, and presign-rollback in
 // isolation. Everything else (types, pure helpers) stays real.
-vi.mock('./cloud-traffic-metering', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./cloud-traffic-metering')>()),
+vi.mock('./store/cloud-traffic-metering', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./store/cloud-traffic-metering')>()),
   meterDownloadTraffic: vi.fn(),
 }))
 vi.mock('./object', () => ({ saveShareToDrive: vi.fn() }))
