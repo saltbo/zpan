@@ -9,6 +9,7 @@
 // whether the access cookie is 'ok', whether the view cookie was already 'seen')
 // and returns cookie *decisions*; the handler runs getCookie/setCookie.
 
+import { createHmac } from 'node:crypto'
 import { DirType } from '@shared/constants'
 import type { CreateShareRequest } from '@shared/schemas/share'
 import { isAccessibleByUser } from '../domain/share'
@@ -16,27 +17,25 @@ import { verifyPassword as verifyPasswordHash } from '../lib/password'
 import type { Platform } from '../platform/interface'
 import type { CloudTrafficMeteringDeps } from './cloud-traffic-metering'
 import { meterDownloadTraffic } from './cloud-traffic-metering'
+import { type SaveToDriveDeps, saveShareToDrive } from './object'
 import {
   type ActivityRepo,
   CreateShareError,
+  type EmailGateway,
   type Matter,
   type MatterRepo,
+  type NotificationRepo,
   type OrgRepo,
   type QuotaRepo,
   type S3Gateway,
+  type ShareNotificationRecipient,
+  type ShareNotificationRepo,
+  type ShareNotificationShare,
   type ShareRecipientRecord,
   type ShareRecord,
   type ShareRepo,
   type StorageRepo,
 } from './ports'
-import type { SaveToDriveDeps } from './save-to-drive'
-import { saveShareToDrive } from './save-to-drive'
-import type { ShareNotificationDeps } from './share-notification'
-import { dispatchShareCreated } from './share-notification'
-// Pure, framework-free share-token helpers (HMAC ref codec, breadcrumb, folder
-// root, access gate, presign TTL); http/share-utils re-exports them for the
-// handlers.
-import { buildBreadcrumb, checkAccessGate, encodeChildRef, folderRootPath, PRESIGN_TTL_SECS } from './share-ref'
 
 // The ports + sub-usecase deps this resource touches. `c.get('deps')` (the full
 // Deps) structurally satisfies this, so the handler passes it whole. The
@@ -551,4 +550,127 @@ export async function saveShare(deps: ShareDeps, params: SaveShareParams): Promi
 
   const result = await saveShareToDrive(deps, { share, matter, currentUserId, targetOrgId, targetParent })
   return { ok: true, result }
+}
+
+// ── share notifications ──────────────────────────────────────────────────────
+
+export type ShareNotificationDeps = {
+  notifications: NotificationRepo
+  email: EmailGateway
+  shareNotifications: ShareNotificationRepo
+}
+
+async function sendShareEmail(
+  deps: ShareNotificationDeps,
+  platform: Platform,
+  opts: { to: string; creatorName: string; matterName: string; url: string; expiresAt: Date | null },
+): Promise<void> {
+  const expiryLine = opts.expiresAt ? `<p>This share expires on ${opts.expiresAt.toISOString().split('T')[0]}.</p>` : ''
+  await deps.email.send(platform, {
+    to: opts.to,
+    subject: `${opts.creatorName} shared "${opts.matterName}" with you`,
+    html: `
+      <h2>${opts.creatorName} shared a file with you</h2>
+      <p><strong>${opts.matterName}</strong> is now available.</p>
+      ${expiryLine}
+      <p><a href="${opts.url}">Open share</a></p>
+    `,
+  })
+}
+
+export async function dispatchShareCreated(
+  deps: ShareNotificationDeps,
+  platform: Platform,
+  share: ShareNotificationShare,
+  recipients: ShareNotificationRecipient[],
+  creatorName: string,
+  matterName: string,
+): Promise<void> {
+  const shareUrl = share.kind === 'landing' ? `/s/${share.token}` : `/r/${share.token}`
+  const emailEnabled = await deps.email.isConfigured(platform)
+
+  for (const r of recipients) {
+    if (r.recipientUserId) {
+      await deps.notifications.create({
+        userId: r.recipientUserId,
+        type: 'share_received',
+        title: `${creatorName} shared "${matterName}" with you`,
+        body: 'Click to open the share',
+        refType: 'share',
+        refId: share.id,
+        metadata: JSON.stringify({ token: share.token, kind: share.kind, creatorName, matterName }),
+      })
+    }
+
+    const email =
+      r.recipientEmail ?? (r.recipientUserId ? await deps.shareNotifications.getUserEmail(r.recipientUserId) : null)
+
+    if (email && emailEnabled) {
+      try {
+        await sendShareEmail(deps, platform, {
+          to: email,
+          creatorName,
+          matterName,
+          url: shareUrl,
+          expiresAt: share.expiresAt,
+        })
+      } catch (err) {
+        console.error(`[share-notification] email to ${email} failed:`, err)
+      }
+    }
+  }
+}
+
+// ── share refs ───────────────────────────────────────────────────────────────
+// Pure share-token helpers shared by the share + redirect usecases and the http
+// layer: child-ref signing/verification, folder path math, breadcrumb building,
+// and the password/recipient access gate. Framework-free (node:crypto only), so
+// usecases may import it; http/share-utils re-exports it for the handlers.
+
+export const PRESIGN_TTL_SECS = 5 * 60
+
+export function encodeChildRef(shareToken: string, matterId: string): string {
+  const sig = createHmac('sha256', shareToken).update(matterId).digest('hex').slice(0, 16)
+  return Buffer.from(`${matterId}.${sig}`).toString('base64url')
+}
+
+export function decodeChildRef(shareToken: string, childRef: string): string | null {
+  try {
+    const raw = Buffer.from(childRef, 'base64url').toString('utf-8')
+    const dotIdx = raw.lastIndexOf('.')
+    if (dotIdx < 0) return null
+    const matterId = raw.slice(0, dotIdx)
+    const sig = raw.slice(dotIdx + 1)
+    const expectedSig = createHmac('sha256', shareToken).update(matterId).digest('hex').slice(0, 16)
+    return sig === expectedSig ? matterId : null
+  } catch {
+    return null
+  }
+}
+
+export function folderRootPath(matter: { parent: string; name: string }): string {
+  return matter.parent ? `${matter.parent}/${matter.name}` : matter.name
+}
+
+export function buildBreadcrumb(rootName: string, relativePath: string): Array<{ name: string; path: string }> {
+  const crumbs: Array<{ name: string; path: string }> = [{ name: rootName, path: '' }]
+  if (!relativePath) return crumbs
+  let accumulated = ''
+  for (const part of relativePath.split('/')) {
+    accumulated = accumulated ? `${accumulated}/${part}` : part
+    crumbs.push({ name: part, path: accumulated })
+  }
+  return crumbs
+}
+
+export function checkAccessGate(
+  passwordHash: string | null,
+  recipients: ShareRecipientRecord[],
+  userId: string | null,
+  cookieValue: string | undefined,
+): 'ok' | 'password_required' {
+  if (!passwordHash) return 'ok'
+  if (userId && isAccessibleByUser(recipients, userId)) return 'ok'
+  if (cookieValue === 'ok') return 'ok'
+  return 'password_required'
 }

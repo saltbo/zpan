@@ -3,6 +3,7 @@ import { encodeChildRef } from '../http/share-utils'
 import { hashPassword } from '../lib/password'
 import type { Platform } from '../platform/interface'
 import { type DownloadTrafficOutcome, meterDownloadTraffic } from './cloud-traffic-metering'
+import { saveShareToDrive } from './object'
 import {
   type ActivityRepo,
   CreateShareError,
@@ -20,7 +21,6 @@ import {
   type StorageRecord,
   type StorageRepo,
 } from './ports'
-import { saveShareToDrive } from './save-to-drive'
 import {
   createShare,
   downloadShareObject,
@@ -32,7 +32,6 @@ import {
   verifySharePassword,
   viewShare,
 } from './share'
-import { dispatchShareCreated } from './share-notification'
 
 // The end-to-end metering (quota consume → cloud egress report → refund) is
 // covered by cloud-traffic-metering.test.ts; the recipient fan-out and the copy
@@ -44,8 +43,7 @@ vi.mock('./cloud-traffic-metering', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./cloud-traffic-metering')>()),
   meterDownloadTraffic: vi.fn(),
 }))
-vi.mock('./save-to-drive', () => ({ saveShareToDrive: vi.fn() }))
-vi.mock('./share-notification', () => ({ dispatchShareCreated: vi.fn() }))
+vi.mock('./object', () => ({ saveShareToDrive: vi.fn() }))
 
 const PRESIGNED_URL = 'https://presigned.example.com/file'
 const CLOUD_BASE_URL = 'https://cloud.example.com'
@@ -56,7 +54,6 @@ const meterInsufficientCredits: DownloadTrafficOutcome = { ok: false, reason: 'i
 
 const meter = vi.mocked(meterDownloadTraffic)
 const saveToDrive = vi.mocked(saveShareToDrive)
-const dispatch = vi.mocked(dispatchShareCreated)
 
 const platform = {} as Platform
 
@@ -150,6 +147,12 @@ function makeDeps(
   const decrementDownloads = vi.fn(async () => {})
   const refundTraffic = vi.fn(async () => {})
   const presignDownload = vi.fn(async () => PRESIGNED_URL)
+  // dispatchShareCreated now lives in this module, so its call cannot be mocked
+  // at the module boundary; instead its collaborator ports are spies and the
+  // createShare tests assert the observable fan-out (notification + email).
+  const createNotification = vi.fn(async () => ({}) as never)
+  const sendEmail = vi.fn(async () => {})
+  const isEmailConfigured = vi.fn(async () => true)
 
   const deps = {
     share: makeShareRepo({ incrementViews, decrementDownloads, ...over.share }),
@@ -159,24 +162,37 @@ function makeDeps(
     quota: { consumeTrafficIfQuotaAllows: async () => true, refundTraffic, ...over.quota } as QuotaRepo,
     org: { canWriteToOrg: async () => true, ...over.org } as OrgRepo,
     activity: { record } as unknown as ActivityRepo,
-    // Cloud-metering + collaborator ports are unused here — they are mocked.
+    notifications: { create: createNotification } as unknown as ShareDeps['notifications'],
+    email: { isConfigured: isEmailConfigured, send: sendEmail } as unknown as ShareDeps['email'],
+    shareNotifications: { getUserEmail: async () => null } as unknown as ShareDeps['shareNotifications'],
+    // Cloud-metering ports are unused here — they are mocked.
     licenseBinding: {} as ShareDeps['licenseBinding'],
     licensingCloud: {} as ShareDeps['licensingCloud'],
     cloudTrafficReports: {} as ShareDeps['cloudTrafficReports'],
-    notifications: {} as ShareDeps['notifications'],
-    email: {} as ShareDeps['email'],
-    shareNotifications: {} as ShareDeps['shareNotifications'],
     storageUsage: {} as ShareDeps['storageUsage'],
   } as ShareDeps
 
-  return { deps, record, incrementViews, decrementDownloads, refundTraffic, presignDownload }
+  return {
+    deps,
+    record,
+    incrementViews,
+    decrementDownloads,
+    refundTraffic,
+    presignDownload,
+    createNotification,
+    sendEmail,
+    isEmailConfigured,
+  }
 }
+
+// dispatchShareCreated is launched fire-and-forget (.catch) by createShare;
+// flush pending microtasks so its fan-out has run before asserting.
+const flushDispatch = () => new Promise((resolve) => setImmediate(resolve))
 
 beforeEach(() => {
   vi.clearAllMocks()
   meter.mockResolvedValue(meterOk)
   saveToDrive.mockResolvedValue({ saved: [], skipped: [] })
-  dispatch.mockResolvedValue(undefined)
 })
 
 // ─── viewShare ───────────────────────────────────────────────────────────────
@@ -743,31 +759,40 @@ describe('createShare', () => {
   })
 
   it('does not dispatch notifications when there are no recipients', async () => {
-    const { deps } = makeDeps()
+    const { deps, createNotification, sendEmail } = makeDeps()
     await createShare(deps, platform, { orgId: 'o-1', userId: 'creator-1', input: baseInput })
-    expect(dispatch).not.toHaveBeenCalled()
+    await flushDispatch()
+    expect(createNotification).not.toHaveBeenCalled()
+    expect(sendEmail).not.toHaveBeenCalled()
   })
 
   it('dispatches share-created notifications when recipients are present', async () => {
-    const { deps } = makeDeps({ share: { getCreatorName: async () => 'Alice', getMatterName: async () => 'doc.pdf' } })
+    const { deps, createNotification, sendEmail } = makeDeps({
+      share: { getCreatorName: async () => 'Alice', getMatterName: async () => 'doc.pdf' },
+    })
     const recipients = [{ recipientUserId: 'u2' }, { recipientEmail: 'b@example.com' }]
     await createShare(deps, platform, {
       orgId: 'o-1',
       userId: 'creator-1',
       input: { ...baseInput, recipients },
     })
-    expect(dispatch).toHaveBeenCalledWith(
-      deps,
+    await flushDispatch()
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'u2',
+        type: 'share_received',
+        title: 'Alice shared "doc.pdf" with you',
+        refId: 's-1',
+      }),
+    )
+    expect(sendEmail).toHaveBeenCalledWith(
       platform,
-      { id: 's-1', token: 'sk_token1', kind: 'landing', expiresAt: null },
-      recipients,
-      'Alice',
-      'doc.pdf',
+      expect.objectContaining({ to: 'b@example.com', subject: 'Alice shared "doc.pdf" with you' }),
     )
   })
 
   it('falls back to Unknown creator / empty matter name', async () => {
-    const { deps, record } = makeDeps({
+    const { deps, record, sendEmail } = makeDeps({
       share: { getCreatorName: async () => null, getMatterName: async () => null },
     })
     await createShare(deps, platform, {
@@ -775,8 +800,12 @@ describe('createShare', () => {
       userId: 'creator-1',
       input: { ...baseInput, recipients: [{ recipientEmail: 'b@example.com' }] },
     })
+    await flushDispatch()
     expect(record).toHaveBeenCalledWith(expect.objectContaining({ targetName: '' }))
-    expect(dispatch).toHaveBeenCalledWith(deps, platform, expect.anything(), expect.anything(), 'Unknown', '')
+    expect(sendEmail).toHaveBeenCalledWith(
+      platform,
+      expect.objectContaining({ to: 'b@example.com', subject: 'Unknown shared "" with you' }),
+    )
   })
 
   it.each([
@@ -788,11 +817,13 @@ describe('createShare', () => {
     const create = vi.fn(async () => {
       throw new CreateShareError(code)
     })
-    const { deps, record } = makeDeps({ share: { create } })
+    const { deps, record, createNotification, sendEmail } = makeDeps({ share: { create } })
     const out = await createShare(deps, platform, { orgId: 'o-1', userId: 'creator-1', input: baseInput })
     expect(out).toEqual({ ok: false, reason: code })
     expect(record).not.toHaveBeenCalled()
-    expect(dispatch).not.toHaveBeenCalled()
+    await flushDispatch()
+    expect(createNotification).not.toHaveBeenCalled()
+    expect(sendEmail).not.toHaveBeenCalled()
   })
 
   it('rethrows a non-CreateShareError', async () => {

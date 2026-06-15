@@ -13,12 +13,8 @@ import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
 import { activityEvents, matters, orgQuotaEntitlements, orgQuotas, shares } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
+import { type SaveShareInput, type SaveToDriveDeps, saveShareToDrive as saveShareToDriveUseCase } from './object.js'
 import type { Matter } from './ports'
-import {
-  type SaveShareInput,
-  type SaveToDriveDeps,
-  saveShareToDrive as saveShareToDriveUseCase,
-} from './save-to-drive.js'
 
 const createShare = (db: Database, input: CreateShareInput) => createShareRepo(db).create(input)
 const resolveShareByToken = (db: Database, token: string) => createShareRepo(db).resolveByToken(token)

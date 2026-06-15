@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { createMatterRepo } from '../adapters/repos/matter.js'
 import { createTestApp } from '../test/setup.js'
-import { DEFAULT_TRASH_RETENTION_DAYS, purgeExpiredTrash, resolveTrashRetentionDays } from './purge.js'
+import { DEFAULT_TRASH_RETENTION_DAYS, purgeExpiredTrash, resolveTrashRetentionDays } from './object.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 

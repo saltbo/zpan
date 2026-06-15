@@ -11,7 +11,7 @@ export {
   encodeChildRef,
   folderRootPath,
   PRESIGN_TTL_SECS,
-} from '../usecases/share-ref'
+} from '../usecases/share'
 
 export function cookieName(token: string): string {
   return `sharetk_${token}`

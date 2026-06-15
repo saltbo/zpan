@@ -5,7 +5,7 @@ import * as authSchema from '../db/auth-schema.js'
 import { notifications, systemOptions } from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
 import type { ShareNotificationRecipient, ShareNotificationShare } from './ports'
-import { dispatchShareCreated } from './share-notification.js'
+import { dispatchShareCreated } from './share.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
 type TestDb = TestCtx['db']

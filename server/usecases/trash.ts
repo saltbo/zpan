@@ -8,8 +8,8 @@
 // http handler only resolves auth context, calls emptyTrash, and serializes the
 // count.
 
+import { type PurgeDeps, purgeRecursively } from './object'
 import type { ActivityRepo } from './ports'
-import { type PurgeDeps, purgeRecursively } from './purge'
 
 export type EmptyTrashDeps = PurgeDeps & {
   activity: ActivityRepo

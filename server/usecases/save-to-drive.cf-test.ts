@@ -13,7 +13,7 @@ import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
 import { matters } from '../db/schema'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 import type { Database } from '../platform/interface'
-import { type SaveShareInput, type SaveToDriveDeps, saveShareToDrive as saveShareToDriveUseCase } from './save-to-drive'
+import { type SaveShareInput, type SaveToDriveDeps, saveShareToDrive as saveShareToDriveUseCase } from './object'
 
 function buildDb() {
   return createCloudflarePlatform(env).db

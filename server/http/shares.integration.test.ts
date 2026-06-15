@@ -294,7 +294,7 @@ describe('POST /api/shares', () => {
     const matterId = nanoid()
     await insertFile(db, orgId, { id: matterId, name: 'file.txt' })
 
-    const notifService = await import('../usecases/share-notification.js')
+    const notifService = await import('../usecases/share.js')
     vi.spyOn(notifService, 'dispatchShareCreated').mockRejectedValueOnce(new Error('dispatch failed'))
 
     const res = await createShare(app, headers, {
