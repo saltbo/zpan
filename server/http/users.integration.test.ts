@@ -1,6 +1,10 @@
 import { sql } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3.js'
+import { buildBreadcrumb } from '../domain/breadcrumb.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
+
+type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
 async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']>) {
   // Sign up first user (gets promoted to admin via hook)
@@ -652,5 +656,263 @@ describe('Admin Users API', () => {
       body: JSON.stringify({ resourceType: 'storage', bytes: 0 }),
     })
     expect(res.status).toBe(400)
+  })
+})
+
+// ─── User avatar (PUT/DELETE /api/users/me/avatar) ────────────────────────────
+
+async function insertPublicStorage(db: TestDb) {
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES ('st-me', 'Public', 'public', 'test-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AKID', 'secret', '', '', 0, 0, 'active', ${now}, ${now})
+  `)
+}
+
+function makeFile(type: string, bytes = 16): File {
+  return new File([new Uint8Array(bytes)], `f.${type.split('/')[1]}`, { type })
+}
+
+describe('PUT /api/users/me/avatar', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(16)
+  })
+
+  it('returns 401 without auth [spec: avatar/auth-required]', async () => {
+    const { app } = await createTestApp()
+    const form = new FormData()
+    form.set('file', makeFile('image/png'))
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', body: form })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 415 when Content-Type is not multipart [spec: avatar/multipart-required]', async () => {
+    const { app } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/users/me/avatar', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nope: true }),
+    })
+    expect(res.status).toBe(415)
+  })
+
+  it('returns 400 when file field is missing [spec: avatar/file-required]', async () => {
+    const { app } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const form = new FormData()
+    form.set('notFile', 'x')
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when mime is not PNG/JPG/WebP [spec: avatar/mime-validated]', async () => {
+    const { app, db } = await createTestApp()
+    await insertPublicStorage(db)
+    const headers = await authedHeaders(app)
+    const form = new FormData()
+    form.set('file', makeFile('image/gif'))
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 413 when file exceeds 2 MiB [spec: avatar/size-limit]', async () => {
+    const { app, db } = await createTestApp()
+    await insertPublicStorage(db)
+    const headers = await authedHeaders(app)
+    const form = new FormData()
+    form.set('file', makeFile('image/png', 3 * 1024 * 1024))
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(413)
+  })
+
+  it('returns 503 when no public storage is configured [spec: avatar/needs-storage]', async () => {
+    const { app } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const form = new FormData()
+    form.set('file', makeFile('image/png'))
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(503)
+  })
+
+  it('uploads the file to S3, writes user.image, returns the URL [spec: avatar/upload]', async () => {
+    const { app, db } = await createTestApp()
+    await insertPublicStorage(db)
+    const headers = await authedHeaders(app)
+    const form = new FormData()
+    form.set('file', makeFile('image/webp'))
+
+    const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { url: string }
+    expect(body.url).toContain('_system/avatars/')
+    expect(body.url).toContain('.webp')
+    expect(S3Service.prototype.putObject).toHaveBeenCalledTimes(1)
+
+    const rows = await db.all<{ image: string | null }>(sql`SELECT image FROM user LIMIT 1`)
+    expect(rows[0]?.image).toBe(body.url)
+  })
+
+  it('is idempotent — re-PUT with same mime returns the same URL [spec: avatar/idempotent]', async () => {
+    const { app, db } = await createTestApp()
+    await insertPublicStorage(db)
+    const headers = await authedHeaders(app)
+
+    const form1 = new FormData()
+    form1.set('file', makeFile('image/png'))
+    const res1 = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form1 })
+    const body1 = (await res1.json()) as { url: string }
+
+    const form2 = new FormData()
+    form2.set('file', makeFile('image/png'))
+    const res2 = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form2 })
+    const body2 = (await res2.json()) as { url: string }
+
+    expect(body1.url).toBe(body2.url)
+  })
+})
+
+describe('DELETE /api/users/me/avatar', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(S3Service.prototype, 'deleteObject').mockResolvedValue(undefined)
+  })
+
+  it('returns 401 without auth', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('/api/users/me/avatar', { method: 'DELETE' })
+    expect(res.status).toBe(401)
+  })
+
+  it('clears user.image and removes all mime variants from S3 [spec: avatar/delete]', async () => {
+    const { app, db } = await createTestApp()
+    await insertPublicStorage(db)
+    const headers = await authedHeaders(app)
+    await db.run(sql`UPDATE user SET image = 'https://example.com/old.png'`)
+
+    const res = await app.request('/api/users/me/avatar', { method: 'DELETE', headers })
+    expect(res.status).toBe(200)
+
+    const rows = await db.all<{ image: string | null }>(sql`SELECT image FROM user LIMIT 1`)
+    expect(rows[0]?.image).toBeNull()
+    // 3 mime variants attempted (png, jpg, webp)
+    expect(S3Service.prototype.deleteObject).toHaveBeenCalledTimes(3)
+  })
+
+  it('succeeds when no public storage exists (DB cleared, S3 skipped) [spec: avatar/delete-no-storage]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await db.run(sql`UPDATE user SET image = 'https://example.com/old.png'`)
+
+    const res = await app.request('/api/users/me/avatar', { method: 'DELETE', headers })
+    expect(res.status).toBe(200)
+    const rows = await db.all<{ image: string | null }>(sql`SELECT image FROM user LIMIT 1`)
+    expect(rows[0]?.image).toBeNull()
+  })
+})
+
+// ─── Public user profile (GET /api/users/:username) ───────────────────────────
+
+async function insertUser(
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  opts: { id: string; username: string; email: string },
+) {
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO user (id, name, email, email_verified, username, created_at, updated_at)
+    VALUES (${opts.id}, 'Test User', ${opts.email}, 1, ${opts.username}, ${now}, ${now})
+  `)
+  await db.run(sql`
+    INSERT INTO organization (id, name, slug, created_at)
+    VALUES (${`org-${opts.id}`}, 'Personal', ${`personal-${opts.id}`}, ${now})
+  `)
+  await db.run(sql`
+    INSERT INTO member (id, organization_id, user_id, role, created_at)
+    VALUES (${`member-${opts.id}`}, ${`org-${opts.id}`}, ${opts.id}, 'owner', ${now})
+  `)
+  return { orgId: `org-${opts.id}` }
+}
+
+describe('GET /api/users/:username', () => {
+  it('returns 404 when user does not exist [spec: profile/user-not-found]', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('/api/users/nonexistent')
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body).toEqual({ error: 'User not found' })
+  })
+
+  it('returns user info and empty shares [spec: profile/user-info]', async () => {
+    const { app, db } = await createTestApp()
+    await insertUser(db, { id: 'user-1', username: 'testuser', email: 'test@example.com' })
+
+    const res = await app.request('/api/users/testuser')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { username: string }; shares: unknown[] }
+    expect(body.user.username).toBe('testuser')
+    expect(body.shares).toEqual([])
+  })
+
+  it('works without authentication [spec: profile/public]', async () => {
+    const { app, db } = await createTestApp()
+    await insertUser(db, { id: 'user-1', username: 'testuser', email: 'test@example.com' })
+
+    const res = await app.request('/api/users/testuser')
+    expect(res.status).toBe(200)
+  })
+
+  it('returns user info when user exists but has no personal org [spec: profile/no-personal-org]', async () => {
+    const { app, db } = await createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO user (id, name, email, email_verified, username, created_at, updated_at)
+      VALUES ('user-2', 'Orphan User', 'orphan@example.com', 1, 'orphanuser', ${now}, ${now})
+    `)
+
+    const res = await app.request('/api/users/orphanuser')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { username: string }; shares: unknown[] }
+    expect(body.user.username).toBe('orphanuser')
+    expect(body.shares).toEqual([])
+  })
+})
+
+describe('GET /api/users/:username/objects', () => {
+  it('returns 404 for unknown username [spec: profile/unknown-username]', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('/api/users/nonexistent/objects')
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body).toEqual({ error: 'User not found' })
+  })
+
+  it('returns empty items and breadcrumb for known user [spec: profile/empty-listing]', async () => {
+    const { app, db } = await createTestApp()
+    await insertUser(db, { id: 'user-1', username: 'testuser', email: 'test@example.com' })
+
+    const res = await app.request('/api/users/testuser/objects')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: unknown[]; breadcrumb: string[] }
+    expect(body.items).toEqual([])
+    expect(body.breadcrumb).toEqual([])
+  })
+})
+
+describe('buildBreadcrumb', () => {
+  it('returns empty array for empty string', () => {
+    expect(buildBreadcrumb('')).toEqual([])
+  })
+
+  it('returns single segment for a simple name', () => {
+    expect(buildBreadcrumb('photos')).toEqual(['photos'])
+  })
+
+  it('splits nested path into segments [spec: profile/breadcrumb-segments]', () => {
+    expect(buildBreadcrumb('a/b/c')).toEqual(['a', 'b', 'c'])
+  })
+
+  it('returns two segments for one-level-deep path', () => {
+    expect(buildBreadcrumb('Parent/Child')).toEqual(['Parent', 'Child'])
   })
 })
