@@ -39,6 +39,12 @@ Feature: Auth providers
     When an admin lists them
     Then all configs are returned
 
+  @auth-providers/anon-public-list @api
+  Scenario: Anonymous callers receive the public list, not a 401
+    Given enabled and disabled providers
+    When the merged provider list is requested without authentication
+    Then only enabled providers are returned without secrets
+
   @auth-providers/mask-secret @api
   Scenario: Admin reads mask the client secret
     Given a provider with a client secret
