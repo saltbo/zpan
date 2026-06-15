@@ -74,8 +74,8 @@ async function seedFile(page: Page, name: string, bytes: Buffer) {
   })
   expect(uploadResponse.ok()).toBe(true)
 
-  const confirmResponse = await page.request.patch(`/api/objects/${draft.id}`, {
-    data: { action: 'confirm' },
+  const confirmResponse = await page.request.put(`/api/objects/${draft.id}/status`, {
+    data: { status: 'active' },
   })
   expect(confirmResponse.ok()).toBe(true)
 }

@@ -47,7 +47,7 @@ async function enableImageHostFromSettings(page: import('@playwright/test').Page
   const enableBtn = page.getByRole('button', { name: /enable|activate/i })
   await expect(enableBtn).toBeVisible({ timeout: 10000 })
   const [response] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes('/api/ihost/config'), { timeout: 10000 }),
+    page.waitForResponse((r) => r.url().includes('/api/image-hosting/config'), { timeout: 10000 }),
     enableBtn.click(),
   ])
   expect(response.ok()).toBe(true)
@@ -117,7 +117,7 @@ test.describe('Image Host gallery golden path @all', () => {
 
     // Wait for the presign + confirm API calls to complete
     const uploadResp = await page.waitForResponse(
-      (r) => r.url().includes('/api/ihost/images') && r.request().method() === 'POST',
+      (r) => r.url().includes('/api/image-hosting/images') && r.request().method() === 'POST',
       { timeout: 10000 },
     )
     await expectApiOk(uploadResp, 'Image upload')
@@ -145,7 +145,7 @@ test.describe('Image Host gallery golden path @all', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
 
     // Seed an image via API so we have something to interact with
-    const presignResp = await page.request.post('/api/ihost/images/presign', {
+    const presignResp = await page.request.post('/api/image-hosting/images/presign', {
       headers: { 'Content-Type': 'application/json' },
       data: { path: 'e2e-copy-test.png', mime: 'image/png', size: 100 },
     })
@@ -153,10 +153,7 @@ test.describe('Image Host gallery golden path @all', () => {
     const { id: draftId } = await presignResp.json()
 
     // Confirm the draft (simulate successful S3 upload)
-    const confirmResp = await page.request.patch(`/api/ihost/images/${draftId}`, {
-      headers: { 'Content-Type': 'application/json' },
-      data: { action: 'confirm' },
-    })
+    const confirmResp = await page.request.put(`/api/image-hosting/images/${draftId}/status`)
     await expectApiOk(confirmResp, 'Confirm seeded image')
 
     // Reload to see the seeded image
@@ -174,16 +171,13 @@ test.describe('Image Host gallery golden path @all', () => {
     await setupImageHost(page)
 
     // Seed an image
-    const presignResp = await page.request.post('/api/ihost/images/presign', {
+    const presignResp = await page.request.post('/api/image-hosting/images/presign', {
       headers: { 'Content-Type': 'application/json' },
       data: { path: 'e2e-delete-undo.png', mime: 'image/png', size: 100 },
     })
     await expectApiOk(presignResp, 'Seed image presign')
     const { id: draftId } = await presignResp.json()
-    const confirmResp = await page.request.patch(`/api/ihost/images/${draftId}`, {
-      headers: { 'Content-Type': 'application/json' },
-      data: { action: 'confirm' },
-    })
+    const confirmResp = await page.request.put(`/api/image-hosting/images/${draftId}/status`)
     await expectApiOk(confirmResp, 'Confirm seeded image')
 
     await page.reload()
@@ -208,16 +202,13 @@ test.describe('Image Host gallery golden path @all', () => {
     await setupImageHost(page)
 
     // Seed an image
-    const presignResp = await page.request.post('/api/ihost/images/presign', {
+    const presignResp = await page.request.post('/api/image-hosting/images/presign', {
       headers: { 'Content-Type': 'application/json' },
       data: { path: 'e2e-delete-perm.png', mime: 'image/png', size: 100 },
     })
     await expectApiOk(presignResp, 'Seed image presign')
     const { id: draftId } = await presignResp.json()
-    const confirmResp = await page.request.patch(`/api/ihost/images/${draftId}`, {
-      headers: { 'Content-Type': 'application/json' },
-      data: { action: 'confirm' },
-    })
+    const confirmResp = await page.request.put(`/api/image-hosting/images/${draftId}/status`)
     await expectApiOk(confirmResp, 'Confirm seeded image')
 
     await page.reload()
@@ -229,7 +220,7 @@ test.describe('Image Host gallery golden path @all', () => {
 
     // Undo toast appears — wait for the 5s timer, then the DELETE API call fires
     const [deleteResp] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/ihost/images/') && r.request().method() === 'DELETE', {
+      page.waitForResponse((r) => r.url().includes('/api/image-hosting/images/') && r.request().method() === 'DELETE', {
         timeout: 10000,
       }),
       page.waitForTimeout(5500), // wait past the 5s undo window

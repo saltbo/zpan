@@ -3,7 +3,7 @@ import { expandSignUpForm, signInAsAdmin } from './helpers'
 
 async function setSignupMode(page: import('@playwright/test').Page, value: string) {
   const result = await page.evaluate(async (nextValue) => {
-    const res = await fetch('/api/system/options/auth_signup_mode', {
+    const res = await fetch('/api/site/options/auth_signup_mode', {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -17,7 +17,7 @@ async function setSignupMode(page: import('@playwright/test').Page, value: strin
 
 async function saveEmailConfig(page: import('@playwright/test').Page) {
   const result = await page.evaluate(async () => {
-    const res = await fetch('/api/admin/email-config', {
+    const res = await fetch('/api/site/email', {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -52,7 +52,7 @@ test.describe('Site invitation signup flow', () => {
     await page.goto('/admin/users')
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/admin/site-invitations') && r.request().method() === 'GET'),
+      page.waitForResponse((r) => r.url().includes('/api/site-invitations') && r.request().method() === 'GET'),
       page.getByRole('button', { name: 'Invite User' }).click(),
     ])
     const dialog = page.getByRole('dialog')
@@ -61,7 +61,7 @@ test.describe('Site invitation signup flow', () => {
 
     await page.getByLabel('Invite email').fill(invitationEmail)
     const [createResp] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/admin/site-invitations') && r.request().method() === 'POST'),
+      page.waitForResponse((r) => r.url().includes('/api/site-invitations') && r.request().method() === 'POST'),
       page.getByRole('button', { name: 'Send Invite', exact: true }).click(),
     ])
     expect(createResp.status()).toBe(201)
@@ -95,7 +95,7 @@ test.describe('Site invitation signup flow', () => {
     await signInAsAdmin(page)
     await page.goto('/admin/users')
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/admin/site-invitations') && r.request().method() === 'GET'),
+      page.waitForResponse((r) => r.url().includes('/api/site-invitations') && r.request().method() === 'GET'),
       page.getByRole('button', { name: 'Invite User' }).click(),
     ])
     const acceptedDialog = page.getByRole('dialog')
