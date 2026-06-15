@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { ActivityRepo } from '../ports'
 import { listAuditEvents } from './audit'
-import type { ActivityRepo } from './ports'
 
 describe('audit usecase', () => {
   it('forwards the query options to listAdminAudit', async () => {

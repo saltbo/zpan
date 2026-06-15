@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { EntitlementResult, QuotaEntitlementItem, UserAdminRepo, UserOperationFailure, UserWithOrg } from './ports'
+import type {
+  EntitlementResult,
+  QuotaEntitlementItem,
+  UserAdminRepo,
+  UserOperationFailure,
+  UserWithOrg,
+} from '../ports'
 import {
   deleteUser,
   deleteUsers,

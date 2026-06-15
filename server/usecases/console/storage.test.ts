@@ -2,15 +2,15 @@ import { FREE_STORAGE_LIMIT } from '@shared/constants'
 import type { CreateStorageInput } from '@shared/schemas'
 import type { BindingState } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { loadBindingState } from './licensing'
-import type { ActivityRepo, LicenseBindingRepo, StorageRecord, StorageRepo } from './ports'
+import { loadBindingState } from '../licensing'
+import type { ActivityRepo, LicenseBindingRepo, StorageRecord, StorageRepo } from '../ports'
 import { createStorage, deleteStorage, getStorage, listStorages, type StorageDeps, updateStorage } from './storage'
 
 // loadBindingState derives features from a signed certificate — out of scope for
 // a usecase unit test. Mock it so each case feeds a chosen edition; the real
 // (pure) hasFeature then runs against it. The full cert→features→gate path is
 // covered by storages.integration.test.ts.
-vi.mock('./licensing', () => ({ loadBindingState: vi.fn() }))
+vi.mock('../licensing', () => ({ loadBindingState: vi.fn() }))
 
 const COMMUNITY: BindingState = { bound: false }
 const PRO: BindingState = { bound: true, active: true, edition: 'pro' } // has storages_unlimited, not quota_store

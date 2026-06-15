@@ -1,8 +1,8 @@
 import { FREE_STORAGE_LIMIT } from '@shared/constants'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { createStorageRepo } from '../adapters/repos/storage.js'
-import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
+import { createStorageRepo } from '../../adapters/repos/storage.js'
+import { adminHeaders, authedHeaders, createTestApp } from '../../test/setup.js'
 
 const validStorage = {
   title: 'Test S3',

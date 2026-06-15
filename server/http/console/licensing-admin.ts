@@ -1,11 +1,11 @@
 import { Hono } from 'hono'
-import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { originFromRequestUrl } from '../domain/site-public-origin'
-import { requireAdmin } from '../middleware/auth'
-import type { Env } from '../middleware/platform'
-import { runtimeInfo } from '../usecases/instance-info'
-import { initiatePairing, normalizeHost, pollPairing, triggerRefresh, unbindLicense } from '../usecases/licensing'
-import { getSitePublicOrigin } from '../usecases/site-public-origin'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
+import { originFromRequestUrl } from '../../domain/site-public-origin'
+import { requireAdmin } from '../../middleware/auth'
+import type { Env } from '../../middleware/platform'
+import { runtimeInfo } from '../../usecases/instance-info'
+import { initiatePairing, normalizeHost, pollPairing, triggerRefresh, unbindLicense } from '../../usecases/licensing'
+import { getSitePublicOrigin } from '../../usecases/site-public-origin'
 
 function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT

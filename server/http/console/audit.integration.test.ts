@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
+import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../../test/setup.js'
 
 describe('GET /api/admin/audit — auth guards', () => {
   it('returns 401 without auth [spec: audit/auth-required]', async () => {
@@ -51,7 +51,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     const earlier = new Date('2026-01-01T00:00:00Z')
     const later = new Date('2026-06-01T00:00:00Z')
 
-    await db.insert((await import('../db/schema.js')).activityEvents).values([
+    await db.insert((await import('../../db/schema.js')).activityEvents).values([
       {
         id: 'evt-a',
         orgId: 'org-a',
@@ -90,7 +90,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../db/schema.js')
+    const { activityEvents } = await import('../../db/schema.js')
     await db.insert(activityEvents).values([
       {
         id: 'evt-1',
@@ -128,7 +128,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../db/schema.js')
+    const { activityEvents } = await import('../../db/schema.js')
     await db.insert(activityEvents).values([
       {
         id: 'evt-3',
@@ -165,7 +165,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../db/schema.js')
+    const { activityEvents } = await import('../../db/schema.js')
     await db.insert(activityEvents).values([
       {
         id: 'evt-5',
@@ -202,7 +202,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../db/schema.js')
+    const { activityEvents } = await import('../../db/schema.js')
     await db.insert(activityEvents).values([
       {
         id: 'evt-7',
@@ -239,7 +239,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../db/schema.js')
+    const { activityEvents } = await import('../../db/schema.js')
     // Insert 3 events
     await db.insert(activityEvents).values(
       [1, 2, 3].map((i) => ({
@@ -282,7 +282,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     const session = (await signInRes.json()) as { user?: { id: string } }
     const userId = session.user?.id ?? 'unknown'
 
-    const { activityEvents } = await import('../db/schema.js')
+    const { activityEvents } = await import('../../db/schema.js')
     await db.insert(activityEvents).values({
       id: 'actor-evt-1',
       orgId: 'some-org',

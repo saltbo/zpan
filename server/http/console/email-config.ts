@@ -1,9 +1,9 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { requireAdmin } from '../middleware/auth'
-import type { Env } from '../middleware/platform'
-import { getEmailConfig, saveEmailConfig, sendTestEmail } from '../usecases/email-config'
+import { requireAdmin } from '../../middleware/auth'
+import type { Env } from '../../middleware/platform'
+import { getEmailConfig, saveEmailConfig, sendTestEmail } from '../../usecases/console/email-config'
 
 const smtpConfigSchema = z.object({
   enabled: z.boolean(),

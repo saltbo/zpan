@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { authedHeaders, createTestApp } from '../test/setup.js'
+import { authedHeaders, createTestApp } from '../../test/setup.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']

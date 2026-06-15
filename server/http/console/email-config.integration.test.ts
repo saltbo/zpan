@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import * as schema from '../db/schema.js'
-import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
+import * as schema from '../../db/schema.js'
+import { adminHeaders, authedHeaders, createTestApp } from '../../test/setup.js'
 
 async function seedSmtpConfig(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   await db.insert(schema.systemOptions).values([
