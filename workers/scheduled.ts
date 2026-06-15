@@ -7,7 +7,7 @@ import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/downlo
 import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/usecases/object'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
 import { runLicensingRefresh } from '../server/usecases/site/licensing'
-import { syncPendingCloudTrafficReports } from '../server/usecases/store/cloud-traffic-metering'
+import { syncPendingCloudTrafficReports } from '../server/usecases/store/traffic-metering'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 
 // Subset of the worker Env used by the scheduled handler.

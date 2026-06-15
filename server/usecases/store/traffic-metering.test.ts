@@ -14,7 +14,7 @@ import {
   reportTrafficEgress as reportTrafficEgressUsecase,
   syncPendingCloudTrafficReports as syncPendingCloudTrafficReportsUsecase,
   type TrafficReportSource,
-} from './cloud-traffic-metering'
+} from './traffic-metering'
 
 const hasFeatureMock = vi.hoisted(() => vi.fn(() => true))
 

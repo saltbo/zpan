@@ -40,7 +40,7 @@ import {
   type StorageUsageRepo,
 } from './ports'
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
-import { meterDownloadTraffic } from './store/cloud-traffic-metering'
+import { meterDownloadTraffic } from './store/traffic-metering'
 
 export { ObjectUploadSessionError } from './ports'
 

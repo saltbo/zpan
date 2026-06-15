@@ -34,8 +34,8 @@ import {
   type ShareRepo,
   type StorageRepo,
 } from './ports'
-import type { CloudTrafficMeteringDeps } from './store/cloud-traffic-metering'
-import { meterDownloadTraffic } from './store/cloud-traffic-metering'
+import type { CloudTrafficMeteringDeps } from './store/traffic-metering'
+import { meterDownloadTraffic } from './store/traffic-metering'
 
 // The ports + sub-usecase deps this resource touches. `c.get('deps')` (the full
 // Deps) structurally satisfies this, so the handler passes it whole. The

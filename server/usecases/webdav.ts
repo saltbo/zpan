@@ -30,11 +30,7 @@ import {
   type WebDavWorkspace,
 } from './ports'
 import { withStorageUsageReservation } from './storage-usage'
-import {
-  type DownloadTrafficStorage,
-  meterDownloadTraffic,
-  type TrafficReportSource,
-} from './store/cloud-traffic-metering'
+import { type DownloadTrafficStorage, meterDownloadTraffic, type TrafficReportSource } from './store/traffic-metering'
 
 // ─── Auth resolution ──────────────────────────────────────────────────────────
 // The middleware parses the Authorization header (http) and renders the 401 / 429;

@@ -12,15 +12,15 @@ import type {
   StorageRepo,
 } from './ports'
 import { type RedirectDeps, resolveDirectShareDownload, resolveImageHostingDownload } from './redirect'
-import { type DownloadTrafficOutcome, meterDownloadTraffic, reportDownloadEgress } from './store/cloud-traffic-metering'
+import { type DownloadTrafficOutcome, meterDownloadTraffic, reportDownloadEgress } from './store/traffic-metering'
 
 // The end-to-end metering (quota consume → cloud egress report → refund) is
 // covered by cloud-traffic-metering.test.ts. Here we replace its two entry
 // points with mocks so each redirect case feeds a chosen outcome and we can
 // assert the redirect flow's gates, ordering, and presign-rollback in isolation.
 // Everything else in the module (types, other exports) stays real.
-vi.mock('./store/cloud-traffic-metering', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./store/cloud-traffic-metering')>()),
+vi.mock('./store/traffic-metering', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./store/traffic-metering')>()),
   meterDownloadTraffic: vi.fn(),
   reportDownloadEgress: vi.fn(),
 }))

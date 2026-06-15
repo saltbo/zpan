@@ -18,7 +18,7 @@ import {
   unbindLicense,
 } from '../../usecases/site/licensing'
 import { getSitePublicOrigin } from '../../usecases/site/public-origin'
-import { syncPendingCloudTrafficReports } from '../../usecases/store/cloud-traffic-metering'
+import { syncPendingCloudTrafficReports } from '../../usecases/store/traffic-metering'
 
 function getCloudBaseUrl(c: Context<Env>): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT

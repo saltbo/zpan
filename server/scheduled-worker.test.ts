@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/downloads/remote-download-usage'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
 import { runLicensingRefresh } from '../server/usecases/site/licensing'
-import { syncPendingCloudTrafficReports } from '../server/usecases/store/cloud-traffic-metering'
+import { syncPendingCloudTrafficReports } from '../server/usecases/store/traffic-metering'
 import { handleScheduled } from '../workers/scheduled'
 
 vi.mock('../server/platform/cloudflare', () => ({
@@ -16,7 +16,7 @@ vi.mock('../server/composition', () => ({
   createDeps: vi.fn(() => fakeDeps),
 }))
 
-vi.mock('../server/usecases/store/cloud-traffic-metering', () => ({
+vi.mock('../server/usecases/store/traffic-metering', () => ({
   syncPendingCloudTrafficReports: vi.fn(),
 }))
 

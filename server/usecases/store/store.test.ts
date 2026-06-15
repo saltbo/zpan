@@ -16,7 +16,7 @@ import {
   listTargets,
   processDeliveryWebhook,
   redeemGiftCard,
-} from './cloud-store'
+} from './store'
 
 // Token verification derives from a signed PASETO + trusted keys — out of scope
 // for a usecase unit test. Mock it so each case chooses verified/invalid; the

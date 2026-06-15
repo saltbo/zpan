@@ -7,7 +7,7 @@ import {
   meterDownloadTraffic,
   reportDownloadEgress,
   type TrafficReportSource,
-} from '../../usecases/store/cloud-traffic-metering'
+} from '../../usecases/store/traffic-metering'
 
 // Thin http adapters over the download-metering usecase: resolve the cloud base
 // URL from the request, call the usecase (deps passed whole), and render the

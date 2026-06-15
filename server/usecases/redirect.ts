@@ -10,11 +10,7 @@
 
 import type { ImageHostingRepo, QuotaRepo, S3Gateway, ShareRepo, StorageRepo } from './ports'
 import { PRESIGN_TTL_SECS } from './share'
-import {
-  type CloudTrafficMeteringDeps,
-  meterDownloadTraffic,
-  reportDownloadEgress,
-} from './store/cloud-traffic-metering'
+import { type CloudTrafficMeteringDeps, meterDownloadTraffic, reportDownloadEgress } from './store/traffic-metering'
 
 // The metering usecases need the cloud-report ports plus quota; the redirect
 // flows additionally read shares / image-hosting / storages and presign via s3.

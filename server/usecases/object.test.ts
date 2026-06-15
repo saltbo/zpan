@@ -39,13 +39,13 @@ import type {
   StorageRepo,
   StorageUsageRepo,
 } from './ports'
-import { meterDownloadTraffic } from './store/cloud-traffic-metering'
+import { meterDownloadTraffic } from './store/traffic-metering'
 
 // Download metering is an end-to-end usecase of its own (quota + cloud report +
 // refund); object.getObject only orchestrates around it. Mock it and assert the
 // outcome mapping + presign rollback here; cloud-traffic-metering.test.ts owns
 // the metering internals.
-vi.mock('./store/cloud-traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
+vi.mock('./store/traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
 
 const storage = {
   id: 'st-1',
