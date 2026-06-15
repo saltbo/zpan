@@ -1,0 +1,554 @@
+// The shares resource usecase. Owns every business decision behind the public
+// (/api/shares before auth) and authed (/api/shares after auth) share routes:
+// resolution gating, view/download dedup, the end-to-end download meter, share
+// creation + recipient notification, revocation, and save-to-drive. The http
+// handlers only read cookies/params, call these functions with `deps` whole,
+// and serialize the discriminated outcomes into responses.
+//
+// Cookies stay in http: the usecase takes cookie-derived inputs (viewerId,
+// whether the access cookie is 'ok', whether the view cookie was already 'seen')
+// and returns cookie *decisions*; the handler runs getCookie/setCookie.
+
+import { DirType } from '@shared/constants'
+import type { CreateShareRequest } from '@shared/schemas/share'
+import { isAccessibleByUser } from '../domain/share'
+import { verifyPassword as verifyPasswordHash } from '../lib/password'
+import type { Platform } from '../platform/interface'
+import type { CloudTrafficMeteringDeps } from './cloud-traffic-metering'
+import { meterDownloadTraffic } from './cloud-traffic-metering'
+import {
+  type ActivityRepo,
+  CreateShareError,
+  type Matter,
+  type MatterRepo,
+  type OrgRepo,
+  type QuotaRepo,
+  type S3Gateway,
+  type ShareRecipientRecord,
+  type ShareRecord,
+  type ShareRepo,
+  type StorageRepo,
+} from './ports'
+import type { SaveToDriveDeps } from './save-to-drive'
+import { saveShareToDrive } from './save-to-drive'
+import type { ShareNotificationDeps } from './share-notification'
+import { dispatchShareCreated } from './share-notification'
+// Pure, framework-free share-token helpers (HMAC ref codec, breadcrumb, folder
+// root, access gate, presign TTL); http/share-utils re-exports them for the
+// handlers.
+import { buildBreadcrumb, checkAccessGate, encodeChildRef, folderRootPath, PRESIGN_TTL_SECS } from './share-ref'
+
+// The ports + sub-usecase deps this resource touches. `c.get('deps')` (the full
+// Deps) structurally satisfies this, so the handler passes it whole. The
+// intersected sub-usecase deps (save-to-drive, share-notification, the download
+// meter) carry the ports those collaborators reach through.
+export type ShareDeps = SaveToDriveDeps &
+  ShareNotificationDeps &
+  CloudTrafficMeteringDeps & {
+    share: ShareRepo
+    matter: MatterRepo
+    storages: StorageRepo
+    s3: S3Gateway
+    quota: QuotaRepo
+    activity: ActivityRepo
+    org: OrgRepo
+  }
+
+// ─── GET /:token — view a share (creator vs viewer DTO) ──────────────────────
+
+export type ViewShareParams = {
+  token: string
+  viewerId: string | null
+  // Cookie-derived: 'seen' if the view-dedup cookie is already set.
+  viewCookie: string | undefined
+  // Cookie-derived: 'ok' if the access cookie is set.
+  accessCookie: string | undefined
+  now?: Date
+}
+
+export type ShareViewerDto = {
+  token: string
+  kind: string
+  status: string
+  expiresAt: Date | null
+  downloadLimit: number | null
+  matter: { name: string; type: string; size: number | null; isFolder: boolean }
+  creatorName: string
+  requiresPassword: boolean
+  expired: boolean
+  exhausted: boolean
+  accessibleByUser: boolean
+  downloads: number
+  views: number
+  rootRef: string
+}
+
+export type ShareCreatorDto = ShareViewerDto & {
+  id: string
+  matterId: string
+  orgId: string
+  creatorId: string
+  createdAt: Date
+  recipients: ShareRecipientRecord[]
+}
+
+export type ViewShareOutcome =
+  | { ok: true; dto: ShareViewerDto | ShareCreatorDto; setViewCookie: boolean }
+  | { ok: false; reason: 'not_found' | 'matter_trashed' }
+
+export async function viewShare(deps: ShareDeps, params: ViewShareParams): Promise<ViewShareOutcome> {
+  const { token, viewerId, viewCookie, accessCookie, now = new Date() } = params
+
+  const resolved = await deps.share.resolveByToken(token)
+  if (resolved.status !== 'ok') {
+    if (resolved.status === 'matter_trashed') return { ok: false, reason: 'matter_trashed' }
+    return { ok: false, reason: 'not_found' }
+  }
+
+  const { share, matter, recipients } = resolved
+  const isCreator = !!viewerId && viewerId === share.creatorId
+
+  // Direct shares are not publicly viewable; only the creator sees metadata.
+  if (share.kind !== 'landing' && !isCreator) return { ok: false, reason: 'not_found' }
+
+  // View-dedup increment: non-creators whose view cookie isn't yet 'seen'. The
+  // handler sets the cookie when setViewCookie is true.
+  const setViewCookie = !isCreator && viewCookie !== 'seen'
+  if (setViewCookie) await deps.share.incrementViews(share.id)
+
+  const accessibleByUser = viewerId ? isAccessibleByUser(recipients, viewerId) : false
+  const requiresPassword = !isCreator && !!(share.passwordHash && !accessibleByUser && accessCookie !== 'ok')
+  const expired = !!(share.expiresAt && share.expiresAt < now)
+  const exhausted = !!(share.downloadLimit != null && share.downloads >= share.downloadLimit)
+  const isFolder = matter.dirtype !== DirType.FILE
+
+  const creatorName = (await deps.share.getCreatorName(share.creatorId)) ?? ''
+
+  const base: ShareViewerDto = {
+    token: share.token,
+    kind: share.kind,
+    status: share.status,
+    expiresAt: share.expiresAt,
+    downloadLimit: share.downloadLimit,
+    matter: { name: matter.name, type: matter.type, size: matter.size, isFolder },
+    creatorName,
+    requiresPassword,
+    expired,
+    exhausted,
+    accessibleByUser,
+    downloads: share.downloads,
+    views: share.views,
+    rootRef: encodeChildRef(token, matter.id),
+  }
+
+  if (isCreator) {
+    return {
+      ok: true,
+      setViewCookie,
+      dto: {
+        ...base,
+        id: share.id,
+        matterId: share.matterId,
+        orgId: share.orgId,
+        creatorId: share.creatorId,
+        createdAt: share.createdAt,
+        recipients,
+      },
+    }
+  }
+  return { ok: true, setViewCookie, dto: base }
+}
+
+// ─── POST /:token/sessions — verify password → access-cookie decision ────────
+
+export type VerifySharePasswordParams = { token: string; password: string; now?: Date }
+
+export type VerifySharePasswordOutcome =
+  | { ok: true; setAccessCookieExpiry: Date }
+  | { ok: false; reason: 'not_found' | 'invalid_password' }
+
+export async function verifySharePassword(
+  deps: ShareDeps,
+  params: VerifySharePasswordParams,
+): Promise<VerifySharePasswordOutcome> {
+  const { token, password, now = new Date() } = params
+
+  const resolved = await deps.share.resolveByToken(token)
+  if (resolved.status !== 'ok') return { ok: false, reason: 'not_found' }
+
+  const { share } = resolved
+  if (share.kind !== 'landing') return { ok: false, reason: 'not_found' }
+
+  if (!share.passwordHash || !verifyPasswordHash(share.passwordHash, password))
+    return { ok: false, reason: 'invalid_password' }
+
+  // Cookie lives for up to a day, never past the share's own expiry.
+  const oneDayMs = 24 * 60 * 60 * 1000
+  const setAccessCookieExpiry = share.expiresAt
+    ? new Date(Math.min(share.expiresAt.getTime(), now.getTime() + oneDayMs))
+    : new Date(now.getTime() + oneDayMs)
+
+  return { ok: true, setAccessCookieExpiry }
+}
+
+// ─── GET /:token/objects — folder listing ────────────────────────────────────
+
+export type ListShareObjectsParams = {
+  token: string
+  viewerId: string | null
+  accessCookie: string | undefined
+  relativePath: string
+  page: number
+  pageSize: number
+  now?: Date
+}
+
+export type ShareObjectItem = { ref: string; name: string; type: string; size: number | null; isFolder: boolean }
+
+export type ListShareObjectsResult = {
+  items: ShareObjectItem[]
+  total: number
+  page: number
+  pageSize: number
+  breadcrumb: Array<{ name: string; path: string }>
+}
+
+export type ListShareObjectsOutcome =
+  | { ok: true; result: ListShareObjectsResult }
+  | {
+      ok: false
+      reason: 'not_found' | 'matter_trashed' | 'not_a_folder' | 'password_required' | 'expired' | 'invalid_path'
+    }
+
+export async function listShareObjects(
+  deps: ShareDeps,
+  params: ListShareObjectsParams,
+): Promise<ListShareObjectsOutcome> {
+  const { token, viewerId, accessCookie, relativePath, page, pageSize, now = new Date() } = params
+
+  const resolved = await deps.share.resolveByToken(token)
+  if (resolved.status !== 'ok') {
+    if (resolved.status === 'matter_trashed') return { ok: false, reason: 'matter_trashed' }
+    return { ok: false, reason: 'not_found' }
+  }
+
+  const { share, matter, recipients } = resolved
+  if (share.kind !== 'landing') return { ok: false, reason: 'not_found' }
+  if (matter.dirtype === DirType.FILE) return { ok: false, reason: 'not_a_folder' }
+
+  if (checkAccessGate(share.passwordHash, recipients, viewerId, accessCookie) === 'password_required')
+    return { ok: false, reason: 'password_required' }
+
+  if (share.expiresAt && share.expiresAt < now) return { ok: false, reason: 'expired' }
+
+  if (relativePath.includes('..')) return { ok: false, reason: 'invalid_path' }
+
+  const root = folderRootPath(matter)
+  const queryParent = relativePath ? `${root}/${relativePath}` : root
+
+  const result = await deps.matter.list(matter.orgId, { parent: queryParent, status: 'active', page, pageSize })
+
+  return {
+    ok: true,
+    result: {
+      items: result.items.map((m) => ({
+        ref: encodeChildRef(token, m.id),
+        name: m.name,
+        type: m.type,
+        size: m.size,
+        isFolder: m.dirtype !== DirType.FILE,
+      })),
+      total: result.total,
+      page,
+      pageSize,
+      breadcrumb: buildBreadcrumb(matter.name, relativePath),
+    },
+  }
+}
+
+// ─── GET /:token/objects/:ref — download (orchestration + metering) ──────────
+
+export type DownloadShareObjectParams = {
+  token: string
+  // The decoded matter id of the requested ref (null when the ref signature
+  // failed to verify); the handler decodes/validates via the pure ref helpers.
+  matterId: string | null
+  viewerId: string | null
+  accessCookie: string | undefined
+  cloudBaseUrl: string
+}
+
+export type DownloadShareObjectOutcome =
+  | { ok: true; url: string }
+  | {
+      ok: false
+      reason:
+        | 'not_found'
+        | 'matter_trashed'
+        | 'invalid_ref'
+        | 'password_required'
+        | 'expired'
+        | 'folder'
+        | 'limit_exceeded'
+        | 'storage_not_found'
+        | 'quota_exceeded'
+        | 'insufficient_credits'
+    }
+
+export async function downloadShareObject(
+  deps: ShareDeps,
+  params: DownloadShareObjectParams,
+): Promise<DownloadShareObjectOutcome> {
+  const { token, matterId, viewerId, accessCookie, cloudBaseUrl } = params
+
+  const resolved = await deps.share.resolveByToken(token)
+  if (resolved.status !== 'ok') {
+    if (resolved.status === 'matter_trashed') return { ok: false, reason: 'matter_trashed' }
+    return { ok: false, reason: 'not_found' }
+  }
+
+  const { share, matter, recipients } = resolved
+  if (share.kind !== 'landing') return { ok: false, reason: 'not_found' }
+
+  if (matterId === null) return { ok: false, reason: 'invalid_ref' }
+
+  if (checkAccessGate(share.passwordHash, recipients, viewerId, accessCookie) === 'password_required')
+    return { ok: false, reason: 'password_required' }
+
+  if (share.expiresAt && share.expiresAt < new Date()) return { ok: false, reason: 'expired' }
+
+  let targetMatter = matter
+  if (matterId !== matter.id) {
+    if (matter.dirtype === DirType.FILE) return { ok: false, reason: 'not_found' }
+    const child = await deps.share.findShareChildMatter(matter, matterId)
+    if (!child) return { ok: false, reason: 'not_found' }
+    targetMatter = child
+  } else if (matter.dirtype !== DirType.FILE) {
+    return { ok: false, reason: 'folder' }
+  }
+
+  if (!(await deps.share.hasDownloadsAvailable(share.id))) return { ok: false, reason: 'limit_exceeded' }
+
+  const storage = await deps.storages.get(targetMatter.storageId)
+  if (!storage) return { ok: false, reason: 'storage_not_found' }
+
+  const { ok: incremented } = await deps.share.incrementDownloadsAtomic(share.id)
+  if (!incremented) return { ok: false, reason: 'limit_exceeded' }
+
+  const bytes = targetMatter.size ?? 0
+  const metered = await meterDownloadTraffic(deps, {
+    cloudBaseUrl,
+    orgId: share.orgId,
+    bytes,
+    storage,
+    source: 'landing_share',
+    sourceId: share.id,
+    onRejected: () => deps.share.decrementDownloads(share.id),
+  })
+  if (!metered.ok) return { ok: false, reason: metered.reason }
+
+  // Presign. On failure the metering already succeeded, so roll it back
+  // ourselves: refund the consumed traffic and the download count, then rethrow.
+  let url: string
+  try {
+    url = await deps.s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
+  } catch (e) {
+    await deps.quota.refundTraffic(share.orgId, bytes)
+    await deps.share.decrementDownloads(share.id)
+    throw e
+  }
+
+  // Record download audit event. Use the authenticated viewer if available;
+  // fall back to the share creator as the org-attributed actor for anonymous
+  // downloads. The presigned URL is never stored in metadata.
+  const actorId = viewerId ?? share.creatorId
+  try {
+    await deps.activity.record({
+      orgId: share.orgId,
+      userId: actorId,
+      action: 'share_download',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: targetMatter.name,
+      metadata: { anonymous: !viewerId },
+    })
+  } catch (error) {
+    console.error('[shares] recordActivity failed:', error)
+  }
+
+  return { ok: true, url }
+}
+
+// ─── GET / — list shares (received / sent) ───────────────────────────────────
+
+export type ListSharesParams = {
+  userId: string
+  box: 'received' | 'sent' | undefined
+  page: number
+  pageSize: number
+  status?: string
+}
+
+export async function listShares(deps: ShareDeps, params: ListSharesParams) {
+  const { userId, box, page, pageSize, status } = params
+
+  if (box === 'received') {
+    const email = await deps.share.getUserEmail(userId)
+    const result = await deps.share.listReceivedForApi(userId, email, { page, pageSize })
+    return { ...result, page, pageSize }
+  }
+
+  const result = await deps.share.listForApi(userId, { page, pageSize, status })
+  return { ...result, page, pageSize }
+}
+
+// ─── POST / — create a share (notify + activity; map create errors) ──────────
+
+export type CreateShareParams = {
+  orgId: string
+  userId: string
+  // The validated create-share request body. `expiresAt` is an ISO string here
+  // (the wire shape); it is parsed to a Date before hitting the repo.
+  input: CreateShareRequest
+}
+
+export type CreatedShare = {
+  token: string
+  kind: string
+  expiresAt: Date | null
+  downloadLimit: number | null
+}
+
+export type CreateShareOutcome = { ok: true; share: CreatedShare } | { ok: false; reason: CreateShareError['code'] }
+
+export async function createShare(
+  deps: ShareDeps,
+  platform: Platform,
+  params: CreateShareParams,
+): Promise<CreateShareOutcome> {
+  const { orgId, userId, input } = params
+
+  const expiresAt = input.expiresAt ? new Date(input.expiresAt) : undefined
+
+  const [creatorNameRaw, matterName] = await Promise.all([
+    deps.share.getCreatorName(userId),
+    deps.share.getMatterName(input.matterId),
+  ])
+  const creatorName = creatorNameRaw ?? 'Unknown'
+
+  let share: ShareRecord
+  try {
+    share = await deps.share.create({
+      matterId: input.matterId,
+      orgId,
+      creatorId: userId,
+      kind: input.kind,
+      password: input.password,
+      expiresAt,
+      downloadLimit: input.downloadLimit,
+      recipients: input.recipients,
+    })
+  } catch (err) {
+    if (err instanceof CreateShareError) return { ok: false, reason: err.code }
+    throw err
+  }
+
+  const resolvedMatterName = matterName ?? ''
+
+  const recipients = input.recipients ?? []
+  if (recipients.length > 0) {
+    dispatchShareCreated(
+      deps,
+      platform,
+      { id: share.id, token: share.token, kind: share.kind as 'landing' | 'direct', expiresAt: share.expiresAt },
+      recipients,
+      creatorName,
+      resolvedMatterName,
+    ).catch((err) => console.error('[shares] dispatchShareCreated failed:', err))
+  }
+
+  await deps.activity.record({
+    orgId,
+    userId,
+    action: 'share_create',
+    targetType: 'share',
+    targetId: share.id,
+    targetName: resolvedMatterName,
+    metadata: { kind: share.kind, hasPassword: !!input.password, hasExpiry: !!input.expiresAt },
+  })
+
+  return {
+    ok: true,
+    share: { token: share.token, kind: share.kind, expiresAt: share.expiresAt, downloadLimit: share.downloadLimit },
+  }
+}
+
+// ─── DELETE /:token — revoke (ownership-scoped) ──────────────────────────────
+
+export type RevokeShareParams = { token: string; userId: string; orgId: string }
+
+export type RevokeShareOutcome = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }
+
+export async function revokeShare(deps: ShareDeps, params: RevokeShareParams): Promise<RevokeShareOutcome> {
+  const { token, userId, orgId } = params
+
+  const creatorId = await deps.share.getCreatorByToken(token)
+  if (creatorId === null) return { ok: false, reason: 'not_found' }
+  if (creatorId !== userId) return { ok: false, reason: 'forbidden' }
+
+  // Race-safe: revokeByToken scopes the UPDATE to (token, creatorId). A
+  // concurrent revoke or ownership change between the check above and this call
+  // returns false — translate to not_found at the boundary.
+  const revoked = await deps.share.revokeByToken(token, userId)
+  if (!revoked) return { ok: false, reason: 'not_found' }
+
+  await deps.activity.record({
+    orgId,
+    userId,
+    action: 'share_revoke',
+    targetType: 'share',
+    targetName: token,
+  })
+
+  return { ok: true }
+}
+
+// ─── POST /:token/objects — save-to-drive (gates + copy) ─────────────────────
+
+export type SaveShareParams = {
+  token: string
+  currentUserId: string
+  targetOrgId: string
+  targetParent: string
+  accessCookie: string | undefined
+}
+
+export type SaveShareOutcome =
+  | { ok: true; result: { saved: Matter[]; skipped: Array<{ name: string; reason: string }> } }
+  | {
+      ok: false
+      reason: 'matter_trashed' | 'not_found' | 'direct_forbidden' | 'password_required' | 'forbidden' | 'quota_exceeded'
+    }
+
+export async function saveShare(deps: ShareDeps, params: SaveShareParams): Promise<SaveShareOutcome> {
+  const { token, currentUserId, targetOrgId, targetParent, accessCookie } = params
+
+  const resolution = await deps.share.resolveByToken(token)
+  if (resolution.status === 'matter_trashed') return { ok: false, reason: 'matter_trashed' }
+  if (resolution.status !== 'ok') return { ok: false, reason: 'not_found' }
+
+  const { share, matter, recipients } = resolution
+
+  if (share.kind === 'direct') return { ok: false, reason: 'direct_forbidden' }
+
+  if (checkAccessGate(share.passwordHash, recipients, currentUserId, accessCookie) === 'password_required')
+    return { ok: false, reason: 'password_required' }
+
+  if (!(await deps.org.canWriteToOrg(currentUserId, targetOrgId))) return { ok: false, reason: 'forbidden' }
+
+  const totalBytes = await deps.share.computeSourceBytes(matter)
+  if (!(await deps.share.hasQuotaForBytes(targetOrgId, totalBytes))) return { ok: false, reason: 'quota_exceeded' }
+
+  const result = await saveShareToDrive(deps, { share, matter, currentUserId, targetOrgId, targetParent })
+  return { ok: true, result }
+}
