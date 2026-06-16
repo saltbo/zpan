@@ -1,13 +1,30 @@
-import { Hono } from 'hono'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { emptyTrash } from '../usecases/trash'
+import { errorResponse, jsonContent } from './openapi'
 
-const app = new Hono<Env>().use(requireAuth).delete('/', requireTeamRole('editor'), async (c) => {
+const emptyTrashRoute = createRoute({
+  operationId: 'emptyTrash',
+  summary: 'Empty trash',
+  tags: ['Trash'],
+  method: 'delete',
+  path: '/',
+  middleware: [requireTeamRole('editor')] as const,
+  responses: {
+    200: jsonContent(z.object({ purged: z.number().int() }), 'Number of objects permanently removed'),
+    400: errorResponse('No active organization'),
+  },
+})
+
+const app = new OpenAPIHono<Env>()
+app.use(requireAuth)
+
+const trash = app.openapi(emptyTrashRoute, async (c) => {
   const orgId = c.get('orgId')
   if (!orgId) return c.json({ error: 'No active organization' }, 400)
   const result = await emptyTrash(c.get('deps'), { orgId, userId: c.get('userId')! })
-  return c.json({ purged: result.purged })
+  return c.json({ purged: result.purged }, 200)
 })
 
-export default app
+export default trash

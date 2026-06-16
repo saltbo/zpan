@@ -1,6 +1,5 @@
-import { zValidator } from '@hono/zod-validator'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { listNotificationsQuerySchema } from '@shared/schemas'
-import { Hono } from 'hono'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -9,10 +8,99 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '../usecases/notification'
+import type { NotificationRecord } from '../usecases/ports'
+import { errorResponse, jsonContent } from './openapi'
 
-export const notifications = new Hono<Env>()
-  .use(requireAuth)
-  .get('/', zValidator('query', listNotificationsQuerySchema), async (c) => {
+const notificationSchema = z
+  .object({
+    id: z.string(),
+    userId: z.string(),
+    type: z.string(),
+    title: z.string(),
+    body: z.string(),
+    refType: z.string().nullable(),
+    refId: z.string().nullable(),
+    metadata: z.string().nullable(),
+    readAt: z.string().nullable(),
+    createdAt: z.string(),
+  })
+  .openapi('Notification')
+
+type NotificationDTO = z.infer<typeof notificationSchema>
+
+// Serialize the domain record's `Date` timestamps to ISO strings — the one place
+// the domain type crosses to the wire.
+function toNotificationDTO(n: NotificationRecord): NotificationDTO {
+  return {
+    id: n.id,
+    userId: n.userId,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    refType: n.refType,
+    refId: n.refId,
+    metadata: n.metadata,
+    readAt: n.readAt ? n.readAt.toISOString() : null,
+    createdAt: n.createdAt.toISOString(),
+  }
+}
+
+const notificationPageSchema = z
+  .object({
+    items: z.array(notificationSchema),
+    total: z.number().int(),
+    unreadCount: z.number().int(),
+    page: z.number().int(),
+    pageSize: z.number().int(),
+  })
+  .openapi('NotificationPage')
+
+const listRoute = createRoute({
+  operationId: 'listNotifications',
+  summary: 'List notifications',
+  tags: ['Notifications'],
+  method: 'get',
+  path: '/',
+  request: { query: listNotificationsQuerySchema },
+  responses: { 200: jsonContent(notificationPageSchema, 'Notifications') },
+})
+
+const statsRoute = createRoute({
+  operationId: 'getNotificationStats',
+  summary: 'Get unread notification count',
+  tags: ['Notifications'],
+  method: 'get',
+  path: '/stats',
+  responses: { 200: jsonContent(z.object({ count: z.number().int() }), 'Unread count') },
+})
+
+const markReadRoute = createRoute({
+  operationId: 'markNotificationRead',
+  summary: 'Mark a notification read',
+  tags: ['Notifications'],
+  method: 'patch',
+  path: '/{id}',
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    204: { description: 'Marked read' },
+    404: errorResponse('Not found'),
+  },
+})
+
+const markAllReadRoute = createRoute({
+  operationId: 'markAllNotificationsRead',
+  summary: 'Mark all notifications read',
+  tags: ['Notifications'],
+  method: 'patch',
+  path: '/',
+  responses: { 200: jsonContent(z.object({ count: z.number().int() }), 'Number marked read') },
+})
+
+const app = new OpenAPIHono<Env>()
+app.use(requireAuth)
+
+export const notifications = app
+  .openapi(listRoute, async (c) => {
     const { page: pageStr, pageSize: pageSizeStr, unread } = c.req.valid('query')
     const page = Number(pageStr ?? '1')
     const pageSize = Number(pageSizeStr ?? '20')
@@ -21,15 +109,24 @@ export const notifications = new Hono<Env>()
       pageSize,
       unreadOnly: unread === 'true',
     })
-    return c.json({ ...result, page, pageSize })
+    return c.json(
+      {
+        items: result.items.map(toNotificationDTO),
+        total: result.total,
+        unreadCount: result.unreadCount,
+        page,
+        pageSize,
+      },
+      200,
+    )
   })
-  .get('/stats', async (c) => {
+  .openapi(statsRoute, async (c) => {
     const count = await getUnreadCount(c.get('deps'), c.get('userId')!)
-    return c.json({ count })
+    return c.json({ count }, 200)
   })
-  .patch('/:id', async (c) => {
-    const found = await markNotificationRead(c.get('deps'), c.get('userId')!, c.req.param('id'))
+  .openapi(markReadRoute, async (c) => {
+    const found = await markNotificationRead(c.get('deps'), c.get('userId')!, c.req.valid('param').id)
     if (!found) return c.json({ error: 'Not found' }, 404)
-    return new Response(null, { status: 204 })
+    return c.body(null, 204)
   })
-  .patch('/', async (c) => c.json(await markAllNotificationsRead(c.get('deps'), c.get('userId')!)))
+  .openapi(markAllReadRoute, async (c) => c.json(await markAllNotificationsRead(c.get('deps'), c.get('userId')!), 200))

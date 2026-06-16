@@ -197,30 +197,10 @@ export interface PaginatedResponse<T> {
 export type DownloaderStatus = 'online' | 'offline' | 'disabled'
 export type DownloaderEngine = 'builtin' | 'aria2' | 'qbittorrent'
 
-export interface Downloader {
-  id: string
-  name: string
-  status: DownloaderStatus
-  enabled: boolean
-  version: string
-  hostname: string
-  platform: string
-  arch: string
-  engine: DownloaderEngine
-  capabilities: string[]
-  maxConcurrentTasks: number
-  currentTasks: number
-  downloadBps: number
-  uploadBps: number
-  freeDiskBytes: number
-  remoteDownloadCreditBillingEnabled: boolean
-  remoteDownloadCreditUnitBytes: number
-  remoteDownloadCreditPerUnit: number
-  lastHeartbeatAt: string | null
-  createdBy: string
-  createdAt: string
-  updatedAt: string
-}
+// `Downloader` is inferred from `downloaderSchema` (the wire contract) in
+// shared/schemas/downloads.ts — one source of truth for the OpenAPI document,
+// the generated SDKs, the backend, and the frontend. Do not hand-redeclare it.
+export type { Downloader } from '../schemas/downloads'
 
 export type DownloadSourceType = 'http' | 'magnet' | 'torrent_url'
 export type DownloadTaskStatus =
@@ -241,14 +221,11 @@ export type DownloadTaskAction = 'pause' | 'resume' | 'cancel' | 'retry' | 'rest
 export type DownloadTaskRuntimePhase = 'metadata' | 'downloading' | 'uploading' | 'seeding' | 'completed' | 'error'
 export type DownloadTaskBillingState = 'none' | 'ok' | 'insufficient_credits'
 
-export interface DownloadTask {
-  id: string
-  orgId?: string
-  createdBy?: string
-  spec: DownloadTaskSpec
-  status: DownloadTaskExecutionStatus
-  createdAt: string
-}
+// `DownloadTask` is inferred from `downloadTaskSchema` (the wire contract) in
+// shared/schemas/downloads.ts — one source of truth for the OpenAPI document,
+// the generated SDKs, the backend, and the frontend. The sub-interfaces below
+// stay as named building blocks the schema mirrors field-for-field.
+export type { DownloadTask } from '../schemas/downloads'
 
 export interface DownloadTaskSpec {
   source: {
@@ -339,7 +316,7 @@ export interface DownloadTaskFile {
 }
 
 export interface DownloadTaskRuntime {
-  engine?: Downloader['engine']
+  engine?: DownloaderEngine
   state?: string
   phase?: DownloadTaskRuntimePhase
   message?: string

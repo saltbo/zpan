@@ -1,5 +1,4 @@
-import { zValidator } from '@hono/zod-validator'
-import { Hono } from 'hono'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { putIhostConfigSchema } from '../../../shared/schemas'
 import type { IhostConfigResponse } from '../../../shared/types'
 import { requireAuth, requireTeamRole } from '../../middleware/auth'
@@ -10,6 +9,24 @@ import {
   getImageHostingConfig,
   putImageHostingConfig,
 } from '../../usecases/image-hosting/config'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
+
+const ihostConfigSchema = z
+  .object({
+    enabled: z.boolean(),
+    customDomain: z.string().nullable(),
+    domainVerifiedAt: z.number().int().nullable(),
+    domainStatus: z.enum(['none', 'pending', 'verified']),
+    dnsInstructions: z.object({ recordType: z.string(), name: z.string(), target: z.string() }).nullable(),
+    refererAllowlist: z.array(z.string()).nullable(),
+    createdAt: z.number().int(),
+  })
+  .openapi('ImageHostingConfig')
+
+// GET returns the full config when configured, or just `{ enabled: false }`.
+const ihostConfigResponseSchema = z
+  .union([ihostConfigSchema, z.object({ enabled: z.literal(false) })])
+  .openapi('ImageHostingConfigResponse')
 
 function toUnixMs(d: Date | null | undefined): number | null {
   if (!d) return null
@@ -30,9 +47,7 @@ function buildResponse(
   const verifiedAtMs = toUnixMs(row.domainVerifiedAt)
 
   let domainStatus: IhostConfigResponse['domainStatus'] = 'none'
-  if (row.customDomain) {
-    domainStatus = verifiedAtMs ? 'verified' : 'pending'
-  }
+  if (row.customDomain) domainStatus = verifiedAtMs ? 'verified' : 'pending'
 
   let dnsInstructions: IhostConfigResponse['dnsInstructions'] = null
   if (row.customDomain) {
@@ -56,51 +71,84 @@ function buildResponse(
   }
 }
 
-const app = new Hono<Env>()
-  .use(requireAuth)
-  .get('/', async (c) => {
+function cfFrom(c: { get(k: 'platform'): { getEnv(k: string): string | undefined } }) {
+  const getEnv = c.get('platform').getEnv.bind(c.get('platform'))
+  const isCfConfigured = !!getEnv('CF_API_TOKEN')
+  const cnameTarget = getEnv('CF_CNAME_TARGET') ?? ''
+  const cf: CfSettings = { isConfigured: isCfConfigured, appHost: getEnv('APP_HOST') ?? null }
+  return { isCfConfigured, cnameTarget, cf }
+}
+
+const getRoute = createRoute({
+  operationId: 'getImageHostingConfig',
+  summary: 'Get image-hosting config',
+  tags: ['Image Hosting'],
+  method: 'get',
+  path: '/',
+  responses: {
+    200: jsonContent(ihostConfigResponseSchema, 'Image-hosting config'),
+    401: errorResponse('Unauthorized'),
+  },
+})
+
+const putRoute = createRoute({
+  operationId: 'updateImageHostingConfig',
+  summary: 'Update image-hosting config',
+  tags: ['Image Hosting'],
+  method: 'put',
+  path: '/',
+  middleware: [requireTeamRole('owner')] as const,
+  request: jsonBody(putIhostConfigSchema),
+  responses: {
+    200: jsonContent(ihostConfigSchema, 'Updated config'),
+    400: errorResponse('Custom domain cannot be the application default host'),
+    401: errorResponse('Unauthorized'),
+    409: errorResponse('Domain already registered by another organization'),
+  },
+})
+
+const deleteRoute = createRoute({
+  operationId: 'deleteImageHostingConfig',
+  summary: 'Delete image-hosting config',
+  tags: ['Image Hosting'],
+  method: 'delete',
+  path: '/',
+  middleware: [requireTeamRole('owner')] as const,
+  responses: {
+    204: { description: 'Deleted' },
+    401: errorResponse('Unauthorized'),
+  },
+})
+
+const app = new OpenAPIHono<Env>()
+app.use(requireAuth)
+
+const ihostConfig = app
+  .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
-
-    const getEnv = c.get('platform').getEnv.bind(c.get('platform'))
-    const isCfConfigured = !!getEnv('CF_API_TOKEN')
-    const cnameTarget = getEnv('CF_CNAME_TARGET') ?? ''
-    const cf: CfSettings = { isConfigured: isCfConfigured, appHost: getEnv('APP_HOST') ?? null }
-
+    const { isCfConfigured, cnameTarget, cf } = cfFrom(c)
     const row = await getImageHostingConfig(c.get('deps'), orgId, cf)
-    if (!row) {
-      return c.json({ enabled: false })
-    }
-
-    return c.json(buildResponse(row, cnameTarget, isCfConfigured))
+    if (!row) return c.json({ enabled: false as const }, 200)
+    return c.json(buildResponse(row, cnameTarget, isCfConfigured), 200)
   })
-  .put('/', requireTeamRole('owner'), zValidator('json', putIhostConfigSchema), async (c) => {
+  .openapi(putRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
-
-    const body = c.req.valid('json')
-    const getEnv = c.get('platform').getEnv.bind(c.get('platform'))
-    const isCfConfigured = !!getEnv('CF_API_TOKEN')
-    const cnameTarget = getEnv('CF_CNAME_TARGET') ?? ''
-    const cf: CfSettings = { isConfigured: isCfConfigured, appHost: getEnv('APP_HOST') ?? null }
-
-    const result = await putImageHostingConfig(c.get('deps'), orgId, body, cf)
+    const { isCfConfigured, cnameTarget, cf } = cfFrom(c)
+    const result = await putImageHostingConfig(c.get('deps'), orgId, c.req.valid('json'), cf)
     if (!result.ok) {
-      if (result.reason === 'app_host') {
+      if (result.reason === 'app_host')
         return c.json({ error: 'Custom domain cannot be the application default host' }, 400)
-      }
       return c.json({ error: 'Domain already registered by another organization' }, 409)
     }
-
-    return c.json(buildResponse(result.config, cnameTarget, isCfConfigured))
+    return c.json(buildResponse(result.config, cnameTarget, isCfConfigured), 200)
   })
-  .delete('/', requireTeamRole('owner'), async (c) => {
+  .openapi(deleteRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
-
     await deleteImageHostingConfig(c.get('deps'), orgId)
-
     return c.body(null, 204)
   })
 
-export default app
+export default ihostConfig

@@ -101,62 +101,68 @@ export const downloadTaskRuntimeSchema = z.object({
   files: z.array(downloadTaskFileSchema).max(50).optional(),
 })
 
-export const downloadTaskSchema = z.object({
-  id: z.string(),
-  orgId: z.string().optional(),
-  createdBy: z.string().optional(),
-  spec: z.object({
-    source: z.object({
-      type: downloadSourceTypeSchema,
-      uri: z.string(),
+export const downloadTaskSchema = z
+  .object({
+    id: z.string(),
+    orgId: z.string().optional(),
+    createdBy: z.string().optional(),
+    spec: z.object({
+      source: z.object({
+        type: downloadSourceTypeSchema,
+        uri: z.string(),
+      }),
+      destination: z.object({
+        folder: z.string(),
+        name: z.string().nullable(),
+      }),
+      labels: z.object({
+        category: z.string().nullable(),
+        tags: z.array(z.string()),
+      }),
     }),
-    destination: z.object({
-      folder: z.string(),
-      name: z.string().nullable(),
+    status: z.object({
+      state: downloadTaskStatusSchema,
+      attempt: z.number().int().min(1),
+      assignment: z
+        .object({
+          downloaderId: z.string(),
+          assignedAt: z.string().nullable().optional(),
+          uploadToken: z.string().optional(),
+        })
+        .nullable(),
+      progress: downloadTaskProgressSchema,
+      billing: z.object({
+        state: z.enum(['none', 'ok', 'insufficient_credits']),
+        authorizedBytes: int64Schema(),
+        chargedBytes: int64Schema(),
+        chargedCredits: int64Schema(),
+      }),
+      output: z.object({ objectId: z.string() }).nullable(),
+      runtime: downloadTaskRuntimeSchema.nullable(),
+      error: z
+        .object({
+          code: z.string().max(80).nullable().optional(),
+          message: z.string().max(1000).nullable(),
+        })
+        .nullable(),
+      startedAt: z.string().nullable(),
+      finishedAt: z.string().nullable(),
+      updatedAt: z.string(),
     }),
-    labels: z.object({
-      category: z.string().nullable(),
-      tags: z.array(z.string()),
-    }),
-  }),
-  status: z.object({
-    state: downloadTaskStatusSchema,
-    attempt: z.number().int().min(1),
-    assignment: z
-      .object({
-        downloaderId: z.string(),
-        assignedAt: z.string().nullable().optional(),
-        uploadToken: z.string().optional(),
-      })
-      .nullable(),
-    progress: downloadTaskProgressSchema,
-    billing: z.object({
-      state: z.enum(['none', 'ok', 'insufficient_credits']),
-      authorizedBytes: int64Schema(),
-      chargedBytes: int64Schema(),
-      chargedCredits: int64Schema(),
-    }),
-    output: z.object({ objectId: z.string() }).nullable(),
-    runtime: downloadTaskRuntimeSchema.nullable(),
-    error: z
-      .object({
-        code: z.string().max(80).nullable().optional(),
-        message: z.string().max(1000).nullable(),
-      })
-      .nullable(),
-    startedAt: z.string().nullable(),
-    finishedAt: z.string().nullable(),
-    updatedAt: z.string(),
-  }),
-  createdAt: z.string(),
-})
+    createdAt: z.string(),
+  })
+  .openapi('DownloadTask')
 
-export const downloadTaskPageSchema = z.object({
-  items: z.array(downloadTaskSchema),
-  total: z.number().int(),
-  page: z.number().int(),
-  pageSize: z.number().int(),
-})
+export type DownloadTask = z.infer<typeof downloadTaskSchema>
+
+export const downloadTaskPageSchema = z
+  .object({
+    items: z.array(downloadTaskSchema),
+    total: z.number().int(),
+    page: z.number().int(),
+    pageSize: z.number().int(),
+  })
+  .openapi('DownloadTaskPage')
 
 export const downloaderHeartbeatSchema = z.object({
   version: z.string().min(1).max(80),
@@ -186,13 +192,28 @@ export const downloaderHeartbeatResponseSchema = z.object({
   freeDiskBytes: int64Schema(),
 })
 
-export const downloaderSchema = z.object({
-  id: z.string(),
-  name: z.string().optional(),
-  status: downloaderStatusSchema.optional(),
-  enabled: z.boolean().optional(),
-  heartbeat: downloaderHeartbeatResponseSchema.optional(),
-})
+// The wire shape of a downloader, flat — exactly what the API returns. This is
+// the single source of truth: the `Downloader` type below is inferred from it,
+// the OpenAPI document names it `Downloader`, and the generated SDKs derive from
+// it. Heartbeat metrics live at the top level (the repo returns them flat), so
+// the schema mirrors that instead of nesting them.
+export const downloaderSchema = downloaderHeartbeatResponseSchema
+  .extend({
+    id: z.string(),
+    name: z.string(),
+    status: downloaderStatusSchema,
+    enabled: z.boolean(),
+    remoteDownloadCreditBillingEnabled: z.boolean(),
+    remoteDownloadCreditUnitBytes: z.number().int(),
+    remoteDownloadCreditPerUnit: z.number().int(),
+    lastHeartbeatAt: z.string().nullable(),
+    createdBy: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('Downloader')
+
+export type Downloader = z.infer<typeof downloaderSchema>
 
 export const downloaderListSchema = z.object({
   items: z.array(downloaderSchema),

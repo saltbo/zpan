@@ -322,6 +322,21 @@ export async function updateDownloadTask(
 
 // ─── Task action state machine ───────────────────────────────────────────────
 
+// The action determines the response shape: `delete` removes the task and returns
+// a tombstone, every other action returns the task's new state. Overloads make
+// that precise so callers don't have to narrow a union.
+export function performDownloadTaskAction(
+  deps: DownloadsDeps,
+  orgId: string,
+  id: string,
+  action: 'delete',
+): Promise<{ id: string; deleted: true }>
+export function performDownloadTaskAction(
+  deps: DownloadsDeps,
+  orgId: string,
+  id: string,
+  action: Exclude<DownloadTaskActionInput['action'], 'delete'>,
+): Promise<DownloadTask>
 export async function performDownloadTaskAction(
   deps: DownloadsDeps,
   orgId: string,

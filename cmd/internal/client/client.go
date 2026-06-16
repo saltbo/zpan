@@ -292,7 +292,7 @@ func New(baseURL, token string) (*Client, error) {
 }
 
 func (c *Client) Heartbeat(ctx context.Context, heartbeat Heartbeat) error {
-	res, err := c.api.PostApiDownloadsDownloadersMeHeartbeatsWithResponse(ctx, heartbeatRequestBody(heartbeat), bearer(c.token))
+	res, err := c.api.RecordDownloaderHeartbeatWithResponse(ctx, heartbeatRequestBody(heartbeat), bearer(c.token))
 	if err != nil {
 		return err
 	}
@@ -300,28 +300,28 @@ func (c *Client) Heartbeat(ctx context.Context, heartbeat Heartbeat) error {
 }
 
 func (c *Client) AssignedTasks(ctx context.Context) ([]DownloadTask, error) {
-	return c.assignedTasks(ctx, []openapi.GetApiDownloadsTasksParamsStatus{
-		openapi.GetApiDownloadsTasksParamsStatusAssigned,
-		openapi.GetApiDownloadsTasksParamsStatusDownloading,
-		openapi.GetApiDownloadsTasksParamsStatusInterrupted,
-		openapi.GetApiDownloadsTasksParamsStatusUploading,
+	return c.assignedTasks(ctx, []openapi.ListDownloadTasksParamsStatus{
+		openapi.ListDownloadTasksParamsStatusAssigned,
+		openapi.ListDownloadTasksParamsStatusDownloading,
+		openapi.ListDownloadTasksParamsStatusInterrupted,
+		openapi.ListDownloadTasksParamsStatusUploading,
 	})
 }
 
 func (c *Client) AssignedControlTasks(ctx context.Context) ([]DownloadTask, error) {
-	return c.assignedTasks(ctx, []openapi.GetApiDownloadsTasksParamsStatus{
-		openapi.GetApiDownloadsTasksParamsStatus("pausing"),
-		openapi.GetApiDownloadsTasksParamsStatus("canceling"),
+	return c.assignedTasks(ctx, []openapi.ListDownloadTasksParamsStatus{
+		openapi.ListDownloadTasksParamsStatus("pausing"),
+		openapi.ListDownloadTasksParamsStatus("canceling"),
 	})
 }
 
-func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.GetApiDownloadsTasksParamsStatus) ([]DownloadTask, error) {
+func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.ListDownloadTasksParamsStatus) ([]DownloadTask, error) {
 	tasks := make([]DownloadTask, 0)
 	for _, status := range statuses {
 		page := 1
 		pageSize := 20
 		assignedTo := openapi.Me
-		res, err := c.api.GetApiDownloadsTasksWithResponse(ctx, &openapi.GetApiDownloadsTasksParams{
+		res, err := c.api.ListDownloadTasksWithResponse(ctx, &openapi.ListDownloadTasksParams{
 			AssignedTo: &assignedTo,
 			Status:     &status,
 			Page:       &page,
@@ -396,7 +396,7 @@ func (c *Client) PollDeviceToken(ctx context.Context, deviceCode string) (Device
 }
 
 func (c *Client) CreateDownloader(ctx context.Context, accessToken string, req CreateDownloaderRequest) (CreateDownloaderResponse, error) {
-	res, err := c.api.PostApiDownloadsDownloadersWithResponse(ctx, createDownloaderRequestBody(req), bearer(accessToken))
+	res, err := c.api.CreateDownloaderWithResponse(ctx, createDownloaderRequestBody(req), bearer(accessToken))
 	if err != nil {
 		return CreateDownloaderResponse{}, err
 	}
@@ -411,13 +411,13 @@ func (c *Client) CreateDownloader(ctx context.Context, accessToken string, req C
 	return out, nil
 }
 
-func heartbeatRequestBody(heartbeat Heartbeat) openapi.PostApiDownloadsDownloadersMeHeartbeatsJSONRequestBody {
-	return openapi.PostApiDownloadsDownloadersMeHeartbeatsJSONRequestBody{
+func heartbeatRequestBody(heartbeat Heartbeat) openapi.RecordDownloaderHeartbeatJSONRequestBody {
+	return openapi.RecordDownloaderHeartbeatJSONRequestBody{
 		Arch:               heartbeat.Arch,
 		Capabilities:       heartbeat.Capabilities,
 		CurrentTasks:       heartbeat.CurrentTasks,
 		DownloadBps:        &heartbeat.DownloadBps,
-		Engine:             openapi.PostApiDownloadsDownloadersMeHeartbeatsJSONBodyEngine(heartbeat.Engine),
+		Engine:             openapi.RecordDownloaderHeartbeatJSONBodyEngine(heartbeat.Engine),
 		FreeDiskBytes:      &heartbeat.FreeDiskBytes,
 		Hostname:           heartbeat.Hostname,
 		MaxConcurrentTasks: heartbeat.MaxConcurrentTasks,
@@ -427,15 +427,15 @@ func heartbeatRequestBody(heartbeat Heartbeat) openapi.PostApiDownloadsDownloade
 	}
 }
 
-func createDownloaderRequestBody(req CreateDownloaderRequest) openapi.PostApiDownloadsDownloadersJSONRequestBody {
-	return openapi.PostApiDownloadsDownloadersJSONRequestBody{
+func createDownloaderRequestBody(req CreateDownloaderRequest) openapi.CreateDownloaderJSONRequestBody {
+	return openapi.CreateDownloaderJSONRequestBody{
 		Name: req.Name,
 		Heartbeat: struct {
 			Arch               string                                                     `json:"arch"`
 			Capabilities       []string                                                   `json:"capabilities"`
 			CurrentTasks       int                                                        `json:"currentTasks"`
 			DownloadBps        *int64                                                     `json:"downloadBps,omitempty"`
-			Engine             openapi.PostApiDownloadsDownloadersJSONBodyHeartbeatEngine `json:"engine"`
+			Engine             openapi.CreateDownloaderJSONBodyHeartbeatEngine `json:"engine"`
 			FreeDiskBytes      *int64                                                     `json:"freeDiskBytes,omitempty"`
 			Hostname           string                                                     `json:"hostname"`
 			MaxConcurrentTasks int                                                        `json:"maxConcurrentTasks"`
@@ -447,7 +447,7 @@ func createDownloaderRequestBody(req CreateDownloaderRequest) openapi.PostApiDow
 			Capabilities:       req.Heartbeat.Capabilities,
 			CurrentTasks:       req.Heartbeat.CurrentTasks,
 			DownloadBps:        &req.Heartbeat.DownloadBps,
-			Engine:             openapi.PostApiDownloadsDownloadersJSONBodyHeartbeatEngine(req.Heartbeat.Engine),
+			Engine:             openapi.CreateDownloaderJSONBodyHeartbeatEngine(req.Heartbeat.Engine),
 			FreeDiskBytes:      &req.Heartbeat.FreeDiskBytes,
 			Hostname:           req.Heartbeat.Hostname,
 			MaxConcurrentTasks: req.Heartbeat.MaxConcurrentTasks,
@@ -458,14 +458,14 @@ func createDownloaderRequestBody(req CreateDownloaderRequest) openapi.PostApiDow
 	}
 }
 
-func taskPatchRequestBody(patch TaskPatch) (openapi.PatchApiDownloadsTasksIdJSONRequestBody, error) {
+func taskPatchRequestBody(patch TaskPatch) (openapi.UpdateDownloadTaskJSONRequestBody, error) {
 	data, err := json.Marshal(patch)
 	if err != nil {
-		return openapi.PatchApiDownloadsTasksIdJSONRequestBody{}, err
+		return openapi.UpdateDownloadTaskJSONRequestBody{}, err
 	}
-	var body openapi.PatchApiDownloadsTasksIdJSONRequestBody
+	var body openapi.UpdateDownloadTaskJSONRequestBody
 	if err := json.Unmarshal(data, &body); err != nil {
-		return openapi.PatchApiDownloadsTasksIdJSONRequestBody{}, err
+		return openapi.UpdateDownloadTaskJSONRequestBody{}, err
 	}
 	return body, nil
 }
@@ -487,7 +487,7 @@ func (c *Client) UpdateTask(ctx context.Context, id string, patch TaskPatch) (Do
 	if err != nil {
 		return DownloadTask{}, err
 	}
-	res, err := c.api.PatchApiDownloadsTasksIdWithResponse(ctx, id, body, bearer(c.token))
+	res, err := c.api.UpdateDownloadTaskWithResponse(ctx, id, body, bearer(c.token))
 	if err != nil {
 		return DownloadTask{}, err
 	}
@@ -522,8 +522,8 @@ func (c *Client) createMatter(
 	dirtype int,
 ) (ObjectDraft, error) {
 	sizeInt := int(size)
-	onConflict := openapi.PostApiObjectsJSONBodyOnConflictRename
-	res, err := c.api.PostApiObjectsWithResponse(ctx, openapi.PostApiObjectsJSONRequestBody{
+	onConflict := openapi.CreateObjectJSONBodyOnConflictRename
+	res, err := c.api.CreateObjectWithResponse(ctx, openapi.CreateObjectJSONRequestBody{
 		Name:       name,
 		Type:       contentType,
 		Size:       &sizeInt,
@@ -549,9 +549,9 @@ func (c *Client) createMatter(
 }
 
 func (c *Client) ConfirmObject(ctx context.Context, token string, id string) error {
-	onConflict := openapi.PutApiObjectsIdStatusJSONBodyOnConflictRename
-	res, err := c.api.PutApiObjectsIdStatusWithResponse(ctx, id, openapi.PutApiObjectsIdStatusJSONRequestBody{
-		Status:     openapi.PutApiObjectsIdStatusJSONBodyStatusActive,
+	onConflict := openapi.SetObjectStatusJSONBodyOnConflictRename
+	res, err := c.api.SetObjectStatusWithResponse(ctx, id, openapi.SetObjectStatusJSONRequestBody{
+		Status:     openapi.SetObjectStatusJSONBodyStatusActive,
 		OnConflict: &onConflict,
 	}, bearer(token))
 	if err != nil {
@@ -562,7 +562,7 @@ func (c *Client) ConfirmObject(ctx context.Context, token string, id string) err
 
 func (c *Client) CreateObjectUploadSession(ctx context.Context, token string, id string, partSize int64) (ObjectUploadSession, error) {
 	partSizeInt := int(partSize)
-	res, err := c.api.PostApiObjectsIdUploadsWithResponse(ctx, id, openapi.PostApiObjectsIdUploadsJSONRequestBody{
+	res, err := c.api.CreateObjectUploadSessionWithResponse(ctx, id, openapi.CreateObjectUploadSessionJSONRequestBody{
 		PartSize: &partSizeInt,
 	}, bearer(token))
 	if err != nil {
@@ -583,7 +583,7 @@ func (c *Client) CreateObjectUploadSession(ctx context.Context, token string, id
 }
 
 func (c *Client) PresignObjectUploadParts(ctx context.Context, token string, id string, sessionID string, partNumbers []int) ([]PresignedObjectUploadPart, error) {
-	res, err := c.api.PostApiObjectsIdUploadsUploadSessionIdPartsWithResponse(ctx, id, sessionID, openapi.PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody{
+	res, err := c.api.PresignObjectUploadPartsWithResponse(ctx, id, sessionID, openapi.PresignObjectUploadPartsJSONRequestBody{
 		PartNumbers: partNumbers,
 	}, bearer(token))
 	if err != nil {
@@ -604,8 +604,8 @@ func (c *Client) PresignObjectUploadParts(ctx context.Context, token string, id 
 }
 
 func (c *Client) CompleteObjectUploadSession(ctx context.Context, token string, id string, sessionID string, parts []CompletedObjectUploadPart) error {
-	body := openapi.PutApiObjectsIdUploadsUploadSessionIdStatusJSONRequestBody{
-		Status: openapi.PutApiObjectsIdUploadsUploadSessionIdStatusJSONBodyStatusCompleted,
+	body := openapi.CompleteObjectUploadJSONRequestBody{
+		Status: openapi.CompleteObjectUploadJSONBodyStatusCompleted,
 		Parts: make([]struct {
 			Etag       string `json:"etag"`
 			PartNumber int    `json:"partNumber"`
@@ -617,7 +617,7 @@ func (c *Client) CompleteObjectUploadSession(ctx context.Context, token string, 
 			PartNumber int    `json:"partNumber"`
 		}{Etag: part.ETag, PartNumber: part.PartNumber})
 	}
-	res, err := c.api.PutApiObjectsIdUploadsUploadSessionIdStatusWithResponse(ctx, id, sessionID, body, bearer(token))
+	res, err := c.api.CompleteObjectUploadWithResponse(ctx, id, sessionID, body, bearer(token))
 	if err != nil {
 		return err
 	}
@@ -625,7 +625,7 @@ func (c *Client) CompleteObjectUploadSession(ctx context.Context, token string, 
 }
 
 func (c *Client) AbortObjectUploadSession(ctx context.Context, token string, id string, sessionID string) error {
-	res, err := c.api.DeleteApiObjectsIdUploadsUploadSessionIdWithResponse(ctx, id, sessionID, bearer(token))
+	res, err := c.api.AbortObjectUploadWithResponse(ctx, id, sessionID, bearer(token))
 	if err != nil {
 		return err
 	}

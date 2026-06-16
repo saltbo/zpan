@@ -6,9 +6,9 @@ import {
   downloaderHeartbeatSchema,
   downloaderListSchema,
   downloaderSchema,
+  featureGateErrorSchema,
   updateDownloaderSchema,
 } from '@shared/schemas'
-import type { Context } from 'hono'
 import { FREE_DOWNLOADER_LIMIT } from '../../../shared/constants'
 import { hasFeature } from '../../domain/licensing'
 import { requireAdmin, requireDownloader } from '../../middleware/auth'
@@ -20,91 +20,89 @@ import {
   recordDownloaderHeartbeat,
   updateDownloader,
 } from '../../usecases/downloads/downloads'
-import { DownloadError } from '../../usecases/ports'
 import { loadBindingState } from '../../usecases/site/licensing'
-
-const errorSchema = z.object({ error: z.string() })
-
-type OpenAPIContext = Context<Env> & {
-  req: Context<Env>['req'] & {
-    valid(target: 'json'): unknown
-    param(name: string): string
-  }
-}
-
-function jsonResponse(schema: z.ZodType, description: string) {
-  return { content: { 'application/json': { schema } }, description }
-}
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const listRoute = createRoute({
+  operationId: 'listDownloaders',
+  summary: 'List downloaders',
   tags: ['Downloaders'],
   method: 'get',
   path: '/',
   middleware: [requireAdmin] as const,
   responses: {
-    200: jsonResponse(downloaderListSchema, 'Downloaders'),
-    401: jsonResponse(errorSchema, 'Unauthorized'),
+    200: jsonContent(downloaderListSchema, 'Downloaders'),
+    401: errorResponse('Unauthorized'),
   },
 })
 
 const createRouteDoc = createRoute({
+  operationId: 'createDownloader',
+  summary: 'Register downloader',
   tags: ['Downloaders'],
   method: 'post',
   path: '/',
   middleware: [requireAdmin] as const,
-  request: { body: { content: { 'application/json': { schema: createDownloaderSchema } }, required: true } },
+  request: jsonBody(createDownloaderSchema),
   responses: {
-    201: jsonResponse(createDownloaderResponseSchema, 'Downloader registration'),
-    401: jsonResponse(errorSchema, 'Unauthorized'),
-    402: jsonResponse(errorSchema, 'Feature not available'),
+    201: jsonContent(createDownloaderResponseSchema, 'Downloader registration'),
+    401: errorResponse('Unauthorized'),
+    402: jsonContent(featureGateErrorSchema, 'Feature not available'),
   },
 })
 
 const updateRoute = createRoute({
+  operationId: 'updateDownloader',
+  summary: 'Update downloader',
   tags: ['Downloaders'],
   method: 'patch',
   path: '/{id}',
   middleware: [requireAdmin] as const,
-  request: {
-    params: z.object({ id: z.string() }),
-    body: { content: { 'application/json': { schema: updateDownloaderSchema } }, required: true },
-  },
+  request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderSchema) },
   responses: {
-    200: jsonResponse(downloaderSchema, 'Updated downloader'),
-    404: jsonResponse(errorSchema, 'Not found'),
+    200: jsonContent(downloaderSchema, 'Updated downloader'),
+    402: jsonContent(featureGateErrorSchema, 'Feature not available'),
+    404: errorResponse('Not found'),
   },
 })
 
 const deleteRoute = createRoute({
+  operationId: 'deleteDownloader',
+  summary: 'Delete downloader',
   tags: ['Downloaders'],
   method: 'delete',
   path: '/{id}',
   middleware: [requireAdmin] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
-    200: jsonResponse(deleteDownloaderResponseSchema, 'Deleted downloader'),
-    404: jsonResponse(errorSchema, 'Not found'),
+    200: jsonContent(deleteDownloaderResponseSchema, 'Deleted downloader'),
+    404: errorResponse('Not found'),
   },
 })
 
 const heartbeatRoute = createRoute({
+  operationId: 'recordDownloaderHeartbeat',
+  summary: 'Send downloader heartbeat',
   tags: ['Downloaders'],
   method: 'post',
   path: '/me/heartbeats',
   middleware: [requireDownloader] as const,
-  request: { body: { content: { 'application/json': { schema: downloaderHeartbeatSchema } }, required: true } },
+  request: jsonBody(downloaderHeartbeatSchema),
   responses: {
-    200: jsonResponse(downloaderSchema, 'Updated downloader'),
-    401: jsonResponse(errorSchema, 'Unauthorized'),
+    200: jsonContent(downloaderSchema, 'Updated downloader'),
+    401: errorResponse('Unauthorized'),
+    404: errorResponse('Not found'),
   },
 })
 
+// A missing downloader makes the usecase throw DownloadError('not_found'); the
+// global onError maps it to 404, so these handlers carry no error plumbing.
 const downloadersRoute = new OpenAPIHono<Env>()
-  .openapi(listRoute, (async (c: OpenAPIContext) => {
+  .openapi(listRoute, async (c) => {
     const items = await listDownloaders(c.get('deps'))
-    return c.json({ items, total: items.length })
-  }) as never)
-  .openapi(createRouteDoc, (async (c: OpenAPIContext) => {
+    return c.json({ items, total: items.length }, 200)
+  })
+  .openapi(createRouteDoc, async (c) => {
     const userId = c.get('userId')
     if (!userId) return c.json({ error: 'Unauthorized' }, 401)
     const deps = c.get('deps')
@@ -121,49 +119,29 @@ const downloadersRoute = new OpenAPIHono<Env>()
         402,
       )
     }
-    const result = await createDownloader(
-      deps,
-      c.get('platform'),
-      c.req.valid('json') as z.infer<typeof createDownloaderSchema>,
-      userId,
-    )
+    const result = await createDownloader(deps, c.get('platform'), c.req.valid('json'), userId)
     return c.json(result, 201)
-  }) as never)
-  .openapi(updateRoute, (async (c: OpenAPIContext) => {
-    const id = c.req.param('id') as string
-    const input = c.req.valid('json') as z.infer<typeof updateDownloaderSchema>
+  })
+  .openapi(updateRoute, async (c) => {
+    const { id } = c.req.valid('param')
+    const input = c.req.valid('json')
     if (input.remoteDownloadCreditBillingEnabled === true) {
       const state = await loadBindingState(c.get('deps'))
       if (!hasFeature('quota_store', state)) {
         return c.json({ error: 'feature_not_available', feature: 'quota_store' }, 402)
       }
     }
-    return downloadResponse(c, async () => updateDownloader(c.get('deps'), id, input))
-  }) as never)
-  .openapi(deleteRoute, (async (c: OpenAPIContext) => {
-    const id = c.req.param('id') as string
-    return downloadResponse(c, async () => deleteDownloader(c.get('deps'), id))
-  }) as never)
+    return c.json(await updateDownloader(c.get('deps'), id, input), 200)
+  })
+  .openapi(deleteRoute, async (c) => {
+    const { id } = c.req.valid('param')
+    return c.json(await deleteDownloader(c.get('deps'), id), 200)
+  })
 
-export const downloaderSelfRoute = new OpenAPIHono<Env>().openapi(heartbeatRoute, (async (c: OpenAPIContext) => {
+export const downloaderSelfRoute = new OpenAPIHono<Env>().openapi(heartbeatRoute, async (c) => {
   const principal = c.get('principal')
   if (principal?.kind !== 'downloader') return c.json({ error: 'Unauthorized' }, 401)
-  return downloadResponse(c, async () =>
-    recordDownloaderHeartbeat(
-      c.get('deps'),
-      principal.downloaderId,
-      c.req.valid('json') as z.infer<typeof downloaderHeartbeatSchema>,
-    ),
-  )
-}) as never)
+  return c.json(await recordDownloaderHeartbeat(c.get('deps'), principal.downloaderId, c.req.valid('json')), 200)
+})
 
 export default downloadersRoute
-
-async function downloadResponse(c: Context<Env>, action: () => Promise<unknown>) {
-  try {
-    return c.json(await action())
-  } catch (error) {
-    if (error instanceof DownloadError && error.code === 'not_found') return c.json({ error: 'Not found' }, 404)
-    throw error
-  }
-}

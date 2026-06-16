@@ -1,6 +1,5 @@
-import { zValidator } from '@hono/zod-validator'
-import { Hono } from 'hono'
-import { z } from 'zod'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { featureGateErrorSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import {
@@ -10,11 +9,42 @@ import {
   type SocialLoginFeatureBlock,
   upsertAuthProvider,
 } from '../../usecases/site/auth-provider'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
-const invalidProviderId = { error: 'Provider ID must contain only lowercase letters, numbers, and hyphens' } as const
+const maskedProviderConfigSchema = z
+  .object({
+    providerId: z.string(),
+    type: z.string(),
+    clientId: z.string(),
+    clientSecret: z.string(),
+    enabled: z.boolean(),
+    discoveryUrl: z.string().optional(),
+    scopes: z.array(z.string()).optional(),
+  })
+  .openapi('AuthProviderConfig')
 
-const featureNotAvailable = (block: SocialLoginFeatureBlock) =>
-  ({ error: 'feature_not_available', ...block, upgrade_url: '/settings/billing' }) as const
+const publicProviderSchema = z
+  .object({
+    providerId: z.string(),
+    type: z.string(),
+    name: z.string(),
+    icon: z.string(),
+  })
+  .openapi('PublicAuthProvider')
+
+// GET / returns the admin config list (with masked secrets) to admins, or the
+// public display list to anonymous/login callers — hence the union.
+const authProviderListSchema = z
+  .object({ items: z.array(z.union([maskedProviderConfigSchema, publicProviderSchema])) })
+  .openapi('AuthProviderList')
+
+const invalidProviderId = { error: 'Provider ID must contain only lowercase letters, numbers, and hyphens' }
+
+const featureNotAvailable = (block: SocialLoginFeatureBlock) => ({
+  error: 'feature_not_available',
+  ...block,
+  upgrade_url: '/settings/billing',
+})
 
 const upsertSchema = z.object({
   type: z.enum(['builtin', 'oidc']),
@@ -25,28 +55,65 @@ const upsertSchema = z.object({
   scopes: z.array(z.string()).optional(),
 })
 
+const listRoute = createRoute({
+  operationId: 'listAuthProviders',
+  summary: 'List auth providers',
+  tags: ['Auth Providers'],
+  method: 'get',
+  path: '/',
+  responses: { 200: jsonContent(authProviderListSchema, 'Auth providers') },
+})
+
+const upsertRoute = createRoute({
+  operationId: 'upsertAuthProvider',
+  summary: 'Create or update an auth provider',
+  tags: ['Auth Providers'],
+  method: 'put',
+  path: '/{providerId}',
+  middleware: [requireAdmin] as const,
+  request: { params: z.object({ providerId: z.string() }), ...jsonBody(upsertSchema) },
+  responses: {
+    200: jsonContent(maskedProviderConfigSchema, 'Upserted auth provider'),
+    400: errorResponse('Invalid provider'),
+    402: jsonContent(featureGateErrorSchema, 'Feature not available'),
+  },
+})
+
+const deleteProviderRoute = createRoute({
+  operationId: 'deleteAuthProvider',
+  summary: 'Delete an auth provider',
+  tags: ['Auth Providers'],
+  method: 'delete',
+  path: '/{providerId}',
+  middleware: [requireAdmin] as const,
+  request: { params: z.object({ providerId: z.string() }) },
+  responses: {
+    200: jsonContent(z.object({ providerId: z.string(), deleted: z.literal(true) }), 'Deleted auth provider'),
+    400: errorResponse('Invalid provider'),
+  },
+})
+
 // One auth-providers resource. GET / serves the enabled list without secrets to
 // anonymous/login callers, and the full config to admins; writes are admin-only.
-export const authProviders = new Hono<Env>()
-  .get('/', async (c) =>
+export const authProviders = new OpenAPIHono<Env>()
+  .openapi(listRoute, async (c) =>
     c.get('userRole') === 'admin'
-      ? c.json(await listAuthProviders(c.get('deps')))
-      : c.json(await listPublicAuthProviders(c.get('deps'))),
+      ? c.json(await listAuthProviders(c.get('deps')), 200)
+      : c.json(await listPublicAuthProviders(c.get('deps')), 200),
   )
-  .put('/:providerId', requireAdmin, zValidator('json', upsertSchema), async (c) => {
-    const result = await upsertAuthProvider(c.get('deps'), c.req.param('providerId'), c.req.valid('json'))
-    if (result.ok) return c.json(result.config)
+  .openapi(upsertRoute, async (c) => {
+    const result = await upsertAuthProvider(c.get('deps'), c.req.valid('param').providerId, c.req.valid('json'))
+    if (result.ok) return c.json(result.config, 200)
     if (result.reason === 'invalid_id') return c.json(invalidProviderId, 400)
-    if (result.reason === 'unknown_builtin') {
-      return c.json({ error: `Unknown builtin provider: ${c.req.param('providerId')}` }, 400)
-    }
+    if (result.reason === 'unknown_builtin')
+      return c.json({ error: `Unknown builtin provider: ${c.req.valid('param').providerId}` }, 400)
     if (result.reason === 'missing_discovery')
       return c.json({ error: 'discoveryUrl is required for OIDC providers' }, 400)
     return c.json(featureNotAvailable(result.block), 402)
   })
-  .delete('/:providerId', requireAdmin, async (c) => {
-    const providerId = c.req.param('providerId')
+  .openapi(deleteProviderRoute, async (c) => {
+    const providerId = c.req.valid('param').providerId
     const result = await deleteAuthProvider(c.get('deps'), providerId)
     if (!result.ok) return c.json(invalidProviderId, 400)
-    return c.json({ providerId, deleted: true })
+    return c.json({ providerId, deleted: true as const }, 200)
   })

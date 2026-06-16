@@ -1,8 +1,4 @@
-import { zValidator } from '@hono/zod-validator'
-import type { BackgroundJob } from '@shared/types'
-import type { Context } from 'hono'
-import { Hono } from 'hono'
-import { z } from 'zod'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -14,70 +10,152 @@ import {
   retryBackgroundJob,
 } from '../usecases/background-job'
 import { BackgroundJobError } from '../usecases/ports'
+import { errorResponse, jsonBody, jsonContent } from './openapi'
+
+// BackgroundJob is already wire-shaped (ISO string timestamps) — no DTO mapper.
+const backgroundJobProgressSchema = z.object({
+  inputBytes: z.number().int(),
+  outputBytes: z.number().int(),
+  processedBytes: z.number().int(),
+  fileCount: z.number().int(),
+  currentFilename: z.string().nullable(),
+})
+
+const backgroundJobSchema = z
+  .object({
+    id: z.string(),
+    orgId: z.string(),
+    userId: z.string(),
+    type: z.string(),
+    status: z.string(),
+    targetFolder: z.string().nullable(),
+    targetPath: z.string().nullable(),
+    metadata: z.record(z.string(), z.any()).nullable(),
+    progress: backgroundJobProgressSchema,
+    errorMessage: z.string().nullable(),
+    resultMetadata: z.record(z.string(), z.any()).nullable(),
+    retryable: z.boolean(),
+    cancelable: z.boolean(),
+    retriedFromJobId: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    startedAt: z.string().nullable(),
+    finishedAt: z.string().nullable(),
+  })
+  .openapi('BackgroundJob')
+
+const backgroundJobPageSchema = z
+  .object({
+    items: z.array(backgroundJobSchema),
+    total: z.number().int(),
+    page: z.number().int(),
+    pageSize: z.number().int(),
+  })
+  .openapi('BackgroundJobPage')
 
 // The only client-driven status transition is cancellation.
 const cancelJobSchema = z.object({ status: z.literal('canceled') })
 
-const backgroundJobs = new Hono<Env>()
-  .use(requireAuth)
-  .get('/', zValidator('query', listBackgroundJobsQuerySchema), async (c) => {
-    const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No organization found' }, 404)
-
-    const query = c.req.valid('query')
-    const result = await listBackgroundJobs(c.get('deps'), orgId, query)
-    return c.json({ ...result, page: query.page, pageSize: query.pageSize })
-  })
-  .post('/', zValidator('json', createBackgroundJobRequestSchema), async (c) =>
-    backgroundJobResponse(
-      c,
-      () => {
-        const orgId = requireOrg(c)
-        const userId = c.get('userId')
-        if (!userId) throw new BackgroundJobError('not_found')
-        return createBackgroundJob(c.get('deps'), { orgId, userId, request: c.req.valid('json') })
-      },
-      201,
-    ),
-  )
-  .get('/:id', async (c) =>
-    backgroundJobResponse(c, () => getBackgroundJob(c.get('deps'), requireOrg(c), c.req.param('id'))),
-  )
-  .put('/:id/status', zValidator('json', cancelJobSchema), async (c) =>
-    backgroundJobResponse(c, () => cancelBackgroundJob(c.get('deps'), requireOrg(c), c.req.param('id'))),
-  )
-  .post('/:id/retries', async (c) =>
-    backgroundJobResponse(c, () => retryBackgroundJob(c.get('deps'), requireOrg(c), c.req.param('id')), 201),
-  )
-
-export default backgroundJobs
-
+// A missing org/job throws BackgroundJobError('not_found'); a bad transition throws
+// not_cancelable/not_retryable. The global onError maps them to 404 / 409.
 function requireOrg(c: { get(key: 'orgId'): string | null }): string {
   const orgId = c.get('orgId')
   if (!orgId) throw new BackgroundJobError('not_found')
   return orgId
 }
 
-async function backgroundJobResponse(
-  c: Context<Env>,
-  action: () => Promise<BackgroundJob>,
-  status: 200 | 201 = 200,
-): Promise<Response> {
-  try {
-    const job = await action()
-    return c.json(job, status)
-  } catch (error) {
-    if (error instanceof BackgroundJobError) return c.json(errorBody(error), errorStatus(error))
-    throw error
-  }
-}
+const listRoute = createRoute({
+  operationId: 'listBackgroundJobs',
+  summary: 'List background jobs',
+  tags: ['Background Jobs'],
+  method: 'get',
+  path: '/',
+  request: { query: listBackgroundJobsQuerySchema },
+  responses: {
+    200: jsonContent(backgroundJobPageSchema, 'Background jobs'),
+    404: errorResponse('No organization found'),
+  },
+})
 
-function errorStatus(error: BackgroundJobError): 404 | 409 {
-  return error.code === 'not_found' ? 404 : 409
-}
+const createJobRoute = createRoute({
+  operationId: 'createBackgroundJob',
+  summary: 'Create background job',
+  tags: ['Background Jobs'],
+  method: 'post',
+  path: '/',
+  request: jsonBody(createBackgroundJobRequestSchema),
+  responses: {
+    201: jsonContent(backgroundJobSchema, 'Created background job'),
+    404: errorResponse('Not found'),
+  },
+})
 
-function errorBody(error: BackgroundJobError): { error: string } {
-  if (error.code === 'not_cancelable') return { error: 'Background job cannot be canceled' }
-  if (error.code === 'not_retryable') return { error: 'Background job cannot be retried' }
-  return { error: 'Not found' }
-}
+const getJobRoute = createRoute({
+  operationId: 'getBackgroundJob',
+  summary: 'Get background job',
+  tags: ['Background Jobs'],
+  method: 'get',
+  path: '/{id}',
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    200: jsonContent(backgroundJobSchema, 'Background job'),
+    404: errorResponse('Not found'),
+  },
+})
+
+const cancelJobRoute = createRoute({
+  operationId: 'cancelBackgroundJob',
+  summary: 'Cancel background job',
+  tags: ['Background Jobs'],
+  method: 'put',
+  path: '/{id}/status',
+  request: { params: z.object({ id: z.string() }), ...jsonBody(cancelJobSchema) },
+  responses: {
+    200: jsonContent(backgroundJobSchema, 'Canceled background job'),
+    404: errorResponse('Not found'),
+    409: errorResponse('Background job cannot be canceled'),
+  },
+})
+
+const retryJobRoute = createRoute({
+  operationId: 'retryBackgroundJob',
+  summary: 'Retry background job',
+  tags: ['Background Jobs'],
+  method: 'post',
+  path: '/{id}/retries',
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    201: jsonContent(backgroundJobSchema, 'Retried background job'),
+    404: errorResponse('Not found'),
+    409: errorResponse('Background job cannot be retried'),
+  },
+})
+
+const app = new OpenAPIHono<Env>()
+app.use(requireAuth)
+
+const backgroundJobs = app
+  .openapi(listRoute, async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No organization found' }, 404)
+    const query = c.req.valid('query')
+    const result = await listBackgroundJobs(c.get('deps'), orgId, query)
+    return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)
+  })
+  .openapi(createJobRoute, async (c) => {
+    const orgId = requireOrg(c)
+    const userId = c.get('userId')
+    if (!userId) throw new BackgroundJobError('not_found')
+    return c.json(await createBackgroundJob(c.get('deps'), { orgId, userId, request: c.req.valid('json') }), 201)
+  })
+  .openapi(getJobRoute, async (c) =>
+    c.json(await getBackgroundJob(c.get('deps'), requireOrg(c), c.req.valid('param').id), 200),
+  )
+  .openapi(cancelJobRoute, async (c) =>
+    c.json(await cancelBackgroundJob(c.get('deps'), requireOrg(c), c.req.valid('param').id), 200),
+  )
+  .openapi(retryJobRoute, async (c) =>
+    c.json(await retryBackgroundJob(c.get('deps'), requireOrg(c), c.req.valid('param').id), 201),
+  )
+
+export default backgroundJobs
