@@ -1295,6 +1295,41 @@ describe('Public share routes', () => {
         body: JSON.stringify({ password: 'wrongpassword' }),
       })
       expect(res.status).toBe(403)
+      const body = (await res.json()) as { error: { message: string; status: string } }
+      expect(body.error.message).toBe('Invalid password')
+      expect(body.error.status).toBe('PERMISSION_DENIED')
+    })
+
+    it('returns 404 when verifying a password for an unknown token', async () => {
+      const { app } = await createTestApp()
+      const res = await app.request('/api/shares/no-such-token/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: 'whatever' }),
+      })
+      expect(res.status).toBe(404)
+      const body = (await res.json()) as { error: { message: string; status: string } }
+      expect(body.error.message).toBe('Share not found or revoked')
+      expect(body.error.status).toBe('NOT_FOUND')
+    })
+
+    it('returns 404 when verifying a password for a direct (non-landing) share', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      await insertFile(db, orgId, { id: 'vf3', name: 'direct-verify.bin' })
+      const share = await createShareRepo(db).create({ matterId: 'vf3', orgId, creatorId, kind: 'direct' })
+
+      const res = await app.request(`/api/shares/${share.token}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: 'whatever' }),
+      })
+      expect(res.status).toBe(404)
+      const body = (await res.json()) as { error: { message: string } }
+      expect(body.error.message).toBe('Share not found or revoked')
     })
   })
 
@@ -1552,6 +1587,68 @@ describe('Public share routes', () => {
       const rootRef = await fetchRootRef(app, share.token)
       const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
       expect(res.status).toBe(410)
+      const body = (await res.json()) as { error: { message: string } }
+      expect(body.error.message).toBe('Share has expired')
+    })
+
+    it('returns 410 with AIP-193 body when the shared matter is trashed', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      await insertFile(db, orgId, { id: 'dl-trash', name: 'gone.txt' })
+      // The matter is reachable (status active) when the share is created, then
+      // gets trashed — resolveByToken returns matter_trashed for the download.
+      const share = await createShareRepo(db).create({ matterId: 'dl-trash', orgId, creatorId, kind: 'landing' })
+      const rootRef = await fetchRootRef(app, share.token)
+      await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = 'dl-trash'`)
+
+      const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
+      expect(res.status).toBe(410)
+      const body = (await res.json()) as { error: { code: number; message: string; status: string } }
+      expect(body.error.code).toBe(410)
+      expect(body.error.message).toBe('File no longer available')
+      expect(body.error.status).toBe('NOT_FOUND')
+    })
+
+    it('returns 400 when downloading a folder share root ref directly', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      await insertFolder(db, orgId, { id: 'dl-folder', name: 'A Folder' })
+      const share = await createShareRepo(db).create({ matterId: 'dl-folder', orgId, creatorId, kind: 'landing' })
+
+      const rootRef = await fetchRootRef(app, share.token)
+      const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
+      expect(res.status).toBe(400)
+      const body = (await res.json()) as { error: { message: string; status: string } }
+      expect(body.error.message).toBe('Cannot download a folder directly')
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+    })
+
+    it('returns 404 when the shared file references a missing storage', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      // No storage row inserted — the matter points at a storage_id that does
+      // not exist, so storage lookup fails after the access gates pass.
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      const now = Date.now()
+      await db.run(sql`
+        INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+        VALUES ('dl-no-storage', ${orgId}, 'dl-no-storage-alias', 'orphan.txt', 'text/plain', 1024, 0, '', 'some/key.txt', 'st-missing', 'active', ${now}, ${now})
+      `)
+      const share = await createShareRepo(db).create({ matterId: 'dl-no-storage', orgId, creatorId, kind: 'landing' })
+
+      const rootRef = await fetchRootRef(app, share.token)
+      const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
+      expect(res.status).toBe(404)
+      const body = (await res.json()) as { error: { message: string; status: string } }
+      expect(body.error.message).toBe('Storage not found')
+      expect(body.error.status).toBe('NOT_FOUND')
     })
   })
 
@@ -1591,6 +1688,31 @@ describe('Public share routes', () => {
 
       const res = await app.request(`/api/shares/${share.token}/objects`)
       expect(res.status).toBe(400)
+      const body = (await res.json()) as { error: { message: string } }
+      expect(body.error.message).toBe('Not a folder share')
+    })
+
+    it('returns 410 with AIP-193 body when listing objects of an expired folder share', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      await insertFolder(db, orgId, { id: 'ch-expired', name: 'Expired Folder' })
+      const share = await createShareRepo(db).create({
+        matterId: 'ch-expired',
+        orgId,
+        creatorId,
+        kind: 'landing',
+        expiresAt: new Date(Date.now() - 1000),
+      })
+
+      const res = await app.request(`/api/shares/${share.token}/objects`)
+      expect(res.status).toBe(410)
+      const body = (await res.json()) as { error: { code: number; message: string; status: string } }
+      expect(body.error.code).toBe(410)
+      expect(body.error.message).toBe('Share has expired')
+      expect(body.error.status).toBe('NOT_FOUND')
     })
 
     it('returns items and breadcrumb for folder share', async () => {

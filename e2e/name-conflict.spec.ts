@@ -35,7 +35,7 @@ test.describe('Name conflict — folders @all', () => {
     ])
     expect(firstResp.status()).toBe(409)
     const body = await firstResp.json()
-    expect(body.code).toBe('NAME_CONFLICT')
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
 
     // --- 2. Conflict dialog: no Replace for folders, click Keep Both → rename ---
     const conflictDialog = page.getByRole('dialog').filter({ hasText: /already/i })
