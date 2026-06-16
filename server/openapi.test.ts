@@ -47,12 +47,14 @@ describe('global OpenAPI document', () => {
     expect(html).toContain('/api/openapi.json')
   })
 
-  it('leaves better-auth endpoints to the plugin (not in our global doc)', async () => {
+  it("merges better-auth's auto-generated schema (incl. the device flow) into the same doc", async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as { paths: Record<string, unknown> }
-    // The device flow is documented by better-auth's own openAPI plugin at
-    // /api/auth/reference, not duplicated here.
-    expect(Object.keys(doc.paths)).not.toContain('/api/auth/device/code')
+    // better-auth's device-authorization endpoints come from its openAPI plugin,
+    // not hand-written stubs — prefixed under /api/auth.
+    const authPaths = Object.keys(doc.paths).filter((p) => p.startsWith('/api/auth/'))
+    expect(authPaths.length).toBeGreaterThan(0)
+    expect(authPaths.some((p) => p.includes('/device/'))).toBe(true)
   })
 })
