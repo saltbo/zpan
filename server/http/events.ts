@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import type { Context } from 'hono'
+import { errorResponseSchema } from '@shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { type EventsMessage, streamEvents } from '../usecases/events'
@@ -42,6 +42,7 @@ const eventsQueryDocSchema = z.object({
 // is just a string. OpenAPI 3.x has no native way to type the named events of a
 // single stream, so they're spelled out in the route description below.
 const eventStreamRoute = createRoute({
+  operationId: 'streamEvents',
   tags: ['Events'],
   method: 'get',
   path: '/',
@@ -62,7 +63,7 @@ const eventStreamRoute = createRoute({
       content: { 'text/event-stream': { schema: z.string() } },
       description: 'Open SSE stream of domain-change events',
     },
-    401: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Unauthorized' },
+    401: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Unauthorized' },
   },
 })
 
@@ -79,7 +80,7 @@ const eventStreamRoute = createRoute({
 // This handler owns only the wire: it builds the ReadableStream, encodes each
 // domain event the usecase emits as an SSE frame, and returns the Response. All
 // polling / fingerprint / change-detection lives in streamEvents (usecases/events.ts).
-export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, ((c: Context<Env>) => {
+export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, (c) => {
   const deps = c.get('deps')
   const query = eventsQuerySchema.parse(c.req.query())
 
@@ -125,13 +126,13 @@ export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, ((c: Cont
     },
   })
 
-  return new Response(stream, {
+  return c.newResponse(stream, {
     headers: {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
     },
   })
-}) as never)
+})
 
 export default events

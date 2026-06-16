@@ -1,9 +1,33 @@
-import { Hono } from 'hono'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { type BrandingField, type BrandingThemeMode, isBrandingThemePresetId } from '../../../shared/types'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { applyBrandingUpdate, readBranding, resetBranding, type ThemeUpdate } from '../../usecases/site/branding'
+import { errorResponse, jsonContent } from '../openapi'
+
+const brandingThemeValuesSchema = z.object({
+  primary_color: z.string(),
+  primary_foreground: z.string(),
+  canvas_color: z.string(),
+  sidebar_accent_color: z.string(),
+  ring_color: z.string(),
+})
+
+const brandingConfigSchema = z
+  .object({
+    logo_url: z.string().nullable(),
+    favicon_url: z.string().nullable(),
+    wordmark_text: z.string().nullable(),
+    hide_powered_by: z.boolean(),
+    theme: z.object({
+      mode: z.string(),
+      preset: z.string(),
+      custom: brandingThemeValuesSchema.nullable(),
+      configured: z.boolean(),
+    }),
+  })
+  .openapi('BrandingConfig')
 
 const VALID_RESET_FIELDS = new Set<BrandingField>([
   'logo',
@@ -64,19 +88,57 @@ function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | {
   return { ok: true, values }
 }
 
-// Public — no auth required. Used on sign-in/sign-up pages too.
-export const publicBranding = new Hono<Env>().get('/', async (c) => {
-  const config = await readBranding(c.get('deps'))
-  return c.json(config)
+const readRoute = createRoute({
+  operationId: 'getBranding',
+  summary: 'Get branding',
+  tags: ['Branding'],
+  method: 'get',
+  path: '/',
+  responses: { 200: jsonContent(brandingConfigSchema, 'Branding config') },
 })
 
+const updateRoute = createRoute({
+  operationId: 'updateBranding',
+  summary: 'Update branding',
+  tags: ['Branding'],
+  method: 'put',
+  path: '/',
+  middleware: [requireAdmin, requireFeature('white_label')] as const,
+  // Body is multipart/form-data (logo/favicon files + theme fields); parsed
+  // directly in the handler rather than via a request schema (the form validator
+  // conflicts with formData()).
+  responses: {
+    200: jsonContent(brandingConfigSchema, 'Updated branding'),
+    400: errorResponse('Invalid upload'),
+    413: errorResponse('File too large'),
+    415: errorResponse('Expected multipart/form-data'),
+    422: errorResponse('Invalid theme or wordmark'),
+    503: errorResponse('No public storage configured'),
+  },
+})
+
+const resetRoute = createRoute({
+  operationId: 'resetBrandingField',
+  summary: 'Reset a branding field',
+  tags: ['Branding'],
+  method: 'delete',
+  path: '/{field}',
+  middleware: [requireAdmin, requireFeature('white_label')] as const,
+  request: { params: z.object({ field: z.string() }) },
+  responses: {
+    200: jsonContent(z.object({ field: z.string(), reset: z.literal(true) }), 'Reset field'),
+    400: errorResponse('Invalid field'),
+  },
+})
+
+// Public — no auth required. Used on sign-in/sign-up pages too.
+export const publicBranding = new OpenAPIHono<Env>().openapi(readRoute, async (c) =>
+  c.json(await readBranding(c.get('deps')), 200),
+)
+
 // Admin — requires auth + admin role + white_label feature.
-export const brandingAdmin = new Hono<Env>()
-  .use(requireAdmin)
-  .use(requireFeature('white_label'))
-  .put('/', async (c) => {
-    // Multipart is not expressible via Hono RPC (same documented exception as avatar/team logo);
-    // check content-type before calling formData() to give a clear 415 on wrong media type.
+export const brandingAdmin = new OpenAPIHono<Env>()
+  .openapi(updateRoute, async (c) => {
     if (!c.req.header('content-type')?.includes('multipart/form-data')) {
       return c.json({ error: 'Expected multipart/form-data' }, 415)
     }
@@ -104,10 +166,10 @@ export const brandingAdmin = new Hono<Env>()
       theme: themeUpdate.values,
     })
     if (!result.ok) return c.json({ error: result.error }, result.status)
-    return c.json(result.config)
+    return c.json(result.config, 200)
   })
-  .delete('/:field', async (c) => {
-    const rawField = c.req.param('field')
+  .openapi(resetRoute, async (c) => {
+    const rawField = c.req.valid('param').field
     if (!VALID_RESET_FIELDS.has(rawField as BrandingField)) {
       return c.json({ error: `Invalid field. Valid fields: ${[...VALID_RESET_FIELDS].join(', ')}` }, 400)
     }
@@ -116,5 +178,5 @@ export const brandingAdmin = new Hono<Env>()
       orgId: c.get('orgId')!,
       field: rawField as BrandingField,
     })
-    return c.json({ field: rawField, reset: true })
+    return c.json({ field: rawField, reset: true as const }, 200)
   })

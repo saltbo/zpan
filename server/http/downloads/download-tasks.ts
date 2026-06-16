@@ -8,7 +8,6 @@ import {
   listDownloadTasksQuerySchema,
   updateDownloadTaskSchema,
 } from '@shared/schemas'
-import type { Context } from 'hono'
 import { requirePermission } from '../../middleware/authz'
 import type { Env } from '../../middleware/platform'
 import {
@@ -18,130 +17,121 @@ import {
   performDownloadTaskAction,
   updateDownloadTask,
 } from '../../usecases/downloads/downloads'
-import { DownloadError } from '../../usecases/ports'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
-const errorSchema = z.object({ error: z.string() })
-
-type OpenAPIContext = Context<Env> & {
-  req: Context<Env>['req'] & {
-    valid(target: 'json' | 'query'): unknown
-    param(name: string): string
-  }
-}
-
-function jsonResponse(schema: z.ZodType, description: string) {
-  return { content: { 'application/json': { schema } }, description }
+// Every task operation surfaces the same DownloadError-based failure model. The
+// usecases throw it; the global onError converts it (not_found→404, forbidden→403,
+// invalid_state→409). These entries only document those outcomes — 401 comes from
+// the explicit org/principal guards in the handlers.
+const taskErrorResponses = {
+  401: errorResponse('Unauthorized'),
+  403: errorResponse('Forbidden'),
+  404: errorResponse('Not found'),
+  409: errorResponse('Invalid task state'),
 }
 
 const listRoute = createRoute({
+  operationId: 'listDownloadTasks',
+  summary: 'List download tasks',
   tags: ['Download Tasks'],
   method: 'get',
   path: '/',
   middleware: [requirePermission('remoteDownload', 'read', { allowDownloader: true })] as const,
   request: { query: listDownloadTasksQuerySchema },
   responses: {
-    200: jsonResponse(downloadTaskPageSchema, 'Download tasks'),
-    401: jsonResponse(errorSchema, 'Unauthorized'),
+    200: jsonContent(downloadTaskPageSchema, 'Download tasks'),
+    401: errorResponse('Unauthorized'),
   },
 })
 
 const createRouteDoc = createRoute({
+  operationId: 'createDownloadTask',
+  summary: 'Create download task',
   tags: ['Download Tasks'],
   method: 'post',
   path: '/',
   middleware: [requirePermission('remoteDownload', 'create', { minTeamRole: 'editor' })] as const,
-  request: { body: { content: { 'application/json': { schema: createDownloadTaskSchema } }, required: true } },
+  request: jsonBody(createDownloadTaskSchema),
   responses: {
-    201: jsonResponse(downloadTaskSchema, 'Created download task'),
-    401: jsonResponse(errorSchema, 'Unauthorized'),
-    402: jsonResponse(errorSchema, 'Insufficient credits'),
-    409: jsonResponse(errorSchema, 'Download task conflict'),
+    201: jsonContent(downloadTaskSchema, 'Created download task'),
+    ...taskErrorResponses,
   },
 })
 
 const getRoute = createRoute({
+  operationId: 'getDownloadTask',
+  summary: 'Get download task',
   tags: ['Download Tasks'],
   method: 'get',
   path: '/{id}',
   middleware: [requirePermission('remoteDownload', 'read')] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
-    200: jsonResponse(downloadTaskSchema, 'Download task'),
-    404: jsonResponse(errorSchema, 'Not found'),
+    200: jsonContent(downloadTaskSchema, 'Download task'),
+    ...taskErrorResponses,
   },
 })
 
 const updateRoute = createRoute({
+  operationId: 'updateDownloadTask',
+  summary: 'Update download task',
   tags: ['Download Tasks'],
   method: 'patch',
   path: '/{id}',
   middleware: [requirePermission('remoteDownload', 'cancel', { allowDownloader: true })] as const,
-  request: {
-    params: z.object({ id: z.string() }),
-    body: { content: { 'application/json': { schema: updateDownloadTaskSchema } }, required: true },
-  },
+  request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloadTaskSchema) },
   responses: {
-    200: jsonResponse(downloadTaskSchema, 'Updated download task'),
-    401: jsonResponse(errorSchema, 'Unauthorized'),
-    402: jsonResponse(errorSchema, 'Insufficient credits'),
-    404: jsonResponse(errorSchema, 'Not found'),
-    409: jsonResponse(errorSchema, 'Download task conflict'),
+    200: jsonContent(downloadTaskSchema, 'Updated download task'),
+    ...taskErrorResponses,
   },
 })
 
-const taskErrorResponses = {
-  401: jsonResponse(errorSchema, 'Unauthorized'),
-  403: jsonResponse(errorSchema, 'Forbidden'),
-  404: jsonResponse(errorSchema, 'Not found'),
-  409: jsonResponse(errorSchema, 'Invalid task state'),
-}
-
 const statusRoute = createRoute({
+  operationId: 'setDownloadTaskStatus',
+  summary: 'Pause, resume, or cancel a task',
   tags: ['Download Tasks'],
   method: 'put',
   path: '/{id}/status',
   middleware: [requirePermission('remoteDownload', 'cancel')] as const,
-  request: {
-    params: z.object({ id: z.string() }),
-    body: { content: { 'application/json': { schema: downloadTaskStatusUpdateSchema } }, required: true },
-  },
+  request: { params: z.object({ id: z.string() }), ...jsonBody(downloadTaskStatusUpdateSchema) },
   responses: {
-    200: jsonResponse(downloadTaskSchema, 'Updated download task'),
+    200: jsonContent(downloadTaskSchema, 'Updated download task'),
     ...taskErrorResponses,
   },
 })
 
 const attemptRoute = createRoute({
+  operationId: 'retryDownloadTask',
+  summary: 'Retry or restart a task',
   tags: ['Download Tasks'],
   method: 'post',
   path: '/{id}/attempts',
   middleware: [requirePermission('remoteDownload', 'cancel')] as const,
-  request: {
-    params: z.object({ id: z.string() }),
-    body: { content: { 'application/json': { schema: downloadTaskAttemptSchema } }, required: true },
-  },
+  request: { params: z.object({ id: z.string() }), ...jsonBody(downloadTaskAttemptSchema) },
   responses: {
-    201: jsonResponse(downloadTaskSchema, 'New download attempt'),
+    201: jsonContent(downloadTaskSchema, 'New download attempt'),
     ...taskErrorResponses,
   },
 })
 
 const deleteRoute = createRoute({
+  operationId: 'deleteDownloadTask',
+  summary: 'Delete download task',
   tags: ['Download Tasks'],
   method: 'delete',
   path: '/{id}',
   middleware: [requirePermission('remoteDownload', 'cancel')] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
-    200: jsonResponse(z.object({ id: z.string(), deleted: z.literal(true) }), 'Deleted download task'),
+    200: jsonContent(z.object({ id: z.string(), deleted: z.literal(true) }), 'Deleted download task'),
     ...taskErrorResponses,
   },
 })
 
 const downloadTasksRoute = new OpenAPIHono<Env>()
-  .openapi(listRoute, (async (c: OpenAPIContext) => {
+  .openapi(listRoute, async (c) => {
     const principal = c.get('principal')
-    const query = c.req.valid('query') as z.infer<typeof listDownloadTasksQuerySchema>
+    const query = c.req.valid('query')
     if (query.assignedTo === 'me') {
       if (principal?.kind !== 'downloader') return c.json({ error: 'Unauthorized' }, 401)
       const result = await listDownloadTasks(c.get('deps'), c.get('platform'), {
@@ -155,7 +145,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
         pageSize: query.pageSize,
         includeUploadToken: true,
       })
-      return c.json({ ...result, page: query.page, pageSize: query.pageSize })
+      return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)
     }
 
     const orgId = c.get('orgId')
@@ -170,97 +160,54 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
       page: query.page,
       pageSize: query.pageSize,
     })
-    return c.json({ ...result, page: query.page, pageSize: query.pageSize })
-  }) as never)
-  .openapi(createRouteDoc, (async (c: OpenAPIContext) => {
+    return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)
+  })
+  .openapi(createRouteDoc, async (c) => {
     const principal = c.get('principal')
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
     const actorId = principal?.kind === 'api-key' ? `api-key:${principal.keyId}` : (c.get('userId') as string)
-    return downloadTaskResponse(
-      c,
-      async () =>
-        createDownloadTask(
-          c.get('deps'),
-          orgId,
-          actorId,
-          c.req.valid('json') as z.infer<typeof createDownloadTaskSchema>,
-        ),
-      201,
-    )
-  }) as never)
-  .openapi(getRoute, (async (c: OpenAPIContext) => {
+    return c.json(await createDownloadTask(c.get('deps'), orgId, actorId, c.req.valid('json')), 201)
+  })
+  .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
-    const id = c.req.param('id') as string
-    return downloadTaskResponse(c, async () => getDownloadTask(c.get('deps'), orgId, id))
-  }) as never)
-  .openapi(statusRoute, (async (c: OpenAPIContext) => {
+    return c.json(await getDownloadTask(c.get('deps'), orgId, c.req.valid('param').id), 200)
+  })
+  .openapi(statusRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
-    const id = c.req.param('id') as string
-    const { status } = c.req.valid('json') as z.infer<typeof downloadTaskStatusUpdateSchema>
+    const { status } = c.req.valid('json')
     const action = status === 'paused' ? 'pause' : status === 'queued' ? 'resume' : 'cancel'
-    return downloadTaskResponse(c, async () => performDownloadTaskAction(c.get('deps'), orgId, id, action))
-  }) as never)
-  .openapi(attemptRoute, (async (c: OpenAPIContext) => {
+    return c.json(await performDownloadTaskAction(c.get('deps'), orgId, c.req.valid('param').id, action), 200)
+  })
+  .openapi(attemptRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
-    const id = c.req.param('id') as string
-    const { fresh } = c.req.valid('json') as z.infer<typeof downloadTaskAttemptSchema>
-    return downloadTaskResponse(
-      c,
-      async () => performDownloadTaskAction(c.get('deps'), orgId, id, fresh ? 'restart' : 'retry'),
+    const { fresh } = c.req.valid('json')
+    return c.json(
+      await performDownloadTaskAction(c.get('deps'), orgId, c.req.valid('param').id, fresh ? 'restart' : 'retry'),
       201,
     )
-  }) as never)
-  .openapi(deleteRoute, (async (c: OpenAPIContext) => {
+  })
+  .openapi(deleteRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
-    const id = c.req.param('id') as string
-    return downloadTaskResponse(c, async () => performDownloadTaskAction(c.get('deps'), orgId, id, 'delete'))
-  }) as never)
-  .openapi(updateRoute, (async (c: OpenAPIContext) => {
+    return c.json(await performDownloadTaskAction(c.get('deps'), orgId, c.req.valid('param').id, 'delete'), 200)
+  })
+  .openapi(updateRoute, async (c) => {
     const principal = c.get('principal')
-    const id = c.req.param('id') as string
+    const id = c.req.valid('param').id
+    const input = c.req.valid('json')
     if (principal?.kind === 'downloader') {
-      return downloadTaskResponse(
-        c,
-        async () =>
-          updateDownloadTask(
-            c.get('deps'),
-            c.get('platform'),
-            id,
-            c.req.valid('json') as z.infer<typeof updateDownloadTaskSchema>,
-            { downloaderId: principal.downloaderId },
-          ),
-        undefined,
+      return c.json(
+        await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { downloaderId: principal.downloaderId }),
+        200,
       )
     }
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
-    return downloadTaskResponse(c, async () =>
-      updateDownloadTask(
-        c.get('deps'),
-        c.get('platform'),
-        id,
-        c.req.valid('json') as z.infer<typeof updateDownloadTaskSchema>,
-        { orgId },
-      ),
-    )
-  }) as never)
+    return c.json(await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { orgId }), 200)
+  })
 
 export default downloadTasksRoute
-
-async function downloadTaskResponse(c: Context<Env>, action: () => Promise<unknown>, status: 200 | 201 = 200) {
-  try {
-    return c.json(await action(), status)
-  } catch (error) {
-    if (error instanceof DownloadError) {
-      if (error.code === 'not_found') return c.json({ error: 'Not found' }, 404)
-      if (error.code === 'forbidden') return c.json({ error: 'Forbidden' }, 403)
-      return c.json({ error: error.message }, 409)
-    }
-    throw error
-  }
-}

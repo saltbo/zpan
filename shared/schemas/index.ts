@@ -115,6 +115,7 @@ export {
   updateDownloaderSchema,
   updateDownloadTaskSchema,
 } from './downloads'
+export { errorResponseSchema, featureGateErrorSchema } from './errors'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
 export type { CreateShareInput, CreateShareRequest, ShareKind } from './share'

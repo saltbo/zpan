@@ -1,7 +1,5 @@
-import { zValidator } from '@hono/zod-validator'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { checkoutInputSchema, discountQuoteInputSchema, redeemGiftCardInputSchema } from '@shared/schemas'
-import { Hono } from 'hono'
-import { z } from 'zod'
 import { requireAuth, requireTeamRole } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
@@ -19,42 +17,224 @@ import {
   listTargets,
   redeemGiftCard,
 } from '../../usecases/store/store'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 import { cloudStoreOrdersQuerySchema, getCloudBaseUrl } from './helpers'
 import { getCloudOrders, getInstanceOrigin } from './shared'
 
-export const cloudStore = new Hono<Env>()
-  .use(requireAuth)
-  .use(requireFeature('quota_store'))
-  .get('/packages', async (c) => {
+// Storefront responses are passed through verbatim from the upstream cloud
+// commerce API, whose payloads are owned by that service. They are documented as
+// opaque objects rather than mirrored field-for-field here.
+const cloudValue = z.unknown().openapi('CloudStoreValue')
+const cloudBody = (description: string) => jsonContent(cloudValue, description)
+
+const packagesRoute = createRoute({
+  operationId: 'listStorePackages',
+  summary: 'List store packages',
+  tags: ['Store'],
+  method: 'get',
+  path: '/packages',
+  responses: { 200: cloudBody('Packages'), 403: errorResponse('License not bound'), 502: errorResponse('Cloud error') },
+})
+
+const creditProductsRoute = createRoute({
+  operationId: 'listCreditProducts',
+  summary: 'List credit products',
+  tags: ['Store'],
+  method: 'get',
+  path: '/credits/products',
+  responses: {
+    200: cloudBody('Credit products'),
+    403: errorResponse('License not bound'),
+    502: errorResponse('Cloud error'),
+  },
+})
+
+const targetsRoute = createRoute({
+  operationId: 'listStoreTargets',
+  summary: 'List store targets',
+  tags: ['Store'],
+  method: 'get',
+  path: '/targets',
+  responses: { 200: cloudBody('Targets'), 403: errorResponse('License not bound'), 502: errorResponse('Cloud error') },
+})
+
+const creditsRoute = createRoute({
+  operationId: 'getCreditBalance',
+  summary: 'Get credit balance',
+  tags: ['Store'],
+  method: 'get',
+  path: '/credits',
+  middleware: [requireTeamRole('owner')] as const,
+  responses: {
+    200: cloudBody('Credit balance'),
+    400: errorResponse('No active organization'),
+    403: errorResponse('License not bound'),
+    502: errorResponse('Cloud error'),
+  },
+})
+
+const ledgerRoute = createRoute({
+  operationId: 'getCreditLedger',
+  summary: 'Get credit ledger',
+  tags: ['Store'],
+  method: 'get',
+  path: '/credits/ledger-entries',
+  middleware: [requireTeamRole('owner')] as const,
+  responses: {
+    200: cloudBody('Credit ledger'),
+    400: errorResponse('No active organization'),
+    403: errorResponse('License not bound'),
+    502: errorResponse('Cloud error'),
+  },
+})
+
+const redeemRoute = createRoute({
+  operationId: 'redeemGiftCard',
+  summary: 'Redeem a gift card',
+  tags: ['Store'],
+  method: 'post',
+  path: '/credits/redemptions',
+  middleware: [requireTeamRole('owner')] as const,
+  request: jsonBody(redeemGiftCardInputSchema),
+  responses: {
+    200: cloudBody('Redemption result'),
+    400: errorResponse('No active organization'),
+    403: errorResponse('License not bound'),
+    502: errorResponse('Cloud error'),
+  },
+})
+
+const checkoutRoute = createRoute({
+  operationId: 'createCheckout',
+  summary: 'Create a checkout',
+  tags: ['Store'],
+  method: 'post',
+  path: '/checkouts',
+  middleware: [requireTeamRole('owner')] as const,
+  request: jsonBody(checkoutInputSchema),
+  responses: {
+    200: cloudBody('Checkout session'),
+    400: errorResponse('Bad request'),
+    403: errorResponse('License not bound'),
+    409: errorResponse('Workspace plan already exists'),
+    502: errorResponse('Cloud error'),
+  },
+})
+
+const discountRoute = createRoute({
+  operationId: 'getDiscountQuote',
+  summary: 'Get a discount quote',
+  tags: ['Store'],
+  method: 'post',
+  path: '/discount-quotes',
+  request: jsonBody(discountQuoteInputSchema),
+  responses: {
+    200: cloudBody('Discount quote'),
+    403: errorResponse('License not bound'),
+    502: errorResponse('Cloud error'),
+  },
+})
+
+const billingPortalRoute = createRoute({
+  operationId: 'createBillingPortalSession',
+  summary: 'Create a billing portal session',
+  tags: ['Store'],
+  method: 'post',
+  path: '/billing-portal-sessions',
+  middleware: [requireTeamRole('owner')] as const,
+  responses: {
+    200: cloudBody('Billing portal session'),
+    400: errorResponse('No active organization'),
+    403: errorResponse('License not bound'),
+    502: errorResponse('Cloud error'),
+  },
+})
+
+const ordersRoute = createRoute({
+  operationId: 'listOrders',
+  summary: 'List orders',
+  tags: ['Store'],
+  method: 'get',
+  path: '/orders',
+  middleware: [requireTeamRole('owner')] as const,
+  request: { query: cloudStoreOrdersQuerySchema },
+  responses: {
+    200: cloudBody('Orders'),
+    400: errorResponse('No active organization'),
+    403: errorResponse('Store not ready'),
+    502: errorResponse('Cloud error'),
+  },
+})
+
+const continuePaymentRoute = createRoute({
+  operationId: 'continueOrderPayment',
+  summary: 'Continue an order payment',
+  tags: ['Store'],
+  method: 'post',
+  path: '/orders/{orderId}/payments',
+  middleware: [requireTeamRole('owner')] as const,
+  request: { params: z.object({ orderId: z.string() }) },
+  responses: {
+    200: cloudBody('Payment continuation'),
+    400: errorResponse('No active organization'),
+    403: errorResponse('Forbidden'),
+    404: errorResponse('Order not found'),
+    502: errorResponse('Cloud error'),
+  },
+})
+
+const cancelOrderRoute = createRoute({
+  operationId: 'cancelOrder',
+  summary: 'Cancel an order',
+  tags: ['Store'],
+  method: 'patch',
+  path: '/orders/{orderId}',
+  middleware: [requireTeamRole('owner')] as const,
+  request: { params: z.object({ orderId: z.string() }), ...jsonBody(z.object({ status: z.literal('canceled') })) },
+  responses: {
+    200: cloudBody('Canceled order'),
+    400: errorResponse('No active organization'),
+    403: errorResponse('Forbidden'),
+    404: errorResponse('Order not found'),
+    502: errorResponse('Cloud error'),
+  },
+})
+
+const app = new OpenAPIHono<Env>()
+app.use(requireAuth)
+app.use(requireFeature('quota_store'))
+
+export const cloudStore = app
+  .openapi(packagesRoute, async (c) => {
     const result = await listPackages(c.get('deps'), getCloudBaseUrl(c))
     if (!result.ok) return c.json({ error: result.error }, result.reason === 'binding_missing' ? 403 : 502)
-    return c.json(result.value)
+    return c.json(result.value, 200)
   })
-  .get('/credits/products', async (c) => {
+  .openapi(creditProductsRoute, async (c) => {
     const result = await listCreditProducts(c.get('deps'), getCloudBaseUrl(c))
     if (!result.ok) return c.json({ error: result.error }, result.reason === 'binding_missing' ? 403 : 502)
-    return c.json(result.value)
+    return c.json(result.value, 200)
   })
-  .get('/targets', async (c) => {
+  .openapi(targetsRoute, async (c) => {
     const result = await listTargets(c.get('deps'), c.get('userId')!)
     if (!result.ok) return c.json({ error: result.error }, result.reason === 'binding_missing' ? 403 : 502)
-    return c.json(result.value)
+    return c.json(result.value, 200)
   })
-  .get('/credits', requireTeamRole('owner'), async (c) => {
+  .openapi(creditsRoute, async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const result = await getCreditBalance(c.get('deps'), getCloudBaseUrl(c), targetOrgId)
     if (!result.ok) return c.json({ error: result.error }, result.reason === 'binding_missing' ? 403 : 502)
-    return c.json(result.value)
+    return c.json(result.value, 200)
   })
-  .get('/credits/ledger-entries', requireTeamRole('owner'), async (c) => {
+  .openapi(ledgerRoute, async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const result = await getCreditLedger(c.get('deps'), getCloudBaseUrl(c), targetOrgId)
     if (!result.ok) return c.json({ error: result.error }, result.reason === 'binding_missing' ? 403 : 502)
-    return c.json(result.value)
+    return c.json(result.value, 200)
   })
-  .post('/credits/redemptions', requireTeamRole('owner'), zValidator('json', redeemGiftCardInputSchema), async (c) => {
+  .openapi(redeemRoute, async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const result = await redeemGiftCard(c.get('deps'), getCloudBaseUrl(c), {
@@ -62,9 +242,9 @@ export const cloudStore = new Hono<Env>()
       input: c.req.valid('json'),
     })
     if (!result.ok) return c.json({ error: result.error }, result.reason === 'binding_missing' ? 403 : 502)
-    return c.json(result.value)
+    return c.json(result.value, 200)
   })
-  .post('/checkouts', requireTeamRole('owner'), zValidator('json', checkoutInputSchema), async (c) => {
+  .openapi(checkoutRoute, async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const result = await createCheckout(c.get('deps'), getCloudBaseUrl(c), {
@@ -73,18 +253,18 @@ export const cloudStore = new Hono<Env>()
       origin: await getInstanceOrigin(c),
       input: c.req.valid('json'),
     })
-    if (result.ok) return c.json(result.value)
+    if (result.ok) return c.json(result.value, 200)
     if (result.reason === 'binding_missing') return c.json({ error: result.error }, 403)
     if (result.reason === 'price_missing') return c.json({ error: 'package_price_missing' }, 400)
     if (result.reason === 'workspace_plan_exists') return c.json({ error: 'workspace_plan_exists' }, 409)
     return c.json({ error: result.error }, 502)
   })
-  .post('/discount-quotes', zValidator('json', discountQuoteInputSchema), async (c) => {
+  .openapi(discountRoute, async (c) => {
     const result = await getDiscountQuote(c.get('deps'), getCloudBaseUrl(c), c.req.valid('json'))
     if (!result.ok) return c.json({ error: result.error }, result.reason === 'binding_missing' ? 403 : 502)
-    return c.json(result.value)
+    return c.json(result.value, 200)
   })
-  .post('/billing-portal-sessions', requireTeamRole('owner'), async (c) => {
+  .openapi(billingPortalRoute, async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const result = await createBillingPortalSession(c.get('deps'), getCloudBaseUrl(c), {
@@ -92,9 +272,9 @@ export const cloudStore = new Hono<Env>()
       origin: await getInstanceOrigin(c),
     })
     if (!result.ok) return c.json({ error: result.error }, result.reason === 'binding_missing' ? 403 : 502)
-    return c.json(result.value)
+    return c.json(result.value, 200)
   })
-  .get('/orders', requireTeamRole('owner'), zValidator('query', cloudStoreOrdersQuerySchema), async (c) => {
+  .openapi(ordersRoute, async (c) => {
     const ready = await getStoreReadiness(c.get('deps'))
     if (!ready.ready) return c.json({ error: ready.error }, 403)
     const targetOrgId = c.get('orgId')
@@ -102,40 +282,35 @@ export const cloudStore = new Hono<Env>()
     const query = c.req.valid('query')
     const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, customerId: targetOrgId })
     if ('error' in result) return c.json(result, 502)
-    return c.json(result)
+    return c.json(result, 200)
   })
-  .post('/orders/:orderId/payments', requireTeamRole('owner'), async (c) => {
+  .openapi(continuePaymentRoute, async (c) => {
     const ready = await getStoreReadiness(c.get('deps'))
     if (!ready.ready) return c.json({ error: ready.error }, 403)
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const result = await continueOrderPayment(c.get('deps'), getCloudBaseUrl(c), {
       orgId: targetOrgId,
-      orderId: c.req.param('orderId'),
+      orderId: c.req.valid('param').orderId,
       origin: await getInstanceOrigin(c),
     })
-    if (result.ok) return c.json(result.value)
+    if (result.ok) return c.json(result.value, 200)
     if (result.reason === 'not_found') return c.json({ error: 'not_found' }, 404)
     if (result.reason === 'forbidden') return c.json({ error: 'Forbidden' }, 403)
     return c.json({ error: result.error }, 502)
   })
-  .patch(
-    '/orders/:orderId',
-    requireTeamRole('owner'),
-    zValidator('json', z.object({ status: z.literal('canceled') })),
-    async (c) => {
-      const ready = await getStoreReadiness(c.get('deps'))
-      if (!ready.ready) return c.json({ error: ready.error }, 403)
-      const targetOrgId = c.get('orgId')
-      if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
-      const result = await cancelOrder(c.get('deps'), getCloudBaseUrl(c), {
-        orgId: targetOrgId,
-        orderId: c.req.param('orderId'),
-        status: c.req.valid('json').status,
-      })
-      if (result.ok) return c.json(result.value)
-      if (result.reason === 'not_found') return c.json({ error: 'not_found' }, 404)
-      if (result.reason === 'forbidden') return c.json({ error: 'Forbidden' }, 403)
-      return c.json({ error: result.error }, 502)
-    },
-  )
+  .openapi(cancelOrderRoute, async (c) => {
+    const ready = await getStoreReadiness(c.get('deps'))
+    if (!ready.ready) return c.json({ error: ready.error }, 403)
+    const targetOrgId = c.get('orgId')
+    if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
+    const result = await cancelOrder(c.get('deps'), getCloudBaseUrl(c), {
+      orgId: targetOrgId,
+      orderId: c.req.valid('param').orderId,
+      status: c.req.valid('json').status,
+    })
+    if (result.ok) return c.json(result.value, 200)
+    if (result.reason === 'not_found') return c.json({ error: 'not_found' }, 404)
+    if (result.reason === 'forbidden') return c.json({ error: 'Forbidden' }, 403)
+    return c.json({ error: result.error }, 502)
+  })

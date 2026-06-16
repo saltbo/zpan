@@ -1,6 +1,5 @@
-import { zValidator } from '@hono/zod-validator'
-import { Hono } from 'hono'
-import { z } from 'zod'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { featureGateErrorSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { runtimeInfo } from '../../usecases/site/instance-info'
@@ -12,67 +11,173 @@ import {
   resolveInstanceInfo,
   setSystemOption,
 } from '../../usecases/site/system'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
-const setOptionSchema = z.object({
-  value: z.string(),
-  public: z.boolean().optional(),
+const instanceInfoSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    url: z.string(),
+    version: z.string(),
+    commit: z.string().nullable().optional(),
+    runtime: z.string().nullable().optional(),
+    platform: z.string().nullable().optional(),
+    server: z
+      .object({
+        os: z
+          .object({
+            platform: z.string().nullable().optional(),
+            arch: z.string().nullable().optional(),
+            release: z.string().nullable().optional(),
+          })
+          .nullable()
+          .optional(),
+      })
+      .nullable()
+      .optional(),
+    node: z.object({ version: z.string().nullable().optional() }).nullable().optional(),
+  })
+  .openapi('InstanceInfo')
+
+const changelogSchema = z
+  .object({
+    currentVersion: z.string(),
+    latestVersion: z.string().nullable(),
+    updateAvailable: z.boolean(),
+    markdown: z.string(),
+  })
+  .openapi('Changelog')
+
+const systemOptionSchema = z.object({ key: z.string(), value: z.string(), public: z.boolean() }).openapi('SystemOption')
+
+const systemOptionListSchema = z
+  .object({ items: z.array(systemOptionSchema), total: z.number().int() })
+  .openapi('SystemOptionList')
+
+const setOptionSchema = z.object({ value: z.string(), public: z.boolean().optional() })
+
+const instanceRoute = createRoute({
+  operationId: 'getInstanceInfo',
+  summary: 'Get instance info',
+  tags: ['System'],
+  method: 'get',
+  path: '/instance',
+  middleware: [requireAdmin] as const,
+  responses: { 200: jsonContent(instanceInfoSchema, 'Instance info') },
 })
 
-const app = new Hono<Env>()
-  .get('/instance', requireAdmin, async (c) => {
+const changelogRoute = createRoute({
+  operationId: 'getChangelog',
+  summary: 'Get changelog',
+  tags: ['System'],
+  method: 'get',
+  path: '/changelog',
+  middleware: [requireAdmin] as const,
+  request: { query: z.object({ refresh: z.string().optional() }) },
+  responses: { 200: jsonContent(changelogSchema, 'Changelog') },
+})
+
+const listOptionsRoute = createRoute({
+  operationId: 'listSystemOptions',
+  summary: 'List system options',
+  tags: ['System'],
+  method: 'get',
+  path: '/options',
+  responses: { 200: jsonContent(systemOptionListSchema, 'System options') },
+})
+
+const getOptionRoute = createRoute({
+  operationId: 'getSystemOption',
+  summary: 'Get a system option',
+  tags: ['System'],
+  method: 'get',
+  path: '/options/{key}',
+  request: { params: z.object({ key: z.string() }) },
+  responses: {
+    200: jsonContent(systemOptionSchema, 'System option'),
+    403: errorResponse('Forbidden'),
+    404: errorResponse('Option not found'),
+  },
+})
+
+const setOptionRoute = createRoute({
+  operationId: 'setSystemOption',
+  summary: 'Set a system option',
+  tags: ['System'],
+  method: 'put',
+  path: '/options/{key}',
+  middleware: [requireAdmin] as const,
+  request: { params: z.object({ key: z.string() }), ...jsonBody(setOptionSchema) },
+  responses: {
+    200: jsonContent(systemOptionSchema, 'Updated option'),
+    201: jsonContent(systemOptionSchema, 'Created option'),
+    400: errorResponse('Invalid option'),
+    402: jsonContent(featureGateErrorSchema, 'Feature not available'),
+  },
+})
+
+const deleteOptionRoute = createRoute({
+  operationId: 'deleteSystemOption',
+  summary: 'Delete a system option',
+  tags: ['System'],
+  method: 'delete',
+  path: '/options/{key}',
+  middleware: [requireAdmin] as const,
+  request: { params: z.object({ key: z.string() }) },
+  responses: { 200: jsonContent(z.object({ key: z.string(), deleted: z.literal(true) }), 'Deleted option') },
+})
+
+const system = new OpenAPIHono<Env>()
+  .openapi(instanceRoute, async (c) => {
     const info = await resolveInstanceInfo(c.get('deps'), {
       requestUrl: c.req.url,
       runtime: runtimeInfo(c.get('platform')),
     })
-    return c.json(info)
+    return c.json(info, 200)
   })
-  .get('/changelog', requireAdmin, zValidator('query', z.object({ refresh: z.string().optional() })), async (c) => {
-    const result = await getChangelog(c.get('deps'), {
-      now: Date.now(),
-      force: c.req.valid('query').refresh === 'true',
-    })
-    return c.json(result)
-  })
-  .get('/options', async (c) => {
-    const result = await listSystemOptions(c.get('deps'), { isAdmin: c.get('userRole') === 'admin' })
-    return c.json(result)
-  })
-  .get('/options/:key', async (c) => {
+  .openapi(changelogRoute, async (c) =>
+    c.json(await getChangelog(c.get('deps'), { now: Date.now(), force: c.req.valid('query').refresh === 'true' }), 200),
+  )
+  .openapi(listOptionsRoute, async (c) =>
+    c.json(await listSystemOptions(c.get('deps'), { isAdmin: c.get('userRole') === 'admin' }), 200),
+  )
+  .openapi(getOptionRoute, async (c) => {
     const result = await getSystemOption(c.get('deps'), {
-      key: c.req.param('key'),
+      key: c.req.valid('param').key,
       isAdmin: c.get('userRole') === 'admin',
     })
-    if (result.ok) return c.json(result.option)
+    if (result.ok) return c.json(result.option, 200)
     if (result.reason === 'not_found') return c.json({ error: 'Option not found' }, 404)
     return c.json({ error: 'Forbidden' }, 403)
   })
-  .put('/options/:key', requireAdmin, zValidator('json', setOptionSchema), async (c) => {
+  .openapi(setOptionRoute, async (c) => {
     const body = c.req.valid('json')
     const result = await setSystemOption(c.get('deps'), {
       userId: c.get('userId')!,
       orgId: c.get('orgId')!,
-      key: c.req.param('key'),
+      key: c.req.valid('param').key,
       value: body.value,
       public: body.public,
     })
     if (!result.ok) {
-      if (result.reason === 'feature_blocked') {
+      if (result.reason === 'feature_blocked')
         return c.json(
           { error: 'feature_not_available', feature: result.feature, upgrade_url: '/settings/billing' },
           402,
         )
-      }
       return c.json({ error: result.message }, 400)
     }
-    return c.json(result.option, result.created ? 201 : 200)
+    return result.created ? c.json(result.option, 201) : c.json(result.option, 200)
   })
-  .delete('/options/:key', requireAdmin, async (c) => {
-    const result = await deleteSystemOption(c.get('deps'), {
-      userId: c.get('userId')!,
-      orgId: c.get('orgId')!,
-      key: c.req.param('key'),
-    })
-    return c.json(result)
-  })
+  .openapi(deleteOptionRoute, async (c) =>
+    c.json(
+      await deleteSystemOption(c.get('deps'), {
+        userId: c.get('userId')!,
+        orgId: c.get('orgId')!,
+        key: c.req.valid('param').key,
+      }),
+      200,
+    ),
+  )
 
-export default app
+export default system
