@@ -59,7 +59,7 @@ jobs:
       - run: pnpm lint:http
       - run: pnpm lint:spec
       - run: pnpm typecheck
-      - run: pnpm openapi:downloader:check
+      - run: pnpm openapi:client:check
       - run: pnpm exec vitest run --project unit --coverage --coverage.reportsDirectory=coverage/unit
       - uses: codecov/codecov-action@v5
         if: always()
