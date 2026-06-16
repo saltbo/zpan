@@ -198,7 +198,7 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     return ((await res.json()) as { id: string }).id
   }
 
-  it('resend returns 404 for an unknown invitation id [spec: site-invitations/resend-not-found]', async () => {
+  it('resend returns 404 for an unknown invitation id', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -215,7 +215,7 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     expect(body.error.status).toBe('NOT_FOUND')
   })
 
-  it('resend returns 400 when the invitation was already accepted [spec: site-invitations/resend-accepted]', async () => {
+  it('resend returns 400 when the invitation was already accepted', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -233,7 +233,7 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     expect(body.error.message).toBe('Invitation has already been used')
   })
 
-  it('resend returns 400 when the invitation was revoked [spec: site-invitations/resend-revoked]', async () => {
+  it('resend returns 400 when the invitation was revoked', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -251,7 +251,7 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     expect(body.error.message).toBe('Invitation has been revoked')
   })
 
-  it('revoke returns 404 for an unknown invitation id [spec: site-invitations/revoke-not-found]', async () => {
+  it('revoke returns 404 for an unknown invitation id', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -265,7 +265,7 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     expect(body.error.status).toBe('NOT_FOUND')
   })
 
-  it('revoke returns 400 when the invitation was already accepted [spec: site-invitations/revoke-accepted]', async () => {
+  it('revoke returns 400 when the invitation was already accepted', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -283,7 +283,7 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     expect(body.error.message).toBe('Invitation has already been used')
   })
 
-  it('revoke returns 400 when the invitation was already revoked [spec: site-invitations/revoke-twice]', async () => {
+  it('revoke returns 400 when the invitation was already revoked', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -333,7 +333,7 @@ describe('Public Site Invitations API', () => {
     expect(body.token).toBe(invitation.token)
   })
 
-  it('returns 404 for an unknown invitation token [spec: site-invitations/by-token-not-found]', async () => {
+  it('returns 404 for an unknown invitation token', async () => {
     const ctx = await createTestApp()
     const res = await ctx.app.request('/api/site/invitations/no-such-token')
     expect(res.status).toBe(404)

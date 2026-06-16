@@ -196,7 +196,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     expect(rows[0].trafficUsed).toBe(1280)
   })
 
-  it('returns 410 with AIP-193 body when a direct share is expired [spec: redirect/ds-expired]', async () => {
+  it('returns 410 with AIP-193 body when a direct share is expired', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -220,7 +220,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
   })
 
-  it('returns 404 when a direct share references a missing storage [spec: redirect/ds-storage-not-found]', async () => {
+  it('returns 404 when a direct share references a missing storage', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     // Intentionally do NOT insert the storage row; the matter points at a
@@ -324,7 +324,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns 404 when an image hosting record references a missing storage [spec: redirect/image-storage-not-found]', async () => {
+  it('returns 404 when an image hosting record references a missing storage', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     // No storage row inserted for this storage id.
@@ -344,7 +344,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(await getAccessCount(db, 'ih-no-storage')).toBe(0)
   })
 
-  it('returns 402 insufficient credits when cloud egress reporting blocks the image redirect [spec: redirect/image-insufficient-credits]', async () => {
+  it('returns 402 insufficient credits when cloud egress reporting blocks the image redirect', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)

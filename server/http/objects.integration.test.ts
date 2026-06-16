@@ -2379,7 +2379,7 @@ async function mintTaskUploadContext(
 }
 
 describe('Objects API — error branches', () => {
-  it('returns 403 for a user-scoped API key with no active org on write [spec: objects/write-no-org]', async () => {
+  it('returns 403 for a user-scoped API key with no active org on write', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -2397,7 +2397,7 @@ describe('Objects API — error branches', () => {
     expect(body.error.status).toBe('PERMISSION_DENIED')
   })
 
-  it('returns 403 when listing an org the user cannot read via orgId override [spec: objects/list-forbidden]', async () => {
+  it('returns 403 when listing an org the user cannot read via orgId override', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -2410,7 +2410,7 @@ describe('Objects API — error branches', () => {
     expect(body.error.status).toBe('PERMISSION_DENIED')
   })
 
-  it('returns 404 when a file references a missing storage on GET [spec: objects/get-storage-missing]', async () => {
+  it('returns 404 when a file references a missing storage on GET', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
@@ -2423,7 +2423,7 @@ describe('Objects API — error branches', () => {
     expect(body.error.message).toBe('Storage not found')
   })
 
-  it('returns 404 when copying a file whose storage is missing [spec: objects/copy-storage-missing]', async () => {
+  it('returns 404 when copying a file whose storage is missing', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
@@ -2439,7 +2439,7 @@ describe('Objects API — error branches', () => {
     expect(body.error.message).toBe('Storage not found')
   })
 
-  it('returns 404 when transferring a missing object [spec: objects/transfer-not-found]', async () => {
+  it('returns 404 when transferring a missing object', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -2453,7 +2453,7 @@ describe('Objects API — error branches', () => {
     expect(body.error.message).toBe('Not found')
   })
 
-  it('rejects a download-task-upload token that tries to trash an object [spec: objects/task-upload-confirm-only]', async () => {
+  it('rejects a download-task-upload token that tries to trash an object', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
@@ -2469,7 +2469,7 @@ describe('Objects API — error branches', () => {
     expect(body.error.message).toBe('Download task upload token can only confirm uploads')
   })
 
-  it('rejects a download-task-upload confirm outside the task target folder [spec: objects/task-upload-confirm-scope]', async () => {
+  it('rejects a download-task-upload confirm outside the task target folder', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
