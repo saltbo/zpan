@@ -4,7 +4,7 @@ import { openAnnouncementsDialog } from '@/components/announcements/site-announc
 import { Button } from '@/components/ui/button'
 import { DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { listNotifications, markAllNotificationsRead } from '@/lib/api'
+import { getUnreadCount, listNotifications, markAllNotificationsRead } from '@/lib/api'
 import { NotificationItem } from './notification-item'
 
 export function NotificationDropdown() {
@@ -18,8 +18,13 @@ export function NotificationDropdown() {
     queryFn: () => listNotifications(1, 10),
   })
 
+  const { data: unread } = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: getUnreadCount,
+  })
+
   const items = data?.items ?? []
-  const hasUnread = (data?.unreadCount ?? 0) > 0
+  const hasUnread = (unread?.count ?? 0) > 0
 
   async function handleMarkAllRead() {
     await markAllNotificationsRead()

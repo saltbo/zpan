@@ -201,6 +201,21 @@ func (e DownloaderStatus) Valid() bool {
 	}
 }
 
+// Defines values for ErrorInfoType.
+const (
+	TypeGoogleapisComgoogleRpcErrorInfo ErrorInfoType = "type.googleapis.com/google.rpc.ErrorInfo"
+)
+
+// Valid indicates whether the value is a known member of the ErrorInfoType enum.
+func (e ErrorInfoType) Valid() bool {
+	switch e {
+	case TypeGoogleapisComgoogleRpcErrorInfo:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImageHostingConfigDomainStatus.
 const (
 	ImageHostingConfigDomainStatusNone     ImageHostingConfigDomainStatus = "none"
@@ -1657,7 +1672,10 @@ type AuthProviderConfig struct {
 
 // AuthProviderList defines model for AuthProviderList.
 type AuthProviderList struct {
-	Items []AuthProviderList_Items_Item `json:"items"`
+	Items    []AuthProviderList_Items_Item `json:"items"`
+	Page     int                           `json:"page"`
+	PageSize int                           `json:"pageSize"`
+	Total    int                           `json:"total"`
 }
 
 // AuthProviderList_Items_Item defines model for AuthProviderList.items.Item.
@@ -1918,6 +1936,14 @@ type DownloaderEngine string
 // DownloaderStatus defines model for Downloader.Status.
 type DownloaderStatus string
 
+// DownloaderList defines model for DownloaderList.
+type DownloaderList struct {
+	Items    []Downloader `json:"items"`
+	Page     int          `json:"page"`
+	PageSize int          `json:"pageSize"`
+	Total    int          `json:"total"`
+}
+
 // EffectiveQuota defines model for EffectiveQuota.
 type EffectiveQuota struct {
 	BaseQuota        int `json:"baseQuota"`
@@ -1955,8 +1981,10 @@ type EmailSettings struct {
 
 // EntitlementList defines model for EntitlementList.
 type EntitlementList struct {
-	Items []QuotaEntitlement `json:"items"`
-	OrgId string             `json:"orgId"`
+	Items    []QuotaEntitlement `json:"items"`
+	Page     int                `json:"page"`
+	PageSize int                `json:"pageSize"`
+	Total    int                `json:"total"`
 }
 
 // EntitlementResult defines model for EntitlementResult.
@@ -1965,20 +1993,26 @@ type EntitlementResult struct {
 	OrgId       string           `json:"orgId"`
 }
 
-// ErrorResponse defines model for ErrorResponse.
-type ErrorResponse struct {
-	Code  *string `json:"code,omitempty"`
-	Error string  `json:"error"`
+// Error defines model for Error.
+type Error struct {
+	Error struct {
+		Code    int          `json:"code"`
+		Details *[]ErrorInfo `json:"details,omitempty"`
+		Message string       `json:"message"`
+		Status  string       `json:"status"`
+	} `json:"error"`
 }
 
-// FeatureGateError defines model for FeatureGateError.
-type FeatureGateError struct {
-	CurrentCount *int    `json:"currentCount,omitempty"`
-	Error        string  `json:"error"`
-	Feature      string  `json:"feature"`
-	Limit        *int    `json:"limit,omitempty"`
-	UpgradeUrl   *string `json:"upgrade_url,omitempty"`
+// ErrorInfo defines model for ErrorInfo.
+type ErrorInfo struct {
+	Type     ErrorInfoType      `json:"@type"`
+	Domain   string             `json:"domain"`
+	Metadata *map[string]string `json:"metadata,omitempty"`
+	Reason   string             `json:"reason"`
 }
+
+// ErrorInfoType defines model for ErrorInfo.Type.
+type ErrorInfoType string
 
 // ImageHosting defines model for ImageHosting.
 type ImageHosting struct {
@@ -2078,8 +2112,10 @@ type InviteCode struct {
 
 // InviteCodeList defines model for InviteCodeList.
 type InviteCodeList struct {
-	Items []InviteCode `json:"items"`
-	Total int          `json:"total"`
+	Items    []InviteCode `json:"items"`
+	Page     int          `json:"page"`
+	PageSize int          `json:"pageSize"`
+	Total    int          `json:"total"`
 }
 
 // LicenseBindingState defines model for LicenseBindingState.
@@ -2145,11 +2181,10 @@ type Notification struct {
 
 // NotificationPage defines model for NotificationPage.
 type NotificationPage struct {
-	Items       []Notification `json:"items"`
-	Page        int            `json:"page"`
-	PageSize    int            `json:"pageSize"`
-	Total       int            `json:"total"`
-	UnreadCount int            `json:"unreadCount"`
+	Items    []Notification `json:"items"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+	Total    int            `json:"total"`
 }
 
 // ObjectPage defines model for ObjectPage.
@@ -2213,8 +2248,10 @@ type QuotaEntitlement struct {
 
 // QuotaOverview defines model for QuotaOverview.
 type QuotaOverview struct {
-	Items []QuotaOverviewItem `json:"items"`
-	Total int                 `json:"total"`
+	Items    []QuotaOverviewItem `json:"items"`
+	Page     int                 `json:"page"`
+	PageSize int                 `json:"pageSize"`
+	Total    int                 `json:"total"`
 }
 
 // QuotaOverviewItem defines model for QuotaOverviewItem.
@@ -2377,8 +2414,10 @@ type SiteInvitation struct {
 
 // SiteInvitationList defines model for SiteInvitationList.
 type SiteInvitationList struct {
-	Items []SiteInvitation `json:"items"`
-	Total int              `json:"total"`
+	Items    []SiteInvitation `json:"items"`
+	Page     int              `json:"page"`
+	PageSize int              `json:"pageSize"`
+	Total    int              `json:"total"`
 }
 
 // Storage defines model for Storage.
@@ -2405,8 +2444,10 @@ type Storage struct {
 
 // StorageList defines model for StorageList.
 type StorageList struct {
-	Items []Storage `json:"items"`
-	Total int       `json:"total"`
+	Items    []Storage `json:"items"`
+	Page     int       `json:"page"`
+	PageSize int       `json:"pageSize"`
+	Total    int       `json:"total"`
 }
 
 // SystemOption defines model for SystemOption.
@@ -2418,8 +2459,18 @@ type SystemOption struct {
 
 // SystemOptionList defines model for SystemOptionList.
 type SystemOptionList struct {
-	Items []SystemOption `json:"items"`
-	Total int            `json:"total"`
+	Items    []SystemOption `json:"items"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+	Total    int            `json:"total"`
+}
+
+// TeamInvitationList defines model for TeamInvitationList.
+type TeamInvitationList struct {
+	Items    []PendingInvitation `json:"items"`
+	Page     int                 `json:"page"`
+	PageSize int                 `json:"pageSize"`
+	Total    int                 `json:"total"`
 }
 
 // TeamInviteLinkCreated defines model for TeamInviteLinkCreated.
@@ -2438,8 +2489,10 @@ type TeamInviteLinkInfo struct {
 
 // TeamList defines model for TeamList.
 type TeamList struct {
-	Items []TeamSummary `json:"items"`
-	Total int           `json:"total"`
+	Items    []TeamSummary `json:"items"`
+	Page     int           `json:"page"`
+	PageSize int           `json:"pageSize"`
+	Total    int           `json:"total"`
 }
 
 // TeamSummary defines model for TeamSummary.
@@ -2495,8 +2548,10 @@ type UserDetail1 struct {
 
 // UserList defines model for UserList.
 type UserList struct {
-	Items []User `json:"items"`
-	Total int    `json:"total"`
+	Items    []User `json:"items"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+	Total    int    `json:"total"`
 }
 
 // BanUserJSONBody defines parameters for BanUser.
@@ -3508,20 +3563,20 @@ type PresignImageHostingUploadJSONBodyMime string
 
 // ListNotificationsParams defines parameters for ListNotifications.
 type ListNotificationsParams struct {
-	Page     *string `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *string `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	Unread   *string `form:"unread,omitempty" json:"unread,omitempty"`
 }
 
 // ListObjectsParams defines parameters for ListObjects.
 type ListObjectsParams struct {
+	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	Parent   *string `form:"parent,omitempty" json:"parent,omitempty"`
 	Path     *string `form:"path,omitempty" json:"path,omitempty"`
 	Status   *string `form:"status,omitempty" json:"status,omitempty"`
 	Type     *string `form:"type,omitempty" json:"type,omitempty"`
 	Search   *string `form:"search,omitempty" json:"search,omitempty"`
-	Page     *string `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *string `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	OrgId    *string `form:"orgId,omitempty" json:"orgId,omitempty"`
 }
 
@@ -3678,10 +3733,10 @@ type VerifySharePassword200JSONResponseBodyOk bool
 
 // ListAnnouncementsParams defines parameters for ListAnnouncements.
 type ListAnnouncementsParams struct {
+	Page     *int                           `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int                           `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	Scope    *ListAnnouncementsParamsScope  `form:"scope,omitempty" json:"scope,omitempty"`
 	Status   *ListAnnouncementsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-	Page     *string                        `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *string                        `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
 // ListAnnouncementsParamsScope defines parameters for ListAnnouncements.
@@ -3717,8 +3772,8 @@ type UpdateAnnouncementJSONBodyStatus string
 
 // ListAuditEventsParams defines parameters for ListAuditEvents.
 type ListAuditEventsParams struct {
-	Page       *string `form:"page,omitempty" json:"page,omitempty"`
-	PageSize   *string `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	Page       *int    `form:"page,omitempty" json:"page,omitempty"`
+	PageSize   *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	OrgId      *string `form:"orgId,omitempty" json:"orgId,omitempty"`
 	UserId     *string `form:"userId,omitempty" json:"userId,omitempty"`
 	Action     *string `form:"action,omitempty" json:"action,omitempty"`
@@ -3923,8 +3978,8 @@ type CancelOrderJSONBodyStatus string
 
 // ListTeamActivityParams defines parameters for ListTeamActivity.
 type ListTeamActivityParams struct {
-	Page     *string `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *string `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	Page     *int `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
 // GrantTeamEntitlementJSONBody defines parameters for GrantTeamEntitlement.
@@ -3972,8 +4027,8 @@ type DeleteUsersJSONBody struct {
 
 // AdminListUsersParams defines parameters for AdminListUsers.
 type AdminListUsersParams struct {
-	Page     *string `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *string `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	Search   *string `form:"search,omitempty" json:"search,omitempty"`
 }
 
@@ -14222,7 +14277,7 @@ func NewListNotificationsRequest(server string, params *ListNotificationsParams)
 
 		if params.Page != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -14234,7 +14289,7 @@ func NewListNotificationsRequest(server string, params *ListNotificationsParams)
 
 		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -14386,6 +14441,30 @@ func NewListObjectsRequest(server string, params *ListObjectsParams) (*http.Requ
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.Parent != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "parent", *params.Parent, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -14437,30 +14516,6 @@ func NewListObjectsRequest(server string, params *ListObjectsParams) (*http.Requ
 		if params.Search != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "search", *params.Search, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.PageSize != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15447,6 +15502,30 @@ func NewListAnnouncementsRequest(server string, params *ListAnnouncementsParams)
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.Scope != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scope", *params.Scope, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -15462,30 +15541,6 @@ func NewListAnnouncementsRequest(server string, params *ListAnnouncementsParams)
 		if params.Status != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.PageSize != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15694,7 +15749,7 @@ func NewListAuditEventsRequest(server string, params *ListAuditEventsParams) (*h
 
 		if params.Page != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15706,7 +15761,7 @@ func NewListAuditEventsRequest(server string, params *ListAuditEventsParams) (*h
 
 		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -17577,7 +17632,7 @@ func NewListTeamActivityRequest(server string, teamId string, params *ListTeamAc
 
 		if params.Page != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -17589,7 +17644,7 @@ func NewListTeamActivityRequest(server string, teamId string, params *ListTeamAc
 
 		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -18082,7 +18137,7 @@ func NewAdminListUsersRequest(server string, params *AdminListUsersParams) (*htt
 
 		if params.Page != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -18094,7 +18149,7 @@ func NewAdminListUsersRequest(server string, params *AdminListUsersParams) (*htt
 
 		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -23986,7 +24041,7 @@ type ListBackgroundJobsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *BackgroundJobPage
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24017,7 +24072,7 @@ type CreateBackgroundJobResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *BackgroundJob
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24048,7 +24103,7 @@ type GetBackgroundJobResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *BackgroundJob
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24079,8 +24134,8 @@ type RetryBackgroundJobResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *BackgroundJob
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
+	JSON404      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24111,8 +24166,8 @@ type CancelBackgroundJobResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *BackgroundJob
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
+	JSON404      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24142,11 +24197,8 @@ func (r CancelBackgroundJobResponse) ContentType() string {
 type ListDownloadersResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Items []Downloader `json:"items"`
-		Total int          `json:"total"`
-	}
-	JSON401 *ErrorResponse
+	JSON200      *DownloaderList
+	JSON401      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24180,8 +24232,8 @@ type CreateDownloaderResponse struct {
 		Downloader Downloader `json:"downloader"`
 		Token      string     `json:"token"`
 	}
-	JSON401 *ErrorResponse
-	JSON402 *FeatureGateError
+	JSON401 *Error
+	JSON402 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24212,8 +24264,8 @@ type RecordDownloaderHeartbeatResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Downloader
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON401      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24247,7 +24299,7 @@ type DeleteDownloaderResponse struct {
 		Deleted bool   `json:"deleted"`
 		Id      string `json:"id"`
 	}
-	JSON404 *ErrorResponse
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24278,8 +24330,8 @@ type UpdateDownloaderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Downloader
-	JSON402      *FeatureGateError
-	JSON404      *ErrorResponse
+	JSON402      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24310,7 +24362,7 @@ type ListDownloadTasksResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DownloadTaskPage
-	JSON401      *ErrorResponse
+	JSON401      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24341,10 +24393,10 @@ type CreateDownloadTaskResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *DownloadTask
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24378,10 +24430,10 @@ type DeleteDownloadTaskResponse struct {
 		Deleted DeleteDownloadTask200JSONResponseBodyDeleted `json:"deleted"`
 		Id      string                                       `json:"id"`
 	}
-	JSON401 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
-	JSON409 *ErrorResponse
+	JSON401 *Error
+	JSON403 *Error
+	JSON404 *Error
+	JSON409 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24412,10 +24464,10 @@ type GetDownloadTaskResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DownloadTask
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24446,10 +24498,10 @@ type UpdateDownloadTaskResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DownloadTask
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24480,10 +24532,10 @@ type RetryDownloadTaskResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *DownloadTask
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24514,10 +24566,10 @@ type SetDownloadTaskStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DownloadTask
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24547,7 +24599,7 @@ func (r SetDownloadTaskStatusResponse) ContentType() string {
 type StreamEventsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON401      *ErrorResponse
+	JSON401      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24577,7 +24629,7 @@ func (r StreamEventsResponse) ContentType() string {
 type DeleteImageHostingConfigResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON401      *ErrorResponse
+	JSON401      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24608,7 +24660,7 @@ type GetImageHostingConfigResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ImageHostingConfigResponse
-	JSON401      *ErrorResponse
+	JSON401      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24639,9 +24691,9 @@ type UpdateImageHostingConfigResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ImageHostingConfig
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON409      *ErrorResponse
+	JSON400      *Error
+	JSON401      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24672,8 +24724,8 @@ type ListImageHostingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ImageHostingList
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24704,13 +24756,10 @@ type PresignImageHostingUploadResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *ImageHostingDraft
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON413      *struct {
-		Error    string `json:"error"`
-		MaxBytes int    `json:"maxBytes"`
-	}
-	JSON503 *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON413      *Error
+	JSON503      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24740,9 +24789,9 @@ func (r PresignImageHostingUploadResponse) ContentType() string {
 type DeleteImageHostingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24773,9 +24822,9 @@ type GetImageHostingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ImageHosting
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24806,10 +24855,10 @@ type ConfirmImageHostingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ImageHosting
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON422      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON422      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24933,7 +24982,7 @@ func (r GetNotificationStatsResponse) ContentType() string {
 type MarkNotificationReadResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24964,8 +25013,8 @@ type ListObjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ObjectPage
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25013,10 +25062,10 @@ type CreateObjectResponse struct {
 		UpdatedAt          string  `json:"updatedAt"`
 		UploadUrl          *string `json:"uploadUrl,omitempty"`
 	}
-	JSON400 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON409 *ErrorResponse
-	JSON500 *ErrorResponse
+	JSON400 *Error
+	JSON403 *Error
+	JSON409 *Error
+	JSON503 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25051,9 +25100,9 @@ type DeleteObjectResponse struct {
 		Id      string                                 `json:"id"`
 		Purged  DeleteObject200JSONResponseBody_Purged `json:"purged"`
 	}
-	JSON400 *ErrorResponse
-	JSON404 *ErrorResponse
-	JSON409 *ErrorResponse
+	JSON400 *Error
+	JSON404 *Error
+	JSON409 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25100,14 +25149,10 @@ type GetObjectResponse struct {
 		Type        string  `json:"type"`
 		UpdatedAt   string  `json:"updatedAt"`
 	}
-	JSON400 *ErrorResponse
-	JSON402 *struct {
-		Code     string `json:"code"`
-		Error    string `json:"error"`
-		Resource string `json:"resource"`
-	}
-	JSON404 *ErrorResponse
-	JSON422 *ErrorResponse
+	JSON400 *Error
+	JSON402 *Error
+	JSON404 *Error
+	JSON422 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25138,8 +25183,8 @@ type UpdateObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Matter
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25170,8 +25215,8 @@ type CopyObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Matter
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25202,10 +25247,10 @@ type SetObjectStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Matter
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON422      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON422      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25236,10 +25281,10 @@ type TransferObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *TransferResult
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON422      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON422      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25279,10 +25324,10 @@ type CreateObjectUploadSessionResponse struct {
 		UpdatedAt string                                             `json:"updatedAt"`
 		UploadId  string                                             `json:"uploadId"`
 	}
-	JSON400 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
-	JSON502 *ErrorResponse
+	JSON400 *Error
+	JSON403 *Error
+	JSON404 *Error
+	JSON502 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25322,9 +25367,9 @@ type AbortObjectUploadResponse struct {
 		UpdatedAt string                                     `json:"updatedAt"`
 		UploadId  string                                     `json:"uploadId"`
 	}
-	JSON400 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON400 *Error
+	JSON403 *Error
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25362,10 +25407,10 @@ type PresignObjectUploadPartsResponse struct {
 		} `json:"parts"`
 		UploadId string `json:"uploadId"`
 	}
-	JSON400 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
-	JSON502 *ErrorResponse
+	JSON400 *Error
+	JSON403 *Error
+	JSON404 *Error
+	JSON502 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25405,10 +25450,10 @@ type CompleteObjectUploadResponse struct {
 		UpdatedAt string                                        `json:"updatedAt"`
 		UploadId  string                                        `json:"uploadId"`
 	}
-	JSON400 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
-	JSON502 *ErrorResponse
+	JSON400 *Error
+	JSON403 *Error
+	JSON404 *Error
+	JSON502 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25469,7 +25514,7 @@ type GetMyQuotaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EffectiveQuota
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25530,8 +25575,8 @@ type CreateShareResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *CreatedShare
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25561,8 +25606,8 @@ func (r CreateShareResponse) ContentType() string {
 type RevokeShareResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON403      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25593,8 +25638,8 @@ type GetShareResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ShareView
-	JSON404      *ErrorResponse
-	JSON410      *ErrorResponse
+	JSON404      *Error
+	JSON410      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25625,10 +25670,10 @@ type ListShareObjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ShareObjects
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON410      *ErrorResponse
+	JSON400      *Error
+	JSON401      *Error
+	JSON404      *Error
+	JSON410      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25659,11 +25704,11 @@ type SaveShareResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *SaveShareResult
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON410      *ErrorResponse
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON410      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25696,8 +25741,8 @@ type VerifySharePasswordResponse struct {
 	JSON200      *struct {
 		Ok VerifySharePassword200JSONResponseBodyOk `json:"ok"`
 	}
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON403 *Error
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25728,7 +25773,7 @@ type ListAnnouncementsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AnnouncementList
-	JSON403      *ErrorResponse
+	JSON403      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25792,7 +25837,7 @@ type DeleteAnnouncementResponse struct {
 		Deleted DeleteAnnouncement200JSONResponseBodyDeleted `json:"deleted"`
 		Id      string                                       `json:"id"`
 	}
-	JSON404 *ErrorResponse
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25823,7 +25868,7 @@ type GetAnnouncementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Announcement
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25854,7 +25899,7 @@ type UpdateAnnouncementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Announcement
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25948,7 +25993,7 @@ type DeleteAuthProviderResponse struct {
 		Deleted    DeleteAuthProvider200JSONResponseBodyDeleted `json:"deleted"`
 		ProviderId string                                       `json:"providerId"`
 	}
-	JSON400 *ErrorResponse
+	JSON400 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25979,8 +26024,8 @@ type UpsertAuthProviderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AuthProviderConfig
-	JSON400      *ErrorResponse
-	JSON402      *FeatureGateError
+	JSON400      *Error
+	JSON402      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26041,11 +26086,11 @@ type UpdateBrandingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *BrandingConfig
-	JSON400      *ErrorResponse
-	JSON413      *ErrorResponse
-	JSON415      *ErrorResponse
-	JSON422      *ErrorResponse
-	JSON503      *ErrorResponse
+	JSON400      *Error
+	JSON413      *Error
+	JSON415      *Error
+	JSON422      *Error
+	JSON503      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26079,7 +26124,7 @@ type ResetBrandingFieldResponse struct {
 		Field string                                     `json:"field"`
 		Reset ResetBrandingField200JSONResponseBodyReset `json:"reset"`
 	}
-	JSON400 *ErrorResponse
+	JSON400 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26204,10 +26249,7 @@ type SendTestEmailResponse struct {
 	JSON200      *struct {
 		Success bool `json:"success"`
 	}
-	JSON400 *struct {
-		Error   string `json:"error"`
-		Success bool   `json:"success"`
-	}
+	JSON400 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26298,8 +26340,8 @@ type CreateSiteInvitationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *SiteInvitation
-	JSON401      *ErrorResponse
-	JSON409      *ErrorResponse
+	JSON401      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26333,9 +26375,9 @@ type RevokeSiteInvitationResponse struct {
 		Id      string                                         `json:"id"`
 		Revoked RevokeSiteInvitation200JSONResponseBodyRevoked `json:"revoked"`
 	}
-	JSON400 *ErrorResponse
-	JSON401 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON400 *Error
+	JSON401 *Error
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26366,8 +26408,8 @@ type ResendSiteInvitationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *SiteInvitation
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26398,7 +26440,7 @@ type GetSiteInvitationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *SiteInvitation
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26461,7 +26503,7 @@ type GenerateInviteCodesResponse struct {
 	JSON201      *struct {
 		Codes []InviteCode `json:"codes"`
 	}
-	JSON401 *ErrorResponse
+	JSON401 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26528,8 +26570,8 @@ type DeleteInviteCodeResponse struct {
 		Deleted DeleteInviteCode200JSONResponseBodyDeleted `json:"deleted"`
 		Id      string                                     `json:"id"`
 	}
-	JSON400 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON400 *Error
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26623,11 +26665,7 @@ type PollLicensePairingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *LicensePairingStatus
-	JSON502      *struct {
-		CloudUnbindError *string `json:"cloud_unbind_error"`
-		Error            string  `json:"error"`
-		Reason           string  `json:"reason"`
-	}
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26784,8 +26822,8 @@ type GetSystemOptionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *SystemOption
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON403      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26817,8 +26855,8 @@ type SetSystemOptionResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *SystemOption
 	JSON201      *SystemOption
-	JSON400      *ErrorResponse
-	JSON402      *FeatureGateError
+	JSON400      *Error
+	JSON402      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26879,7 +26917,7 @@ type CreateStorageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Storage
-	JSON402      *FeatureGateError
+	JSON402      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26913,8 +26951,8 @@ type DeleteStorageResponse struct {
 		Deleted DeleteStorage200JSONResponseBodyDeleted `json:"deleted"`
 		Id      string                                  `json:"id"`
 	}
-	JSON404 *ErrorResponse
-	JSON409 *ErrorResponse
+	JSON404 *Error
+	JSON409 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26945,7 +26983,7 @@ type GetStorageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Storage
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26976,8 +27014,8 @@ type UpdateStorageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Storage
-	JSON402      *FeatureGateError
-	JSON404      *ErrorResponse
+	JSON402      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27008,9 +27046,9 @@ type CreateBillingPortalSessionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27041,10 +27079,10 @@ type CreateCheckoutResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON409      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON409      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27075,9 +27113,9 @@ type GetCreditBalanceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27108,9 +27146,9 @@ type GetCreditLedgerResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27141,8 +27179,8 @@ type ListCreditProductsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON403      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON403      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27173,9 +27211,9 @@ type RedeemGiftCardResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27206,8 +27244,8 @@ type GetDiscountQuoteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON403      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON403      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27238,9 +27276,9 @@ type ListOrdersResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27271,10 +27309,10 @@ type CancelOrderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27305,10 +27343,10 @@ type ContinueOrderPaymentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27339,8 +27377,8 @@ type ListStorePackagesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON403      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON403      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27371,8 +27409,8 @@ type ListStoreTargetsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *CloudStoreValue
-	JSON403      *ErrorResponse
-	JSON502      *ErrorResponse
+	JSON403      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27433,7 +27471,7 @@ type GetTeamInviteLinkResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TeamInviteLinkInfo
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27464,7 +27502,7 @@ type GetTeamResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TeamSummary
-	JSON404      *ErrorResponse
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27495,7 +27533,7 @@ type ListTeamActivityResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ActivityPage
-	JSON403      *ErrorResponse
+	JSON403      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27526,8 +27564,8 @@ type ListTeamEntitlementsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EntitlementList
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27558,8 +27596,8 @@ type GrantTeamEntitlementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *EntitlementResult
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27590,8 +27628,8 @@ type RevokeTeamEntitlementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EntitlementResult
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27622,8 +27660,8 @@ type UpdateTeamEntitlementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EntitlementResult
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27653,10 +27691,8 @@ func (r UpdateTeamEntitlementResponse) ContentType() string {
 type ListTeamInvitationsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Invitations []PendingInvitation `json:"invitations"`
-	}
-	JSON403 *ErrorResponse
+	JSON200      *TeamInvitationList
+	JSON403      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27687,7 +27723,7 @@ type CreateTeamInviteLinkResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *TeamInviteLinkCreated
-	JSON403      *ErrorResponse
+	JSON403      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27720,7 +27756,7 @@ type DeleteTeamLogoResponse struct {
 	JSON200      *struct {
 		Ok DeleteTeamLogo200JSONResponseBodyOk `json:"ok"`
 	}
-	JSON403 *ErrorResponse
+	JSON403 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27753,11 +27789,11 @@ type SetTeamLogoResponse struct {
 	JSON200      *struct {
 		Url string `json:"url"`
 	}
-	JSON400 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON413 *ErrorResponse
-	JSON415 *ErrorResponse
-	JSON503 *ErrorResponse
+	JSON400 *Error
+	JSON403 *Error
+	JSON413 *Error
+	JSON415 *Error
+	JSON503 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27790,9 +27826,9 @@ type JoinTeamResponse struct {
 	JSON200      *struct {
 		Ok JoinTeam200JSONResponseBodyOk `json:"ok"`
 	}
-	JSON404 *ErrorResponse
-	JSON409 *ErrorResponse
-	JSON410 *ErrorResponse
+	JSON404 *Error
+	JSON409 *Error
+	JSON410 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27825,7 +27861,7 @@ type EmptyTrashResponse struct {
 	JSON200      *struct {
 		Purged int `json:"purged"`
 	}
-	JSON400 *ErrorResponse
+	JSON400 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27859,8 +27895,8 @@ type DeleteUsersResponse struct {
 		Deleted int      `json:"deleted"`
 		Ids     []string `json:"ids"`
 	}
-	JSON400 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON400 *Error
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27925,8 +27961,8 @@ type SetUsersStatusResponse struct {
 		Status  string   `json:"status"`
 		Updated int      `json:"updated"`
 	}
-	JSON400 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON400 *Error
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27991,10 +28027,10 @@ type SetMyAvatarResponse struct {
 	JSON200      *struct {
 		Url string `json:"url"`
 	}
-	JSON400 *ErrorResponse
-	JSON413 *ErrorResponse
-	JSON415 *ErrorResponse
-	JSON503 *ErrorResponse
+	JSON400 *Error
+	JSON413 *Error
+	JSON415 *Error
+	JSON503 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -28028,7 +28064,7 @@ type AdminDeleteUserResponse struct {
 		Deleted AdminDeleteUser200JSONResponseBodyDeleted `json:"deleted"`
 		Id      string                                    `json:"id"`
 	}
-	JSON404 *ErrorResponse
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -28059,8 +28095,8 @@ type GetUserProfileResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *UserDetail
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -28094,7 +28130,7 @@ type SetUserStatusResponse struct {
 		Id     string `json:"id"`
 		Status string `json:"status"`
 	}
-	JSON404 *ErrorResponse
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -28125,8 +28161,8 @@ type ListUserEntitlementsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EntitlementList
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -28157,8 +28193,8 @@ type GrantUserEntitlementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *EntitlementResult
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -28189,8 +28225,8 @@ type RevokeUserEntitlementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EntitlementResult
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -28221,8 +28257,8 @@ type UpdateUserEntitlementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EntitlementResult
-	JSON400      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -28256,7 +28292,7 @@ type ListUserObjectsResponse struct {
 		Breadcrumb []*interface{} `json:"breadcrumb"`
 		Items      []*interface{} `json:"items"`
 	}
-	JSON404 *ErrorResponse
+	JSON404 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -38186,7 +38222,7 @@ func ParseListBackgroundJobsResponse(rsp *http.Response) (*ListBackgroundJobsRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38219,7 +38255,7 @@ func ParseCreateBackgroundJobResponse(rsp *http.Response) (*CreateBackgroundJobR
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38252,7 +38288,7 @@ func ParseGetBackgroundJobResponse(rsp *http.Response) (*GetBackgroundJobRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38285,14 +38321,14 @@ func ParseRetryBackgroundJobResponse(rsp *http.Response) (*RetryBackgroundJobRes
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38325,14 +38361,14 @@ func ParseCancelBackgroundJobResponse(rsp *http.Response) (*CancelBackgroundJobR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38358,17 +38394,14 @@ func ParseListDownloadersResponse(rsp *http.Response) (*ListDownloadersResponse,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Items []Downloader `json:"items"`
-			Total int          `json:"total"`
-		}
+		var dest DownloaderList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38404,14 +38437,14 @@ func ParseCreateDownloaderResponse(rsp *http.Response) (*CreateDownloaderRespons
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest FeatureGateError
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38444,14 +38477,14 @@ func ParseRecordDownloaderHeartbeatResponse(rsp *http.Response) (*RecordDownload
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38487,7 +38520,7 @@ func ParseDeleteDownloaderResponse(rsp *http.Response) (*DeleteDownloaderRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38520,14 +38553,14 @@ func ParseUpdateDownloaderResponse(rsp *http.Response) (*UpdateDownloaderRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest FeatureGateError
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON402 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38560,7 +38593,7 @@ func ParseListDownloadTasksResponse(rsp *http.Response) (*ListDownloadTasksRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38593,28 +38626,28 @@ func ParseCreateDownloadTaskResponse(rsp *http.Response) (*CreateDownloadTaskRes
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38650,28 +38683,28 @@ func ParseDeleteDownloadTaskResponse(rsp *http.Response) (*DeleteDownloadTaskRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38704,28 +38737,28 @@ func ParseGetDownloadTaskResponse(rsp *http.Response) (*GetDownloadTaskResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38758,28 +38791,28 @@ func ParseUpdateDownloadTaskResponse(rsp *http.Response) (*UpdateDownloadTaskRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38812,28 +38845,28 @@ func ParseRetryDownloadTaskResponse(rsp *http.Response) (*RetryDownloadTaskRespo
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38866,28 +38899,28 @@ func ParseSetDownloadTaskStatusResponse(rsp *http.Response) (*SetDownloadTaskSta
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38913,7 +38946,7 @@ func ParseStreamEventsResponse(rsp *http.Response) (*StreamEventsResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38939,7 +38972,7 @@ func ParseDeleteImageHostingConfigResponse(rsp *http.Response) (*DeleteImageHost
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -38972,7 +39005,7 @@ func ParseGetImageHostingConfigResponse(rsp *http.Response) (*GetImageHostingCon
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39005,21 +39038,21 @@ func ParseUpdateImageHostingConfigResponse(rsp *http.Response) (*UpdateImageHost
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39052,14 +39085,14 @@ func ParseListImageHostingsResponse(rsp *http.Response) (*ListImageHostingsRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39092,31 +39125,28 @@ func ParsePresignImageHostingUploadResponse(rsp *http.Response) (*PresignImageHo
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
-		var dest struct {
-			Error    string `json:"error"`
-			MaxBytes int    `json:"maxBytes"`
-		}
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39142,21 +39172,21 @@ func ParseDeleteImageHostingResponse(rsp *http.Response) (*DeleteImageHostingRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39189,21 +39219,21 @@ func ParseGetImageHostingResponse(rsp *http.Response) (*GetImageHostingResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39236,28 +39266,28 @@ func ParseConfirmImageHostingResponse(rsp *http.Response) (*ConfirmImageHostingR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39365,7 +39395,7 @@ func ParseMarkNotificationReadResponse(rsp *http.Response) (*MarkNotificationRea
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39398,14 +39428,14 @@ func ParseListObjectsResponse(rsp *http.Response) (*ListObjectsResponse, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39455,32 +39485,32 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON500 = &dest
+		response.JSON503 = &dest
 
 	}
 
@@ -39513,21 +39543,21 @@ func ParseDeleteObjectResponse(rsp *http.Response) (*DeleteObjectResponse, error
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39576,32 +39606,28 @@ func ParseGetObjectResponse(rsp *http.Response) (*GetObjectResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest struct {
-			Code     string `json:"code"`
-			Error    string `json:"error"`
-			Resource string `json:"resource"`
-		}
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON402 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39634,14 +39660,14 @@ func ParseUpdateObjectResponse(rsp *http.Response) (*UpdateObjectResponse, error
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39674,14 +39700,14 @@ func ParseCopyObjectResponse(rsp *http.Response) (*CopyObjectResponse, error) {
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39714,28 +39740,28 @@ func ParseSetObjectStatusResponse(rsp *http.Response) (*SetObjectStatusResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39768,28 +39794,28 @@ func ParseTransferObjectResponse(rsp *http.Response) (*TransferObjectResponse, e
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39831,28 +39857,28 @@ func ParseCreateObjectUploadSessionResponse(rsp *http.Response) (*CreateObjectUp
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39894,21 +39920,21 @@ func ParseAbortObjectUploadResponse(rsp *http.Response) (*AbortObjectUploadRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39948,28 +39974,28 @@ func ParsePresignObjectUploadPartsResponse(rsp *http.Response) (*PresignObjectUp
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40011,28 +40037,28 @@ func ParseCompleteObjectUploadResponse(rsp *http.Response) (*CompleteObjectUploa
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40091,7 +40117,7 @@ func ParseGetMyQuotaResponse(rsp *http.Response) (*GetMyQuotaResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40150,14 +40176,14 @@ func ParseCreateShareResponse(rsp *http.Response) (*CreateShareResponse, error) 
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40183,14 +40209,14 @@ func ParseRevokeShareResponse(rsp *http.Response) (*RevokeShareResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40223,14 +40249,14 @@ func ParseGetShareResponse(rsp *http.Response) (*GetShareResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40263,28 +40289,28 @@ func ParseListShareObjectsResponse(rsp *http.Response) (*ListShareObjectsRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40317,35 +40343,35 @@ func ParseSaveShareResponse(rsp *http.Response) (*SaveShareResponse, error) {
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40380,14 +40406,14 @@ func ParseVerifySharePasswordResponse(rsp *http.Response) (*VerifySharePasswordR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40420,7 +40446,7 @@ func ParseListAnnouncementsResponse(rsp *http.Response) (*ListAnnouncementsRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40482,7 +40508,7 @@ func ParseDeleteAnnouncementResponse(rsp *http.Response) (*DeleteAnnouncementRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40515,7 +40541,7 @@ func ParseGetAnnouncementResponse(rsp *http.Response) (*GetAnnouncementResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40548,7 +40574,7 @@ func ParseUpdateAnnouncementResponse(rsp *http.Response) (*UpdateAnnouncementRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40636,7 +40662,7 @@ func ParseDeleteAuthProviderResponse(rsp *http.Response) (*DeleteAuthProviderRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40669,14 +40695,14 @@ func ParseUpsertAuthProviderResponse(rsp *http.Response) (*UpsertAuthProviderRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest FeatureGateError
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40735,35 +40761,35 @@ func ParseUpdateBrandingResponse(rsp *http.Response) (*UpdateBrandingResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON415 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40799,7 +40825,7 @@ func ParseResetBrandingFieldResponse(rsp *http.Response) (*ResetBrandingFieldRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40914,10 +40940,7 @@ func ParseSendTestEmailResponse(rsp *http.Response) (*SendTestEmailResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest struct {
-			Error   string `json:"error"`
-			Success bool   `json:"success"`
-		}
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41002,14 +41025,14 @@ func ParseCreateSiteInvitationResponse(rsp *http.Response) (*CreateSiteInvitatio
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41045,21 +41068,21 @@ func ParseRevokeSiteInvitationResponse(rsp *http.Response) (*RevokeSiteInvitatio
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41092,14 +41115,14 @@ func ParseResendSiteInvitationResponse(rsp *http.Response) (*ResendSiteInvitatio
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41132,7 +41155,7 @@ func ParseGetSiteInvitationResponse(rsp *http.Response) (*GetSiteInvitationRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41193,7 +41216,7 @@ func ParseGenerateInviteCodesResponse(rsp *http.Response) (*GenerateInviteCodesR
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41258,14 +41281,14 @@ func ParseDeleteInviteCodeResponse(rsp *http.Response) (*DeleteInviteCodeRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41353,11 +41376,7 @@ func ParsePollLicensePairingResponse(rsp *http.Response) (*PollLicensePairingRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest struct {
-			CloudUnbindError *string `json:"cloud_unbind_error"`
-			Error            string  `json:"error"`
-			Reason           string  `json:"reason"`
-		}
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41500,14 +41519,14 @@ func ParseGetSystemOptionResponse(rsp *http.Response) (*GetSystemOptionResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41547,14 +41566,14 @@ func ParseSetSystemOptionResponse(rsp *http.Response) (*SetSystemOptionResponse,
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest FeatureGateError
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41613,7 +41632,7 @@ func ParseCreateStorageResponse(rsp *http.Response) (*CreateStorageResponse, err
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest FeatureGateError
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41649,14 +41668,14 @@ func ParseDeleteStorageResponse(rsp *http.Response) (*DeleteStorageResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41689,7 +41708,7 @@ func ParseGetStorageResponse(rsp *http.Response) (*GetStorageResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41722,14 +41741,14 @@ func ParseUpdateStorageResponse(rsp *http.Response) (*UpdateStorageResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest FeatureGateError
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON402 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41762,21 +41781,21 @@ func ParseCreateBillingPortalSessionResponse(rsp *http.Response) (*CreateBilling
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41809,28 +41828,28 @@ func ParseCreateCheckoutResponse(rsp *http.Response) (*CreateCheckoutResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41863,21 +41882,21 @@ func ParseGetCreditBalanceResponse(rsp *http.Response) (*GetCreditBalanceRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41910,21 +41929,21 @@ func ParseGetCreditLedgerResponse(rsp *http.Response) (*GetCreditLedgerResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41957,14 +41976,14 @@ func ParseListCreditProductsResponse(rsp *http.Response) (*ListCreditProductsRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41997,21 +42016,21 @@ func ParseRedeemGiftCardResponse(rsp *http.Response) (*RedeemGiftCardResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42044,14 +42063,14 @@ func ParseGetDiscountQuoteResponse(rsp *http.Response) (*GetDiscountQuoteRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42084,21 +42103,21 @@ func ParseListOrdersResponse(rsp *http.Response) (*ListOrdersResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42131,28 +42150,28 @@ func ParseCancelOrderResponse(rsp *http.Response) (*CancelOrderResponse, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42185,28 +42204,28 @@ func ParseContinueOrderPaymentResponse(rsp *http.Response) (*ContinueOrderPaymen
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42239,14 +42258,14 @@ func ParseListStorePackagesResponse(rsp *http.Response) (*ListStorePackagesRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42279,14 +42298,14 @@ func ParseListStoreTargetsResponse(rsp *http.Response) (*ListStoreTargetsRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42345,7 +42364,7 @@ func ParseGetTeamInviteLinkResponse(rsp *http.Response) (*GetTeamInviteLinkRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42378,7 +42397,7 @@ func ParseGetTeamResponse(rsp *http.Response) (*GetTeamResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42411,7 +42430,7 @@ func ParseListTeamActivityResponse(rsp *http.Response) (*ListTeamActivityRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42444,14 +42463,14 @@ func ParseListTeamEntitlementsResponse(rsp *http.Response) (*ListTeamEntitlement
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42484,14 +42503,14 @@ func ParseGrantTeamEntitlementResponse(rsp *http.Response) (*GrantTeamEntitlemen
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42524,14 +42543,14 @@ func ParseRevokeTeamEntitlementResponse(rsp *http.Response) (*RevokeTeamEntitlem
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42564,14 +42583,14 @@ func ParseUpdateTeamEntitlementResponse(rsp *http.Response) (*UpdateTeamEntitlem
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42597,16 +42616,14 @@ func ParseListTeamInvitationsResponse(rsp *http.Response) (*ListTeamInvitationsR
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Invitations []PendingInvitation `json:"invitations"`
-		}
+		var dest TeamInvitationList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42639,7 +42656,7 @@ func ParseCreateTeamInviteLinkResponse(rsp *http.Response) (*CreateTeamInviteLin
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42674,7 +42691,7 @@ func ParseDeleteTeamLogoResponse(rsp *http.Response) (*DeleteTeamLogoResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42709,35 +42726,35 @@ func ParseSetTeamLogoResponse(rsp *http.Response) (*SetTeamLogoResponse, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON415 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42772,21 +42789,21 @@ func ParseJoinTeamResponse(rsp *http.Response) (*JoinTeamResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42821,7 +42838,7 @@ func ParseEmptyTrashResponse(rsp *http.Response) (*EmptyTrashResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42857,14 +42874,14 @@ func ParseDeleteUsersResponse(rsp *http.Response) (*DeleteUsersResponse, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42927,14 +42944,14 @@ func ParseSetUsersStatusResponse(rsp *http.Response) (*SetUsersStatusResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -42997,28 +43014,28 @@ func ParseSetMyAvatarResponse(rsp *http.Response) (*SetMyAvatarResponse, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON415 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -43054,7 +43071,7 @@ func ParseAdminDeleteUserResponse(rsp *http.Response) (*AdminDeleteUserResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -43087,14 +43104,14 @@ func ParseGetUserProfileResponse(rsp *http.Response) (*GetUserProfileResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -43130,7 +43147,7 @@ func ParseSetUserStatusResponse(rsp *http.Response) (*SetUserStatusResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -43163,14 +43180,14 @@ func ParseListUserEntitlementsResponse(rsp *http.Response) (*ListUserEntitlement
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -43203,14 +43220,14 @@ func ParseGrantUserEntitlementResponse(rsp *http.Response) (*GrantUserEntitlemen
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -43243,14 +43260,14 @@ func ParseRevokeUserEntitlementResponse(rsp *http.Response) (*RevokeUserEntitlem
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -43283,14 +43300,14 @@ func ParseUpdateUserEntitlementResponse(rsp *http.Response) (*UpdateUserEntitlem
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -43326,7 +43343,7 @@ func ParseListUserObjectsResponse(rsp *http.Response) (*ListUserObjectsResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

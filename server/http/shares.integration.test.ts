@@ -193,8 +193,8 @@ describe('POST /api/shares', () => {
     const res = await createShare(app, headers, { matterId: 'fo1', kind: 'direct' })
     expect(res.status).toBe(400)
 
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('DIRECT_NO_FOLDER')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('DIRECT_NO_FOLDER')
   })
 
   it('returns 400 with DIRECT_NO_PASSWORD when creating direct share with password [spec: shares/direct-no-password]', async () => {
@@ -207,8 +207,8 @@ describe('POST /api/shares', () => {
     const res = await createShare(app, headers, { matterId: 'f5', kind: 'direct', password: 'secret' })
     expect(res.status).toBe(400)
 
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('DIRECT_NO_PASSWORD')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('DIRECT_NO_PASSWORD')
   })
 
   it('returns 404 when matterId does not belong to current org [spec: shares/create-cross-org]', async () => {
@@ -218,8 +218,8 @@ describe('POST /api/shares', () => {
     const res = await createShare(app, headers, { matterId: 'nonexistent-matter', kind: 'landing' })
     expect(res.status).toBe(404)
 
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('MATTER_NOT_FOUND')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('MATTER_NOT_FOUND')
   })
 
   it('sets expiresAt when provided in request [spec: shares/create-expiry]', async () => {
@@ -272,8 +272,8 @@ describe('POST /api/shares', () => {
       recipients: [{ recipientEmail: 'someone@example.com' }],
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('DIRECT_NO_RECIPIENTS')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('DIRECT_NO_RECIPIENTS')
   })
 
   it('returns 500 when createShare throws an unexpected error', async () => {
@@ -588,8 +588,8 @@ describe('POST /api/shares/:token/objects', () => {
     })
     expect(res.status).toBe(400)
 
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('DIRECT_SAVE_FORBIDDEN')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('DIRECT_SAVE_FORBIDDEN')
   })
 
   it('returns 410 when the shared matter has been trashed [spec: shares/save-trashed-gone]', async () => {
@@ -661,8 +661,8 @@ describe('POST /api/shares/:token/objects', () => {
     })
     expect(res.status).toBe(400)
 
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('QUOTA_EXCEEDED')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
   })
 
   it('returns 403 when targetOrgId is not a personal org and user has no member role [spec: shares/save-target-permission]', async () => {
@@ -1433,7 +1433,9 @@ describe('Public share routes', () => {
       })
 
       expect(res.status).toBe(422)
-      await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+      const quotaBody = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+      expect(quotaBody.error.message).toBe('Traffic quota exceeded')
+      expect(quotaBody.error.details[0].reason).toBe('QUOTA_EXCEEDED')
       expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
 
       const shareRows = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
@@ -1674,8 +1676,8 @@ describe('Public share routes', () => {
 
       const res = await app.request(`/api/shares/${share.token}/objects?parent=../etc`)
       expect(res.status).toBe(400)
-      const body = (await res.json()) as { error: string }
-      expect(body.error).toBe('Invalid path')
+      const body = (await res.json()) as { error: { message: string } }
+      expect(body.error.message).toBe('Invalid path')
     })
 
     it('respects explicit page and pageSize query params', async () => {

@@ -1,4 +1,5 @@
 import { createMiddleware } from 'hono/factory'
+import { apiError } from '../http/openapi'
 import { ApiKeyRateLimitError } from '../usecases/ports'
 import type { Env } from './platform'
 
@@ -45,7 +46,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       apiKey = await deps.apiKeys.verifyApiKey(c.get('auth'), platform.db, token)
     } catch (error) {
       if (error instanceof ApiKeyRateLimitError) {
-        const res = c.json({ error: error.message }, 429)
+        const res = apiError(c, 429, error.message)
         if (error.retryAfterMs !== undefined)
           res.headers.set('Retry-After', String(Math.ceil(error.retryAfterMs / 1000)))
         return res
@@ -77,7 +78,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
 
   if (result?.user?.id) {
     if (await c.get('deps').userAdmin.isBanned(result.user.id)) {
-      return c.json({ error: 'Account disabled' }, 403)
+      return apiError(c, 403, 'Account disabled')
     }
   }
 
@@ -104,14 +105,14 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
 
 export const requireDownloader = createMiddleware<Env>(async (c, next) => {
   const principal = c.get('principal')
-  if (principal?.kind !== 'downloader') return c.json({ error: 'Unauthorized' }, 401)
+  if (principal?.kind !== 'downloader') return apiError(c, 401, 'Unauthorized')
   await next()
 })
 
 export const requireAuth = createMiddleware<Env>(async (c, next) => {
   const userId = c.get('userId')
   if (!userId) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return apiError(c, 401, 'Unauthorized')
   }
   await next()
 })
@@ -119,11 +120,11 @@ export const requireAuth = createMiddleware<Env>(async (c, next) => {
 export const requireAdmin = createMiddleware<Env>(async (c, next) => {
   const userId = c.get('userId')
   if (!userId) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return apiError(c, 401, 'Unauthorized')
   }
   const userRole = c.get('userRole')
   if (userRole !== 'admin') {
-    return c.json({ error: 'Forbidden' }, 403)
+    return apiError(c, 403, 'Forbidden')
   }
   await next()
 })
@@ -136,7 +137,7 @@ export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
     const orgId = c.get('orgId')
     const userId = c.get('userId')
     if (!orgId || !userId) {
-      return c.json({ error: 'Unauthorized' }, 401)
+      return apiError(c, 401, 'Unauthorized')
     }
 
     // Query member role first — avoids an extra DB round trip for the common case.
@@ -146,7 +147,7 @@ export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
     if (role !== null) {
       const userLevel = ROLE_LEVELS[role] ?? 0
       if (userLevel < ROLE_LEVELS[minRole]) {
-        return c.json({ error: 'Forbidden' }, 403)
+        return apiError(c, 403, 'Forbidden')
       }
       await next()
       return
@@ -158,6 +159,6 @@ export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
       return
     }
 
-    return c.json({ error: 'Forbidden' }, 403)
+    return apiError(c, 403, 'Forbidden')
   })
 }

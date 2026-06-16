@@ -32,11 +32,17 @@ vi.mock('@/lib/api', () => {
   class ApiError extends Error {
     readonly status: number
     readonly body: ApiErrorBody
+    readonly reason: string | undefined
+    readonly metadata: Record<string, string> | undefined
+    readonly canonicalStatus: string | undefined
     constructor(status: number, body: ApiErrorBody) {
-      super((typeof body.error === 'string' ? body.error : undefined) ?? `HTTP ${status}`)
+      super(body.error.message)
       this.name = 'ApiError'
       this.status = status
       this.body = body
+      this.reason = body.error.details?.[0]?.reason
+      this.metadata = body.error.details?.[0]?.metadata
+      this.canonicalStatus = body.error.status
     }
   }
   return {
@@ -109,7 +115,14 @@ describe('StorageCheckoutRedirect', () => {
   })
 
   it('handles workspace_plan_exists error, cancels pending plan order, and retries checkout', async () => {
-    const apiError = new ApiError(400, { error: { code: 'workspace_plan_exists' } } as unknown as ApiErrorBody)
+    const apiError = new ApiError(409, {
+      error: {
+        code: 409,
+        message: 'Workspace plan already exists',
+        status: 'ALREADY_EXISTS',
+        details: [{ reason: 'WORKSPACE_PLAN_EXISTS', domain: 'zpan.dev' }],
+      },
+    })
 
     vi.mocked(createCloudCheckout).mockRejectedValueOnce(apiError).mockResolvedValueOnce({
       orderId: 'order-2',

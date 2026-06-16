@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { listAdminAuditQuerySchema } from '@shared/schemas'
+import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
@@ -29,14 +29,14 @@ function toAuditEventDTO(e: AdminAuditEventWithOrg): AuditEventDTO {
   return { ...e, createdAt: e.createdAt.toISOString() }
 }
 
-const auditPageSchema = z
-  .object({
-    items: z.array(auditEventSchema),
-    total: z.number().int(),
-    page: z.number().int(),
-    pageSize: z.number().int(),
-  })
-  .openapi('AuditEventPage')
+const auditPageSchema = pageSchema(auditEventSchema, 'AuditEventPage')
+
+const listAuditQuerySchema = pageQuerySchema.extend({
+  orgId: z.string().optional(),
+  userId: z.string().optional(),
+  action: z.string().optional(),
+  targetType: z.string().optional(),
+})
 
 const listRoute = createRoute({
   operationId: 'listAuditEvents',
@@ -45,21 +45,19 @@ const listRoute = createRoute({
   method: 'get',
   path: '/',
   middleware: [requireAdmin, requireFeature('audit_log')] as const,
-  request: { query: listAdminAuditQuerySchema },
+  request: { query: listAuditQuerySchema },
   responses: { 200: jsonContent(auditPageSchema, 'Audit events') },
 })
 
 export const adminAudit = new OpenAPIHono<Env>().openapi(listRoute, async (c) => {
-  const query = c.req.valid('query')
-  const page = Math.max(1, Number(query.page ?? '1'))
-  const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? '20')))
+  const { page, pageSize, orgId, userId, action, targetType } = c.req.valid('query')
   const result = await listAuditEvents(c.get('deps'), {
     page,
     pageSize,
-    orgId: query.orgId,
-    userId: query.userId,
-    action: query.action,
-    targetType: query.targetType,
+    orgId,
+    userId,
+    action,
+    targetType,
   })
   return c.json({ ...result, items: result.items.map(toAuditEventDTO) }, 200)
 })

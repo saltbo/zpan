@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { createStorageSchema, featureGateErrorSchema, updateStorageSchema } from '@shared/schemas'
+import { createStorageSchema, ErrorReason, pageSchema, updateStorageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import type { StorageRecord } from '../../usecases/ports'
@@ -11,7 +11,7 @@ import {
   type StorageFeatureBlock,
   updateStorage,
 } from '../../usecases/site/storage'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 // Admin storage config. The response intentionally includes the S3 credentials
 // (accessKey/secretKey) so the admin UI can pre-fill the edit form — admin-only.
@@ -45,9 +45,13 @@ function toStorageDTO(s: StorageRecord): StorageDTO {
   return { ...s, createdAt: s.createdAt.toISOString(), updatedAt: s.updatedAt.toISOString() }
 }
 
-const storageListSchema = z.object({ items: z.array(storageSchema), total: z.number().int() }).openapi('StorageList')
+const storageListSchema = pageSchema(storageSchema, 'StorageList')
 
-const featureNotAvailable = (block: StorageFeatureBlock) => ({ error: 'feature_not_available', ...block })
+const featureBlockMetadata = (block: StorageFeatureBlock): Record<string, string> => ({
+  feature: block.feature,
+  ...('currentCount' in block ? { currentCount: String(block.currentCount) } : {}),
+  ...('limit' in block ? { limit: String(block.limit) } : {}),
+})
 
 const listRoute = createRoute({
   operationId: 'listStorages',
@@ -69,7 +73,7 @@ const createStorageRoute = createRoute({
   request: jsonBody(createStorageSchema),
   responses: {
     201: jsonContent(storageSchema, 'Created storage'),
-    402: jsonContent(featureGateErrorSchema, 'Feature not available'),
+    402: errorResponse('Feature not available'),
   },
 })
 
@@ -97,7 +101,7 @@ const updateStorageRoute = createRoute({
   request: { params: z.object({ id: z.string() }), ...jsonBody(updateStorageSchema) },
   responses: {
     200: jsonContent(storageSchema, 'Updated storage'),
-    402: jsonContent(featureGateErrorSchema, 'Feature not available'),
+    402: errorResponse('Feature not available'),
     404: errorResponse('Storage not found'),
   },
 })
@@ -120,7 +124,8 @@ const deleteStorageRoute = createRoute({
 const storages = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
     const result = await listStorages(c.get('deps'))
-    return c.json({ items: result.items.map(toStorageDTO), total: result.total }, 200)
+    const items = result.items.map(toStorageDTO)
+    return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
   })
   .openapi(createStorageRoute, async (c) => {
     const result = await createStorage(c.get('deps'), {
@@ -128,12 +133,16 @@ const storages = new OpenAPIHono<Env>()
       orgId: c.get('orgId')!,
       input: c.req.valid('json'),
     })
-    if (!result.ok) return c.json(featureNotAvailable(result.block), 402)
+    if (!result.ok)
+      return apiError(c, 402, 'Feature not available', {
+        reason: ErrorReason.FEATURE_NOT_AVAILABLE,
+        metadata: featureBlockMetadata(result.block),
+      })
     return c.json(toStorageDTO(result.storage), 201)
   })
   .openapi(getStorageRoute, async (c) => {
     const storage = await getStorage(c.get('deps'), c.req.valid('param').id)
-    if (!storage) return c.json({ error: 'Storage not found' }, 404)
+    if (!storage) return apiError(c, 404, 'Storage not found')
     return c.json(toStorageDTO(storage), 200)
   })
   .openapi(updateStorageRoute, async (c) => {
@@ -144,15 +153,18 @@ const storages = new OpenAPIHono<Env>()
       input: c.req.valid('json'),
     })
     if (result.ok) return c.json(toStorageDTO(result.storage), 200)
-    if (result.reason === 'not_found') return c.json({ error: 'Storage not found' }, 404)
-    return c.json(featureNotAvailable(result.block), 402)
+    if (result.reason === 'not_found') return apiError(c, 404, 'Storage not found')
+    return apiError(c, 402, 'Feature not available', {
+      reason: ErrorReason.FEATURE_NOT_AVAILABLE,
+      metadata: featureBlockMetadata(result.block),
+    })
   })
   .openapi(deleteStorageRoute, async (c) => {
     const id = c.req.valid('param').id
     const result = await deleteStorage(c.get('deps'), { userId: c.get('userId')!, orgId: c.get('orgId')!, id })
     if (result.ok) return c.json({ id, deleted: true as const }, 200)
-    if (result.reason === 'not_found') return c.json({ error: 'Storage not found' }, 404)
-    return c.json({ error: 'Storage is referenced by existing files' }, 409)
+    if (result.reason === 'not_found') return apiError(c, 404, 'Storage not found')
+    return apiError(c, 409, 'Storage is referenced by existing files')
   })
 
 export default storages

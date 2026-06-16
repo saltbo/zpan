@@ -200,7 +200,7 @@ describe('Objects API', () => {
     expect(res.status).toBe(400)
   })
 
-  it('POST /api/objects returns 500 when no storage available [spec: objects/create-no-storage]', async () => {
+  it('POST /api/objects returns 503 when no storage available [spec: objects/create-no-storage]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
@@ -208,8 +208,10 @@ describe('Objects API', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'test.txt', type: 'text/plain' }),
     })
-    expect(res.status).toBe(500)
-    await expect(res.json()).resolves.toEqual({ error: 'Storage not configured' })
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+    expect(body.error.message).toBe('No storage configured')
+    expect(body.error.details[0].reason).toBe('NO_STORAGE_CONFIGURED')
   })
 
   it('GET /api/objects lists active objects in root', async () => {
@@ -1043,10 +1045,12 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
-    expect(body.conflictingName).toBe('Duplicates')
-    expect(typeof body.conflictingId).toBe('string')
+    const body = (await res.json()) as {
+      error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
+    expect(body.error.details[0].metadata.conflictingName).toBe('Duplicates')
+    expect(typeof body.error.details[0].metadata.conflictingId).toBe('string')
   })
 
   it('POST /api/objects with onConflict: rename succeeds and returns auto-renamed folder [spec: objects/create-conflict-rename]', async () => {
@@ -1082,9 +1086,11 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
-    expect(body.conflictingName).toBe('beta.txt')
+    const body = (await res.json()) as {
+      error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
+    expect(body.error.details[0].metadata.conflictingName).toBe('beta.txt')
   })
 
   it('PATCH /api/objects/:id rename with onConflict: rename succeeds', async () => {
@@ -1121,8 +1127,8 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
   it('PATCH /api/objects/:id move with onConflict: rename resolves collision', async () => {
@@ -1161,8 +1167,8 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
   it('PATCH /api/objects/:id (action: restore) returns 409 when restore name is already taken [spec: objects/restore-conflict]', async () => {
@@ -1180,8 +1186,8 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
   it('PATCH /api/objects/:id (action: restore) with onConflict: rename restores with suffix', async () => {
@@ -1219,8 +1225,8 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
   it('POST /api/objects/copy auto-renames by default when target has same name', async () => {
@@ -1403,8 +1409,8 @@ describe('POST /api/objects/:id/transfers', () => {
 
     const res = await transferRequest(app, headers, 'src-big', { targetOrgId: 'team-small', mode: 'copy' })
     expect(res.status).toBe(422)
-    const body = (await res.json()) as { code: string }
-    expect(body.code).toBe('QUOTA_EXCEEDED')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
   })
 
   it('rejects transfer to the same space [spec: objects/transfer-same-space]', async () => {
@@ -1546,8 +1552,9 @@ describe('Objects API — quota enforcement', () => {
         body: JSON.stringify({ parent: '' }),
       })
       expect(res.status).toBe(422)
-      const body = (await res.json()) as Record<string, unknown>
-      expect(body.error).toBe('Quota exceeded')
+      const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+      expect(body.error.message).toBe('Quota exceeded')
+      expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     })
 
     it('returns 201 and increments orgQuotas.used when copy succeeds within quota', async () => {
@@ -1862,7 +1869,12 @@ describe('Objects API — quota enforcement', () => {
 
       const res = await app.request('/api/objects/m-download-over', { headers })
       expect(res.status).toBe(422)
-      await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+      const body = (await res.json()) as {
+        error: { message: string; status: string; details: Array<{ reason: string }> }
+      }
+      expect(body.error.message).toBe('Traffic quota exceeded')
+      expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
+      expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
       expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
 
       const rows = await db.all<{ trafficUsed: number }>(
@@ -1942,7 +1954,7 @@ describe('Objects API — quota enforcement', () => {
       })
 
       expect(res.status).toBe(422)
-      await expect(res.json()).resolves.toMatchObject({ error: 'Quota exceeded' })
+      await expect(res.json()).resolves.toMatchObject({ error: { message: 'Quota exceeded' } })
     })
 
     it('returns 200 and increments storages.used when quota allows', async () => {
@@ -1979,8 +1991,9 @@ describe('Objects API — quota enforcement', () => {
         body: JSON.stringify({ status: 'active' }),
       })
       expect(res.status).toBe(422)
-      const body = (await res.json()) as Record<string, unknown>
-      expect(body.error).toBe('Quota exceeded')
+      const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+      expect(body.error.message).toBe('Quota exceeded')
+      expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     })
 
     it('does not change usage when a file with size 0 is confirmed', async () => {

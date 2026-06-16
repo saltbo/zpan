@@ -96,8 +96,8 @@ describe('POST /api/site/licensing/refresh-cron', () => {
     const res = await app.request('/api/site/licensing/refresh-cron?secret=anything', { method: 'POST' })
 
     expect(res.status).toBe(401)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('Unauthorized')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Unauthorized')
   })
 
   it('returns 401 when secret param does not match REFRESH_CRON_SECRET', async () => {
@@ -106,8 +106,8 @@ describe('POST /api/site/licensing/refresh-cron', () => {
     const res = await app.request('/api/site/licensing/refresh-cron?secret=wrong-secret', { method: 'POST' })
 
     expect(res.status).toBe(401)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('Unauthorized')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Unauthorized')
   })
 
   it('returns 401 when secret query param is missing', async () => {
@@ -211,6 +211,6 @@ describe('POST /api/site/licensing/refresh-cron', () => {
     const res = await app.request('/api/site/licensing/traffic-sync-runs?secret=wrong-secret', { method: 'POST' })
 
     expect(res.status).toBe(401)
-    await expect(res.json()).resolves.toEqual({ error: 'Unauthorized' })
+    await expect(res.json()).resolves.toMatchObject({ error: { message: 'Unauthorized' } })
   })
 })

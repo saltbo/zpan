@@ -168,9 +168,12 @@ describe('PUT auth_signup_mode via admin API', () => {
     const headers = await adminHeaders(ctx)
     const res = await putSignupMode(ctx, headers, 'open')
     expect(res.status).toBe(402)
-    const body = (await res.json()) as { error: string; feature: string }
-    expect(body.error).toBe('feature_not_available')
-    expect(body.feature).toBe('open_registration')
+    const body = (await res.json()) as {
+      error: { message: string; details: { reason: string; metadata: Record<string, string> }[] }
+    }
+    expect(body.error.message).toBe('Feature not available')
+    expect(body.error.details[0].reason).toBe('FEATURE_NOT_AVAILABLE')
+    expect(body.error.details[0].metadata.feature).toBe('open_registration')
   })
 
   it('setting open with Pro succeeds', async () => {

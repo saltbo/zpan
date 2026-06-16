@@ -58,8 +58,8 @@ describe('requireAdmin middleware', () => {
     await authedHeadersWithFreshSession(app, 'admin@example.com', 'password123456', 'Admin')
     const headers = await authedHeaders(app, 'regular@example.com', 'password123456')
     const res = await app.request('/api/admin-only', { headers })
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Forbidden')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Forbidden')
   })
 
   it('allows request when user has admin role', async () => {
@@ -247,8 +247,8 @@ describe('requireTeamRole — team org with viewer role', () => {
     const updatedCookies = await setActiveOrg(app, cookies, teamOrgId)
 
     const res = await app.request('/api/test/editor', { method: 'POST', headers: { Cookie: updatedCookies } })
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Forbidden')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Forbidden')
   })
 })
 

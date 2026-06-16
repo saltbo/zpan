@@ -50,10 +50,11 @@ describe('GET /api/notifications', () => {
 
     const res = await app.request('/api/notifications', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number; unreadCount: number }
-    expect(body.items).toHaveLength(0)
+    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
+    expect(body.items).toEqual([])
     expect(body.total).toBe(0)
-    expect(body.unreadCount).toBe(0)
+    expect(body.page).toBe(1)
+    expect(typeof body.pageSize).toBe('number')
   })
 
   it('returns notifications with pagination [spec: notifications/list]', async () => {

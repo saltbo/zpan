@@ -28,12 +28,14 @@ describe('System API captcha options', () => {
 
     const noKeys = await putOption(app, admin, CAPTCHA_ENABLED_KEY, { value: 'true' })
     expect(noKeys.status).toBe(400)
-    await expect(noKeys.json()).resolves.toEqual({ error: 'Captcha site key is required before enabling captcha' })
+    const noKeysBody = (await noKeys.json()) as { error: { message: string } }
+    expect(noKeysBody.error.message).toBe('Captcha site key is required before enabling captcha')
 
     await putOption(app, admin, CAPTCHA_SITE_KEY_KEY, { value: 'site-key' })
     const noSecret = await putOption(app, admin, CAPTCHA_ENABLED_KEY, { value: 'true' })
     expect(noSecret.status).toBe(400)
-    await expect(noSecret.json()).resolves.toEqual({ error: 'Captcha secret key is required before enabling captcha' })
+    const noSecretBody = (await noSecret.json()) as { error: { message: string } }
+    expect(noSecretBody.error.message).toBe('Captcha secret key is required before enabling captcha')
 
     await putOption(app, admin, CAPTCHA_SECRET_OPTION_KEY, { value: 'secret-key' })
     await putOption(app, admin, CAPTCHA_PROVIDER_KEY, { value: 'captchafox' })
@@ -72,10 +74,12 @@ describe('System API captcha options', () => {
 
     const provider = await putOption(app, admin, CAPTCHA_PROVIDER_KEY, { value: 'unknown' })
     expect(provider.status).toBe(400)
-    await expect(provider.json()).resolves.toEqual({ error: 'Captcha provider is invalid' })
+    const providerBody = (await provider.json()) as { error: { message: string } }
+    expect(providerBody.error.message).toBe('Captcha provider is invalid')
 
     const minScore = await putOption(app, admin, CAPTCHA_MIN_SCORE_KEY, { value: '1.5' })
     expect(minScore.status).toBe(400)
-    await expect(minScore.json()).resolves.toEqual({ error: 'Captcha minimum score must be between 0 and 1' })
+    const minScoreBody = (await minScore.json()) as { error: { message: string } }
+    expect(minScoreBody.error.message).toBe('Captcha minimum score must be between 0 and 1')
   })
 })

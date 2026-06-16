@@ -924,9 +924,9 @@ describe('Download tasks API integration', () => {
     })
 
     expect(sessionRes.status).toBe(502)
-    await expect(sessionRes.json()).resolves.toEqual({
-      error: 'Storage multipart upload failed: bucket does not support multipart',
-    })
+    const sessionBody = (await sessionRes.json()) as { error: { message: string; details: { reason: string }[] } }
+    expect(sessionBody.error.message).toBe('Storage multipart upload failed: bucket does not support multipart')
+    expect(sessionBody.error.details[0].reason).toBe('STORAGE_FAILURE')
   })
 
   it('normalizes target folder paths when creating download tasks [spec: download-tasks/normalize-target]', async () => {
@@ -992,9 +992,9 @@ describe('Download tasks API integration', () => {
     })
 
     expect(completeRes.status).toBe(502)
-    await expect(completeRes.json()).resolves.toEqual({
-      error: 'Storage multipart upload complete failed: InvalidPart: part missing',
-    })
+    const completeBody = (await completeRes.json()) as { error: { message: string; details: { reason: string }[] } }
+    expect(completeBody.error.message).toBe('Storage multipart upload complete failed: InvalidPart: part missing')
+    expect(completeBody.error.details[0].reason).toBe('STORAGE_FAILURE')
   })
 
   it('submits user task actions through downloader polling state [spec: download-tasks/user-actions]', async () => {
@@ -1048,7 +1048,11 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify(transferProgress({ downloadBytes: 1024, downloadBps: 512 })),
     })
     expect(pausedProgressRes.status).toBe(409)
-    await expect(pausedProgressRes.json()).resolves.toEqual({ error: 'Task is paused' })
+    const pausedProgressBody = (await pausedProgressRes.json()) as {
+      error: { message: string; details: { reason: string }[] }
+    }
+    expect(pausedProgressBody.error.message).toBe('Task is paused')
+    expect(pausedProgressBody.error.details[0].reason).toBe('INVALID_STATE')
 
     const resumeRes = await app.request(`/api/downloads/tasks/${createdTask.id}/status`, {
       method: 'PUT',
@@ -1090,7 +1094,11 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(canceledCompleteRes.status).toBe(409)
-    await expect(canceledCompleteRes.json()).resolves.toEqual({ error: 'Task is canceled' })
+    const canceledCompleteBody = (await canceledCompleteRes.json()) as {
+      error: { message: string; details: { reason: string }[] }
+    }
+    expect(canceledCompleteBody.error.message).toBe('Task is canceled')
+    expect(canceledCompleteBody.error.details[0].reason).toBe('INVALID_STATE')
 
     const deleteRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, {
       method: 'DELETE',
@@ -1189,7 +1197,11 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ status: 'downloading', ...transferProgress({ downloadBytes: 3072 }) }),
     })
     expect(pausedProgressRes.status).toBe(409)
-    await expect(pausedProgressRes.json()).resolves.toEqual({ error: 'Task is paused' })
+    const pausedProgressBody = (await pausedProgressRes.json()) as {
+      error: { message: string; details: { reason: string }[] }
+    }
+    expect(pausedProgressBody.error.message).toBe('Task is paused')
+    expect(pausedProgressBody.error.details[0].reason).toBe('INVALID_STATE')
   })
 
   it('preserves the completed download checkpoint when retrying an upload failure [spec: download-tasks/checkpoint-on-retry]', async () => {
@@ -1424,7 +1436,11 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify(transferProgress({ downloadBytes: 1024 })),
     })
     expect(pausingProgressRes.status).toBe(409)
-    await expect(pausingProgressRes.json()).resolves.toEqual({ error: 'Task is pausing' })
+    const pausingProgressBody = (await pausingProgressRes.json()) as {
+      error: { message: string; details: { reason: string }[] }
+    }
+    expect(pausingProgressBody.error.message).toBe('Task is pausing')
+    expect(pausingProgressBody.error.details[0].reason).toBe('INVALID_STATE')
 
     const pausedRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, {
       method: 'PATCH',
@@ -1546,9 +1562,9 @@ describe('Download tasks API integration', () => {
       headers: { ...user, 'Content-Type': 'application/json' },
     })
     expect(deleteRes.status).toBe(409)
-    await expect(deleteRes.json()).resolves.toMatchObject({
-      error: 'Only completed, failed, or canceled tasks can be deleted',
-    })
+    const deleteBody = (await deleteRes.json()) as { error: { message: string; details: { reason: string }[] } }
+    expect(deleteBody.error.message).toBe('Only completed, failed, or canceled tasks can be deleted')
+    expect(deleteBody.error.details[0].reason).toBe('INVALID_STATE')
   })
 
   it('sorts and filters download tasks on the server [spec: download-tasks/sort-filter]', async () => {
@@ -1616,9 +1632,13 @@ describe('Downloaders — free plan limit', () => {
 
     const second = await postDownloader(app, admin, 'second')
     expect(second.status).toBe(402)
-    const body = (await second.json()) as Record<string, unknown>
-    expect(body.feature).toBe('downloaders_unlimited')
-    expect(body.limit).toBe(1)
+    const body = (await second.json()) as {
+      error: { message: string; details: { reason: string; metadata: Record<string, string> }[] }
+    }
+    expect(body.error.message).toBe('Feature not available')
+    expect(body.error.details[0].reason).toBe('FEATURE_NOT_AVAILABLE')
+    expect(body.error.details[0].metadata.feature).toBe('downloaders_unlimited')
+    expect(body.error.details[0].metadata.limit).toBe('1')
   })
 
   it('allows additional downloaders with the downloaders_unlimited entitlement [spec: download-tasks/unlimited-entitlement]', async () => {

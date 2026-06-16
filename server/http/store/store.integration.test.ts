@@ -751,7 +751,9 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(409)
-    await expect(checkout.json()).resolves.toEqual({ error: 'workspace_plan_exists' })
+    await expect(checkout.json()).resolves.toMatchObject({
+      error: { message: 'Workspace plan already exists', details: [{ reason: 'WORKSPACE_PLAN_EXISTS' }] },
+    })
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
   })
 
@@ -921,7 +923,7 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(502)
-    await expect(checkout.json()).resolves.toEqual({ error: 'invalid_cloud_response' })
+    await expect(checkout.json()).resolves.toMatchObject({ error: { code: 502, message: 'invalid_cloud_response' } })
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
     expect(calls.some(([url, init]) => init.method === 'POST' && String(url).endsWith('/orders'))).toBe(false)
   })
@@ -1077,9 +1079,9 @@ describe('Quota Store API', () => {
     })
 
     expect(payment.status).toBe(403)
-    await expect(payment.json()).resolves.toEqual({ error: 'Forbidden' })
+    await expect(payment.json()).resolves.toMatchObject({ error: { message: 'Forbidden' } })
     expect(canceled.status).toBe(403)
-    await expect(canceled.json()).resolves.toEqual({ error: 'Forbidden' })
+    await expect(canceled.json()).resolves.toMatchObject({ error: { message: 'Forbidden' } })
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
     expect(calls.some(([url]) => String(url).includes('/orders/order-other-org/payments'))).toBe(false)
     expect(
@@ -1103,14 +1105,19 @@ describe('Quota Store API', () => {
     })
     const orders = await app.request('/api/store/orders', { headers })
 
+    const expectFeatureGate = async (res: Response) => {
+      const body = (await res.json()) as { error: { details: { reason: string; metadata?: { feature?: string } }[] } }
+      expect(body.error.details[0]?.reason).toBe('FEATURE_NOT_AVAILABLE')
+      expect(body.error.details[0]?.metadata?.feature).toBe('quota_store')
+    }
     expect(packages.status).toBe(402)
-    await expect(packages.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
+    await expectFeatureGate(packages)
     expect(targets.status).toBe(402)
-    await expect(targets.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
+    await expectFeatureGate(targets)
     expect(checkout.status).toBe(402)
-    await expect(checkout.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
+    await expectFeatureGate(checkout)
     expect(orders.status).toBe(402)
-    await expect(orders.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
+    await expectFeatureGate(orders)
   })
 
   it('rejects malformed successful checkout responses', async () => {
@@ -1127,7 +1134,7 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'invalid_cloud_response' })
+    await expect(res.json()).resolves.toMatchObject({ error: { code: 502, message: 'invalid_cloud_response' } })
   })
 
   it('surfaces Cloud checkout error responses [spec: quota-store/checkout-error-surfacing]', async () => {
@@ -1148,7 +1155,7 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'cloud_down' })
+    await expect(res.json()).resolves.toMatchObject({ error: { code: 502, message: 'cloud_down' } })
   })
 
   it('uses status errors when Cloud checkout error bodies have no string error', async () => {
@@ -1169,7 +1176,7 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'cloud_request_failed_504' })
+    await expect(res.json()).resolves.toMatchObject({ error: { code: 502, message: 'cloud_request_failed_504' } })
   })
 
   it('accepts current Cloud quota-change webhook tokens with audience equal to instance id', async () => {
@@ -1623,7 +1630,9 @@ describe('Quota Store API', () => {
     const res = await postWebhook(app, payload)
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toEqual({ error: 'invalid_payload' })
+    await expect(res.json()).resolves.toMatchObject({
+      error: { message: 'Invalid payload', details: [{ reason: 'INVALID_PAYLOAD' }] },
+    })
   })
 
   it('storage decreases revoke matching Cloud order entitlements without changing base quota', async () => {
@@ -1982,7 +1991,7 @@ describe('Quota Store API', () => {
 
     expect(first.status).toBe(200)
     expect(retry.status).toBe(400)
-    await expect(retry.json()).resolves.toEqual({ error: 'webhook_payload_conflict' })
+    await expect(retry.json()).resolves.toMatchObject({ error: { code: 400, message: 'webhook_payload_conflict' } })
   })
 
   it('allows failed delivery retries when the payload is unchanged', async () => {
@@ -2009,7 +2018,7 @@ describe('Quota Store API', () => {
     const retry = await postWebhook(app, payload)
 
     expect(failed.status).toBe(400)
-    await expect(failed.json()).resolves.toEqual({ error: 'target_quota_missing' })
+    await expect(failed.json()).resolves.toMatchObject({ error: { code: 400, message: 'target_quota_missing' } })
     expect(retry.status).toBe(200)
     await expect(retry.json()).resolves.toMatchObject({ success: true, duplicate: false })
     const deliveries = await db.all<{ status: string; error: string | null }>(
@@ -2206,7 +2215,9 @@ describe('Quota Store API', () => {
     const res = await postWebhook(app, payload)
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
+    await expect(res.json()).resolves.toMatchObject({
+      error: { message: 'Invalid payload', details: [{ reason: 'INVALID_PAYLOAD' }] },
+    })
   })
 
   it('rejects deliveries without resource details', async () => {
@@ -2222,7 +2233,9 @@ describe('Quota Store API', () => {
     const res = await postWebhook(app, payload)
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
+    await expect(res.json()).resolves.toMatchObject({
+      error: { message: 'Invalid payload', details: [{ reason: 'INVALID_PAYLOAD' }] },
+    })
   })
 
   it('rejects credit-only commerce fulfillment events on the quota webhook [spec: quota-store/webhook-rejects-commerce]', async () => {
@@ -2255,7 +2268,9 @@ describe('Quota Store API', () => {
     const res = await postWebhook(app, payload)
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
+    await expect(res.json()).resolves.toMatchObject({
+      error: { message: 'Invalid payload', details: [{ reason: 'INVALID_PAYLOAD' }] },
+    })
   })
 })
 

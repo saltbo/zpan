@@ -12,6 +12,10 @@ export type Env = {
     userId: string | null
     userRole: string | null
     orgId: string | null
+    // Structured detail for the access log on a failed request. Set by `apiError`
+    // and `app.onError`; read by the accessLog middleware so every 4xx/5xx carries
+    // its reason + full message, not just unhandled crashes.
+    errorLog: { reason: string; message: string } | null
   }
 }
 
@@ -53,5 +57,6 @@ export const platformMiddleware = (platform: Platform, auth: Auth) =>
     c.set('platform', platform)
     c.set('auth', auth)
     c.set('principal', null)
+    c.set('errorLog', null)
     await next()
   })

@@ -1,3 +1,4 @@
+import { ErrorReason } from '@shared/schemas'
 import type { Context } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import type { Env } from '../../middleware/platform'
@@ -8,6 +9,7 @@ import {
   reportDownloadEgress,
   type TrafficReportSource,
 } from '../../usecases/store/traffic-metering'
+import { apiError } from '../openapi'
 
 // Thin http adapters over the download-metering usecase: resolve the cloud base
 // URL from the request, call the usecase (deps passed whole), and render the
@@ -29,7 +31,10 @@ interface DownloadTrafficParams {
 const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 
 function insufficientCredits(c: Context<Env>): Response {
-  return c.json({ error: 'insufficient_credits', code: 'insufficient_credits', resource: 'storage_egress' }, 402)
+  return apiError(c, 402, 'Insufficient credits', {
+    reason: ErrorReason.INSUFFICIENT_CREDITS,
+    metadata: { resource: 'storage_egress' },
+  })
 }
 
 /**

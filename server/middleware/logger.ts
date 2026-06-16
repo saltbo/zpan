@@ -1,30 +1,28 @@
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
-import { formatError } from '../lib/errors'
 import type { Env } from './platform'
 
+// The request boundary for /api and /dav: one structured line per request, logged
+// after the response is finalized. By the time `next()` returns, the status and
+// `errorLog` are settled regardless of how the response was produced — an inline
+// `apiError(...)` return sets `errorLog` directly, and a thrown error is rendered
+// by `app.onError` (via `renderError`, which also sets `errorLog`) before control
+// returns here. So the log records the REAL mapped status (a thrown 409 logs as
+// 409, not 500) and carries the error's reason + full message for every 4xx/5xx,
+// not just unhandled crashes.
 export const accessLog = createMiddleware<Env>(async (c, next) => {
   const start = Date.now()
-  try {
-    await next()
-  } catch (error) {
-    writeAccessLog(c, start, 500, error)
-    throw error
-  }
-  writeAccessLog(c, start, c.res.status)
+  await next()
+  writeAccessLog(c, start)
 })
 
-function writeAccessLog(c: Context<Env>, start: number, status: number, error?: unknown) {
-  const fields = accessLogFields(c, start, status, error)
+function writeAccessLog(c: Context<Env>, start: number) {
+  const fields = accessLogFields(c, start)
   console.log(fields.map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(' '))
 }
 
-function accessLogFields(
-  c: Context<Env>,
-  start: number,
-  status: number,
-  error?: unknown,
-): Array<[string, string | number]> {
+function accessLogFields(c: Context<Env>, start: number): Array<[string, string | number]> {
+  const status = c.res.status
   const fields: Array<[string, string | number]> = [
     ['method', c.req.method],
     ['path', c.req.path],
@@ -45,8 +43,14 @@ function accessLogFields(
     )
   }
 
-  if (error !== undefined) {
-    fields.push(['error', formatError(error)])
+  // Every failed request carries its reason + full message — set by apiError on
+  // inline returns and by renderError on thrown errors (incl. the full cause
+  // chain for unhandled 500s, which never reaches the client body).
+  const errorLog = c.get('errorLog')
+  if (errorLog) {
+    fields.push(['reason', errorLog.reason], ['error', errorLog.message])
+  } else if (status >= 400) {
+    fields.push(['error', c.res.statusText || '-'])
   }
 
   return fields

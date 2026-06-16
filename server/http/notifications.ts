@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { listNotificationsQuerySchema } from '@shared/schemas'
+import { listNotificationsQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -9,7 +9,7 @@ import {
   markNotificationRead,
 } from '../usecases/notification'
 import type { NotificationRecord } from '../usecases/ports'
-import { errorResponse, jsonContent } from './openapi'
+import { apiError, errorResponse, jsonContent } from './openapi'
 
 const notificationSchema = z
   .object({
@@ -45,15 +45,9 @@ function toNotificationDTO(n: NotificationRecord): NotificationDTO {
   }
 }
 
-const notificationPageSchema = z
-  .object({
-    items: z.array(notificationSchema),
-    total: z.number().int(),
-    unreadCount: z.number().int(),
-    page: z.number().int(),
-    pageSize: z.number().int(),
-  })
-  .openapi('NotificationPage')
+// The unread count is intentionally NOT part of the list envelope — it lives only
+// at GET /stats so the list shares the one Page<T> shape with every other resource.
+const notificationPageSchema = pageSchema(notificationSchema, 'NotificationPage')
 
 const listRoute = createRoute({
   operationId: 'listNotifications',
@@ -101,9 +95,7 @@ app.use(requireAuth)
 
 export const notifications = app
   .openapi(listRoute, async (c) => {
-    const { page: pageStr, pageSize: pageSizeStr, unread } = c.req.valid('query')
-    const page = Number(pageStr ?? '1')
-    const pageSize = Number(pageSizeStr ?? '20')
+    const { page, pageSize, unread } = c.req.valid('query')
     const result = await listNotifications(c.get('deps'), c.get('userId')!, {
       page,
       pageSize,
@@ -113,7 +105,6 @@ export const notifications = app
       {
         items: result.items.map(toNotificationDTO),
         total: result.total,
-        unreadCount: result.unreadCount,
         page,
         pageSize,
       },
@@ -126,7 +117,7 @@ export const notifications = app
   })
   .openapi(markReadRoute, async (c) => {
     const found = await markNotificationRead(c.get('deps'), c.get('userId')!, c.req.valid('param').id)
-    if (!found) return c.json({ error: 'Not found' }, 404)
+    if (!found) return apiError(c, 404, 'Not found')
     return c.body(null, 204)
   })
   .openapi(markAllReadRoute, async (c) => c.json(await markAllNotificationsRead(c.get('deps'), c.get('userId')!), 200))

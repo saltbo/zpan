@@ -69,7 +69,7 @@ export function TransferSpaceDialog({ item, onOpenChange, onCompleted }: Transfe
       onOpenChange(false)
       reset()
     } catch (err) {
-      if (err instanceof ApiError && err.body.code === 'QUOTA_EXCEEDED') {
+      if (err instanceof ApiError && err.reason === 'QUOTA_EXCEEDED') {
         toast.error(t('files.transferQuotaExceeded'))
       } else {
         toast.error(err instanceof Error ? err.message : t('common.error'))

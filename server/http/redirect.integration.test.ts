@@ -163,7 +163,9 @@ describe('GET /r/:token (ds_ direct shares)', () => {
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(422)
-    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+    expect(body.error.message).toBe('Traffic quota exceeded')
+    expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
 
     const shares = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
@@ -359,7 +361,9 @@ describe('GET /r/:token (ih_ image hosting)', () => {
 
     const second = await app.request('/r/ih_quotarepeat', { redirect: 'manual' })
     expect(second.status).toBe(422)
-    await expect(second.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    const secondBody = (await second.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+    expect(secondBody.error.message).toBe('Traffic quota exceeded')
+    expect(secondBody.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     expect(S3Service.prototype.presignInline).toHaveBeenCalledTimes(1)
     expect(await getAccessCount(db, 'ih-quota-repeat')).toBe(1)
   })
@@ -532,7 +536,9 @@ describe('GET /r/:token — two-org isolation', () => {
 
     const res = await app.request('/r/ih_quotatest', { redirect: 'manual' })
     expect(res.status).toBe(422)
-    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+    expect(body.error.message).toBe('Traffic quota exceeded')
+    expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     expect(S3Service.prototype.presignInline).not.toHaveBeenCalled()
   })
 })

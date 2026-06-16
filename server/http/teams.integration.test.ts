@@ -157,8 +157,10 @@ describe('GET /api/teams/:teamId/invitations', () => {
 
     const res = await app.request(`/api/teams/${orgId}/invitations`, { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { invitations: unknown[] }
-    expect(body.invitations).toEqual([])
+    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
+    expect(body.items).toEqual([])
+    expect(body.total).toBe(0)
+    expect(body.page).toBe(1)
   })
 })
 

@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { featureGateErrorSchema } from '@shared/schemas'
+import { ErrorReason, pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { runtimeInfo } from '../../usecases/site/instance-info'
@@ -11,7 +11,7 @@ import {
   resolveInstanceInfo,
   setSystemOption,
 } from '../../usecases/site/system'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const instanceInfoSchema = z
   .object({
@@ -50,9 +50,7 @@ const changelogSchema = z
 
 const systemOptionSchema = z.object({ key: z.string(), value: z.string(), public: z.boolean() }).openapi('SystemOption')
 
-const systemOptionListSchema = z
-  .object({ items: z.array(systemOptionSchema), total: z.number().int() })
-  .openapi('SystemOptionList')
+const systemOptionListSchema = pageSchema(systemOptionSchema, 'SystemOptionList')
 
 const setOptionSchema = z.object({ value: z.string(), public: z.boolean().optional() })
 
@@ -112,7 +110,7 @@ const setOptionRoute = createRoute({
     200: jsonContent(systemOptionSchema, 'Updated option'),
     201: jsonContent(systemOptionSchema, 'Created option'),
     400: errorResponse('Invalid option'),
-    402: jsonContent(featureGateErrorSchema, 'Feature not available'),
+    402: errorResponse('Feature not available'),
   },
 })
 
@@ -138,17 +136,18 @@ const system = new OpenAPIHono<Env>()
   .openapi(changelogRoute, async (c) =>
     c.json(await getChangelog(c.get('deps'), { now: Date.now(), force: c.req.valid('query').refresh === 'true' }), 200),
   )
-  .openapi(listOptionsRoute, async (c) =>
-    c.json(await listSystemOptions(c.get('deps'), { isAdmin: c.get('userRole') === 'admin' }), 200),
-  )
+  .openapi(listOptionsRoute, async (c) => {
+    const { items } = await listSystemOptions(c.get('deps'), { isAdmin: c.get('userRole') === 'admin' })
+    return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
+  })
   .openapi(getOptionRoute, async (c) => {
     const result = await getSystemOption(c.get('deps'), {
       key: c.req.valid('param').key,
       isAdmin: c.get('userRole') === 'admin',
     })
     if (result.ok) return c.json(result.option, 200)
-    if (result.reason === 'not_found') return c.json({ error: 'Option not found' }, 404)
-    return c.json({ error: 'Forbidden' }, 403)
+    if (result.reason === 'not_found') return apiError(c, 404, 'Option not found')
+    return apiError(c, 403, 'Forbidden')
   })
   .openapi(setOptionRoute, async (c) => {
     const body = c.req.valid('json')
@@ -161,11 +160,11 @@ const system = new OpenAPIHono<Env>()
     })
     if (!result.ok) {
       if (result.reason === 'feature_blocked')
-        return c.json(
-          { error: 'feature_not_available', feature: result.feature, upgrade_url: '/settings/billing' },
-          402,
-        )
-      return c.json({ error: result.message }, 400)
+        return apiError(c, 402, 'Feature not available', {
+          reason: ErrorReason.FEATURE_NOT_AVAILABLE,
+          metadata: { feature: result.feature, upgradeUrl: '/settings/billing' },
+        })
+      return apiError(c, 400, result.message)
     }
     return result.created ? c.json(result.option, 201) : c.json(result.option, 200)
   })

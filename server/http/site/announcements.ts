@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { announcementInputSchema, listAnnouncementsQuerySchema } from '@shared/schemas'
+import { announcementInputSchema, announcementStatusSchema, pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
@@ -12,7 +12,7 @@ import {
   listUserAnnouncements,
   updateAnnouncement,
 } from '../../usecases/site/announcement'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const announcementSchema = z
   .object({
@@ -41,21 +41,14 @@ function toAnnouncementDTO(a: AnnouncementRecord): AnnouncementDTO {
   }
 }
 
-const announcementListSchema = z
-  .object({
-    items: z.array(announcementSchema),
-    total: z.number().int(),
-    page: z.number().int(),
-    pageSize: z.number().int(),
-  })
-  .openapi('AnnouncementList')
+const announcementListSchema = pageSchema(announcementSchema, 'AnnouncementList')
 
-function pagination(query: { page?: string; pageSize?: string }) {
-  return {
-    page: Math.max(1, Number(query.page ?? '1')),
-    pageSize: Math.min(100, Math.max(1, Number(query.pageSize ?? '20'))),
-  }
-}
+// `active` = the caller's live feed (any authed user); `all` = full management
+// list (admin only). Absent = live feed.
+const listAnnouncementsQuerySchema = pageQuerySchema.extend({
+  scope: z.enum(['active', 'all']).optional(),
+  status: announcementStatusSchema.optional(),
+})
 
 const listRoute = createRoute({
   operationId: 'listAnnouncements',
@@ -133,15 +126,17 @@ app.use(requireFeature('site_announcements'))
 export const announcements = app
   .openapi(listRoute, async (c) => {
     const query = c.req.valid('query')
+    const { page, pageSize } = query
     const wantsManagement = query.scope === 'all' || query.status !== undefined
     if (wantsManagement) {
-      if (c.get('userRole') !== 'admin') return c.json({ error: 'Forbidden' }, 403)
-      const result = await listAdminAnnouncements(c.get('deps'), { status: query.status, ...pagination(query) })
+      if (c.get('userRole') !== 'admin') return apiError(c, 403, 'Forbidden')
+      const result = await listAdminAnnouncements(c.get('deps'), { status: query.status, page, pageSize })
       return c.json({ ...result, items: result.items.map(toAnnouncementDTO) }, 200)
     }
     const result = await listUserAnnouncements(c.get('deps'), {
       activeOnly: query.scope === 'active',
-      ...pagination(query),
+      page,
+      pageSize,
     })
     return c.json({ ...result, items: result.items.map(toAnnouncementDTO) }, 200)
   })
@@ -150,17 +145,17 @@ export const announcements = app
   )
   .openapi(getAnnouncementRoute, async (c) => {
     const announcement = await getAnnouncement(c.get('deps'), c.req.valid('param').id)
-    if (!announcement) return c.json({ error: 'Announcement not found' }, 404)
+    if (!announcement) return apiError(c, 404, 'Announcement not found')
     return c.json(toAnnouncementDTO(announcement), 200)
   })
   .openapi(updateAnnouncementRoute, async (c) => {
     const announcement = await updateAnnouncement(c.get('deps'), c.req.valid('param').id, c.req.valid('json'))
-    if (!announcement) return c.json({ error: 'Announcement not found' }, 404)
+    if (!announcement) return apiError(c, 404, 'Announcement not found')
     return c.json(toAnnouncementDTO(announcement), 200)
   })
   .openapi(deleteAnnouncementRoute, async (c) => {
     const id = c.req.valid('param').id
     const deleted = await deleteAnnouncement(c.get('deps'), id)
-    if (!deleted) return c.json({ error: 'Announcement not found' }, 404)
+    if (!deleted) return apiError(c, 404, 'Announcement not found')
     return c.json({ id, deleted: true as const }, 200)
   })

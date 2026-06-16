@@ -188,7 +188,7 @@ async function uploadFile(
     await confirmUpload(created.id, resolvedStrategy)
   } catch (e) {
     if (!prompt || !isNameConflictError(e)) throw e
-    const res = await prompt({ kind: 'file', name: e.body.conflictingName, showApplyToAll })
+    const res = await prompt({ kind: 'file', name: e.metadata?.conflictingName, showApplyToAll })
     if ('cancelled' in res) return 'cancelled'
     await confirmUpload(created.id, res.strategy)
   }

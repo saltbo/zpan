@@ -113,7 +113,9 @@ describe('API key rate limits', () => {
     expect(allowed.status).toBe(200)
     expect(limited.status).toBe(429)
     expect(limited.headers.get('Retry-After')).toBe('60')
-    expect(await limited.json()).toEqual({ error: 'Rate limit exceeded.' })
+    const body = (await limited.json()) as { error: { message: string; status: string } }
+    expect(body.error.message).toBe('Rate limit exceeded.')
+    expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
   })
 
   it('WebDAV surfaces a rate-limited API key as too many requests', async () => {

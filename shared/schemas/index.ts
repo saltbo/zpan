@@ -115,9 +115,20 @@ export {
   updateDownloaderSchema,
   updateDownloadTaskSchema,
 } from './downloads'
-export { errorResponseSchema, featureGateErrorSchema } from './errors'
+export type { CanonicalStatus, ErrorInfo, ErrorResponse } from './errors'
+export {
+  canonicalStatuses,
+  canonicalStatusForHttp,
+  ERROR_DOMAIN,
+  ERROR_INFO_TYPE,
+  ErrorReason,
+  errorInfoSchema,
+  errorResponseSchema,
+} from './errors'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
+export type { Page, PageQuery } from './pagination'
+export { pageQuerySchema, pageSchema } from './pagination'
 export type { CreateShareInput, CreateShareRequest, ShareKind } from './share'
 export {
   createShareRequestSchema,

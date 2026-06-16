@@ -99,13 +99,7 @@ async function createCheckoutSession(search: CheckoutSearch) {
       const result = await createCloudCheckout(search.packageId, search.priceId, search.promotionCode)
       return result.url
     } catch (err) {
-      if (
-        err instanceof ApiError &&
-        (err.body.error === 'workspace_plan_exists' ||
-          (err.body.error &&
-            typeof err.body.error === 'object' &&
-            (err.body.error as Record<string, unknown>).code === 'workspace_plan_exists'))
-      ) {
+      if (err instanceof ApiError && err.reason === 'WORKSPACE_PLAN_EXISTS') {
         const ordersRes = await listCloudOrders()
         const pendingPlanOrder = ordersRes.items.find(
           (order) =>
