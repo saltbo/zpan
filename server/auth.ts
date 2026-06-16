@@ -2,7 +2,7 @@ import { apiKey } from '@better-auth/api-key'
 import { APIError, type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import type { CaptchaOptions } from 'better-auth/plugins'
-import { admin, bearer, captcha, deviceAuthorization, organization, username } from 'better-auth/plugins'
+import { admin, bearer, captcha, deviceAuthorization, openAPI, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
@@ -249,6 +249,11 @@ export async function createAuth(
     ),
     plugins: [
       admin(),
+      // Self-documents every better-auth endpoint (incl. the device-authorization
+      // flow) at GET /api/auth/reference (Scalar UI) and
+      // /api/auth/open-api/generate-schema. Replaces the old hand-written device
+      // route stubs; our own routes live in the global doc at /api/openapi.json.
+      openAPI(),
       organization({
         roles: {
           owner: ownerAc,

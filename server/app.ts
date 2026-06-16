@@ -1,6 +1,7 @@
 import { release as osRelease } from 'node:os'
+import { OpenAPIHono } from '@hono/zod-openapi'
+import { Scalar } from '@scalar/hono-api-reference'
 import type { Context } from 'hono'
-import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
 import { createDeps } from './composition'
@@ -37,7 +38,6 @@ import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
 import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
-import { downloaderOpenAPIDocument } from './openapi/downloader'
 import type { Platform } from './platform/interface'
 import { getDeployPlatform } from './runtime-platform'
 import type { Deps } from './usecases/deps'
@@ -45,7 +45,7 @@ import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/sit
 import { ensureSitePublicOrigin } from './usecases/site/public-origin'
 
 export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
-  const app = new Hono<Env>()
+  const app = new OpenAPIHono<Env>()
   const corsOrigins = getCorsOrigins(platform)
 
   app.use('/*', platformMiddleware(platform, auth))
@@ -96,7 +96,29 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     return a.handler(c.req.raw)
   })
 
-  app.get('/api/openapi/downloader.json', (c) => c.json(downloaderOpenAPIDocument()))
+  // Global OpenAPI document. Aggregates every route defined with `.openapi()`
+  // across all mounted sub-apps — a route appears here as soon as its resource is
+  // converted to OpenAPIHono, no curation needed. better-auth endpoints (incl. the
+  // device flow) document themselves separately at /api/auth/reference.
+  app.get('/api/openapi.json', (c) =>
+    c.json(
+      app.getOpenAPIDocument({
+        openapi: '3.1.0',
+        info: { title: 'ZPan API', version: '0.1.0' },
+        // Top-level tag order + descriptions; Scalar groups operations by these.
+        tags: [
+          { name: 'Objects', description: 'Files and folders, including S3 multipart upload sessions' },
+          { name: 'Events', description: 'Multiplexed server-sent event stream' },
+          { name: 'Download Tasks', description: 'Remote download tasks' },
+          { name: 'Downloaders', description: 'Download agents and their heartbeats' },
+        ],
+      }),
+    ),
+  )
+
+  // Scalar interactive API reference for the global document above. Our own
+  // resources live here; better-auth serves its own reference at /api/auth/reference.
+  app.get('/api/docs', Scalar({ url: '/api/openapi.json', title: 'ZPan API' }))
 
   app.all('/dav', (c) => c.redirect('/dav/', 308))
   app.route('/dav', webdav)
