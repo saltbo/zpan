@@ -16,6 +16,54 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for PostApiAuthDeviceCode400JSONResponseBodyError.
+const (
+	PostApiAuthDeviceCode400JSONResponseBodyErrorInvalidClient  PostApiAuthDeviceCode400JSONResponseBodyError = "invalid_client"
+	PostApiAuthDeviceCode400JSONResponseBodyErrorInvalidRequest PostApiAuthDeviceCode400JSONResponseBodyError = "invalid_request"
+)
+
+// Valid indicates whether the value is a known member of the PostApiAuthDeviceCode400JSONResponseBodyError enum.
+func (e PostApiAuthDeviceCode400JSONResponseBodyError) Valid() bool {
+	switch e {
+	case PostApiAuthDeviceCode400JSONResponseBodyErrorInvalidClient:
+		return true
+	case PostApiAuthDeviceCode400JSONResponseBodyErrorInvalidRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiAuthDeviceToken400JSONResponseBodyError.
+const (
+	PostApiAuthDeviceToken400JSONResponseBodyErrorAccessDenied         PostApiAuthDeviceToken400JSONResponseBodyError = "access_denied"
+	PostApiAuthDeviceToken400JSONResponseBodyErrorAuthorizationPending PostApiAuthDeviceToken400JSONResponseBodyError = "authorization_pending"
+	PostApiAuthDeviceToken400JSONResponseBodyErrorExpiredToken         PostApiAuthDeviceToken400JSONResponseBodyError = "expired_token"
+	PostApiAuthDeviceToken400JSONResponseBodyErrorInvalidGrant         PostApiAuthDeviceToken400JSONResponseBodyError = "invalid_grant"
+	PostApiAuthDeviceToken400JSONResponseBodyErrorInvalidRequest       PostApiAuthDeviceToken400JSONResponseBodyError = "invalid_request"
+	PostApiAuthDeviceToken400JSONResponseBodyErrorSlowDown             PostApiAuthDeviceToken400JSONResponseBodyError = "slow_down"
+)
+
+// Valid indicates whether the value is a known member of the PostApiAuthDeviceToken400JSONResponseBodyError enum.
+func (e PostApiAuthDeviceToken400JSONResponseBodyError) Valid() bool {
+	switch e {
+	case PostApiAuthDeviceToken400JSONResponseBodyErrorAccessDenied:
+		return true
+	case PostApiAuthDeviceToken400JSONResponseBodyErrorAuthorizationPending:
+		return true
+	case PostApiAuthDeviceToken400JSONResponseBodyErrorExpiredToken:
+		return true
+	case PostApiAuthDeviceToken400JSONResponseBodyErrorInvalidGrant:
+		return true
+	case PostApiAuthDeviceToken400JSONResponseBodyErrorInvalidRequest:
+		return true
+	case PostApiAuthDeviceToken400JSONResponseBodyErrorSlowDown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetApiDownloadsDownloaders200JSONResponseBodyItemsHeartbeatEngine.
 const (
 	GetApiDownloadsDownloaders200JSONResponseBodyItemsHeartbeatEngineAria2       GetApiDownloadsDownloaders200JSONResponseBodyItemsHeartbeatEngine = "aria2"
@@ -645,13 +693,13 @@ func (e PostApiDownloadsTasks201JSONResponseBodyStatusState) Valid() bool {
 
 // Defines values for DeleteApiDownloadsTasksId200JSONResponseBodyDeleted.
 const (
-	True DeleteApiDownloadsTasksId200JSONResponseBodyDeleted = true
+	DeleteApiDownloadsTasksId200JSONResponseBodyDeletedTrue DeleteApiDownloadsTasksId200JSONResponseBodyDeleted = true
 )
 
 // Valid indicates whether the value is a known member of the DeleteApiDownloadsTasksId200JSONResponseBodyDeleted enum.
 func (e DeleteApiDownloadsTasksId200JSONResponseBodyDeleted) Valid() bool {
 	switch e {
-	case True:
+	case DeleteApiDownloadsTasksId200JSONResponseBodyDeletedTrue:
 		return true
 	default:
 		return false
@@ -1363,6 +1411,63 @@ func (e PostApiObjectsJSONBodyOnConflict) Valid() bool {
 	}
 }
 
+// Defines values for DeleteApiObjectsId200JSONResponseBodyDeleted.
+const (
+	DeleteApiObjectsId200JSONResponseBodyDeletedTrue DeleteApiObjectsId200JSONResponseBodyDeleted = true
+)
+
+// Valid indicates whether the value is a known member of the DeleteApiObjectsId200JSONResponseBodyDeleted enum.
+func (e DeleteApiObjectsId200JSONResponseBodyDeleted) Valid() bool {
+	switch e {
+	case DeleteApiObjectsId200JSONResponseBodyDeletedTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchApiObjectsIdJSONBodyOnConflict.
+const (
+	PatchApiObjectsIdJSONBodyOnConflictFail    PatchApiObjectsIdJSONBodyOnConflict = "fail"
+	PatchApiObjectsIdJSONBodyOnConflictRename  PatchApiObjectsIdJSONBodyOnConflict = "rename"
+	PatchApiObjectsIdJSONBodyOnConflictReplace PatchApiObjectsIdJSONBodyOnConflict = "replace"
+)
+
+// Valid indicates whether the value is a known member of the PatchApiObjectsIdJSONBodyOnConflict enum.
+func (e PatchApiObjectsIdJSONBodyOnConflict) Valid() bool {
+	switch e {
+	case PatchApiObjectsIdJSONBodyOnConflictFail:
+		return true
+	case PatchApiObjectsIdJSONBodyOnConflictRename:
+		return true
+	case PatchApiObjectsIdJSONBodyOnConflictReplace:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiObjectsIdCopiesJSONBodyOnConflict.
+const (
+	PostApiObjectsIdCopiesJSONBodyOnConflictFail    PostApiObjectsIdCopiesJSONBodyOnConflict = "fail"
+	PostApiObjectsIdCopiesJSONBodyOnConflictRename  PostApiObjectsIdCopiesJSONBodyOnConflict = "rename"
+	PostApiObjectsIdCopiesJSONBodyOnConflictReplace PostApiObjectsIdCopiesJSONBodyOnConflict = "replace"
+)
+
+// Valid indicates whether the value is a known member of the PostApiObjectsIdCopiesJSONBodyOnConflict enum.
+func (e PostApiObjectsIdCopiesJSONBodyOnConflict) Valid() bool {
+	switch e {
+	case PostApiObjectsIdCopiesJSONBodyOnConflictFail:
+		return true
+	case PostApiObjectsIdCopiesJSONBodyOnConflictRename:
+		return true
+	case PostApiObjectsIdCopiesJSONBodyOnConflictReplace:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PutApiObjectsIdStatusJSONBodyOnConflict.
 const (
 	PutApiObjectsIdStatusJSONBodyOnConflictFail    PutApiObjectsIdStatusJSONBodyOnConflict = "fail"
@@ -1396,6 +1501,24 @@ func (e PutApiObjectsIdStatusJSONBodyStatus) Valid() bool {
 	case PutApiObjectsIdStatusJSONBodyStatusActive:
 		return true
 	case PutApiObjectsIdStatusJSONBodyStatusTrashed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiObjectsIdTransfersJSONBodyMode.
+const (
+	Copy PostApiObjectsIdTransfersJSONBodyMode = "copy"
+	Move PostApiObjectsIdTransfersJSONBodyMode = "move"
+)
+
+// Valid indicates whether the value is a known member of the PostApiObjectsIdTransfersJSONBodyMode enum.
+func (e PostApiObjectsIdTransfersJSONBodyMode) Valid() bool {
+	switch e {
+	case Copy:
+		return true
+	case Move:
 		return true
 	default:
 		return false
@@ -1480,41 +1603,75 @@ func (e PutApiObjectsIdUploadsUploadSessionIdStatus200JSONResponseBodyStatus) Va
 	}
 }
 
-// DeviceCode defines model for DeviceCode.
-type DeviceCode struct {
-	DeviceCode              string `json:"device_code"`
-	ExpiresIn               int    `json:"expires_in"`
-	Interval                int    `json:"interval"`
-	UserCode                string `json:"user_code"`
-	VerificationUri         string `json:"verification_uri"`
-	VerificationUriComplete string `json:"verification_uri_complete"`
+// Matter defines model for Matter.
+type Matter struct {
+	Alias     string `json:"alias"`
+	CreatedAt string `json:"createdAt"`
+	Dirtype   int    `json:"dirtype"`
+	Id        string `json:"id"`
+	Name      string `json:"name"`
+	Object    string `json:"object"`
+	OrgId     string `json:"orgId"`
+	Parent    string `json:"parent"`
+	Size      int    `json:"size"`
+	Status    string `json:"status"`
+	StorageId string `json:"storageId"`
+	Type      string `json:"type"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
-// DeviceCodeRequest defines model for DeviceCodeRequest.
-type DeviceCodeRequest struct {
+// ObjectPage defines model for ObjectPage.
+type ObjectPage struct {
+	Items    []Matter `json:"items"`
+	Page     int      `json:"page"`
+	PageSize int      `json:"pageSize"`
+	Total    int      `json:"total"`
+}
+
+// TransferResult defines model for TransferResult.
+type TransferResult struct {
+	Id            string `json:"id"`
+	SourceDeleted bool   `json:"sourceDeleted"`
+}
+
+// PostApiAuthDeviceApproveJSONBody defines parameters for PostApiAuthDeviceApprove.
+type PostApiAuthDeviceApproveJSONBody struct {
+	// UserCode The user code to approve
+	UserCode string `json:"userCode"`
+}
+
+// PostApiAuthDeviceCodeJSONBody defines parameters for PostApiAuthDeviceCode.
+type PostApiAuthDeviceCodeJSONBody struct {
+	// ClientId The client ID of the application
 	ClientId string `json:"client_id"`
-	Scope    string `json:"scope"`
+
+	// Scope Space-separated list of scopes
+	Scope *string `json:"scope,omitempty"`
 }
 
-// DeviceToken defines model for DeviceToken.
-type DeviceToken struct {
-	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
-	Scope       string `json:"scope"`
-	TokenType   string `json:"token_type"`
+// PostApiAuthDeviceCode400JSONResponseBodyError defines parameters for PostApiAuthDeviceCode.
+type PostApiAuthDeviceCode400JSONResponseBodyError string
+
+// PostApiAuthDeviceDenyJSONBody defines parameters for PostApiAuthDeviceDeny.
+type PostApiAuthDeviceDenyJSONBody struct {
+	// UserCode The user code to deny
+	UserCode string `json:"userCode"`
 }
 
-// DeviceTokenRequest defines model for DeviceTokenRequest.
-type DeviceTokenRequest struct {
-	ClientId   string `json:"client_id"`
+// PostApiAuthDeviceTokenJSONBody defines parameters for PostApiAuthDeviceToken.
+type PostApiAuthDeviceTokenJSONBody struct {
+	// ClientId The client ID of the application
+	ClientId string `json:"client_id"`
+
+	// DeviceCode The device verification code
 	DeviceCode string `json:"device_code"`
-	GrantType  string `json:"grant_type"`
+
+	// GrantType The grant type for device flow
+	GrantType string `json:"grant_type"`
 }
 
-// ErrorResponse defines model for ErrorResponse.
-type ErrorResponse struct {
-	Error string `json:"error"`
-}
+// PostApiAuthDeviceToken400JSONResponseBodyError defines parameters for PostApiAuthDeviceToken.
+type PostApiAuthDeviceToken400JSONResponseBodyError string
 
 // GetApiDownloadsDownloaders200JSONResponseBodyItemsHeartbeatEngine defines parameters for GetApiDownloadsDownloaders.
 type GetApiDownloadsDownloaders200JSONResponseBodyItemsHeartbeatEngine string
@@ -1821,6 +1978,18 @@ type PutApiDownloadsTasksIdStatus200JSONResponseBodyStatusRuntimePhase string
 // PutApiDownloadsTasksIdStatus200JSONResponseBodyStatusState defines parameters for PutApiDownloadsTasksIdStatus.
 type PutApiDownloadsTasksIdStatus200JSONResponseBodyStatusState string
 
+// GetApiObjectsParams defines parameters for GetApiObjects.
+type GetApiObjectsParams struct {
+	Parent   *string `form:"parent,omitempty" json:"parent,omitempty"`
+	Path     *string `form:"path,omitempty" json:"path,omitempty"`
+	Status   *string `form:"status,omitempty" json:"status,omitempty"`
+	Type     *string `form:"type,omitempty" json:"type,omitempty"`
+	Search   *string `form:"search,omitempty" json:"search,omitempty"`
+	Page     *string `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *string `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	OrgId    *string `form:"orgId,omitempty" json:"orgId,omitempty"`
+}
+
 // PostApiObjectsJSONBody defines parameters for PostApiObjects.
 type PostApiObjectsJSONBody struct {
 	Dirtype    *int                              `json:"dirtype,omitempty"`
@@ -1834,6 +2003,28 @@ type PostApiObjectsJSONBody struct {
 // PostApiObjectsJSONBodyOnConflict defines parameters for PostApiObjects.
 type PostApiObjectsJSONBodyOnConflict string
 
+// DeleteApiObjectsId200JSONResponseBodyDeleted defines parameters for DeleteApiObjectsId.
+type DeleteApiObjectsId200JSONResponseBodyDeleted bool
+
+// PatchApiObjectsIdJSONBody defines parameters for PatchApiObjectsId.
+type PatchApiObjectsIdJSONBody struct {
+	Name       *string                              `json:"name,omitempty"`
+	OnConflict *PatchApiObjectsIdJSONBodyOnConflict `json:"onConflict,omitempty"`
+	Parent     *string                              `json:"parent,omitempty"`
+}
+
+// PatchApiObjectsIdJSONBodyOnConflict defines parameters for PatchApiObjectsId.
+type PatchApiObjectsIdJSONBodyOnConflict string
+
+// PostApiObjectsIdCopiesJSONBody defines parameters for PostApiObjectsIdCopies.
+type PostApiObjectsIdCopiesJSONBody struct {
+	OnConflict *PostApiObjectsIdCopiesJSONBodyOnConflict `json:"onConflict,omitempty"`
+	Parent     *string                                   `json:"parent,omitempty"`
+}
+
+// PostApiObjectsIdCopiesJSONBodyOnConflict defines parameters for PostApiObjectsIdCopies.
+type PostApiObjectsIdCopiesJSONBodyOnConflict string
+
 // PutApiObjectsIdStatusJSONBody defines parameters for PutApiObjectsIdStatus.
 type PutApiObjectsIdStatusJSONBody struct {
 	OnConflict *PutApiObjectsIdStatusJSONBodyOnConflict `json:"onConflict,omitempty"`
@@ -1845,6 +2036,16 @@ type PutApiObjectsIdStatusJSONBodyOnConflict string
 
 // PutApiObjectsIdStatusJSONBodyStatus defines parameters for PutApiObjectsIdStatus.
 type PutApiObjectsIdStatusJSONBodyStatus string
+
+// PostApiObjectsIdTransfersJSONBody defines parameters for PostApiObjectsIdTransfers.
+type PostApiObjectsIdTransfersJSONBody struct {
+	Mode         PostApiObjectsIdTransfersJSONBodyMode `json:"mode"`
+	TargetOrgId  string                                `json:"targetOrgId"`
+	TargetParent *string                               `json:"targetParent,omitempty"`
+}
+
+// PostApiObjectsIdTransfersJSONBodyMode defines parameters for PostApiObjectsIdTransfers.
+type PostApiObjectsIdTransfersJSONBodyMode string
 
 // PostApiObjectsIdUploadsJSONBody defines parameters for PostApiObjectsIdUploads.
 type PostApiObjectsIdUploadsJSONBody struct {
@@ -1877,11 +2078,17 @@ type PutApiObjectsIdUploadsUploadSessionIdStatusJSONBodyStatus string
 // PutApiObjectsIdUploadsUploadSessionIdStatus200JSONResponseBodyStatus defines parameters for PutApiObjectsIdUploadsUploadSessionIdStatus.
 type PutApiObjectsIdUploadsUploadSessionIdStatus200JSONResponseBodyStatus string
 
+// PostApiAuthDeviceApproveJSONRequestBody defines body for PostApiAuthDeviceApprove for application/json ContentType.
+type PostApiAuthDeviceApproveJSONRequestBody PostApiAuthDeviceApproveJSONBody
+
 // PostApiAuthDeviceCodeJSONRequestBody defines body for PostApiAuthDeviceCode for application/json ContentType.
-type PostApiAuthDeviceCodeJSONRequestBody = DeviceCodeRequest
+type PostApiAuthDeviceCodeJSONRequestBody PostApiAuthDeviceCodeJSONBody
+
+// PostApiAuthDeviceDenyJSONRequestBody defines body for PostApiAuthDeviceDeny for application/json ContentType.
+type PostApiAuthDeviceDenyJSONRequestBody PostApiAuthDeviceDenyJSONBody
 
 // PostApiAuthDeviceTokenJSONRequestBody defines body for PostApiAuthDeviceToken for application/json ContentType.
-type PostApiAuthDeviceTokenJSONRequestBody = DeviceTokenRequest
+type PostApiAuthDeviceTokenJSONRequestBody PostApiAuthDeviceTokenJSONBody
 
 // PostApiDownloadsDownloadersJSONRequestBody defines body for PostApiDownloadsDownloaders for application/json ContentType.
 type PostApiDownloadsDownloadersJSONRequestBody PostApiDownloadsDownloadersJSONBody
@@ -1907,8 +2114,17 @@ type PutApiDownloadsTasksIdStatusJSONRequestBody PutApiDownloadsTasksIdStatusJSO
 // PostApiObjectsJSONRequestBody defines body for PostApiObjects for application/json ContentType.
 type PostApiObjectsJSONRequestBody PostApiObjectsJSONBody
 
+// PatchApiObjectsIdJSONRequestBody defines body for PatchApiObjectsId for application/json ContentType.
+type PatchApiObjectsIdJSONRequestBody PatchApiObjectsIdJSONBody
+
+// PostApiObjectsIdCopiesJSONRequestBody defines body for PostApiObjectsIdCopies for application/json ContentType.
+type PostApiObjectsIdCopiesJSONRequestBody PostApiObjectsIdCopiesJSONBody
+
 // PutApiObjectsIdStatusJSONRequestBody defines body for PutApiObjectsIdStatus for application/json ContentType.
 type PutApiObjectsIdStatusJSONRequestBody PutApiObjectsIdStatusJSONBody
+
+// PostApiObjectsIdTransfersJSONRequestBody defines body for PostApiObjectsIdTransfers for application/json ContentType.
+type PostApiObjectsIdTransfersJSONRequestBody PostApiObjectsIdTransfersJSONBody
 
 // PostApiObjectsIdUploadsJSONRequestBody defines body for PostApiObjectsIdUploads for application/json ContentType.
 type PostApiObjectsIdUploadsJSONRequestBody PostApiObjectsIdUploadsJSONBody
@@ -1992,10 +2208,20 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// PostApiAuthDeviceApproveWithBody request with any body
+	PostApiAuthDeviceApproveWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostApiAuthDeviceApprove(ctx context.Context, body PostApiAuthDeviceApproveJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostApiAuthDeviceCodeWithBody request with any body
 	PostApiAuthDeviceCodeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostApiAuthDeviceCode(ctx context.Context, body PostApiAuthDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiAuthDeviceDenyWithBody request with any body
+	PostApiAuthDeviceDenyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostApiAuthDeviceDeny(ctx context.Context, body PostApiAuthDeviceDenyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiAuthDeviceTokenWithBody request with any body
 	PostApiAuthDeviceTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2052,15 +2278,39 @@ type ClientInterface interface {
 
 	PutApiDownloadsTasksIdStatus(ctx context.Context, id string, body PutApiDownloadsTasksIdStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetApiObjects request
+	GetApiObjects(ctx context.Context, params *GetApiObjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostApiObjectsWithBody request with any body
 	PostApiObjectsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostApiObjects(ctx context.Context, body PostApiObjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteApiObjectsId request
+	DeleteApiObjectsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetApiObjectsId request
+	GetApiObjectsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PatchApiObjectsIdWithBody request with any body
+	PatchApiObjectsIdWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PatchApiObjectsId(ctx context.Context, id string, body PatchApiObjectsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiObjectsIdCopiesWithBody request with any body
+	PostApiObjectsIdCopiesWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostApiObjectsIdCopies(ctx context.Context, id string, body PostApiObjectsIdCopiesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PutApiObjectsIdStatusWithBody request with any body
 	PutApiObjectsIdStatusWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PutApiObjectsIdStatus(ctx context.Context, id string, body PutApiObjectsIdStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiObjectsIdTransfersWithBody request with any body
+	PostApiObjectsIdTransfersWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostApiObjectsIdTransfers(ctx context.Context, id string, body PostApiObjectsIdTransfersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiObjectsIdUploadsWithBody request with any body
 	PostApiObjectsIdUploadsWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2081,6 +2331,30 @@ type ClientInterface interface {
 	PutApiObjectsIdUploadsUploadSessionIdStatus(ctx context.Context, id string, uploadSessionId string, body PutApiObjectsIdUploadsUploadSessionIdStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
+func (c *Client) PostApiAuthDeviceApproveWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthDeviceApproveRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiAuthDeviceApprove(ctx context.Context, body PostApiAuthDeviceApproveJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthDeviceApproveRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) PostApiAuthDeviceCodeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiAuthDeviceCodeRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -2095,6 +2369,30 @@ func (c *Client) PostApiAuthDeviceCodeWithBody(ctx context.Context, contentType 
 
 func (c *Client) PostApiAuthDeviceCode(ctx context.Context, body PostApiAuthDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiAuthDeviceCodeRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiAuthDeviceDenyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthDeviceDenyRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiAuthDeviceDeny(ctx context.Context, body PostApiAuthDeviceDenyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthDeviceDenyRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2357,6 +2655,18 @@ func (c *Client) PutApiDownloadsTasksIdStatus(ctx context.Context, id string, bo
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetApiObjects(ctx context.Context, params *GetApiObjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiObjectsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) PostApiObjectsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiObjectsRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -2381,6 +2691,78 @@ func (c *Client) PostApiObjects(ctx context.Context, body PostApiObjectsJSONRequ
 	return c.Client.Do(req)
 }
 
+func (c *Client) DeleteApiObjectsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteApiObjectsIdRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetApiObjectsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiObjectsIdRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchApiObjectsIdWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchApiObjectsIdRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchApiObjectsId(ctx context.Context, id string, body PatchApiObjectsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchApiObjectsIdRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiObjectsIdCopiesWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiObjectsIdCopiesRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiObjectsIdCopies(ctx context.Context, id string, body PostApiObjectsIdCopiesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiObjectsIdCopiesRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) PutApiObjectsIdStatusWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutApiObjectsIdStatusRequestWithBody(c.Server, id, contentType, body)
 	if err != nil {
@@ -2395,6 +2777,30 @@ func (c *Client) PutApiObjectsIdStatusWithBody(ctx context.Context, id string, c
 
 func (c *Client) PutApiObjectsIdStatus(ctx context.Context, id string, body PutApiObjectsIdStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutApiObjectsIdStatusRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiObjectsIdTransfersWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiObjectsIdTransfersRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiObjectsIdTransfers(ctx context.Context, id string, body PostApiObjectsIdTransfersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiObjectsIdTransfersRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2489,6 +2895,46 @@ func (c *Client) PutApiObjectsIdUploadsUploadSessionIdStatus(ctx context.Context
 	return c.Client.Do(req)
 }
 
+// NewPostApiAuthDeviceApproveRequest calls the generic PostApiAuthDeviceApprove builder with application/json body
+func NewPostApiAuthDeviceApproveRequest(server string, body PostApiAuthDeviceApproveJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiAuthDeviceApproveRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostApiAuthDeviceApproveRequestWithBody generates requests for PostApiAuthDeviceApprove with any type of body
+func NewPostApiAuthDeviceApproveRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/device/approve")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewPostApiAuthDeviceCodeRequest calls the generic PostApiAuthDeviceCode builder with application/json body
 func NewPostApiAuthDeviceCodeRequest(server string, body PostApiAuthDeviceCodeJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2510,6 +2956,46 @@ func NewPostApiAuthDeviceCodeRequestWithBody(server string, contentType string, 
 	}
 
 	operationPath := fmt.Sprintf("/api/auth/device/code")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostApiAuthDeviceDenyRequest calls the generic PostApiAuthDeviceDeny builder with application/json body
+func NewPostApiAuthDeviceDenyRequest(server string, body PostApiAuthDeviceDenyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiAuthDeviceDenyRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostApiAuthDeviceDenyRequestWithBody generates requests for PostApiAuthDeviceDeny with any type of body
+func NewPostApiAuthDeviceDenyRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/device/deny")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3144,6 +3630,144 @@ func NewPutApiDownloadsTasksIdStatusRequestWithBody(server string, id string, co
 	return req, nil
 }
 
+// NewGetApiObjectsRequest generates requests for GetApiObjects
+func NewGetApiObjectsRequest(server string, params *GetApiObjectsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Parent != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "parent", *params.Parent, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Path != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", *params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Type != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "type", *params.Type, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "search", *params.Search, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.OrgId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "orgId", *params.OrgId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPostApiObjectsRequest calls the generic PostApiObjects builder with application/json body
 func NewPostApiObjectsRequest(server string, body PostApiObjectsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -3165,6 +3789,168 @@ func NewPostApiObjectsRequestWithBody(server string, contentType string, body io
 	}
 
 	operationPath := fmt.Sprintf("/api/objects")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteApiObjectsIdRequest generates requests for DeleteApiObjectsId
+func NewDeleteApiObjectsIdRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetApiObjectsIdRequest generates requests for GetApiObjectsId
+func NewGetApiObjectsIdRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPatchApiObjectsIdRequest calls the generic PatchApiObjectsId builder with application/json body
+func NewPatchApiObjectsIdRequest(server string, id string, body PatchApiObjectsIdJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPatchApiObjectsIdRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPatchApiObjectsIdRequestWithBody generates requests for PatchApiObjectsId with any type of body
+func NewPatchApiObjectsIdRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostApiObjectsIdCopiesRequest calls the generic PostApiObjectsIdCopies builder with application/json body
+func NewPostApiObjectsIdCopiesRequest(server string, id string, body PostApiObjectsIdCopiesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiObjectsIdCopiesRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPostApiObjectsIdCopiesRequestWithBody generates requests for PostApiObjectsIdCopies with any type of body
+func NewPostApiObjectsIdCopiesRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s/copies", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3222,6 +4008,53 @@ func NewPutApiObjectsIdStatusRequestWithBody(server string, id string, contentTy
 	}
 
 	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostApiObjectsIdTransfersRequest calls the generic PostApiObjectsIdTransfers builder with application/json body
+func NewPostApiObjectsIdTransfersRequest(server string, id string, body PostApiObjectsIdTransfersJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiObjectsIdTransfersRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPostApiObjectsIdTransfersRequestWithBody generates requests for PostApiObjectsIdTransfers with any type of body
+func NewPostApiObjectsIdTransfersRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s/transfers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -3470,10 +4303,20 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// PostApiAuthDeviceApproveWithBodyWithResponse request with any body
+	PostApiAuthDeviceApproveWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceApproveResponse, error)
+
+	PostApiAuthDeviceApproveWithResponse(ctx context.Context, body PostApiAuthDeviceApproveJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceApproveResponse, error)
+
 	// PostApiAuthDeviceCodeWithBodyWithResponse request with any body
 	PostApiAuthDeviceCodeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceCodeResponse, error)
 
 	PostApiAuthDeviceCodeWithResponse(ctx context.Context, body PostApiAuthDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceCodeResponse, error)
+
+	// PostApiAuthDeviceDenyWithBodyWithResponse request with any body
+	PostApiAuthDeviceDenyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceDenyResponse, error)
+
+	PostApiAuthDeviceDenyWithResponse(ctx context.Context, body PostApiAuthDeviceDenyJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceDenyResponse, error)
 
 	// PostApiAuthDeviceTokenWithBodyWithResponse request with any body
 	PostApiAuthDeviceTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceTokenResponse, error)
@@ -3530,15 +4373,39 @@ type ClientWithResponsesInterface interface {
 
 	PutApiDownloadsTasksIdStatusWithResponse(ctx context.Context, id string, body PutApiDownloadsTasksIdStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*PutApiDownloadsTasksIdStatusResponse, error)
 
+	// GetApiObjectsWithResponse request
+	GetApiObjectsWithResponse(ctx context.Context, params *GetApiObjectsParams, reqEditors ...RequestEditorFn) (*GetApiObjectsResponse, error)
+
 	// PostApiObjectsWithBodyWithResponse request with any body
 	PostApiObjectsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsResponse, error)
 
 	PostApiObjectsWithResponse(ctx context.Context, body PostApiObjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiObjectsResponse, error)
 
+	// DeleteApiObjectsIdWithResponse request
+	DeleteApiObjectsIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteApiObjectsIdResponse, error)
+
+	// GetApiObjectsIdWithResponse request
+	GetApiObjectsIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetApiObjectsIdResponse, error)
+
+	// PatchApiObjectsIdWithBodyWithResponse request with any body
+	PatchApiObjectsIdWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchApiObjectsIdResponse, error)
+
+	PatchApiObjectsIdWithResponse(ctx context.Context, id string, body PatchApiObjectsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchApiObjectsIdResponse, error)
+
+	// PostApiObjectsIdCopiesWithBodyWithResponse request with any body
+	PostApiObjectsIdCopiesWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsIdCopiesResponse, error)
+
+	PostApiObjectsIdCopiesWithResponse(ctx context.Context, id string, body PostApiObjectsIdCopiesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiObjectsIdCopiesResponse, error)
+
 	// PutApiObjectsIdStatusWithBodyWithResponse request with any body
 	PutApiObjectsIdStatusWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutApiObjectsIdStatusResponse, error)
 
 	PutApiObjectsIdStatusWithResponse(ctx context.Context, id string, body PutApiObjectsIdStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*PutApiObjectsIdStatusResponse, error)
+
+	// PostApiObjectsIdTransfersWithBodyWithResponse request with any body
+	PostApiObjectsIdTransfersWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsIdTransfersResponse, error)
+
+	PostApiObjectsIdTransfersWithResponse(ctx context.Context, id string, body PostApiObjectsIdTransfersJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiObjectsIdTransfersResponse, error)
 
 	// PostApiObjectsIdUploadsWithBodyWithResponse request with any body
 	PostApiObjectsIdUploadsWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsIdUploadsResponse, error)
@@ -3559,10 +4426,97 @@ type ClientWithResponsesInterface interface {
 	PutApiObjectsIdUploadsUploadSessionIdStatusWithResponse(ctx context.Context, id string, uploadSessionId string, body PutApiObjectsIdUploadsUploadSessionIdStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*PutApiObjectsIdUploadsUploadSessionIdStatusResponse, error)
 }
 
+type PostApiAuthDeviceApproveResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success *bool `json:"success,omitempty"`
+	}
+	JSON400 *struct {
+		Message string `json:"message"`
+	}
+	JSON401 *struct {
+		Message string `json:"message"`
+	}
+	JSON403 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON404 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON429 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON500 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiAuthDeviceApproveResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiAuthDeviceApproveResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiAuthDeviceApproveResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type PostApiAuthDeviceCodeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *DeviceCode
+	JSON200      *struct {
+		// DeviceCode The device verification code
+		DeviceCode *string `json:"device_code,omitempty"`
+
+		// ExpiresIn Lifetime in seconds of the device code
+		ExpiresIn *float32 `json:"expires_in,omitempty"`
+
+		// Interval Minimum polling interval in seconds
+		Interval *float32 `json:"interval,omitempty"`
+
+		// UserCode The user code to display
+		UserCode *string `json:"user_code,omitempty"`
+
+		// VerificationUri The URL for user verification. Defaults to /device if not configured.
+		VerificationUri *string `json:"verification_uri,omitempty"`
+
+		// VerificationUriComplete The complete URL with user code as query parameter.
+		VerificationUriComplete *string `json:"verification_uri_complete,omitempty"`
+	}
+	JSON400 *struct {
+		Error            *PostApiAuthDeviceCode400JSONResponseBodyError `json:"error,omitempty"`
+		ErrorDescription *string                                        `json:"error_description,omitempty"`
+	}
+	JSON401 *struct {
+		Message string `json:"message"`
+	}
+	JSON403 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON404 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON429 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON500 *struct {
+		Message *string `json:"message,omitempty"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -3589,11 +4543,84 @@ func (r PostApiAuthDeviceCodeResponse) ContentType() string {
 	return ""
 }
 
+type PostApiAuthDeviceDenyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success *bool `json:"success,omitempty"`
+	}
+	JSON400 *struct {
+		Message string `json:"message"`
+	}
+	JSON401 *struct {
+		Message string `json:"message"`
+	}
+	JSON403 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON404 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON429 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON500 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiAuthDeviceDenyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiAuthDeviceDenyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiAuthDeviceDenyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type PostApiAuthDeviceTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *DeviceToken
-	JSON400      *ErrorResponse
+	JSON200      *struct {
+		AccessToken string  `json:"access_token"`
+		ExpiresIn   int     `json:"expires_in"`
+		Scope       *string `json:"scope,omitempty"`
+		TokenType   string  `json:"token_type"`
+	}
+	JSON400 *struct {
+		Error            *PostApiAuthDeviceToken400JSONResponseBodyError `json:"error,omitempty"`
+		ErrorDescription *string                                         `json:"error_description,omitempty"`
+	}
+	JSON401 *struct {
+		Message string `json:"message"`
+	}
+	JSON403 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON404 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON429 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON500 *struct {
+		Message *string `json:"message,omitempty"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -4846,23 +5873,63 @@ func (r PutApiDownloadsTasksIdStatusResponse) ContentType() string {
 	return ""
 }
 
+type GetApiObjectsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ObjectPage
+	JSON400      *struct {
+		Error string `json:"error"`
+	}
+	JSON403 *struct {
+		Error string `json:"error"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiObjectsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiObjectsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetApiObjectsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type PostApiObjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
+	JSON201      *struct {
 		ContentDisposition *string `json:"contentDisposition,omitempty"`
 		Id                 string  `json:"id"`
 		Name               string  `json:"name"`
 		UploadUrl          *string `json:"uploadUrl,omitempty"`
 	}
-	JSON201 *struct {
-		ContentDisposition *string `json:"contentDisposition,omitempty"`
-		Id                 string  `json:"id"`
-		Name               string  `json:"name"`
-		UploadUrl          *string `json:"uploadUrl,omitempty"`
+	JSON400 *struct {
+		Error string `json:"error"`
 	}
-	JSON403 *ErrorResponse
-	JSON409 *ErrorResponse
+	JSON403 *struct {
+		Error string `json:"error"`
+	}
+	JSON409 *struct {
+		Error string `json:"error"`
+	}
+	JSON500 *struct {
+		Error string `json:"error"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -4889,17 +5956,194 @@ func (r PostApiObjectsResponse) ContentType() string {
 	return ""
 }
 
-type PutApiObjectsIdStatusResponse struct {
+type DeleteApiObjectsIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		ContentDisposition *string `json:"contentDisposition,omitempty"`
-		Id                 string  `json:"id"`
-		Name               string  `json:"name"`
-		UploadUrl          *string `json:"uploadUrl,omitempty"`
+		Deleted DeleteApiObjectsId200JSONResponseBodyDeleted `json:"deleted"`
+		Id      string                                       `json:"id"`
+		Purged  *int                                         `json:"purged,omitempty"`
 	}
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON400 *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
+	JSON409 *struct {
+		Error string `json:"error"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteApiObjectsIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteApiObjectsIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteApiObjectsIdResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetApiObjectsIdResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Alias       string  `json:"alias"`
+		CreatedAt   string  `json:"createdAt"`
+		Dirtype     int     `json:"dirtype"`
+		DownloadUrl *string `json:"downloadUrl,omitempty"`
+		Id          string  `json:"id"`
+		Name        string  `json:"name"`
+		Object      string  `json:"object"`
+		OrgId       string  `json:"orgId"`
+		Parent      string  `json:"parent"`
+		Size        int     `json:"size"`
+		Status      string  `json:"status"`
+		StorageId   string  `json:"storageId"`
+		Type        string  `json:"type"`
+		UpdatedAt   string  `json:"updatedAt"`
+	}
+	JSON400 *struct {
+		Error string `json:"error"`
+	}
+	JSON402 *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
+	JSON422 *struct {
+		Error string `json:"error"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiObjectsIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiObjectsIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetApiObjectsIdResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PatchApiObjectsIdResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Matter
+	JSON400      *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r PatchApiObjectsIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PatchApiObjectsIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PatchApiObjectsIdResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiObjectsIdCopiesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Matter
+	JSON400      *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiObjectsIdCopiesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiObjectsIdCopiesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiObjectsIdCopiesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutApiObjectsIdStatusResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Matter
+	JSON400      *struct {
+		Error string `json:"error"`
+	}
+	JSON403 *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
+	JSON422 *struct {
+		Error string `json:"error"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -4926,6 +6170,48 @@ func (r PutApiObjectsIdStatusResponse) ContentType() string {
 	return ""
 }
 
+type PostApiObjectsIdTransfersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *TransferResult
+	JSON400      *struct {
+		Error string `json:"error"`
+	}
+	JSON403 *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
+	JSON422 *struct {
+		Error string `json:"error"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiObjectsIdTransfersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiObjectsIdTransfersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiObjectsIdTransfersResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type PostApiObjectsIdUploadsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4939,9 +6225,18 @@ type PostApiObjectsIdUploadsResponse struct {
 		UpdatedAt string                                           `json:"updatedAt"`
 		UploadId  string                                           `json:"uploadId"`
 	}
-	JSON400 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON400 *struct {
+		Error string `json:"error"`
+	}
+	JSON403 *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
+	JSON502 *struct {
+		Error string `json:"error"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -4981,9 +6276,15 @@ type DeleteApiObjectsIdUploadsUploadSessionIdResponse struct {
 		UpdatedAt string                                                            `json:"updatedAt"`
 		UploadId  string                                                            `json:"uploadId"`
 	}
-	JSON400 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON400 *struct {
+		Error string `json:"error"`
+	}
+	JSON403 *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -5021,9 +6322,18 @@ type PostApiObjectsIdUploadsUploadSessionIdPartsResponse struct {
 		} `json:"parts"`
 		UploadId string `json:"uploadId"`
 	}
-	JSON400 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON400 *struct {
+		Error string `json:"error"`
+	}
+	JSON403 *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
+	JSON502 *struct {
+		Error string `json:"error"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -5063,9 +6373,18 @@ type PutApiObjectsIdUploadsUploadSessionIdStatusResponse struct {
 		UpdatedAt string                                                               `json:"updatedAt"`
 		UploadId  string                                                               `json:"uploadId"`
 	}
-	JSON400 *ErrorResponse
-	JSON403 *ErrorResponse
-	JSON404 *ErrorResponse
+	JSON400 *struct {
+		Error string `json:"error"`
+	}
+	JSON403 *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
+	JSON502 *struct {
+		Error string `json:"error"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -5092,6 +6411,23 @@ func (r PutApiObjectsIdUploadsUploadSessionIdStatusResponse) ContentType() strin
 	return ""
 }
 
+// PostApiAuthDeviceApproveWithBodyWithResponse request with arbitrary body returning *PostApiAuthDeviceApproveResponse
+func (c *ClientWithResponses) PostApiAuthDeviceApproveWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceApproveResponse, error) {
+	rsp, err := c.PostApiAuthDeviceApproveWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiAuthDeviceApproveResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostApiAuthDeviceApproveWithResponse(ctx context.Context, body PostApiAuthDeviceApproveJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceApproveResponse, error) {
+	rsp, err := c.PostApiAuthDeviceApprove(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiAuthDeviceApproveResponse(rsp)
+}
+
 // PostApiAuthDeviceCodeWithBodyWithResponse request with arbitrary body returning *PostApiAuthDeviceCodeResponse
 func (c *ClientWithResponses) PostApiAuthDeviceCodeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceCodeResponse, error) {
 	rsp, err := c.PostApiAuthDeviceCodeWithBody(ctx, contentType, body, reqEditors...)
@@ -5107,6 +6443,23 @@ func (c *ClientWithResponses) PostApiAuthDeviceCodeWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParsePostApiAuthDeviceCodeResponse(rsp)
+}
+
+// PostApiAuthDeviceDenyWithBodyWithResponse request with arbitrary body returning *PostApiAuthDeviceDenyResponse
+func (c *ClientWithResponses) PostApiAuthDeviceDenyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceDenyResponse, error) {
+	rsp, err := c.PostApiAuthDeviceDenyWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiAuthDeviceDenyResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostApiAuthDeviceDenyWithResponse(ctx context.Context, body PostApiAuthDeviceDenyJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthDeviceDenyResponse, error) {
+	rsp, err := c.PostApiAuthDeviceDeny(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiAuthDeviceDenyResponse(rsp)
 }
 
 // PostApiAuthDeviceTokenWithBodyWithResponse request with arbitrary body returning *PostApiAuthDeviceTokenResponse
@@ -5290,6 +6643,15 @@ func (c *ClientWithResponses) PutApiDownloadsTasksIdStatusWithResponse(ctx conte
 	return ParsePutApiDownloadsTasksIdStatusResponse(rsp)
 }
 
+// GetApiObjectsWithResponse request returning *GetApiObjectsResponse
+func (c *ClientWithResponses) GetApiObjectsWithResponse(ctx context.Context, params *GetApiObjectsParams, reqEditors ...RequestEditorFn) (*GetApiObjectsResponse, error) {
+	rsp, err := c.GetApiObjects(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetApiObjectsResponse(rsp)
+}
+
 // PostApiObjectsWithBodyWithResponse request with arbitrary body returning *PostApiObjectsResponse
 func (c *ClientWithResponses) PostApiObjectsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsResponse, error) {
 	rsp, err := c.PostApiObjectsWithBody(ctx, contentType, body, reqEditors...)
@@ -5307,6 +6669,58 @@ func (c *ClientWithResponses) PostApiObjectsWithResponse(ctx context.Context, bo
 	return ParsePostApiObjectsResponse(rsp)
 }
 
+// DeleteApiObjectsIdWithResponse request returning *DeleteApiObjectsIdResponse
+func (c *ClientWithResponses) DeleteApiObjectsIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteApiObjectsIdResponse, error) {
+	rsp, err := c.DeleteApiObjectsId(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteApiObjectsIdResponse(rsp)
+}
+
+// GetApiObjectsIdWithResponse request returning *GetApiObjectsIdResponse
+func (c *ClientWithResponses) GetApiObjectsIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetApiObjectsIdResponse, error) {
+	rsp, err := c.GetApiObjectsId(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetApiObjectsIdResponse(rsp)
+}
+
+// PatchApiObjectsIdWithBodyWithResponse request with arbitrary body returning *PatchApiObjectsIdResponse
+func (c *ClientWithResponses) PatchApiObjectsIdWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchApiObjectsIdResponse, error) {
+	rsp, err := c.PatchApiObjectsIdWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchApiObjectsIdResponse(rsp)
+}
+
+func (c *ClientWithResponses) PatchApiObjectsIdWithResponse(ctx context.Context, id string, body PatchApiObjectsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchApiObjectsIdResponse, error) {
+	rsp, err := c.PatchApiObjectsId(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchApiObjectsIdResponse(rsp)
+}
+
+// PostApiObjectsIdCopiesWithBodyWithResponse request with arbitrary body returning *PostApiObjectsIdCopiesResponse
+func (c *ClientWithResponses) PostApiObjectsIdCopiesWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsIdCopiesResponse, error) {
+	rsp, err := c.PostApiObjectsIdCopiesWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiObjectsIdCopiesResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostApiObjectsIdCopiesWithResponse(ctx context.Context, id string, body PostApiObjectsIdCopiesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiObjectsIdCopiesResponse, error) {
+	rsp, err := c.PostApiObjectsIdCopies(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiObjectsIdCopiesResponse(rsp)
+}
+
 // PutApiObjectsIdStatusWithBodyWithResponse request with arbitrary body returning *PutApiObjectsIdStatusResponse
 func (c *ClientWithResponses) PutApiObjectsIdStatusWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutApiObjectsIdStatusResponse, error) {
 	rsp, err := c.PutApiObjectsIdStatusWithBody(ctx, id, contentType, body, reqEditors...)
@@ -5322,6 +6736,23 @@ func (c *ClientWithResponses) PutApiObjectsIdStatusWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParsePutApiObjectsIdStatusResponse(rsp)
+}
+
+// PostApiObjectsIdTransfersWithBodyWithResponse request with arbitrary body returning *PostApiObjectsIdTransfersResponse
+func (c *ClientWithResponses) PostApiObjectsIdTransfersWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsIdTransfersResponse, error) {
+	rsp, err := c.PostApiObjectsIdTransfersWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiObjectsIdTransfersResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostApiObjectsIdTransfersWithResponse(ctx context.Context, id string, body PostApiObjectsIdTransfersJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiObjectsIdTransfersResponse, error) {
+	rsp, err := c.PostApiObjectsIdTransfers(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiObjectsIdTransfersResponse(rsp)
 }
 
 // PostApiObjectsIdUploadsWithBodyWithResponse request with arbitrary body returning *PostApiObjectsIdUploadsResponse
@@ -5384,6 +6815,88 @@ func (c *ClientWithResponses) PutApiObjectsIdUploadsUploadSessionIdStatusWithRes
 	return ParsePutApiObjectsIdUploadsUploadSessionIdStatusResponse(rsp)
 }
 
+// ParsePostApiAuthDeviceApproveResponse parses an HTTP response from a PostApiAuthDeviceApproveWithResponse call
+func ParsePostApiAuthDeviceApproveResponse(rsp *http.Response) (*PostApiAuthDeviceApproveResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiAuthDeviceApproveResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success *bool `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParsePostApiAuthDeviceCodeResponse parses an HTTP response from a PostApiAuthDeviceCodeWithResponse call
 func ParsePostApiAuthDeviceCodeResponse(rsp *http.Response) (*PostApiAuthDeviceCodeResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -5399,11 +6912,166 @@ func ParsePostApiAuthDeviceCodeResponse(rsp *http.Response) (*PostApiAuthDeviceC
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DeviceCode
+		var dest struct {
+			// DeviceCode The device verification code
+			DeviceCode *string `json:"device_code,omitempty"`
+
+			// ExpiresIn Lifetime in seconds of the device code
+			ExpiresIn *float32 `json:"expires_in,omitempty"`
+
+			// Interval Minimum polling interval in seconds
+			Interval *float32 `json:"interval,omitempty"`
+
+			// UserCode The user code to display
+			UserCode *string `json:"user_code,omitempty"`
+
+			// VerificationUri The URL for user verification. Defaults to /device if not configured.
+			VerificationUri *string `json:"verification_uri,omitempty"`
+
+			// VerificationUriComplete The complete URL with user code as query parameter.
+			VerificationUriComplete *string `json:"verification_uri_complete,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error            *PostApiAuthDeviceCode400JSONResponseBodyError `json:"error,omitempty"`
+			ErrorDescription *string                                        `json:"error_description,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiAuthDeviceDenyResponse parses an HTTP response from a PostApiAuthDeviceDenyWithResponse call
+func ParsePostApiAuthDeviceDenyResponse(rsp *http.Response) (*PostApiAuthDeviceDenyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiAuthDeviceDenyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success *bool `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -5425,18 +7093,71 @@ func ParsePostApiAuthDeviceTokenResponse(rsp *http.Response) (*PostApiAuthDevice
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DeviceToken
+		var dest struct {
+			AccessToken string  `json:"access_token"`
+			ExpiresIn   int     `json:"expires_in"`
+			Scope       *string `json:"scope,omitempty"`
+			TokenType   string  `json:"token_type"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest struct {
+			Error            *PostApiAuthDeviceToken400JSONResponseBodyError `json:"error,omitempty"`
+			ErrorDescription *string                                         `json:"error_description,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -6783,6 +8504,50 @@ func ParsePutApiDownloadsTasksIdStatusResponse(rsp *http.Response) (*PutApiDownl
 	return response, nil
 }
 
+// ParseGetApiObjectsResponse parses an HTTP response from a GetApiObjectsWithResponse call
+func ParseGetApiObjectsResponse(rsp *http.Response) (*GetApiObjectsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiObjectsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ObjectPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParsePostApiObjectsResponse parses an HTTP response from a PostApiObjectsWithResponse call
 func ParsePostApiObjectsResponse(rsp *http.Response) (*PostApiObjectsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -6797,18 +8562,6 @@ func ParsePostApiObjectsResponse(rsp *http.Response) (*PostApiObjectsResponse, e
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			ContentDisposition *string `json:"contentDisposition,omitempty"`
-			Id                 string  `json:"id"`
-			Name               string  `json:"name"`
-			UploadUrl          *string `json:"uploadUrl,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest struct {
 			ContentDisposition *string `json:"contentDisposition,omitempty"`
@@ -6821,19 +8574,263 @@ func ParsePostApiObjectsResponse(rsp *http.Response) (*PostApiObjectsResponse, e
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteApiObjectsIdResponse parses an HTTP response from a DeleteApiObjectsIdWithResponse call
+func ParseDeleteApiObjectsIdResponse(rsp *http.Response) (*DeleteApiObjectsIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteApiObjectsIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Deleted DeleteApiObjectsId200JSONResponseBodyDeleted `json:"deleted"`
+			Id      string                                       `json:"id"`
+			Purged  *int                                         `json:"purged,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetApiObjectsIdResponse parses an HTTP response from a GetApiObjectsIdWithResponse call
+func ParseGetApiObjectsIdResponse(rsp *http.Response) (*GetApiObjectsIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiObjectsIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Alias       string  `json:"alias"`
+			CreatedAt   string  `json:"createdAt"`
+			Dirtype     int     `json:"dirtype"`
+			DownloadUrl *string `json:"downloadUrl,omitempty"`
+			Id          string  `json:"id"`
+			Name        string  `json:"name"`
+			Object      string  `json:"object"`
+			OrgId       string  `json:"orgId"`
+			Parent      string  `json:"parent"`
+			Size        int     `json:"size"`
+			Status      string  `json:"status"`
+			StorageId   string  `json:"storageId"`
+			Type        string  `json:"type"`
+			UpdatedAt   string  `json:"updatedAt"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePatchApiObjectsIdResponse parses an HTTP response from a PatchApiObjectsIdWithResponse call
+func ParsePatchApiObjectsIdResponse(rsp *http.Response) (*PatchApiObjectsIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PatchApiObjectsIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Matter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiObjectsIdCopiesResponse parses an HTTP response from a PostApiObjectsIdCopiesWithResponse call
+func ParsePostApiObjectsIdCopiesResponse(rsp *http.Response) (*PostApiObjectsIdCopiesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiObjectsIdCopiesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Matter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
@@ -6855,30 +8852,109 @@ func ParsePutApiObjectsIdStatusResponse(rsp *http.Response) (*PutApiObjectsIdSta
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			ContentDisposition *string `json:"contentDisposition,omitempty"`
-			Id                 string  `json:"id"`
-			Name               string  `json:"name"`
-			UploadUrl          *string `json:"uploadUrl,omitempty"`
-		}
+		var dest Matter
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiObjectsIdTransfersResponse parses an HTTP response from a PostApiObjectsIdTransfersWithResponse call
+func ParsePostApiObjectsIdTransfersResponse(rsp *http.Response) (*PostApiObjectsIdTransfersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiObjectsIdTransfersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TransferResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
 
 	}
 
@@ -6916,25 +8992,40 @@ func ParsePostApiObjectsIdUploadsResponse(rsp *http.Response) (*PostApiObjectsId
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
@@ -6972,21 +9063,27 @@ func ParseDeleteApiObjectsIdUploadsUploadSessionIdResponse(rsp *http.Response) (
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -7026,25 +9123,40 @@ func ParsePostApiObjectsIdUploadsUploadSessionIdPartsResponse(rsp *http.Response
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
@@ -7082,25 +9194,40 @@ func ParsePutApiObjectsIdUploadsUploadSessionIdStatusResponse(rsp *http.Response
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+		var dest struct {
+			Error string `json:"error"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 

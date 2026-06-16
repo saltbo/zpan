@@ -1,6 +1,7 @@
 import { release as osRelease } from 'node:os'
+import { OpenAPIHono } from '@hono/zod-openapi'
+import { Scalar } from '@scalar/hono-api-reference'
 import type { Context } from 'hono'
-import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
 import { createDeps } from './composition'
@@ -37,7 +38,6 @@ import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
 import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
-import { downloaderOpenAPIDocument } from './openapi/downloader'
 import type { Platform } from './platform/interface'
 import { getDeployPlatform } from './runtime-platform'
 import type { Deps } from './usecases/deps'
@@ -45,7 +45,7 @@ import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/sit
 import { ensureSitePublicOrigin } from './usecases/site/public-origin'
 
 export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
-  const app = new Hono<Env>()
+  const app = new OpenAPIHono<Env>()
   const corsOrigins = getCorsOrigins(platform)
 
   app.use('/*', platformMiddleware(platform, auth))
@@ -96,7 +96,70 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     return a.handler(c.req.raw)
   })
 
-  app.get('/api/openapi/downloader.json', (c) => c.json(downloaderOpenAPIDocument()))
+  // Global OpenAPI document. Aggregates every route defined with `.openapi()`
+  // across all mounted sub-apps — a route appears here as soon as its resource is
+  // converted to OpenAPIHono, no curation needed. better-auth endpoints (incl. the
+  // device flow) document themselves separately at /api/auth/reference.
+  app.get('/api/openapi.json', async (c) => {
+    const doc = app.getOpenAPIDocument({
+      openapi: '3.1.0',
+      info: { title: 'ZPan API', version: '0.1.0' },
+      // Top-level tag order + descriptions; Scalar groups operations by these.
+      tags: [
+        { name: 'Objects', description: 'Files and folders, including S3 multipart upload sessions' },
+        { name: 'Events', description: 'Multiplexed server-sent event stream' },
+        { name: 'Download Tasks', description: 'Remote download tasks' },
+        { name: 'Downloaders', description: 'Download agents and their heartbeats' },
+      ],
+    })
+
+    // Merge better-auth's own auto-generated schema (sign-in/up, organization,
+    // the device-authorization flow, …) into the same document. Both halves are
+    // generated — nothing here is a hand-maintained endpoint definition; new
+    // better-auth endpoints appear automatically. Its paths are relative to the
+    // /api/auth mount, so prefix them.
+    const authDoc = (await c.get('auth').api.generateOpenAPISchema()) as {
+      paths?: Record<string, unknown>
+      components?: { schemas?: Record<string, unknown> }
+    }
+    for (const [path, item] of Object.entries(authDoc.paths ?? {})) {
+      doc.paths[`/api/auth${path}`] = item as (typeof doc.paths)[string]
+    }
+    doc.components ??= {}
+    doc.components.schemas = {
+      ...(authDoc.components?.schemas as typeof doc.components.schemas),
+      ...doc.components.schemas,
+    }
+
+    // better-auth's device-authorization plugin advertises POST /device/token as
+    // returning { session, user }, but its handler actually returns the OAuth
+    // device token { access_token, token_type, expires_in } (see better-auth's
+    // device-authorization/routes.mjs). Correct that one wrong response so the
+    // document — and the generated downloader client — match the real wire shape.
+    const deviceTokenJson = (
+      doc.paths['/api/auth/device/token'] as
+        | { post?: { responses?: Record<string, { content?: Record<string, { schema?: unknown }> }> } }
+        | undefined
+    )?.post?.responses?.['200']?.content?.['application/json']
+    if (deviceTokenJson) {
+      deviceTokenJson.schema = {
+        type: 'object',
+        properties: {
+          access_token: { type: 'string' },
+          token_type: { type: 'string' },
+          expires_in: { type: 'integer' },
+          scope: { type: 'string' },
+        },
+        required: ['access_token', 'token_type', 'expires_in'],
+      }
+    }
+
+    return c.json(doc)
+  })
+
+  // Scalar interactive API reference for the global document above. Our own
+  // resources live here; better-auth serves its own reference at /api/auth/reference.
+  app.get('/api/docs', Scalar({ url: '/api/openapi.json', title: 'ZPan API' }))
 
   app.all('/dav', (c) => c.redirect('/dav/', 308))
   app.route('/dav', webdav)

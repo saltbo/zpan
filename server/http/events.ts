@@ -1,5 +1,5 @@
-import { Hono } from 'hono'
-import { z } from 'zod'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import type { Context } from 'hono'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { type EventsMessage, streamEvents } from '../usecases/events'
@@ -22,6 +22,50 @@ const eventsQuerySchema = z.object({
   dtSortDir: z.enum(['asc', 'desc']).optional().catch(undefined),
 })
 
+// The wire/doc contract for the query string. Kept to lenient optional strings
+// (no enum, no `.catch()`): the OpenAPI generator can't map a ZodCatch, and a
+// malformed sort param must be silently ignored — never 400 an always-on stream.
+// The strict coercion still happens in the handler via `eventsQuerySchema`.
+const eventsQueryDocSchema = z.object({
+  downloadTasks: z.string().optional().openapi({ description: 'Set to "1" to subscribe to download-task events.' }),
+  dtStatus: z.string().optional(),
+  dtCategory: z.string().optional(),
+  dtTag: z.string().optional(),
+  dtSortBy: z
+    .string()
+    .optional()
+    .openapi({ description: 'One of: createdAt | source | category | tags | status | progress | eta' }),
+  dtSortDir: z.string().optional().openapi({ description: 'asc | desc' }),
+})
+
+// The SSE body is a stream of text/event-stream frames, not JSON, so the schema
+// is just a string. OpenAPI 3.x has no native way to type the named events of a
+// single stream, so they're spelled out in the route description below.
+const eventStreamRoute = createRoute({
+  tags: ['Events'],
+  method: 'get',
+  path: '/',
+  middleware: [requireAuth] as const,
+  summary: 'Server-sent events stream',
+  description: [
+    'A single SSE connection multiplexing several domains via named events:',
+    '',
+    '- `jobs` → `{ activeCount }` — background-job set changed (always on)',
+    '- `notifications` → `{ unreadCount }` — unread count changed (always on)',
+    '- `download-tasks` → `{ items, total, page, pageSize }` — download tasks changed (opt-in via `?downloadTasks=1`)',
+    '- `heartbeat` → `{ at }` — keep-alive emitted when nothing changed for a while',
+    '- `error` → `{ message }` — a domain query failed this tick',
+  ].join('\n'),
+  request: { query: eventsQueryDocSchema },
+  responses: {
+    200: {
+      content: { 'text/event-stream': { schema: z.string() } },
+      description: 'Open SSE stream of domain-change events',
+    },
+    401: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Unauthorized' },
+  },
+})
+
 // One SSE stream multiplexing several domains via named events:
 //   event: jobs           → { activeCount }                 background-job set changed (always on)
 //   event: notifications  → { unreadCount }                 unread count changed (always on)
@@ -35,7 +79,7 @@ const eventsQuerySchema = z.object({
 // This handler owns only the wire: it builds the ReadableStream, encodes each
 // domain event the usecase emits as an SSE frame, and returns the Response. All
 // polling / fingerprint / change-detection lives in streamEvents (usecases/events.ts).
-export const events = new Hono<Env>().use(requireAuth).get('/', (c) => {
+export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, ((c: Context<Env>) => {
   const deps = c.get('deps')
   const query = eventsQuerySchema.parse(c.req.query())
 
@@ -88,6 +132,6 @@ export const events = new Hono<Env>().use(requireAuth).get('/', (c) => {
       Connection: 'keep-alive',
     },
   })
-})
+}) as never)
 
 export default events

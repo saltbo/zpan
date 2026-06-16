@@ -42,6 +42,8 @@ func TestCreateObjectUsesRenameConflictStrategy(t *testing.T) {
 			t.Fatal(err)
 		}
 		w.Header().Set("Content-Type", "application/json")
+		// POST /api/objects always returns 201 Created.
+		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(ObjectDraft{ID: "object-1", Name: "movie (1).mkv"})
 	}))
 	defer server.Close()

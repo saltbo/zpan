@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { downloaderOpenAPIDocument } from '../server/openapi/downloader'
+import { buildClientSpec } from './build-client-spec'
 
 const execFile = promisify(execFileCallback)
 const root = process.cwd()
@@ -16,11 +16,7 @@ async function main() {
     const configPath = join(tempDir, 'oapi-codegen.yaml')
 
     await mkdir(join(root, 'docs/openapi'), { recursive: true })
-    await writeFile(
-      generatedDocPath,
-      `${JSON.stringify(downloaderOpenAPIDocument(), null, 2)}\n`,
-      'utf8',
-    )
+    await writeFile(generatedDocPath, `${JSON.stringify(await buildClientSpec(), null, 2)}\n`, 'utf8')
     await writeFile(
       configPath,
       [

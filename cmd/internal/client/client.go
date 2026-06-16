@@ -348,9 +348,10 @@ func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.GetApiDow
 }
 
 func (c *Client) RequestDeviceCode(ctx context.Context) (DeviceCode, error) {
-	res, err := c.api.PostApiAuthDeviceCodeWithResponse(ctx, openapi.DeviceCodeRequest{
+	scope := "downloader:register"
+	res, err := c.api.PostApiAuthDeviceCodeWithResponse(ctx, openapi.PostApiAuthDeviceCodeJSONRequestBody{
 		ClientId: "zpan-cli",
-		Scope:    "downloader:register",
+		Scope:    &scope,
 	})
 	if err != nil {
 		return DeviceCode{}, err
@@ -362,17 +363,17 @@ func (c *Client) RequestDeviceCode(ctx context.Context) (DeviceCode, error) {
 		return DeviceCode{}, fmt.Errorf("POST /api/auth/device/code failed: empty response")
 	}
 	return DeviceCode{
-		DeviceCode:              res.JSON200.DeviceCode,
-		UserCode:                res.JSON200.UserCode,
-		VerificationURI:         res.JSON200.VerificationUri,
-		VerificationURIComplete: res.JSON200.VerificationUriComplete,
-		ExpiresIn:               res.JSON200.ExpiresIn,
-		Interval:                res.JSON200.Interval,
+		DeviceCode:              derefString(res.JSON200.DeviceCode),
+		UserCode:                derefString(res.JSON200.UserCode),
+		VerificationURI:         derefString(res.JSON200.VerificationUri),
+		VerificationURIComplete: derefString(res.JSON200.VerificationUriComplete),
+		ExpiresIn:               derefFloatToInt(res.JSON200.ExpiresIn),
+		Interval:                derefFloatToInt(res.JSON200.Interval),
 	}, nil
 }
 
 func (c *Client) PollDeviceToken(ctx context.Context, deviceCode string) (DeviceToken, error) {
-	res, err := c.api.PostApiAuthDeviceTokenWithResponse(ctx, openapi.DeviceTokenRequest{
+	res, err := c.api.PostApiAuthDeviceTokenWithResponse(ctx, openapi.PostApiAuthDeviceTokenJSONRequestBody{
 		GrantType:  "urn:ietf:params:oauth:grant-type:device_code",
 		DeviceCode: deviceCode,
 		ClientId:   "zpan-cli",
@@ -390,7 +391,7 @@ func (c *Client) PollDeviceToken(ctx context.Context, deviceCode string) (Device
 		AccessToken: res.JSON200.AccessToken,
 		TokenType:   res.JSON200.TokenType,
 		ExpiresIn:   res.JSON200.ExpiresIn,
-		Scope:       res.JSON200.Scope,
+		Scope:       derefString(res.JSON200.Scope),
 	}, nil
 }
 
@@ -536,14 +537,6 @@ func (c *Client) createMatter(
 	if err := expectStatus("POST", "/api/objects", res.StatusCode(), res.Body, http.StatusOK, http.StatusCreated); err != nil {
 		return ObjectDraft{}, err
 	}
-	if res.JSON200 != nil {
-		return ObjectDraft{
-			ID:                 res.JSON200.Id,
-			Name:               res.JSON200.Name,
-			UploadURL:          derefString(res.JSON200.UploadUrl),
-			ContentDisposition: derefString(res.JSON200.ContentDisposition),
-		}, nil
-	}
 	if res.JSON201 != nil {
 		return ObjectDraft{
 			ID:                 res.JSON201.Id,
@@ -644,6 +637,16 @@ func derefString(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+// better-auth's device/code schema types expires_in/interval as `number` and
+// leaves them optional, so the generated client surfaces them as *float32.
+// They are always whole-second integers at runtime.
+func derefFloatToInt(value *float32) int {
+	if value == nil {
+		return 0
+	}
+	return int(*value)
 }
 
 func bearer(token string) openapi.RequestEditorFn {

@@ -34,6 +34,7 @@ function jsonResponse(schema: z.ZodType, description: string) {
 }
 
 const listRoute = createRoute({
+  tags: ['Download Tasks'],
   method: 'get',
   path: '/',
   middleware: [requirePermission('remoteDownload', 'read', { allowDownloader: true })] as const,
@@ -45,6 +46,7 @@ const listRoute = createRoute({
 })
 
 const createRouteDoc = createRoute({
+  tags: ['Download Tasks'],
   method: 'post',
   path: '/',
   middleware: [requirePermission('remoteDownload', 'create', { minTeamRole: 'editor' })] as const,
@@ -58,6 +60,7 @@ const createRouteDoc = createRoute({
 })
 
 const getRoute = createRoute({
+  tags: ['Download Tasks'],
   method: 'get',
   path: '/{id}',
   middleware: [requirePermission('remoteDownload', 'read')] as const,
@@ -69,6 +72,7 @@ const getRoute = createRoute({
 })
 
 const updateRoute = createRoute({
+  tags: ['Download Tasks'],
   method: 'patch',
   path: '/{id}',
   middleware: [requirePermission('remoteDownload', 'cancel', { allowDownloader: true })] as const,
@@ -93,6 +97,7 @@ const taskErrorResponses = {
 }
 
 const statusRoute = createRoute({
+  tags: ['Download Tasks'],
   method: 'put',
   path: '/{id}/status',
   middleware: [requirePermission('remoteDownload', 'cancel')] as const,
@@ -107,6 +112,7 @@ const statusRoute = createRoute({
 })
 
 const attemptRoute = createRoute({
+  tags: ['Download Tasks'],
   method: 'post',
   path: '/{id}/attempts',
   middleware: [requirePermission('remoteDownload', 'cancel')] as const,
@@ -121,6 +127,7 @@ const attemptRoute = createRoute({
 })
 
 const deleteRoute = createRoute({
+  tags: ['Download Tasks'],
   method: 'delete',
   path: '/{id}',
   middleware: [requirePermission('remoteDownload', 'cancel')] as const,

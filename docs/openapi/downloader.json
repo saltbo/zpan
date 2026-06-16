@@ -1,133 +1,398 @@
 {
-  "openapi": "3.0.0",
+  "openapi": "3.0.3",
   "info": {
-    "title": "ZPan Downloader API",
+    "title": "ZPan API",
     "version": "0.1.0"
   },
+  "tags": [
+    {
+      "name": "Objects",
+      "description": "Files and folders, including S3 multipart upload sessions"
+    },
+    {
+      "name": "Events",
+      "description": "Multiplexed server-sent event stream"
+    },
+    {
+      "name": "Download Tasks",
+      "description": "Remote download tasks"
+    },
+    {
+      "name": "Downloaders",
+      "description": "Download agents and their heartbeats"
+    }
+  ],
   "components": {
     "schemas": {
-      "DeviceCode": {
+      "ObjectPage": {
         "type": "object",
         "properties": {
-          "device_code": {
-            "type": "string"
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Matter"
+            }
           },
-          "user_code": {
-            "type": "string"
-          },
-          "verification_uri": {
-            "type": "string"
-          },
-          "verification_uri_complete": {
-            "type": "string"
-          },
-          "expires_in": {
+          "total": {
             "type": "integer"
           },
-          "interval": {
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
             "type": "integer"
           }
         },
         "required": [
-          "device_code",
-          "user_code",
-          "verification_uri",
-          "verification_uri_complete",
-          "expires_in",
-          "interval"
+          "items",
+          "total",
+          "page",
+          "pageSize"
         ]
       },
-      "DeviceCodeRequest": {
+      "Matter": {
         "type": "object",
         "properties": {
-          "client_id": {
+          "id": {
             "type": "string"
           },
-          "scope": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "client_id",
-          "scope"
-        ]
-      },
-      "DeviceToken": {
-        "type": "object",
-        "properties": {
-          "access_token": {
+          "orgId": {
             "type": "string"
           },
-          "token_type": {
+          "alias": {
             "type": "string"
           },
-          "expires_in": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "size": {
             "type": "integer"
           },
-          "scope": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "access_token",
-          "token_type",
-          "expires_in",
-          "scope"
-        ]
-      },
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "error"
-        ]
-      },
-      "DeviceTokenRequest": {
-        "type": "object",
-        "properties": {
-          "grant_type": {
+          "dirtype": {
+            "type": "integer"
+          },
+          "parent": {
             "type": "string"
           },
-          "device_code": {
+          "object": {
             "type": "string"
           },
-          "client_id": {
+          "storageId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
             "type": "string"
           }
         },
         "required": [
-          "grant_type",
-          "device_code",
-          "client_id"
+          "id",
+          "orgId",
+          "alias",
+          "name",
+          "type",
+          "size",
+          "dirtype",
+          "parent",
+          "object",
+          "storageId",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "TransferResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sourceDeleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "sourceDeleted"
         ]
       }
     },
     "parameters": {}
   },
   "paths": {
-    "/api/auth/device/code": {
+    "/api/objects": {
+      "get": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "parent",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "path",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "search",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "orgId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Objects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No active organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
+        "tags": [
+          "Objects"
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DeviceCodeRequest"
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "parent": {
+                    "type": "string",
+                    "default": ""
+                  },
+                  "dirtype": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "onConflict": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "rename",
+                      "replace"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "type"
+                ]
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Device authorization code",
+          "201": {
+            "description": "Created object draft with upload URL",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeviceCode"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "contentDisposition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No active organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Name conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
                 }
               }
             }
@@ -135,35 +400,1303 @@
         }
       }
     },
-    "/api/auth/device/token": {
+    "/api/objects/{id}/uploads": {
       "post": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DeviceTokenRequest"
+                "type": "object",
+                "properties": {
+                  "partSize": {
+                    "type": "integer",
+                    "minimum": 5242880,
+                    "maximum": 536870912
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Object multipart upload session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "objectId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "partSize": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "completed",
+                        "aborted"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "objectId",
+                    "uploadId",
+                    "partSize",
+                    "status",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid upload session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Storage failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objects/{id}/uploads/{uploadSessionId}/parts": {
+      "post": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "uploadSessionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "partNumbers": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "partNumbers"
+                ]
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Device access token",
+            "description": "Presigned multipart upload parts",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeviceToken"
+                  "type": "object",
+                  "properties": {
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "partSize": {
+                      "type": "integer"
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "partNumber": {
+                            "type": "integer"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "partNumber",
+                          "url"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "uploadId",
+                    "partSize",
+                    "parts"
+                  ]
                 }
               }
             }
           },
           "400": {
-            "description": "Device login error",
+            "description": "Invalid upload session",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Storage failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objects/{id}/uploads/{uploadSessionId}/status": {
+      "put": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "uploadSessionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "completed"
+                    ]
+                  },
+                  "parts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "partNumber": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10000
+                        },
+                        "etag": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "partNumber",
+                        "etag"
+                      ]
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "status",
+                  "parts"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Completed object multipart upload session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "objectId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "partSize": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "completed",
+                        "aborted"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "objectId",
+                    "uploadId",
+                    "partSize",
+                    "status",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid upload session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Storage failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objects/{id}/uploads/{uploadSessionId}": {
+      "delete": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "uploadSessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aborted object multipart upload session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "objectId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "partSize": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "completed",
+                        "aborted"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "objectId",
+                    "uploadId",
+                    "partSize",
+                    "status",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid upload session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objects/{id}": {
+      "get": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Matter"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "downloadUrl": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No active organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Insufficient credits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Traffic quota exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "parent": {
+                    "type": "string"
+                  },
+                  "onConflict": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "rename",
+                      "replace"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Matter"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "purged": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No active organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Object must be trashed before permanent deletion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objects/{id}/status": {
+      "put": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "trashed"
+                    ]
+                  },
+                  "onConflict": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "rename",
+                      "replace"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Matter"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No active organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Quota exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objects/{id}/copies": {
+      "post": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parent": {
+                    "type": "string",
+                    "default": ""
+                  },
+                  "onConflict": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "rename",
+                      "replace"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Copied object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Matter"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No active organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objects/{id}/transfers": {
+      "post": {
+        "tags": [
+          "Objects"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "targetOrgId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "targetParent": {
+                    "type": "string",
+                    "default": ""
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "copy",
+                      "move"
+                    ]
+                  }
+                },
+                "required": [
+                  "targetOrgId",
+                  "mode"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Transferred object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid transfer target",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Quota exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
                 }
               }
             }
@@ -173,6 +1706,9 @@
     },
     "/api/downloads/tasks": {
       "get": {
+        "tags": [
+          "Download Tasks"
+        ],
         "parameters": [
           {
             "schema": {
@@ -865,6 +2401,9 @@
         }
       },
       "post": {
+        "tags": [
+          "Download Tasks"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1526,6 +3065,9 @@
     },
     "/api/downloads/tasks/{id}": {
       "get": {
+        "tags": [
+          "Download Tasks"
+        ],
         "parameters": [
           {
             "schema": {
@@ -2098,6 +3640,9 @@
         }
       },
       "delete": {
+        "tags": [
+          "Download Tasks"
+        ],
         "parameters": [
           {
             "schema": {
@@ -2209,6 +3754,9 @@
         }
       },
       "patch": {
+        "tags": [
+          "Download Tasks"
+        ],
         "parameters": [
           {
             "schema": {
@@ -3186,6 +4734,9 @@
     },
     "/api/downloads/tasks/{id}/status": {
       "put": {
+        "tags": [
+          "Download Tasks"
+        ],
         "parameters": [
           {
             "schema": {
@@ -3837,6 +5388,9 @@
     },
     "/api/downloads/tasks/{id}/attempts": {
       "post": {
+        "tags": [
+          "Download Tasks"
+        ],
         "parameters": [
           {
             "schema": {
@@ -4480,6 +6034,9 @@
     },
     "/api/downloads/downloaders/me/heartbeats": {
       "post": {
+        "tags": [
+          "Downloaders"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -4679,6 +6236,9 @@
     },
     "/api/downloads/downloaders": {
       "get": {
+        "tags": [
+          "Downloaders"
+        ],
         "responses": {
           "200": {
             "description": "Downloaders",
@@ -4810,6 +6370,9 @@
         }
       },
       "post": {
+        "tags": [
+          "Downloaders"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -5053,6 +6616,9 @@
     },
     "/api/downloads/downloaders/{id}": {
       "patch": {
+        "tags": [
+          "Downloaders"
+        ],
         "parameters": [
           {
             "schema": {
@@ -5212,6 +6778,9 @@
         }
       },
       "delete": {
+        "tags": [
+          "Downloaders"
+        ],
         "parameters": [
           {
             "schema": {
@@ -5266,8 +6835,13 @@
         }
       }
     },
-    "/api/objects": {
+    "/api/auth/device/code": {
       "post": {
+        "tags": [
+          "Device-authorization"
+        ],
+        "description": "Request a device and user code\n\nFollow [rfc8628#section-3.2](https://datatracker.ietf.org/doc/html/rfc8628#section-3.2)",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -5275,38 +6849,18 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "name": {
+                  "client_id": {
                     "type": "string",
-                    "minLength": 1
+                    "description": "The client ID of the application"
                   },
-                  "type": {
+                  "scope": {
                     "type": "string",
-                    "minLength": 1
-                  },
-                  "size": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "parent": {
-                    "type": "string",
-                    "default": ""
-                  },
-                  "dirtype": {
-                    "type": "integer",
-                    "default": 0
-                  },
-                  "onConflict": {
-                    "type": "string",
-                    "enum": [
-                      "fail",
-                      "rename",
-                      "replace"
-                    ]
+                    "description": "Space-separated list of scopes",
+                    "nullable": true
                   }
                 },
                 "required": [
-                  "name",
-                  "type"
+                  "client_id"
                 ]
               }
             }
@@ -5314,312 +6868,153 @@
         },
         "responses": {
           "200": {
-            "description": "Object draft with upload URL",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
+                    "device_code": {
+                      "type": "string",
+                      "description": "The device verification code"
                     },
-                    "name": {
-                      "type": "string"
+                    "user_code": {
+                      "type": "string",
+                      "description": "The user code to display"
                     },
-                    "uploadUrl": {
-                      "type": "string"
+                    "verification_uri": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "The URL for user verification. Defaults to /device if not configured."
                     },
-                    "contentDisposition": {
-                      "type": "string"
+                    "verification_uri_complete": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "The complete URL with user code as query parameter."
+                    },
+                    "expires_in": {
+                      "type": "number",
+                      "description": "Lifetime in seconds of the device code"
+                    },
+                    "interval": {
+                      "type": "number",
+                      "description": "Minimum polling interval in seconds"
                     }
-                  },
-                  "required": [
-                    "id",
-                    "name"
-                  ]
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "Object draft with upload URL",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "uploadUrl": {
-                      "type": "string"
-                    },
-                    "contentDisposition": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name"
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Name conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/objects/{id}/status": {
-      "put": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "active",
-                      "trashed"
-                    ]
-                  },
-                  "onConflict": {
-                    "type": "string",
-                    "enum": [
-                      "fail",
-                      "rename",
-                      "replace"
-                    ]
-                  }
-                },
-                "required": [
-                  "status"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Confirmed object",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "uploadUrl": {
-                      "type": "string"
-                    },
-                    "contentDisposition": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name"
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/objects/{id}/uploads": {
-      "post": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "partSize": {
-                    "type": "integer",
-                    "minimum": 5242880,
-                    "maximum": 536870912
                   }
                 }
               }
             }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Object multipart upload session",
+          },
+          "400": {
+            "description": "Error response",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "objectId": {
-                      "type": "string"
-                    },
-                    "uploadId": {
-                      "type": "string"
-                    },
-                    "partSize": {
-                      "type": "integer"
-                    },
-                    "status": {
+                    "error": {
                       "type": "string",
                       "enum": [
-                        "active",
-                        "completed",
-                        "aborted"
+                        "invalid_request",
+                        "invalid_client"
                       ]
                     },
-                    "expiresAt": {
+                    "error_description": {
                       "type": "string"
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "updatedAt": {
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
                       "type": "string"
                     }
                   },
                   "required": [
-                    "id",
-                    "objectId",
-                    "uploadId",
-                    "partSize",
-                    "status",
-                    "expiresAt",
-                    "createdAt",
-                    "updatedAt"
+                    "message"
                   ]
                 }
               }
-            }
-          },
-          "400": {
-            "description": "Invalid upload session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            },
+            "description": "Unauthorized. Due to missing or invalid authentication."
           },
           "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
-            }
+            },
+            "description": "Forbidden. You do not have permission to access this resource or to perform this action."
           },
           "404": {
-            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
-            }
+            },
+            "description": "Not Found. The requested resource was not found."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Too Many Requests. You have exceeded the rate limit. Try again later."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Internal Server Error. This is a problem with the server that you cannot fix."
           }
         }
       }
     },
-    "/api/objects/{id}/uploads/{uploadSessionId}/parts": {
+    "/api/auth/device/token": {
       "post": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "uploadSessionId",
-            "in": "path"
-          }
+        "tags": [
+          "Device-authorization"
         ],
+        "description": "Exchange device code for access token\n\nFollow [rfc8628#section-3.4](https://datatracker.ietf.org/doc/html/rfc8628#section-3.4)",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -5627,158 +7022,23 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "partNumbers": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 10000
-                    },
-                    "minItems": 1,
-                    "maxItems": 100
-                  }
-                },
-                "required": [
-                  "partNumbers"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Presigned multipart upload parts",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "uploadId": {
-                      "type": "string"
-                    },
-                    "partSize": {
-                      "type": "integer"
-                    },
-                    "parts": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "partNumber": {
-                            "type": "integer"
-                          },
-                          "url": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "partNumber",
-                          "url"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "uploadId",
-                    "partSize",
-                    "parts"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid upload session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/objects/{id}/uploads/{uploadSessionId}/status": {
-      "put": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "uploadSessionId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "status": {
+                  "grant_type": {
                     "type": "string",
-                    "enum": [
-                      "completed"
-                    ]
+                    "description": "The grant type for device flow"
                   },
-                  "parts": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "partNumber": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 10000
-                        },
-                        "etag": {
-                          "type": "string",
-                          "minLength": 1
-                        }
-                      },
-                      "required": [
-                        "partNumber",
-                        "etag"
-                      ]
-                    },
-                    "minItems": 1
+                  "device_code": {
+                    "type": "string",
+                    "description": "The device verification code"
+                  },
+                  "client_id": {
+                    "type": "string",
+                    "description": "The client ID of the application"
                   }
                 },
                 "required": [
-                  "status",
-                  "parts"
+                  "grant_type",
+                  "device_code",
+                  "client_id"
                 ]
               }
             }
@@ -5786,190 +7046,419 @@
         },
         "responses": {
           "200": {
-            "description": "Completed object multipart upload session",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
+                    "access_token": {
                       "type": "string"
                     },
-                    "objectId": {
+                    "token_type": {
                       "type": "string"
                     },
-                    "uploadId": {
-                      "type": "string"
-                    },
-                    "partSize": {
+                    "expires_in": {
                       "type": "integer"
                     },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "active",
-                        "completed",
-                        "aborted"
-                      ]
-                    },
-                    "expiresAt": {
-                      "type": "string"
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "updatedAt": {
+                    "scope": {
                       "type": "string"
                     }
                   },
                   "required": [
-                    "id",
-                    "objectId",
-                    "uploadId",
-                    "partSize",
-                    "status",
-                    "expiresAt",
-                    "createdAt",
-                    "updatedAt"
+                    "access_token",
+                    "token_type",
+                    "expires_in"
                   ]
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid upload session",
+            "description": "Error response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "authorization_pending",
+                        "slow_down",
+                        "expired_token",
+                        "access_denied",
+                        "invalid_request",
+                        "invalid_grant"
+                      ]
+                    },
+                    "error_description": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            },
+            "description": "Unauthorized. Due to missing or invalid authentication."
           },
           "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
-            }
+            },
+            "description": "Forbidden. You do not have permission to access this resource or to perform this action."
           },
           "404": {
-            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
-            }
+            },
+            "description": "Not Found. The requested resource was not found."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Too Many Requests. You have exceeded the rate limit. Try again later."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Internal Server Error. This is a problem with the server that you cannot fix."
           }
         }
       }
     },
-    "/api/objects/{id}/uploads/{uploadSessionId}": {
-      "delete": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "uploadSessionId",
-            "in": "path"
-          }
+    "/api/auth/device/approve": {
+      "post": {
+        "tags": [
+          "Device-authorization"
         ],
+        "description": "Approve device authorization",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userCode": {
+                    "type": "string",
+                    "description": "The user code to approve"
+                  }
+                },
+                "required": [
+                  "userCode"
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Aborted object multipart upload session",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "objectId": {
-                      "type": "string"
-                    },
-                    "uploadId": {
-                      "type": "string"
-                    },
-                    "partSize": {
-                      "type": "integer"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "active",
-                        "completed",
-                        "aborted"
-                      ]
-                    },
-                    "expiresAt": {
-                      "type": "string"
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "updatedAt": {
-                      "type": "string"
+                    "success": {
+                      "type": "boolean"
                     }
-                  },
-                  "required": [
-                    "id",
-                    "objectId",
-                    "uploadId",
-                    "partSize",
-                    "status",
-                    "expiresAt",
-                    "createdAt",
-                    "updatedAt"
-                  ]
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid upload session",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
                 }
               }
-            }
+            },
+            "description": "Bad Request. Usually due to missing parameters, or invalid parameters."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            },
+            "description": "Unauthorized. Due to missing or invalid authentication."
           },
           "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Forbidden. You do not have permission to access this resource or to perform this action."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Not Found. The requested resource was not found."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Too Many Requests. You have exceeded the rate limit. Try again later."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Internal Server Error. This is a problem with the server that you cannot fix."
+          }
+        }
+      }
+    },
+    "/api/auth/device/deny": {
+      "post": {
+        "tags": [
+          "Device-authorization"
+        ],
+        "description": "Deny device authorization",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userCode": {
+                    "type": "string",
+                    "description": "The user code to deny"
+                  }
+                },
+                "required": [
+                  "userCode"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
                 }
               }
             }
           },
-          "404": {
-            "description": "Not found",
+          "400": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
                 }
               }
-            }
+            },
+            "description": "Bad Request. Usually due to missing parameters, or invalid parameters."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            },
+            "description": "Unauthorized. Due to missing or invalid authentication."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Forbidden. You do not have permission to access this resource or to perform this action."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Not Found. The requested resource was not found."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Too Many Requests. You have exceeded the rate limit. Try again later."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Internal Server Error. This is a problem with the server that you cannot fix."
           }
         }
       }

@@ -37,6 +37,7 @@ function jsonResponse(schema: z.ZodType, description: string) {
 }
 
 const listRoute = createRoute({
+  tags: ['Downloaders'],
   method: 'get',
   path: '/',
   middleware: [requireAdmin] as const,
@@ -47,6 +48,7 @@ const listRoute = createRoute({
 })
 
 const createRouteDoc = createRoute({
+  tags: ['Downloaders'],
   method: 'post',
   path: '/',
   middleware: [requireAdmin] as const,
@@ -59,6 +61,7 @@ const createRouteDoc = createRoute({
 })
 
 const updateRoute = createRoute({
+  tags: ['Downloaders'],
   method: 'patch',
   path: '/{id}',
   middleware: [requireAdmin] as const,
@@ -73,6 +76,7 @@ const updateRoute = createRoute({
 })
 
 const deleteRoute = createRoute({
+  tags: ['Downloaders'],
   method: 'delete',
   path: '/{id}',
   middleware: [requireAdmin] as const,
@@ -84,6 +88,7 @@ const deleteRoute = createRoute({
 })
 
 const heartbeatRoute = createRoute({
+  tags: ['Downloaders'],
   method: 'post',
   path: '/me/heartbeats',
   middleware: [requireDownloader] as const,
