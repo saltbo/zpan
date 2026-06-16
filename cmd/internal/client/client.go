@@ -431,17 +431,17 @@ func createDownloaderRequestBody(req CreateDownloaderRequest) openapi.CreateDown
 	return openapi.CreateDownloaderJSONRequestBody{
 		Name: req.Name,
 		Heartbeat: struct {
-			Arch               string                                                     `json:"arch"`
-			Capabilities       []string                                                   `json:"capabilities"`
-			CurrentTasks       int                                                        `json:"currentTasks"`
-			DownloadBps        *int64                                                     `json:"downloadBps,omitempty"`
+			Arch               string                                          `json:"arch"`
+			Capabilities       []string                                        `json:"capabilities"`
+			CurrentTasks       int                                             `json:"currentTasks"`
+			DownloadBps        *int64                                          `json:"downloadBps,omitempty"`
 			Engine             openapi.CreateDownloaderJSONBodyHeartbeatEngine `json:"engine"`
-			FreeDiskBytes      *int64                                                     `json:"freeDiskBytes,omitempty"`
-			Hostname           string                                                     `json:"hostname"`
-			MaxConcurrentTasks int                                                        `json:"maxConcurrentTasks"`
-			Platform           string                                                     `json:"platform"`
-			UploadBps          *int64                                                     `json:"uploadBps,omitempty"`
-			Version            string                                                     `json:"version"`
+			FreeDiskBytes      *int64                                          `json:"freeDiskBytes,omitempty"`
+			Hostname           string                                          `json:"hostname"`
+			MaxConcurrentTasks int                                             `json:"maxConcurrentTasks"`
+			Platform           string                                          `json:"platform"`
+			UploadBps          *int64                                          `json:"uploadBps,omitempty"`
+			Version            string                                          `json:"version"`
 		}{
 			Arch:               req.Heartbeat.Arch,
 			Capabilities:       req.Heartbeat.Capabilities,
