@@ -106,8 +106,12 @@ const objectWithDownloadSchema = matterSchema.extend({ downloadUrl: z.string().o
 
 // List endpoint reads query params ad-hoc; declared here for docs + RPC typing.
 // The non-pagination filters are optional so callers may send any subset; `page`
-// and `pageSize` come from the shared integer-coerced pagination schema.
+// comes from the shared integer-coerced pagination schema. The file manager loads a
+// whole folder client-side (no UI paging, FILES_PAGE_SIZE=500), so this list
+// overrides the shared pageSize cap of 100 with a higher ceiling — the rest of the
+// API keeps the 100 default.
 const listObjectsQuerySchema = pageQuerySchema.extend({
+  pageSize: z.coerce.number().int().min(1).max(1000).default(20),
   parent: z.string().optional(),
   path: z.string().optional(),
   status: z.string().optional(),

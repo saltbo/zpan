@@ -171,6 +171,17 @@ describe('Objects API', () => {
     expect(body.pageSize).toBe(10)
   })
 
+  // Regression: the file manager loads a whole folder client-side with
+  // FILES_PAGE_SIZE=500, so the objects list must accept a pageSize above the
+  // shared 100 cap. A stricter cap silently 400s the list and the UI never renders.
+  it('GET /api/objects accepts the file-manager pageSize of 500', async () => {
+    const { app } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects?pageSize=500', { headers })
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { pageSize: number }).pageSize).toBe(500)
+  })
+
   it('POST /api/objects creates a folder [spec: objects/create-folder]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
