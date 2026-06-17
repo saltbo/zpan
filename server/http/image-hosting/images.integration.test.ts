@@ -1322,7 +1322,7 @@ describe('image-hosting usecase — direct calls', () => {
     `)
 
     const result = await confirmImageHosting(deps, id, orgId)
-    expect(result.row).toBeTruthy()
-    expect(result.row?.status).toBe('active')
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.row.status).toBe('active')
   })
 })

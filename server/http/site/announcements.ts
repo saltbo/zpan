@@ -3,7 +3,7 @@ import { announcementInputSchema, announcementStatusSchema, pageQuerySchema, pag
 import { requireAdmin, requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import type { AnnouncementRecord } from '../../usecases/ports'
+import { type AnnouncementRecord, forbidden, notFound } from '../../usecases/ports'
 import {
   createAnnouncement,
   deleteAnnouncement,
@@ -12,7 +12,7 @@ import {
   listUserAnnouncements,
   updateAnnouncement,
 } from '../../usecases/site/announcement'
-import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const announcementSchema = z
   .object({
@@ -129,7 +129,7 @@ export const announcements = app
     const { page, pageSize } = query
     const wantsManagement = query.scope === 'all' || query.status !== undefined
     if (wantsManagement) {
-      if (c.get('userRole') !== 'admin') return apiError(c, 403, 'Forbidden')
+      if (c.get('userRole') !== 'admin') throw forbidden()
       const result = await listAdminAnnouncements(c.get('deps'), { status: query.status, page, pageSize })
       return c.json({ ...result, items: result.items.map(toAnnouncementDTO) }, 200)
     }
@@ -145,17 +145,17 @@ export const announcements = app
   )
   .openapi(getAnnouncementRoute, async (c) => {
     const announcement = await getAnnouncement(c.get('deps'), c.req.valid('param').id)
-    if (!announcement) return apiError(c, 404, 'Announcement not found')
+    if (!announcement) throw notFound('Announcement not found')
     return c.json(toAnnouncementDTO(announcement), 200)
   })
   .openapi(updateAnnouncementRoute, async (c) => {
     const announcement = await updateAnnouncement(c.get('deps'), c.req.valid('param').id, c.req.valid('json'))
-    if (!announcement) return apiError(c, 404, 'Announcement not found')
+    if (!announcement) throw notFound('Announcement not found')
     return c.json(toAnnouncementDTO(announcement), 200)
   })
   .openapi(deleteAnnouncementRoute, async (c) => {
     const id = c.req.valid('param').id
     const deleted = await deleteAnnouncement(c.get('deps'), id)
-    if (!deleted) return apiError(c, 404, 'Announcement not found')
+    if (!deleted) throw notFound('Announcement not found')
     return c.json({ id, deleted: true as const }, 200)
   })

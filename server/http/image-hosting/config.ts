@@ -9,7 +9,8 @@ import {
   getImageHostingConfig,
   putImageHostingConfig,
 } from '../../usecases/image-hosting/config'
-import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { unauthorized } from '../../usecases/ports'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const ihostConfigSchema = z
   .object({
@@ -126,7 +127,7 @@ app.use(requireAuth)
 const ihostConfig = app
   .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 401, 'Unauthorized')
+    if (!orgId) throw unauthorized()
     const { isCfConfigured, cnameTarget, cf } = cfFrom(c)
     const row = await getImageHostingConfig(c.get('deps'), orgId, cf)
     if (!row) return c.json({ enabled: false as const }, 200)
@@ -134,18 +135,15 @@ const ihostConfig = app
   })
   .openapi(putRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 401, 'Unauthorized')
+    if (!orgId) throw unauthorized()
     const { isCfConfigured, cnameTarget, cf } = cfFrom(c)
     const result = await putImageHostingConfig(c.get('deps'), orgId, c.req.valid('json'), cf)
-    if (!result.ok) {
-      if (result.reason === 'app_host') return apiError(c, 400, 'Custom domain cannot be the application default host')
-      return apiError(c, 409, 'Domain already registered by another organization')
-    }
+    if (!result.ok) throw result.error
     return c.json(buildResponse(result.config, cnameTarget, isCfConfigured), 200)
   })
   .openapi(deleteRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 401, 'Unauthorized')
+    if (!orgId) throw unauthorized()
     await deleteImageHostingConfig(c.get('deps'), orgId)
     return c.body(null, 204)
   })

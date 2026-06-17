@@ -5,7 +5,6 @@ import {
   deleteDownloaderResponseSchema,
   downloaderHeartbeatSchema,
   downloaderSchema,
-  ErrorReason,
   pageSchema,
   updateDownloaderSchema,
 } from '@shared/schemas'
@@ -20,8 +19,9 @@ import {
   recordDownloaderHeartbeat,
   updateDownloader,
 } from '../../usecases/downloads/downloads'
+import { featureBlocked, unauthorized } from '../../usecases/ports'
 import { loadBindingState } from '../../usecases/site/licensing'
-import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const downloaderListSchema = pageSchema(downloaderSchema, 'DownloaderList')
 
@@ -106,12 +106,11 @@ const downloadersRoute = new OpenAPIHono<Env>()
   })
   .openapi(createRouteDoc, async (c) => {
     const userId = c.get('userId')
-    if (!userId) return apiError(c, 401, 'Unauthorized')
+    if (!userId) throw unauthorized()
     const deps = c.get('deps')
     const [existing, state] = await Promise.all([listDownloaders(deps), loadBindingState(deps)])
     if (!hasFeature('downloaders_unlimited', state) && existing.length >= FREE_DOWNLOADER_LIMIT) {
-      return apiError(c, 402, 'Feature not available', {
-        reason: ErrorReason.FEATURE_NOT_AVAILABLE,
+      throw featureBlocked('Feature not available', {
         metadata: {
           feature: 'downloaders_unlimited',
           currentCount: String(existing.length),
@@ -129,8 +128,7 @@ const downloadersRoute = new OpenAPIHono<Env>()
     if (input.remoteDownloadCreditBillingEnabled === true) {
       const state = await loadBindingState(c.get('deps'))
       if (!hasFeature('quota_store', state)) {
-        return apiError(c, 402, 'Feature not available', {
-          reason: ErrorReason.FEATURE_NOT_AVAILABLE,
+        throw featureBlocked('Feature not available', {
           metadata: { feature: 'quota_store' },
         })
       }
@@ -144,7 +142,7 @@ const downloadersRoute = new OpenAPIHono<Env>()
 
 export const downloaderSelfRoute = new OpenAPIHono<Env>().openapi(heartbeatRoute, async (c) => {
   const principal = c.get('principal')
-  if (principal?.kind !== 'downloader') return apiError(c, 401, 'Unauthorized')
+  if (principal?.kind !== 'downloader') throw unauthorized()
   return c.json(await recordDownloaderHeartbeat(c.get('deps'), principal.downloaderId, c.req.valid('json')), 200)
 })
 

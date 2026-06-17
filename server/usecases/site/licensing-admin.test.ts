@@ -12,17 +12,36 @@
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PUBLIC_KEYS } from '../../domain/license-keys'
-import type {
-  ActivityRepo,
-  CloudInstanceInfo,
-  InstanceRepo,
-  LicenseBindingRepo,
-  LicenseState,
-  LicensingCloudGateway,
-  PairingPollResponse,
-  PairingResponse,
+import {
+  type ActivityRepo,
+  AppError,
+  type CloudInstanceInfo,
+  type InstanceRepo,
+  type LicenseBindingRepo,
+  type LicenseState,
+  type LicensingCloudGateway,
+  type PairingPollResponse,
+  type PairingResponse,
 } from '../ports'
 import { initiatePairing, pollPairing, triggerRefresh, unbindLicense } from './licensing'
+
+// Asserts a rejected pairing carries the 502 INVALID_CERTIFICATE AppError with the
+// rejection reason (+ optional cloud-unbind failure) folded into metadata.
+function expectInvalidCertificate(
+  out: { ok: boolean } & Record<string, unknown>,
+  expected: { certificateReason: string; cloudUnbindError?: string },
+) {
+  expect(out.ok).toBe(false)
+  const error = (out as unknown as { error: AppError }).error
+  expect(error).toBeInstanceOf(AppError)
+  expect(error.httpStatus).toBe(502)
+  expect(error.message).toBe('Invalid certificate')
+  expect(error.meta.reason).toBe('INVALID_CERTIFICATE')
+  expect(error.meta.metadata).toEqual({
+    certificateReason: expected.certificateReason,
+    ...(expected.cloudUnbindError ? { cloudUnbindError: expected.cloudUnbindError } : {}),
+  })
+}
 
 const BASE_URL = 'https://cloud.zpan.space'
 const INSTANCE_ID = 'inst-1'
@@ -280,7 +299,7 @@ describe('pollPairing', () => {
 
     const out = await pollPairing(deps, params)
 
-    expect(out).toEqual({ ok: false, reason: 'signature', cloudUnbindError: null })
+    expectInvalidCertificate(out, { certificateReason: 'signature' })
     expect(cloud.unbindCloudLicense).toHaveBeenCalledWith(BASE_URL, 'cb-1', 'rt-secret')
     expect(createLicenseBinding).not.toHaveBeenCalled()
     expect(record).not.toHaveBeenCalled()
@@ -300,7 +319,7 @@ describe('pollPairing', () => {
 
     const out = await pollPairing(deps, params)
 
-    expect(out).toEqual({ ok: false, reason: 'instance', cloudUnbindError: null })
+    expectInvalidCertificate(out, { certificateReason: 'instance' })
   })
 
   it('reports no_certificate when the approval omits the cert (nothing to roll back)', async () => {
@@ -312,7 +331,7 @@ describe('pollPairing', () => {
     const out = await pollPairing(deps, params)
 
     // No binding.id on the response → rollback is a no-op (null).
-    expect(out).toEqual({ ok: false, reason: 'no_certificate', cloudUnbindError: null })
+    expectInvalidCertificate(out, { certificateReason: 'no_certificate' })
     expect(cloud.unbindCloudLicense).not.toHaveBeenCalled()
     expect(createLicenseBinding).not.toHaveBeenCalled()
   })
@@ -325,7 +344,7 @@ describe('pollPairing', () => {
 
     const out = await pollPairing(deps, params)
 
-    expect(out).toEqual({ ok: false, reason: 'incomplete_response', cloudUnbindError: null })
+    expectInvalidCertificate(out, { certificateReason: 'incomplete_response' })
   })
 
   it('captures the cloud-unbind failure message during rollback', async () => {
@@ -345,7 +364,7 @@ describe('pollPairing', () => {
 
     const out = await pollPairing(deps, params)
 
-    expect(out).toEqual({ ok: false, reason: 'signature', cloudUnbindError: 'cloud rejected unbind' })
+    expectInvalidCertificate(out, { certificateReason: 'signature', cloudUnbindError: 'cloud rejected unbind' })
   })
 })
 

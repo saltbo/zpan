@@ -187,39 +187,53 @@ describe('auth-provider usecase', () => {
       expect(loadBindingState).not.toHaveBeenCalled() // free limit never checked on update
     })
 
-    it('returns invalid_id for a malformed provider id and never writes', async () => {
+    it('returns a 400 invalid-id error for a malformed provider id and never writes', async () => {
       const { deps, set } = makeDeps()
       const out = await upsertAuthProvider(deps, 'Not_Valid', githubInput)
-      expect(out).toEqual({ ok: false, reason: 'invalid_id' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('Provider ID must contain only lowercase letters, numbers, and hyphens')
       expect(set).not.toHaveBeenCalled()
     })
 
-    it('returns unknown_builtin for a builtin id not in the registry', async () => {
+    it('returns a 400 unknown-builtin error for a builtin id not in the registry', async () => {
       const { deps, set } = makeDeps()
       const out = await upsertAuthProvider(deps, 'not-a-real-provider', githubInput)
-      expect(out).toEqual({ ok: false, reason: 'unknown_builtin' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('Unknown builtin provider: not-a-real-provider')
       expect(set).not.toHaveBeenCalled()
     })
 
-    it('returns missing_discovery for an OIDC provider with no discoveryUrl', async () => {
+    it('returns a 400 missing-discovery error for an OIDC provider with no discoveryUrl', async () => {
       const { deps, set } = makeDeps()
       const { discoveryUrl: _omit, ...withoutDiscovery } = oidcInput
       const out = await upsertAuthProvider(deps, 'my-oidc', withoutDiscovery)
-      expect(out).toEqual({ ok: false, reason: 'missing_discovery' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('discoveryUrl is required for OIDC providers')
       expect(set).not.toHaveBeenCalled()
     })
 
-    it('blocks the second provider on the free plan with feature_blocked', async () => {
+    it('blocks the second provider on the free plan with a 402 feature-blocked error', async () => {
       edition(COMMUNITY)
       const { deps, set } = makeDeps({
         get: async () => null,
         listByKeyLike: async () => [row({ providerId: 'github', enabled: true })],
       })
       const out = await upsertAuthProvider(deps, 'google', { ...githubInput })
-      expect(out).toEqual({
-        ok: false,
-        reason: 'feature_blocked',
-        block: { feature: 'social_login_unlimited', currentCount: 1, limit: FREE_SOCIAL_LOGIN_LIMIT },
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(402)
+      expect(out.error.meta.reason).toBe('FEATURE_NOT_AVAILABLE')
+      expect(out.error.meta.metadata).toEqual({
+        feature: 'social_login_unlimited',
+        currentCount: '1',
+        limit: String(FREE_SOCIAL_LOGIN_LIMIT),
+        upgradeUrl: '/settings/billing',
       })
       expect(set).not.toHaveBeenCalled()
     })
@@ -251,10 +265,13 @@ describe('auth-provider usecase', () => {
       expect(del).toHaveBeenCalledWith('oauth_provider_never-configured')
     })
 
-    it('returns invalid_id for a malformed provider id and never deletes', async () => {
+    it('returns a 400 invalid-id error for a malformed provider id and never deletes', async () => {
       const { deps, del } = makeDeps()
       const out = await deleteAuthProvider(deps, 'Bad_Id')
-      expect(out).toEqual({ ok: false, reason: 'invalid_id' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('Provider ID must contain only lowercase letters, numbers, and hyphens')
       expect(del).not.toHaveBeenCalled()
     })
   })

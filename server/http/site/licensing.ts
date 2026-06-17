@@ -7,6 +7,7 @@ import { originFromRequestUrl } from '../../domain/site-public-origin'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { syncPendingRemoteDownloadUsageReports } from '../../usecases/downloads/remote-download-usage'
+import { unauthorized } from '../../usecases/ports'
 import { buildCloudInstanceInfo, runtimeInfo } from '../../usecases/site/instance-info'
 import {
   initiatePairing,
@@ -19,7 +20,7 @@ import {
 } from '../../usecases/site/licensing'
 import { getSitePublicOrigin } from '../../usecases/site/public-origin'
 import { syncPendingCloudTrafficReports } from '../../usecases/store/traffic-metering'
-import { apiError, errorResponse, jsonContent } from '../openapi'
+import { errorResponse, jsonContent } from '../openapi'
 
 function getCloudBaseUrl(c: Context<Env>): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
@@ -147,7 +148,7 @@ const publicApp = new OpenAPIHono<Env>()
 // Cron-secret-authorized sync endpoints — called by external schedulers, not SDK
 // users. Kept as plain routes, excluded from the OpenAPI document.
 publicApp.post('/refresh-cron', async (c) => {
-  if (!isAuthorizedCronRequest(c)) return apiError(c, 401, 'Unauthorized')
+  if (!isAuthorizedCronRequest(c)) throw unauthorized()
   const cloudBaseUrl = getCloudBaseUrl(c)
   const origin = await getInstanceOrigin(c)
   const instance = origin
@@ -157,7 +158,7 @@ publicApp.post('/refresh-cron', async (c) => {
   return c.json({ ok: true })
 })
 publicApp.post('/traffic-sync-runs', async (c) => {
-  if (!isAuthorizedCronRequest(c)) return apiError(c, 401, 'Unauthorized')
+  if (!isAuthorizedCronRequest(c)) throw unauthorized()
   const cloudBaseUrl = getCloudBaseUrl(c)
   const [traffic, remoteDownload] = await Promise.all([
     syncPendingCloudTrafficReports(c.get('deps'), { cloudBaseUrl }),
@@ -195,15 +196,7 @@ export const licensingAdmin = adminApp
       userId: c.get('userId')!,
       orgId: c.get('orgId')!,
     })
-    if (!result.ok) {
-      return apiError(c, 502, 'Invalid certificate', {
-        reason: 'INVALID_CERTIFICATE',
-        metadata: {
-          certificateReason: result.reason,
-          ...(result.cloudUnbindError ? { cloudUnbindError: result.cloudUnbindError } : {}),
-        },
-      })
-    }
+    if (!result.ok) throw result.error
     if (result.status === 'approved') {
       return c.json({ status: 'approved', edition: result.edition, cloud_store_id: result.cloudStoreId }, 200)
     }

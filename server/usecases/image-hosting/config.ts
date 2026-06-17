@@ -7,14 +7,18 @@
 // resolves the request-scoped CF env, calls these functions, and serializes the
 // ImageHostingConfigRecord into the IhostConfigResponse DTO.
 //
-// Expected business outcomes (no config, app-host-rejected, domain conflict)
-// come back as discriminated unions; the handler maps each to its HTTP status.
-// CF registration errors that are *not* conflicts propagate so the handler 500s.
+// Expected business outcomes (app-host-rejected, domain conflict) come back as a
+// returned AppError the handler throws; a missing config row on read is not an
+// error (handler → { enabled:false }). CF registration errors that are *not*
+// conflicts propagate so the handler 500s.
 
 import type { PutIhostConfigInput } from '@shared/schemas'
 import {
+  type AppError,
+  badRequest,
   CfConflictError,
   type CfHostnamesProvider,
+  conflict,
   type ImageHostingConfigRecord,
   type ImageHostingConfigRepo,
 } from '../ports'
@@ -69,8 +73,10 @@ export async function getImageHostingConfig(
 
 export type PutImageHostingConfigOutcome =
   | { ok: true; config: ImageHostingConfigRecord }
-  | { ok: false; reason: 'app_host'; status: number }
-  | { ok: false; reason: 'domain_conflict'; status: number }
+  | { ok: false; error: AppError }
+
+const appHostError = () => badRequest('Custom domain cannot be the application default host')
+const domainConflictError = () => conflict('Domain already registered by another organization')
 
 // Create or update the config row, threading the CF hostname lifecycle. The
 // returned record mirrors what was persisted (timestamps as Date) so the handler
@@ -83,7 +89,7 @@ export async function putImageHostingConfig(
 ): Promise<PutImageHostingConfigOutcome> {
   // Reject the app's own default host as a custom domain.
   if (body.customDomain && cf.appHost && body.customDomain === cf.appHost) {
-    return { ok: false, reason: 'app_host', status: 400 }
+    return { ok: false, error: appHostError() }
   }
 
   const existing = await deps.imageHostingConfigs.getByOrg(orgId)
@@ -100,7 +106,7 @@ export async function putImageHostingConfig(
         const result = await deps.cfHostnames.register(newDomain)
         cfHostnameId = result.id || null
       } catch (e) {
-        if (e instanceof CfConflictError) return { ok: false, reason: 'domain_conflict', status: 409 }
+        if (e instanceof CfConflictError) return { ok: false, error: domainConflictError() }
         throw e
       }
     }
@@ -109,7 +115,7 @@ export async function putImageHostingConfig(
     try {
       await deps.imageHostingConfigs.create({ orgId, customDomain: newDomain, cfHostnameId, refererAllowlist })
     } catch (e) {
-      if (isUniqueViolation(e)) return { ok: false, reason: 'domain_conflict', status: 409 }
+      if (isUniqueViolation(e)) return { ok: false, error: domainConflictError() }
       throw e
     }
 
@@ -153,7 +159,7 @@ export async function putImageHostingConfig(
         const result = await deps.cfHostnames.register(newDomain)
         cfHostnameId = result.id || null
       } catch (e) {
-        if (e instanceof CfConflictError) return { ok: false, reason: 'domain_conflict', status: 409 }
+        if (e instanceof CfConflictError) return { ok: false, error: domainConflictError() }
         throw e
       }
     }
@@ -174,7 +180,7 @@ export async function putImageHostingConfig(
       refererAllowlist: refererAllowlistValue,
     })
   } catch (e) {
-    if (isUniqueViolation(e)) return { ok: false, reason: 'domain_conflict', status: 409 }
+    if (isUniqueViolation(e)) return { ok: false, error: domainConflictError() }
     throw e
   }
 

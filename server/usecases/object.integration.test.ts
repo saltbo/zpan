@@ -696,7 +696,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns 400 QUOTA_EXCEEDED when target org has insufficient quota', async () => {
+  it('returns 422 QUOTA_EXCEEDED when target org has insufficient quota', async () => {
     const { app, db, share, headers } = await setup()
     await seedProLicense(db)
 
@@ -749,7 +749,7 @@ describe('POST /api/shares/:token/objects', () => {
       body: JSON.stringify({ targetOrgId: quotaOrgId }),
     })
 
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(422)
     const body = (await res.json()) as { error: { message: string; status: string; details: { reason: string }[] } }
     expect(body.error.message).toBe('Quota exceeded')
     expect(body.error.status).toBe('RESOURCE_EXHAUSTED')

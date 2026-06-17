@@ -1,7 +1,28 @@
 import type { CloudOrderQuotaChange } from '@shared/schemas'
 import type { CloudStoreTarget } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CloudStoreBinding, CloudStoreRepo, EffectiveQuota, LicensingCloudGateway, QuotaRepo } from '../ports'
+import {
+  AppError,
+  type CloudStoreBinding,
+  type CloudStoreRepo,
+  type EffectiveQuota,
+  type LicensingCloudGateway,
+  type QuotaRepo,
+} from '../ports'
+
+// Asserts a failed outcome carries the expected AppError (status / reason / message).
+function expectError(
+  out: { ok: boolean } & Record<string, unknown>,
+  expected: { httpStatus: number; reason?: string; message: string },
+) {
+  expect(out.ok).toBe(false)
+  const error = (out as unknown as { error: AppError }).error
+  expect(error).toBeInstanceOf(AppError)
+  expect(error.httpStatus).toBe(expected.httpStatus)
+  expect(error.meta.reason).toBe(expected.reason)
+  expect(error.message).toBe(expected.message)
+}
+
 import { verifyCloudEventToken } from '../site/licensing'
 import {
   type CloudStoreDeps,
@@ -181,25 +202,17 @@ describe('cloud-store usecase', () => {
 
     it('listPackages returns binding_missing when unbound', async () => {
       const { deps } = makeDeps({ binding: 'missing' })
-      expect(await listPackages(deps, CLOUD)).toEqual({
-        ok: false,
-        reason: 'binding_missing',
-        error: 'quota_store_binding_missing',
-      })
+      expectError(await listPackages(deps, CLOUD), { httpStatus: 403, message: 'quota_store_binding_missing' })
     })
 
     it('listPackages surfaces a cloud error', async () => {
       const { deps } = makeDeps({ responses: [fail(503, { error: 'cloud_down' })] })
-      expect(await listPackages(deps, CLOUD)).toEqual({ ok: false, reason: 'cloud_error', error: 'cloud_down' })
+      expectError(await listPackages(deps, CLOUD), { httpStatus: 502, message: 'cloud_down' })
     })
 
     it('listPackages surfaces a malformed cloud response', async () => {
       const { deps } = makeDeps({ responses: [ok({ nope: true })] })
-      expect(await listPackages(deps, CLOUD)).toEqual({
-        ok: false,
-        reason: 'cloud_error',
-        error: 'invalid_cloud_response',
-      })
+      expectError(await listPackages(deps, CLOUD), { httpStatus: 502, message: 'invalid_cloud_response' })
     })
 
     it('listTargets returns the accessible targets without a cloud call', async () => {
@@ -244,7 +257,7 @@ describe('cloud-store usecase', () => {
         origin: 'https://files.example',
         input: { packageId: 'pkg-1' },
       })
-      expect(out).toEqual({ ok: false, reason: 'binding_missing', error: 'quota_store_binding_missing' })
+      expectError(out, { httpStatus: 403, message: 'quota_store_binding_missing' })
     })
 
     it('returns price_missing when the requested priceId is not on the product', async () => {
@@ -255,7 +268,7 @@ describe('cloud-store usecase', () => {
         origin: 'https://files.example',
         input: { packageId: 'pkg-1', priceId: 'price-does-not-exist' },
       })
-      expect(out).toEqual({ ok: false, reason: 'price_missing' })
+      expectError(out, { httpStatus: 400, reason: 'PACKAGE_PRICE_MISSING', message: 'Package price missing' })
     })
 
     it('returns price_missing when the only USD price is metered', async () => {
@@ -276,7 +289,7 @@ describe('cloud-store usecase', () => {
         origin: 'https://files.example',
         input: { packageId: 'pkg-1' },
       })
-      expect(out).toEqual({ ok: false, reason: 'price_missing' })
+      expectError(out, { httpStatus: 400, reason: 'PACKAGE_PRICE_MISSING', message: 'Package price missing' })
     })
 
     it('rejects a recurring checkout when the workspace already has a subscription plan', async () => {
@@ -287,7 +300,7 @@ describe('cloud-store usecase', () => {
         origin: 'https://files.example',
         input: { packageId: 'pkg-1' },
       })
-      expect(out).toEqual({ ok: false, reason: 'workspace_plan_exists' })
+      expectError(out, { httpStatus: 409, reason: 'WORKSPACE_PLAN_EXISTS', message: 'Workspace plan already exists' })
     })
 
     it('surfaces a cloud error from order creation', async () => {
@@ -298,7 +311,7 @@ describe('cloud-store usecase', () => {
         origin: 'https://files.example',
         input: { packageId: 'pkg-1' },
       })
-      expect(out).toEqual({ ok: false, reason: 'cloud_error', error: 'cloud_down' })
+      expectError(out, { httpStatus: 502, message: 'cloud_down' })
     })
 
     it('allows a one-time (non-recurring) price without consulting quota', async () => {
@@ -321,7 +334,7 @@ describe('cloud-store usecase', () => {
     it('continueOrderPayment returns not_found for an empty orderId', async () => {
       const { deps } = makeDeps()
       const out = await continueOrderPayment(deps, CLOUD, { orgId: 'org-1', orderId: undefined, origin: 'o' })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
+      expectError(out, { httpStatus: 404, message: 'Order not found' })
     })
 
     it('continueOrderPayment rejects an order belonging to another org', async () => {
@@ -331,7 +344,7 @@ describe('cloud-store usecase', () => {
         orderId: 'order-1',
         origin: 'https://files.example',
       })
-      expect(out).toEqual({ ok: false, reason: 'forbidden' })
+      expectError(out, { httpStatus: 403, message: 'Forbidden' })
     })
 
     it('continueOrderPayment continues payment for an owned order', async () => {
@@ -351,7 +364,7 @@ describe('cloud-store usecase', () => {
         orderId: 'order-1',
         origin: 'https://files.example',
       })
-      expect(out).toEqual({ ok: false, reason: 'cloud_error', error: 'cloud_down' })
+      expectError(out, { httpStatus: 502, message: 'cloud_down' })
     })
 
     it('cancelOrder cancels an owned order', async () => {
@@ -364,7 +377,7 @@ describe('cloud-store usecase', () => {
     it('cancelOrder rejects another org order', async () => {
       const { deps } = makeDeps({ responses: [ok(order({ target: { orgId: 'org-other' } }))] })
       const out = await cancelOrder(deps, CLOUD, { orgId: 'org-1', orderId: 'order-1', status: 'canceled' })
-      expect(out).toEqual({ ok: false, reason: 'forbidden' })
+      expectError(out, { httpStatus: 403, message: 'Forbidden' })
     })
   })
 
@@ -400,7 +413,7 @@ describe('cloud-store usecase', () => {
       rejected()
       const { deps, processCloudOrderQuotaChange } = makeDeps()
       const out = await processDeliveryWebhook(deps, params(validEvent))
-      expect(out).toEqual({ ok: false, reason: 'invalid_token' })
+      expectError(out, { httpStatus: 401, reason: 'INVALID_EVENT_TOKEN', message: 'Invalid event token' })
       expect(processCloudOrderQuotaChange).not.toHaveBeenCalled()
     })
 
@@ -408,21 +421,21 @@ describe('cloud-store usecase', () => {
       verified('evt-1')
       const { deps } = makeDeps()
       const out = await processDeliveryWebhook(deps, params(null))
-      expect(out).toEqual({ ok: false, reason: 'invalid_payload' })
+      expectError(out, { httpStatus: 400, reason: 'INVALID_PAYLOAD', message: 'Invalid payload' })
     })
 
     it('rejects a body that fails the quota-change schema', async () => {
       verified('evt-1')
       const { deps } = makeDeps()
       const out = await processDeliveryWebhook(deps, params({ eventId: 'evt-1' }))
-      expect(out).toEqual({ ok: false, reason: 'invalid_payload' })
+      expectError(out, { httpStatus: 400, reason: 'INVALID_PAYLOAD', message: 'Invalid payload' })
     })
 
     it('rejects a body whose eventId differs from the token eventId', async () => {
       verified('evt-token')
       const { deps, processCloudOrderQuotaChange } = makeDeps()
       const out = await processDeliveryWebhook(deps, params(validEvent))
-      expect(out).toEqual({ ok: false, reason: 'invalid_token' })
+      expectError(out, { httpStatus: 401, reason: 'INVALID_EVENT_TOKEN', message: 'Invalid event token' })
       expect(processCloudOrderQuotaChange).not.toHaveBeenCalled()
     })
 
@@ -449,7 +462,7 @@ describe('cloud-store usecase', () => {
       verified('evt-1')
       const { deps } = makeDeps({ processThrows: new Error('webhook_payload_conflict') })
       const out = await processDeliveryWebhook(deps, params(validEvent))
-      expect(out).toEqual({ ok: false, reason: 'processing_failed', error: 'webhook_payload_conflict' })
+      expectError(out, { httpStatus: 400, message: 'webhook_payload_conflict' })
     })
 
     it('passes the bound license + payload hash to token verification', async () => {

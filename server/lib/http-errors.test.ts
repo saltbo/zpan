@@ -7,7 +7,7 @@ import {
   StorageQuotaExceededError,
   WebDavPathError,
 } from '../usecases/ports'
-import { ApiError, buildErrorBody, mapDomainError } from './http-errors'
+import { buildErrorBody, mapDomainError } from './http-errors'
 
 describe('buildErrorBody', () => {
   it('defaults reason and canonical status from the HTTP code', () => {
@@ -45,31 +45,6 @@ describe('buildErrorBody', () => {
 
   it('omits metadata when none is given', () => {
     expect(buildErrorBody(403, 'Forbidden').error.details?.[0]?.metadata).toBeUndefined()
-  })
-})
-
-describe('ApiError', () => {
-  it('renders its AIP-193 body and preserves the message', () => {
-    const err = new ApiError(402, 'Insufficient credits', {
-      reason: 'INSUFFICIENT_CREDITS',
-      metadata: { resource: 'storage_egress' },
-    })
-    expect(err.message).toBe('Insufficient credits')
-    expect(err.toBody()).toEqual({
-      error: {
-        code: 402,
-        message: 'Insufficient credits',
-        status: 'FAILED_PRECONDITION',
-        details: [
-          {
-            '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
-            reason: 'INSUFFICIENT_CREDITS',
-            domain: 'zpan.dev',
-            metadata: { resource: 'storage_egress' },
-          },
-        ],
-      },
-    })
   })
 })
 

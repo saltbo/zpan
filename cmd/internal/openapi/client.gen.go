@@ -25709,6 +25709,7 @@ type SaveShareResponse struct {
 	JSON403      *Error
 	JSON404      *Error
 	JSON410      *Error
+	JSON422      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -40376,6 +40377,13 @@ func ParseSaveShareResponse(rsp *http.Response) (*SaveShareResponse, error) {
 			return nil, err
 		}
 		response.JSON410 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
 
 	}
 

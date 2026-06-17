@@ -11,6 +11,7 @@ import type {
   StorageRepo,
   StorageUsageRepo,
 } from '../ports'
+import { AppError } from '../ports'
 import {
   confirmImageHosting,
   deleteImageHosting,
@@ -130,10 +131,15 @@ describe('image-hosting usecase', () => {
       expect(out).toEqual({ ok: true, config: sampleConfig })
     })
 
-    it('returns not_enabled when no config row exists', async () => {
+    it('returns a forbidden AppError when no config row exists', async () => {
       const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => null } })
       const out = await requireImageHostingEnabled(deps, 'o1')
-      expect(out).toEqual({ ok: false, reason: 'not_enabled' })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(403)
+        expect(out.error.message).toBe('image hosting not enabled for this organization')
+      }
     })
   })
 
@@ -172,7 +178,12 @@ describe('image-hosting usecase', () => {
         mime: 'image/png',
         bytes: new Uint8Array(1),
       })
-      expect(out).toEqual({ ok: false, reason: 'no_storage' })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(503)
+        expect(out.error.meta.reason).toBe('NO_STORAGE_CONFIGURED')
+      }
     })
 
     it('rolls back the row and object, then rethrows, when S3 put fails', async () => {
@@ -241,7 +252,12 @@ describe('image-hosting usecase', () => {
         },
       })
       const out = await presignImageHostingUpload(deps, { orgId: 'o1', path: 'a.png', mime: 'image/png', size: 1 })
-      expect(out).toEqual({ ok: false, reason: 'no_storage' })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(503)
+        expect(out.error.meta.reason).toBe('NO_STORAGE_CONFIGURED')
+      }
     })
   })
 
@@ -252,35 +268,49 @@ describe('image-hosting usecase', () => {
         imageHosting: { get: async () => makeRow({ status: 'draft', size: 100 }), setActive },
       })
       const out = await confirmImageHosting(deps, 'ih-1', 'o1')
-      expect(out.row?.status).toBe('active')
-      expect(out.quotaExceeded).toBeUndefined()
+      expect(out.ok).toBe(true)
+      if (out.ok) expect(out.row.status).toBe('active')
       expect(setActive).toHaveBeenCalledTimes(1)
     })
 
-    it('returns { row: null } for a missing row', async () => {
+    it('returns a 404 AppError for a missing row', async () => {
       const deps = makeDeps({ imageHosting: { get: async () => null } })
-      expect(await confirmImageHosting(deps, 'x', 'o1')).toEqual({ row: null })
+      const out = await confirmImageHosting(deps, 'x', 'o1')
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(404)
+        expect(out.error.message).toBe('Not found or not in draft status')
+      }
     })
 
-    it('returns { row: null } for a non-draft (already active) row', async () => {
+    it('returns a 404 AppError for a non-draft (already active) row', async () => {
       const deps = makeDeps({ imageHosting: { get: async () => makeRow({ status: 'active' }) } })
-      expect(await confirmImageHosting(deps, 'ih-1', 'o1')).toEqual({ row: null })
+      const out = await confirmImageHosting(deps, 'ih-1', 'o1')
+      expect(out.ok).toBe(false)
+      if (!out.ok) expect(out.error.httpStatus).toBe(404)
     })
 
-    it('returns { row: null } when setActive loses the race', async () => {
+    it('returns a 404 AppError when setActive loses the race', async () => {
       const deps = makeDeps({
         imageHosting: { get: async () => makeRow({ status: 'draft' }), setActive: async () => false },
       })
-      expect(await confirmImageHosting(deps, 'ih-1', 'o1')).toEqual({ row: null })
+      const out = await confirmImageHosting(deps, 'ih-1', 'o1')
+      expect(out.ok).toBe(false)
+      if (!out.ok) expect(out.error.httpStatus).toBe(404)
     })
 
-    it('returns quotaExceeded when the reservation is denied', async () => {
+    it('returns a 422 quota AppError when the reservation is denied', async () => {
       const deps = makeDeps({
         imageHosting: { get: async () => makeRow({ status: 'draft', size: 100 }) },
         quota: { incrementUsageIfEffectiveQuotaAllows: async () => false },
       })
       const out = await confirmImageHosting(deps, 'ih-1', 'o1')
-      expect(out).toEqual({ row: null, quotaExceeded: true })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error.httpStatus).toBe(422)
+        expect(out.error.meta.reason).toBe('QUOTA_EXCEEDED')
+      }
     })
 
     it('skips quota for a size=0 draft and confirms', async () => {
@@ -290,7 +320,8 @@ describe('image-hosting usecase', () => {
         quota: { incrementUsageIfEffectiveQuotaAllows: inc },
       })
       const out = await confirmImageHosting(deps, 'ih-1', 'o1')
-      expect(out.row?.status).toBe('active')
+      expect(out.ok).toBe(true)
+      if (out.ok) expect(out.row.status).toBe('active')
       expect(inc).not.toHaveBeenCalled()
     })
   })

@@ -1,8 +1,20 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { ErrorReason, pageQuerySchema, pageSchema } from '@shared/schemas'
+import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import type { ActivityEventWithUser, InviteLinkInfo, PendingInvitation } from '../usecases/ports'
+import {
+  type ActivityEventWithUser,
+  badRequest,
+  conflict,
+  expired,
+  forbidden,
+  type InviteLinkInfo,
+  noStorage,
+  notFound,
+  type PendingInvitation,
+  payloadTooLarge,
+  unsupportedMediaType,
+} from '../usecases/ports'
 import {
   createInviteLink,
   deleteTeamLogo,
@@ -24,7 +36,7 @@ import {
   toEntitlementResultDTO,
   toQuotaEntitlementDTO,
 } from './entitlements'
-import { apiError, errorResponse, jsonBody, jsonContent } from './openapi'
+import { errorResponse, jsonBody, jsonContent } from './openapi'
 
 const inviteLinkInfoSchema = z
   .object({
@@ -114,6 +126,20 @@ const updateEntitlementSchema = z.object({
   note: z.string().max(500).nullable().optional(),
 })
 
+// Maps a UserOperationFailure ({ error, status }) threaded from the UserAdminRepo
+// to the matching error factory — the http boundary the rule keeps the sub-usecase
+// status out of.
+function failureError(failure: { status: 400 | 404; error: string }) {
+  return failure.status === 404 ? notFound(failure.error) : badRequest(failure.error)
+}
+
+// Maps the image-upload gateway outcome ({ status, error }) to its error factory.
+function imageUploadError(status: 400 | 413 | 503, error: string) {
+  if (status === 413) return payloadTooLarge(error)
+  if (status === 503) return noStorage(error)
+  return badRequest(error)
+}
+
 // ── publicTeams ──────────────────────────────────────────────────────────────
 const inviteLinkInfoRoute = createRoute({
   operationId: 'getTeamInviteLink',
@@ -130,7 +156,7 @@ const inviteLinkInfoRoute = createRoute({
 
 export const publicTeams = new OpenAPIHono<Env>().openapi(inviteLinkInfoRoute, async (c) => {
   const info = await getInviteLinkInfo(c.get('deps'), c.req.valid('param').token)
-  if (!info) return apiError(c, 404, 'Invalid or expired invite link')
+  if (!info) throw notFound('Invalid or expired invite link')
   return c.json(toInviteLinkInfoDTO(info), 200)
 })
 
@@ -236,7 +262,7 @@ export const teams = teamsApp
       role,
       expiresIn,
     })
-    if (!result.ok) return apiError(c, 403, 'Forbidden')
+    if (!result.ok) throw forbidden()
     return c.json({ token: result.token, expiresAt: result.expiresAt.toISOString() }, 201)
   })
   .openapi(listInvitationsRoute, async (c) => {
@@ -244,7 +270,7 @@ export const teams = teamsApp
       teamId: c.req.valid('param').teamId,
       userId: c.get('userId')!,
     })
-    if (!result.ok) return apiError(c, 403, 'Forbidden')
+    if (!result.ok) throw forbidden()
     const items = result.invitations.map(toPendingInvitationDTO)
     return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
   })
@@ -255,9 +281,9 @@ export const teams = teamsApp
       token: c.req.valid('json').token,
     })
     if (result.ok) return c.json({ ok: true as const }, 200)
-    if (result.reason === 'invalid') return apiError(c, 404, 'Invalid invite link')
-    if (result.reason === 'expired') return apiError(c, 410, 'Invite link has expired')
-    return apiError(c, 409, 'Already a member of this team')
+    if (result.reason === 'invalid') throw notFound('Invalid invite link')
+    if (result.reason === 'expired') throw expired('Invite link has expired')
+    throw conflict('Already a member of this team')
   })
   .openapi(activityRoute, async (c) => {
     const { page, pageSize } = c.req.valid('query')
@@ -267,7 +293,7 @@ export const teams = teamsApp
       page,
       pageSize,
     })
-    if (!result.ok) return apiError(c, 403, 'Forbidden')
+    if (!result.ok) throw forbidden()
     return c.json(
       { items: result.result.items.map(toActivityEventDTO), total: result.result.total, page, pageSize },
       200,
@@ -276,12 +302,9 @@ export const teams = teamsApp
   .openapi(setLogoRoute, async (c) => {
     const teamId = c.req.valid('param').teamId
     const form = await c.req.formData().catch(() => null)
-    if (!form)
-      return apiError(c, 415, 'Expected multipart/form-data with a file field', {
-        reason: ErrorReason.UNSUPPORTED_MEDIA_TYPE,
-      })
+    if (!form) throw unsupportedMediaType('Expected multipart/form-data with a file field')
     const file = form.get('file')
-    if (!(file instanceof File)) return apiError(c, 400, 'file field is required')
+    if (!(file instanceof File)) throw badRequest('file field is required')
 
     const result = await setTeamLogo(c.get('deps'), {
       platform: c.get('platform'),
@@ -290,10 +313,8 @@ export const teams = teamsApp
       file,
     })
     if (result.ok) return c.json({ url: result.url }, 200)
-    if (result.reason === 'forbidden') return apiError(c, 403, 'Forbidden')
-    if (result.status === 413) return apiError(c, 413, result.error, { reason: ErrorReason.PAYLOAD_TOO_LARGE })
-    if (result.status === 503) return apiError(c, 503, result.error, { reason: ErrorReason.NO_STORAGE_CONFIGURED })
-    return apiError(c, 400, result.error)
+    if (result.reason === 'forbidden') throw forbidden()
+    throw imageUploadError(result.status, result.error)
   })
   .openapi(deleteLogoRoute, async (c) => {
     const result = await deleteTeamLogo(c.get('deps'), {
@@ -301,7 +322,7 @@ export const teams = teamsApp
       teamId: c.req.valid('param').teamId,
       userId: c.get('userId') as string,
     })
-    if (!result.ok) return apiError(c, 403, 'Forbidden')
+    if (!result.ok) throw forbidden()
     return c.json({ ok: true as const }, 200)
   })
 
@@ -397,12 +418,12 @@ export const adminTeams = new OpenAPIHono<Env>()
   })
   .openapi(getTeamRoute, async (c) => {
     const team = await getTeam(c.get('deps'), c.req.valid('param').teamId)
-    if (!team) return apiError(c, 404, 'Team not found')
+    if (!team) throw notFound('Team not found')
     return c.json(team, 200)
   })
   .openapi(listEntitlementsRoute, async (c) => {
     const result = await listTeamEntitlements(c.get('deps'), c.req.valid('param').teamId)
-    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    if (!result.ok) throw failureError(result.failure)
     const items = result.result.items.map(toQuotaEntitlementDTO)
     return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
   })
@@ -417,7 +438,7 @@ export const adminTeams = new OpenAPIHono<Env>()
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       note: body.note,
     })
-    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    if (!result.ok) throw failureError(result.failure)
     return c.json(toEntitlementResultDTO(result.result), 201)
   })
   .openapi(updateEntitlementRoute, async (c) => {
@@ -431,7 +452,7 @@ export const adminTeams = new OpenAPIHono<Env>()
       expiresAt: 'expiresAt' in body ? (body.expiresAt ? new Date(body.expiresAt) : null) : undefined,
       note: body.note,
     })
-    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    if (!result.ok) throw failureError(result.failure)
     return c.json(toEntitlementResultDTO(result.result), 200)
   })
   .openapi(revokeEntitlementRoute, async (c) => {
@@ -441,6 +462,6 @@ export const adminTeams = new OpenAPIHono<Env>()
       targetOrgId: c.req.valid('param').teamId,
       entitlementId: c.req.valid('param').eid,
     })
-    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    if (!result.ok) throw failureError(result.failure)
     return c.json(toEntitlementResultDTO(result.result), 200)
   })

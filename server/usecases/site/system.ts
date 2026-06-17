@@ -3,7 +3,7 @@
 // check, system-option visibility rules, and the option-write pipeline (signup
 // Pro gate, captcha key visibility + validation, quota validation, persistence +
 // activity logging). The http handlers only parse input, call these functions,
-// and map the discriminated outcomes onto HTTP statuses.
+// and throw the returned AppError on failure.
 
 import {
   CAPTCHA_ENABLED_KEY,
@@ -19,7 +19,18 @@ import { readCaptchaConfig } from '../../domain/captcha'
 import { hasFeature } from '../../domain/licensing'
 import { originFromRequestUrl } from '../../domain/site-public-origin'
 import { getAppVersion } from '../../version'
-import type { ActivityRepo, ChangelogProvider, InstanceRepo, LicenseBindingRepo, SystemOptionsRepo } from '../ports'
+import {
+  type ActivityRepo,
+  type AppError,
+  badRequest,
+  type ChangelogProvider,
+  featureBlocked,
+  forbidden,
+  type InstanceRepo,
+  type LicenseBindingRepo,
+  notFound,
+  type SystemOptionsRepo,
+} from '../ports'
 import { loadCaptchaOptionValues } from './captcha'
 import { buildInstanceInfo, type runtimeInfo } from './instance-info'
 import { loadBindingState } from './licensing'
@@ -83,18 +94,15 @@ export async function listSystemOptions(
   return { items, total: items.length }
 }
 
-export type GetSystemOptionOutcome =
-  | { ok: true; option: SystemOptionView }
-  | { ok: false; reason: 'not_found' }
-  | { ok: false; reason: 'forbidden' }
+export type GetSystemOptionOutcome = { ok: true; option: SystemOptionView } | { ok: false; error: AppError }
 
 export async function getSystemOption(
   deps: Pick<SystemDeps, 'systemOptions'>,
   params: { key: string; isAdmin: boolean },
 ): Promise<GetSystemOptionOutcome> {
   const row = await deps.systemOptions.get(params.key)
-  if (!row) return { ok: false, reason: 'not_found' }
-  if (!row.public && !params.isAdmin) return { ok: false, reason: 'forbidden' }
+  if (!row) return { ok: false, error: notFound('Option not found') }
+  if (!row.public && !params.isAdmin) return { ok: false, error: forbidden() }
   return { ok: true, option: { key: row.key, value: row.value, public: row.public } }
 }
 
@@ -102,8 +110,13 @@ export async function getSystemOption(
 
 export type SetSystemOptionOutcome =
   | { ok: true; created: boolean; option: SystemOptionView }
-  | { ok: false; reason: 'feature_blocked'; feature: 'open_registration' }
-  | { ok: false; reason: 'invalid'; message: string }
+  | { ok: false; error: AppError }
+
+// Opening signup is a Pro capability; the 402 body points to billing.
+const signupFeatureBlock = () =>
+  featureBlocked('Feature not available', {
+    metadata: { feature: 'open_registration', upgradeUrl: '/settings/billing' },
+  })
 
 // Opening signup to the public is a Pro capability; setting auth_signup_mode to
 // `open` without the feature is blocked. Other modes/values pass freely.
@@ -174,16 +187,16 @@ export async function setSystemOption(
   const { userId, orgId, key } = params
 
   if (await signupModeBlocked(deps, key, params.value)) {
-    return { ok: false, reason: 'feature_blocked', feature: 'open_registration' }
+    return { ok: false, error: signupFeatureBlock() }
   }
 
   const isPublic = resolveCaptchaVisibility(key, params.public)
 
   const captchaError = await validateCaptchaOption(deps, key, params.value)
-  if (captchaError) return { ok: false, reason: 'invalid', message: captchaError.message }
+  if (captchaError) return { ok: false, error: badRequest(captchaError.message) }
 
   const { value, error: quotaError } = validateQuotaOption(key, params.value)
-  if (quotaError) return { ok: false, reason: 'invalid', message: quotaError }
+  if (quotaError) return { ok: false, error: badRequest(quotaError) }
 
   const existing = await deps.systemOptions.get(key)
   const nextPublic = !!(isPublic ?? existing?.public ?? false)

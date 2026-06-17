@@ -20,7 +20,7 @@ import {
   parseProviderConfig,
 } from '@shared/oauth-providers'
 import { hasFeature } from '../../domain/licensing'
-import type { LicenseBindingRepo, SystemOptionsRepo } from '../ports'
+import { type AppError, badRequest, featureBlocked, type LicenseBindingRepo, type SystemOptionsRepo } from '../ports'
 import { loadBindingState } from './licensing'
 
 export type AuthProviderDeps = {
@@ -53,8 +53,8 @@ export type PublicProvider = {
   icon: string
 }
 
-// Why an upsert was rejected. `invalid_id` / `unknown_builtin` / `missing_discovery`
-// are 400 validations; `feature_blocked` is the 402 Community social-login gate.
+// `invalid_id` / `unknown_builtin` / `missing_discovery` are 400 validations;
+// `feature_blocked` is the 402 Community social-login gate.
 export type UpsertProviderInput = {
   type: OAuthProviderType
   clientId: string
@@ -64,20 +64,11 @@ export type UpsertProviderInput = {
   scopes?: string[]
 }
 
-export type SocialLoginFeatureBlock = {
-  feature: 'social_login_unlimited'
-  currentCount: number
-  limit: number
-}
+export type UpsertProviderOutcome = { ok: true; config: MaskedProviderConfig } | { ok: false; error: AppError }
 
-export type UpsertProviderOutcome =
-  | { ok: true; config: MaskedProviderConfig }
-  | { ok: false; reason: 'invalid_id' }
-  | { ok: false; reason: 'unknown_builtin' }
-  | { ok: false; reason: 'missing_discovery' }
-  | { ok: false; reason: 'feature_blocked'; block: SocialLoginFeatureBlock }
+export type DeleteProviderOutcome = { ok: true } | { ok: false; error: AppError }
 
-export type DeleteProviderOutcome = { ok: true } | { ok: false; reason: 'invalid_id' }
+const INVALID_PROVIDER_ID_MESSAGE = 'Provider ID must contain only lowercase letters, numbers, and hyphens'
 
 // Public: enabled providers only, no secrets (for login page buttons).
 export async function listPublicAuthProviders(
@@ -120,11 +111,12 @@ export async function upsertAuthProvider(
   providerId: string,
   input: UpsertProviderInput,
 ): Promise<UpsertProviderOutcome> {
-  if (!isValidProviderId(providerId)) return { ok: false, reason: 'invalid_id' }
+  if (!isValidProviderId(providerId)) return { ok: false, error: badRequest(INVALID_PROVIDER_ID_MESSAGE) }
   if (input.type === 'builtin' && !BUILTIN_PROVIDER_IDS.includes(providerId)) {
-    return { ok: false, reason: 'unknown_builtin' }
+    return { ok: false, error: badRequest(`Unknown builtin provider: ${providerId}`) }
   }
-  if (input.type === 'oidc' && !input.discoveryUrl) return { ok: false, reason: 'missing_discovery' }
+  if (input.type === 'oidc' && !input.discoveryUrl)
+    return { ok: false, error: badRequest('discoveryUrl is required for OIDC providers') }
 
   const config: OAuthProviderConfig = { providerId, ...input }
   const key = optionKey(providerId)
@@ -143,12 +135,14 @@ export async function upsertAuthProvider(
     if (!hasFeature('social_login_unlimited', state) && configured.length >= FREE_SOCIAL_LOGIN_LIMIT) {
       return {
         ok: false,
-        reason: 'feature_blocked',
-        block: {
-          feature: 'social_login_unlimited',
-          currentCount: configured.length,
-          limit: FREE_SOCIAL_LOGIN_LIMIT,
-        },
+        error: featureBlocked('Feature not available', {
+          metadata: {
+            feature: 'social_login_unlimited',
+            currentCount: String(configured.length),
+            limit: String(FREE_SOCIAL_LOGIN_LIMIT),
+            upgradeUrl: '/settings/billing',
+          },
+        }),
       }
     }
     await deps.systemOptions.set(key, value, false)
@@ -161,7 +155,7 @@ export async function deleteAuthProvider(
   deps: Pick<AuthProviderDeps, 'systemOptions'>,
   providerId: string,
 ): Promise<DeleteProviderOutcome> {
-  if (!isValidProviderId(providerId)) return { ok: false, reason: 'invalid_id' }
+  if (!isValidProviderId(providerId)) return { ok: false, error: badRequest(INVALID_PROVIDER_ID_MESSAGE) }
   await deps.systemOptions.delete(optionKey(providerId))
   return { ok: true }
 }

@@ -10,7 +10,15 @@
 // All reads/writes go through the ports — nothing here touches infrastructure.
 
 import type { Platform } from '../../platform/interface'
-import type { EmailConfig, EmailGateway, EmailProvider, SmtpConfig, SystemOptionsRepo } from '../ports'
+import {
+  type AppError,
+  badRequest,
+  type EmailConfig,
+  type EmailGateway,
+  type EmailProvider,
+  type SmtpConfig,
+  type SystemOptionsRepo,
+} from '../ports'
 
 export type EmailConfigDeps = {
   email: EmailGateway
@@ -29,9 +37,9 @@ export type SaveEmailConfigInput =
 export type MaskedEmailSettings = { enabled: boolean } & (Record<string, unknown> | { provider: null })
 
 // A test send either succeeds or fails for a reportable reason (provider error,
-// or email being disabled — the gateway throws for both). The handler turns a
-// failure into a 400 carrying the message.
-export type SendTestEmailOutcome = { ok: true } | { ok: false; reason: 'send_failed'; message: string }
+// or email being disabled — the gateway throws for both). A failure becomes a 400
+// carrying the gateway's message.
+export type SendTestEmailOutcome = { ok: true } | { ok: false; error: AppError }
 
 function maskSecret(value: string): string {
   if (value.length === 0) return ''
@@ -124,7 +132,7 @@ export async function sendTestEmail(
     return { ok: true }
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error'
-    return { ok: false, reason: 'send_failed', message }
+    return { ok: false, error: badRequest(message) }
   }
 }
 

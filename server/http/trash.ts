@@ -1,8 +1,9 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { badRequest } from '../usecases/ports'
 import { emptyTrash } from '../usecases/trash'
-import { apiError, errorResponse, jsonContent } from './openapi'
+import { errorResponse, jsonContent } from './openapi'
 
 const emptyTrashRoute = createRoute({
   operationId: 'emptyTrash',
@@ -22,7 +23,7 @@ app.use(requireAuth)
 
 const trash = app.openapi(emptyTrashRoute, async (c) => {
   const orgId = c.get('orgId')
-  if (!orgId) return apiError(c, 400, 'No active organization')
+  if (!orgId) throw badRequest('No active organization')
   const result = await emptyTrash(c.get('deps'), { orgId, userId: c.get('userId')! })
   return c.json({ purged: result.purged }, 200)
 })

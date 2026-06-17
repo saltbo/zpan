@@ -3,6 +3,7 @@ import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import type { UserWithOrg } from '../usecases/ports'
+import { badRequest, noStorage, notFound, payloadTooLarge, unsupportedMediaType } from '../usecases/ports'
 import {
   deleteUser,
   deleteUsers,
@@ -24,7 +25,7 @@ import {
   toEntitlementResultDTO,
   toQuotaEntitlementDTO,
 } from './entitlements'
-import { apiError, errorResponse, jsonBody, jsonContent } from './openapi'
+import { errorResponse, jsonBody, jsonContent } from './openapi'
 
 const userSchema = z
   .object({
@@ -76,6 +77,20 @@ const updateEntitlementSchema = z.object({
   expiresAt: z.string().datetime().nullable().optional(),
   note: z.string().max(500).nullable().optional(),
 })
+
+// Maps a UserOperationFailure ({ error, status }) threaded from the UserAdminRepo
+// to the matching error factory — the http boundary the rule keeps the sub-usecase
+// status out of.
+function failureError(failure: { status: 400 | 404; error: string }) {
+  return failure.status === 404 ? notFound(failure.error) : badRequest(failure.error)
+}
+
+// Maps the image-upload gateway outcome ({ status, error }) to its error factory.
+function imageUploadError(status: 400 | 413 | 503, error: string) {
+  if (status === 413) return payloadTooLarge(error)
+  if (status === 503) return noStorage(error)
+  return badRequest(error)
+}
 
 async function resolveUserId(deps: Env['Variables']['deps'], handle: string): Promise<string | null> {
   const byId = await getUser(deps, handle)
@@ -273,15 +288,15 @@ const revokeUserEntitlementRoute = createRoute({
 export const users = new OpenAPIHono<Env>()
   .openapi(setAvatarRoute, async (c) => {
     const form = await c.req.formData().catch(() => null)
-    if (!form) return apiError(c, 415, 'Expected multipart/form-data with a file field')
+    if (!form) throw unsupportedMediaType('Expected multipart/form-data with a file field')
     const file = form.get('file')
-    if (!(file instanceof File)) return apiError(c, 400, 'file field is required')
+    if (!(file instanceof File)) throw badRequest('file field is required')
     const result = await updateAvatar(c.get('deps'), {
       platform: c.get('platform'),
       userId: c.get('userId') as string,
       file,
     })
-    if (!result.ok) return apiError(c, result.status, result.error)
+    if (!result.ok) throw imageUploadError(result.status, result.error)
     return c.json({ url: result.url }, 200)
   })
   .openapi(deleteAvatarRoute, async (c) => {
@@ -301,36 +316,36 @@ export const users = new OpenAPIHono<Env>()
       ids: body.ids,
       status: body.action === 'disable' ? 'disabled' : 'active',
     })
-    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    if (!result.ok) throw failureError(result.failure)
     return c.json({ ...result.result, status: result.status }, 200)
   })
   .openapi(batchDeleteRoute, async (c) => {
     const { ids } = c.req.valid('json')
     const result = await deleteUsers(c.get('deps'), { adminUserId: c.get('userId')!, orgId: c.get('orgId')!, ids })
-    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    if (!result.ok) throw failureError(result.failure)
     return c.json(result.result, 200)
   })
   .openapi(getUserRoute, async (c) => {
     const username = c.req.valid('param').username
     if (c.get('userRole') === 'admin') {
       const id = await resolveUserId(c.get('deps'), username)
-      if (!id) return apiError(c, 404, 'User not found')
+      if (!id) throw notFound('User not found')
       const result = await getUser(c.get('deps'), id)
-      if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+      if (!result.ok) throw failureError(result.failure)
       return c.json(toUserDTO(result.user), 200)
     }
     const user = await getPublicProfile(c.get('deps'), username)
-    if (!user) return apiError(c, 404, 'User not found')
+    if (!user) throw notFound('User not found')
     return c.json({ user, shares: [] }, 200)
   })
   .openapi(userObjectsRoute, async (c) => {
     const user = await getPublicProfile(c.get('deps'), c.req.valid('param').username)
-    if (!user) return apiError(c, 404, 'User not found')
+    if (!user) throw notFound('User not found')
     return c.json({ items: [], breadcrumb: [] }, 200)
   })
   .openapi(setUserStatusRoute, async (c) => {
     const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) return apiError(c, 404, 'User not found')
+    if (!id) throw notFound('User not found')
     const { status } = c.req.valid('json')
     const result = await setUserStatus(c.get('deps'), {
       adminUserId: c.get('userId')!,
@@ -338,31 +353,31 @@ export const users = new OpenAPIHono<Env>()
       userId: id,
       status,
     })
-    if (!result.ok) return apiError(c, 404, 'User not found')
+    if (!result.ok) throw notFound('User not found')
     return c.json({ id, status }, 200)
   })
   .openapi(deleteUserRoute, async (c) => {
     const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) return apiError(c, 404, 'User not found')
+    if (!id) throw notFound('User not found')
     const result = await deleteUser(c.get('deps'), {
       adminUserId: c.get('userId')!,
       orgId: c.get('orgId')!,
       userId: id,
     })
-    if (!result.ok) return apiError(c, 404, 'User not found')
+    if (!result.ok) throw notFound('User not found')
     return c.json({ id, deleted: true as const }, 200)
   })
   .openapi(listUserEntitlementsRoute, async (c) => {
     const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) return apiError(c, 404, 'User not found')
+    if (!id) throw notFound('User not found')
     const result = await listUserEntitlements(c.get('deps'), id)
-    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    if (!result.ok) throw failureError(result.failure)
     const items = result.result.items.map(toQuotaEntitlementDTO)
     return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
   })
   .openapi(grantUserEntitlementRoute, async (c) => {
     const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) return apiError(c, 404, 'User not found')
+    if (!id) throw notFound('User not found')
     const body = c.req.valid('json')
     const result = await grantUserEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
@@ -373,12 +388,12 @@ export const users = new OpenAPIHono<Env>()
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       note: body.note,
     })
-    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    if (!result.ok) throw failureError(result.failure)
     return c.json(toEntitlementResultDTO(result.result), 201)
   })
   .openapi(updateUserEntitlementRoute, async (c) => {
     const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) return apiError(c, 404, 'User not found')
+    if (!id) throw notFound('User not found')
     const body = c.req.valid('json')
     const result = await updateUserEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
@@ -389,18 +404,18 @@ export const users = new OpenAPIHono<Env>()
       expiresAt: 'expiresAt' in body ? (body.expiresAt ? new Date(body.expiresAt) : null) : undefined,
       note: body.note,
     })
-    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    if (!result.ok) throw failureError(result.failure)
     return c.json(toEntitlementResultDTO(result.result), 200)
   })
   .openapi(revokeUserEntitlementRoute, async (c) => {
     const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) return apiError(c, 404, 'User not found')
+    if (!id) throw notFound('User not found')
     const result = await revokeUserEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
       adminOrgId: c.get('orgId')!,
       targetUserId: id,
       entitlementId: c.req.valid('param').eid,
     })
-    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    if (!result.ok) throw failureError(result.failure)
     return c.json(toEntitlementResultDTO(result.result), 200)
   })

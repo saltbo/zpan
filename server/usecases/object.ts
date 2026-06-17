@@ -26,18 +26,26 @@ import type { Deps } from './deps'
 import { assertTaskUploadAllowed } from './downloads/downloads'
 import {
   type ActivityRepo,
+  type AppError,
+  badRequest,
+  forbidden,
+  insufficientCredits,
   type Matter,
   type MatterListFilters,
   type MatterRepo,
+  noStorage,
+  notFound,
   ObjectUploadSessionError,
   type ObjectUploadSessionRecord,
   type ObjectUploadSessionRepo,
   type QuotaRepo,
+  quotaExceeded,
   type S3Gateway,
   type ShareRepo,
   type StorageRecord,
   type StorageRepo,
   type StorageUsageRepo,
+  storageNotFound,
 } from './ports'
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 import { meterDownloadTraffic } from './store/traffic-metering'
@@ -109,7 +117,7 @@ function isWithinDownloadTarget(parent: string, targetFolder: string): boolean {
 
 export type ListObjectsOutcome =
   | { ok: true; result: Awaited<ReturnType<Deps['matter']['list']>> }
-  | { ok: false; reason: 'forbidden' }
+  | { ok: false; error: AppError }
 
 export async function listObjects(
   deps: Pick<Deps, 'matter' | 'org'>,
@@ -125,7 +133,7 @@ export async function listObjects(
   // folders of another space the user has access to.
   if (params.orgOverride && params.orgOverride !== orgId) {
     if (!(await deps.org.canReadOrg(params.userId, params.orgOverride))) {
-      return { ok: false, reason: 'forbidden' }
+      return { ok: false, error: forbidden() }
     }
     orgId = params.orgOverride
   }
@@ -138,8 +146,7 @@ export async function listObjects(
 export type CreateObjectOutcome =
   | { ok: true; matter: Matter }
   | { ok: true; matter: Matter; uploadUrl: string; contentDisposition: string }
-  | { ok: false; reason: 'target_outside_authorization' }
-  | { ok: false; reason: 'no_storage' }
+  | { ok: false; error: AppError }
 
 export async function createObject(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'downloaders' | 'downloadTasks'>,
@@ -151,7 +158,7 @@ export async function createObject(
 
   if (actor.kind === 'download-task-upload') {
     if (!isWithinDownloadTarget(parent, actor.targetFolder)) {
-      return { ok: false, reason: 'target_outside_authorization' }
+      return { ok: false, error: forbidden('Target folder is outside task authorization') }
     }
     await assertTaskUploadAllowed(deps as Deps, { taskId: actor.taskId, downloaderId: actor.downloaderId })
   }
@@ -161,7 +168,7 @@ export async function createObject(
     storage = await deps.storages.select('private')
   } catch (error) {
     if (error instanceof Error && error.message === 'No available storage') {
-      return { ok: false, reason: 'no_storage' }
+      return { ok: false, error: noStorage() }
     }
     throw error
   }
@@ -281,10 +288,7 @@ export async function patchUploadSession(
 export type GetObjectOutcome =
   | { ok: true; matter: Matter }
   | { ok: true; matter: Matter; downloadUrl: string }
-  | { ok: false; reason: 'not_found' }
-  | { ok: false; reason: 'storage_not_found' }
-  | { ok: false; reason: 'quota_exceeded' }
-  | { ok: false; reason: 'insufficient_credits' }
+  | { ok: false; error: AppError }
 
 // Loads an object; for files it meters egress (consume traffic quota → report to
 // Cloud, refunding on a block) before presigning the download URL, refunding the
@@ -298,11 +302,11 @@ export async function getObject(
   params: { orgId: string; objectId: string; cloudBaseUrl: string },
 ): Promise<GetObjectOutcome> {
   const matter = await deps.matter.get(params.objectId, params.orgId)
-  if (!matter) return { ok: false, reason: 'not_found' }
+  if (!matter) return { ok: false, error: notFound() }
   if (matter.dirtype !== DirType.FILE || !matter.object) return { ok: true, matter }
 
   const storage = await deps.storages.get(matter.storageId)
-  if (!storage) return { ok: false, reason: 'storage_not_found' }
+  if (!storage) return { ok: false, error: storageNotFound() }
 
   const bytes = matter.size ?? 0
   const metered = await meterDownloadTraffic(deps, {
@@ -313,7 +317,14 @@ export async function getObject(
     source: 'object_download',
     sourceId: matter.id,
   })
-  if (!metered.ok) return { ok: false, reason: metered.reason }
+  if (!metered.ok)
+    return {
+      ok: false,
+      error:
+        metered.reason === 'quota_exceeded'
+          ? quotaExceeded('Traffic quota exceeded')
+          : insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
+    }
 
   let downloadUrl: string
   try {
@@ -327,7 +338,7 @@ export async function getObject(
 
 // ─── Update / confirm / cancel / trash / restore ──────────────────────────────
 
-export type UpdateObjectOutcome = { ok: true; matter: Matter } | { ok: false; reason: 'not_found' }
+export type UpdateObjectOutcome = { ok: true; matter: Matter } | { ok: false; error: AppError }
 
 export async function updateObject(
   deps: Pick<Deps, 'matter'>,
@@ -335,24 +346,27 @@ export async function updateObject(
 ): Promise<UpdateObjectOutcome> {
   const { name, parent, onConflict } = params.input
   const matter = await deps.matter.update(params.objectId, params.orgId, { name, parent, onConflict }, params.actorId)
-  return matter ? { ok: true, matter } : { ok: false, reason: 'not_found' }
+  return matter ? { ok: true, matter } : { ok: false, error: notFound() }
 }
 
+// `not_found` stays a control-flow reason: the handler falls through to
+// `restoreObject` on it (status:'active' confirms a draft, otherwise restores
+// from trash). Quota exhaustion is a terminal error the handler throws.
 export type ConfirmObjectOutcome =
   | { ok: true; matter: Matter }
   | { ok: false; reason: 'not_found' }
-  | { ok: false; reason: 'quota_exceeded' }
+  | { ok: false; error: AppError }
 
 export async function confirmObject(
   deps: Pick<Deps, 'matter' | 'quota' | 'storageUsage' | 'activity' | 's3' | 'storages' | 'share'>,
   params: { orgId: string; objectId: string; actorId: string; onConflict?: ConflictStrategy },
 ): Promise<ConfirmObjectOutcome> {
-  const { matter, quotaExceeded } = await confirmUpload(deps, params.objectId, params.orgId, {
+  const { matter, quotaExceeded: exceeded } = await confirmUpload(deps, params.objectId, params.orgId, {
     onConflict: params.onConflict,
     userId: params.actorId,
     purgeReplaced: (incumbent) => purgeRecursively(deps, params.orgId, [incumbent]).then(() => undefined),
   })
-  if (quotaExceeded) return { ok: false, reason: 'quota_exceeded' }
+  if (exceeded) return { ok: false, error: quotaExceeded() }
   if (!matter) return { ok: false, reason: 'not_found' }
   return { ok: true, matter }
 }
@@ -378,29 +392,29 @@ export async function cancelObject(
   return { ok: true, id: matter.id }
 }
 
-export type TrashObjectOutcome = { ok: true; matter: Matter } | { ok: false; reason: 'not_found' }
+export type TrashObjectOutcome = { ok: true; matter: Matter } | { ok: false; error: AppError }
 
 export async function trashObject(
   deps: Pick<Deps, 'matter'>,
   params: { orgId: string; objectId: string; actorId: string },
 ): Promise<TrashObjectOutcome> {
   const matter = await deps.matter.trash(params.orgId, params.objectId, params.actorId)
-  return matter ? { ok: true, matter } : { ok: false, reason: 'not_found' }
+  return matter ? { ok: true, matter } : { ok: false, error: notFound() }
 }
 
-export type RestoreObjectOutcome = { ok: true; matter: Matter } | { ok: false; reason: 'not_found' }
+export type RestoreObjectOutcome = { ok: true; matter: Matter } | { ok: false; error: AppError }
 
 export async function restoreObject(
   deps: Pick<Deps, 'matter'>,
   params: { orgId: string; objectId: string; actorId: string; onConflict?: ConflictStrategy },
 ): Promise<RestoreObjectOutcome> {
   const matter = await deps.matter.restore(params.orgId, params.objectId, params.actorId, params.onConflict ?? 'fail')
-  return matter ? { ok: true, matter } : { ok: false, reason: 'not_found' }
+  return matter ? { ok: true, matter } : { ok: false, error: notFound() }
 }
 
 // Authorizes a download-task-upload token to confirm a specific object: it may
 // only confirm its draft (PUT /status {active}) and only within its target folder.
-export type ConfirmAuthorizationOutcome = { ok: true } | { ok: false; reason: 'forbidden' }
+export type ConfirmAuthorizationOutcome = { ok: true } | { ok: false; error: AppError }
 
 export async function authorizeTaskUploadConfirm(
   deps: Pick<Deps, 'matter' | 'downloaders' | 'downloadTasks'>,
@@ -414,7 +428,7 @@ export async function authorizeTaskUploadConfirm(
 ): Promise<ConfirmAuthorizationOutcome> {
   const matter = await deps.matter.get(params.objectId, params.orgId)
   if (!matter || !isWithinDownloadTarget(matter.parent, params.targetFolder)) {
-    return { ok: false, reason: 'forbidden' }
+    return { ok: false, error: forbidden() }
   }
   await assertTaskUploadAllowed(deps as Deps, { taskId: params.taskId, downloaderId: params.downloaderId })
   return { ok: true }
@@ -449,7 +463,7 @@ export async function deleteObject(
 
 // ─── Copy (same org, quota-reserved) ──────────────────────────────────────────
 
-export type CopyObjectOutcome = { ok: true; matter: Matter } | { ok: false; reason: 'not_found' | 'storage_not_found' }
+export type CopyObjectOutcome = { ok: true; matter: Matter } | { ok: false; error: AppError }
 
 export async function copyObject(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'quota' | 'storageUsage'>,
@@ -458,11 +472,11 @@ export async function copyObject(
   const { orgId, userId, input } = params
   const { copyFrom, parent, onConflict } = input
   const source = await deps.matter.get(copyFrom, orgId)
-  if (!source) return { ok: false, reason: 'not_found' }
+  if (!source) return { ok: false, error: notFound() }
 
   const sourceSize = source.size ?? 0
   const storage = source.object ? await deps.storages.get(source.storageId) : null
-  if (source.object && !storage) return { ok: false, reason: 'storage_not_found' }
+  if (source.object && !storage) return { ok: false, error: storageNotFound() }
 
   const copy = await withStorageUsageReservation(
     deps,
@@ -487,12 +501,7 @@ export async function copyObject(
 
 export type TransferObjectResult = Awaited<ReturnType<typeof copyMatterToOrg>> & { sourceDeleted: boolean }
 
-export type TransferObjectOutcome =
-  | { ok: true; result: TransferObjectResult }
-  | { ok: false; reason: 'same_org' }
-  | { ok: false; reason: 'not_found' }
-  | { ok: false; reason: 'forbidden' }
-  | { ok: false; reason: 'quota_exceeded' }
+export type TransferObjectOutcome = { ok: true; result: TransferObjectResult } | { ok: false; error: AppError }
 
 export async function transferObject(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'quota' | 'storageUsage' | 'share' | 'org' | 'activity'>,
@@ -500,23 +509,23 @@ export async function transferObject(
 ): Promise<TransferObjectOutcome> {
   const { orgId, userId, objectId, input } = params
   const { targetOrgId, targetParent, mode } = input
-  if (targetOrgId === orgId) return { ok: false, reason: 'same_org' }
+  if (targetOrgId === orgId) return { ok: false, error: badRequest('Target must be a different space', 'SAME_ORG') }
 
   const source = await deps.matter.get(objectId, orgId)
-  if (!source || source.status !== 'active') return { ok: false, reason: 'not_found' }
+  if (!source || source.status !== 'active') return { ok: false, error: notFound() }
 
   // Copying out only needs read access on the source space (granted by the route
   // middleware); moving also trashes the source, which needs editor.
   if (mode === 'move' && !(await hasEditorAccess(deps, { orgId, userId }))) {
-    return { ok: false, reason: 'forbidden' }
+    return { ok: false, error: forbidden() }
   }
   if (!(await deps.org.canWriteToOrg(userId, targetOrgId))) {
-    return { ok: false, reason: 'forbidden' }
+    return { ok: false, error: forbidden() }
   }
 
   const totalBytes = await deps.share.computeSourceBytes(source)
   if (!(await deps.share.hasQuotaForBytes(targetOrgId, totalBytes))) {
-    return { ok: false, reason: 'quota_exceeded' }
+    return { ok: false, error: quotaExceeded() }
   }
 
   const result = await copyMatterToOrg(deps, {

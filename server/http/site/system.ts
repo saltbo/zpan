@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { ErrorReason, pageSchema } from '@shared/schemas'
+import { pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { runtimeInfo } from '../../usecases/site/instance-info'
@@ -11,7 +11,7 @@ import {
   resolveInstanceInfo,
   setSystemOption,
 } from '../../usecases/site/system'
-import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const instanceInfoSchema = z
   .object({
@@ -145,9 +145,8 @@ const system = new OpenAPIHono<Env>()
       key: c.req.valid('param').key,
       isAdmin: c.get('userRole') === 'admin',
     })
-    if (result.ok) return c.json(result.option, 200)
-    if (result.reason === 'not_found') return apiError(c, 404, 'Option not found')
-    return apiError(c, 403, 'Forbidden')
+    if (!result.ok) throw result.error
+    return c.json(result.option, 200)
   })
   .openapi(setOptionRoute, async (c) => {
     const body = c.req.valid('json')
@@ -158,14 +157,7 @@ const system = new OpenAPIHono<Env>()
       value: body.value,
       public: body.public,
     })
-    if (!result.ok) {
-      if (result.reason === 'feature_blocked')
-        return apiError(c, 402, 'Feature not available', {
-          reason: ErrorReason.FEATURE_NOT_AVAILABLE,
-          metadata: { feature: result.feature, upgradeUrl: '/settings/billing' },
-        })
-      return apiError(c, 400, result.message)
-    }
+    if (!result.ok) throw result.error
     return result.created ? c.json(result.option, 201) : c.json(result.option, 200)
   })
   .openapi(deleteOptionRoute, async (c) =>

@@ -3,6 +3,7 @@ import type { CreateStorageInput } from '@shared/schemas'
 import type { BindingState } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ActivityRepo, LicenseBindingRepo, StorageRecord, StorageRepo } from '../ports'
+import { AppError } from '../ports'
 import { loadBindingState } from './licensing'
 import { createStorage, deleteStorage, getStorage, listStorages, type StorageDeps, updateStorage } from './storage'
 
@@ -85,11 +86,17 @@ describe('storage usecase', () => {
       edition(COMMUNITY)
       const { deps, record } = makeDeps({ count: async () => FREE_STORAGE_LIMIT })
       const out = await createStorage(deps, { userId: 'u1', orgId: 'o1', input: validInput })
-      expect(out).toEqual({
-        ok: false,
-        reason: 'feature_blocked',
-        block: { feature: 'storages_unlimited', currentCount: FREE_STORAGE_LIMIT, limit: FREE_STORAGE_LIMIT },
-      })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(402)
+        expect(out.error.meta.reason).toBe('FEATURE_NOT_AVAILABLE')
+        expect(out.error.meta.metadata).toEqual({
+          feature: 'storages_unlimited',
+          currentCount: String(FREE_STORAGE_LIMIT),
+          limit: String(FREE_STORAGE_LIMIT),
+        })
+      }
       expect(record).not.toHaveBeenCalled()
     })
 
@@ -110,7 +117,13 @@ describe('storage usecase', () => {
         orgId: 'o1',
         input: { ...validInput, egressCreditBillingEnabled: true },
       })
-      expect(out).toEqual({ ok: false, reason: 'feature_blocked', block: { feature: 'quota_store' } })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(402)
+        expect(out.error.meta.reason).toBe('FEATURE_NOT_AVAILABLE')
+        expect(out.error.meta.metadata).toEqual({ feature: 'quota_store' })
+      }
       expect(record).not.toHaveBeenCalled()
     })
 
@@ -142,7 +155,12 @@ describe('storage usecase', () => {
       edition(COMMUNITY)
       const { deps, record } = makeDeps({ update: async () => null })
       const out = await updateStorage(deps, { userId: 'u1', orgId: 'o1', id: 'x', input: { title: 'New' } })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(404)
+        expect(out.error.message).toBe('Storage not found')
+      }
       expect(record).not.toHaveBeenCalled()
     })
 
@@ -156,7 +174,13 @@ describe('storage usecase', () => {
         id: 'x',
         input: { egressCreditBillingEnabled: true },
       })
-      expect(out).toEqual({ ok: false, reason: 'feature_blocked', block: { feature: 'quota_store' } })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(402)
+        expect(out.error.meta.reason).toBe('FEATURE_NOT_AVAILABLE')
+        expect(out.error.meta.metadata).toEqual({ feature: 'quota_store' })
+      }
       expect(update).not.toHaveBeenCalled()
     })
   })
@@ -175,14 +199,24 @@ describe('storage usecase', () => {
     it('returns not_found for a missing storage', async () => {
       const { deps, record } = makeDeps({ get: async () => null, delete: async () => 'not_found' })
       const out = await deleteStorage(deps, { userId: 'u1', orgId: 'o1', id: 'x' })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(404)
+        expect(out.error.message).toBe('Storage not found')
+      }
       expect(record).not.toHaveBeenCalled()
     })
 
     it('returns in_use when the storage is referenced', async () => {
       const { deps, record } = makeDeps({ get: async () => sampleStorage, delete: async () => 'in_use' })
       const out = await deleteStorage(deps, { userId: 'u1', orgId: 'o1', id: 'st-1' })
-      expect(out).toEqual({ ok: false, reason: 'in_use' })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(409)
+        expect(out.error.message).toBe('Storage is referenced by existing files')
+      }
       expect(record).not.toHaveBeenCalled()
     })
   })

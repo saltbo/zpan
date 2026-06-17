@@ -115,14 +115,20 @@ describe('invite-code usecase', () => {
     it('returns not_found for a missing code and records no activity', async () => {
       const { deps, record } = makeDeps({ delete: async () => 'not_found' })
       const out = await deleteInviteCode(deps, { userId: 'u1', orgId: 'o1', id: 'x' })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(404)
+      expect(out.error.message).toBe('Invite code not found')
       expect(record).not.toHaveBeenCalled()
     })
 
     it('returns already_used for a redeemed code and records no activity', async () => {
       const { deps, record } = makeDeps({ delete: async () => 'already_used' })
       const out = await deleteInviteCode(deps, { userId: 'u1', orgId: 'o1', id: 'ic-1' })
-      expect(out).toEqual({ ok: false, reason: 'already_used' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('Cannot delete a used invite code')
       expect(record).not.toHaveBeenCalled()
     })
   })

@@ -1,22 +1,28 @@
 import type { Context } from 'hono'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { formatError } from '../lib/errors'
-import { ApiError, buildErrorBody, mapDomainError } from '../lib/http-errors'
+import { buildErrorBody, mapDomainError } from '../lib/http-errors'
+import { AppError } from '../usecases/ports'
 import type { Env } from './platform'
 
-// Turn any thrown error into the AIP-193 response we return to the client, and
-// stash its reason + message on the context for the access log. Shared by the
-// accessLog boundary (which catches /api throws so it can log the real mapped
-// status) and `app.onError` (the backstop for errors thrown outside that
-// boundary, e.g. earlier middleware or non-access-logged routes).
+// Render a business error as its AIP-193 JSON response, and stash reason + message
+// on the context for the access log. THE one place errors become responses: usecases
+// return `AppError` values, handlers `throw result.error`, and the accessLog boundary
+// + `app.onError` pass every thrown error through here.
 //
-// The client never sees an internal stack: an untranslated error becomes a
-// generic 500 body, while the full `cause` chain goes only to `errorLog` →
-// the access log. Domain errors and `ApiError` carry their own safe message.
-export function renderError(c: Context<Env>, err: unknown): Response {
-  if (err instanceof ApiError) {
-    const body = err.toBody()
+// An `AppError` carries its own status/reason/message/headers (built once by the
+// factories in usecases/ports/app-error). Legacy domain errors are still translated
+// by `mapDomainError`. Anything else is an unexpected failure: the client gets a
+// generic 500 while the full `cause` chain goes only to `errorLog` → the access log.
+export function jsonError(c: Context<Env>, err: unknown): Response {
+  if (err instanceof AppError) {
+    const body = buildErrorBody(err.httpStatus, err.message, {
+      reason: err.meta.reason,
+      status: err.meta.canonicalStatus,
+      metadata: err.meta.metadata,
+    })
     c.set('errorLog', { reason: body.error.details?.[0]?.reason ?? body.error.status, message: err.message })
-    return c.json(body, err.httpStatus)
+    return c.json(body, err.httpStatus as ContentfulStatusCode, err.meta.headers)
   }
 
   const mapped = mapDomainError(err)
@@ -33,8 +39,8 @@ export function renderError(c: Context<Env>, err: unknown): Response {
   return c.json(buildErrorBody(500, 'Internal Server Error', { reason: 'INTERNAL' }), 500)
 }
 
-// True when `renderError` would translate `err` into a specific (non-500) result.
+// True when `jsonError` would translate `err` into a specific (non-500) result.
 // Lets `app.onError` log only genuinely unhandled errors as `http.unhandled_error`.
 export function isHandledError(err: unknown): boolean {
-  return err instanceof ApiError || mapDomainError(err) !== null
+  return err instanceof AppError || mapDomainError(err) !== null
 }

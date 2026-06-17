@@ -2,7 +2,7 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { ErrorReason, pageSchema } from '../../shared/schemas'
+import { pageSchema } from '../../shared/schemas'
 import { createShareRequestSchema, listSharesQuerySchema, saveShareRequestSchema } from '../../shared/schemas/share'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -19,7 +19,7 @@ import {
   verifySharePassword,
   viewShare,
 } from '../usecases/share'
-import { apiError, errorResponse, jsonBody, jsonContent } from './openapi'
+import { errorResponse, jsonBody, jsonContent } from './openapi'
 import { cookieName, decodeChildRef, readUserId, viewCookieName } from './share-utils'
 
 function shareUrls(kind: string, token: string): { landing?: string; direct?: string } {
@@ -249,34 +249,7 @@ pub.get('/:token/objects/:ref', async (c) => {
     res.headers.set('Cache-Control', 'no-store')
     return res
   }
-  switch (out.reason) {
-    case 'matter_trashed':
-      return apiError(c, 410, 'File no longer available')
-    case 'not_found':
-      return apiError(c, 404, 'File not found or not accessible')
-    case 'invalid_ref':
-      return apiError(c, 400, 'Invalid reference')
-    case 'password_required':
-      return apiError(c, 401, 'Password required')
-    case 'expired':
-      return apiError(c, 410, 'Share has expired')
-    case 'folder':
-      return apiError(c, 400, 'Cannot download a folder directly')
-    case 'limit_exceeded':
-      return apiError(c, 410, 'Download limit exceeded')
-    case 'storage_not_found':
-      return apiError(c, 404, 'Storage not found')
-    case 'quota_exceeded':
-      return apiError(c, 422, 'Traffic quota exceeded', {
-        reason: ErrorReason.QUOTA_EXCEEDED,
-        status: 'RESOURCE_EXHAUSTED',
-      })
-    case 'insufficient_credits':
-      return apiError(c, 402, 'Insufficient credits', {
-        reason: ErrorReason.INSUFFICIENT_CREDITS,
-        metadata: { resource: 'storage_egress' },
-      })
-  }
+  throw out.error
 })
 
 export const publicShares = pub
@@ -300,8 +273,7 @@ export const publicShares = pub
       }
       return c.json(toShareViewDTO(out.dto), 200)
     }
-    if (out.reason === 'matter_trashed') return apiError(c, 410, 'File no longer available')
-    return apiError(c, 404, 'Share not found or revoked')
+    throw out.error
   })
   .openapi(verifyShareRoute, async (c) => {
     const token = c.req.valid('param').token
@@ -316,8 +288,7 @@ export const publicShares = pub
       })
       return c.json({ ok: true as const }, 200)
     }
-    if (out.reason === 'invalid_password') return apiError(c, 403, 'Invalid password')
-    return apiError(c, 404, 'Share not found or revoked')
+    throw out.error
   })
   .openapi(listShareObjectsRoute, async (c) => {
     const token = c.req.valid('param').token
@@ -337,20 +308,7 @@ export const publicShares = pub
       pageSize,
     })
     if (out.ok) return c.json(out.result, 200)
-    switch (out.reason) {
-      case 'matter_trashed':
-        return apiError(c, 410, 'File no longer available')
-      case 'not_found':
-        return apiError(c, 404, 'Share not found or revoked')
-      case 'not_a_folder':
-        return apiError(c, 400, 'Not a folder share')
-      case 'password_required':
-        return apiError(c, 401, 'Password required')
-      case 'expired':
-        return apiError(c, 410, 'Share has expired')
-      case 'invalid_path':
-        return apiError(c, 400, 'Invalid path')
-    }
+    throw out.error
   })
 
 // ─── AUTHED SEGMENT ─────────────────────────────────────────────────────────
@@ -407,6 +365,7 @@ const saveShareRoute = createRoute({
     403: errorResponse('Forbidden'),
     404: errorResponse('Share not found'),
     410: errorResponse('Share target deleted'),
+    422: errorResponse('Quota exceeded'),
   },
 })
 
@@ -438,16 +397,7 @@ export const authedShares = authedApp
         201,
       )
     }
-    switch (out.reason) {
-      case 'MATTER_NOT_FOUND':
-        return apiError(c, 404, 'Matter not found', { reason: 'MATTER_NOT_FOUND' })
-      case 'DIRECT_NO_FOLDER':
-        return apiError(c, 400, 'Direct shares cannot be folders', { reason: 'DIRECT_NO_FOLDER' })
-      case 'DIRECT_NO_PASSWORD':
-        return apiError(c, 400, 'Direct shares cannot have a password', { reason: 'DIRECT_NO_PASSWORD' })
-      case 'DIRECT_NO_RECIPIENTS':
-        return apiError(c, 400, 'Direct shares cannot have recipients', { reason: 'DIRECT_NO_RECIPIENTS' })
-    }
+    throw out.error
   })
   .openapi(revokeShareRoute, async (c) => {
     const out = await revokeShare(c.get('deps'), {
@@ -456,8 +406,7 @@ export const authedShares = authedApp
       orgId: c.get('orgId')!,
     })
     if (out.ok) return c.body(null, 204)
-    if (out.reason === 'forbidden') return apiError(c, 403, 'Forbidden')
-    return apiError(c, 404, 'Not found')
+    throw out.error
   })
   .openapi(saveShareRoute, async (c) => {
     const token = c.req.valid('param').token
@@ -470,20 +419,5 @@ export const authedShares = authedApp
       accessCookie: getCookie(c, cookieName(token)),
     })
     if (out.ok) return c.json({ saved: out.result.saved.map(toSavedMatterDTO), skipped: out.result.skipped }, 201)
-    switch (out.reason) {
-      case 'matter_trashed':
-        return apiError(c, 410, 'Share target has been deleted')
-      case 'not_found':
-        return apiError(c, 404, 'Share not found')
-      case 'direct_forbidden':
-        return apiError(c, 400, 'Direct link shares cannot be saved. Ask the sender for a landing share.', {
-          reason: 'DIRECT_SAVE_FORBIDDEN',
-        })
-      case 'password_required':
-        return apiError(c, 401, 'Authentication required for password-protected share')
-      case 'forbidden':
-        return apiError(c, 403, 'Forbidden')
-      case 'quota_exceeded':
-        return apiError(c, 400, 'Quota exceeded', { reason: ErrorReason.QUOTA_EXCEEDED, status: 'RESOURCE_EXHAUSTED' })
-    }
+    throw out.error
   })

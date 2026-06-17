@@ -2,8 +2,9 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { notFound } from '../usecases/ports'
 import { getUserQuota, listQuotaOverview } from '../usecases/quota'
-import { apiError, errorResponse, jsonContent } from './openapi'
+import { errorResponse, jsonContent } from './openapi'
 
 // Quota types are already wire-shaped (timestamps are ISO strings, not Date), so
 // the schemas match the usecase return types directly — no DTO mapper needed.
@@ -78,7 +79,7 @@ const adminQuotas = new OpenAPIHono<Env>().openapi(listQuotaOverviewRoute, async
 
 const userQuotas = new OpenAPIHono<Env>().openapi(getMyQuotaRoute, async (c) => {
   const quota = await getUserQuota(c.get('deps'), { userId: c.get('userId')!, orgId: c.get('orgId') ?? undefined })
-  if (!quota) return apiError(c, 404, 'No organization found')
+  if (!quota) throw notFound('No organization found')
   return c.json(quota, 200)
 })
 

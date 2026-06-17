@@ -6,7 +6,15 @@
 
 import type { SiteInvitation } from '@shared/types'
 import type { Platform } from '../../platform/interface'
-import type { ActivityRepo, EmailGateway, SiteInvitationRepo } from '../ports'
+import {
+  type ActivityRepo,
+  type AppError,
+  badRequest,
+  conflict,
+  type EmailGateway,
+  notFound,
+  type SiteInvitationRepo,
+} from '../ports'
 
 export type SiteInvitationDeps = {
   siteInvitations: SiteInvitationRepo
@@ -14,21 +22,13 @@ export type SiteInvitationDeps = {
   activity: ActivityRepo
 }
 
-// createSiteInvitation throws on a duplicate pending invite; the handler turns a
-// thrown error into a 409. Surface the message so it round-trips into the body.
-export type CreateSiteInvitationOutcome =
-  | { ok: true; invitation: SiteInvitation }
-  | { ok: false; reason: 'conflict'; message: string }
+// createSiteInvitation throws on a duplicate pending invite, rendered as a 409
+// carrying the thrown message.
+export type CreateSiteInvitationOutcome = { ok: true; invitation: SiteInvitation } | { ok: false; error: AppError }
 
-// Maps to 404 (not_found) and 400 (already_accepted / already_revoked).
-export type ResendSiteInvitationOutcome =
-  | { ok: true; invitation: SiteInvitation }
-  | { ok: false; reason: 'not_found' | 'already_accepted' | 'already_revoked' }
+export type ResendSiteInvitationOutcome = { ok: true; invitation: SiteInvitation } | { ok: false; error: AppError }
 
-// Maps to 404 (not_found) and 400 (already_accepted / already_revoked).
-export type RevokeSiteInvitationOutcome =
-  | { ok: true; id: string }
-  | { ok: false; reason: 'not_found' | 'already_accepted' | 'already_revoked' }
+export type RevokeSiteInvitationOutcome = { ok: true; id: string } | { ok: false; error: AppError }
 
 function buildSignupInviteEmailHtml(data: { siteName: string; inviteLink: string; expiresAt: string }) {
   return `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
@@ -86,7 +86,7 @@ export async function createSiteInvitation(
     invitation = await deps.siteInvitations.createSiteInvitation(userId, email)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create invitation'
-    return { ok: false, reason: 'conflict', message }
+    return { ok: false, error: conflict(message) }
   }
   await sendSiteInvitationEmail(deps, platform, requestUrl, invitation)
   await deps.activity.record({
@@ -106,9 +106,9 @@ export async function resendSiteInvitation(
   params: { id: string; requestUrl: string },
 ): Promise<ResendSiteInvitationOutcome> {
   const invitation = await deps.siteInvitations.resendSiteInvitation(params.id)
-  if (invitation === 'not_found') return { ok: false, reason: 'not_found' }
-  if (invitation === 'already_accepted') return { ok: false, reason: 'already_accepted' }
-  if (invitation === 'already_revoked') return { ok: false, reason: 'already_revoked' }
+  if (invitation === 'not_found') return { ok: false, error: notFound('Invitation not found') }
+  if (invitation === 'already_accepted') return { ok: false, error: badRequest('Invitation has already been used') }
+  if (invitation === 'already_revoked') return { ok: false, error: badRequest('Invitation has been revoked') }
   await sendSiteInvitationEmail(deps, platform, params.requestUrl, invitation)
   return { ok: true, invitation }
 }
@@ -119,9 +119,9 @@ export async function revokeSiteInvitation(
 ): Promise<RevokeSiteInvitationOutcome> {
   const { userId, orgId, id } = params
   const result = await deps.siteInvitations.revokeSiteInvitation(id, userId)
-  if (result === 'not_found') return { ok: false, reason: 'not_found' }
-  if (result === 'already_accepted') return { ok: false, reason: 'already_accepted' }
-  if (result === 'already_revoked') return { ok: false, reason: 'already_revoked' }
+  if (result === 'not_found') return { ok: false, error: notFound('Invitation not found') }
+  if (result === 'already_accepted') return { ok: false, error: badRequest('Invitation has already been used') }
+  if (result === 'already_revoked') return { ok: false, error: badRequest('Invitation has already been revoked') }
   await deps.activity.record({
     orgId,
     userId,

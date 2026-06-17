@@ -640,7 +640,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 400 QUOTA_EXCEEDED when target org quota is exhausted [spec: shares/save-quota-exceeded]', async () => {
+  it('returns 422 QUOTA_EXCEEDED when target org quota is exhausted [spec: shares/save-quota-exceeded]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await authedHeaders(app)
@@ -659,7 +659,7 @@ describe('POST /api/shares/:token/objects', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
     })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(422)
 
     const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
     expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')

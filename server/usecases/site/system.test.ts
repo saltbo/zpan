@@ -10,6 +10,7 @@ import type { BindingState } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAppVersion } from '../../version'
 import type { ActivityRepo, ChangelogProvider, InstanceRepo, SystemOption, SystemOptionsRepo } from '../ports'
+import { AppError } from '../ports'
 import { loadBindingState } from './licensing'
 import {
   deleteSystemOption,
@@ -132,9 +133,15 @@ describe('system usecase', () => {
   })
 
   describe('getSystemOption', () => {
-    it('returns not_found when the key is absent', async () => {
+    it('returns a 404 AppError when the key is absent', async () => {
       const { deps } = makeDeps({ get: async () => null })
-      expect(await getSystemOption(deps, { key: 'missing', isAdmin: true })).toEqual({ ok: false, reason: 'not_found' })
+      const out = await getSystemOption(deps, { key: 'missing', isAdmin: true })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(404)
+        expect(out.error.message).toBe('Option not found')
+      }
     })
 
     it('returns the option to anyone when it is public', async () => {
@@ -145,10 +152,12 @@ describe('system usecase', () => {
 
     it('forbids a non-admin from reading a private option', async () => {
       const { deps } = makeDeps({ get: async () => option({ key: 'smtp_password', public: false }) })
-      expect(await getSystemOption(deps, { key: 'smtp_password', isAdmin: false })).toEqual({
-        ok: false,
-        reason: 'forbidden',
-      })
+      const out = await getSystemOption(deps, { key: 'smtp_password', isAdmin: false })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(403)
+      }
     })
 
     it('lets an admin read a private option', async () => {
@@ -194,7 +203,13 @@ describe('system usecase', () => {
       const set = vi.fn(async () => {})
       const { deps, record } = makeDeps({ set })
       const out = await setSystemOption(deps, { ...base, key: 'auth_signup_mode', value: SignupMode.OPEN })
-      expect(out).toEqual({ ok: false, reason: 'feature_blocked', feature: 'open_registration' })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(402)
+        expect(out.error.meta.reason).toBe('FEATURE_NOT_AVAILABLE')
+        expect(out.error.meta.metadata).toEqual({ feature: 'open_registration', upgradeUrl: '/settings/billing' })
+      }
       expect(set).not.toHaveBeenCalled()
       expect(record).not.toHaveBeenCalled()
     })
@@ -246,7 +261,10 @@ describe('system usecase', () => {
       const { deps } = makeDeps({ set, listByKeyLike: async () => [] })
       const out = await setSystemOption(deps, { ...base, key: CAPTCHA_ENABLED_KEY, value: 'true' })
       expect(out.ok).toBe(false)
-      expect(out).toMatchObject({ reason: 'invalid' })
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(400)
+      }
       expect(set).not.toHaveBeenCalled()
     })
 
@@ -273,7 +291,8 @@ describe('system usecase', () => {
         ],
       })
       const out = await setSystemOption(deps, { ...base, key: CAPTCHA_MIN_SCORE_KEY, value: '5' })
-      expect(out).toMatchObject({ ok: false, reason: 'invalid' })
+      expect(out.ok).toBe(false)
+      if (!out.ok) expect(out.error.httpStatus).toBe(400)
       expect(set).not.toHaveBeenCalled()
     })
 
@@ -283,11 +302,12 @@ describe('system usecase', () => {
       const { deps } = makeDeps({ set })
       for (const value of ['0', '-1', '1.5', 'abc']) {
         const out = await setSystemOption(deps, { ...base, key: 'default_org_quota', value })
-        expect(out).toEqual({
-          ok: false,
-          reason: 'invalid',
-          message: 'Default organization quota must be a positive number',
-        })
+        expect(out.ok).toBe(false)
+        if (!out.ok) {
+          expect(out.error).toBeInstanceOf(AppError)
+          expect(out.error.httpStatus).toBe(400)
+          expect(out.error.message).toBe('Default organization quota must be a positive number')
+        }
       }
       expect(set).not.toHaveBeenCalled()
     })
@@ -323,7 +343,8 @@ describe('system usecase', () => {
       const { deps } = makeDeps({ set })
       for (const value of ['', '   ', '-1', '1.5', 'abc']) {
         const out = await setSystemOption(deps, { ...base, key: 'default_org_monthly_traffic_quota', value })
-        expect(out).toMatchObject({ ok: false, reason: 'invalid' })
+        expect(out.ok).toBe(false)
+        if (!out.ok) expect(out.error.httpStatus).toBe(400)
       }
       expect(set).not.toHaveBeenCalled()
     })

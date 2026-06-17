@@ -1,10 +1,8 @@
-import { ErrorReason } from '@shared/schemas'
 import type { Handler } from 'hono'
 import { Hono } from 'hono'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { apiError } from '../http/openapi'
-import { NameConflictError } from '../usecases/ports'
-import { renderError } from './error-handler'
+import { insufficientCredits, NameConflictError, notFound } from '../usecases/ports'
+import { jsonError } from './error-handler'
 import { accessLog } from './logger'
 import type { Env } from './platform'
 
@@ -28,7 +26,7 @@ describe('accessLog', () => {
   afterEach(() => vi.restoreAllMocks())
 
   // Mirror production: accessLog at the boundary, errorLog initialised like
-  // platformMiddleware, and app.onError rendering thrown errors via renderError
+  // platformMiddleware, and app.onError rendering thrown errors via jsonError
   // (Hono routes throws there, not to a middleware catch — see app.ts).
   function appWith(handler: Handler<Env>) {
     const app = new Hono<Env>()
@@ -38,7 +36,7 @@ describe('accessLog', () => {
       await next()
     })
     app.get('/x', handler)
-    app.onError((err, c) => renderError(c, err))
+    app.onError((err, c) => jsonError(c, err))
     return app
   }
 
@@ -51,8 +49,10 @@ describe('accessLog', () => {
     expect(f.reason).toBeUndefined()
   })
 
-  it('logs reason + message for an inline apiError', async () => {
-    const app = appWith((c) => apiError(c, 404, 'Widget not found'))
+  it('logs reason + message for a thrown AppError', async () => {
+    const app = appWith(() => {
+      throw notFound('Widget not found')
+    })
     const res = await app.request('/x')
     expect(res.status).toBe(404)
     const f = parseLine(lines[0])
@@ -62,12 +62,9 @@ describe('accessLog', () => {
   })
 
   it('carries the specific reason + metadata message for a special error', async () => {
-    const app = appWith((c) =>
-      apiError(c, 402, 'Insufficient credits', {
-        reason: ErrorReason.INSUFFICIENT_CREDITS,
-        metadata: { resource: 'storage_egress' },
-      }),
-    )
+    const app = appWith(() => {
+      throw insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } })
+    })
     await app.request('/x')
     const f = parseLine(lines[0])
     expect(f.reason).toBe('INSUFFICIENT_CREDITS')

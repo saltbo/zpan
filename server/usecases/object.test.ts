@@ -18,26 +18,27 @@ import {
   trashObject,
   updateObject,
 } from './object'
-import type {
-  ActivityRepo,
-  CloudTrafficReportRepo,
-  ConflictPlan,
-  DownloaderRepo,
-  DownloadTaskRecord,
-  DownloadTaskRepo,
-  LicenseBindingRepo,
-  LicensingCloudGateway,
-  Matter,
-  MatterRepo,
-  ObjectUploadSessionRecord,
-  ObjectUploadSessionRepo,
-  OrgRepo,
-  QuotaRepo,
-  S3Gateway,
-  ShareRepo,
-  StorageRecord,
-  StorageRepo,
-  StorageUsageRepo,
+import {
+  type ActivityRepo,
+  AppError,
+  type CloudTrafficReportRepo,
+  type ConflictPlan,
+  type DownloaderRepo,
+  type DownloadTaskRecord,
+  type DownloadTaskRepo,
+  type LicenseBindingRepo,
+  type LicensingCloudGateway,
+  type Matter,
+  type MatterRepo,
+  type ObjectUploadSessionRecord,
+  type ObjectUploadSessionRepo,
+  type OrgRepo,
+  type QuotaRepo,
+  type S3Gateway,
+  type ShareRepo,
+  type StorageRecord,
+  type StorageRepo,
+  type StorageUsageRepo,
 } from './ports'
 import { meterDownloadTraffic } from './store/traffic-metering'
 
@@ -193,6 +194,14 @@ function makeDeps(
 
 beforeEach(() => vi.clearAllMocks())
 
+function expectError(out: unknown, httpStatus: number, message: string, reason?: string) {
+  const e = (out as { ok: false; error: AppError }).error
+  expect(e).toBeInstanceOf(AppError)
+  expect(e.httpStatus).toBe(httpStatus)
+  expect(e.message).toBe(message)
+  if (reason) expect(e.meta.reason).toBe(reason)
+}
+
 describe('object usecase', () => {
   describe('listObjects', () => {
     it('lists the active org without an override', async () => {
@@ -231,7 +240,7 @@ describe('object usecase', () => {
         orgOverride: 'o2',
         filters: { parent: '', status: 'active', page: 1, pageSize: 20 },
       })
-      expect(out).toEqual({ ok: false, reason: 'forbidden' })
+      expectError(out, 403, 'Forbidden')
       expect(list).not.toHaveBeenCalled()
     })
   })
@@ -306,7 +315,7 @@ describe('object usecase', () => {
         actor: user,
         input: { name: 'x.txt', type: 'text/plain', dirtype: DirType.FILE, parent: '' },
       })
-      expect(out).toEqual({ ok: false, reason: 'no_storage' })
+      expectError(out, 503, 'No storage configured', 'NO_STORAGE_CONFIGURED')
     })
 
     it('rejects an agent upload outside its target folder', async () => {
@@ -323,7 +332,7 @@ describe('object usecase', () => {
         },
         input: { name: 'x.txt', type: 'text/plain', dirtype: DirType.FILE, parent: 'Other' },
       })
-      expect(out).toEqual({ ok: false, reason: 'target_outside_authorization' })
+      expectError(out, 403, 'Target folder is outside task authorization')
       expect(create).not.toHaveBeenCalled()
     })
 
@@ -409,13 +418,13 @@ describe('object usecase', () => {
     it('returns not_found for a missing object', async () => {
       const { deps } = makeDeps({ matter: { get: async () => null } })
       const out = await getObject(deps, { orgId: 'o1', objectId: 'x', cloudBaseUrl: 'https://cloud' })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
+      expectError(out, 404, 'Not found')
     })
 
     it('returns storage_not_found when a file has no storage row', async () => {
       const { deps } = makeDeps({ matter: { get: async () => file('m1') }, storages: { get: async () => null } })
       const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
-      expect(out).toEqual({ ok: false, reason: 'storage_not_found' })
+      expectError(out, 404, 'Storage not found')
     })
 
     it('meters egress then presigns the download URL for a file', async () => {
@@ -441,7 +450,7 @@ describe('object usecase', () => {
       const presignDownload = vi.fn()
       const { deps } = makeDeps({ matter: { get: async () => file('m1') }, s3: { presignDownload } })
       const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
-      expect(out).toEqual({ ok: false, reason: 'quota_exceeded' })
+      expectError(out, 422, 'Traffic quota exceeded', 'QUOTA_EXCEEDED')
       expect(presignDownload).not.toHaveBeenCalled()
     })
 
@@ -449,7 +458,8 @@ describe('object usecase', () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: false, reason: 'insufficient_credits' })
       const { deps } = makeDeps({ matter: { get: async () => file('m1') } })
       const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
-      expect(out).toEqual({ ok: false, reason: 'insufficient_credits' })
+      expectError(out, 402, 'Insufficient credits', 'INSUFFICIENT_CREDITS')
+      expect((out as { ok: false; error: AppError }).error.meta.metadata).toEqual({ resource: 'storage_egress' })
     })
 
     it('refunds the traffic and rethrows when presign fails after metering', async () => {
@@ -498,7 +508,7 @@ describe('object usecase', () => {
         actorId: 'u1',
         input: { name: 'X' },
       })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
+      expectError(out, 404, 'Not found')
     })
   })
 
@@ -530,7 +540,7 @@ describe('object usecase', () => {
         quota: { incrementUsageIfEffectiveQuotaAllows: async () => false },
       })
       const out = await confirmObject(deps, { orgId: 'o1', objectId: 'd1', actorId: 'u1' })
-      expect(out).toEqual({ ok: false, reason: 'quota_exceeded' })
+      expectError(out, 422, 'Quota exceeded', 'QUOTA_EXCEEDED')
     })
 
     it('propagates a name conflict thrown during confirm', async () => {
@@ -593,10 +603,7 @@ describe('object usecase', () => {
 
     it('trash returns not_found when missing', async () => {
       const { deps } = makeDeps({ matter: { trash: async () => null } })
-      expect(await trashObject(deps, { orgId: 'o1', objectId: 'x', actorId: 'u1' })).toEqual({
-        ok: false,
-        reason: 'not_found',
-      })
+      expectError(await trashObject(deps, { orgId: 'o1', objectId: 'x', actorId: 'u1' }), 404, 'Not found')
     })
 
     it('restores with the default fail strategy', async () => {
@@ -616,10 +623,7 @@ describe('object usecase', () => {
 
     it('restore returns not_found when missing', async () => {
       const { deps } = makeDeps({ matter: { restore: async () => null } })
-      expect(await restoreObject(deps, { orgId: 'o1', objectId: 'x', actorId: 'u1' })).toEqual({
-        ok: false,
-        reason: 'not_found',
-      })
+      expectError(await restoreObject(deps, { orgId: 'o1', objectId: 'x', actorId: 'u1' }), 404, 'Not found')
     })
   })
 
@@ -681,17 +685,18 @@ describe('object usecase', () => {
 
     it('returns not_found for a missing source', async () => {
       const { deps } = makeDeps({ matter: { get: async () => null } })
-      expect(await copyObject(deps, { orgId: 'o1', userId: 'u1', input: { copyFrom: 'x', parent: '' } })).toEqual({
-        ok: false,
-        reason: 'not_found',
-      })
+      expectError(
+        await copyObject(deps, { orgId: 'o1', userId: 'u1', input: { copyFrom: 'x', parent: '' } }),
+        404,
+        'Not found',
+      )
     })
 
     it('returns storage_not_found for an object-backed source with no storage', async () => {
       const source = file('src', { object: 'key/src' })
       const { deps } = makeDeps({ matter: { get: async () => source }, storages: { get: async () => null } })
       const out = await copyObject(deps, { orgId: 'o1', userId: 'u1', input: { copyFrom: 'src', parent: '' } })
-      expect(out).toEqual({ ok: false, reason: 'storage_not_found' })
+      expectError(out, 404, 'Storage not found')
     })
 
     it('rolls back the S3 copy when the matter copy fails', async () => {
@@ -726,7 +731,7 @@ describe('object usecase', () => {
         objectId: 'm1',
         input: { targetOrgId: 'o1', targetParent: '', mode: 'copy' },
       })
-      expect(out).toEqual({ ok: false, reason: 'same_org' })
+      expectError(out, 400, 'Target must be a different space', 'SAME_ORG')
     })
 
     it('returns not_found for a missing/inactive source', async () => {
@@ -737,7 +742,7 @@ describe('object usecase', () => {
         objectId: 'm1',
         input: { targetOrgId: 'o2', targetParent: '', mode: 'copy' },
       })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
+      expectError(out, 404, 'Not found')
     })
 
     it('forbids a move without editor access on the source space', async () => {
@@ -751,7 +756,7 @@ describe('object usecase', () => {
         objectId: 'm1',
         input: { targetOrgId: 'o2', targetParent: '', mode: 'move' },
       })
-      expect(out).toEqual({ ok: false, reason: 'forbidden' })
+      expectError(out, 403, 'Forbidden')
     })
 
     it('forbids a transfer into a target the user cannot write', async () => {
@@ -765,7 +770,7 @@ describe('object usecase', () => {
         objectId: 'm1',
         input: { targetOrgId: 'o2', targetParent: '', mode: 'copy' },
       })
-      expect(out).toEqual({ ok: false, reason: 'forbidden' })
+      expectError(out, 403, 'Forbidden')
     })
 
     it('rejects a transfer that exceeds the target quota', async () => {
@@ -779,7 +784,7 @@ describe('object usecase', () => {
         objectId: 'm1',
         input: { targetOrgId: 'o2', targetParent: '', mode: 'copy' },
       })
-      expect(out).toEqual({ ok: false, reason: 'quota_exceeded' })
+      expectError(out, 422, 'Quota exceeded', 'QUOTA_EXCEEDED')
     })
 
     it('copies into the target without deleting the source', async () => {
@@ -840,10 +845,7 @@ describe('object usecase', () => {
 
     it('forbids confirming an object outside the target folder', async () => {
       const { deps } = makeDeps({ matter: { get: async () => file('m1', { parent: 'Other' }) } })
-      expect(await authorizeTaskUploadConfirm(deps, taskParams)).toEqual({
-        ok: false,
-        reason: 'forbidden',
-      })
+      expectError(await authorizeTaskUploadConfirm(deps, taskParams), 403, 'Forbidden')
     })
 
     it('authorizes a confirm within the target folder for a live task', async () => {

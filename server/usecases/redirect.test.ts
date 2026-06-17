@@ -11,8 +11,25 @@ import type {
   StorageRecord,
   StorageRepo,
 } from './ports'
+import { AppError } from './ports'
 import { type RedirectDeps, resolveDirectShareDownload, resolveImageHostingDownload } from './redirect'
 import { type DownloadTrafficOutcome, meterDownloadTraffic, reportDownloadEgress } from './store/traffic-metering'
+
+// Asserts a usecase returned a failure AppError with the given HTTP status,
+// wire reason, and message — the AIP-193 fields the http boundary renders.
+function expectError(
+  out: { ok: true } | { ok: false; error: AppError },
+  httpStatus: number,
+  reason: string | undefined,
+  message: string,
+) {
+  expect(out.ok).toBe(false)
+  const { error } = out as { ok: false; error: AppError }
+  expect(error).toBeInstanceOf(AppError)
+  expect(error.httpStatus).toBe(httpStatus)
+  expect(error.meta.reason).toBe(reason)
+  expect(error.message).toBe(message)
+}
 
 // The end-to-end metering (quota consume → cloud egress report → refund) is
 // covered by cloud-traffic-metering.test.ts. Here we replace its two entry
@@ -163,19 +180,19 @@ describe('resolveDirectShareDownload', () => {
   it('returns matter_trashed when the share resolves to a trashed matter', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'matter_trashed' }) } })
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
-    expect(out).toEqual({ ok: false, reason: 'matter_trashed' })
+    expectError(out, 410, undefined, 'File no longer available')
   })
 
   it('returns not_found when the token does not resolve', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'not_found' }) } })
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
-    expect(out).toEqual({ ok: false, reason: 'not_found' })
+    expectError(out, 404, undefined, 'Share not found or revoked')
   })
 
   it('returns not_found when the share is revoked', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'revoked' }) } })
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
-    expect(out).toEqual({ ok: false, reason: 'not_found' })
+    expectError(out, 404, undefined, 'Share not found or revoked')
   })
 
   it('returns not_found when the share kind is not direct (e.g. landing)', async () => {
@@ -186,7 +203,7 @@ describe('resolveDirectShareDownload', () => {
       },
     })
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
-    expect(out).toEqual({ ok: false, reason: 'not_found' })
+    expectError(out, 404, undefined, 'Share not found or revoked')
   })
 
   it('returns expired when expiresAt is in the past', async () => {
@@ -201,13 +218,13 @@ describe('resolveDirectShareDownload', () => {
       cloudBaseUrl: CLOUD_BASE_URL,
       now: new Date('2030-01-01'),
     })
-    expect(out).toEqual({ ok: false, reason: 'expired' })
+    expectError(out, 410, undefined, 'Share has expired')
   })
 
   it('returns limit_exceeded when no downloads remain', async () => {
     const { deps, presignDownload } = makeDeps({ share: { hasDownloadsAvailable: async () => false } })
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
-    expect(out).toEqual({ ok: false, reason: 'limit_exceeded' })
+    expectError(out, 410, undefined, 'Download limit exceeded')
     expect(presignDownload).not.toHaveBeenCalled()
     expect(meter).not.toHaveBeenCalled()
   })
@@ -217,21 +234,21 @@ describe('resolveDirectShareDownload', () => {
       share: { incrementDownloadsAtomic: async () => ({ ok: false, downloads: 0 }) },
     })
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
-    expect(out).toEqual({ ok: false, reason: 'limit_exceeded' })
+    expectError(out, 410, undefined, 'Download limit exceeded')
     expect(presignDownload).not.toHaveBeenCalled()
   })
 
   it('returns storage_not_found when the storage is missing', async () => {
     const { deps } = makeDeps({ storages: { get: async () => null } })
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
-    expect(out).toEqual({ ok: false, reason: 'storage_not_found' })
+    expectError(out, 404, undefined, 'Storage not found')
   })
 
   it('returns quota_exceeded when the meter rejects on quota', async () => {
     meter.mockResolvedValue(quotaExceeded)
     const { deps, presignDownload } = makeDeps()
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
-    expect(out).toEqual({ ok: false, reason: 'quota_exceeded' })
+    expectError(out, 422, 'QUOTA_EXCEEDED', 'Traffic quota exceeded')
     // The meter owns the compensating decrement; presign never runs.
     expect(presignDownload).not.toHaveBeenCalled()
   })
@@ -240,7 +257,7 @@ describe('resolveDirectShareDownload', () => {
     meter.mockResolvedValue(insufficientCredits)
     const { deps, presignDownload } = makeDeps()
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
-    expect(out).toEqual({ ok: false, reason: 'insufficient_credits' })
+    expectError(out, 402, 'INSUFFICIENT_CREDITS', 'Insufficient credits')
     expect(presignDownload).not.toHaveBeenCalled()
   })
 
@@ -289,7 +306,7 @@ describe('resolveImageHostingDownload', () => {
   it('returns not_found when the token does not resolve', async () => {
     const { deps } = makeDeps({ imageHosting: { resolveActiveByToken: async () => null } })
     const out = await resolveImageHostingDownload(deps, baseParams)
-    expect(out).toEqual({ ok: false, reason: 'not_found' })
+    expectError(out, 404, undefined, 'Not found')
   })
 
   it('allows any referer when the allowlist is empty', async () => {
@@ -348,7 +365,7 @@ describe('resolveImageHostingDownload', () => {
       ...baseParams,
       refererHeader: 'https://evil.com/page',
     })
-    expect(out).toEqual({ ok: false, reason: 'forbidden_referer' })
+    expectError(out, 403, undefined, 'forbidden referer')
     expect(incrementAccessCount).not.toHaveBeenCalled()
   })
 
@@ -362,7 +379,7 @@ describe('resolveImageHostingDownload', () => {
       ...baseParams,
       refererHeader: 'https://sub.blog.com/page',
     })
-    expect(out).toEqual({ ok: false, reason: 'forbidden_referer' })
+    expectError(out, 403, undefined, 'forbidden referer')
   })
 
   it('throws on a malformed referer (same-origin check parses it unguarded → 500 at http)', async () => {
@@ -377,7 +394,7 @@ describe('resolveImageHostingDownload', () => {
   it('returns storage_not_found when the storage is missing', async () => {
     const { deps } = makeDeps({ storages: { get: async () => null } })
     const out = await resolveImageHostingDownload(deps, baseParams)
-    expect(out).toEqual({ ok: false, reason: 'storage_not_found' })
+    expectError(out, 404, undefined, 'Storage not found')
   })
 
   it('returns quota_exceeded before presigning when the quota is exhausted', async () => {
@@ -385,7 +402,7 @@ describe('resolveImageHostingDownload', () => {
       quota: { consumeTrafficIfQuotaAllows: async () => false },
     })
     const out = await resolveImageHostingDownload(deps, baseParams)
-    expect(out).toEqual({ ok: false, reason: 'quota_exceeded' })
+    expectError(out, 422, 'QUOTA_EXCEEDED', 'Traffic quota exceeded')
     expect(presignInline).not.toHaveBeenCalled()
     expect(incrementAccessCount).not.toHaveBeenCalled()
   })
@@ -427,7 +444,7 @@ describe('resolveImageHostingDownload', () => {
     reportEgress.mockResolvedValue(insufficientCredits)
     const { deps, incrementAccessCount } = makeDeps()
     const out = await resolveImageHostingDownload(deps, baseParams)
-    expect(out).toEqual({ ok: false, reason: 'insufficient_credits' })
+    expectError(out, 402, 'INSUFFICIENT_CREDITS', 'Insufficient credits')
     expect(incrementAccessCount).not.toHaveBeenCalled()
   })
 

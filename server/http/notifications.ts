@@ -8,8 +8,8 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '../usecases/notification'
-import type { NotificationRecord } from '../usecases/ports'
-import { apiError, errorResponse, jsonContent } from './openapi'
+import { type NotificationRecord, notFound } from '../usecases/ports'
+import { errorResponse, jsonContent } from './openapi'
 
 const notificationSchema = z
   .object({
@@ -117,7 +117,7 @@ export const notifications = app
   })
   .openapi(markReadRoute, async (c) => {
     const found = await markNotificationRead(c.get('deps'), c.get('userId')!, c.req.valid('param').id)
-    if (!found) return apiError(c, 404, 'Not found')
+    if (!found) throw notFound()
     return c.body(null, 204)
   })
   .openapi(markAllReadRoute, async (c) => c.json(await markAllNotificationsRead(c.get('deps'), c.get('userId')!), 200))
