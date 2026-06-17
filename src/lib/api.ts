@@ -435,57 +435,15 @@ export function deleteStorage(id: string) {
   return unwrap<{ id: string; deleted: boolean }>(storages[':id'].$delete({ param: { id } }))
 }
 
-// Admin Users API
-
-export interface UserWithOrg {
-  id: string
-  name: string
-  username: string
-  email: string
-  image: string | null
-  role: string | null
-  banned: boolean
-  createdAt: number
-  orgId: string | null
-  orgName: string | null
-  quotaUsed: number
-  quotaDefault: number
-  quotaTotal: number
-}
+// User entitlements API (admin). User identity, listing, disable/enable and
+// delete are served directly by better-auth's /api/auth/admin/* endpoints (see
+// the admin client in auth-client.ts). Only the personal-org storage
+// entitlements stay here, in our own quota domain, keyed by user id.
 
 export type UserEntitlementsResponse = { orgId: string; items: OrgQuotaEntitlement[] }
 
-export function listUsers(page: number, pageSize: number, search?: string) {
-  const query: Record<string, string> = { page: String(page), pageSize: String(pageSize) }
-  if (search?.trim()) query.search = search.trim()
-  return unwrap<{ items: UserWithOrg[]; total: number }>(users.index.$get({ query }))
-}
-
-export function getUser(userId: string) {
-  return unwrap<UserWithOrg>(users[':username'].$get({ param: { username: userId } }))
-}
-
-export function updateUserStatus(userId: string, status: 'active' | 'disabled') {
-  return unwrap<{ id: string; status: string }>(
-    users[':username'].$patch({ param: { username: userId }, json: { status } }),
-  )
-}
-
-export function deleteUser(userId: string) {
-  return unwrap<{ id: string; deleted: boolean }>(users[':username'].$delete({ param: { username: userId } }))
-}
-
-export function batchUpdateUserStatus(ids: string[], status: 'active' | 'disabled') {
-  const action = status === 'disabled' ? 'disable' : 'enable'
-  return unwrap<{ updated: number; ids: string[]; status: string }>(users.index.$patch({ json: { action, ids } }))
-}
-
-export function batchDeleteUsers(ids: string[]) {
-  return unwrap<{ deleted: number; ids: string[] }>(users.index.$delete({ json: { ids } }))
-}
-
 export function listUserEntitlements(userId: string) {
-  return unwrap<UserEntitlementsResponse>(users[':username'].entitlements.$get({ param: { username: userId } }))
+  return unwrap<UserEntitlementsResponse>(users[':userId'].entitlements.$get({ param: { userId } }))
 }
 
 export function grantUserEntitlement(
@@ -493,7 +451,7 @@ export function grantUserEntitlement(
   data: { resourceType: 'storage'; bytes: number; expiresAt?: string | null; note?: string | null },
 ) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    users[':username'].entitlements.$post({ param: { username: userId }, json: data }),
+    users[':userId'].entitlements.$post({ param: { userId }, json: data }),
   )
 }
 
@@ -503,13 +461,13 @@ export function updateUserEntitlement(
   data: { bytes?: number; expiresAt?: string | null; note?: string | null },
 ) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    users[':username'].entitlements[':eid'].$patch({ param: { username: userId, eid: entitlementId }, json: data }),
+    users[':userId'].entitlements[':eid'].$patch({ param: { userId, eid: entitlementId }, json: data }),
   )
 }
 
 export function revokeUserEntitlement(userId: string, entitlementId: string) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    users[':username'].entitlements[':eid'].$delete({ param: { username: userId, eid: entitlementId } }),
+    users[':userId'].entitlements[':eid'].$delete({ param: { userId, eid: entitlementId } }),
   )
 }
 
@@ -534,6 +492,15 @@ export type QuotaItem = Pick<
 
 export function listQuotas() {
   return unwrap<{ items: QuotaItem[]; total: number }>(adminQuotas.index.$get())
+}
+
+export type UserQuotaItem = { userId: string; used: number; total: number }
+
+// Per-user storage used/total, fetched to enrich the better-auth admin user
+// listing (better-auth's /admin/list-users knows identity but not quota).
+export function getUserQuotas(ids: string[]) {
+  if (ids.length === 0) return Promise.resolve({ items: [] as UserQuotaItem[] })
+  return unwrap<{ items: UserQuotaItem[] }>(adminQuotas.users.$get({ query: { ids: ids.join(',') } }))
 }
 
 // Admin Teams API

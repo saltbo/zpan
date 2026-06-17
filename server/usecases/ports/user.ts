@@ -1,19 +1,3 @@
-export interface UserWithOrg {
-  id: string
-  name: string
-  username: string
-  email: string
-  image: string | null
-  role: string | null
-  banned: boolean | null
-  createdAt: Date
-  orgId: string | null
-  orgName: string | null
-  quotaUsed: number
-  quotaDefault: number
-  quotaTotal: number
-}
-
 export interface QuotaEntitlementItem {
   id: string
   orgId: string
@@ -58,24 +42,17 @@ export interface EntitlementResult {
   entitlement: QuotaEntitlementItem
 }
 
-// Admin surface for user management + storage entitlement grants (org- and
-// user-personal-scoped). Operations return UserOperationFailure instead of
-// throwing so http maps {status} directly.
+// Admin surface for storage entitlement grants (org- and user-personal-scoped),
+// plus the two read checks the auth/WebDAV middleware needs. Admin user
+// management (list / disable / delete) is served by better-auth's admin plugin,
+// not here. Operations return UserOperationFailure instead of throwing so http
+// maps {status} directly.
 export interface UserAdminRepo {
-  listUsers(page: number, pageSize: number, search?: string): Promise<{ items: UserWithOrg[]; total: number }>
-  getUser(userId: string): Promise<UserWithOrg | UserOperationFailure>
   // Whether the user is banned/disabled — checked by the auth middleware on every
   // authenticated request to reject sessions of users disabled mid-session.
   isBanned(userId: string): Promise<boolean>
   // Whether `username` matches the user's email or username (WebDAV Basic Auth check).
   matchesUsername(userId: string, username: string): Promise<boolean>
-  setUserStatus(userId: string, status: 'active' | 'disabled'): Promise<boolean>
-  deleteUser(userId: string): Promise<boolean>
-  setUsersStatus(
-    userIds: string[],
-    status: 'active' | 'disabled',
-  ): Promise<{ updated: number; ids: string[] } | UserOperationFailure>
-  deleteUsers(userIds: string[]): Promise<{ deleted: number; ids: string[] } | UserOperationFailure>
 
   listUserPersonalEntitlements(
     userId: string,

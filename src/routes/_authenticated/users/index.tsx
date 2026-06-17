@@ -8,14 +8,15 @@ import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { listUsers, type UserWithOrg, updateUserStatus } from '@/lib/api'
+import { getUserQuotas } from '@/lib/api'
+import { type AdminUser, adminListUsers, adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatSize, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/users/')({
   component: UsersPage,
 })
 
-type UserRow = UserWithOrg
+type UserRow = AdminUser & { quotaUsed: number; quotaTotal: number }
 
 function UsersPage() {
   const { t } = useTranslation()
@@ -29,12 +30,19 @@ function UsersPage() {
 
   const usersQuery = useQuery({
     queryKey: ['admin', 'users', page, pageSize],
-    queryFn: () => listUsers(page, pageSize),
+    queryFn: () => adminListUsers({ limit: pageSize, offset: (page - 1) * pageSize }),
+  })
+
+  const baseUsers = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data])
+
+  const quotaQuery = useQuery({
+    queryKey: ['admin', 'user-quotas', baseUsers.map((u) => u.id)],
+    queryFn: () => getUserQuotas(baseUsers.map((u) => u.id)),
+    enabled: baseUsers.length > 0,
   })
 
   const toggleStatusMutation = useMutation({
-    mutationFn: ({ userId, status }: { userId: string; status: 'active' | 'disabled' }) =>
-      updateUserStatus(userId, status),
+    mutationFn: ({ userId, banned }: { userId: string; banned: boolean }) => adminSetUserBanned(userId, banned),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       toast.success(t('admin.users.statusUpdated'))
@@ -45,8 +53,13 @@ function UsersPage() {
   })
 
   const users: UserRow[] = useMemo(() => {
-    return usersQuery.data?.items ?? []
-  }, [usersQuery.data])
+    const quota = new Map((quotaQuery.data?.items ?? []).map((item) => [item.userId, item]))
+    return baseUsers.map((user) => ({
+      ...user,
+      quotaUsed: quota.get(user.id)?.used ?? 0,
+      quotaTotal: quota.get(user.id)?.total ?? 0,
+    }))
+  }, [baseUsers, quotaQuery.data])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return users
@@ -106,12 +119,7 @@ function UsersPage() {
                 user={user}
                 isToggling={toggleStatusMutation.isPending}
                 onOpenUser={() => navigate({ to: '/admin/users/$userId', params: { userId: user.id } })}
-                onToggleStatus={() =>
-                  toggleStatusMutation.mutate({
-                    userId: user.id,
-                    status: user.banned ? 'active' : 'disabled',
-                  })
-                }
+                onToggleStatus={() => toggleStatusMutation.mutate({ userId: user.id, banned: !user.banned })}
                 onDelete={() => setDeleteDialogUser({ id: user.id, name: user.name })}
               />
             ))}

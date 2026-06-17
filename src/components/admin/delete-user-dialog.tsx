@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { deleteUser } from '@/lib/api'
+import { adminRemoveUser } from '@/lib/auth-client'
 
 interface DeleteUserDialogProps {
   open: boolean
@@ -23,7 +23,7 @@ export function DeleteUserDialog({ open, onOpenChange, user }: DeleteUserDialogP
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
-    mutationFn: (userId: string) => deleteUser(userId),
+    mutationFn: (userId: string) => adminRemoveUser(userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'quotas'] })

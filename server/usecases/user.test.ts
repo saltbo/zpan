@@ -9,27 +9,18 @@ import type {
   QuotaEntitlementItem,
   UserAdminRepo,
   UserOperationFailure,
-  UserWithOrg,
 } from './ports'
 import {
   type AvatarDeps,
-  deleteUser,
-  deleteUsers,
   getPublicProfile,
-  getUser,
   grantUserEntitlement,
   listUserEntitlements,
-  listUsers,
   removeAvatar,
   revokeUserEntitlement,
-  setUserStatus,
-  setUsersStatus,
   type UserDeps,
   updateAvatar,
   updateUserEntitlement,
 } from './user'
-
-const sampleUser = { id: 'u-1', email: 'a@example.com', orgId: 'org-1' } as UserWithOrg
 
 const sampleEntitlement = {
   id: 'ent-1',
@@ -48,14 +39,8 @@ const failure: UserOperationFailure = { error: 'User not found: missing', status
 function makeDeps(userAdmin: Partial<UserAdminRepo> = {}) {
   const record = vi.fn(async () => {})
   const repo: UserAdminRepo = {
-    listUsers: async () => ({ items: [], total: 0 }),
-    getUser: async () => sampleUser,
     isBanned: async () => false,
     matchesUsername: async () => false,
-    setUserStatus: async () => true,
-    deleteUser: async () => true,
-    setUsersStatus: async () => ({ updated: 0, ids: [] }),
-    deleteUsers: async () => ({ deleted: 0, ids: [] }),
     listUserPersonalEntitlements: async () => ({ orgId: 'org-1', items: [] }),
     grantUserPersonalEntitlement: async () => sampleResult,
     updateUserPersonalEntitlement: async () => sampleResult,
@@ -74,87 +59,6 @@ function makeDeps(userAdmin: Partial<UserAdminRepo> = {}) {
 beforeEach(() => vi.clearAllMocks())
 
 describe('user usecase', () => {
-  describe('listUsers', () => {
-    it('forwards page/pageSize/search to the repo', async () => {
-      const listUsersFn = vi.fn(async () => ({ items: [sampleUser], total: 1 }))
-      const { deps } = makeDeps({ listUsers: listUsersFn })
-      const out = await listUsers(deps, { page: 2, pageSize: 50, search: 'bob' })
-      expect(out).toEqual({ items: [sampleUser], total: 1 })
-      expect(listUsersFn).toHaveBeenCalledWith(2, 50, 'bob')
-    })
-
-    it('passes undefined search through', async () => {
-      const listUsersFn = vi.fn(async () => ({ items: [], total: 0 }))
-      const { deps } = makeDeps({ listUsers: listUsersFn })
-      await listUsers(deps, { page: 1, pageSize: 20 })
-      expect(listUsersFn).toHaveBeenCalledWith(1, 20, undefined)
-    })
-  })
-
-  describe('getUser', () => {
-    it('returns the user', async () => {
-      const { deps } = makeDeps({ getUser: async () => sampleUser })
-      expect(await getUser(deps, 'u-1')).toEqual({ ok: true, user: sampleUser })
-    })
-
-    it('threads the repo failure outward', async () => {
-      const { deps } = makeDeps({ getUser: async () => failure })
-      expect(await getUser(deps, 'x')).toEqual({ ok: false, failure })
-    })
-  })
-
-  describe('setUsersStatus', () => {
-    it('disables, records activity, and returns the status', async () => {
-      const result = { updated: 2, ids: ['a', 'b'] }
-      const { deps, record } = makeDeps({ setUsersStatus: async () => result })
-      const out = await setUsersStatus(deps, { adminUserId: 'admin', orgId: 'o1', ids: ['a', 'b'], status: 'disabled' })
-      expect(out).toEqual({ ok: true, result, status: 'disabled' })
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'user_disable',
-          targetType: 'user',
-          targetName: 'batch',
-          orgId: 'o1',
-          userId: 'admin',
-          metadata: { ...result, status: 'disabled' },
-        }),
-      )
-    })
-
-    it('records user_enable when enabling', async () => {
-      const result = { updated: 1, ids: ['a'] }
-      const { deps, record } = makeDeps({ setUsersStatus: async () => result })
-      await setUsersStatus(deps, { adminUserId: 'admin', orgId: 'o1', ids: ['a'], status: 'active' })
-      expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'user_enable' }))
-    })
-
-    it('threads the repo failure outward without recording', async () => {
-      const { deps, record } = makeDeps({ setUsersStatus: async () => failure })
-      const out = await setUsersStatus(deps, { adminUserId: 'admin', orgId: 'o1', ids: ['x'], status: 'disabled' })
-      expect(out).toEqual({ ok: false, failure })
-      expect(record).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('deleteUsers', () => {
-    it('deletes, records activity, and returns the result', async () => {
-      const result = { deleted: 2, ids: ['a', 'b'] }
-      const { deps, record } = makeDeps({ deleteUsers: async () => result })
-      const out = await deleteUsers(deps, { adminUserId: 'admin', orgId: 'o1', ids: ['a', 'b'] })
-      expect(out).toEqual({ ok: true, result })
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'user_delete', targetType: 'user', targetName: 'batch', metadata: result }),
-      )
-    })
-
-    it('threads the repo failure outward without recording', async () => {
-      const { deps, record } = makeDeps({ deleteUsers: async () => failure })
-      const out = await deleteUsers(deps, { adminUserId: 'admin', orgId: 'o1', ids: ['x'] })
-      expect(out).toEqual({ ok: false, failure })
-      expect(record).not.toHaveBeenCalled()
-    })
-  })
-
   describe('listUserEntitlements', () => {
     it('returns the repo result', async () => {
       const result = { orgId: 'org-1', items: [sampleEntitlement] }
@@ -320,63 +224,6 @@ describe('user usecase', () => {
         entitlementId: 'ent-x',
       })
       expect(out).toEqual({ ok: false, failure })
-      expect(record).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('setUserStatus', () => {
-    it('disables, records activity, and returns ok', async () => {
-      const setStatus = vi.fn(async () => true)
-      const { deps, record } = makeDeps({ setUserStatus: setStatus })
-      const out = await setUserStatus(deps, { adminUserId: 'admin', orgId: 'o1', userId: 'u-1', status: 'disabled' })
-      expect(out).toEqual({ ok: true })
-      expect(setStatus).toHaveBeenCalledWith('u-1', 'disabled')
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'user_disable',
-          targetType: 'user',
-          targetId: 'u-1',
-          targetName: 'u-1',
-          metadata: { status: 'disabled' },
-        }),
-      )
-    })
-
-    it('records user_enable when enabling', async () => {
-      const { deps, record } = makeDeps({ setUserStatus: async () => true })
-      await setUserStatus(deps, { adminUserId: 'admin', orgId: 'o1', userId: 'u-1', status: 'active' })
-      expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'user_enable' }))
-    })
-
-    it('returns not_found without recording when the user is missing', async () => {
-      const { deps, record } = makeDeps({ setUserStatus: async () => false })
-      const out = await setUserStatus(deps, { adminUserId: 'admin', orgId: 'o1', userId: 'x', status: 'disabled' })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
-      expect(record).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('deleteUser', () => {
-    it('deletes, records activity, and returns ok', async () => {
-      const del = vi.fn(async () => true)
-      const { deps, record } = makeDeps({ deleteUser: del })
-      const out = await deleteUser(deps, { adminUserId: 'admin', orgId: 'o1', userId: 'u-1' })
-      expect(out).toEqual({ ok: true })
-      expect(del).toHaveBeenCalledWith('u-1')
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'user_delete',
-          targetType: 'user',
-          targetId: 'u-1',
-          targetName: 'u-1',
-        }),
-      )
-    })
-
-    it('returns not_found without recording when the user is missing', async () => {
-      const { deps, record } = makeDeps({ deleteUser: async () => false })
-      const out = await deleteUser(deps, { adminUserId: 'admin', orgId: 'o1', userId: 'x' })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
       expect(record).not.toHaveBeenCalled()
     })
   })
