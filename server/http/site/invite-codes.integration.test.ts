@@ -143,7 +143,7 @@ describe('Admin Invite Codes API — POST /', () => {
 })
 
 describe('Admin Invite Codes API — DELETE /:id', () => {
-  it('deletes an unused code and returns deleted:true [spec: invite-codes/delete]', async () => {
+  it('deletes an unused code and returns 204 [spec: invite-codes/delete]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const [row] = await createInviteRepo(db).generate('admin-user', 1)
@@ -152,10 +152,7 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
       method: 'DELETE',
       headers,
     })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { id: string; deleted: boolean }
-    expect(body.deleted).toBe(true)
-    expect(body.id).toBe(row.id)
+    expect(res.status).toBe(204)
   })
 
   it('returns 404 for a nonexistent code id', async () => {

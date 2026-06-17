@@ -2,7 +2,6 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   createDownloaderResponseSchema,
   createDownloaderSchema,
-  deleteDownloaderResponseSchema,
   downloaderHeartbeatSchema,
   downloaderSchema,
   pageSchema,
@@ -77,7 +76,7 @@ const deleteRoute = createRoute({
   middleware: [requireAdmin] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
-    200: jsonContent(deleteDownloaderResponseSchema, 'Deleted downloader'),
+    204: { description: 'Deleted downloader' },
     404: errorResponse('Not found'),
   },
 })
@@ -137,7 +136,8 @@ const downloadersRoute = new OpenAPIHono<Env>()
   })
   .openapi(deleteRoute, async (c) => {
     const { id } = c.req.valid('param')
-    return c.json(await deleteDownloader(c.get('deps'), id), 200)
+    await deleteDownloader(c.get('deps'), id)
+    return c.body(null, 204)
   })
 
 export const downloaderSelfRoute = new OpenAPIHono<Env>().openapi(heartbeatRoute, async (c) => {

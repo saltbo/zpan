@@ -122,7 +122,7 @@ const deleteOptionRoute = createRoute({
   path: '/options/{key}',
   middleware: [requireAdmin] as const,
   request: { params: z.object({ key: z.string() }) },
-  responses: { 200: jsonContent(z.object({ key: z.string(), deleted: z.literal(true) }), 'Deleted option') },
+  responses: { 204: { description: 'Deleted option' } },
 })
 
 const system = new OpenAPIHono<Env>()
@@ -160,15 +160,13 @@ const system = new OpenAPIHono<Env>()
     if (!result.ok) throw result.error
     return result.created ? c.json(result.option, 201) : c.json(result.option, 200)
   })
-  .openapi(deleteOptionRoute, async (c) =>
-    c.json(
-      await deleteSystemOption(c.get('deps'), {
-        userId: c.get('userId')!,
-        orgId: c.get('orgId')!,
-        key: c.req.valid('param').key,
-      }),
-      200,
-    ),
-  )
+  .openapi(deleteOptionRoute, async (c) => {
+    await deleteSystemOption(c.get('deps'), {
+      userId: c.get('userId')!,
+      orgId: c.get('orgId')!,
+      key: c.req.valid('param').key,
+    })
+    return c.body(null, 204)
+  })
 
 export default system

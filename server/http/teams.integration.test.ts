@@ -802,7 +802,7 @@ describe('DELETE /api/teams/:teamId/logo', () => {
     await db.run(sql`UPDATE organization SET logo = 'https://example.com/old.png' WHERE id = ${orgId}`)
 
     const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(204)
 
     const rows = await db.all<{ logo: string | null }>(sql`SELECT logo FROM organization WHERE id = ${orgId}`)
     expect(rows[0]?.logo).toBeNull()
@@ -817,7 +817,7 @@ describe('DELETE /api/teams/:teamId/logo', () => {
     await db.run(sql`UPDATE organization SET logo = 'https://example.com/old.png' WHERE id = ${orgId}`)
 
     const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(204)
     const rows = await db.all<{ logo: string | null }>(sql`SELECT logo FROM organization WHERE id = ${orgId}`)
     expect(rows[0]?.logo).toBeNull()
   })
@@ -975,7 +975,7 @@ describe('Admin Team Entitlements API', () => {
       method: 'DELETE',
       headers,
     })
-    expect(revoke.status).toBe(200)
+    expect(revoke.status).toBe(204)
     const afterRevoke = await app.request('/api/teams/team-q1/entitlements', { headers })
     const afterBody = (await afterRevoke.json()) as { items: Array<{ status: string }> }
     expect(afterBody.items[0].status).toBe('revoked')

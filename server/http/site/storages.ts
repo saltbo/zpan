@@ -102,7 +102,7 @@ const deleteStorageRoute = createRoute({
   middleware: [requireAdmin] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
-    200: jsonContent(z.object({ id: z.string(), deleted: z.literal(true) }), 'Deleted storage'),
+    204: { description: 'Deleted storage' },
     404: errorResponse('Storage not found'),
     409: errorResponse('Storage is referenced by existing files'),
   },
@@ -142,7 +142,7 @@ const storages = new OpenAPIHono<Env>()
     const id = c.req.valid('param').id
     const result = await deleteStorage(c.get('deps'), { userId: c.get('userId')!, orgId: c.get('orgId')!, id })
     if (!result.ok) throw result.error
-    return c.json({ id, deleted: true as const }, 200)
+    return c.body(null, 204)
   })
 
 export default storages

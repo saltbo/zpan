@@ -74,7 +74,7 @@ describe('System API — options CRUD', () => {
 
     // Delete
     const del = await app.request('/api/site/options/site_name', { method: 'DELETE', headers: admin })
-    expect(del.status).toBe(200)
+    expect(del.status).toBe(204)
     const afterDel = await app.request('/api/site/options/site_name')
     expect(afterDel.status).toBe(404)
   })

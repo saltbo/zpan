@@ -651,21 +651,6 @@ func (e CreateDownloadTaskJSONBodySourceType) Valid() bool {
 	}
 }
 
-// Defines values for DeleteDownloadTask200JSONResponseBodyDeleted.
-const (
-	DeleteDownloadTask200JSONResponseBodyDeletedTrue DeleteDownloadTask200JSONResponseBodyDeleted = true
-)
-
-// Valid indicates whether the value is a known member of the DeleteDownloadTask200JSONResponseBodyDeleted enum.
-func (e DeleteDownloadTask200JSONResponseBodyDeleted) Valid() bool {
-	switch e {
-	case DeleteDownloadTask200JSONResponseBodyDeletedTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UpdateDownloadTaskJSONBodyRuntimeEngine.
 const (
 	UpdateDownloadTaskJSONBodyRuntimeEngineAria2       UpdateDownloadTaskJSONBodyRuntimeEngine = "aria2"
@@ -846,21 +831,6 @@ func (e CreateObjectJSONBodyOnConflict) Valid() bool {
 	}
 }
 
-// Defines values for DeleteObject200JSONResponseBodyDeleted.
-const (
-	DeleteObject200JSONResponseBodyDeletedTrue DeleteObject200JSONResponseBodyDeleted = true
-)
-
-// Valid indicates whether the value is a known member of the DeleteObject200JSONResponseBodyDeleted enum.
-func (e DeleteObject200JSONResponseBodyDeleted) Valid() bool {
-	switch e {
-	case DeleteObject200JSONResponseBodyDeletedTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for DeleteObject200JSONResponseBodyPurged1.
 const (
 	False DeleteObject200JSONResponseBodyPurged1 = false
@@ -996,27 +966,6 @@ func (e CreateObjectUploadSession201JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
-// Defines values for AbortObjectUpload200JSONResponseBodyStatus.
-const (
-	AbortObjectUpload200JSONResponseBodyStatusAborted   AbortObjectUpload200JSONResponseBodyStatus = "aborted"
-	AbortObjectUpload200JSONResponseBodyStatusActive    AbortObjectUpload200JSONResponseBodyStatus = "active"
-	AbortObjectUpload200JSONResponseBodyStatusCompleted AbortObjectUpload200JSONResponseBodyStatus = "completed"
-)
-
-// Valid indicates whether the value is a known member of the AbortObjectUpload200JSONResponseBodyStatus enum.
-func (e AbortObjectUpload200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case AbortObjectUpload200JSONResponseBodyStatusAborted:
-		return true
-	case AbortObjectUpload200JSONResponseBodyStatusActive:
-		return true
-	case AbortObjectUpload200JSONResponseBodyStatusCompleted:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CompleteObjectUploadJSONBodyStatus.
 const (
 	CompleteObjectUploadJSONBodyStatusCompleted CompleteObjectUploadJSONBodyStatus = "completed"
@@ -1124,16 +1073,16 @@ func (e VerifySharePassword200JSONResponseBodyOk) Valid() bool {
 
 // Defines values for ListAnnouncementsParamsScope.
 const (
-	Active ListAnnouncementsParamsScope = "active"
-	All    ListAnnouncementsParamsScope = "all"
+	ListAnnouncementsParamsScopeActive ListAnnouncementsParamsScope = "active"
+	ListAnnouncementsParamsScopeAll    ListAnnouncementsParamsScope = "all"
 )
 
 // Valid indicates whether the value is a known member of the ListAnnouncementsParamsScope enum.
 func (e ListAnnouncementsParamsScope) Valid() bool {
 	switch e {
-	case Active:
+	case ListAnnouncementsParamsScopeActive:
 		return true
-	case All:
+	case ListAnnouncementsParamsScopeAll:
 		return true
 	default:
 		return false
@@ -1182,21 +1131,6 @@ func (e CreateAnnouncementJSONBodyStatus) Valid() bool {
 	}
 }
 
-// Defines values for DeleteAnnouncement200JSONResponseBodyDeleted.
-const (
-	DeleteAnnouncement200JSONResponseBodyDeletedTrue DeleteAnnouncement200JSONResponseBodyDeleted = true
-)
-
-// Valid indicates whether the value is a known member of the DeleteAnnouncement200JSONResponseBodyDeleted enum.
-func (e DeleteAnnouncement200JSONResponseBodyDeleted) Valid() bool {
-	switch e {
-	case DeleteAnnouncement200JSONResponseBodyDeletedTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UpdateAnnouncementJSONBodyStatus.
 const (
 	Archived  UpdateAnnouncementJSONBodyStatus = "archived"
@@ -1218,21 +1152,6 @@ func (e UpdateAnnouncementJSONBodyStatus) Valid() bool {
 	}
 }
 
-// Defines values for DeleteAuthProvider200JSONResponseBodyDeleted.
-const (
-	DeleteAuthProvider200JSONResponseBodyDeletedTrue DeleteAuthProvider200JSONResponseBodyDeleted = true
-)
-
-// Valid indicates whether the value is a known member of the DeleteAuthProvider200JSONResponseBodyDeleted enum.
-func (e DeleteAuthProvider200JSONResponseBodyDeleted) Valid() bool {
-	switch e {
-	case DeleteAuthProvider200JSONResponseBodyDeletedTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UpsertAuthProviderJSONBodyType.
 const (
 	UpsertAuthProviderJSONBodyTypeBuiltin UpsertAuthProviderJSONBodyType = "builtin"
@@ -1245,21 +1164,6 @@ func (e UpsertAuthProviderJSONBodyType) Valid() bool {
 	case UpsertAuthProviderJSONBodyTypeBuiltin:
 		return true
 	case UpsertAuthProviderJSONBodyTypeOidc:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ResetBrandingField200JSONResponseBodyReset.
-const (
-	ResetBrandingField200JSONResponseBodyResetTrue ResetBrandingField200JSONResponseBodyReset = true
-)
-
-// Valid indicates whether the value is a known member of the ResetBrandingField200JSONResponseBodyReset enum.
-func (e ResetBrandingField200JSONResponseBodyReset) Valid() bool {
-	switch e {
-	case ResetBrandingField200JSONResponseBodyResetTrue:
 		return true
 	default:
 		return false
@@ -1311,51 +1215,6 @@ func (e SaveEmailConfigJSONBody2Provider) Valid() bool {
 	}
 }
 
-// Defines values for RevokeSiteInvitation200JSONResponseBodyRevoked.
-const (
-	RevokeSiteInvitation200JSONResponseBodyRevokedTrue RevokeSiteInvitation200JSONResponseBodyRevoked = true
-)
-
-// Valid indicates whether the value is a known member of the RevokeSiteInvitation200JSONResponseBodyRevoked enum.
-func (e RevokeSiteInvitation200JSONResponseBodyRevoked) Valid() bool {
-	switch e {
-	case RevokeSiteInvitation200JSONResponseBodyRevokedTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for DeleteInviteCode200JSONResponseBodyDeleted.
-const (
-	DeleteInviteCode200JSONResponseBodyDeletedTrue DeleteInviteCode200JSONResponseBodyDeleted = true
-)
-
-// Valid indicates whether the value is a known member of the DeleteInviteCode200JSONResponseBodyDeleted enum.
-func (e DeleteInviteCode200JSONResponseBodyDeleted) Valid() bool {
-	switch e {
-	case DeleteInviteCode200JSONResponseBodyDeletedTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for DeleteSystemOption200JSONResponseBodyDeleted.
-const (
-	DeleteSystemOption200JSONResponseBodyDeletedTrue DeleteSystemOption200JSONResponseBodyDeleted = true
-)
-
-// Valid indicates whether the value is a known member of the DeleteSystemOption200JSONResponseBodyDeleted enum.
-func (e DeleteSystemOption200JSONResponseBodyDeleted) Valid() bool {
-	switch e {
-	case DeleteSystemOption200JSONResponseBodyDeletedTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CreateStorageJSONBodyMode.
 const (
 	CreateStorageJSONBodyModePrivate CreateStorageJSONBodyMode = "private"
@@ -1368,21 +1227,6 @@ func (e CreateStorageJSONBodyMode) Valid() bool {
 	case CreateStorageJSONBodyModePrivate:
 		return true
 	case CreateStorageJSONBodyModePublic:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for DeleteStorage200JSONResponseBodyDeleted.
-const (
-	DeleteStorage200JSONResponseBodyDeletedTrue DeleteStorage200JSONResponseBodyDeleted = true
-)
-
-// Valid indicates whether the value is a known member of the DeleteStorage200JSONResponseBodyDeleted enum.
-func (e DeleteStorage200JSONResponseBodyDeleted) Valid() bool {
-	switch e {
-	case DeleteStorage200JSONResponseBodyDeletedTrue:
 		return true
 	default:
 		return false
@@ -1473,21 +1317,6 @@ func (e CreateTeamInviteLinkJSONBodyRole) Valid() bool {
 	}
 }
 
-// Defines values for DeleteTeamLogo200JSONResponseBodyOk.
-const (
-	DeleteTeamLogo200JSONResponseBodyOkTrue DeleteTeamLogo200JSONResponseBodyOk = true
-)
-
-// Valid indicates whether the value is a known member of the DeleteTeamLogo200JSONResponseBodyOk enum.
-func (e DeleteTeamLogo200JSONResponseBodyOk) Valid() bool {
-	switch e {
-	case DeleteTeamLogo200JSONResponseBodyOkTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for JoinTeam200JSONResponseBodyOk.
 const (
 	JoinTeam200JSONResponseBodyOkTrue JoinTeam200JSONResponseBodyOk = true
@@ -1497,21 +1326,6 @@ const (
 func (e JoinTeam200JSONResponseBodyOk) Valid() bool {
 	switch e {
 	case JoinTeam200JSONResponseBodyOkTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for DeleteMyAvatar200JSONResponseBodyOk.
-const (
-	True DeleteMyAvatar200JSONResponseBodyOk = true
-)
-
-// Valid indicates whether the value is a known member of the DeleteMyAvatar200JSONResponseBodyOk enum.
-func (e DeleteMyAvatar200JSONResponseBodyOk) Valid() bool {
-	switch e {
-	case True:
 		return true
 	default:
 		return false
@@ -3358,9 +3172,6 @@ type CreateDownloadTaskJSONBody struct {
 // CreateDownloadTaskJSONBodySourceType defines parameters for CreateDownloadTask.
 type CreateDownloadTaskJSONBodySourceType string
 
-// DeleteDownloadTask200JSONResponseBodyDeleted defines parameters for DeleteDownloadTask.
-type DeleteDownloadTask200JSONResponseBodyDeleted bool
-
 // UpdateDownloadTaskJSONBody defines parameters for UpdateDownloadTask.
 type UpdateDownloadTaskJSONBody struct {
 	ErrorMessage *string `json:"errorMessage,omitempty"`
@@ -3536,9 +3347,6 @@ type CreateObjectJSONBody struct {
 // CreateObjectJSONBodyOnConflict defines parameters for CreateObject.
 type CreateObjectJSONBodyOnConflict string
 
-// DeleteObject200JSONResponseBodyDeleted defines parameters for DeleteObject.
-type DeleteObject200JSONResponseBodyDeleted bool
-
 // DeleteObject200JSONResponseBodyPurged0 defines parameters for DeleteObject.
 type DeleteObject200JSONResponseBodyPurged0 = int
 
@@ -3598,9 +3406,6 @@ type CreateObjectUploadSessionJSONBody struct {
 
 // CreateObjectUploadSession201JSONResponseBodyStatus defines parameters for CreateObjectUploadSession.
 type CreateObjectUploadSession201JSONResponseBodyStatus string
-
-// AbortObjectUpload200JSONResponseBodyStatus defines parameters for AbortObjectUpload.
-type AbortObjectUpload200JSONResponseBodyStatus string
 
 // PresignObjectUploadPartsJSONBody defines parameters for PresignObjectUploadParts.
 type PresignObjectUploadPartsJSONBody struct {
@@ -3699,9 +3504,6 @@ type CreateAnnouncementJSONBody struct {
 // CreateAnnouncementJSONBodyStatus defines parameters for CreateAnnouncement.
 type CreateAnnouncementJSONBodyStatus string
 
-// DeleteAnnouncement200JSONResponseBodyDeleted defines parameters for DeleteAnnouncement.
-type DeleteAnnouncement200JSONResponseBodyDeleted bool
-
 // UpdateAnnouncementJSONBody defines parameters for UpdateAnnouncement.
 type UpdateAnnouncementJSONBody struct {
 	Body     *string                          `json:"body,omitempty"`
@@ -3723,9 +3525,6 @@ type ListAuditEventsParams struct {
 	TargetType *string `form:"targetType,omitempty" json:"targetType,omitempty"`
 }
 
-// DeleteAuthProvider200JSONResponseBodyDeleted defines parameters for DeleteAuthProvider.
-type DeleteAuthProvider200JSONResponseBodyDeleted bool
-
 // UpsertAuthProviderJSONBody defines parameters for UpsertAuthProvider.
 type UpsertAuthProviderJSONBody struct {
 	ClientId     string                         `json:"clientId"`
@@ -3738,9 +3537,6 @@ type UpsertAuthProviderJSONBody struct {
 
 // UpsertAuthProviderJSONBodyType defines parameters for UpsertAuthProvider.
 type UpsertAuthProviderJSONBodyType string
-
-// ResetBrandingField200JSONResponseBodyReset defines parameters for ResetBrandingField.
-type ResetBrandingField200JSONResponseBodyReset bool
 
 // GetChangelogParams defines parameters for GetChangelog.
 type GetChangelogParams struct {
@@ -3809,9 +3605,6 @@ type CreateSiteInvitationJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 }
 
-// RevokeSiteInvitation200JSONResponseBodyRevoked defines parameters for RevokeSiteInvitation.
-type RevokeSiteInvitation200JSONResponseBodyRevoked bool
-
 // ListInviteCodesParams defines parameters for ListInviteCodes.
 type ListInviteCodesParams struct {
 	Page     *int `form:"page,omitempty" json:"page,omitempty"`
@@ -3828,12 +3621,6 @@ type GenerateInviteCodesJSONBody struct {
 type ValidateInviteCodeJSONBody struct {
 	Code string `json:"code"`
 }
-
-// DeleteInviteCode200JSONResponseBodyDeleted defines parameters for DeleteInviteCode.
-type DeleteInviteCode200JSONResponseBodyDeleted bool
-
-// DeleteSystemOption200JSONResponseBodyDeleted defines parameters for DeleteSystemOption.
-type DeleteSystemOption200JSONResponseBodyDeleted bool
 
 // SetSystemOptionJSONBody defines parameters for SetSystemOption.
 type SetSystemOptionJSONBody struct {
@@ -3859,9 +3646,6 @@ type CreateStorageJSONBody struct {
 
 // CreateStorageJSONBodyMode defines parameters for CreateStorage.
 type CreateStorageJSONBodyMode string
-
-// DeleteStorage200JSONResponseBodyDeleted defines parameters for DeleteStorage.
-type DeleteStorage200JSONResponseBodyDeleted bool
 
 // UpdateStorageJSONBody defines parameters for UpdateStorage.
 type UpdateStorageJSONBody struct {
@@ -3952,9 +3736,6 @@ type CreateTeamInviteLinkJSONBody struct {
 // CreateTeamInviteLinkJSONBodyRole defines parameters for CreateTeamInviteLink.
 type CreateTeamInviteLinkJSONBodyRole string
 
-// DeleteTeamLogo200JSONResponseBodyOk defines parameters for DeleteTeamLogo.
-type DeleteTeamLogo200JSONResponseBodyOk bool
-
 // JoinTeamJSONBody defines parameters for JoinTeam.
 type JoinTeamJSONBody struct {
 	Token string `json:"token"`
@@ -3962,9 +3743,6 @@ type JoinTeamJSONBody struct {
 
 // JoinTeam200JSONResponseBodyOk defines parameters for JoinTeam.
 type JoinTeam200JSONResponseBodyOk bool
-
-// DeleteMyAvatar200JSONResponseBodyOk defines parameters for DeleteMyAvatar.
-type DeleteMyAvatar200JSONResponseBodyOk bool
 
 // GrantUserEntitlementJSONBody defines parameters for GrantUserEntitlement.
 type GrantUserEntitlementJSONBody struct {
@@ -23769,11 +23547,7 @@ func (r RecordDownloaderHeartbeatResponse) ContentType() string {
 type DeleteDownloaderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Deleted bool   `json:"deleted"`
-		Id      string `json:"id"`
-	}
-	JSON404 *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -23900,14 +23674,10 @@ func (r CreateDownloadTaskResponse) ContentType() string {
 type DeleteDownloadTaskResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Deleted DeleteDownloadTask200JSONResponseBodyDeleted `json:"deleted"`
-		Id      string                                       `json:"id"`
-	}
-	JSON401 *Error
-	JSON403 *Error
-	JSON404 *Error
-	JSON409 *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24570,9 +24340,7 @@ type DeleteObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Deleted DeleteObject200JSONResponseBodyDeleted `json:"deleted"`
-		Id      string                                 `json:"id"`
-		Purged  DeleteObject200JSONResponseBody_Purged `json:"purged"`
+		Purged DeleteObject200JSONResponseBody_Purged `json:"purged"`
 	}
 	JSON400 *Error
 	JSON404 *Error
@@ -24831,19 +24599,9 @@ func (r CreateObjectUploadSessionResponse) ContentType() string {
 type AbortObjectUploadResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		CreatedAt string                                     `json:"createdAt"`
-		ExpiresAt string                                     `json:"expiresAt"`
-		Id        string                                     `json:"id"`
-		ObjectId  string                                     `json:"objectId"`
-		PartSize  int                                        `json:"partSize"`
-		Status    AbortObjectUpload200JSONResponseBodyStatus `json:"status"`
-		UpdatedAt string                                     `json:"updatedAt"`
-		UploadId  string                                     `json:"uploadId"`
-	}
-	JSON400 *Error
-	JSON403 *Error
-	JSON404 *Error
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25308,11 +25066,7 @@ func (r CreateAnnouncementResponse) ContentType() string {
 type DeleteAnnouncementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Deleted DeleteAnnouncement200JSONResponseBodyDeleted `json:"deleted"`
-		Id      string                                       `json:"id"`
-	}
-	JSON404 *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25464,11 +25218,7 @@ func (r ListAuthProvidersResponse) ContentType() string {
 type DeleteAuthProviderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Deleted    DeleteAuthProvider200JSONResponseBodyDeleted `json:"deleted"`
-		ProviderId string                                       `json:"providerId"`
-	}
-	JSON400 *Error
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25595,11 +25345,7 @@ func (r UpdateBrandingResponse) ContentType() string {
 type ResetBrandingFieldResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Field string                                     `json:"field"`
-		Reset ResetBrandingField200JSONResponseBodyReset `json:"reset"`
-	}
-	JSON400 *Error
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25846,13 +25592,9 @@ func (r CreateSiteInvitationResponse) ContentType() string {
 type RevokeSiteInvitationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Id      string                                         `json:"id"`
-		Revoked RevokeSiteInvitation200JSONResponseBodyRevoked `json:"revoked"`
-	}
-	JSON400 *Error
-	JSON401 *Error
-	JSON404 *Error
+	JSON400      *Error
+	JSON401      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26041,12 +25783,8 @@ func (r ValidateInviteCodeResponse) ContentType() string {
 type DeleteInviteCodeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Deleted DeleteInviteCode200JSONResponseBodyDeleted `json:"deleted"`
-		Id      string                                     `json:"id"`
-	}
-	JSON400 *Error
-	JSON404 *Error
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26076,10 +25814,6 @@ func (r DeleteInviteCodeResponse) ContentType() string {
 type UnbindLicenseResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		CloudUnbindError *string `json:"cloud_unbind_error"`
-		Deleted          bool    `json:"deleted"`
-	}
 }
 
 // Status returns HTTPResponse.Status
@@ -26263,10 +25997,6 @@ func (r ListSystemOptionsResponse) ContentType() string {
 type DeleteSystemOptionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Deleted DeleteSystemOption200JSONResponseBodyDeleted `json:"deleted"`
-		Key     string                                       `json:"key"`
-	}
 }
 
 // Status returns HTTPResponse.Status
@@ -26422,12 +26152,8 @@ func (r CreateStorageResponse) ContentType() string {
 type DeleteStorageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Deleted DeleteStorage200JSONResponseBodyDeleted `json:"deleted"`
-		Id      string                                  `json:"id"`
-	}
-	JSON404 *Error
-	JSON409 *Error
+	JSON404      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27102,7 +26828,6 @@ func (r GrantTeamEntitlementResponse) ContentType() string {
 type RevokeTeamEntitlementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *EntitlementResult
 	JSON400      *Error
 	JSON404      *Error
 }
@@ -27228,10 +26953,7 @@ func (r CreateTeamInviteLinkResponse) ContentType() string {
 type DeleteTeamLogoResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Ok DeleteTeamLogo200JSONResponseBodyOk `json:"ok"`
-	}
-	JSON403 *Error
+	JSON403      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27366,9 +27088,6 @@ func (r EmptyTrashResponse) ContentType() string {
 type DeleteMyAvatarResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Ok DeleteMyAvatar200JSONResponseBodyOk `json:"ok"`
-	}
 }
 
 // Status returns HTTPResponse.Status
@@ -27498,7 +27217,6 @@ func (r GrantUserEntitlementResponse) ContentType() string {
 type RevokeUserEntitlementResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *EntitlementResult
 	JSON400      *Error
 	JSON404      *Error
 }
@@ -37784,16 +37502,6 @@ func ParseDeleteDownloaderResponse(rsp *http.Response) (*DeleteDownloaderRespons
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Deleted bool   `json:"deleted"`
-			Id      string `json:"id"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -37947,16 +37655,6 @@ func ParseDeleteDownloadTaskResponse(rsp *http.Response) (*DeleteDownloadTaskRes
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Deleted DeleteDownloadTask200JSONResponseBodyDeleted `json:"deleted"`
-			Id      string                                       `json:"id"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -38808,9 +38506,7 @@ func ParseDeleteObjectResponse(rsp *http.Response) (*DeleteObjectResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Deleted DeleteObject200JSONResponseBodyDeleted `json:"deleted"`
-			Id      string                                 `json:"id"`
-			Purged  DeleteObject200JSONResponseBody_Purged `json:"purged"`
+			Purged DeleteObject200JSONResponseBody_Purged `json:"purged"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -39178,22 +38874,6 @@ func ParseAbortObjectUploadResponse(rsp *http.Response) (*AbortObjectUploadRespo
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			CreatedAt string                                     `json:"createdAt"`
-			ExpiresAt string                                     `json:"expiresAt"`
-			Id        string                                     `json:"id"`
-			ObjectId  string                                     `json:"objectId"`
-			PartSize  int                                        `json:"partSize"`
-			Status    AbortObjectUpload200JSONResponseBodyStatus `json:"status"`
-			UpdatedAt string                                     `json:"updatedAt"`
-			UploadId  string                                     `json:"uploadId"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -39779,16 +39459,6 @@ func ParseDeleteAnnouncementResponse(rsp *http.Response) (*DeleteAnnouncementRes
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Deleted DeleteAnnouncement200JSONResponseBodyDeleted `json:"deleted"`
-			Id      string                                       `json:"id"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -39933,16 +39603,6 @@ func ParseDeleteAuthProviderResponse(rsp *http.Response) (*DeleteAuthProviderRes
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Deleted    DeleteAuthProvider200JSONResponseBodyDeleted `json:"deleted"`
-			ProviderId string                                       `json:"providerId"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -40096,16 +39756,6 @@ func ParseResetBrandingFieldResponse(rsp *http.Response) (*ResetBrandingFieldRes
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Field string                                     `json:"field"`
-			Reset ResetBrandingField200JSONResponseBodyReset `json:"reset"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -40339,16 +39989,6 @@ func ParseRevokeSiteInvitationResponse(rsp *http.Response) (*RevokeSiteInvitatio
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Id      string                                         `json:"id"`
-			Revoked RevokeSiteInvitation200JSONResponseBodyRevoked `json:"revoked"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -40552,16 +40192,6 @@ func ParseDeleteInviteCodeResponse(rsp *http.Response) (*DeleteInviteCodeRespons
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Deleted DeleteInviteCode200JSONResponseBodyDeleted `json:"deleted"`
-			Id      string                                     `json:"id"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -40592,19 +40222,6 @@ func ParseUnbindLicenseResponse(rsp *http.Response) (*UnbindLicenseResponse, err
 	response := &UnbindLicenseResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			CloudUnbindError *string `json:"cloud_unbind_error"`
-			Deleted          bool    `json:"deleted"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	}
 
 	return response, nil
@@ -40761,19 +40378,6 @@ func ParseDeleteSystemOptionResponse(rsp *http.Response) (*DeleteSystemOptionRes
 	response := &DeleteSystemOptionResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Deleted DeleteSystemOption200JSONResponseBodyDeleted `json:"deleted"`
-			Key     string                                       `json:"key"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	}
 
 	return response, nil
@@ -40939,16 +40543,6 @@ func ParseDeleteStorageResponse(rsp *http.Response) (*DeleteStorageResponse, err
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Deleted DeleteStorage200JSONResponseBodyDeleted `json:"deleted"`
-			Id      string                                  `json:"id"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -41817,13 +41411,6 @@ func ParseRevokeTeamEntitlementResponse(rsp *http.Response) (*RevokeTeamEntitlem
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EntitlementResult
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -41963,15 +41550,6 @@ func ParseDeleteTeamLogoResponse(rsp *http.Response) (*DeleteTeamLogoResponse, e
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Ok DeleteTeamLogo200JSONResponseBodyOk `json:"ok"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -42144,18 +41722,6 @@ func ParseDeleteMyAvatarResponse(rsp *http.Response) (*DeleteMyAvatarResponse, e
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Ok DeleteMyAvatar200JSONResponseBodyOk `json:"ok"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -42309,13 +41875,6 @@ func ParseRevokeUserEntitlementResponse(rsp *http.Response) (*RevokeUserEntitlem
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EntitlementResult
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

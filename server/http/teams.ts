@@ -245,7 +245,7 @@ const deleteLogoRoute = createRoute({
   path: '/{teamId}/logo',
   request: { params: z.object({ teamId: z.string() }) },
   responses: {
-    200: jsonContent(z.object({ ok: z.literal(true) }), 'Deleted'),
+    204: { description: 'Deleted' },
     403: errorResponse('Forbidden'),
   },
 })
@@ -323,7 +323,7 @@ export const teams = teamsApp
       userId: c.get('userId') as string,
     })
     if (!result.ok) throw forbidden()
-    return c.json({ ok: true as const }, 200)
+    return c.body(null, 204)
   })
 
 // ── adminTeams ───────────────────────────────────────────────────────────────
@@ -405,7 +405,7 @@ const revokeEntitlementRoute = createRoute({
   middleware: [requireAdmin] as const,
   request: { params: z.object({ teamId: z.string(), eid: z.string() }) },
   responses: {
-    200: jsonContent(entitlementResultSchema, 'Revoked entitlement'),
+    204: { description: 'Revoked entitlement' },
     400: errorResponse('Bad request'),
     404: errorResponse('Not found'),
   },
@@ -463,5 +463,5 @@ export const adminTeams = new OpenAPIHono<Env>()
       entitlementId: c.req.valid('param').eid,
     })
     if (!result.ok) throw failureError(result.failure)
-    return c.json(toEntitlementResultDTO(result.result), 200)
+    return c.body(null, 204)
   })

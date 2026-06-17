@@ -124,7 +124,7 @@ const deleteRoute = createRoute({
   middleware: [requirePermission('remoteDownload', 'cancel')] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
-    200: jsonContent(z.object({ id: z.string(), deleted: z.literal(true) }), 'Deleted download task'),
+    204: { description: 'Deleted download task' },
     ...taskErrorResponses,
   },
 })
@@ -194,7 +194,8 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
   .openapi(deleteRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized()
-    return c.json(await performDownloadTaskAction(c.get('deps'), orgId, c.req.valid('param').id, 'delete'), 200)
+    await performDownloadTaskAction(c.get('deps'), orgId, c.req.valid('param').id, 'delete')
+    return c.body(null, 204)
   })
   .openapi(updateRoute, async (c) => {
     const principal = c.get('principal')

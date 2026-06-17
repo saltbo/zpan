@@ -179,6 +179,15 @@ async function unwrap<T>(promise: Promise<Response>): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// Counterpart to unwrap for 204 No Content responses: validate, return nothing.
+async function discard(promise: Promise<Response>): Promise<void> {
+  const res = await promise
+  if (!res.ok) {
+    const parsed = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, toErrorBody(res.status, parsed))
+  }
+}
+
 // Objects API
 
 export function listObjects(parent: string, status = 'active', page = 1, pageSize = 500) {
@@ -232,11 +241,11 @@ export function confirmUpload(id: string, onConflict?: ConflictStrategy) {
 }
 
 export function cancelUpload(id: string) {
-  return unwrap<{ id: string; deleted: boolean; purged?: number }>(objects[':id'].$delete({ param: { id } }))
+  return unwrap<{ purged: number | false }>(objects[':id'].$delete({ param: { id } }))
 }
 
 export function deleteObject(id: string) {
-  return unwrap<{ id: string; deleted: boolean; purged?: number }>(objects[':id'].$delete({ param: { id } }))
+  return unwrap<{ purged: number | false }>(objects[':id'].$delete({ param: { id } }))
 }
 
 export function copyObject(id: string, parent: string, onConflict?: ConflictStrategy) {
@@ -294,9 +303,7 @@ export function patchObjectUploadSession(id: string, uploadSessionId: string, da
       }),
     )
   }
-  return unwrap<ObjectUploadSession & { object?: StorageObject }>(
-    objects[':id'].uploads[':uploadSessionId'].$delete({ param: { id, uploadSessionId } }),
-  )
+  return discard(objects[':id'].uploads[':uploadSessionId'].$delete({ param: { id, uploadSessionId } }))
 }
 
 // Remote Download API
@@ -334,20 +341,18 @@ export function updateDownloadTask(id: string, data: UpdateDownloadTaskInput) {
   return unwrap<DownloadTask>(downloadTasksApi[':id'].$patch({ param: { id }, json: data }))
 }
 
-export type DownloadTaskActionResult = DownloadTask | { id: string; deleted: true }
-
 export function runDownloadTaskAction(id: string, action: DownloadTaskActionInput['action']) {
   if (action === 'delete') {
-    return unwrap<DownloadTaskActionResult>(downloadTasksApi[':id'].$delete({ param: { id } }))
+    return discard(downloadTasksApi[':id'].$delete({ param: { id } }))
   }
   if (action === 'retry' || action === 'restart') {
-    return unwrap<DownloadTaskActionResult>(
+    return unwrap<DownloadTask>(
       downloadTasksApi[':id'].attempts.$post({ param: { id }, json: { fresh: action === 'restart' } }),
     )
   }
   const status =
     action === 'pause' ? ('paused' as const) : action === 'resume' ? ('queued' as const) : ('canceled' as const)
-  return unwrap<DownloadTaskActionResult>(downloadTasksApi[':id'].status.$put({ param: { id }, json: { status } }))
+  return unwrap<DownloadTask>(downloadTasksApi[':id'].status.$put({ param: { id }, json: { status } }))
 }
 
 // Unified server-sent events stream (background jobs, notifications, and the
@@ -368,7 +373,7 @@ export function updateDownloader(id: string, data: UpdateDownloaderInput) {
 }
 
 export function deleteDownloader(id: string) {
-  return unwrap<{ id: string; deleted: true }>(adminDownloadersApi[':id'].$delete({ param: { id } }))
+  return discard(adminDownloadersApi[':id'].$delete({ param: { id } }))
 }
 
 export function sendDownloaderHeartbeat(data: DownloaderHeartbeatInput) {
@@ -432,7 +437,7 @@ export function updateStorage(id: string, data: UpdateStorageInput) {
 }
 
 export function deleteStorage(id: string) {
-  return unwrap<{ id: string; deleted: boolean }>(storages[':id'].$delete({ param: { id } }))
+  return discard(storages[':id'].$delete({ param: { id } }))
 }
 
 // User entitlements API (admin). User identity, listing, disable/enable and
@@ -466,9 +471,7 @@ export function updateUserEntitlement(
 }
 
 export function revokeUserEntitlement(userId: string, entitlementId: string) {
-  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    users[':userId'].entitlements[':eid'].$delete({ param: { userId, eid: entitlementId } }),
-  )
+  return discard(users[':userId'].entitlements[':eid'].$delete({ param: { userId, eid: entitlementId } }))
 }
 
 // Admin Quotas API
@@ -551,9 +554,7 @@ export function updateOrgEntitlement(
 }
 
 export function revokeOrgEntitlement(orgId: string, entitlementId: string) {
-  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    adminTeams[':teamId'].entitlements[':eid'].$delete({ param: { teamId: orgId, eid: entitlementId } }),
-  )
+  return discard(adminTeams[':teamId'].entitlements[':eid'].$delete({ param: { teamId: orgId, eid: entitlementId } }))
 }
 
 // User Quotas API
@@ -661,9 +662,7 @@ export function upsertAuthProvider(providerId: string, data: Omit<OAuthProviderC
 }
 
 export function deleteAuthProvider(providerId: string) {
-  return unwrap<{ providerId: string; deleted: boolean }>(
-    authProviders[':providerId'].$delete({ param: { providerId } }),
-  )
+  return discard(authProviders[':providerId'].$delete({ param: { providerId } }))
 }
 
 // Invite Codes API
@@ -691,7 +690,7 @@ export function generateInviteCodes(count: number, expiresInDays?: number) {
 }
 
 export function deleteInviteCode(id: string) {
-  return unwrap<{ id: string; deleted: boolean }>(inviteCodes[':id'].$delete({ param: { id } }))
+  return discard(inviteCodes[':id'].$delete({ param: { id } }))
 }
 
 // Site Invitations API
@@ -711,7 +710,7 @@ export function resendSiteInvitation(id: string) {
 }
 
 export function revokeSiteInvitation(id: string) {
-  return unwrap<{ id: string; revoked: boolean }>(adminSiteInvitations[':id'].$delete({ param: { id } }))
+  return discard(adminSiteInvitations[':id'].$delete({ param: { id } }))
 }
 
 export function getSiteInvitation(token: string) {
@@ -860,7 +859,7 @@ export function updateAnnouncement(id: string, data: AnnouncementInput) {
 }
 
 export function deleteAnnouncement(id: string) {
-  return unwrap<{ id: string; deleted: boolean }>(announcementsApi[':id'].$delete({ param: { id } }))
+  return discard(announcementsApi[':id'].$delete({ param: { id } }))
 }
 
 // Shares API
@@ -1136,7 +1135,7 @@ export function refreshLicense() {
 }
 
 export function disconnectCloud() {
-  return unwrap<{ deleted: boolean }>(licensingAdminApi.binding.$delete())
+  return discard(licensingAdminApi.binding.$delete())
 }
 
 type SessionData = { session: unknown; user: unknown } | null

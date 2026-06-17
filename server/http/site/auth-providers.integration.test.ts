@@ -344,10 +344,7 @@ describe('Auth Providers — admin delete', () => {
     await putProvider(app, admin, 'github', githubConfig)
 
     const res = await app.request('/api/site/auth-providers/github', { method: 'DELETE', headers: admin })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.deleted).toBe(true)
-    expect(body.providerId).toBe('github')
+    expect(res.status).toBe(204)
   })
 
   it('deleted provider no longer appears in public list', async () => {
@@ -374,13 +371,11 @@ describe('Auth Providers — admin delete', () => {
     expect(body.items).toHaveLength(0)
   })
 
-  it('deleting a non-existent provider returns 200 with deleted flag', async () => {
+  it('deleting a non-existent provider returns 204', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
     const res = await app.request('/api/site/auth-providers/github', { method: 'DELETE', headers: admin })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.deleted).toBe(true)
+    expect(res.status).toBe(204)
   })
 })

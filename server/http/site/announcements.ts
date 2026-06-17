@@ -111,7 +111,7 @@ const deleteAnnouncementRoute = createRoute({
   middleware: [requireAdmin] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
-    200: jsonContent(z.object({ id: z.string(), deleted: z.literal(true) }), 'Deleted announcement'),
+    204: { description: 'Deleted announcement' },
     404: errorResponse('Announcement not found'),
   },
 })
@@ -157,5 +157,5 @@ export const announcements = app
     const id = c.req.valid('param').id
     const deleted = await deleteAnnouncement(c.get('deps'), id)
     if (!deleted) throw notFound('Announcement not found')
-    return c.json({ id, deleted: true as const }, 200)
+    return c.body(null, 204)
   })

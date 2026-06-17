@@ -385,7 +385,7 @@ describe('DELETE /api/site/licensing/binding', () => {
     vi.unstubAllGlobals()
   })
 
-  it('unbinds from Cloud, deletes binding row, and returns deleted: true [spec: licensing-admin/unbind]', async () => {
+  it('unbinds from Cloud, deletes binding row, and returns 204 [spec: licensing-admin/unbind]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -394,9 +394,7 @@ describe('DELETE /api/site/licensing/binding', () => {
 
     const res = await app.request('/api/site/licensing/binding', { method: 'DELETE', headers })
 
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.deleted).toBe(true)
+    expect(res.status).toBe(204)
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
     expect(url).toBe('https://cloud.zpan.space/api/licenses/bind-1')
     expect(init.method).toBe('DELETE')
@@ -416,24 +414,19 @@ describe('DELETE /api/site/licensing/binding', () => {
 
     const res = await app.request('/api/site/licensing/binding', { method: 'DELETE', headers })
 
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.deleted).toBe(true)
-    expect(body.cloud_unbind_error).toContain('Cloud unbind failed')
+    expect(res.status).toBe(204)
 
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBeNull()
   })
 
-  it('returns deleted: true even when no binding exists [spec: licensing-admin/unbind-idempotent]', async () => {
+  it('returns 204 even when no binding exists [spec: licensing-admin/unbind-idempotent]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const res = await app.request('/api/site/licensing/binding', { method: 'DELETE', headers })
 
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.deleted).toBe(true)
+    expect(res.status).toBe(204)
     expect(fetch).not.toHaveBeenCalled()
   })
 })

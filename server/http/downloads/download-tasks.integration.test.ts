@@ -214,8 +214,7 @@ describe('Download tasks API integration', () => {
       method: 'DELETE',
       headers: admin,
     })
-    expect(deleteRes.status).toBe(200)
-    await expect(deleteRes.json()).resolves.toEqual({ id: createdDownloader.downloader.id, deleted: true })
+    expect(deleteRes.status).toBe(204)
 
     const taskRes = await app.request(`/api/downloads/tasks/${task.id}`, { headers: user })
     expect(taskRes.status).toBe(200)
@@ -1104,8 +1103,7 @@ describe('Download tasks API integration', () => {
       method: 'DELETE',
       headers: { ...user, 'Content-Type': 'application/json' },
     })
-    expect(deleteRes.status).toBe(200)
-    await expect(deleteRes.json()).resolves.toEqual({ id: createdTask.id, deleted: true })
+    expect(deleteRes.status).toBe(204)
   })
 
   it('lets the assigned downloader recover interrupted tasks without resuming user-paused tasks [spec: download-tasks/recover-interrupted]', async () => {
