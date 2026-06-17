@@ -21,7 +21,8 @@ function makeNotification(overrides: Partial<Notification> = {}): Notification {
 }
 
 // ─── "Mark all as read" visibility ───────────────────────────────────────────
-// Mirrors the `hasUnread` check: const hasUnread = (data?.unreadCount ?? 0) > 0
+// Mirrors the `hasUnread` check: const hasUnread = (unread?.count ?? 0) > 0
+// (`unread` comes from the ['notifications','unread-count'] query → getUnreadCount)
 
 function shouldShowMarkAllRead(unreadCount: number | undefined): boolean {
   return (unreadCount ?? 0) > 0

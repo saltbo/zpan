@@ -56,7 +56,7 @@ describe('[CF] Admin Storages API', () => {
     const res = await app.request('/api/site/storages', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[]; total: number }
-    expect(body).toEqual({ items: [], total: 0 })
+    expect(body).toEqual({ items: [], total: 0, page: 1, pageSize: 0 })
   })
 
   it('POST /api/site/storages creates a storage', async () => {
@@ -72,9 +72,12 @@ describe('[CF] Admin Storages API', () => {
       }),
     })
     if (res.status === 402) {
-      const body = (await res.json()) as Record<string, unknown>
-      expect(body.feature).toBe('storages_unlimited')
-      expect(body.limit).toBe(FREE_STORAGE_LIMIT)
+      const body = (await res.json()) as {
+        error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
+      }
+      expect(body.error.details[0].reason).toBe('FEATURE_NOT_AVAILABLE')
+      expect(body.error.details[0].metadata.feature).toBe('storages_unlimited')
+      expect(body.error.details[0].metadata.limit).toBe(String(FREE_STORAGE_LIMIT))
       return
     }
 
@@ -99,9 +102,12 @@ describe('[CF] Admin Storages API', () => {
         }),
       })
       if (res.status === 402) {
-        const body = (await res.json()) as Record<string, unknown>
-        expect(body.feature).toBe('storages_unlimited')
-        expect(body.limit).toBe(FREE_STORAGE_LIMIT)
+        const body = (await res.json()) as {
+          error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
+        }
+        expect(body.error.details[0].reason).toBe('FEATURE_NOT_AVAILABLE')
+        expect(body.error.details[0].metadata.feature).toBe('storages_unlimited')
+        expect(body.error.details[0].metadata.limit).toBe(String(FREE_STORAGE_LIMIT))
         return
       }
 

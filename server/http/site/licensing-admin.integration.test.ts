@@ -276,8 +276,10 @@ describe('GET /api/site/licensing/pairings/:code', () => {
 
     expect(res.status).toBe(502)
     await expect(res.json()).resolves.toMatchObject({
-      error: 'invalid_certificate',
-      reason: 'incomplete_response',
+      error: {
+        message: 'Invalid certificate',
+        details: [{ reason: 'INVALID_CERTIFICATE', metadata: { certificateReason: 'incomplete_response' } }],
+      },
     })
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.status).toBe('disconnected')
@@ -311,8 +313,10 @@ describe('GET /api/site/licensing/pairings/:code', () => {
 
     expect(res.status).toBe(502)
     await expect(res.json()).resolves.toMatchObject({
-      error: 'invalid_certificate',
-      reason: 'signature',
+      error: {
+        message: 'Invalid certificate',
+        details: [{ reason: 'INVALID_CERTIFICATE', metadata: { certificateReason: 'signature' } }],
+      },
     })
     // ZPan stored nothing; the cloud binding was released.
     const state = await createLicenseBindingRepo(db).loadLicenseState()

@@ -57,7 +57,7 @@ export function SaveToDriveDialog({ open, onOpenChange, token, onPasswordRequire
       onOpenChange(false)
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.status === 400 && err.body.code === 'QUOTA_EXCEEDED') {
+        if (err.status === 400 && err.reason === 'QUOTA_EXCEEDED') {
           toast.error(t('share.quotaExceeded'))
         } else if (err.status === 401) {
           toast.error(t('share.passwordRequired'))

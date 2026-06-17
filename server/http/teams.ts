@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { ErrorReason, pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import type { ActivityEventWithUser, InviteLinkInfo, PendingInvitation } from '../usecases/ports'
@@ -23,7 +24,7 @@ import {
   toEntitlementResultDTO,
   toQuotaEntitlementDTO,
 } from './entitlements'
-import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { apiError, errorResponse, jsonBody, jsonContent } from './openapi'
 
 const inviteLinkInfoSchema = z
   .object({
@@ -54,6 +55,8 @@ function toPendingInvitationDTO(p: PendingInvitation): z.infer<typeof pendingInv
   return { ...p, expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null, createdAt: p.createdAt.toISOString() }
 }
 
+const pendingInvitationListSchema = pageSchema(pendingInvitationSchema, 'TeamInvitationList')
+
 const activityEventSchema = z
   .object({
     id: z.string(),
@@ -73,14 +76,7 @@ function toActivityEventDTO(e: ActivityEventWithUser): z.infer<typeof activityEv
   return { ...e, createdAt: e.createdAt.toISOString() }
 }
 
-const activityPageSchema = z
-  .object({
-    items: z.array(activityEventSchema),
-    total: z.number().int(),
-    page: z.number().int(),
-    pageSize: z.number().int(),
-  })
-  .openapi('ActivityPage')
+const activityPageSchema = pageSchema(activityEventSchema, 'ActivityPage')
 
 const teamSummarySchema = z
   .object({
@@ -96,7 +92,7 @@ const teamSummarySchema = z
   })
   .openapi('TeamSummary')
 
-const teamListSchema = z.object({ items: z.array(teamSummarySchema), total: z.number().int() }).openapi('TeamList')
+const teamListSchema = pageSchema(teamSummarySchema, 'TeamList')
 
 const createLinkSchema = z.object({
   role: z.enum(['editor', 'viewer']).default('viewer'),
@@ -134,7 +130,7 @@ const inviteLinkInfoRoute = createRoute({
 
 export const publicTeams = new OpenAPIHono<Env>().openapi(inviteLinkInfoRoute, async (c) => {
   const info = await getInviteLinkInfo(c.get('deps'), c.req.valid('param').token)
-  if (!info) return c.json({ error: 'Invalid or expired invite link' }, 404)
+  if (!info) return apiError(c, 404, 'Invalid or expired invite link')
   return c.json(toInviteLinkInfoDTO(info), 200)
 })
 
@@ -160,7 +156,7 @@ const listInvitationsRoute = createRoute({
   path: '/{teamId}/invitations',
   request: { params: z.object({ teamId: z.string() }) },
   responses: {
-    200: jsonContent(z.object({ invitations: z.array(pendingInvitationSchema) }), 'Pending invitations'),
+    200: jsonContent(pendingInvitationListSchema, 'Pending invitations'),
     403: errorResponse('Forbidden'),
   },
 })
@@ -188,7 +184,7 @@ const activityRoute = createRoute({
   path: '/{teamId}/activity',
   request: {
     params: z.object({ teamId: z.string() }),
-    query: z.object({ page: z.string().optional(), pageSize: z.string().optional() }),
+    query: pageQuerySchema,
   },
   responses: {
     200: jsonContent(activityPageSchema, 'Activity'),
@@ -240,7 +236,7 @@ export const teams = teamsApp
       role,
       expiresIn,
     })
-    if (!result.ok) return c.json({ error: 'Forbidden' }, 403)
+    if (!result.ok) return apiError(c, 403, 'Forbidden')
     return c.json({ token: result.token, expiresAt: result.expiresAt.toISOString() }, 201)
   })
   .openapi(listInvitationsRoute, async (c) => {
@@ -248,8 +244,9 @@ export const teams = teamsApp
       teamId: c.req.valid('param').teamId,
       userId: c.get('userId')!,
     })
-    if (!result.ok) return c.json({ error: 'Forbidden' }, 403)
-    return c.json({ invitations: result.invitations.map(toPendingInvitationDTO) }, 200)
+    if (!result.ok) return apiError(c, 403, 'Forbidden')
+    const items = result.invitations.map(toPendingInvitationDTO)
+    return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
   })
   .openapi(joinTeamRoute, async (c) => {
     const result = await joinTeam(c.get('deps'), {
@@ -258,21 +255,19 @@ export const teams = teamsApp
       token: c.req.valid('json').token,
     })
     if (result.ok) return c.json({ ok: true as const }, 200)
-    if (result.reason === 'invalid') return c.json({ error: 'Invalid invite link' }, 404)
-    if (result.reason === 'expired') return c.json({ error: 'Invite link has expired' }, 410)
-    return c.json({ error: 'Already a member of this team' }, 409)
+    if (result.reason === 'invalid') return apiError(c, 404, 'Invalid invite link')
+    if (result.reason === 'expired') return apiError(c, 410, 'Invite link has expired')
+    return apiError(c, 409, 'Already a member of this team')
   })
   .openapi(activityRoute, async (c) => {
-    const { page: pageStr, pageSize: pageSizeStr } = c.req.valid('query')
-    const page = Number(pageStr ?? '1')
-    const pageSize = Number(pageSizeStr ?? '20')
+    const { page, pageSize } = c.req.valid('query')
     const result = await listActivity(c.get('deps'), {
       teamId: c.req.valid('param').teamId,
       userId: c.get('userId')!,
       page,
       pageSize,
     })
-    if (!result.ok) return c.json({ error: 'Forbidden' }, 403)
+    if (!result.ok) return apiError(c, 403, 'Forbidden')
     return c.json(
       { items: result.result.items.map(toActivityEventDTO), total: result.result.total, page, pageSize },
       200,
@@ -281,9 +276,12 @@ export const teams = teamsApp
   .openapi(setLogoRoute, async (c) => {
     const teamId = c.req.valid('param').teamId
     const form = await c.req.formData().catch(() => null)
-    if (!form) return c.json({ error: 'Expected multipart/form-data with a file field' }, 415)
+    if (!form)
+      return apiError(c, 415, 'Expected multipart/form-data with a file field', {
+        reason: ErrorReason.UNSUPPORTED_MEDIA_TYPE,
+      })
     const file = form.get('file')
-    if (!(file instanceof File)) return c.json({ error: 'file field is required' }, 400)
+    if (!(file instanceof File)) return apiError(c, 400, 'file field is required')
 
     const result = await setTeamLogo(c.get('deps'), {
       platform: c.get('platform'),
@@ -292,8 +290,10 @@ export const teams = teamsApp
       file,
     })
     if (result.ok) return c.json({ url: result.url }, 200)
-    if (result.reason === 'forbidden') return c.json({ error: 'Forbidden' }, 403)
-    return c.json({ error: result.error }, result.status)
+    if (result.reason === 'forbidden') return apiError(c, 403, 'Forbidden')
+    if (result.status === 413) return apiError(c, 413, result.error, { reason: ErrorReason.PAYLOAD_TOO_LARGE })
+    if (result.status === 503) return apiError(c, 503, result.error, { reason: ErrorReason.NO_STORAGE_CONFIGURED })
+    return apiError(c, 400, result.error)
   })
   .openapi(deleteLogoRoute, async (c) => {
     const result = await deleteTeamLogo(c.get('deps'), {
@@ -301,7 +301,7 @@ export const teams = teamsApp
       teamId: c.req.valid('param').teamId,
       userId: c.get('userId') as string,
     })
-    if (!result.ok) return c.json({ error: 'Forbidden' }, 403)
+    if (!result.ok) return apiError(c, 403, 'Forbidden')
     return c.json({ ok: true as const }, 200)
   })
 
@@ -391,16 +391,20 @@ const revokeEntitlementRoute = createRoute({
 })
 
 export const adminTeams = new OpenAPIHono<Env>()
-  .openapi(listTeamsRoute, async (c) => c.json(await listTeams(c.get('deps')), 200))
+  .openapi(listTeamsRoute, async (c) => {
+    const { items } = await listTeams(c.get('deps'))
+    return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
+  })
   .openapi(getTeamRoute, async (c) => {
     const team = await getTeam(c.get('deps'), c.req.valid('param').teamId)
-    if (!team) return c.json({ error: 'Team not found' }, 404)
+    if (!team) return apiError(c, 404, 'Team not found')
     return c.json(team, 200)
   })
   .openapi(listEntitlementsRoute, async (c) => {
     const result = await listTeamEntitlements(c.get('deps'), c.req.valid('param').teamId)
-    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
-    return c.json({ orgId: result.result.orgId, items: result.result.items.map(toQuotaEntitlementDTO) }, 200)
+    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
+    const items = result.result.items.map(toQuotaEntitlementDTO)
+    return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
   })
   .openapi(grantEntitlementRoute, async (c) => {
     const body = c.req.valid('json')
@@ -413,7 +417,7 @@ export const adminTeams = new OpenAPIHono<Env>()
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       note: body.note,
     })
-    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
     return c.json(toEntitlementResultDTO(result.result), 201)
   })
   .openapi(updateEntitlementRoute, async (c) => {
@@ -427,7 +431,7 @@ export const adminTeams = new OpenAPIHono<Env>()
       expiresAt: 'expiresAt' in body ? (body.expiresAt ? new Date(body.expiresAt) : null) : undefined,
       note: body.note,
     })
-    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
     return c.json(toEntitlementResultDTO(result.result), 200)
   })
   .openapi(revokeEntitlementRoute, async (c) => {
@@ -437,6 +441,6 @@ export const adminTeams = new OpenAPIHono<Env>()
       targetOrgId: c.req.valid('param').teamId,
       entitlementId: c.req.valid('param').eid,
     })
-    if (!result.ok) return c.json({ error: result.failure.error }, result.failure.status)
+    if (!result.ok) return apiError(c, result.failure.status, result.failure.error)
     return c.json(toEntitlementResultDTO(result.result), 200)
   })

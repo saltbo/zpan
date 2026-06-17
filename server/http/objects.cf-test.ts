@@ -48,7 +48,7 @@ describe('[CF] Objects API', () => {
     expect(res.status).toBe(400)
   })
 
-  it('POST /api/objects returns 500 when no storage configured', async () => {
+  it('POST /api/objects returns 503 when no storage configured', async () => {
     const app = await buildApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
@@ -56,7 +56,7 @@ describe('[CF] Objects API', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'test.txt', type: 'text/plain' }),
     })
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(503)
   })
 
   it('GET /api/objects/:id returns 404 for missing object', async () => {

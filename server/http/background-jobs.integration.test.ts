@@ -260,7 +260,9 @@ describe('background jobs API', () => {
     const res = await app.request(`/api/background-jobs/${job.id}`, { headers: viewerHeaders })
 
     expect(res.status).toBe(404)
-    await expect(res.json()).resolves.toEqual({ error: 'Not found' })
+    const body = (await res.json()) as { error: { message: string; details: { reason: string }[] } }
+    expect(body.error.message).toBe('Not found')
+    expect(body.error.details[0].reason).toBe('NOT_FOUND')
   })
 
   it('cancels only queued or running jobs [spec: background-jobs/cancel]', async () => {
@@ -285,7 +287,9 @@ describe('background jobs API', () => {
     expect(canceledRes.status).toBe(200)
     await expect(canceledRes.json()).resolves.toMatchObject({ id: queued.id, status: 'canceled' })
     expect(rejectedRes.status).toBe(409)
-    await expect(rejectedRes.json()).resolves.toEqual({ error: 'Background job cannot be canceled' })
+    const rejectedBody = (await rejectedRes.json()) as { error: { message: string; details: { reason: string }[] } }
+    expect(rejectedBody.error.message).toBe('Background job cannot be canceled')
+    expect(rejectedBody.error.details[0].reason).toBe('NOT_CANCELABLE')
   })
 
   it('retries only failed retryable jobs without hiding the failed job [spec: background-jobs/retry]', async () => {
@@ -319,7 +323,9 @@ describe('background jobs API', () => {
     expect(retried).toMatchObject({ retriedFromJobId: retryable.id, status: 'queued' })
     expect(retried.id).not.toBe(retryable.id)
     expect(rejectedRes.status).toBe(409)
-    await expect(rejectedRes.json()).resolves.toEqual({ error: 'Background job cannot be retried' })
+    const rejectedBody = (await rejectedRes.json()) as { error: { message: string; details: { reason: string }[] } }
+    expect(rejectedBody.error.message).toBe('Background job cannot be retried')
+    expect(rejectedBody.error.details[0].reason).toBe('NOT_RETRYABLE')
 
     const original = await createBackgroundJobRepo(db).get(orgId, retryable.id)
     expect(original).toMatchObject({ status: 'failed', errorMessage: 'zip_crc_error', retriedFromJobId: null })

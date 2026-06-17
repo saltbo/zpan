@@ -215,7 +215,12 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
       redirect: 'manual',
     })
     expect(res.status).toBe(422)
-    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    const quotaBody = (await res.json()) as {
+      error: { message: string; status: string; details: { reason: string }[] }
+    }
+    expect(quotaBody.error.message).toBe('Traffic quota exceeded')
+    expect(quotaBody.error.status).toBe('RESOURCE_EXHAUSTED')
+    expect(quotaBody.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     expect(S3Service.prototype.presignInline).not.toHaveBeenCalled()
     expect(await getAccessCount(db, 'dm-quota-over')).toBe(0)
   })
@@ -304,8 +309,8 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
       headers: { host: 'img.empty.com' },
     })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('path required')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('path required')
   })
 })
 
@@ -328,8 +333,8 @@ describe('imageHostingDomain middleware — referer allowlist', () => {
       redirect: 'manual',
     })
     expect(res.status).toBe(403)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('forbidden referer')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('forbidden referer')
   })
 
   it('referer allowlist allows matching origin → 302', async () => {

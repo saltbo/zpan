@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi'
+import { pageSchema } from '@shared/schemas'
 import type { EntitlementResult, QuotaEntitlementItem } from '../usecases/ports'
 
 // Quota entitlement DTO shared by the team- and user-scoped admin endpoints. The
@@ -41,6 +42,7 @@ export function toEntitlementResultDTO(r: EntitlementResult): z.infer<typeof ent
   return { orgId: r.orgId, entitlement: toQuotaEntitlementDTO(r.entitlement) }
 }
 
-export const entitlementListSchema = z
-  .object({ orgId: z.string(), items: z.array(quotaEntitlementSchema) })
-  .openapi('EntitlementList')
+// Entitlements are returned as the shared Page<T> envelope like every other list.
+// They aren't truly paged (the full set is always returned), so handlers set
+// total = items.length and page = 1. orgId is dropped — it's already in the path.
+export const entitlementListSchema = pageSchema(quotaEntitlementSchema, 'EntitlementList')

@@ -100,7 +100,7 @@ export async function withConflictRetry<T>(
     } catch (e) {
       if (!isNameConflictError(e)) throw e
       if (attempt === MAX_CONFLICT_RETRIES) throw e
-      const res = await prompt({ kind, name: e.body.conflictingName, showApplyToAll: opts.showApplyToAll })
+      const res = await prompt({ kind, name: e.metadata?.conflictingName, showApplyToAll: opts.showApplyToAll })
       if ('cancelled' in res) return undefined
       strategy = res.strategy
     }

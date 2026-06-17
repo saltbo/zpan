@@ -1,4 +1,6 @@
+import { ErrorReason } from '@shared/schemas'
 import type { Context, Next } from 'hono'
+import { apiError } from '../http/openapi'
 import { PRESIGN_TTL_SECS } from '../http/share-utils'
 import { reportTrafficForDownload } from '../http/store/traffic-metering'
 import type { Env } from '../middleware/platform'
@@ -41,20 +43,24 @@ function checkReferer(refererAllowlist: string[], refererHeader: string | null):
 
 async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: string): Promise<Response> {
   const resolved = await c.get('deps').imageHosting.resolveActiveByOrgPath(orgId, virtualPath)
-  if (!resolved) return c.json({ error: 'Not found' }, 404)
+  if (!resolved) return apiError(c, 404, 'Not found')
 
   const { image, refererAllowlist } = resolved
 
   const refererHeader = c.req.header('Referer') ?? null
   if (!checkReferer(refererAllowlist, refererHeader)) {
-    return c.json({ error: 'forbidden referer' }, 403)
+    return apiError(c, 403, 'forbidden referer')
   }
 
   const storage = await c.get('deps').storages.get(image.storageId)
-  if (!storage) return c.json({ error: 'Storage not found' }, 404)
+  if (!storage) return apiError(c, 404, 'Storage not found')
 
   const trafficAllowed = await c.get('deps').quota.consumeTrafficIfQuotaAllows(image.orgId, image.size)
-  if (!trafficAllowed) return c.json({ error: 'Traffic quota exceeded' }, 422)
+  if (!trafficAllowed)
+    return apiError(c, 422, 'Traffic quota exceeded', {
+      reason: ErrorReason.QUOTA_EXCEEDED,
+      status: 'RESOURCE_EXHAUSTED',
+    })
 
   let url: string
   try {
@@ -100,7 +106,7 @@ export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<R
   if (!orgId) return next()
 
   const virtualPath = c.req.path.replace(/^\/+/, '')
-  if (!virtualPath) return c.json({ error: 'path required' }, 404)
+  if (!virtualPath) return apiError(c, 404, 'path required')
 
   return handleImageByPath(c, orgId, virtualPath)
 }

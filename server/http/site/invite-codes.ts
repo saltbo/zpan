@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import type { InviteCodeRecord } from '../../usecases/ports'
@@ -8,7 +9,7 @@ import {
   listInviteCodes,
   validateInviteCode,
 } from '../../usecases/site/invite-code'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const inviteCodeSchema = z
   .object({
@@ -33,9 +34,7 @@ function toInviteCodeDTO(r: InviteCodeRecord): InviteCodeDTO {
   }
 }
 
-const inviteCodeListSchema = z
-  .object({ items: z.array(inviteCodeSchema), total: z.number().int() })
-  .openapi('InviteCodeList')
+const inviteCodeListSchema = pageSchema(inviteCodeSchema, 'InviteCodeList')
 
 const generateSchema = z.object({
   count: z.number().int().min(1).max(100),
@@ -49,11 +48,6 @@ const validateSchema = z.object({
     .regex(/^[0-9A-Z]{8}$/),
 })
 
-const paginationSchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
-})
-
 const listRoute = createRoute({
   operationId: 'listInviteCodes',
   summary: 'List invite codes',
@@ -61,7 +55,7 @@ const listRoute = createRoute({
   method: 'get',
   path: '/',
   middleware: [requireAdmin] as const,
-  request: { query: paginationSchema },
+  request: { query: pageQuerySchema },
   responses: { 200: jsonContent(inviteCodeListSchema, 'Invite codes') },
 })
 
@@ -110,11 +104,11 @@ export const adminInviteCodes = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
     const { page, pageSize } = c.req.valid('query')
     const result = await listInviteCodes(c.get('deps'), { page, pageSize })
-    return c.json({ items: result.items.map(toInviteCodeDTO), total: result.total }, 200)
+    return c.json({ items: result.items.map(toInviteCodeDTO), total: result.total, page, pageSize }, 200)
   })
   .openapi(generateRoute, async (c) => {
     const userId = c.get('userId')
-    if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+    if (!userId) return apiError(c, 401, 'Unauthorized')
     const { count, expiresInDays } = c.req.valid('json')
     const result = await generateInviteCodes(c.get('deps'), { userId, orgId: c.get('orgId')!, count, expiresInDays })
     return c.json({ codes: result.codes.map(toInviteCodeDTO) }, 201)
@@ -123,8 +117,8 @@ export const adminInviteCodes = new OpenAPIHono<Env>()
     const id = c.req.valid('param').id
     const result = await deleteInviteCode(c.get('deps'), { userId: c.get('userId')!, orgId: c.get('orgId')!, id })
     if (result.ok) return c.json({ id, deleted: true as const }, 200)
-    if (result.reason === 'not_found') return c.json({ error: 'Invite code not found' }, 404)
-    return c.json({ error: 'Cannot delete a used invite code' }, 400)
+    if (result.reason === 'not_found') return apiError(c, 404, 'Invite code not found')
+    return apiError(c, 400, 'Cannot delete a used invite code')
   })
 
 export const publicInviteCodes = new OpenAPIHono<Env>().openapi(validateRoute, async (c) => {

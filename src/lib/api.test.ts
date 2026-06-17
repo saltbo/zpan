@@ -207,15 +207,16 @@ describe('api', () => {
       await expect(listObjects('root')).rejects.toThrow('forbidden')
     })
 
-    it('falls back to statusText when error body has no error field', async () => {
+    it('falls back to HTTP status when error body has no error field', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({}, false, 500))
 
-      await expect(listObjects('root')).rejects.toThrow('Bad Request')
+      await expect(listObjects('root')).rejects.toThrow('HTTP 500')
     })
 
-    it('falls back to statusText when json parse fails', async () => {
+    it('falls back to HTTP status when json parse fails', async () => {
       const res = {
         ok: false,
+        status: 503,
         statusText: 'Service Unavailable',
         json: async () => {
           throw new Error('parse error')
@@ -223,7 +224,7 @@ describe('api', () => {
       } as unknown as Response
       vi.mocked(fetch).mockResolvedValueOnce(res)
 
-      await expect(listObjects('root')).rejects.toThrow('Service Unavailable')
+      await expect(listObjects('root')).rejects.toThrow('HTTP 503')
     })
 
     it('passes credentials: include', async () => {
@@ -648,12 +649,29 @@ describe('api', () => {
 
     it('throws on quota exceeded response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(
-        makeResponse({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, false, 422),
+        makeResponse(
+          {
+            error: {
+              code: 422,
+              message: 'Quota exceeded',
+              status: 'RESOURCE_EXHAUSTED',
+              details: [
+                {
+                  '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+                  reason: 'QUOTA_EXCEEDED',
+                  domain: 'zpan.dev',
+                },
+              ],
+            },
+          },
+          false,
+          422,
+        ),
       )
 
-      await expect(transferObject('id1', { targetOrgId: 'org-team', targetParent: '', mode: 'copy' })).rejects.toThrow(
-        'Quota exceeded',
-      )
+      await expect(
+        transferObject('id1', { targetOrgId: 'org-team', targetParent: '', mode: 'copy' }),
+      ).rejects.toMatchObject({ name: 'ApiError', status: 422, reason: 'QUOTA_EXCEEDED' })
     })
   })
 
@@ -1298,12 +1316,25 @@ describe('api', () => {
     })
 
     it('throws ApiError for background job failures', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Background job cannot be retried' }, false, 409))
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse(
+          {
+            error: {
+              code: 409,
+              message: 'Background job cannot be retried',
+              status: 'FAILED_PRECONDITION',
+              details: [],
+            },
+          },
+          false,
+          409,
+        ),
+      )
 
       await expect(retryBackgroundJob('job-1')).rejects.toMatchObject({
         name: 'ApiError',
         status: 409,
-        body: { error: 'Background job cannot be retried' },
+        message: 'Background job cannot be retried',
       })
     })
   })
@@ -2175,7 +2206,7 @@ describe('api', () => {
 
   describe('listNotifications', () => {
     it('calls /api/notifications with default params', async () => {
-      const payload = { items: [], total: 0, unreadCount: 0, page: 1, pageSize: 20 }
+      const payload = { items: [], total: 0, page: 1, pageSize: 20 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listNotifications()
@@ -2189,7 +2220,7 @@ describe('api', () => {
     })
 
     it('passes page, pageSize, and unreadOnly params', async () => {
-      const payload = { items: [], total: 5, unreadCount: 5, page: 2, pageSize: 10 }
+      const payload = { items: [], total: 5, page: 2, pageSize: 10 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       await listNotifications(2, 10, true)
@@ -2619,14 +2650,33 @@ describe('api', () => {
       expect(JSON.parse(init.body as string)).toEqual({ targetOrgId: 'org-1', targetParent: 'Docs' })
     })
 
-    it('throws ApiError with QUOTA_EXCEEDED code on 400', async () => {
+    it('throws ApiError with QUOTA_EXCEEDED reason on 400', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(
-        makeResponse({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, false, 400),
+        makeResponse(
+          {
+            error: {
+              code: 400,
+              message: 'Quota exceeded',
+              status: 'FAILED_PRECONDITION',
+              details: [
+                {
+                  '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+                  reason: 'QUOTA_EXCEEDED',
+                  domain: 'zpan.dev',
+                },
+              ],
+            },
+          },
+          false,
+          400,
+        ),
       )
 
-      await expect(saveShareToDrive('tok123', { targetOrgId: 'org-1', targetParent: '' })).rejects.toThrow(
-        'Quota exceeded',
-      )
+      await expect(saveShareToDrive('tok123', { targetOrgId: 'org-1', targetParent: '' })).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 400,
+        reason: 'QUOTA_EXCEEDED',
+      })
     })
 
     it('throws ApiError on 401 (password required)', async () => {
@@ -3875,14 +3925,25 @@ describe('api', () => {
   })
 
   describe('isNameConflictError', () => {
+    const errorBody = (reason: string, metadata?: Record<string, string>) => ({
+      error: {
+        code: 409,
+        message: 'Name already exists',
+        status: 'ALREADY_EXISTS',
+        details: [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason, domain: 'zpan.dev', metadata }],
+      },
+    })
+
     it('returns true only for 409 NAME_CONFLICT ApiErrors', () => {
-      const conflict = new ApiError(409, { code: 'NAME_CONFLICT', conflictingName: 'a', conflictingId: 'id1' })
+      const conflict = new ApiError(409, errorBody('NAME_CONFLICT', { conflictingName: 'a', conflictingId: 'id1' }))
       expect(isNameConflictError(conflict)).toBe(true)
+      expect(conflict.metadata).toEqual({ conflictingName: 'a', conflictingId: 'id1' })
+      expect(conflict.reason).toBe('NAME_CONFLICT')
     })
 
     it('returns false for other ApiErrors and non-errors', () => {
-      expect(isNameConflictError(new ApiError(409, { code: 'OTHER' }))).toBe(false)
-      expect(isNameConflictError(new ApiError(404, { code: 'NAME_CONFLICT' }))).toBe(false)
+      expect(isNameConflictError(new ApiError(409, errorBody('OTHER')))).toBe(false)
+      expect(isNameConflictError(new ApiError(404, errorBody('NAME_CONFLICT')))).toBe(false)
       expect(isNameConflictError(new Error('nope'))).toBe(false)
       expect(isNameConflictError(null)).toBe(false)
     })

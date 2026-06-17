@@ -1,19 +1,22 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import type { Context } from 'hono'
-import { createMiddleware } from 'hono/factory'
-import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import {
   copyObjectBodySchema,
   createMatterSchema,
   createObjectUploadSessionSchema,
+  ErrorReason,
   objectStatusSchema,
   objectUploadSessionSchema,
   objectUploadStatusSchema,
+  pageQuerySchema,
+  pageSchema,
   patchMatterSchema,
   presignObjectUploadPartsResponseSchema,
   presignObjectUploadPartsSchema,
   transferMatterSchema,
-} from '../../shared/schemas'
+} from '@shared/schemas'
+import type { Context } from 'hono'
+import { createMiddleware } from 'hono/factory'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -37,7 +40,7 @@ import {
   updateObject,
 } from '../usecases/object'
 import type { Matter } from '../usecases/ports'
-import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { apiError, errorResponse, jsonBody, jsonContent } from './openapi'
 
 // The wire shape of a file/folder — exactly what the API serializes. Timestamps
 // are strings here (the domain `Matter` carries them as `Date`); `toMatterDTO`
@@ -88,14 +91,7 @@ function toMatterDTO(m: Matter): MatterDTO {
   }
 }
 
-const objectPageSchema = z
-  .object({
-    items: z.array(matterSchema),
-    total: z.number().int(),
-    page: z.number().int(),
-    pageSize: z.number().int(),
-  })
-  .openapi('ObjectPage')
+const objectPageSchema = pageSchema(matterSchema, 'ObjectPage')
 
 // POST / returns the created object plus, for direct uploads, the presigned URL
 // to PUT the bytes to.
@@ -108,23 +104,19 @@ const objectCreateResultSchema = matterSchema.extend({
 // download URL.
 const objectWithDownloadSchema = matterSchema.extend({ downloadUrl: z.string().optional() })
 
-// A 402 carrying the credit-gated resource so clients can prompt a top-up.
-const insufficientCreditsSchema = z.object({
-  error: z.string(),
-  code: z.string(),
-  resource: z.string(),
-})
-
 // List endpoint reads query params ad-hoc; declared here for docs + RPC typing.
-// All optional so callers may send any subset.
-const listObjectsQuerySchema = z.object({
+// The non-pagination filters are optional so callers may send any subset; `page`
+// comes from the shared integer-coerced pagination schema. The file manager loads a
+// whole folder client-side (no UI paging, FILES_PAGE_SIZE=500), so this list
+// overrides the shared pageSize cap of 100 with a higher ceiling — the rest of the
+// API keeps the 100 default.
+const listObjectsQuerySchema = pageQuerySchema.extend({
+  pageSize: z.coerce.number().int().min(1).max(1000).default(20),
   parent: z.string().optional(),
   path: z.string().optional(),
   status: z.string().optional(),
   type: z.string().optional(),
   search: z.string().optional(),
-  page: z.string().optional(),
-  pageSize: z.string().optional(),
   orgId: z.string().optional(),
 })
 
@@ -163,7 +155,7 @@ const requireObjectWriteAccess = createMiddleware<Env>(async (c, next) => {
     return
   }
   if (!(await hasEditorAccess(c.get('deps'), { orgId: c.get('orgId'), userId: c.get('userId') }))) {
-    return c.json({ error: c.get('userId') ? 'Forbidden' : 'Unauthorized' }, c.get('userId') ? 403 : 401)
+    return c.get('userId') ? apiError(c, 403, 'Forbidden') : apiError(c, 401, 'Unauthorized')
   }
   await next()
 })
@@ -196,7 +188,7 @@ const createObjectRoute = createRoute({
     400: errorResponse('No active organization'),
     403: errorResponse('Forbidden'),
     409: errorResponse('Name conflict'),
-    500: errorResponse('Storage not configured'),
+    503: errorResponse('No storage configured'),
   },
 })
 
@@ -278,7 +270,7 @@ const getObjectRoute = createRoute({
   responses: {
     200: jsonContent(objectWithDownloadSchema, 'Object'),
     400: errorResponse('No active organization'),
-    402: jsonContent(insufficientCreditsSchema, 'Insufficient credits'),
+    402: errorResponse('Insufficient credits'),
     404: errorResponse('Not found'),
     422: errorResponse('Traffic quota exceeded'),
   },
@@ -387,39 +379,40 @@ app.use(async (c, next) => {
     await next()
     return
   }
-  return c.json({ error: 'Unauthorized' }, 401)
+  return apiError(c, 401, 'Unauthorized')
 })
 
 const objects = app
   .openapi(listRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
 
+    const query = c.req.valid('query')
     const result = await listObjects(c.get('deps'), {
       orgId,
       userId: c.get('userId')!,
-      orgOverride: c.req.query('orgId'),
+      orgOverride: query.orgId,
       filters: {
-        parent: c.req.query('path') ?? c.req.query('parent') ?? '',
-        status: c.req.query('status') ?? 'active',
-        typeFilter: c.req.query('type'),
-        search: c.req.query('search'),
-        page: Number(c.req.query('page') ?? '1'),
-        pageSize: Number(c.req.query('pageSize') ?? '20'),
+        parent: query.path ?? query.parent ?? '',
+        status: query.status ?? 'active',
+        typeFilter: query.type,
+        search: query.search,
+        page: query.page,
+        pageSize: query.pageSize,
       },
     })
-    if (!result.ok) return c.json({ error: 'Forbidden' }, 403)
+    if (!result.ok) return apiError(c, 403, 'Forbidden')
     return c.json({ ...result.result, items: result.result.items.map(toMatterDTO) }, 200)
   })
   .openapi(createObjectRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
 
     const result = await createObject(c.get('deps'), { orgId, actor: objectActor(c), input: c.req.valid('json') })
     if (!result.ok) {
       if (result.reason === 'target_outside_authorization')
-        return c.json({ error: 'Target folder is outside task authorization' }, 403)
-      return c.json({ error: 'Storage not configured' }, 500)
+        return apiError(c, 403, 'Target folder is outside task authorization')
+      return apiError(c, 503, 'No storage configured', { reason: ErrorReason.NO_STORAGE_CONFIGURED })
     }
     if ('uploadUrl' in result)
       return c.json(
@@ -474,7 +467,7 @@ const objects = app
   })
   .openapi(getObjectRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
 
     const result = await getObject(c.get('deps'), {
       orgId,
@@ -488,32 +481,38 @@ const objects = app
     }
     switch (result.reason) {
       case 'not_found':
-        return c.json({ error: 'Not found' }, 404)
+        return apiError(c, 404, 'Not found')
       case 'storage_not_found':
-        return c.json({ error: 'Storage not found' }, 404)
+        return apiError(c, 404, 'Storage not found')
       case 'quota_exceeded':
-        return c.json({ error: 'Traffic quota exceeded' }, 422)
+        return apiError(c, 422, 'Traffic quota exceeded', {
+          reason: ErrorReason.QUOTA_EXCEEDED,
+          status: 'RESOURCE_EXHAUSTED',
+        })
       case 'insufficient_credits':
-        return c.json({ error: 'insufficient_credits', code: 'insufficient_credits', resource: 'storage_egress' }, 402)
+        return apiError(c, 402, 'Insufficient credits', {
+          reason: ErrorReason.INSUFFICIENT_CREDITS,
+          metadata: { resource: 'storage_egress' },
+        })
     }
   })
   .openapi(patchObjectRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
     const result = await updateObject(c.get('deps'), {
       orgId,
       objectId: c.req.valid('param').id,
       actorId: actorId(c),
       input: c.req.valid('json'),
     })
-    if (!result.ok) return c.json({ error: 'Not found' }, 404)
+    if (!result.ok) return apiError(c, 404, 'Not found')
     return c.json(toMatterDTO(result.matter), 200)
   })
   // Lifecycle transitions: { status:'active' } confirms a draft or restores from
   // trash (server picks by current state); { status:'trashed' } soft-deletes.
   .openapi(objectStatusRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
     const objectId = c.req.valid('param').id
     const { status, onConflict } = c.req.valid('json')
 
@@ -521,7 +520,7 @@ const objects = app
     if (principal?.kind === 'download-task-upload') {
       // Upload tokens may only confirm their own draft.
       if (status !== 'active') {
-        return c.json({ error: 'Download task upload token can only confirm uploads' }, 403)
+        return apiError(c, 403, 'Download task upload token can only confirm uploads')
       }
       const authorized = await authorizeTaskUploadConfirm(c.get('deps'), {
         orgId,
@@ -530,12 +529,12 @@ const objects = app
         downloaderId: principal.downloaderId,
         targetFolder: principal.targetFolder,
       })
-      if (!authorized.ok) return c.json({ error: 'Forbidden' }, 403)
+      if (!authorized.ok) return apiError(c, 403, 'Forbidden')
     }
 
     if (status === 'trashed') {
       const result = await trashObject(c.get('deps'), { orgId, objectId, actorId: actorId(c) })
-      if (!result.ok) return c.json({ error: 'Not found' }, 404)
+      if (!result.ok) return apiError(c, 404, 'Not found')
       return c.json(toMatterDTO(result.matter), 200)
     }
 
@@ -544,15 +543,16 @@ const objects = app
     // global onError, which maps them to 409 / 422.
     const confirmed = await confirmObject(c.get('deps'), { orgId, objectId, actorId: actorId(c), onConflict })
     if (confirmed.ok) return c.json(toMatterDTO(confirmed.matter), 200)
-    if (confirmed.reason === 'quota_exceeded') return c.json({ error: 'Quota exceeded' }, 422)
+    if (confirmed.reason === 'quota_exceeded')
+      return apiError(c, 422, 'Quota exceeded', { reason: ErrorReason.QUOTA_EXCEEDED, status: 'RESOURCE_EXHAUSTED' })
 
     const restored = await restoreObject(c.get('deps'), { orgId, objectId, actorId: actorId(c), onConflict })
-    if (!restored.ok) return c.json({ error: 'Not found' }, 404)
+    if (!restored.ok) return apiError(c, 404, 'Not found')
     return c.json(toMatterDTO(restored.matter), 200)
   })
   .openapi(deleteObjectRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
     const objectId = c.req.valid('param').id
     const result = await deleteObject(c.get('deps'), { orgId, objectId, userId: c.get('userId')! })
     if (result.ok) return c.json({ id: result.id, deleted: true as const, purged: result.purged }, 200)
@@ -561,13 +561,13 @@ const objects = app
       // must be trashed before it can be permanently deleted.
       const cancelled = await cancelObject(c.get('deps'), { orgId, objectId, actorId: actorId(c) })
       if (cancelled.ok) return c.json({ id: cancelled.id, deleted: true as const, purged: false as const }, 200)
-      return c.json({ error: 'Object must be trashed before permanent deletion' }, 409)
+      return apiError(c, 409, 'Object must be trashed before permanent deletion')
     }
-    return c.json({ error: 'Not found' }, 404)
+    return apiError(c, 404, 'Not found')
   })
   .openapi(copyObjectRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
 
     const body = c.req.valid('json')
     const result = await copyObject(c.get('deps'), {
@@ -576,14 +576,14 @@ const objects = app
       input: { copyFrom: c.req.valid('param').id, parent: body.parent, onConflict: body.onConflict },
     })
     if (!result.ok) {
-      if (result.reason === 'storage_not_found') return c.json({ error: 'Storage not found' }, 404)
-      return c.json({ error: 'Not found' }, 404)
+      if (result.reason === 'storage_not_found') return apiError(c, 404, 'Storage not found')
+      return apiError(c, 404, 'Not found')
     }
     return c.json(toMatterDTO(result.matter), 201)
   })
   .openapi(transferObjectRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
 
     const result = await transferObject(c.get('deps'), {
       orgId,
@@ -594,13 +594,16 @@ const objects = app
     if (!result.ok) {
       switch (result.reason) {
         case 'same_org':
-          return c.json({ error: 'Target must be a different space', code: 'SAME_ORG' }, 400)
+          return apiError(c, 400, 'Target must be a different space', { reason: 'SAME_ORG' })
         case 'not_found':
-          return c.json({ error: 'Not found' }, 404)
+          return apiError(c, 404, 'Not found')
         case 'forbidden':
-          return c.json({ error: 'Forbidden' }, 403)
+          return apiError(c, 403, 'Forbidden')
         case 'quota_exceeded':
-          return c.json({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, 422)
+          return apiError(c, 422, 'Quota exceeded', {
+            reason: ErrorReason.QUOTA_EXCEEDED,
+            status: 'RESOURCE_EXHAUSTED',
+          })
       }
     }
     return c.json(

@@ -1,8 +1,9 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { getUserQuota, listQuotaOverview } from '../usecases/quota'
-import { errorResponse, jsonContent } from './openapi'
+import { apiError, errorResponse, jsonContent } from './openapi'
 
 // Quota types are already wire-shaped (timestamps are ISO strings, not Date), so
 // the schemas match the usecase return types directly — no DTO mapper needed.
@@ -41,9 +42,7 @@ const quotaOverviewItemSchema = effectiveQuotaSchema
   .extend({ id: z.string(), orgName: z.string(), orgType: z.string() })
   .openapi('QuotaOverviewItem')
 
-const quotaOverviewSchema = z
-  .object({ items: z.array(quotaOverviewItemSchema), total: z.number().int() })
-  .openapi('QuotaOverview')
+const quotaOverviewSchema = pageSchema(quotaOverviewItemSchema, 'QuotaOverview')
 
 const listQuotaOverviewRoute = createRoute({
   operationId: 'listQuotaOverview',
@@ -70,13 +69,16 @@ const getMyQuotaRoute = createRoute({
 
 // Quota overview across all orgs (personal + team), used by the admin dashboard.
 // Per-team entitlement management lives under /api/teams.
-const adminQuotas = new OpenAPIHono<Env>().openapi(listQuotaOverviewRoute, async (c) =>
-  c.json(await listQuotaOverview(c.get('deps')), 200),
-)
+const adminQuotas = new OpenAPIHono<Env>().openapi(listQuotaOverviewRoute, async (c) => {
+  // The overview returns every space in one shot rather than paging, so the page
+  // metadata mirrors the full result.
+  const { items, total } = await listQuotaOverview(c.get('deps'))
+  return c.json({ items, total, page: 1, pageSize: items.length }, 200)
+})
 
 const userQuotas = new OpenAPIHono<Env>().openapi(getMyQuotaRoute, async (c) => {
   const quota = await getUserQuota(c.get('deps'), { userId: c.get('userId')!, orgId: c.get('orgId') ?? undefined })
-  if (!quota) return c.json({ error: 'No organization found' }, 404)
+  if (!quota) return apiError(c, 404, 'No organization found')
   return c.json(quota, 200)
 })
 

@@ -617,8 +617,9 @@ describe('POST /api/shares/:token/objects', () => {
       body: JSON.stringify({ targetOrgId: personalOrgId }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as { code?: string }
-    expect(body.code).toBe('DIRECT_SAVE_FORBIDDEN')
+    const body = (await res.json()) as { error: { message: string; details: { reason: string }[] } }
+    expect(body.error.message).toBe('Direct link shares cannot be saved. Ask the sender for a landing share.')
+    expect(body.error.details[0].reason).toBe('DIRECT_SAVE_FORBIDDEN')
   })
 
   it('returns 401 when password-protected share requires cookie and user is not recipient', async () => {
@@ -749,8 +750,10 @@ describe('POST /api/shares/:token/objects', () => {
     })
 
     expect(res.status).toBe(400)
-    const body = (await res.json()) as { code?: string }
-    expect(body.code).toBe('QUOTA_EXCEEDED')
+    const body = (await res.json()) as { error: { message: string; status: string; details: { reason: string }[] } }
+    expect(body.error.message).toBe('Quota exceeded')
+    expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
+    expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
   })
 
   it('successfully saves a landing single-file share', async () => {

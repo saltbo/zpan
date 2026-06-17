@@ -289,8 +289,8 @@ describe('Admin Users API', () => {
     // Banned user's existing session should be rejected with 403
     const res = await app.request('/api/quotas/me', { headers: userHeaders })
     expect(res.status).toBe(403)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('Account disabled')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Account disabled')
   })
 
   it('DELETE /api/users/:id returns 404 for missing user', async () => {
@@ -546,7 +546,8 @@ describe('Admin Users API', () => {
     })
 
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ error: 'Only admin-granted entitlements can be modified' })
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Only admin-granted entitlements can be modified')
   })
 
   it('PATCH /api/users/:id/entitlements/:eid rejects non-admin-grant sources', async () => {
@@ -569,7 +570,8 @@ describe('Admin Users API', () => {
     })
 
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ error: 'Only admin-granted entitlements can be modified' })
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Only admin-granted entitlements can be modified')
   })
 
   it('POST /api/users/:id/entitlements rejects traffic grants', async () => {
@@ -601,7 +603,8 @@ describe('Admin Users API', () => {
     })
 
     expect(res.status).toBe(404)
-    expect(await res.json()).toEqual({ error: `Personal organization not found for user: ${userId}` })
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe(`Personal organization not found for user: ${userId}`)
   })
 
   it('DELETE /api/users deletes selected users', async () => {
@@ -635,7 +638,8 @@ describe('Admin Users API', () => {
       body: JSON.stringify({ action: 'disable', ids: ['missing-user'] }),
     })
     expect(patch.status).toBe(404)
-    expect(await patch.json()).toEqual({ error: 'User not found: missing-user' })
+    const patchBody = (await patch.json()) as { error: { message: string } }
+    expect(patchBody.error.message).toBe('User not found: missing-user')
 
     const del = await app.request('/api/users', {
       method: 'DELETE',
@@ -643,7 +647,8 @@ describe('Admin Users API', () => {
       body: JSON.stringify({ ids: ['missing-user'] }),
     })
     expect(del.status).toBe(404)
-    expect(await del.json()).toEqual({ error: 'User not found: missing-user' })
+    const delBody = (await del.json()) as { error: { message: string } }
+    expect(delBody.error.message).toBe('User not found: missing-user')
   })
 
   it('POST /api/users/:id/entitlements rejects non-positive bytes', async () => {
@@ -839,8 +844,8 @@ describe('GET /api/users/:username', () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/users/nonexistent')
     expect(res.status).toBe(404)
-    const body = await res.json()
-    expect(body).toEqual({ error: 'User not found' })
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('User not found')
   })
 
   it('returns user info and empty shares [spec: profile/user-info]', async () => {
@@ -883,8 +888,8 @@ describe('GET /api/users/:username/objects', () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/users/nonexistent/objects')
     expect(res.status).toBe(404)
-    const body = await res.json()
-    expect(body).toEqual({ error: 'User not found' })
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('User not found')
   })
 
   it('returns empty items and breadcrumb for known user [spec: profile/empty-listing]', async () => {

@@ -4,6 +4,7 @@ import { constantTimeEqual } from '../lib/constant-time'
 import type { Env } from '../middleware/platform'
 import { getDeployPlatform } from '../runtime-platform'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../usecases/site/instance-telemetry'
+import { apiError } from './openapi'
 
 const INTERNAL_API_TOKEN_ENV = 'ZPAN_INTERNAL_API_TOKEN'
 
@@ -16,10 +17,10 @@ function envAllowsIp(value: string | undefined): boolean {
 internal.post('/instance-telemetry/report', async (c) => {
   const platform = c.get('platform')
   const token = platform.getEnv(INTERNAL_API_TOKEN_ENV)?.trim()
-  if (!token) return c.json({ error: 'Not found' }, 404)
+  if (!token) return apiError(c, 404, 'Not found')
 
   const auth = c.req.header('authorization') ?? ''
-  if (!constantTimeEqual(auth, `Bearer ${token}`)) return c.json({ error: 'Unauthorized' }, 401)
+  if (!constantTimeEqual(auth, `Bearer ${token}`)) return apiError(c, 401, 'Unauthorized')
 
   const runtime = platform.getBinding('DB')
     ? {

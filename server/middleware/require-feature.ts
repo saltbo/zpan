@@ -1,8 +1,10 @@
+import { ErrorReason } from '@shared/schemas'
 import type { ProFeature } from '@shared/types'
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { hasFeature } from '../domain/licensing'
+import { apiError } from '../http/openapi'
 import { loadBindingState, normalizeHost } from '../usecases/site/licensing'
 import { getSitePublicOrigin } from '../usecases/site/public-origin'
 import type { Env } from './platform'
@@ -19,7 +21,10 @@ export function requireFeature(name: ProFeature) {
       (await configuredPublicHost(c)) ?? normalizeHost(c.req.header('host')) ?? new URL(c.req.url).host
     const state = await loadBindingState(c.get('deps'), { currentHost, cloudBaseUrl })
     if (!hasFeature(name, state)) {
-      return c.json({ error: 'feature_not_available', feature: name, upgrade_url: '/settings/billing' }, 402)
+      return apiError(c, 402, 'Feature not available', {
+        reason: ErrorReason.FEATURE_NOT_AVAILABLE,
+        metadata: { feature: name, upgradeUrl: '/settings/billing' },
+      })
     }
     await next()
   })

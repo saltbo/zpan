@@ -44,8 +44,9 @@ describe('Admin Announcements API', () => {
 
     const res = await app.request('/api/site/announcements?scope=all', { headers })
     expect(res.status).toBe(402)
-    const body = (await res.json()) as { feature: string }
-    expect(body.feature).toBe('site_announcements')
+    const body = (await res.json()) as { error: { details: { reason: string; metadata?: { feature?: string } }[] } }
+    expect(body.error.details[0]?.reason).toBe('FEATURE_NOT_AVAILABLE')
+    expect(body.error.details[0]?.metadata?.feature).toBe('site_announcements')
   })
 
   it('creates, lists, updates, and deletes an announcement [spec: announcements/crud]', async () => {
@@ -97,8 +98,9 @@ describe('User Announcements API', () => {
 
     const res = await app.request('/api/site/announcements', { headers })
     expect(res.status).toBe(402)
-    const body = (await res.json()) as { feature: string }
-    expect(body.feature).toBe('site_announcements')
+    const body = (await res.json()) as { error: { details: { reason: string; metadata?: { feature?: string } }[] } }
+    expect(body.error.details[0]?.reason).toBe('FEATURE_NOT_AVAILABLE')
+    expect(body.error.details[0]?.metadata?.feature).toBe('site_announcements')
   })
 
   it('returns active announcements [spec: announcements/user-active]', async () => {

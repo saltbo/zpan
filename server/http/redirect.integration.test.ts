@@ -163,7 +163,9 @@ describe('GET /r/:token (ds_ direct shares)', () => {
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(422)
-    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+    expect(body.error.message).toBe('Traffic quota exceeded')
+    expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
 
     const shares = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
@@ -192,6 +194,47 @@ describe('GET /r/:token (ds_ direct shares)', () => {
       sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
     )
     expect(rows[0].trafficUsed).toBe(1280)
+  })
+
+  it('returns 410 with AIP-193 body when a direct share is expired', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'ds-expired', name: 'expired.bin' })
+    const share = await createShareRepo(db).create({
+      matterId: 'ds-expired',
+      orgId,
+      creatorId,
+      kind: 'direct',
+      expiresAt: new Date(Date.now() - 1000),
+    })
+
+    const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
+    expect(res.status).toBe(410)
+    const body = (await res.json()) as { error: { code: number; message: string; status: string } }
+    expect(body.error.code).toBe(410)
+    expect(body.error.message).toBe('Share has expired')
+    expect(body.error.status).toBe('NOT_FOUND')
+    expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 when a direct share references a missing storage', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    // Intentionally do NOT insert the storage row; the matter points at a
+    // storage_id that does not exist.
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'ds-no-storage', name: 'orphan.bin' })
+    const share = await createShareRepo(db).create({ matterId: 'ds-no-storage', orgId, creatorId, kind: 'direct' })
+
+    const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
+    expect(res.status).toBe(404)
+    const body = (await res.json()) as { error: { message: string; status: string } }
+    expect(body.error.message).toBe('Storage not found')
+    expect(body.error.status).toBe('NOT_FOUND')
   })
 
   it('refunds traffic and download count when direct share signing fails [spec: redirect/ds-refund-on-failure]', async () => {
@@ -281,6 +324,55 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(res.status).toBe(404)
   })
 
+  it('returns 404 when an image hosting record references a missing storage', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    // No storage row inserted for this storage id.
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, {
+      id: 'ih-no-storage',
+      token: 'ih_nostorage',
+      storageId: 'st-missing-storage',
+    })
+
+    const res = await app.request('/r/ih_nostorage', { redirect: 'manual' })
+    expect(res.status).toBe(404)
+    const body = (await res.json()) as { error: { message: string; status: string } }
+    expect(body.error.message).toBe('Storage not found')
+    expect(body.error.status).toBe('NOT_FOUND')
+    expect(S3Service.prototype.presignInline).not.toHaveBeenCalled()
+    expect(await getAccessCount(db, 'ih-no-storage')).toBe(0)
+  })
+
+  it('returns 402 insufficient credits when cloud egress reporting blocks the image redirect', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'ih-credits', token: 'ih_credits' })
+
+    const redirectUsecase = await import('../usecases/redirect.js')
+    vi.spyOn(redirectUsecase, 'resolveImageHostingDownload').mockResolvedValueOnce({
+      ok: false,
+      reason: 'insufficient_credits',
+    })
+
+    const res = await app.request('/r/ih_credits', { redirect: 'manual' })
+    expect(res.status).toBe(402)
+    const body = (await res.json()) as {
+      error: {
+        code: number
+        message: string
+        status: string
+        details: Array<{ reason: string; metadata?: { resource?: string } }>
+      }
+    }
+    expect(body.error.code).toBe(402)
+    expect(body.error.message).toBe('Insufficient credits')
+    expect(body.error.details[0].reason).toBe('INSUFFICIENT_CREDITS')
+    expect(body.error.details[0].metadata?.resource).toBe('storage_egress')
+  })
+
   it('increments accessCount by 1 on successful redirect [spec: redirect/image-access-count]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
@@ -359,7 +451,9 @@ describe('GET /r/:token (ih_ image hosting)', () => {
 
     const second = await app.request('/r/ih_quotarepeat', { redirect: 'manual' })
     expect(second.status).toBe(422)
-    await expect(second.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    const secondBody = (await second.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+    expect(secondBody.error.message).toBe('Traffic quota exceeded')
+    expect(secondBody.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     expect(S3Service.prototype.presignInline).toHaveBeenCalledTimes(1)
     expect(await getAccessCount(db, 'ih-quota-repeat')).toBe(1)
   })
@@ -532,7 +626,9 @@ describe('GET /r/:token — two-org isolation', () => {
 
     const res = await app.request('/r/ih_quotatest', { redirect: 'manual' })
     expect(res.status).toBe(422)
-    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+    expect(body.error.message).toBe('Traffic quota exceeded')
+    expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     expect(S3Service.prototype.presignInline).not.toHaveBeenCalled()
   })
 })

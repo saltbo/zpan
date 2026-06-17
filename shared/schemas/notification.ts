@@ -1,8 +1,7 @@
-import { z } from 'zod'
+import { z } from '@hono/zod-openapi'
+import { pageQuerySchema } from './pagination'
 
-export const listNotificationsQuerySchema = z.object({
-  page: z.string().optional(),
-  pageSize: z.string().optional(),
+export const listNotificationsQuerySchema = pageQuerySchema.extend({
   unread: z.string().optional(),
 })
 

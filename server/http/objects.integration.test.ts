@@ -10,7 +10,7 @@ import { createQuotaRepo } from '../adapters/repos/quota.js'
 import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
 import { cloudTrafficReports, orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
 import { currentTrafficPeriod } from '../domain/quota.js'
-import { authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
+import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
 import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../usecases/object.js'
 import type {
   CopyMatterOptions,
@@ -171,6 +171,17 @@ describe('Objects API', () => {
     expect(body.pageSize).toBe(10)
   })
 
+  // Regression: the file manager loads a whole folder client-side with
+  // FILES_PAGE_SIZE=500, so the objects list must accept a pageSize above the
+  // shared 100 cap. A stricter cap silently 400s the list and the UI never renders.
+  it('GET /api/objects accepts the file-manager pageSize of 500', async () => {
+    const { app } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects?pageSize=500', { headers })
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { pageSize: number }).pageSize).toBe(500)
+  })
+
   it('POST /api/objects creates a folder [spec: objects/create-folder]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
@@ -200,7 +211,7 @@ describe('Objects API', () => {
     expect(res.status).toBe(400)
   })
 
-  it('POST /api/objects returns 500 when no storage available [spec: objects/create-no-storage]', async () => {
+  it('POST /api/objects returns 503 when no storage available [spec: objects/create-no-storage]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
@@ -208,8 +219,10 @@ describe('Objects API', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'test.txt', type: 'text/plain' }),
     })
-    expect(res.status).toBe(500)
-    await expect(res.json()).resolves.toEqual({ error: 'Storage not configured' })
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+    expect(body.error.message).toBe('No storage configured')
+    expect(body.error.details[0].reason).toBe('NO_STORAGE_CONFIGURED')
   })
 
   it('GET /api/objects lists active objects in root', async () => {
@@ -1043,10 +1056,12 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
-    expect(body.conflictingName).toBe('Duplicates')
-    expect(typeof body.conflictingId).toBe('string')
+    const body = (await res.json()) as {
+      error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
+    expect(body.error.details[0].metadata.conflictingName).toBe('Duplicates')
+    expect(typeof body.error.details[0].metadata.conflictingId).toBe('string')
   })
 
   it('POST /api/objects with onConflict: rename succeeds and returns auto-renamed folder [spec: objects/create-conflict-rename]', async () => {
@@ -1082,9 +1097,11 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
-    expect(body.conflictingName).toBe('beta.txt')
+    const body = (await res.json()) as {
+      error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
+    expect(body.error.details[0].metadata.conflictingName).toBe('beta.txt')
   })
 
   it('PATCH /api/objects/:id rename with onConflict: rename succeeds', async () => {
@@ -1121,8 +1138,8 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
   it('PATCH /api/objects/:id move with onConflict: rename resolves collision', async () => {
@@ -1161,8 +1178,8 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
   it('PATCH /api/objects/:id (action: restore) returns 409 when restore name is already taken [spec: objects/restore-conflict]', async () => {
@@ -1180,8 +1197,8 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
   it('PATCH /api/objects/:id (action: restore) with onConflict: rename restores with suffix', async () => {
@@ -1219,8 +1236,8 @@ describe('Objects API — name conflict (409 responses)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('NAME_CONFLICT')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
   it('POST /api/objects/copy auto-renames by default when target has same name', async () => {
@@ -1403,8 +1420,8 @@ describe('POST /api/objects/:id/transfers', () => {
 
     const res = await transferRequest(app, headers, 'src-big', { targetOrgId: 'team-small', mode: 'copy' })
     expect(res.status).toBe(422)
-    const body = (await res.json()) as { code: string }
-    expect(body.code).toBe('QUOTA_EXCEEDED')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
   })
 
   it('rejects transfer to the same space [spec: objects/transfer-same-space]', async () => {
@@ -1546,8 +1563,9 @@ describe('Objects API — quota enforcement', () => {
         body: JSON.stringify({ parent: '' }),
       })
       expect(res.status).toBe(422)
-      const body = (await res.json()) as Record<string, unknown>
-      expect(body.error).toBe('Quota exceeded')
+      const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+      expect(body.error.message).toBe('Quota exceeded')
+      expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     })
 
     it('returns 201 and increments orgQuotas.used when copy succeeds within quota', async () => {
@@ -1862,7 +1880,12 @@ describe('Objects API — quota enforcement', () => {
 
       const res = await app.request('/api/objects/m-download-over', { headers })
       expect(res.status).toBe(422)
-      await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+      const body = (await res.json()) as {
+        error: { message: string; status: string; details: Array<{ reason: string }> }
+      }
+      expect(body.error.message).toBe('Traffic quota exceeded')
+      expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
+      expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
       expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
 
       const rows = await db.all<{ trafficUsed: number }>(
@@ -1942,7 +1965,7 @@ describe('Objects API — quota enforcement', () => {
       })
 
       expect(res.status).toBe(422)
-      await expect(res.json()).resolves.toMatchObject({ error: 'Quota exceeded' })
+      await expect(res.json()).resolves.toMatchObject({ error: { message: 'Quota exceeded' } })
     })
 
     it('returns 200 and increments storages.used when quota allows', async () => {
@@ -1979,8 +2002,9 @@ describe('Objects API — quota enforcement', () => {
         body: JSON.stringify({ status: 'active' }),
       })
       expect(res.status).toBe(422)
-      const body = (await res.json()) as Record<string, unknown>
-      expect(body.error).toBe('Quota exceeded')
+      const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+      expect(body.error.message).toBe('Quota exceeded')
+      expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     })
 
     it('does not change usage when a file with size 0 is confirmed', async () => {
@@ -2260,5 +2284,216 @@ describe('object multipart upload API with S3-compatible storage', () => {
     const downloadRes = await fetch(active.downloadUrl)
     expect(downloadRes.status).toBe(200)
     await expect(downloadRes.text()).resolves.toBe('hello world')
+  })
+})
+
+// ─── Error-branch coverage (AIP-193 bodies) ───────────────────────────────────
+// These exercise the inline `apiError(...)` guards in the handlers that the
+// happy-path tests above don't reach: cross-org list authz, missing-storage
+// resolution, the download-task-upload confirm guards, and the editor-access
+// gate for a user-scoped (orgId-less) API key principal.
+
+// Creates an API key via the real better-auth plugin. A `webdav` config-id key
+// is user-scoped, so the auth middleware resolves it with userId set and orgId
+// null — the exact state the editor-access gate denies.
+async function createUserApiKey(
+  auth: Awaited<ReturnType<typeof createTestApp>>['auth'],
+  userId: string,
+): Promise<string> {
+  // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
+  const result = (await (auth.api as any).createApiKey({
+    body: { configId: 'webdav', userId },
+  })) as { key: string }
+  return result.key
+}
+
+const downloaderHeartbeat = {
+  version: '1.0.0',
+  hostname: 'host',
+  platform: 'linux',
+  arch: 'x64',
+  engine: 'aria2',
+  capabilities: ['http', 'magnet', 'torrent'],
+  maxConcurrentTasks: 2,
+  currentTasks: 0,
+  downloadBps: 0,
+  uploadBps: 0,
+  freeDiskBytes: 1024 * 1024 * 1024,
+}
+
+// Registers a downloader, creates and self-assigns a download task to it, and
+// returns the upload token plus the task's target folder. The token authenticates
+// as a `download-task-upload` principal scoped to that task/folder.
+async function mintTaskUploadContext(
+  app: TestApp,
+  db: TestDb,
+  opts: { targetFolder: string },
+): Promise<{ uploadToken: string; targetFolder: string; orgId: string }> {
+  const admin = await adminHeaders(app)
+  const codeRes = await app.request('/api/auth/device/code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: 'zpan-cli', scope: 'downloader:register' }),
+  })
+  const code = (await codeRes.json()) as { device_code: string; user_code: string }
+  await app.request(`/api/auth/device?user_code=${encodeURIComponent(code.user_code)}`, { headers: admin })
+  await app.request('/api/auth/device/approve', {
+    method: 'POST',
+    headers: { ...admin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userCode: code.user_code }),
+  })
+  const tokenRes = await app.request('/api/auth/device/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      device_code: code.device_code,
+      client_id: 'zpan-cli',
+    }),
+  })
+  const cliToken = (await tokenRes.json()) as { access_token: string }
+  const downloaderHeaders = { Authorization: `Bearer ${cliToken.access_token}`, 'Content-Type': 'application/json' }
+  const createDownloaderRes = await app.request('/api/downloads/downloaders', {
+    method: 'POST',
+    headers: downloaderHeaders,
+    body: JSON.stringify({ name: 'object-error-downloader', heartbeat: downloaderHeartbeat }),
+  })
+  const downloader = (await createDownloaderRes.json()) as { token: string }
+  await app.request('/api/downloads/downloaders/me/heartbeats', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${downloader.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...downloaderHeartbeat, currentTasks: 0 }),
+  })
+
+  const user = await adminHeaders(app)
+  const createTaskRes = await app.request('/api/downloads/tasks', {
+    method: 'POST',
+    headers: { ...user, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: { type: 'http', uri: 'https://example.com/file.txt' },
+      targetFolder: opts.targetFolder,
+      name: 'file.txt',
+    }),
+  })
+  expect(createTaskRes.status).toBe(201)
+
+  const assignedRes = await app.request('/api/downloads/tasks?assignedTo=me', {
+    headers: { Authorization: `Bearer ${downloader.token}` },
+  })
+  const assigned = (await assignedRes.json()) as {
+    items: Array<{ status: { assignment?: { uploadToken?: string } } }>
+  }
+  const uploadToken = assigned.items[0]?.status.assignment?.uploadToken
+  if (!uploadToken) throw new Error('upload_token_missing')
+  const orgRows = await db.all<{ orgId: string }>(sql`SELECT org_id AS orgId FROM download_tasks LIMIT 1`)
+  return { uploadToken, targetFolder: opts.targetFolder, orgId: orgRows[0].orgId }
+}
+
+describe('Objects API — error branches', () => {
+  it('returns 403 for a user-scoped API key with no active org on write', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    const key = await createUserApiKey(auth, userId)
+
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'denied.txt', type: 'text/plain', size: 1 }),
+    })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { message: string; status: string } }
+    expect(body.error.message).toBe('Forbidden')
+    expect(body.error.status).toBe('PERMISSION_DENIED')
+  })
+
+  it('returns 403 when listing an org the user cannot read via orgId override', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    await insertTeamOrg(db, 'team-foreign')
+
+    const res = await app.request('/api/objects?orgId=team-foreign', { headers })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { message: string; status: string } }
+    expect(body.error.message).toBe('Forbidden')
+    expect(body.error.status).toBe('PERMISSION_DENIED')
+  })
+
+  it('returns 404 when a file references a missing storage on GET', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    // File with a non-empty object key but no matching storage row.
+    await insertFile(db, orgId, { id: 'm-no-storage', name: 'orphan.txt' })
+
+    const res = await app.request('/api/objects/m-no-storage', { headers })
+    expect(res.status).toBe(404)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Storage not found')
+  })
+
+  it('returns 404 when copying a file whose storage is missing', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm-copy-orphan', name: 'orphan.txt' })
+
+    const res = await app.request('/api/objects/m-copy-orphan/copies', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent: '' }),
+    })
+    expect(res.status).toBe(404)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Storage not found')
+  })
+
+  it('returns 404 when transferring a missing object', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertTeamOrg(db, 'team-dest')
+    await insertMember(db, 'team-dest', userId, 'editor')
+
+    const res = await transferRequest(app, headers, 'does-not-exist', { targetOrgId: 'team-dest', mode: 'copy' })
+    expect(res.status).toBe(404)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Not found')
+  })
+
+  it('rejects a download-task-upload token that tries to trash an object', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
+    await insertFile(db, orgId, { id: 'm-task-trash', name: 'file.txt', parent: 'Remote' })
+
+    const res = await app.request('/api/objects/m-task-trash/status', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'trashed' }),
+    })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Download task upload token can only confirm uploads')
+  })
+
+  it('rejects a download-task-upload confirm outside the task target folder', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
+    // Draft sits outside the token's authorized folder, so the confirm guard denies.
+    await insertFile(db, orgId, { id: 'm-task-outside', name: 'file.txt', parent: 'Elsewhere', status: 'draft' })
+
+    const res = await app.request('/api/objects/m-task-outside/status', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'active' }),
+    })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Forbidden')
   })
 })

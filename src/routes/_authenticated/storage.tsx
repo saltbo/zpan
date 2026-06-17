@@ -320,5 +320,7 @@ function resolveCheckoutSelection(
 }
 
 function isCloudStoreDisabledError(error: unknown) {
-  return error instanceof ApiError && error.body.error === 'quota_store_disabled'
+  return (
+    error instanceof ApiError && error.reason === 'FEATURE_NOT_AVAILABLE' && error.metadata?.feature === 'quota_store'
+  )
 }

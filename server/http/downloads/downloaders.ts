@@ -4,9 +4,9 @@ import {
   createDownloaderSchema,
   deleteDownloaderResponseSchema,
   downloaderHeartbeatSchema,
-  downloaderListSchema,
   downloaderSchema,
-  featureGateErrorSchema,
+  ErrorReason,
+  pageSchema,
   updateDownloaderSchema,
 } from '@shared/schemas'
 import { FREE_DOWNLOADER_LIMIT } from '../../../shared/constants'
@@ -21,7 +21,9 @@ import {
   updateDownloader,
 } from '../../usecases/downloads/downloads'
 import { loadBindingState } from '../../usecases/site/licensing'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
+
+const downloaderListSchema = pageSchema(downloaderSchema, 'DownloaderList')
 
 const listRoute = createRoute({
   operationId: 'listDownloaders',
@@ -47,7 +49,7 @@ const createRouteDoc = createRoute({
   responses: {
     201: jsonContent(createDownloaderResponseSchema, 'Downloader registration'),
     401: errorResponse('Unauthorized'),
-    402: jsonContent(featureGateErrorSchema, 'Feature not available'),
+    402: errorResponse('Feature not available'),
   },
 })
 
@@ -61,7 +63,7 @@ const updateRoute = createRoute({
   request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderSchema) },
   responses: {
     200: jsonContent(downloaderSchema, 'Updated downloader'),
-    402: jsonContent(featureGateErrorSchema, 'Feature not available'),
+    402: errorResponse('Feature not available'),
     404: errorResponse('Not found'),
   },
 })
@@ -100,24 +102,23 @@ const heartbeatRoute = createRoute({
 const downloadersRoute = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
     const items = await listDownloaders(c.get('deps'))
-    return c.json({ items, total: items.length }, 200)
+    return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
   })
   .openapi(createRouteDoc, async (c) => {
     const userId = c.get('userId')
-    if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+    if (!userId) return apiError(c, 401, 'Unauthorized')
     const deps = c.get('deps')
     const [existing, state] = await Promise.all([listDownloaders(deps), loadBindingState(deps)])
     if (!hasFeature('downloaders_unlimited', state) && existing.length >= FREE_DOWNLOADER_LIMIT) {
-      return c.json(
-        {
-          error: 'feature_not_available',
+      return apiError(c, 402, 'Feature not available', {
+        reason: ErrorReason.FEATURE_NOT_AVAILABLE,
+        metadata: {
           feature: 'downloaders_unlimited',
-          currentCount: existing.length,
-          limit: FREE_DOWNLOADER_LIMIT,
-          upgrade_url: '/settings/billing',
+          currentCount: String(existing.length),
+          limit: String(FREE_DOWNLOADER_LIMIT),
+          upgradeUrl: '/settings/billing',
         },
-        402,
-      )
+      })
     }
     const result = await createDownloader(deps, c.get('platform'), c.req.valid('json'), userId)
     return c.json(result, 201)
@@ -128,7 +129,10 @@ const downloadersRoute = new OpenAPIHono<Env>()
     if (input.remoteDownloadCreditBillingEnabled === true) {
       const state = await loadBindingState(c.get('deps'))
       if (!hasFeature('quota_store', state)) {
-        return c.json({ error: 'feature_not_available', feature: 'quota_store' }, 402)
+        return apiError(c, 402, 'Feature not available', {
+          reason: ErrorReason.FEATURE_NOT_AVAILABLE,
+          metadata: { feature: 'quota_store' },
+        })
       }
     }
     return c.json(await updateDownloader(c.get('deps'), id, input), 200)
@@ -140,7 +144,7 @@ const downloadersRoute = new OpenAPIHono<Env>()
 
 export const downloaderSelfRoute = new OpenAPIHono<Env>().openapi(heartbeatRoute, async (c) => {
   const principal = c.get('principal')
-  if (principal?.kind !== 'downloader') return c.json({ error: 'Unauthorized' }, 401)
+  if (principal?.kind !== 'downloader') return apiError(c, 401, 'Unauthorized')
   return c.json(await recordDownloaderHeartbeat(c.get('deps'), principal.downloaderId, c.req.valid('json')), 200)
 })
 

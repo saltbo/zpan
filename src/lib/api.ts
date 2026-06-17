@@ -109,41 +109,72 @@ export type UserQuota = Pick<
   | 'currentPlan'
 >
 
+export interface ErrorInfo {
+  reason: string
+  domain: string
+  metadata?: Record<string, string>
+}
+
 export interface ApiErrorBody {
-  error?: string
-  code?: string
-  [key: string]: unknown
+  error: {
+    code: number
+    message: string
+    status: string
+    details?: ErrorInfo[]
+  }
 }
 
 export class ApiError extends Error {
   readonly status: number
   readonly body: ApiErrorBody
+  readonly reason: string | undefined
+  readonly metadata: Record<string, string> | undefined
+  readonly canonicalStatus: string | undefined
   constructor(status: number, body: ApiErrorBody) {
-    super(body.error ?? `HTTP ${status}`)
+    super(body.error.message)
     this.name = 'ApiError'
     this.status = status
     this.body = body
+    this.reason = body.error.details?.[0]?.reason
+    this.metadata = body.error.details?.[0]?.metadata
+    this.canonicalStatus = body.error.status
+  }
+}
+
+// Normalizes any error payload into the AIP-193 `google.rpc.Status` body the
+// server now returns. Real server errors pass through; network failures,
+// non-JSON responses, and external (S3) fallbacks are wrapped synthetically.
+function toErrorBody(status: number, raw: unknown): ApiErrorBody {
+  if (raw && typeof raw === 'object' && 'error' in raw) {
+    const error = (raw as { error: unknown }).error
+    if (error && typeof error === 'object') return raw as ApiErrorBody
+    return {
+      error: {
+        code: status,
+        message: typeof error === 'string' ? error : `HTTP ${status}`,
+        status: '',
+        details: [],
+      },
+    }
+  }
+  return {
+    error: { code: status, message: `HTTP ${status}`, status: '', details: [] },
   }
 }
 
 const SESSION_REQUEST_TIMEOUT_MS = 10_000
 
-export interface NameConflictBody extends ApiErrorBody {
-  code: 'NAME_CONFLICT'
-  conflictingName: string
-  conflictingId: string
-}
-
-export function isNameConflictError(err: unknown): err is ApiError & { body: NameConflictBody } {
-  return err instanceof ApiError && err.status === 409 && err.body.code === 'NAME_CONFLICT'
+export function isNameConflictError(
+  err: unknown,
+): err is ApiError & { metadata: { conflictingName: string; conflictingId: string } } {
+  return err instanceof ApiError && err.status === 409 && err.reason === 'NAME_CONFLICT'
 }
 
 async function unwrap<T>(promise: Promise<Response>): Promise<T> {
   const res = await promise
   if (!res.ok) {
-    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
-    const body: ApiErrorBody = { ...parsed, error: parsed.error ?? res.statusText }
-    throw new ApiError(res.status, body)
+    const parsed = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, toErrorBody(res.status, parsed))
   }
   return res.json() as Promise<T>
 }
@@ -790,7 +821,6 @@ export function listTeamActivities(teamId: string, page = 1, pageSize = 20) {
 export type NotificationListResult = {
   items: Notification[]
   total: number
-  unreadCount: number
   page: number
   pageSize: number
 }
@@ -809,7 +839,7 @@ export function getUnreadCount() {
 
 export function markNotificationRead(id: string) {
   return notificationsApi[':id'].$patch({ param: { id } }).then((res) => {
-    if (!res.ok) throw new ApiError(res.status, { error: res.statusText })
+    if (!res.ok) throw new ApiError(res.status, toErrorBody(res.status, { error: res.statusText }))
   })
 }
 
@@ -891,7 +921,7 @@ export function getShare(token: string) {
 
 export function deleteShare(token: string) {
   return authedSharesApi[':token'].$delete({ param: { token } }).then((res) => {
-    if (!res.ok) throw new ApiError(res.status, { error: res.statusText })
+    if (!res.ok) throw new ApiError(res.status, toErrorBody(res.status, { error: res.statusText }))
   })
 }
 
@@ -972,7 +1002,7 @@ export function updateIhostConfig(data: { customDomain?: string | null; refererA
 
 export function deleteIhostConfig() {
   return ihostConfigApi.index.$delete().then((res) => {
-    if (!res.ok) throw new ApiError(res.status, { error: res.statusText })
+    if (!res.ok) throw new ApiError(res.status, toErrorBody(res.status, { error: res.statusText }))
   })
 }
 
@@ -997,8 +1027,8 @@ export interface CreateIhostApiKeyResult extends IhostApiKey {
 async function apiKeyFetch<T>(path: string, options: RequestInit): Promise<T> {
   const res = await fetch(`/api/auth${path}`, { credentials: 'include', ...options })
   if (!res.ok) {
-    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
-    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+    const parsed = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, toErrorBody(res.status, parsed))
   }
   return res.json() as Promise<T>
 }
@@ -1161,8 +1191,8 @@ async function fetchSession(): Promise<SessionData> {
   try {
     const res = await fetch('/api/auth/get-session', { credentials: 'include', signal: controller.signal })
     if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as ApiErrorBody
-      throw new ApiError(res.status, body)
+      const body = await res.json().catch(() => ({}))
+      throw new ApiError(res.status, toErrorBody(res.status, body))
     }
     return res.json()
   } catch (error) {
@@ -1340,8 +1370,8 @@ export function confirmIhostImage(id: string) {
 export async function deleteIhostImage(id: string) {
   const res = await ihostApi.images[':id'].$delete({ param: { id } })
   if (!res.ok) {
-    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
-    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+    const parsed = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, toErrorBody(res.status, parsed))
   }
 }
 
@@ -1361,8 +1391,8 @@ async function putImageMultipart(url: string, file: File): Promise<{ url: string
     credentials: 'include',
   })
   if (!res.ok) {
-    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
-    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+    const parsed = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, toErrorBody(res.status, parsed))
   }
   return res.json() as Promise<{ url: string }>
 }
@@ -1374,8 +1404,8 @@ export function uploadAvatar(file: File) {
 export async function deleteAvatar() {
   const res = await users.me.avatar.$delete()
   if (!res.ok) {
-    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
-    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+    const parsed = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, toErrorBody(res.status, parsed))
   }
 }
 
@@ -1386,8 +1416,8 @@ export function uploadTeamLogo(teamId: string, file: File) {
 export async function deleteTeamLogo(teamId: string) {
   const res = await teamsApi[':teamId'].logo.$delete({ param: { teamId } })
   if (!res.ok) {
-    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
-    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+    const parsed = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, toErrorBody(res.status, parsed))
   }
 }
 
@@ -1433,8 +1463,8 @@ export async function saveBranding(data: {
     credentials: 'include',
   })
   if (!res.ok) {
-    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
-    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+    const parsed = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, toErrorBody(res.status, parsed))
   }
   return res.json() as Promise<BrandingConfig>
 }
@@ -1442,8 +1472,8 @@ export async function saveBranding(data: {
 export async function resetBrandingField(field: BrandingField): Promise<void> {
   const res = await brandingAdminApi[':field'].$delete({ param: { field } })
   if (!res.ok) {
-    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
-    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+    const parsed = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, toErrorBody(res.status, parsed))
   }
 }
 

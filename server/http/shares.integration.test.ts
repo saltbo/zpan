@@ -193,8 +193,8 @@ describe('POST /api/shares', () => {
     const res = await createShare(app, headers, { matterId: 'fo1', kind: 'direct' })
     expect(res.status).toBe(400)
 
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('DIRECT_NO_FOLDER')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('DIRECT_NO_FOLDER')
   })
 
   it('returns 400 with DIRECT_NO_PASSWORD when creating direct share with password [spec: shares/direct-no-password]', async () => {
@@ -207,8 +207,8 @@ describe('POST /api/shares', () => {
     const res = await createShare(app, headers, { matterId: 'f5', kind: 'direct', password: 'secret' })
     expect(res.status).toBe(400)
 
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('DIRECT_NO_PASSWORD')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('DIRECT_NO_PASSWORD')
   })
 
   it('returns 404 when matterId does not belong to current org [spec: shares/create-cross-org]', async () => {
@@ -218,8 +218,8 @@ describe('POST /api/shares', () => {
     const res = await createShare(app, headers, { matterId: 'nonexistent-matter', kind: 'landing' })
     expect(res.status).toBe(404)
 
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('MATTER_NOT_FOUND')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('MATTER_NOT_FOUND')
   })
 
   it('sets expiresAt when provided in request [spec: shares/create-expiry]', async () => {
@@ -272,8 +272,8 @@ describe('POST /api/shares', () => {
       recipients: [{ recipientEmail: 'someone@example.com' }],
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('DIRECT_NO_RECIPIENTS')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('DIRECT_NO_RECIPIENTS')
   })
 
   it('returns 500 when createShare throws an unexpected error', async () => {
@@ -588,8 +588,8 @@ describe('POST /api/shares/:token/objects', () => {
     })
     expect(res.status).toBe(400)
 
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('DIRECT_SAVE_FORBIDDEN')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('DIRECT_SAVE_FORBIDDEN')
   })
 
   it('returns 410 when the shared matter has been trashed [spec: shares/save-trashed-gone]', async () => {
@@ -661,8 +661,8 @@ describe('POST /api/shares/:token/objects', () => {
     })
     expect(res.status).toBe(400)
 
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.code).toBe('QUOTA_EXCEEDED')
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
   })
 
   it('returns 403 when targetOrgId is not a personal org and user has no member role [spec: shares/save-target-permission]', async () => {
@@ -1295,6 +1295,41 @@ describe('Public share routes', () => {
         body: JSON.stringify({ password: 'wrongpassword' }),
       })
       expect(res.status).toBe(403)
+      const body = (await res.json()) as { error: { message: string; status: string } }
+      expect(body.error.message).toBe('Invalid password')
+      expect(body.error.status).toBe('PERMISSION_DENIED')
+    })
+
+    it('returns 404 when verifying a password for an unknown token', async () => {
+      const { app } = await createTestApp()
+      const res = await app.request('/api/shares/no-such-token/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: 'whatever' }),
+      })
+      expect(res.status).toBe(404)
+      const body = (await res.json()) as { error: { message: string; status: string } }
+      expect(body.error.message).toBe('Share not found or revoked')
+      expect(body.error.status).toBe('NOT_FOUND')
+    })
+
+    it('returns 404 when verifying a password for a direct (non-landing) share', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      await insertFile(db, orgId, { id: 'vf3', name: 'direct-verify.bin' })
+      const share = await createShareRepo(db).create({ matterId: 'vf3', orgId, creatorId, kind: 'direct' })
+
+      const res = await app.request(`/api/shares/${share.token}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: 'whatever' }),
+      })
+      expect(res.status).toBe(404)
+      const body = (await res.json()) as { error: { message: string } }
+      expect(body.error.message).toBe('Share not found or revoked')
     })
   })
 
@@ -1433,7 +1468,9 @@ describe('Public share routes', () => {
       })
 
       expect(res.status).toBe(422)
-      await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+      const quotaBody = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
+      expect(quotaBody.error.message).toBe('Traffic quota exceeded')
+      expect(quotaBody.error.details[0].reason).toBe('QUOTA_EXCEEDED')
       expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
 
       const shareRows = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
@@ -1550,6 +1587,68 @@ describe('Public share routes', () => {
       const rootRef = await fetchRootRef(app, share.token)
       const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
       expect(res.status).toBe(410)
+      const body = (await res.json()) as { error: { message: string } }
+      expect(body.error.message).toBe('Share has expired')
+    })
+
+    it('returns 410 with AIP-193 body when the shared matter is trashed', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      await insertFile(db, orgId, { id: 'dl-trash', name: 'gone.txt' })
+      // The matter is reachable (status active) when the share is created, then
+      // gets trashed — resolveByToken returns matter_trashed for the download.
+      const share = await createShareRepo(db).create({ matterId: 'dl-trash', orgId, creatorId, kind: 'landing' })
+      const rootRef = await fetchRootRef(app, share.token)
+      await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = 'dl-trash'`)
+
+      const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
+      expect(res.status).toBe(410)
+      const body = (await res.json()) as { error: { code: number; message: string; status: string } }
+      expect(body.error.code).toBe(410)
+      expect(body.error.message).toBe('File no longer available')
+      expect(body.error.status).toBe('NOT_FOUND')
+    })
+
+    it('returns 400 when downloading a folder share root ref directly', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      await insertFolder(db, orgId, { id: 'dl-folder', name: 'A Folder' })
+      const share = await createShareRepo(db).create({ matterId: 'dl-folder', orgId, creatorId, kind: 'landing' })
+
+      const rootRef = await fetchRootRef(app, share.token)
+      const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
+      expect(res.status).toBe(400)
+      const body = (await res.json()) as { error: { message: string; status: string } }
+      expect(body.error.message).toBe('Cannot download a folder directly')
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+    })
+
+    it('returns 404 when the shared file references a missing storage', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      // No storage row inserted — the matter points at a storage_id that does
+      // not exist, so storage lookup fails after the access gates pass.
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      const now = Date.now()
+      await db.run(sql`
+        INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+        VALUES ('dl-no-storage', ${orgId}, 'dl-no-storage-alias', 'orphan.txt', 'text/plain', 1024, 0, '', 'some/key.txt', 'st-missing', 'active', ${now}, ${now})
+      `)
+      const share = await createShareRepo(db).create({ matterId: 'dl-no-storage', orgId, creatorId, kind: 'landing' })
+
+      const rootRef = await fetchRootRef(app, share.token)
+      const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
+      expect(res.status).toBe(404)
+      const body = (await res.json()) as { error: { message: string; status: string } }
+      expect(body.error.message).toBe('Storage not found')
+      expect(body.error.status).toBe('NOT_FOUND')
     })
   })
 
@@ -1589,6 +1688,31 @@ describe('Public share routes', () => {
 
       const res = await app.request(`/api/shares/${share.token}/objects`)
       expect(res.status).toBe(400)
+      const body = (await res.json()) as { error: { message: string } }
+      expect(body.error.message).toBe('Not a folder share')
+    })
+
+    it('returns 410 with AIP-193 body when listing objects of an expired folder share', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      await insertFolder(db, orgId, { id: 'ch-expired', name: 'Expired Folder' })
+      const share = await createShareRepo(db).create({
+        matterId: 'ch-expired',
+        orgId,
+        creatorId,
+        kind: 'landing',
+        expiresAt: new Date(Date.now() - 1000),
+      })
+
+      const res = await app.request(`/api/shares/${share.token}/objects`)
+      expect(res.status).toBe(410)
+      const body = (await res.json()) as { error: { code: number; message: string; status: string } }
+      expect(body.error.code).toBe(410)
+      expect(body.error.message).toBe('Share has expired')
+      expect(body.error.status).toBe('NOT_FOUND')
     })
 
     it('returns items and breadcrumb for folder share', async () => {
@@ -1674,8 +1798,8 @@ describe('Public share routes', () => {
 
       const res = await app.request(`/api/shares/${share.token}/objects?parent=../etc`)
       expect(res.status).toBe(400)
-      const body = (await res.json()) as { error: string }
-      expect(body.error).toBe('Invalid path')
+      const body = (await res.json()) as { error: { message: string } }
+      expect(body.error.message).toBe('Invalid path')
     })
 
     it('respects explicit page and pageSize query params', async () => {

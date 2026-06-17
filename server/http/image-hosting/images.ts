@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid'
 import {
   ALLOWED_IMAGE_MIMES,
   createIhostImageSchema,
+  ErrorReason,
   listIhostImagesSchema,
   MAX_IMAGE_SIZE,
 } from '../../../shared/schemas'
@@ -22,7 +23,7 @@ import {
   uploadImageHosting,
 } from '../../usecases/image-hosting/images'
 import type { ImageHostingRecord } from '../../usecases/ports'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 // The stored image's wire shape — timestamps as ISO strings (the record carries
 // them as Date).
@@ -69,8 +70,6 @@ const imageListSchema = z
   .object({ items: z.array(imageHostingSchema), nextCursor: z.string().nullable() })
   .openapi('ImageHostingList')
 
-const tooLargeSchema = z.object({ error: z.string(), maxBytes: z.number().int() })
-
 // Derive a storage path from the upload's filename, falling back to a random name.
 function deriveDefaultPath(filename: string, mime: string): string {
   if (!filename || filename === 'blob') return `image-${nanoid(8)}.${mimeToExt(mime)}`
@@ -110,7 +109,7 @@ const presignRoute = createRoute({
     201: jsonContent(imageDraftSchema, 'Image upload draft'),
     400: errorResponse('No active organization or invalid path'),
     403: errorResponse('Image hosting not enabled'),
-    413: jsonContent(tooLargeSchema, 'File too large'),
+    413: errorResponse('File too large'),
     503: errorResponse('No storage configured'),
   },
 })
@@ -187,11 +186,11 @@ const app = new OpenAPIHono<Env>()
 // below keeps its typing.
 app.post('/images', requirePermission('ihost', 'upload'), async (c) => {
   const orgId = c.get('orgId')
-  if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
+  if (!orgId) return apiError(c, 401, 'Unauthorized')
 
   const contentType = c.req.header('Content-Type') ?? ''
   const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
-  if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+  if (!enabled.ok) return apiError(c, 403, 'image hosting not enabled for this organization')
   const config = enabled.config
 
   let fileBytes: Uint8Array
@@ -204,14 +203,14 @@ app.post('/images', requirePermission('ihost', 'upload'), async (c) => {
     try {
       body = (await c.req.json()) as Record<string, unknown>
     } catch {
-      return c.json({ error: 'Invalid JSON body' }, 400)
+      return apiError(c, 400, 'Invalid JSON body')
     }
     const b64 = body.file
-    if (typeof b64 !== 'string' || !b64) return c.json({ error: 'file field (base64 string) is required' }, 400)
+    if (typeof b64 !== 'string' || !b64) return apiError(c, 400, 'file field (base64 string) is required')
     try {
       fileBytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))
     } catch {
-      return c.json({ error: 'Invalid base64 in file field' }, 400)
+      return apiError(c, 400, 'Invalid base64 in file field')
     }
     fileName = typeof body.filename === 'string' && body.filename ? body.filename : 'upload'
     fileMime = detectMimeFromBytes(fileBytes) || 'application/octet-stream'
@@ -219,20 +218,29 @@ app.post('/images', requirePermission('ihost', 'upload'), async (c) => {
   } else if (contentType.includes('multipart/form-data')) {
     const contentLength = Number(c.req.header('Content-Length') ?? '0')
     if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_SIZE)
-      return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
+      return apiError(c, 413, 'File exceeds the maximum allowed size', {
+        reason: ErrorReason.PAYLOAD_TOO_LARGE,
+        metadata: { maxBytes: String(MAX_IMAGE_SIZE) },
+      })
     const formData = await c.req.formData()
     const file = formData.get('file')
-    if (!(file instanceof File)) return c.json({ error: 'file field is required' }, 400)
+    if (!(file instanceof File)) return apiError(c, 400, 'file field is required')
     fileBytes = new Uint8Array(await file.arrayBuffer())
     fileName = file.name || 'upload'
     fileMime = file.type || ''
     const pathParam = formData.get('path')
     if (typeof pathParam === 'string' && pathParam) explicitPath = pathParam
   } else {
-    return c.json({ error: 'Unsupported Content-Type. Use multipart/form-data or application/json with base64.' }, 415)
+    return apiError(c, 415, 'Unsupported Content-Type. Use multipart/form-data or application/json with base64.', {
+      reason: ErrorReason.UNSUPPORTED_MEDIA_TYPE,
+    })
   }
 
-  if (fileBytes.byteLength > MAX_IMAGE_SIZE) return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
+  if (fileBytes.byteLength > MAX_IMAGE_SIZE)
+    return apiError(c, 413, 'File exceeds the maximum allowed size', {
+      reason: ErrorReason.PAYLOAD_TOO_LARGE,
+      metadata: { maxBytes: String(MAX_IMAGE_SIZE) },
+    })
 
   let mime = fileMime
   if (!mime || mime === 'application/octet-stream') mime = detectMimeFromBytes(fileBytes) || ''
@@ -247,13 +255,17 @@ app.post('/images', requirePermission('ihost', 'upload'), async (c) => {
     }
     mime = (ext && extMap[ext]) || mime || 'application/octet-stream'
   }
-  if (mime === 'image/svg+xml') return c.json({ error: 'SVG images are not allowed' }, 415)
+  if (mime === 'image/svg+xml')
+    return apiError(c, 415, 'SVG images are not allowed', { reason: ErrorReason.UNSUPPORTED_MEDIA_TYPE })
   if (!(ALLOWED_IMAGE_MIMES as readonly string[]).includes(mime))
-    return c.json({ error: 'Unsupported media type', allowedTypes: ALLOWED_IMAGE_MIMES }, 415)
+    return apiError(c, 415, 'Unsupported media type', {
+      reason: ErrorReason.UNSUPPORTED_MEDIA_TYPE,
+      metadata: { allowedTypes: ALLOWED_IMAGE_MIMES.join(',') },
+    })
 
   const requestedPath = explicitPath || deriveDefaultPath(fileName, mime)
   const pathErr = validatePath(requestedPath)
-  if (pathErr) return c.json(pathErr, 400)
+  if (pathErr) return apiError(c, 400, `${pathErr.error}: ${pathErr.detail}`)
 
   try {
     const result = await uploadImageHosting(c.get('deps'), {
@@ -262,7 +274,7 @@ app.post('/images', requirePermission('ihost', 'upload'), async (c) => {
       mime: mime as (typeof ALLOWED_IMAGE_MIMES)[number],
       bytes: fileBytes,
     })
-    if (!result.ok) return c.json({ error: 'No storage configured' }, 503)
+    if (!result.ok) return apiError(c, 503, 'No storage configured', { reason: ErrorReason.NO_STORAGE_CONFIGURED })
     const row = result.row
     const origin = new URL(c.req.url).origin
     const tokenUrl = `${origin}/r/${row.token}`
@@ -289,24 +301,28 @@ app.post('/images', requirePermission('ihost', 'upload'), async (c) => {
 const ihost = app
   .openapi(presignRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
     const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
-    if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    if (!enabled.ok) return apiError(c, 403, 'image hosting not enabled for this organization')
 
     const { path: requestedPath, mime, size } = c.req.valid('json')
-    if (size > MAX_IMAGE_SIZE) return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
+    if (size > MAX_IMAGE_SIZE)
+      return apiError(c, 413, 'File exceeds the maximum allowed size', {
+        reason: ErrorReason.PAYLOAD_TOO_LARGE,
+        metadata: { maxBytes: String(MAX_IMAGE_SIZE) },
+      })
     const pathErr = validatePath(requestedPath)
-    if (pathErr) return c.json(pathErr, 400)
+    if (pathErr) return apiError(c, 400, `${pathErr.error}: ${pathErr.detail}`)
 
     const result = await presignImageHostingUpload(c.get('deps'), { orgId, path: requestedPath, mime, size })
-    if (!result.ok) return c.json({ error: 'No storage configured' }, 503)
+    if (!result.ok) return apiError(c, 503, 'No storage configured', { reason: ErrorReason.NO_STORAGE_CONFIGURED })
     return c.json(result.result, 201)
   })
   .openapi(listRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
     const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
-    if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    if (!enabled.ok) return apiError(c, 403, 'image hosting not enabled for this organization')
 
     const { pathPrefix, cursor, limit } = c.req.valid('query')
     const result = await listImageHostings(c.get('deps'), orgId, { pathPrefix, cursor, limit })
@@ -314,33 +330,34 @@ const ihost = app
   })
   .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
     const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
-    if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    if (!enabled.ok) return apiError(c, 403, 'image hosting not enabled for this organization')
 
     const row = await getImageHosting(c.get('deps'), c.req.valid('param').id, orgId)
-    if (!row) return c.json({ error: 'Not found' }, 404)
+    if (!row) return apiError(c, 404, 'Not found')
     return c.json(toImageHostingDTO(row), 200)
   })
   .openapi(confirmRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
     const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
-    if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    if (!enabled.ok) return apiError(c, 403, 'image hosting not enabled for this organization')
 
     const { row, quotaExceeded } = await confirmImageHosting(c.get('deps'), c.req.valid('param').id, orgId)
-    if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
-    if (!row) return c.json({ error: 'Not found or not in draft status' }, 404)
+    if (quotaExceeded)
+      return apiError(c, 422, 'Quota exceeded', { reason: ErrorReason.QUOTA_EXCEEDED, status: 'RESOURCE_EXHAUSTED' })
+    if (!row) return apiError(c, 404, 'Not found or not in draft status')
     return c.json(toImageHostingDTO(row), 200)
   })
   .openapi(deleteRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    if (!orgId) return apiError(c, 400, 'No active organization')
     const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
-    if (!enabled.ok) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    if (!enabled.ok) return apiError(c, 403, 'image hosting not enabled for this organization')
 
     const deleted = await removeImageHosting(c.get('deps'), c.req.valid('param').id, orgId)
-    if (!deleted) return c.json({ error: 'Not found' }, 404)
+    if (!deleted) return apiError(c, 404, 'Not found')
     return c.body(null, 204)
   })
 

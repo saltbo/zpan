@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
+import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema, pageSchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -10,7 +10,7 @@ import {
   retryBackgroundJob,
 } from '../usecases/background-job'
 import { BackgroundJobError } from '../usecases/ports'
-import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { apiError, errorResponse, jsonBody, jsonContent } from './openapi'
 
 // BackgroundJob is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const backgroundJobProgressSchema = z.object({
@@ -44,14 +44,7 @@ const backgroundJobSchema = z
   })
   .openapi('BackgroundJob')
 
-const backgroundJobPageSchema = z
-  .object({
-    items: z.array(backgroundJobSchema),
-    total: z.number().int(),
-    page: z.number().int(),
-    pageSize: z.number().int(),
-  })
-  .openapi('BackgroundJobPage')
+const backgroundJobPageSchema = pageSchema(backgroundJobSchema, 'BackgroundJobPage')
 
 // The only client-driven status transition is cancellation.
 const cancelJobSchema = z.object({ status: z.literal('canceled') })
@@ -137,7 +130,7 @@ app.use(requireAuth)
 const backgroundJobs = app
   .openapi(listRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No organization found' }, 404)
+    if (!orgId) return apiError(c, 404, 'No organization found')
     const query = c.req.valid('query')
     const result = await listBackgroundJobs(c.get('deps'), orgId, query)
     return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)

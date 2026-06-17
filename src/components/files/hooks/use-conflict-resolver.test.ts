@@ -36,7 +36,7 @@ describe('withConflictRetry', () => {
 
   it('calls prompt and re-runs with chosen strategy on NAME_CONFLICT', async () => {
     const fakeError = Object.assign(new Error('conflict'), {
-      body: { conflictingName: 'report.pdf', code: 'NAME_CONFLICT' },
+      metadata: { conflictingName: 'report.pdf' },
     })
     vi.mocked(isNameConflictError).mockImplementation((e) => e === fakeError)
 
@@ -58,7 +58,7 @@ describe('withConflictRetry', () => {
 
   it('returns undefined when user cancels the conflict dialog', async () => {
     const fakeError = Object.assign(new Error('conflict'), {
-      body: { conflictingName: 'file.txt', code: 'NAME_CONFLICT' },
+      metadata: { conflictingName: 'file.txt' },
     })
     vi.mocked(isNameConflictError).mockImplementation((e) => e === fakeError)
 
@@ -84,7 +84,7 @@ describe('withConflictRetry', () => {
 
   it('passes showApplyToAll: true to prompt when opts.showApplyToAll is true', async () => {
     const fakeError = Object.assign(new Error('conflict'), {
-      body: { conflictingName: 'data.csv', code: 'NAME_CONFLICT' },
+      metadata: { conflictingName: 'data.csv' },
     })
     vi.mocked(isNameConflictError).mockImplementation((e) => e === fakeError)
 
@@ -102,7 +102,7 @@ describe('withConflictRetry', () => {
 
   it('uses the chosen strategy in the retry call', async () => {
     const fakeError = Object.assign(new Error('conflict'), {
-      body: { conflictingName: 'x.txt', code: 'NAME_CONFLICT' },
+      metadata: { conflictingName: 'x.txt' },
     })
     vi.mocked(isNameConflictError).mockImplementation((e) => e === fakeError)
 
@@ -116,10 +116,10 @@ describe('withConflictRetry', () => {
 
   it('retries on each conflict and calls prompt for each one', async () => {
     const error1 = Object.assign(new Error('conflict1'), {
-      body: { conflictingName: 'a.txt', code: 'NAME_CONFLICT' },
+      metadata: { conflictingName: 'a.txt' },
     })
     const error2 = Object.assign(new Error('conflict2'), {
-      body: { conflictingName: 'a (1).txt', code: 'NAME_CONFLICT' },
+      metadata: { conflictingName: 'a (1).txt' },
     })
     vi.mocked(isNameConflictError).mockImplementation((e) => e === error1 || e === error2)
 
@@ -140,7 +140,7 @@ describe('withConflictRetry', () => {
   it('throws the last NameConflictError after MAX_CONFLICT_RETRIES (3) consecutive conflicts', async () => {
     const makeConflictError = (name: string) =>
       Object.assign(new Error(`conflict: ${name}`), {
-        body: { conflictingName: name, code: 'NAME_CONFLICT' },
+        metadata: { conflictingName: name },
       })
 
     const errors = [
@@ -169,10 +169,10 @@ describe('withConflictRetry', () => {
 
   it('returns undefined and stops retrying when user cancels the second prompt', async () => {
     const error1 = Object.assign(new Error('conflict1'), {
-      body: { conflictingName: 'b.txt', code: 'NAME_CONFLICT' },
+      metadata: { conflictingName: 'b.txt' },
     })
     const error2 = Object.assign(new Error('conflict2'), {
-      body: { conflictingName: 'b (1).txt', code: 'NAME_CONFLICT' },
+      metadata: { conflictingName: 'b (1).txt' },
     })
     vi.mocked(isNameConflictError).mockImplementation((e) => e === error1 || e === error2)
 

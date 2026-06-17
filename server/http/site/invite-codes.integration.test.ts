@@ -42,8 +42,8 @@ describe('Admin Invite Codes API — GET /', () => {
     const headers = await adminHeaders(app)
     const res = await app.request('/api/site/invite-codes', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number }
-    expect(body).toEqual({ items: [], total: 0 })
+    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
+    expect(body).toEqual({ items: [], total: 0, page: 1, pageSize: 20 })
   })
 
   it('returns created codes with correct total [spec: invite-codes/list]', async () => {

@@ -77,13 +77,26 @@ vi.mock('@/lib/browser-navigation', () => ({
 vi.mock('@/lib/api', () => {
   class MockApiError extends Error {
     readonly status: number
-    readonly body: { error?: string }
+    readonly body: {
+      error: {
+        code: number
+        message: string
+        status: string
+        details?: Array<{ reason: string; domain: string; metadata?: Record<string, string> }>
+      }
+    }
+    readonly reason: string | undefined
+    readonly metadata: Record<string, string> | undefined
+    readonly canonicalStatus: string | undefined
 
-    constructor(status: number, body: { error?: string }) {
-      super(body.error ?? `HTTP ${status}`)
+    constructor(status: number, body: MockApiError['body']) {
+      super(body.error.message)
       this.name = 'ApiError'
       this.status = status
       this.body = body
+      this.reason = body.error.details?.[0]?.reason
+      this.metadata = body.error.details?.[0]?.metadata
+      this.canonicalStatus = body.error.status
     }
   }
 
@@ -395,7 +408,16 @@ describe('StoragePage', () => {
   })
 
   it('hides self-service forms when storage purchases are disabled', async () => {
-    vi.mocked(listCloudProducts).mockRejectedValue(new ApiError(403, { error: 'quota_store_disabled' }))
+    vi.mocked(listCloudProducts).mockRejectedValue(
+      new ApiError(402, {
+        error: {
+          code: 402,
+          message: 'Feature not available',
+          status: 'PERMISSION_DENIED',
+          details: [{ reason: 'FEATURE_NOT_AVAILABLE', domain: 'zpan.dev', metadata: { feature: 'quota_store' } }],
+        },
+      }),
+    )
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
 
     const queryClient = new QueryClient({

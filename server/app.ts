@@ -33,8 +33,8 @@ import trash from './http/trash'
 import { users } from './http/users'
 import webdav from './http/webdav'
 import { formatError } from './lib/errors'
-import { mapDomainError } from './lib/http-errors'
 import { authMiddleware } from './middleware/auth'
+import { isHandledError, renderError } from './middleware/error-handler'
 import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
 import type { Env } from './middleware/platform'
@@ -224,15 +224,14 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
-  // Single translation point for errors that escape a handler. A known domain
-  // error becomes its mapped status + JSON body (see server/lib/http-errors.ts);
-  // anything else is logged and surfaced as a generic 500. This is what lets
-  // handlers `throw` domain errors instead of hand-rolling per-route try/catch.
+  // Backstop for errors thrown outside the accessLog boundary (earlier middleware,
+  // or routes without accessLog like /r). For /api and /dav, accessLog already
+  // catches and renders via the same `renderError`, so this rarely fires there.
+  // Genuinely unhandled errors are logged here since those routes aren't access-
+  // logged; mapped/ApiError cases are already carried by their access-log line.
   app.onError((err, c) => {
-    const mapped = mapDomainError(err)
-    if (mapped) return c.json(mapped.json, mapped.status)
-    console.error(`http.unhandled_error code=${formatError(err)}`)
-    return c.text('Internal Server Error', 500)
+    if (!isHandledError(err)) console.error(`http.unhandled_error code=${formatError(err)}`)
+    return renderError(c, err)
   })
 
   return app

@@ -134,10 +134,13 @@ describe('object download cloud traffic reporting', () => {
     const res = await app.request('/api/objects/m-cloud-report-blocked', { headers })
 
     expect(res.status).toBe(402)
-    await expect(res.json()).resolves.toEqual({
-      error: 'insufficient_credits',
-      code: 'insufficient_credits',
-      resource: 'storage_egress',
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        code: 402,
+        message: 'Insufficient credits',
+        status: 'FAILED_PRECONDITION',
+        details: [{ reason: 'INSUFFICIENT_CREDITS', metadata: { resource: 'storage_egress' } }],
+      },
     })
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
@@ -245,10 +248,13 @@ describe('public redirect cloud traffic reporting', () => {
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
 
     expect(res.status).toBe(402)
-    await expect(res.json()).resolves.toEqual({
-      error: 'insufficient_credits',
-      code: 'insufficient_credits',
-      resource: 'storage_egress',
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        code: 402,
+        message: 'Insufficient credits',
+        status: 'FAILED_PRECONDITION',
+        details: [{ reason: 'INSUFFICIENT_CREDITS', metadata: { resource: 'storage_egress' } }],
+      },
     })
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
@@ -313,10 +319,13 @@ describe('public redirect cloud traffic reporting', () => {
     const res = await app.request(`/api/shares/${share.token}/objects/${ref}?downloadUrl=1`, { redirect: 'manual' })
 
     expect(res.status).toBe(402)
-    await expect(res.json()).resolves.toEqual({
-      error: 'insufficient_credits',
-      code: 'insufficient_credits',
-      resource: 'storage_egress',
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        code: 402,
+        message: 'Insufficient credits',
+        status: 'FAILED_PRECONDITION',
+        details: [{ reason: 'INSUFFICIENT_CREDITS', metadata: { resource: 'storage_egress' } }],
+      },
     })
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()

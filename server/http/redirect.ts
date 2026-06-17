@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import { ErrorReason } from '../../shared/schemas'
 import type { Env } from '../middleware/platform'
 import {
   type DirectShareOutcome,
@@ -8,6 +9,7 @@ import {
   resolveDirectShareDownload,
   resolveImageHostingDownload,
 } from '../usecases/redirect'
+import { apiError } from './openapi'
 
 // Strip optional file extension from token (e.g. "ih_aB3xK9.png" → "ih_aB3xK9")
 function stripExtension(token: string): string {
@@ -24,7 +26,10 @@ function presignedRedirect(c: Context<Env>, url: string): Response {
 }
 
 function insufficientCredits(c: Context<Env>): Response {
-  return c.json({ error: 'insufficient_credits', code: 'insufficient_credits', resource: 'storage_egress' }, 402)
+  return apiError(c, 402, 'Insufficient credits', {
+    reason: ErrorReason.INSUFFICIENT_CREDITS,
+    metadata: { resource: 'storage_egress' },
+  })
 }
 
 async function handleDirectShare(c: Context<Env>, token: string): Promise<Response> {
@@ -35,17 +40,20 @@ async function handleDirectShare(c: Context<Env>, token: string): Promise<Respon
   if (outcome.ok) return presignedRedirect(c, outcome.url)
   switch (outcome.reason) {
     case 'matter_trashed':
-      return c.json({ error: 'File no longer available' }, 410)
+      return apiError(c, 410, 'File no longer available')
     case 'not_found':
-      return c.json({ error: 'Share not found or revoked' }, 404)
+      return apiError(c, 404, 'Share not found or revoked')
     case 'expired':
-      return c.json({ error: 'Share has expired' }, 410)
+      return apiError(c, 410, 'Share has expired')
     case 'limit_exceeded':
-      return c.json({ error: 'Download limit exceeded' }, 410)
+      return apiError(c, 410, 'Download limit exceeded')
     case 'storage_not_found':
-      return c.json({ error: 'Storage not found' }, 404)
+      return apiError(c, 404, 'Storage not found')
     case 'quota_exceeded':
-      return c.json({ error: 'Traffic quota exceeded' }, 422)
+      return apiError(c, 422, 'Traffic quota exceeded', {
+        reason: ErrorReason.QUOTA_EXCEEDED,
+        status: 'RESOURCE_EXHAUSTED',
+      })
     case 'insufficient_credits':
       return insufficientCredits(c)
   }
@@ -61,13 +69,16 @@ async function handleImageHosting(c: Context<Env>, token: string): Promise<Respo
   if (outcome.ok) return presignedRedirect(c, outcome.url)
   switch (outcome.reason) {
     case 'not_found':
-      return c.json({ error: 'Not found' }, 404)
+      return apiError(c, 404, 'Not found')
     case 'forbidden_referer':
-      return c.json({ error: 'forbidden referer' }, 403)
+      return apiError(c, 403, 'forbidden referer')
     case 'storage_not_found':
-      return c.json({ error: 'Storage not found' }, 404)
+      return apiError(c, 404, 'Storage not found')
     case 'quota_exceeded':
-      return c.json({ error: 'Traffic quota exceeded' }, 422)
+      return apiError(c, 422, 'Traffic quota exceeded', {
+        reason: ErrorReason.QUOTA_EXCEEDED,
+        status: 'RESOURCE_EXHAUSTED',
+      })
     case 'insufficient_credits':
       return insufficientCredits(c)
   }
@@ -80,7 +91,7 @@ const app = new Hono<Env>().get('/:token', async (c) => {
   if (token.startsWith('ds_')) return handleDirectShare(c, token)
   if (token.startsWith('ih_')) return handleImageHosting(c, token)
 
-  return c.json({ error: 'Not found' }, 404)
+  return apiError(c, 404, 'Not found')
 })
 
 export default app

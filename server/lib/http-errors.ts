@@ -1,3 +1,11 @@
+import {
+  type CanonicalStatus,
+  canonicalStatusForHttp,
+  ERROR_DOMAIN,
+  ERROR_INFO_TYPE,
+  ErrorReason,
+  type ErrorResponse,
+} from '@shared/schemas'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import {
   BackgroundJobError,
@@ -8,66 +16,110 @@ import {
   WebDavPathError,
 } from '../usecases/ports'
 
+// Per-error overrides for the AIP-193 body. `reason` defaults to the canonical
+// `status`; `status` defaults to the HTTP-status mapping; `domain` to zpan.dev.
+export interface ErrorOptions {
+  reason?: string
+  status?: CanonicalStatus
+  metadata?: Record<string, string>
+  domain?: string
+}
+
+// The single place that builds an AIP-193 (`google.rpc.Status`) error body. Every
+// error the API surfaces — thrown domain errors mapped in `onError`, and inline
+// handler rejections via `apiError` — flows through here, so the wire shape is
+// defined exactly once.
+export function buildErrorBody(httpStatus: number, message: string, opts: ErrorOptions = {}): ErrorResponse {
+  const status = opts.status ?? canonicalStatusForHttp(httpStatus)
+  const reason = opts.reason ?? status
+  return {
+    error: {
+      code: httpStatus,
+      message,
+      status,
+      details: [
+        {
+          '@type': ERROR_INFO_TYPE,
+          reason,
+          domain: opts.domain ?? ERROR_DOMAIN,
+          ...(opts.metadata ? { metadata: opts.metadata } : {}),
+        },
+      ],
+    },
+  }
+}
+
+// A throwable carrying everything needed to render an AIP-193 body. Handlers and
+// usecases can `throw new ApiError(...)`; `onError` renders it. Inline handler
+// sites that prefer `return` use the `apiError` helper instead (see http/openapi).
+export class ApiError extends Error {
+  constructor(
+    readonly httpStatus: ContentfulStatusCode,
+    message: string,
+    readonly options: ErrorOptions = {},
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+
+  toBody(): ErrorResponse {
+    return buildErrorBody(this.httpStatus, this.message, this.options)
+  }
+}
+
 export interface DomainErrorMapping {
   status: ContentfulStatusCode
   /** Plain message for text responses (e.g. WebDAV). */
   message: string
-  /** Structured body for JSON responses. */
-  json: Record<string, unknown>
+  /** AIP-193 body for JSON responses. */
+  json: ErrorResponse
 }
 
-/**
- * The single place that translates a domain error into its HTTP status and
- * response body. Every error a usecase throws and the API surfaces flows through
- * here — wired into the global `app.onError`, so handlers `throw` instead of
- * hand-rolling per-route try/catch. Returns null for errors we don't translate;
- * `onError` then falls back to a generic 500.
- *
- * To support a new domain error: add a branch here, nowhere else.
- */
+const mapping = (status: ContentfulStatusCode, message: string, opts?: ErrorOptions): DomainErrorMapping => ({
+  status,
+  message,
+  json: buildErrorBody(status, message, opts),
+})
+
+// Translate a domain error a usecase threw into its HTTP status + AIP-193 body.
+// Wired into the global `app.onError`, so handlers `throw` instead of hand-rolling
+// per-route try/catch. Returns null for errors we don't translate; `onError` then
+// falls back to a generic 500. To support a new domain error: add a branch here.
 export function mapDomainError(error: unknown): DomainErrorMapping | null {
   if (error instanceof StorageQuotaExceededError) {
-    return { status: 422, message: 'Quota exceeded', json: { error: 'Quota exceeded' } }
+    return mapping(422, 'Quota exceeded', { reason: ErrorReason.QUOTA_EXCEEDED, status: 'RESOURCE_EXHAUSTED' })
   }
   if (error instanceof NameConflictError) {
-    return {
-      status: 409,
-      message: error.message,
-      json: {
-        error: error.message,
-        code: 'NAME_CONFLICT',
-        conflictingName: error.conflictingName,
-        conflictingId: error.conflictingId,
-      },
-    }
+    const metadata: Record<string, string> = { conflictingName: error.conflictingName }
+    if (error.conflictingId) metadata.conflictingId = error.conflictingId
+    return mapping(409, error.message, { reason: ErrorReason.NAME_CONFLICT, status: 'ALREADY_EXISTS', metadata })
   }
   if (error instanceof ObjectUploadSessionError) {
     if (error.code === 'storage_failure') {
-      return { status: 502, message: error.message, json: { error: error.message } }
+      return mapping(502, error.message, { reason: 'STORAGE_FAILURE' })
     }
     if (error.code === 'not_found') {
-      return { status: 404, message: 'Not found', json: { error: 'Not found' } }
+      return mapping(404, 'Not found')
     }
-    return { status: 409, message: 'Invalid upload session state', json: { error: 'Invalid upload session state' } }
+    return mapping(409, 'Invalid upload session state', { reason: 'INVALID_STATE' })
   }
   if (error instanceof WebDavPathError) {
-    return { status: error.status as ContentfulStatusCode, message: error.message, json: { error: error.message } }
+    return mapping(error.status as ContentfulStatusCode, error.message)
   }
   if (error instanceof DownloadError) {
-    if (error.code === 'not_found') return { status: 404, message: 'Not found', json: { error: 'Not found' } }
-    if (error.code === 'forbidden') return { status: 403, message: 'Forbidden', json: { error: 'Forbidden' } }
-    return { status: 409, message: error.message, json: { error: error.message } }
+    const reason = error.code.toUpperCase()
+    if (error.code === 'not_found') return mapping(404, 'Not found', { reason })
+    if (error.code === 'forbidden') return mapping(403, 'Forbidden', { reason })
+    return mapping(409, error.message, { reason })
   }
   if (error instanceof BackgroundJobError) {
     if (error.code === 'not_cancelable') {
-      const m = 'Background job cannot be canceled'
-      return { status: 409, message: m, json: { error: m } }
+      return mapping(409, 'Background job cannot be canceled', { reason: 'NOT_CANCELABLE' })
     }
     if (error.code === 'not_retryable') {
-      const m = 'Background job cannot be retried'
-      return { status: 409, message: m, json: { error: m } }
+      return mapping(409, 'Background job cannot be retried', { reason: 'NOT_RETRYABLE' })
     }
-    return { status: 404, message: 'Not found', json: { error: 'Not found' } }
+    return mapping(404, 'Not found')
   }
   return null
 }

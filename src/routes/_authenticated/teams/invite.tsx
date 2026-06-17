@@ -43,7 +43,7 @@ function TeamInvitePage() {
       const res = await teamsApi[':teamId'].members.$post({ param: { teamId }, json: { token } })
       if (!res.ok) {
         const body = await res.json()
-        throw new Error((body as { error?: string }).error ?? 'Failed to join')
+        throw new Error((body as { error?: { message?: string } }).error?.message ?? 'Failed to join')
       }
       return res.json()
     },

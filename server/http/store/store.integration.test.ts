@@ -751,7 +751,9 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(409)
-    await expect(checkout.json()).resolves.toEqual({ error: 'workspace_plan_exists' })
+    await expect(checkout.json()).resolves.toMatchObject({
+      error: { message: 'Workspace plan already exists', details: [{ reason: 'WORKSPACE_PLAN_EXISTS' }] },
+    })
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
   })
 
@@ -921,7 +923,7 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(502)
-    await expect(checkout.json()).resolves.toEqual({ error: 'invalid_cloud_response' })
+    await expect(checkout.json()).resolves.toMatchObject({ error: { code: 502, message: 'invalid_cloud_response' } })
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
     expect(calls.some(([url, init]) => init.method === 'POST' && String(url).endsWith('/orders'))).toBe(false)
   })
@@ -1077,9 +1079,9 @@ describe('Quota Store API', () => {
     })
 
     expect(payment.status).toBe(403)
-    await expect(payment.json()).resolves.toEqual({ error: 'Forbidden' })
+    await expect(payment.json()).resolves.toMatchObject({ error: { message: 'Forbidden' } })
     expect(canceled.status).toBe(403)
-    await expect(canceled.json()).resolves.toEqual({ error: 'Forbidden' })
+    await expect(canceled.json()).resolves.toMatchObject({ error: { message: 'Forbidden' } })
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
     expect(calls.some(([url]) => String(url).includes('/orders/order-other-org/payments'))).toBe(false)
     expect(
@@ -1103,14 +1105,19 @@ describe('Quota Store API', () => {
     })
     const orders = await app.request('/api/store/orders', { headers })
 
+    const expectFeatureGate = async (res: Response) => {
+      const body = (await res.json()) as { error: { details: { reason: string; metadata?: { feature?: string } }[] } }
+      expect(body.error.details[0]?.reason).toBe('FEATURE_NOT_AVAILABLE')
+      expect(body.error.details[0]?.metadata?.feature).toBe('quota_store')
+    }
     expect(packages.status).toBe(402)
-    await expect(packages.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
+    await expectFeatureGate(packages)
     expect(targets.status).toBe(402)
-    await expect(targets.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
+    await expectFeatureGate(targets)
     expect(checkout.status).toBe(402)
-    await expect(checkout.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
+    await expectFeatureGate(checkout)
     expect(orders.status).toBe(402)
-    await expect(orders.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
+    await expectFeatureGate(orders)
   })
 
   it('rejects malformed successful checkout responses', async () => {
@@ -1127,7 +1134,7 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'invalid_cloud_response' })
+    await expect(res.json()).resolves.toMatchObject({ error: { code: 502, message: 'invalid_cloud_response' } })
   })
 
   it('surfaces Cloud checkout error responses [spec: quota-store/checkout-error-surfacing]', async () => {
@@ -1148,7 +1155,7 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'cloud_down' })
+    await expect(res.json()).resolves.toMatchObject({ error: { code: 502, message: 'cloud_down' } })
   })
 
   it('uses status errors when Cloud checkout error bodies have no string error', async () => {
@@ -1169,7 +1176,7 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'cloud_request_failed_504' })
+    await expect(res.json()).resolves.toMatchObject({ error: { code: 502, message: 'cloud_request_failed_504' } })
   })
 
   it('accepts current Cloud quota-change webhook tokens with audience equal to instance id', async () => {
@@ -1623,7 +1630,9 @@ describe('Quota Store API', () => {
     const res = await postWebhook(app, payload)
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toEqual({ error: 'invalid_payload' })
+    await expect(res.json()).resolves.toMatchObject({
+      error: { message: 'Invalid payload', details: [{ reason: 'INVALID_PAYLOAD' }] },
+    })
   })
 
   it('storage decreases revoke matching Cloud order entitlements without changing base quota', async () => {
@@ -1982,7 +1991,7 @@ describe('Quota Store API', () => {
 
     expect(first.status).toBe(200)
     expect(retry.status).toBe(400)
-    await expect(retry.json()).resolves.toEqual({ error: 'webhook_payload_conflict' })
+    await expect(retry.json()).resolves.toMatchObject({ error: { code: 400, message: 'webhook_payload_conflict' } })
   })
 
   it('allows failed delivery retries when the payload is unchanged', async () => {
@@ -2009,7 +2018,7 @@ describe('Quota Store API', () => {
     const retry = await postWebhook(app, payload)
 
     expect(failed.status).toBe(400)
-    await expect(failed.json()).resolves.toEqual({ error: 'target_quota_missing' })
+    await expect(failed.json()).resolves.toMatchObject({ error: { code: 400, message: 'target_quota_missing' } })
     expect(retry.status).toBe(200)
     await expect(retry.json()).resolves.toMatchObject({ success: true, duplicate: false })
     const deliveries = await db.all<{ status: string; error: string | null }>(
@@ -2206,7 +2215,9 @@ describe('Quota Store API', () => {
     const res = await postWebhook(app, payload)
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
+    await expect(res.json()).resolves.toMatchObject({
+      error: { message: 'Invalid payload', details: [{ reason: 'INVALID_PAYLOAD' }] },
+    })
   })
 
   it('rejects deliveries without resource details', async () => {
@@ -2222,7 +2233,9 @@ describe('Quota Store API', () => {
     const res = await postWebhook(app, payload)
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
+    await expect(res.json()).resolves.toMatchObject({
+      error: { message: 'Invalid payload', details: [{ reason: 'INVALID_PAYLOAD' }] },
+    })
   })
 
   it('rejects credit-only commerce fulfillment events on the quota webhook [spec: quota-store/webhook-rejects-commerce]', async () => {
@@ -2255,7 +2268,172 @@ describe('Quota Store API', () => {
     const res = await postWebhook(app, payload)
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
+    await expect(res.json()).resolves.toMatchObject({
+      error: { message: 'Invalid payload', details: [{ reason: 'INVALID_PAYLOAD' }] },
+    })
+  })
+})
+
+// Nulls the bound store id while keeping the refresh token + cached cert, so the
+// quota_store feature gate still passes (license stays bound/active) but
+// getCloudStoreBinding throws quota_store_binding_missing — the state the
+// storefront proxies surface as 403.
+async function breakStoreBinding(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
+  await db.run(sql`UPDATE license_bindings SET cloud_store_id = NULL`)
+}
+
+describe('Quota Store API — storefront proxy error branches', () => {
+  it('proxies credit products through the store products endpoint', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'credit-products@example.com')
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        items: [
+          cloudProduct({
+            id: 'cloud-credit-1',
+            name: 'Credit Pack',
+            metadata: { deliverable: { type: 'zpan.credits', credits: 1000 } },
+          }),
+        ],
+        total: 1,
+        limit: 100,
+        offset: 0,
+      }),
+    } as Response)
+
+    const res = await app.request('/api/store/credits/products', { headers })
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({
+      total: 1,
+      items: [{ id: 'cloud-credit-1' }],
+    })
+  })
+
+  it('returns a discount quote from Cloud', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'discount@example.com')
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ code: 'SAVE10', currency: 'usd', subtotal: 1000, discount: 100, total: 900 }),
+    } as Response)
+
+    const res = await app.request('/api/store/discount-quotes', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'SAVE10', priceId: 'price-usd' }),
+    })
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({
+      code: 'SAVE10',
+      currency: 'usd',
+      subtotal: 1000,
+      discount: 100,
+      total: 900,
+    })
+  })
+
+  it('returns 403 (binding_missing) for storefront reads when the store is not bound', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'unbound-reads@example.com')
+    await breakStoreBinding(db)
+
+    const packages = await app.request('/api/store/packages', { headers })
+    const creditProducts = await app.request('/api/store/credits/products', { headers })
+    const targets = await app.request('/api/store/targets', { headers })
+    const discount = await app.request('/api/store/discount-quotes', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'SAVE10', priceId: 'price-usd' }),
+    })
+
+    for (const res of [packages, creditProducts, targets, discount]) {
+      expect(res.status).toBe(403)
+      const body = (await res.json()) as { error: { message: string; status: string } }
+      expect(body.error.message).toBe('quota_store_binding_missing')
+      expect(body.error.status).toBe('PERMISSION_DENIED')
+    }
+  })
+
+  it('returns 403 (binding_missing) for owner-scoped store endpoints when the store is not bound', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'unbound-owner@example.com')
+    await breakStoreBinding(db)
+
+    const credits = await app.request('/api/store/credits', { headers })
+    const ledger = await app.request('/api/store/credits/ledger-entries', { headers })
+    const billing = await app.request('/api/store/billing-portal-sessions', { method: 'POST', headers })
+    const checkout = await app.request('/api/store/checkouts', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId: 'cloud-pkg-1' }),
+    })
+    const redeem = await app.request('/api/store/credits/redemptions', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'ZS-TEST-1' }),
+    })
+
+    for (const res of [credits, ledger, billing, checkout, redeem]) {
+      expect(res.status).toBe(403)
+      const body = (await res.json()) as { error: { message: string } }
+      expect(body.error.message).toBe('quota_store_binding_missing')
+    }
+  })
+
+  it('returns 502 when Cloud fails while fetching an order for payment/cancel', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'order-cloud-error@example.com')
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'cloud_boom' }),
+    } as Response)
+    const payment = await app.request('/api/store/orders/order-err/payments', { method: 'POST', headers })
+    expect(payment.status).toBe(502)
+    await expect(payment.json()).resolves.toMatchObject({ error: { code: 502, message: 'cloud_boom' } })
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'cloud_boom' }),
+    } as Response)
+    const cancel = await app.request('/api/store/orders/order-err', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+    expect(cancel.status).toBe(502)
+    await expect(cancel.json()).resolves.toMatchObject({ error: { code: 502, message: 'cloud_boom' } })
+  })
+
+  it('returns 403 (store not ready) for order endpoints when the store is not bound', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'unbound-orders@example.com')
+    await breakStoreBinding(db)
+
+    const orders = await app.request('/api/store/orders', { headers })
+    const payment = await app.request('/api/store/orders/order-1/payments', { method: 'POST', headers })
+    const cancel = await app.request('/api/store/orders/order-1', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+
+    for (const res of [orders, payment, cancel]) {
+      expect(res.status).toBe(403)
+      const body = (await res.json()) as { error: { message: string } }
+      expect(body.error.message).toBe('quota_store_binding_missing')
+    }
   })
 })
 

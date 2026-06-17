@@ -140,8 +140,8 @@ describe('POST /api/image-hosting/images (content type handling)', () => {
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('file field')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('file field')
   })
 
   it('returns 401 for application/json without any auth [spec: image-hosting/json-auth]', async () => {
@@ -221,8 +221,8 @@ describe('POST /api/image-hosting/images (content type handling)', () => {
       body: JSON.stringify({ file: '!!!not-base64!!!' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('base64')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('base64')
   })
 })
 
@@ -267,8 +267,8 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
     })
     expect(res.status).toBe(403)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toContain('image hosting not enabled')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('image hosting not enabled')
   })
 
   it('returns 503 when no storage is configured [spec: image-hosting/requires-storage]', async () => {
@@ -284,8 +284,9 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
     })
     expect(res.status).toBe(503)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('storage')
+    const body = (await res.json()) as { error: { message: string; details: { reason: string }[] } }
+    expect(body.error.message).toContain('storage')
+    expect(body.error.details[0]?.reason).toBe('NO_STORAGE_CONFIGURED')
   })
 
   it('returns 201 with draft row and presigned uploadUrl [spec: image-hosting/presign]', async () => {
@@ -322,8 +323,8 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
       body: JSON.stringify({ path: '../etc/passwd.png', mime: 'image/png', size: 1024 }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('invalid path')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('invalid path')
   })
 
   it('returns 400 for path exceeding depth 5 [spec: image-hosting/path-depth]', async () => {
@@ -339,9 +340,9 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
       body: JSON.stringify({ path: 'a/b/c/d/e/f.png', mime: 'image/png', size: 1024 }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('invalid path')
-    expect(String(body.detail)).toContain('depth')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('invalid path')
+    expect(body.error.message).toContain('depth')
   })
 
   it('returns 400 for disallowed mime (image/svg+xml) [spec: image-hosting/disallowed-svg]', async () => {
@@ -445,9 +446,9 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
       body: JSON.stringify({ path: 'a//b.png', mime: 'image/png', size: 1024 }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('invalid path')
-    expect(String(body.detail)).toContain('//')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('invalid path')
+    expect(body.error.message).toContain('//')
   })
 
   it('returns 400 for path starting with / (multipart)', async () => {
@@ -467,9 +468,9 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
       body: formData,
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('invalid path')
-    expect(String(body.detail)).toContain('must not start with /')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('invalid path')
+    expect(body.error.message).toContain('must not start with /')
   })
 
   it('returns 400 for path ending with / (multipart)', async () => {
@@ -489,9 +490,9 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
       body: formData,
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('invalid path')
-    expect(String(body.detail)).toContain('must not end with /')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('invalid path')
+    expect(body.error.message).toContain('must not end with /')
   })
 
   it('returns 400 for path with invalid characters (multipart)', async () => {
@@ -511,9 +512,9 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
       body: formData,
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('invalid path')
-    expect(String(body.detail)).toContain('invalid characters')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('invalid path')
+    expect(body.error.message).toContain('invalid characters')
   })
 
   it('derives default path from blob filename (uses nanoid fallback) [spec: image-hosting/default-path]', async () => {
@@ -556,9 +557,9 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
       body: formData,
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('invalid path')
-    expect(String(body.detail)).toContain('exceeds')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('invalid path')
+    expect(body.error.message).toContain('exceeds')
   })
 })
 
@@ -793,8 +794,12 @@ describe('POST /api/image-hosting/images (multipart)', () => {
       body: formData,
     })
     expect(res.status).toBe(415)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('Unsupported')
+    const body = (await res.json()) as {
+      error: { message: string; details: { reason: string; metadata?: Record<string, string> }[] }
+    }
+    expect(body.error.message).toContain('Unsupported')
+    expect(body.error.details[0]?.reason).toBe('UNSUPPORTED_MEDIA_TYPE')
+    expect(body.error.details[0]?.metadata?.allowedTypes).toContain('image/png')
   })
 
   it('infers MIME from file extension when type is application/octet-stream', async () => {
@@ -852,8 +857,8 @@ describe('POST /api/image-hosting/images (multipart)', () => {
       body: formData,
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('file field')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('file field')
   })
 
   it('returns 422 when quota is exceeded on multipart upload', async () => {
@@ -875,8 +880,10 @@ describe('POST /api/image-hosting/images (multipart)', () => {
       body: formData,
     })
     expect(res.status).toBe(422)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('Quota')
+    const body = (await res.json()) as { error: { message: string; status: string; details: { reason: string }[] } }
+    expect(body.error.message).toContain('Quota')
+    expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
+    expect(body.error.details[0]?.reason).toBe('QUOTA_EXCEEDED')
   })
 
   it('uses nanoid fallback path after exhausting collision retries', async () => {
@@ -990,8 +997,12 @@ describe('PUT /api/image-hosting/images/:id/status (confirm)', () => {
       headers,
     })
     expect(patchRes.status).toBe(422)
-    const body = (await patchRes.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('Quota')
+    const body = (await patchRes.json()) as {
+      error: { message: string; status: string; details: { reason: string }[] }
+    }
+    expect(body.error.message).toContain('Quota')
+    expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
+    expect(body.error.details[0]?.reason).toBe('QUOTA_EXCEEDED')
   })
 })
 
@@ -1135,8 +1146,8 @@ describe('DELETE /api/image-hosting/images/:id', () => {
       headers,
     })
     expect(res.status).toBe(403)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('image hosting not enabled')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('image hosting not enabled')
   })
 
   it('returns 404 for non-existent image', async () => {
@@ -1232,8 +1243,8 @@ describe('POST /api/image-hosting/images — API key auth error paths', () => {
       headers: { Authorization: `Bearer ${key}` },
     })
     expect(res.status).toBe(401)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('Unauthorized')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Unauthorized')
   })
 
   it('returns 401 when API key verification throws an exception', async () => {
@@ -1257,8 +1268,8 @@ describe('POST /api/image-hosting/images — API key auth error paths', () => {
       headers: { Authorization: `Bearer ${key}` },
     })
     expect(res.status).toBe(401)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('Unauthorized')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Unauthorized')
   })
 
   it('returns 503 when no storage is configured for multipart upload via API key', async () => {
@@ -1280,8 +1291,9 @@ describe('POST /api/image-hosting/images — API key auth error paths', () => {
       headers: { Authorization: `Bearer ${key}` },
     })
     expect(res.status).toBe(503)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('storage')
+    const body = (await res.json()) as { error: { message: string; details: { reason: string }[] } }
+    expect(body.error.message).toContain('storage')
+    expect(body.error.details[0]?.reason).toBe('NO_STORAGE_CONFIGURED')
   })
 })
 

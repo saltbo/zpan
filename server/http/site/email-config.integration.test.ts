@@ -421,9 +421,8 @@ describe('Admin Email Config API — POST /test', () => {
       body: JSON.stringify({ to: 'recipient@example.com' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.success).toBe(false)
-    expect(typeof body.error).toBe('string')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(typeof body.error.message).toBe('string')
   })
 
   it('returns 400 when no email config is set [spec: email-config/test-no-config]', async () => {
@@ -436,9 +435,8 @@ describe('Admin Email Config API — POST /test', () => {
       body: JSON.stringify({ to: 'recipient@example.com' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.success).toBe(false)
-    expect(String(body.error)).toContain('Email is disabled')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('Email is disabled')
   })
 
   it('returns 400 when email is disabled even if provider config exists', async () => {
@@ -463,9 +461,8 @@ describe('Admin Email Config API — POST /test', () => {
     })
 
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.success).toBe(false)
-    expect(String(body.error)).toContain('Email is disabled')
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toContain('Email is disabled')
   })
 
   it('returns 400 for invalid to email', async () => {

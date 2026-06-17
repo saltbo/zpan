@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as authSchema from '../../db/auth-schema.js'
-import { systemOptions } from '../../db/schema.js'
+import { siteInvitations, systemOptions } from '../../db/schema.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../../test/setup.js'
 
 function stubEmailProvider() {
@@ -160,6 +160,143 @@ describe('Admin Site Invitations API', () => {
     })
 
     expect(duplicateRes.status).toBe(409)
+    const body = (await duplicateRes.json()) as {
+      error: { code: number; message: string; status: string; details: Array<{ reason: string }> }
+    }
+    expect(body.error.code).toBe(409)
+    expect(body.error.message).toContain('pending invitation already exists')
+    expect(body.error.status).toBe('ABORTED')
+    expect(body.error.details[0].reason).toBe('ABORTED')
+  })
+})
+
+// ─── resend/revoke state-machine guards ──────────────────────────────────────
+
+describe('Admin Site Invitations API — resend/revoke guards', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  async function seedEmailOptions(ctx: Awaited<ReturnType<typeof createTestApp>>) {
+    await ctx.db.insert(systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
+      { key: 'email_provider', value: 'http' },
+      { key: 'email_from', value: 'no-reply@example.com' },
+      { key: 'email_http_url', value: 'https://mail.example.com/send' },
+      { key: 'email_http_api_key', value: 'test-api-key' },
+      { key: 'site_name', value: 'ZPan Test' },
+    ])
+  }
+
+  async function createInvitation(ctx: Awaited<ReturnType<typeof createTestApp>>, email: string): Promise<string> {
+    const headers = await adminHeaders(ctx.app)
+    const res = await ctx.app.request('/api/site/invitations', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    return ((await res.json()) as { id: string }).id
+  }
+
+  it('resend returns 404 for an unknown invitation id', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const headers = await adminHeaders(ctx.app)
+
+    const res = await ctx.app.request('/api/site/invitations/does-not-exist/deliveries', {
+      method: 'POST',
+      headers,
+    })
+
+    expect(res.status).toBe(404)
+    const body = (await res.json()) as { error: { message: string; status: string } }
+    expect(body.error.message).toBe('Invitation not found')
+    expect(body.error.status).toBe('NOT_FOUND')
+  })
+
+  it('resend returns 400 when the invitation was already accepted', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const id = await createInvitation(ctx, 'accepted-resend@example.com')
+    await ctx.db
+      .update(siteInvitations)
+      .set({ acceptedBy: 'someone', acceptedAt: new Date() })
+      .where(eq(siteInvitations.id, id))
+    const headers = await adminHeaders(ctx.app)
+
+    const res = await ctx.app.request(`/api/site/invitations/${id}/deliveries`, { method: 'POST', headers })
+
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Invitation has already been used')
+  })
+
+  it('resend returns 400 when the invitation was revoked', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const id = await createInvitation(ctx, 'revoked-resend@example.com')
+    await ctx.db
+      .update(siteInvitations)
+      .set({ revokedBy: 'someone', revokedAt: new Date() })
+      .where(eq(siteInvitations.id, id))
+    const headers = await adminHeaders(ctx.app)
+
+    const res = await ctx.app.request(`/api/site/invitations/${id}/deliveries`, { method: 'POST', headers })
+
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Invitation has been revoked')
+  })
+
+  it('revoke returns 404 for an unknown invitation id', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const headers = await adminHeaders(ctx.app)
+
+    const res = await ctx.app.request('/api/site/invitations/does-not-exist', { method: 'DELETE', headers })
+
+    expect(res.status).toBe(404)
+    const body = (await res.json()) as { error: { message: string; status: string } }
+    expect(body.error.message).toBe('Invitation not found')
+    expect(body.error.status).toBe('NOT_FOUND')
+  })
+
+  it('revoke returns 400 when the invitation was already accepted', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const id = await createInvitation(ctx, 'accepted-revoke@example.com')
+    await ctx.db
+      .update(siteInvitations)
+      .set({ acceptedBy: 'someone', acceptedAt: new Date() })
+      .where(eq(siteInvitations.id, id))
+    const headers = await adminHeaders(ctx.app)
+
+    const res = await ctx.app.request(`/api/site/invitations/${id}`, { method: 'DELETE', headers })
+
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Invitation has already been used')
+  })
+
+  it('revoke returns 400 when the invitation was already revoked', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const id = await createInvitation(ctx, 'double-revoke@example.com')
+    const headers = await adminHeaders(ctx.app)
+
+    const first = await ctx.app.request(`/api/site/invitations/${id}`, { method: 'DELETE', headers })
+    expect(first.status).toBe(200)
+
+    const second = await ctx.app.request(`/api/site/invitations/${id}`, { method: 'DELETE', headers })
+    expect(second.status).toBe(400)
+    const body = (await second.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Invitation has already been revoked')
   })
 })
 
@@ -194,5 +331,15 @@ describe('Public Site Invitations API', () => {
     const body = (await res.json()) as { email: string; token: string }
     expect(body.email).toBe('invitee@example.com')
     expect(body.token).toBe(invitation.token)
+  })
+
+  it('returns 404 for an unknown invitation token', async () => {
+    const ctx = await createTestApp()
+    const res = await ctx.app.request('/api/site/invitations/no-such-token')
+    expect(res.status).toBe(404)
+    const body = (await res.json()) as { error: { code: number; message: string; status: string } }
+    expect(body.error.code).toBe(404)
+    expect(body.error.message).toBe('Invitation not found')
+    expect(body.error.status).toBe('NOT_FOUND')
   })
 })

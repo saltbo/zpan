@@ -216,9 +216,13 @@ describe('Auth Providers — admin upsert (PUT)', () => {
 
     const second = await putProvider(app, admin, 'google', { ...githubConfig, clientId: 'google-id' })
     expect(second.status).toBe(402)
-    const body = (await second.json()) as Record<string, unknown>
-    expect(body.feature).toBe('social_login_unlimited')
-    expect(body.limit).toBe(1)
+    const body = (await second.json()) as {
+      error: { message: string; details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(body.error.message).toBe('Feature not available')
+    expect(body.error.details[0].reason).toBe('FEATURE_NOT_AVAILABLE')
+    expect(body.error.details[0].metadata.feature).toBe('social_login_unlimited')
+    expect(body.error.details[0].metadata.limit).toBe('1')
   })
 
   it('allows additional providers with the social_login_unlimited entitlement [spec: auth-providers/unlimited-entitlement]', async () => {
@@ -285,8 +289,8 @@ describe('Auth Providers — admin upsert (PUT)', () => {
 
     const res = await putProvider(app, admin, 'not-a-real-provider', githubConfig)
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toMatch(/Unknown builtin provider/)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toMatch(/Unknown builtin provider/)
   })
 
   it('returns 400 for OIDC provider missing discoveryUrl [spec: auth-providers/oidc-missing-discovery]', async () => {
@@ -296,8 +300,8 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     const { discoveryUrl: _, ...oidcWithoutDiscovery } = oidcConfig
     const res = await putProvider(app, admin, 'my-oidc', oidcWithoutDiscovery)
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toMatch(/discoveryUrl is required/)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toMatch(/discoveryUrl is required/)
   })
 
   it('returns 400 when clientId is missing', async () => {

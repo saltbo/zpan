@@ -33,9 +33,10 @@ describe('[CF] Notifications API', () => {
     const headers = await authedHeaders(app)
     const res = await app.request('/api/notifications', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number; unreadCount: number }
+    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
     expect(body.items).toHaveLength(0)
-    expect(body.unreadCount).toBe(0)
+    expect(body.total).toBe(0)
+    expect(body.page).toBe(1)
   })
 
   it('GET /api/notifications/stats returns 0', async () => {
