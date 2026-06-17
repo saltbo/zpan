@@ -75,7 +75,7 @@ export async function denyDeviceCode(userCode: string) {
 // These wrap better-auth's /api/auth/admin/* endpoints and normalize the
 // {data,error} client result into a plain shape, so the admin UI never touches
 // the raw better-auth user record. Storage quota (not known to better-auth) is
-// fetched separately via getUserQuotas() in lib/api.ts.
+// fetched separately via getUserQuotaById() in lib/api.ts.
 
 export type AdminUser = {
   id: string

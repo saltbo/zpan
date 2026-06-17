@@ -49,6 +49,9 @@ describe('better-auth admin user endpoints (migration target)', () => {
     const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'ban-me@example.com'`)
     const userId = rows[0].id
 
+    const adminRows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'admin@example.com'`)
+    const adminId = adminRows[0].id
+
     const ban = await app.request('/api/auth/admin/ban-user', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
@@ -59,11 +62,17 @@ describe('better-auth admin user endpoints (migration target)', () => {
     const banned = await db.all<{ banned: number }>(sql`SELECT banned FROM user WHERE id = ${userId}`)
     expect(banned[0].banned).toBe(1)
 
+    // The disable is audited with the acting admin as the actor.
+    const disableEvt = await db.all<{ user_id: string; target_id: string }>(
+      sql`SELECT user_id, target_id FROM activity_events WHERE action = 'user_disable' AND target_id = ${userId}`,
+    )
+    expect(disableEvt).toEqual([{ user_id: adminId, target_id: userId }])
+
     // The banned user's existing session is rejected by our auth middleware.
     const blocked = await app.request('/api/quotas/me', { headers: memberHeaders })
     expect(blocked.status).toBe(403)
 
-    // Unban restores access.
+    // Unban restores access and is audited as user_enable.
     const unban = await app.request('/api/auth/admin/unban-user', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
@@ -72,6 +81,25 @@ describe('better-auth admin user endpoints (migration target)', () => {
     expect(unban.status).toBe(200)
     const restored = await db.all<{ banned: number }>(sql`SELECT banned FROM user WHERE id = ${userId}`)
     expect(restored[0].banned).toBe(0)
+    const enableEvt = await db.all<{ user_id: string }>(
+      sql`SELECT user_id FROM activity_events WHERE action = 'user_enable' AND target_id = ${userId}`,
+    )
+    expect(enableEvt).toEqual([{ user_id: adminId }])
+  })
+
+  it('does NOT audit a failed admin action (ban of a nonexistent user)', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminCookie(app)
+
+    const res = await app.request('/api/auth/admin/ban-user', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: 'does-not-exist' }),
+    })
+    expect(res.status).toBe(404)
+
+    const evts = await db.all(sql`SELECT 1 FROM activity_events WHERE action = 'user_disable'`)
+    expect(evts).toHaveLength(0)
   })
 
   it('POST /api/auth/admin/remove-user deletes the user', async () => {
@@ -80,6 +108,9 @@ describe('better-auth admin user endpoints (migration target)', () => {
     await authedHeaders(app, 'delete-me@example.com', 'password123456')
     const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'delete-me@example.com'`)
     const userId = rows[0].id
+
+    const adminRows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'admin@example.com'`)
+    const adminId = adminRows[0].id
 
     const res = await app.request('/api/auth/admin/remove-user', {
       method: 'POST',
@@ -90,5 +121,10 @@ describe('better-auth admin user endpoints (migration target)', () => {
 
     const remaining = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE id = ${userId}`)
     expect(remaining).toHaveLength(0)
+
+    const deleteEvt = await db.all<{ user_id: string; target_id: string }>(
+      sql`SELECT user_id, target_id FROM activity_events WHERE action = 'user_delete' AND target_id = ${userId}`,
+    )
+    expect(deleteEvt).toEqual([{ user_id: adminId, target_id: userId }])
   })
 })

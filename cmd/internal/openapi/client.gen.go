@@ -1559,6 +1559,13 @@ type ActivityPage struct {
 	Total    int             `json:"total"`
 }
 
+// AdminUserQuota defines model for AdminUserQuota.
+type AdminUserQuota struct {
+	HasPersonalOrg bool `json:"hasPersonalOrg"`
+	Total          int  `json:"total"`
+	Used           int  `json:"used"`
+}
+
 // Announcement defines model for Announcement.
 type Announcement struct {
 	Body        string  `json:"body"`
@@ -2488,18 +2495,6 @@ type User struct {
 	Role            *string    `json:"role,omitempty"`
 	UpdatedAt       time.Time  `json:"updatedAt"`
 	Username        *string    `json:"username,omitempty"`
-}
-
-// UserQuotaItem defines model for UserQuotaItem.
-type UserQuotaItem struct {
-	Total  int    `json:"total"`
-	Used   int    `json:"used"`
-	UserId string `json:"userId"`
-}
-
-// UsersQuota defines model for UsersQuota.
-type UsersQuota struct {
-	Items []UserQuotaItem `json:"items"`
 }
 
 // BanUserJSONBody defines parameters for BanUser.
@@ -3626,11 +3621,6 @@ type CompleteObjectUploadJSONBodyStatus string
 
 // CompleteObjectUpload200JSONResponseBodyStatus defines parameters for CompleteObjectUpload.
 type CompleteObjectUpload200JSONResponseBodyStatus string
-
-// GetUsersQuotaParams defines parameters for GetUsersQuota.
-type GetUsersQuotaParams struct {
-	Ids string `form:"ids" json:"ids"`
-}
 
 // ListSharesParams defines parameters for ListShares.
 type ListSharesParams struct {
@@ -5241,9 +5231,6 @@ type ClientInterface interface {
 	// GetMyQuota request
 	GetMyQuota(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetUsersQuota request
-	GetUsersQuota(ctx context.Context, params *GetUsersQuotaParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListShares request
 	ListShares(ctx context.Context, params *ListSharesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5528,6 +5515,9 @@ type ClientInterface interface {
 	UpdateUserEntitlementWithBody(ctx context.Context, userId string, eid string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateUserEntitlement(ctx context.Context, userId string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetUserQuota request
+	GetUserQuota(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetUserProfile request
 	GetUserProfile(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7984,18 +7974,6 @@ func (c *Client) GetMyQuota(ctx context.Context, reqEditors ...RequestEditorFn) 
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetUsersQuota(ctx context.Context, params *GetUsersQuotaParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetUsersQuotaRequest(c.Server, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) ListShares(ctx context.Context, params *ListSharesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListSharesRequest(c.Server, params)
 	if err != nil {
@@ -9222,6 +9200,18 @@ func (c *Client) UpdateUserEntitlementWithBody(ctx context.Context, userId strin
 
 func (c *Client) UpdateUserEntitlement(ctx context.Context, userId string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateUserEntitlementRequest(c.Server, userId, eid, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetUserQuota(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetUserQuotaRequest(c.Server, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -14804,56 +14794,6 @@ func NewGetMyQuotaRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewGetUsersQuotaRequest generates requests for GetUsersQuota
-func NewGetUsersQuotaRequest(server string, params *GetUsersQuotaParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/quotas/users")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "ids", params.Ids, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewListSharesRequest generates requests for ListShares
 func NewListSharesRequest(server string, params *ListSharesParams) (*http.Request, error) {
 	var err error
@@ -18054,6 +17994,40 @@ func NewUpdateUserEntitlementRequestWithBody(server string, userId string, eid s
 	return req, nil
 }
 
+// NewGetUserQuotaRequest generates requests for GetUserQuota
+func NewGetUserQuotaRequest(server string, userId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "userId", userId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/users/%s/quota", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetUserProfileRequest generates requests for GetUserProfile
 func NewGetUserProfileRequest(server string, username string) (*http.Request, error) {
 	var err error
@@ -18700,9 +18674,6 @@ type ClientWithResponsesInterface interface {
 	// GetMyQuotaWithResponse request
 	GetMyQuotaWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMyQuotaResponse, error)
 
-	// GetUsersQuotaWithResponse request
-	GetUsersQuotaWithResponse(ctx context.Context, params *GetUsersQuotaParams, reqEditors ...RequestEditorFn) (*GetUsersQuotaResponse, error)
-
 	// ListSharesWithResponse request
 	ListSharesWithResponse(ctx context.Context, params *ListSharesParams, reqEditors ...RequestEditorFn) (*ListSharesResponse, error)
 
@@ -18987,6 +18958,9 @@ type ClientWithResponsesInterface interface {
 	UpdateUserEntitlementWithBodyWithResponse(ctx context.Context, userId string, eid string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateUserEntitlementResponse, error)
 
 	UpdateUserEntitlementWithResponse(ctx context.Context, userId string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateUserEntitlementResponse, error)
+
+	// GetUserQuotaWithResponse request
+	GetUserQuotaWithResponse(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*GetUserQuotaResponse, error)
 
 	// GetUserProfileWithResponse request
 	GetUserProfileWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*GetUserProfileResponse, error)
@@ -25041,36 +25015,6 @@ func (r GetMyQuotaResponse) ContentType() string {
 	return ""
 }
 
-type GetUsersQuotaResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *UsersQuota
-}
-
-// Status returns HTTPResponse.Status
-func (r GetUsersQuotaResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetUsersQuotaResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetUsersQuotaResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type ListSharesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -27615,6 +27559,36 @@ func (r UpdateUserEntitlementResponse) ContentType() string {
 	return ""
 }
 
+type GetUserQuotaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminUserQuota
+}
+
+// Status returns HTTPResponse.Status
+func (r GetUserQuotaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetUserQuotaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetUserQuotaResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetUserProfileResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29439,15 +29413,6 @@ func (c *ClientWithResponses) GetMyQuotaWithResponse(ctx context.Context, reqEdi
 	return ParseGetMyQuotaResponse(rsp)
 }
 
-// GetUsersQuotaWithResponse request returning *GetUsersQuotaResponse
-func (c *ClientWithResponses) GetUsersQuotaWithResponse(ctx context.Context, params *GetUsersQuotaParams, reqEditors ...RequestEditorFn) (*GetUsersQuotaResponse, error) {
-	rsp, err := c.GetUsersQuota(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetUsersQuotaResponse(rsp)
-}
-
 // ListSharesWithResponse request returning *ListSharesResponse
 func (c *ClientWithResponses) ListSharesWithResponse(ctx context.Context, params *ListSharesParams, reqEditors ...RequestEditorFn) (*ListSharesResponse, error) {
 	rsp, err := c.ListShares(ctx, params, reqEditors...)
@@ -30349,6 +30314,15 @@ func (c *ClientWithResponses) UpdateUserEntitlementWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseUpdateUserEntitlementResponse(rsp)
+}
+
+// GetUserQuotaWithResponse request returning *GetUserQuotaResponse
+func (c *ClientWithResponses) GetUserQuotaWithResponse(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*GetUserQuotaResponse, error) {
+	rsp, err := c.GetUserQuota(ctx, userId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetUserQuotaResponse(rsp)
 }
 
 // GetUserProfileWithResponse request returning *GetUserProfileResponse
@@ -39429,32 +39403,6 @@ func ParseGetMyQuotaResponse(rsp *http.Response) (*GetMyQuotaResponse, error) {
 	return response, nil
 }
 
-// ParseGetUsersQuotaResponse parses an HTTP response from a GetUsersQuotaWithResponse call
-func ParseGetUsersQuotaResponse(rsp *http.Response) (*GetUsersQuotaResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetUsersQuotaResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest UsersQuota
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseListSharesResponse parses an HTTP response from a ListSharesWithResponse call
 func ParseListSharesResponse(rsp *http.Response) (*ListSharesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -42421,6 +42369,32 @@ func ParseUpdateUserEntitlementResponse(rsp *http.Response) (*UpdateUserEntitlem
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetUserQuotaResponse parses an HTTP response from a GetUserQuotaWithResponse call
+func ParseGetUserQuotaResponse(rsp *http.Response) (*GetUserQuotaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetUserQuotaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminUserQuota
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 

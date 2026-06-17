@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getUserQuotas } from '@/lib/api'
+import { getUserQuotaById } from '@/lib/api'
 import { type AdminUser, adminListUsers, adminRemoveUser, adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
 
@@ -44,20 +44,23 @@ function UsersPage() {
   const baseUsers = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data])
   const pageUserIds = useMemo(() => baseUsers.map((user) => user.id), [baseUsers])
 
-  // better-auth's admin list knows identity but not storage quota — fetch the
-  // "used / total" for the visible page from our own quota endpoint and merge.
+  // better-auth's admin list knows identity but not storage quota — fan out over
+  // the per-user quota sub-resource for the visible page and merge the results.
   const quotaQuery = useQuery({
     queryKey: ['admin', 'user-quotas', pageUserIds],
-    queryFn: () => getUserQuotas(pageUserIds),
+    queryFn: async () => {
+      const entries = await Promise.all(pageUserIds.map(async (id) => [id, await getUserQuotaById(id)] as const))
+      return new Map(entries)
+    },
     enabled: pageUserIds.length > 0,
   })
 
   const users: UserRow[] = useMemo(() => {
-    const quota = new Map((quotaQuery.data?.items ?? []).map((item) => [item.userId, item]))
+    const quota = quotaQuery.data
     return baseUsers.map((user) => ({
       ...user,
-      quotaUsed: quota.get(user.id)?.used ?? 0,
-      quotaTotal: quota.get(user.id)?.total ?? 0,
+      quotaUsed: quota?.get(user.id)?.used ?? 0,
+      quotaTotal: quota?.get(user.id)?.total ?? 0,
     }))
   }, [baseUsers, quotaQuery.data])
 

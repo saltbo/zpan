@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { badRequest, noStorage, notFound, payloadTooLarge, unsupportedMediaType } from '../usecases/ports'
+import { getUserQuota } from '../usecases/quota'
 import {
   getPublicProfile,
   grantUserEntitlement,
@@ -111,6 +112,25 @@ const userObjectsRoute = createRoute({
   },
 })
 
+// Per-user storage used/total — a user sub-resource the admin UI fans out over
+// (one request per visible user) to enrich better-auth's admin list, which knows
+// identity but not quota. `hasPersonalOrg` is false when the user has no personal
+// org yet (used/total are then 0).
+const userQuotaSchema = z
+  .object({ used: z.number().int(), total: z.number().int(), hasPersonalOrg: z.boolean() })
+  .openapi('AdminUserQuota')
+
+const getUserQuotaRoute = createRoute({
+  operationId: 'getUserQuota',
+  summary: "Get a user's storage quota",
+  tags: ['Users'],
+  method: 'get',
+  path: '/{userId}/quota',
+  middleware: [requireAdmin] as const,
+  request: { params: z.object({ userId: z.string() }) },
+  responses: { 200: jsonContent(userQuotaSchema, 'User quota') },
+})
+
 const listUserEntitlementsRoute = createRoute({
   operationId: 'listUserEntitlements',
   summary: 'List a user’s entitlements',
@@ -198,6 +218,11 @@ export const users = new OpenAPIHono<Env>()
     const user = await getPublicProfile(c.get('deps'), c.req.valid('param').username)
     if (!user) throw notFound('User not found')
     return c.json({ items: [], breadcrumb: [] }, 200)
+  })
+  .openapi(getUserQuotaRoute, async (c) => {
+    const quota = await getUserQuota(c.get('deps'), { userId: c.req.valid('param').userId })
+    if (!quota) return c.json({ used: 0, total: 0, hasPersonalOrg: false }, 200)
+    return c.json({ used: quota.used, total: quota.quota, hasPersonalOrg: true }, 200)
   })
   .openapi(listUserEntitlementsRoute, async (c) => {
     const result = await listUserEntitlements(c.get('deps'), c.req.valid('param').userId)

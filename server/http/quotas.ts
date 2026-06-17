@@ -3,7 +3,7 @@ import { pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
-import { getUserQuota, getUsersQuota, listQuotaOverview } from '../usecases/quota'
+import { getUserQuota, listQuotaOverview } from '../usecases/quota'
 import { errorResponse, jsonContent } from './openapi'
 
 // Quota types are already wire-shaped (timestamps are ISO strings, not Date), so
@@ -68,44 +68,14 @@ const getMyQuotaRoute = createRoute({
   },
 })
 
-const userQuotaItemSchema = z
-  .object({ userId: z.string(), used: z.number().int(), total: z.number().int() })
-  .openapi('UserQuotaItem')
-
-const usersQuotaSchema = z.object({ items: z.array(userQuotaItemSchema) }).openapi('UsersQuota')
-
-// Per-user storage "used / total" for the admin user listing. User identity is
-// fetched from better-auth's /admin/list-users; this endpoint supplies only the
-// quota the admin client can't see. `ids` is a comma-separated, page-bounded list.
-const getUsersQuotaRoute = createRoute({
-  operationId: 'getUsersQuota',
-  summary: 'Get effective storage quota for multiple users',
-  tags: ['Quotas'],
-  method: 'get',
-  path: '/users',
-  middleware: [requireAdmin] as const,
-  request: { query: z.object({ ids: z.string().min(1) }) },
-  responses: { 200: jsonContent(usersQuotaSchema, 'Per-user quota') },
-})
-
 // Quota overview across all orgs (personal + team), used by the admin dashboard.
 // Per-team entitlement management lives under /api/teams.
-const adminQuotas = new OpenAPIHono<Env>()
-  .openapi(listQuotaOverviewRoute, async (c) => {
-    // The overview returns every space in one shot rather than paging, so the page
-    // metadata mirrors the full result.
-    const { items, total } = await listQuotaOverview(c.get('deps'))
-    return c.json({ items, total, page: 1, pageSize: items.length }, 200)
-  })
-  .openapi(getUsersQuotaRoute, async (c) => {
-    const ids = c.req
-      .valid('query')
-      .ids.split(',')
-      .map((id) => id.trim())
-      .filter(Boolean)
-    const items = await getUsersQuota(c.get('deps'), ids)
-    return c.json({ items }, 200)
-  })
+const adminQuotas = new OpenAPIHono<Env>().openapi(listQuotaOverviewRoute, async (c) => {
+  // The overview returns every space in one shot rather than paging, so the page
+  // metadata mirrors the full result.
+  const { items, total } = await listQuotaOverview(c.get('deps'))
+  return c.json({ items, total, page: 1, pageSize: items.length }, 200)
+})
 
 const userQuotas = new OpenAPIHono<Env>().openapi(getMyQuotaRoute, async (c) => {
   const quota = await getUserQuota(c.get('deps'), { userId: c.get('userId')!, orgId: c.get('orgId') ?? undefined })

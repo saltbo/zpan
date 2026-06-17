@@ -28,6 +28,33 @@ async function signUpUser(app: ReturnType<typeof import('../app')['createApp']>,
 }
 
 describe('User entitlements API (admin)', () => {
+  it('GET /api/users/:id/quota returns the user storage used/total', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'quota-sub@example.com')
+    const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'quota-sub@example.com'`)
+    const userId = rows[0].id
+    const org = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
+    await db.run(sql`UPDATE org_quotas SET used = 4242 WHERE org_id = ${org[0].id}`)
+
+    const res = await app.request(`/api/users/${userId}/quota`, { headers })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ used: 4242, total: 10485760, hasPersonalOrg: true })
+  })
+
+  it('GET /api/users/:id/quota reports hasPersonalOrg=false when the user has none', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'quota-noorg@example.com')
+    const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'quota-noorg@example.com'`)
+    const userId = rows[0].id
+    await db.run(sql`DELETE FROM member WHERE user_id = ${userId}`)
+
+    const res = await app.request(`/api/users/${userId}/quota`, { headers })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ used: 0, total: 0, hasPersonalOrg: false })
+  })
+
   it('GET /api/users/:id/entitlements lists entitlements for an admin', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)

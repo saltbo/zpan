@@ -494,13 +494,13 @@ export function listQuotas() {
   return unwrap<{ items: QuotaItem[]; total: number }>(adminQuotas.index.$get())
 }
 
-export type UserQuotaItem = { userId: string; used: number; total: number }
+export type AdminUserQuota = { used: number; total: number; hasPersonalOrg: boolean }
 
-// Per-user storage used/total, fetched to enrich the better-auth admin user
-// listing (better-auth's /admin/list-users knows identity but not quota).
-export function getUserQuotas(ids: string[]) {
-  if (ids.length === 0) return Promise.resolve({ items: [] as UserQuotaItem[] })
-  return unwrap<{ items: UserQuotaItem[] }>(adminQuotas.users.$get({ query: { ids: ids.join(',') } }))
+// A single user's storage used/total — a user sub-resource the admin UI fans out
+// over (Promise.all) to enrich better-auth's admin list, which knows identity but
+// not quota. (Distinct from getUserQuota(), which returns the caller's own quota.)
+export function getUserQuotaById(userId: string) {
+  return unwrap<AdminUserQuota>(users[':userId'].quota.$get({ param: { userId } }))
 }
 
 // Admin Teams API

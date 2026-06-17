@@ -61,7 +61,7 @@ import {
   getTeam,
   getUnreadCount,
   getUserQuota,
-  getUserQuotas,
+  getUserQuotaById,
   grantOrgEntitlement,
   grantUserEntitlement,
   isNameConflictError,
@@ -1619,29 +1619,22 @@ describe('api', () => {
     })
   })
 
-  describe('getUserQuotas', () => {
-    it('fetches per-user quota with a comma-joined ids query', async () => {
-      const payload = { items: [{ userId: 'u1', used: 512, total: 1024 }] }
+  describe('getUserQuotaById', () => {
+    it('fetches a single user quota from the user sub-resource', async () => {
+      const payload = { used: 512, total: 1024, hasPersonalOrg: true }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await getUserQuotas(['u1', 'u2'])
+      const result = await getUserQuotaById('u1')
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/quotas/users')
-      expect(decodeURIComponent(url)).toContain('ids=u1,u2')
-    })
-
-    it('short-circuits to an empty result without calling fetch for no ids', async () => {
-      const result = await getUserQuotas([])
-      expect(result).toEqual({ items: [] })
-      expect(fetch).not.toHaveBeenCalled()
+      expect(url).toContain('/api/users/u1/quota')
     })
 
     it('throws on error response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
-      await expect(getUserQuotas(['u1'])).rejects.toThrow('forbidden')
+      await expect(getUserQuotaById('u1')).rejects.toThrow('forbidden')
     })
   })
 

@@ -272,37 +272,3 @@ describe('Admin quota listing', () => {
     expect(adminItem).toMatchObject({ baseQuota: 10485760, quota: 10485760 })
   })
 })
-
-describe('GET /api/quotas/users', () => {
-  it('returns 403 for non-admin [spec: quotas/users-admin-only]', async () => {
-    const { app } = await createTestApp()
-    await authedHeaders(app, 'admin@example.com')
-    const userHeaders = await authedHeaders(app, 'regular@example.com')
-    const res = await app.request('/api/quotas/users?ids=whoever', { headers: userHeaders })
-    expect(res.status).toBe(403)
-  })
-
-  it('returns per-user storage used/total for the given ids [spec: quotas/users-batch]', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await adminHeaders(app)
-    await authedHeaders(app, 'target@example.com')
-    const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'target@example.com'`)
-    const userId = rows[0].id
-    const org = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
-    await db.run(sql`UPDATE org_quotas SET used = 4242 WHERE org_id = ${org[0].id}`)
-
-    const res = await app.request(`/api/quotas/users?ids=${userId}`, { headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<{ userId: string; used: number; total: number }> }
-    expect(body.items).toEqual([{ userId, used: 4242, total: 10485760 }])
-  })
-
-  it('omits ids that have no personal org [spec: quotas/users-missing-omitted]', async () => {
-    const { app } = await createTestApp()
-    const headers = await adminHeaders(app)
-    const res = await app.request('/api/quotas/users?ids=ghost-1,ghost-2', { headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[] }
-    expect(body.items).toEqual([])
-  })
-})

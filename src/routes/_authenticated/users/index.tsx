@@ -8,7 +8,7 @@ import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { getUserQuotas } from '@/lib/api'
+import { getUserQuotaById } from '@/lib/api'
 import { type AdminUser, adminListUsers, adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatSize, getInitials } from '@/lib/format'
 
@@ -37,7 +37,10 @@ function UsersPage() {
 
   const quotaQuery = useQuery({
     queryKey: ['admin', 'user-quotas', baseUsers.map((u) => u.id)],
-    queryFn: () => getUserQuotas(baseUsers.map((u) => u.id)),
+    queryFn: async () => {
+      const entries = await Promise.all(baseUsers.map(async (u) => [u.id, await getUserQuotaById(u.id)] as const))
+      return new Map(entries)
+    },
     enabled: baseUsers.length > 0,
   })
 
@@ -53,11 +56,11 @@ function UsersPage() {
   })
 
   const users: UserRow[] = useMemo(() => {
-    const quota = new Map((quotaQuery.data?.items ?? []).map((item) => [item.userId, item]))
+    const quota = quotaQuery.data
     return baseUsers.map((user) => ({
       ...user,
-      quotaUsed: quota.get(user.id)?.used ?? 0,
-      quotaTotal: quota.get(user.id)?.total ?? 0,
+      quotaUsed: quota?.get(user.id)?.used ?? 0,
+      quotaTotal: quota?.get(user.id)?.total ?? 0,
     }))
   }, [baseUsers, quotaQuery.data])
 

@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { getUserQuotas, listUserEntitlements, revokeUserEntitlement } from '@/lib/api'
+import { getUserQuotaById, listUserEntitlements, revokeUserEntitlement } from '@/lib/api'
 import { adminGetUser } from '@/lib/auth-client'
 import { formatDate, formatSize, formatStorageUsage, getInitials } from '@/lib/format'
 
@@ -42,7 +42,7 @@ function AdminUserDetailPage() {
 
   const quotaQuery = useQuery({
     queryKey: ['admin', 'user-quotas', userId],
-    queryFn: () => getUserQuotas([userId]),
+    queryFn: () => getUserQuotaById(userId),
   })
 
   const revokeMutation = useMutation({
@@ -72,9 +72,9 @@ function AdminUserDetailPage() {
   const displayName = user ? user.name || user.username || user.email : ''
   const statusLabel = user?.banned ? t('admin.users.disabled') : t('admin.users.active')
   const statusVariant = user?.banned ? 'destructive' : 'secondary'
-  const quota = quotaQuery.data?.items[0]
-  const hasPersonalOrg = quota !== undefined
-  const quotaLabel = quota ? formatStorageUsage(quota.used, quota.total) : '—'
+  const quota = quotaQuery.data
+  const hasPersonalOrg = quota?.hasPersonalOrg ?? false
+  const quotaLabel = quota?.hasPersonalOrg ? formatStorageUsage(quota.used, quota.total) : '—'
 
   const activeItems = useMemo(() => items.filter((item) => item.status === 'active'), [items])
 
