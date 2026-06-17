@@ -1,21 +1,14 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import type { UserWithOrg } from '../usecases/ports'
 import { badRequest, noStorage, notFound, payloadTooLarge, unsupportedMediaType } from '../usecases/ports'
+import { getUserQuota } from '../usecases/quota'
 import {
-  deleteUser,
-  deleteUsers,
   getPublicProfile,
-  getUser,
   grantUserEntitlement,
   listUserEntitlements,
-  listUsers,
   removeAvatar,
   revokeUserEntitlement,
-  setUserStatus,
-  setUsersStatus,
   updateAvatar,
   updateUserEntitlement,
 } from '../usecases/user'
@@ -27,45 +20,18 @@ import {
 } from './entitlements'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
 
-const userSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    username: z.string(),
-    email: z.string(),
-    image: z.string().nullable(),
-    role: z.string().nullable(),
-    banned: z.boolean().nullable(),
-    createdAt: z.string(),
-    orgId: z.string().nullable(),
-    orgName: z.string().nullable(),
-    quotaUsed: z.number().int(),
-    quotaDefault: z.number().int(),
-    quotaTotal: z.number().int(),
-  })
-  .openapi('User')
-
-function toUserDTO(u: UserWithOrg): z.infer<typeof userSchema> {
-  return { ...u, createdAt: u.createdAt.toISOString() }
-}
-
-const userListSchema = pageSchema(userSchema, 'UserList')
+// Admin user management (list / disable / delete) is served directly by
+// better-auth's /api/auth/admin/* endpoints and called from the frontend admin
+// client. This resource only covers front-of-house concerns — the public profile
+// lookup, the authenticated user's own avatar — plus the admin storage
+// entitlement grants, which live in our own quota domain rather than better-auth.
 
 const publicUserSchema = z
   .object({ username: z.string(), name: z.string(), image: z.string().nullable() })
   .openapi('PublicUser')
 
-// GET /{username} returns the full admin record to admins, or a public profile
-// wrapper to everyone else.
-const userDetailSchema = z
-  .union([userSchema, z.object({ user: publicUserSchema, shares: z.array(z.unknown()) })])
-  .openapi('UserDetail')
+const publicProfileSchema = z.object({ user: publicUserSchema, shares: z.array(z.unknown()) }).openapi('PublicProfile')
 
-const updateStatusSchema = z.object({ status: z.enum(['active', 'disabled']) })
-const userIdsSchema = z.object({ ids: z.array(z.string().min(1)).min(1) })
-const batchPatchSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.enum(['disable', 'enable']), ids: z.array(z.string().min(1)).min(1) }),
-])
 const grantEntitlementSchema = z.object({
   resourceType: z.literal('storage'),
   bytes: z.number().int().positive(),
@@ -79,8 +45,8 @@ const updateEntitlementSchema = z.object({
 })
 
 // Maps a UserOperationFailure ({ error, status }) threaded from the UserAdminRepo
-// to the matching error factory — the http boundary the rule keeps the sub-usecase
-// status out of.
+// to the matching error factory — keeping the sub-usecase status out of the http
+// boundary's own logic.
 function failureError(failure: { status: 400 | 404; error: string }) {
   return failure.status === 404 ? notFound(failure.error) : badRequest(failure.error)
 }
@@ -90,13 +56,6 @@ function imageUploadError(status: 400 | 413 | 503, error: string) {
   if (status === 413) return payloadTooLarge(error)
   if (status === 503) return noStorage(error)
   return badRequest(error)
-}
-
-async function resolveUserId(deps: Env['Variables']['deps'], handle: string): Promise<string | null> {
-  const byId = await getUser(deps, handle)
-  if (byId.ok) return handle
-  const { items } = await listUsers(deps, { page: 1, pageSize: 100, search: handle })
-  return items.find((u) => u.username === handle)?.id ?? null
 }
 
 const setAvatarRoute = createRoute({
@@ -127,59 +86,15 @@ const deleteAvatarRoute = createRoute({
   responses: { 200: jsonContent(z.object({ ok: z.literal(true) }), 'Removed') },
 })
 
-const listUsersRoute = createRoute({
-  operationId: 'adminListUsers',
-  summary: 'List users',
-  tags: ['Users'],
-  method: 'get',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  request: {
-    query: pageQuerySchema.extend({ search: z.string().optional() }),
-  },
-  responses: { 200: jsonContent(userListSchema, 'Users') },
-})
-
-const batchStatusRoute = createRoute({
-  operationId: 'setUsersStatus',
-  summary: 'Batch enable/disable users',
-  tags: ['Users'],
-  method: 'patch',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  request: jsonBody(batchPatchSchema),
-  responses: {
-    200: jsonContent(z.object({ updated: z.number().int(), ids: z.array(z.string()), status: z.string() }), 'Updated'),
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
-  },
-})
-
-const batchDeleteRoute = createRoute({
-  operationId: 'deleteUsers',
-  summary: 'Batch delete users',
-  tags: ['Users'],
-  method: 'delete',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  request: jsonBody(userIdsSchema),
-  responses: {
-    200: jsonContent(z.object({ deleted: z.number().int(), ids: z.array(z.string()) }), 'Deleted'),
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
-  },
-})
-
 const getUserRoute = createRoute({
   operationId: 'getUserProfile',
-  summary: 'Get a user (admin) or public profile',
+  summary: 'Get a user public profile',
   tags: ['Users'],
   method: 'get',
   path: '/{username}',
   request: { params: z.object({ username: z.string() }) },
   responses: {
-    200: jsonContent(userDetailSchema, 'User'),
-    400: errorResponse('Bad request'),
+    200: jsonContent(publicProfileSchema, 'User'),
     404: errorResponse('User not found'),
   },
 })
@@ -197,32 +112,23 @@ const userObjectsRoute = createRoute({
   },
 })
 
-const setUserStatusRoute = createRoute({
-  operationId: 'setUserStatus',
-  summary: 'Set a user status',
-  tags: ['Users'],
-  method: 'patch',
-  path: '/{username}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ username: z.string() }), ...jsonBody(updateStatusSchema) },
-  responses: {
-    200: jsonContent(z.object({ id: z.string(), status: z.string() }), 'Updated'),
-    404: errorResponse('User not found'),
-  },
-})
+// Per-user storage used/total — a user sub-resource the admin UI fans out over
+// (one request per visible user) to enrich better-auth's admin list, which knows
+// identity but not quota. `hasPersonalOrg` is false when the user has no personal
+// org yet (used/total are then 0).
+const userQuotaSchema = z
+  .object({ used: z.number().int(), total: z.number().int(), hasPersonalOrg: z.boolean() })
+  .openapi('AdminUserQuota')
 
-const deleteUserRoute = createRoute({
-  operationId: 'adminDeleteUser',
-  summary: 'Delete a user',
+const getUserQuotaRoute = createRoute({
+  operationId: 'getUserQuota',
+  summary: "Get a user's storage quota",
   tags: ['Users'],
-  method: 'delete',
-  path: '/{username}',
+  method: 'get',
+  path: '/{userId}/quota',
   middleware: [requireAdmin] as const,
-  request: { params: z.object({ username: z.string() }) },
-  responses: {
-    200: jsonContent(z.object({ id: z.string(), deleted: z.literal(true) }), 'Deleted'),
-    404: errorResponse('User not found'),
-  },
+  request: { params: z.object({ userId: z.string() }) },
+  responses: { 200: jsonContent(userQuotaSchema, 'User quota') },
 })
 
 const listUserEntitlementsRoute = createRoute({
@@ -230,9 +136,9 @@ const listUserEntitlementsRoute = createRoute({
   summary: 'List a user’s entitlements',
   tags: ['Users'],
   method: 'get',
-  path: '/{username}/entitlements',
+  path: '/{userId}/entitlements',
   middleware: [requireAdmin] as const,
-  request: { params: z.object({ username: z.string() }) },
+  request: { params: z.object({ userId: z.string() }) },
   responses: {
     200: jsonContent(entitlementListSchema, 'Entitlements'),
     400: errorResponse('Bad request'),
@@ -245,9 +151,9 @@ const grantUserEntitlementRoute = createRoute({
   summary: 'Grant a user entitlement',
   tags: ['Users'],
   method: 'post',
-  path: '/{username}/entitlements',
+  path: '/{userId}/entitlements',
   middleware: [requireAdmin] as const,
-  request: { params: z.object({ username: z.string() }), ...jsonBody(grantEntitlementSchema) },
+  request: { params: z.object({ userId: z.string() }), ...jsonBody(grantEntitlementSchema) },
   responses: {
     201: jsonContent(entitlementResultSchema, 'Granted'),
     400: errorResponse('Bad request'),
@@ -260,9 +166,9 @@ const updateUserEntitlementRoute = createRoute({
   summary: 'Update a user entitlement',
   tags: ['Users'],
   method: 'patch',
-  path: '/{username}/entitlements/{eid}',
+  path: '/{userId}/entitlements/{eid}',
   middleware: [requireAdmin] as const,
-  request: { params: z.object({ username: z.string(), eid: z.string() }), ...jsonBody(updateEntitlementSchema) },
+  request: { params: z.object({ userId: z.string(), eid: z.string() }), ...jsonBody(updateEntitlementSchema) },
   responses: {
     200: jsonContent(entitlementResultSchema, 'Updated'),
     400: errorResponse('Bad request'),
@@ -275,9 +181,9 @@ const revokeUserEntitlementRoute = createRoute({
   summary: 'Revoke a user entitlement',
   tags: ['Users'],
   method: 'delete',
-  path: '/{username}/entitlements/{eid}',
+  path: '/{userId}/entitlements/{eid}',
   middleware: [requireAdmin] as const,
-  request: { params: z.object({ username: z.string(), eid: z.string() }) },
+  request: { params: z.object({ userId: z.string(), eid: z.string() }) },
   responses: {
     200: jsonContent(entitlementResultSchema, 'Revoked'),
     400: errorResponse('Bad request'),
@@ -303,38 +209,8 @@ export const users = new OpenAPIHono<Env>()
     await removeAvatar(c.get('deps'), { platform: c.get('platform'), userId: c.get('userId') as string })
     return c.json({ ok: true as const }, 200)
   })
-  .openapi(listUsersRoute, async (c) => {
-    const { page, pageSize, search } = c.req.valid('query')
-    const result = await listUsers(c.get('deps'), { page, pageSize, search })
-    return c.json({ items: result.items.map(toUserDTO), total: result.total, page, pageSize }, 200)
-  })
-  .openapi(batchStatusRoute, async (c) => {
-    const body = c.req.valid('json')
-    const result = await setUsersStatus(c.get('deps'), {
-      adminUserId: c.get('userId')!,
-      orgId: c.get('orgId')!,
-      ids: body.ids,
-      status: body.action === 'disable' ? 'disabled' : 'active',
-    })
-    if (!result.ok) throw failureError(result.failure)
-    return c.json({ ...result.result, status: result.status }, 200)
-  })
-  .openapi(batchDeleteRoute, async (c) => {
-    const { ids } = c.req.valid('json')
-    const result = await deleteUsers(c.get('deps'), { adminUserId: c.get('userId')!, orgId: c.get('orgId')!, ids })
-    if (!result.ok) throw failureError(result.failure)
-    return c.json(result.result, 200)
-  })
   .openapi(getUserRoute, async (c) => {
-    const username = c.req.valid('param').username
-    if (c.get('userRole') === 'admin') {
-      const id = await resolveUserId(c.get('deps'), username)
-      if (!id) throw notFound('User not found')
-      const result = await getUser(c.get('deps'), id)
-      if (!result.ok) throw failureError(result.failure)
-      return c.json(toUserDTO(result.user), 200)
-    }
-    const user = await getPublicProfile(c.get('deps'), username)
+    const user = await getPublicProfile(c.get('deps'), c.req.valid('param').username)
     if (!user) throw notFound('User not found')
     return c.json({ user, shares: [] }, 200)
   })
@@ -343,46 +219,23 @@ export const users = new OpenAPIHono<Env>()
     if (!user) throw notFound('User not found')
     return c.json({ items: [], breadcrumb: [] }, 200)
   })
-  .openapi(setUserStatusRoute, async (c) => {
-    const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) throw notFound('User not found')
-    const { status } = c.req.valid('json')
-    const result = await setUserStatus(c.get('deps'), {
-      adminUserId: c.get('userId')!,
-      orgId: c.get('orgId')!,
-      userId: id,
-      status,
-    })
-    if (!result.ok) throw notFound('User not found')
-    return c.json({ id, status }, 200)
-  })
-  .openapi(deleteUserRoute, async (c) => {
-    const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) throw notFound('User not found')
-    const result = await deleteUser(c.get('deps'), {
-      adminUserId: c.get('userId')!,
-      orgId: c.get('orgId')!,
-      userId: id,
-    })
-    if (!result.ok) throw notFound('User not found')
-    return c.json({ id, deleted: true as const }, 200)
+  .openapi(getUserQuotaRoute, async (c) => {
+    const quota = await getUserQuota(c.get('deps'), { userId: c.req.valid('param').userId })
+    if (!quota) return c.json({ used: 0, total: 0, hasPersonalOrg: false }, 200)
+    return c.json({ used: quota.used, total: quota.quota, hasPersonalOrg: true }, 200)
   })
   .openapi(listUserEntitlementsRoute, async (c) => {
-    const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) throw notFound('User not found')
-    const result = await listUserEntitlements(c.get('deps'), id)
+    const result = await listUserEntitlements(c.get('deps'), c.req.valid('param').userId)
     if (!result.ok) throw failureError(result.failure)
     const items = result.result.items.map(toQuotaEntitlementDTO)
     return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
   })
   .openapi(grantUserEntitlementRoute, async (c) => {
-    const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) throw notFound('User not found')
     const body = c.req.valid('json')
     const result = await grantUserEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
       adminOrgId: c.get('orgId')!,
-      targetUserId: id,
+      targetUserId: c.req.valid('param').userId,
       resourceType: body.resourceType,
       bytes: body.bytes,
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
@@ -392,13 +245,11 @@ export const users = new OpenAPIHono<Env>()
     return c.json(toEntitlementResultDTO(result.result), 201)
   })
   .openapi(updateUserEntitlementRoute, async (c) => {
-    const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) throw notFound('User not found')
     const body = c.req.valid('json')
     const result = await updateUserEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
       adminOrgId: c.get('orgId')!,
-      targetUserId: id,
+      targetUserId: c.req.valid('param').userId,
       entitlementId: c.req.valid('param').eid,
       bytes: body.bytes,
       expiresAt: 'expiresAt' in body ? (body.expiresAt ? new Date(body.expiresAt) : null) : undefined,
@@ -408,12 +259,10 @@ export const users = new OpenAPIHono<Env>()
     return c.json(toEntitlementResultDTO(result.result), 200)
   })
   .openapi(revokeUserEntitlementRoute, async (c) => {
-    const id = await resolveUserId(c.get('deps'), c.req.valid('param').username)
-    if (!id) throw notFound('User not found')
     const result = await revokeUserEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
       adminOrgId: c.get('orgId')!,
-      targetUserId: id,
+      targetUserId: c.req.valid('param').userId,
       entitlementId: c.req.valid('param').eid,
     })
     if (!result.ok) throw failureError(result.failure)

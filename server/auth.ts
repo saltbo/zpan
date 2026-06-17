@@ -1,6 +1,7 @@
 import { apiKey } from '@better-auth/api-key'
 import { APIError, type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import type { CaptchaOptions } from 'better-auth/plugins'
 import { admin, bearer, captcha, deviceAuthorization, openAPI, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
@@ -130,6 +131,16 @@ const _INVITE_CODE_ERRORS: Record<string, string> = {
   expired: 'Invite code expired',
 }
 
+// Admin user disable/enable/delete now run through better-auth's admin plugin, so
+// the activity audit that the old /api/users usecases emitted is reattached here
+// via a better-auth after-hook — keyed by endpoint path so it fires only for
+// these three actions, with the acting admin as the recorded actor.
+const ADMIN_USER_AUDIT: Record<string, { action: string; status?: 'active' | 'disabled' }> = {
+  '/admin/ban-user': { action: 'user_disable', status: 'disabled' },
+  '/admin/unban-user': { action: 'user_enable', status: 'active' },
+  '/admin/remove-user': { action: 'user_delete' },
+}
+
 function buildInvitationEmailHtml(data: {
   email: string
   role: string
@@ -247,6 +258,32 @@ export async function createAuth(
     socialProviders: Object.fromEntries(
       providerConfigs.builtin.map((c) => [c.providerId, { clientId: c.clientId, clientSecret: c.clientSecret }]),
     ),
+    hooks: {
+      // Audit admin user disable/enable/delete (served by the admin plugin) the
+      // same way the old /api/users usecases did. This after-hook runs for every
+      // auth endpoint, so it filters by path; it also runs when the endpoint
+      // failed, so it skips anything that returned an APIError.
+      after: createAuthMiddleware(async (ctx) => {
+        const audit = ADMIN_USER_AUDIT[ctx.path]
+        if (!audit) return
+        if (ctx.context.returned instanceof APIError) return
+        const targetUserId = (ctx.body as { userId?: string } | undefined)?.userId
+        if (!targetUserId) return
+        const session = await getSessionFromCtx(ctx)
+        const actorId = session?.user?.id
+        const orgId = (session?.session as { activeOrganizationId?: string } | undefined)?.activeOrganizationId
+        if (!actorId || !orgId) return
+        await createActivityRepo(db).record({
+          orgId,
+          userId: actorId,
+          action: audit.action,
+          targetType: 'user',
+          targetId: targetUserId,
+          targetName: targetUserId,
+          metadata: audit.status ? { status: audit.status } : undefined,
+        })
+      }),
+    },
     plugins: [
       admin(),
       // Self-documents every better-auth endpoint (incl. the device-authorization

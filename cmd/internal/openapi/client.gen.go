@@ -1124,16 +1124,16 @@ func (e VerifySharePassword200JSONResponseBodyOk) Valid() bool {
 
 // Defines values for ListAnnouncementsParamsScope.
 const (
-	ListAnnouncementsParamsScopeActive ListAnnouncementsParamsScope = "active"
-	ListAnnouncementsParamsScopeAll    ListAnnouncementsParamsScope = "all"
+	Active ListAnnouncementsParamsScope = "active"
+	All    ListAnnouncementsParamsScope = "all"
 )
 
 // Valid indicates whether the value is a known member of the ListAnnouncementsParamsScope enum.
 func (e ListAnnouncementsParamsScope) Valid() bool {
 	switch e {
-	case ListAnnouncementsParamsScopeActive:
+	case Active:
 		return true
-	case ListAnnouncementsParamsScopeAll:
+	case All:
 		return true
 	default:
 		return false
@@ -1503,66 +1503,15 @@ func (e JoinTeam200JSONResponseBodyOk) Valid() bool {
 	}
 }
 
-// Defines values for SetUsersStatusJSONBody0Action.
-const (
-	Disable SetUsersStatusJSONBody0Action = "disable"
-	Enable  SetUsersStatusJSONBody0Action = "enable"
-)
-
-// Valid indicates whether the value is a known member of the SetUsersStatusJSONBody0Action enum.
-func (e SetUsersStatusJSONBody0Action) Valid() bool {
-	switch e {
-	case Disable:
-		return true
-	case Enable:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for DeleteMyAvatar200JSONResponseBodyOk.
 const (
-	DeleteMyAvatar200JSONResponseBodyOkTrue DeleteMyAvatar200JSONResponseBodyOk = true
+	True DeleteMyAvatar200JSONResponseBodyOk = true
 )
 
 // Valid indicates whether the value is a known member of the DeleteMyAvatar200JSONResponseBodyOk enum.
 func (e DeleteMyAvatar200JSONResponseBodyOk) Valid() bool {
 	switch e {
-	case DeleteMyAvatar200JSONResponseBodyOkTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AdminDeleteUser200JSONResponseBodyDeleted.
-const (
-	AdminDeleteUser200JSONResponseBodyDeletedTrue AdminDeleteUser200JSONResponseBodyDeleted = true
-)
-
-// Valid indicates whether the value is a known member of the AdminDeleteUser200JSONResponseBodyDeleted enum.
-func (e AdminDeleteUser200JSONResponseBodyDeleted) Valid() bool {
-	switch e {
-	case AdminDeleteUser200JSONResponseBodyDeletedTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SetUserStatusJSONBodyStatus.
-const (
-	SetUserStatusJSONBodyStatusActive   SetUserStatusJSONBodyStatus = "active"
-	SetUserStatusJSONBodyStatusDisabled SetUserStatusJSONBodyStatus = "disabled"
-)
-
-// Valid indicates whether the value is a known member of the SetUserStatusJSONBodyStatus enum.
-func (e SetUserStatusJSONBodyStatus) Valid() bool {
-	switch e {
-	case SetUserStatusJSONBodyStatusActive:
-		return true
-	case SetUserStatusJSONBodyStatusDisabled:
+	case True:
 		return true
 	default:
 		return false
@@ -1608,6 +1557,13 @@ type ActivityPage struct {
 	Page     int             `json:"page"`
 	PageSize int             `json:"pageSize"`
 	Total    int             `json:"total"`
+}
+
+// AdminUserQuota defines model for AdminUserQuota.
+type AdminUserQuota struct {
+	HasPersonalOrg bool `json:"hasPersonalOrg"`
+	Total          int  `json:"total"`
+	Used           int  `json:"used"`
 }
 
 // Announcement defines model for Announcement.
@@ -2222,6 +2178,12 @@ type PublicAuthProvider struct {
 	Type       string `json:"type"`
 }
 
+// PublicProfile defines model for PublicProfile.
+type PublicProfile struct {
+	Shares []*interface{} `json:"shares"`
+	User   PublicUser     `json:"user"`
+}
+
 // PublicUser defines model for PublicUser.
 type PublicUser struct {
 	Image    *string `json:"image"`
@@ -2520,38 +2482,19 @@ type TransferResult struct {
 
 // User defines model for User.
 type User struct {
-	Banned       *bool   `json:"banned"`
-	CreatedAt    string  `json:"createdAt"`
-	Email        string  `json:"email"`
-	Id           string  `json:"id"`
-	Image        *string `json:"image"`
-	Name         string  `json:"name"`
-	OrgId        *string `json:"orgId"`
-	OrgName      *string `json:"orgName"`
-	QuotaDefault int     `json:"quotaDefault"`
-	QuotaTotal   int     `json:"quotaTotal"`
-	QuotaUsed    int     `json:"quotaUsed"`
-	Role         *string `json:"role"`
-	Username     string  `json:"username"`
-}
-
-// UserDetail defines model for UserDetail.
-type UserDetail struct {
-	union json.RawMessage
-}
-
-// UserDetail1 defines model for .
-type UserDetail1 struct {
-	Shares []*interface{} `json:"shares"`
-	User   PublicUser     `json:"user"`
-}
-
-// UserList defines model for UserList.
-type UserList struct {
-	Items    []User `json:"items"`
-	Page     int    `json:"page"`
-	PageSize int    `json:"pageSize"`
-	Total    int    `json:"total"`
+	BanExpires      *time.Time `json:"banExpires,omitempty"`
+	BanReason       *string    `json:"banReason,omitempty"`
+	Banned          *bool      `json:"banned,omitempty"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	DisplayUsername *string    `json:"displayUsername,omitempty"`
+	Email           string     `json:"email"`
+	EmailVerified   *bool      `json:"emailVerified,omitempty"`
+	Id              *string    `json:"id,omitempty"`
+	Image           *string    `json:"image,omitempty"`
+	Name            string     `json:"name"`
+	Role            *string    `json:"role,omitempty"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
+	Username        *string    `json:"username,omitempty"`
 }
 
 // BanUserJSONBody defines parameters for BanUser.
@@ -4020,45 +3963,8 @@ type JoinTeamJSONBody struct {
 // JoinTeam200JSONResponseBodyOk defines parameters for JoinTeam.
 type JoinTeam200JSONResponseBodyOk bool
 
-// DeleteUsersJSONBody defines parameters for DeleteUsers.
-type DeleteUsersJSONBody struct {
-	Ids []string `json:"ids"`
-}
-
-// AdminListUsersParams defines parameters for AdminListUsers.
-type AdminListUsersParams struct {
-	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-	Search   *string `form:"search,omitempty" json:"search,omitempty"`
-}
-
-// SetUsersStatusJSONBody defines parameters for SetUsersStatus.
-type SetUsersStatusJSONBody struct {
-	union json.RawMessage
-}
-
-// SetUsersStatusJSONBody0 defines parameters for SetUsersStatus.
-type SetUsersStatusJSONBody0 struct {
-	Action SetUsersStatusJSONBody0Action `json:"action"`
-	Ids    []string                      `json:"ids"`
-}
-
-// SetUsersStatusJSONBody0Action defines parameters for SetUsersStatus.
-type SetUsersStatusJSONBody0Action string
-
 // DeleteMyAvatar200JSONResponseBodyOk defines parameters for DeleteMyAvatar.
 type DeleteMyAvatar200JSONResponseBodyOk bool
-
-// AdminDeleteUser200JSONResponseBodyDeleted defines parameters for AdminDeleteUser.
-type AdminDeleteUser200JSONResponseBodyDeleted bool
-
-// SetUserStatusJSONBody defines parameters for SetUserStatus.
-type SetUserStatusJSONBody struct {
-	Status SetUserStatusJSONBodyStatus `json:"status"`
-}
-
-// SetUserStatusJSONBodyStatus defines parameters for SetUserStatus.
-type SetUserStatusJSONBodyStatus string
 
 // GrantUserEntitlementJSONBody defines parameters for GrantUserEntitlement.
 type GrantUserEntitlementJSONBody struct {
@@ -4375,15 +4281,6 @@ type CreateTeamInviteLinkJSONRequestBody CreateTeamInviteLinkJSONBody
 // JoinTeamJSONRequestBody defines body for JoinTeam for application/json ContentType.
 type JoinTeamJSONRequestBody JoinTeamJSONBody
 
-// DeleteUsersJSONRequestBody defines body for DeleteUsers for application/json ContentType.
-type DeleteUsersJSONRequestBody DeleteUsersJSONBody
-
-// SetUsersStatusJSONRequestBody defines body for SetUsersStatus for application/json ContentType.
-type SetUsersStatusJSONRequestBody SetUsersStatusJSONBody
-
-// SetUserStatusJSONRequestBody defines body for SetUserStatus for application/json ContentType.
-type SetUserStatusJSONRequestBody SetUserStatusJSONBody
-
 // GrantUserEntitlementJSONRequestBody defines body for GrantUserEntitlement for application/json ContentType.
 type GrantUserEntitlementJSONRequestBody GrantUserEntitlementJSONBody
 
@@ -4510,68 +4407,6 @@ func (t ImageHostingConfigResponse) MarshalJSON() ([]byte, error) {
 }
 
 func (t *ImageHostingConfigResponse) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsUser returns the union data inside the UserDetail as a User
-func (t UserDetail) AsUser() (User, error) {
-	var body User
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromUser overwrites any union data inside the UserDetail as the provided User
-func (t *UserDetail) FromUser(v User) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeUser performs a merge with any union data inside the UserDetail, using the provided User
-func (t *UserDetail) MergeUser(v User) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsUserDetail1 returns the union data inside the UserDetail as a UserDetail1
-func (t UserDetail) AsUserDetail1() (UserDetail1, error) {
-	var body UserDetail1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromUserDetail1 overwrites any union data inside the UserDetail as the provided UserDetail1
-func (t *UserDetail) FromUserDetail1(v UserDetail1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeUserDetail1 performs a merge with any union data inside the UserDetail, using the provided UserDetail1
-func (t *UserDetail) MergeUserDetail1(v UserDetail1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t UserDetail) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *UserDetail) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -4784,42 +4619,6 @@ func (t SaveEmailConfigJSONBody) MarshalJSON() ([]byte, error) {
 }
 
 func (t *SaveEmailConfigJSONBody) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsSetUsersStatusJSONBody0 returns the union data inside the SetUsersStatusJSONBody as a SetUsersStatusJSONBody0
-func (t SetUsersStatusJSONBody) AsSetUsersStatusJSONBody0() (SetUsersStatusJSONBody0, error) {
-	var body SetUsersStatusJSONBody0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSetUsersStatusJSONBody0 overwrites any union data inside the SetUsersStatusJSONBody as the provided SetUsersStatusJSONBody0
-func (t *SetUsersStatusJSONBody) FromSetUsersStatusJSONBody0(v SetUsersStatusJSONBody0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSetUsersStatusJSONBody0 performs a merge with any union data inside the SetUsersStatusJSONBody, using the provided SetUsersStatusJSONBody0
-func (t *SetUsersStatusJSONBody) MergeSetUsersStatusJSONBody0(v SetUsersStatusJSONBody0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t SetUsersStatusJSONBody) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *SetUsersStatusJSONBody) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -5695,51 +5494,33 @@ type ClientInterface interface {
 	// EmptyTrash request
 	EmptyTrash(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteUsersWithBody request with any body
-	DeleteUsersWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	DeleteUsers(ctx context.Context, body DeleteUsersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// AdminListUsers request
-	AdminListUsers(ctx context.Context, params *AdminListUsersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// SetUsersStatusWithBody request with any body
-	SetUsersStatusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	SetUsersStatus(ctx context.Context, body SetUsersStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// DeleteMyAvatar request
 	DeleteMyAvatar(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetMyAvatar request
 	SetMyAvatar(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AdminDeleteUser request
-	AdminDeleteUser(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListUserEntitlements request
+	ListUserEntitlements(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GrantUserEntitlementWithBody request with any body
+	GrantUserEntitlementWithBody(ctx context.Context, userId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	GrantUserEntitlement(ctx context.Context, userId string, body GrantUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RevokeUserEntitlement request
+	RevokeUserEntitlement(ctx context.Context, userId string, eid string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateUserEntitlementWithBody request with any body
+	UpdateUserEntitlementWithBody(ctx context.Context, userId string, eid string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateUserEntitlement(ctx context.Context, userId string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetUserQuota request
+	GetUserQuota(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetUserProfile request
 	GetUserProfile(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// SetUserStatusWithBody request with any body
-	SetUserStatusWithBody(ctx context.Context, username string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	SetUserStatus(ctx context.Context, username string, body SetUserStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListUserEntitlements request
-	ListUserEntitlements(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GrantUserEntitlementWithBody request with any body
-	GrantUserEntitlementWithBody(ctx context.Context, username string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	GrantUserEntitlement(ctx context.Context, username string, body GrantUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RevokeUserEntitlement request
-	RevokeUserEntitlement(ctx context.Context, username string, eid string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateUserEntitlementWithBody request with any body
-	UpdateUserEntitlementWithBody(ctx context.Context, username string, eid string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateUserEntitlement(ctx context.Context, username string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListUserObjects request
 	ListUserObjects(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -9333,66 +9114,6 @@ func (c *Client) EmptyTrash(ctx context.Context, reqEditors ...RequestEditorFn) 
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteUsersWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteUsersRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteUsers(ctx context.Context, body DeleteUsersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteUsersRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) AdminListUsers(ctx context.Context, params *AdminListUsersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAdminListUsersRequest(c.Server, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SetUsersStatusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetUsersStatusRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SetUsersStatus(ctx context.Context, body SetUsersStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetUsersStatusRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) DeleteMyAvatar(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteMyAvatarRequest(c.Server)
 	if err != nil {
@@ -9417,8 +9138,80 @@ func (c *Client) SetMyAvatar(ctx context.Context, reqEditors ...RequestEditorFn)
 	return c.Client.Do(req)
 }
 
-func (c *Client) AdminDeleteUser(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAdminDeleteUserRequest(c.Server, username)
+func (c *Client) ListUserEntitlements(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListUserEntitlementsRequest(c.Server, userId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GrantUserEntitlementWithBody(ctx context.Context, userId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGrantUserEntitlementRequestWithBody(c.Server, userId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GrantUserEntitlement(ctx context.Context, userId string, body GrantUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGrantUserEntitlementRequest(c.Server, userId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RevokeUserEntitlement(ctx context.Context, userId string, eid string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevokeUserEntitlementRequest(c.Server, userId, eid)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateUserEntitlementWithBody(ctx context.Context, userId string, eid string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateUserEntitlementRequestWithBody(c.Server, userId, eid, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateUserEntitlement(ctx context.Context, userId string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateUserEntitlementRequest(c.Server, userId, eid, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetUserQuota(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetUserQuotaRequest(c.Server, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -9431,102 +9224,6 @@ func (c *Client) AdminDeleteUser(ctx context.Context, username string, reqEditor
 
 func (c *Client) GetUserProfile(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetUserProfileRequest(c.Server, username)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SetUserStatusWithBody(ctx context.Context, username string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetUserStatusRequestWithBody(c.Server, username, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SetUserStatus(ctx context.Context, username string, body SetUserStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetUserStatusRequest(c.Server, username, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListUserEntitlements(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListUserEntitlementsRequest(c.Server, username)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GrantUserEntitlementWithBody(ctx context.Context, username string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGrantUserEntitlementRequestWithBody(c.Server, username, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GrantUserEntitlement(ctx context.Context, username string, body GrantUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGrantUserEntitlementRequest(c.Server, username, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RevokeUserEntitlement(ctx context.Context, username string, eid string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRevokeUserEntitlementRequest(c.Server, username, eid)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateUserEntitlementWithBody(ctx context.Context, username string, eid string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateUserEntitlementRequestWithBody(c.Server, username, eid, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateUserEntitlement(ctx context.Context, username string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateUserEntitlementRequest(c.Server, username, eid, body)
 	if err != nil {
 		return nil, err
 	}
@@ -18067,164 +17764,6 @@ func NewEmptyTrashRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewDeleteUsersRequest calls the generic DeleteUsers builder with application/json body
-func NewDeleteUsersRequest(server string, body DeleteUsersJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewDeleteUsersRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewDeleteUsersRequestWithBody generates requests for DeleteUsers with any type of body
-func NewDeleteUsersRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewAdminListUsersRequest generates requests for AdminListUsers
-func NewAdminListUsersRequest(server string, params *AdminListUsersParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.PageSize != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Search != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "search", *params.Search, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewSetUsersStatusRequest calls the generic SetUsersStatus builder with application/json body
-func NewSetUsersStatusRequest(server string, body SetUsersStatusJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewSetUsersStatusRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewSetUsersStatusRequestWithBody generates requests for SetUsersStatus with any type of body
-func NewSetUsersStatusRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewDeleteMyAvatarRequest generates requests for DeleteMyAvatar
 func NewDeleteMyAvatarRequest(server string) (*http.Request, error) {
 	var err error
@@ -18279,13 +17818,13 @@ func NewSetMyAvatarRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewAdminDeleteUserRequest generates requests for AdminDeleteUser
-func NewAdminDeleteUserRequest(server string, username string) (*http.Request, error) {
+// NewListUserEntitlementsRequest generates requests for ListUserEntitlements
+func NewListUserEntitlementsRequest(server string, userId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "userId", userId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -18295,7 +17834,95 @@ func NewAdminDeleteUserRequest(server string, username string) (*http.Request, e
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/users/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/users/%s/entitlements", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGrantUserEntitlementRequest calls the generic GrantUserEntitlement builder with application/json body
+func NewGrantUserEntitlementRequest(server string, userId string, body GrantUserEntitlementJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewGrantUserEntitlementRequestWithBody(server, userId, "application/json", bodyReader)
+}
+
+// NewGrantUserEntitlementRequestWithBody generates requests for GrantUserEntitlement with any type of body
+func NewGrantUserEntitlementRequestWithBody(server string, userId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "userId", userId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/users/%s/entitlements", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRevokeUserEntitlementRequest generates requests for RevokeUserEntitlement
+func NewRevokeUserEntitlementRequest(server string, userId string, eid string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "userId", userId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "eid", eid, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/users/%s/entitlements/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -18306,6 +17933,94 @@ func NewAdminDeleteUserRequest(server string, username string) (*http.Request, e
 	}
 
 	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateUserEntitlementRequest calls the generic UpdateUserEntitlement builder with application/json body
+func NewUpdateUserEntitlementRequest(server string, userId string, eid string, body UpdateUserEntitlementJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateUserEntitlementRequestWithBody(server, userId, eid, "application/json", bodyReader)
+}
+
+// NewUpdateUserEntitlementRequestWithBody generates requests for UpdateUserEntitlement with any type of body
+func NewUpdateUserEntitlementRequestWithBody(server string, userId string, eid string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "userId", userId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "eid", eid, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/users/%s/entitlements/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetUserQuotaRequest generates requests for GetUserQuota
+func NewGetUserQuotaRequest(server string, userId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "userId", userId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/users/%s/quota", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -18343,229 +18058,6 @@ func NewGetUserProfileRequest(server string, username string) (*http.Request, er
 	if err != nil {
 		return nil, err
 	}
-
-	return req, nil
-}
-
-// NewSetUserStatusRequest calls the generic SetUserStatus builder with application/json body
-func NewSetUserStatusRequest(server string, username string, body SetUserStatusJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewSetUserStatusRequestWithBody(server, username, "application/json", bodyReader)
-}
-
-// NewSetUserStatusRequestWithBody generates requests for SetUserStatus with any type of body
-func NewSetUserStatusRequestWithBody(server string, username string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListUserEntitlementsRequest generates requests for ListUserEntitlements
-func NewListUserEntitlementsRequest(server string, username string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users/%s/entitlements", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGrantUserEntitlementRequest calls the generic GrantUserEntitlement builder with application/json body
-func NewGrantUserEntitlementRequest(server string, username string, body GrantUserEntitlementJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewGrantUserEntitlementRequestWithBody(server, username, "application/json", bodyReader)
-}
-
-// NewGrantUserEntitlementRequestWithBody generates requests for GrantUserEntitlement with any type of body
-func NewGrantUserEntitlementRequestWithBody(server string, username string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users/%s/entitlements", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewRevokeUserEntitlementRequest generates requests for RevokeUserEntitlement
-func NewRevokeUserEntitlementRequest(server string, username string, eid string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "eid", eid, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users/%s/entitlements/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateUserEntitlementRequest calls the generic UpdateUserEntitlement builder with application/json body
-func NewUpdateUserEntitlementRequest(server string, username string, eid string, body UpdateUserEntitlementJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateUserEntitlementRequestWithBody(server, username, eid, "application/json", bodyReader)
-}
-
-// NewUpdateUserEntitlementRequestWithBody generates requests for UpdateUserEntitlement with any type of body
-func NewUpdateUserEntitlementRequestWithBody(server string, username string, eid string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "eid", eid, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users/%s/entitlements/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -19445,51 +18937,33 @@ type ClientWithResponsesInterface interface {
 	// EmptyTrashWithResponse request
 	EmptyTrashWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*EmptyTrashResponse, error)
 
-	// DeleteUsersWithBodyWithResponse request with any body
-	DeleteUsersWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteUsersResponse, error)
-
-	DeleteUsersWithResponse(ctx context.Context, body DeleteUsersJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteUsersResponse, error)
-
-	// AdminListUsersWithResponse request
-	AdminListUsersWithResponse(ctx context.Context, params *AdminListUsersParams, reqEditors ...RequestEditorFn) (*AdminListUsersResponse, error)
-
-	// SetUsersStatusWithBodyWithResponse request with any body
-	SetUsersStatusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetUsersStatusResponse, error)
-
-	SetUsersStatusWithResponse(ctx context.Context, body SetUsersStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetUsersStatusResponse, error)
-
 	// DeleteMyAvatarWithResponse request
 	DeleteMyAvatarWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteMyAvatarResponse, error)
 
 	// SetMyAvatarWithResponse request
 	SetMyAvatarWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*SetMyAvatarResponse, error)
 
-	// AdminDeleteUserWithResponse request
-	AdminDeleteUserWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*AdminDeleteUserResponse, error)
+	// ListUserEntitlementsWithResponse request
+	ListUserEntitlementsWithResponse(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*ListUserEntitlementsResponse, error)
+
+	// GrantUserEntitlementWithBodyWithResponse request with any body
+	GrantUserEntitlementWithBodyWithResponse(ctx context.Context, userId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GrantUserEntitlementResponse, error)
+
+	GrantUserEntitlementWithResponse(ctx context.Context, userId string, body GrantUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*GrantUserEntitlementResponse, error)
+
+	// RevokeUserEntitlementWithResponse request
+	RevokeUserEntitlementWithResponse(ctx context.Context, userId string, eid string, reqEditors ...RequestEditorFn) (*RevokeUserEntitlementResponse, error)
+
+	// UpdateUserEntitlementWithBodyWithResponse request with any body
+	UpdateUserEntitlementWithBodyWithResponse(ctx context.Context, userId string, eid string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateUserEntitlementResponse, error)
+
+	UpdateUserEntitlementWithResponse(ctx context.Context, userId string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateUserEntitlementResponse, error)
+
+	// GetUserQuotaWithResponse request
+	GetUserQuotaWithResponse(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*GetUserQuotaResponse, error)
 
 	// GetUserProfileWithResponse request
 	GetUserProfileWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*GetUserProfileResponse, error)
-
-	// SetUserStatusWithBodyWithResponse request with any body
-	SetUserStatusWithBodyWithResponse(ctx context.Context, username string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetUserStatusResponse, error)
-
-	SetUserStatusWithResponse(ctx context.Context, username string, body SetUserStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetUserStatusResponse, error)
-
-	// ListUserEntitlementsWithResponse request
-	ListUserEntitlementsWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*ListUserEntitlementsResponse, error)
-
-	// GrantUserEntitlementWithBodyWithResponse request with any body
-	GrantUserEntitlementWithBodyWithResponse(ctx context.Context, username string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GrantUserEntitlementResponse, error)
-
-	GrantUserEntitlementWithResponse(ctx context.Context, username string, body GrantUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*GrantUserEntitlementResponse, error)
-
-	// RevokeUserEntitlementWithResponse request
-	RevokeUserEntitlementWithResponse(ctx context.Context, username string, eid string, reqEditors ...RequestEditorFn) (*RevokeUserEntitlementResponse, error)
-
-	// UpdateUserEntitlementWithBodyWithResponse request with any body
-	UpdateUserEntitlementWithBodyWithResponse(ctx context.Context, username string, eid string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateUserEntitlementResponse, error)
-
-	UpdateUserEntitlementWithResponse(ctx context.Context, username string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateUserEntitlementResponse, error)
 
 	// ListUserObjectsWithResponse request
 	ListUserObjectsWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*ListUserObjectsResponse, error)
@@ -27889,107 +27363,6 @@ func (r EmptyTrashResponse) ContentType() string {
 	return ""
 }
 
-type DeleteUsersResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Deleted int      `json:"deleted"`
-		Ids     []string `json:"ids"`
-	}
-	JSON400 *Error
-	JSON404 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteUsersResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteUsersResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DeleteUsersResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type AdminListUsersResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *UserList
-}
-
-// Status returns HTTPResponse.Status
-func (r AdminListUsersResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r AdminListUsersResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r AdminListUsersResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type SetUsersStatusResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Ids     []string `json:"ids"`
-		Status  string   `json:"status"`
-		Updated int      `json:"updated"`
-	}
-	JSON400 *Error
-	JSON404 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r SetUsersStatusResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r SetUsersStatusResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r SetUsersStatusResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type DeleteMyAvatarResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28052,106 +27425,6 @@ func (r SetMyAvatarResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetMyAvatarResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type AdminDeleteUserResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Deleted AdminDeleteUser200JSONResponseBodyDeleted `json:"deleted"`
-		Id      string                                    `json:"id"`
-	}
-	JSON404 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r AdminDeleteUserResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r AdminDeleteUserResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r AdminDeleteUserResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type GetUserProfileResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *UserDetail
-	JSON400      *Error
-	JSON404      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetUserProfileResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetUserProfileResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetUserProfileResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type SetUserStatusResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Id     string `json:"id"`
-		Status string `json:"status"`
-	}
-	JSON404 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r SetUserStatusResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r SetUserStatusResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r SetUserStatusResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -28280,6 +27553,67 @@ func (r UpdateUserEntitlementResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r UpdateUserEntitlementResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetUserQuotaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminUserQuota
+}
+
+// Status returns HTTPResponse.Status
+func (r GetUserQuotaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetUserQuotaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetUserQuotaResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetUserProfileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PublicProfile
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetUserProfileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetUserProfileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetUserProfileResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -30912,49 +30246,6 @@ func (c *ClientWithResponses) EmptyTrashWithResponse(ctx context.Context, reqEdi
 	return ParseEmptyTrashResponse(rsp)
 }
 
-// DeleteUsersWithBodyWithResponse request with arbitrary body returning *DeleteUsersResponse
-func (c *ClientWithResponses) DeleteUsersWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteUsersResponse, error) {
-	rsp, err := c.DeleteUsersWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteUsersResponse(rsp)
-}
-
-func (c *ClientWithResponses) DeleteUsersWithResponse(ctx context.Context, body DeleteUsersJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteUsersResponse, error) {
-	rsp, err := c.DeleteUsers(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteUsersResponse(rsp)
-}
-
-// AdminListUsersWithResponse request returning *AdminListUsersResponse
-func (c *ClientWithResponses) AdminListUsersWithResponse(ctx context.Context, params *AdminListUsersParams, reqEditors ...RequestEditorFn) (*AdminListUsersResponse, error) {
-	rsp, err := c.AdminListUsers(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseAdminListUsersResponse(rsp)
-}
-
-// SetUsersStatusWithBodyWithResponse request with arbitrary body returning *SetUsersStatusResponse
-func (c *ClientWithResponses) SetUsersStatusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetUsersStatusResponse, error) {
-	rsp, err := c.SetUsersStatusWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSetUsersStatusResponse(rsp)
-}
-
-func (c *ClientWithResponses) SetUsersStatusWithResponse(ctx context.Context, body SetUsersStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetUsersStatusResponse, error) {
-	rsp, err := c.SetUsersStatus(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSetUsersStatusResponse(rsp)
-}
-
 // DeleteMyAvatarWithResponse request returning *DeleteMyAvatarResponse
 func (c *ClientWithResponses) DeleteMyAvatarWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteMyAvatarResponse, error) {
 	rsp, err := c.DeleteMyAvatar(ctx, reqEditors...)
@@ -30973,13 +30264,65 @@ func (c *ClientWithResponses) SetMyAvatarWithResponse(ctx context.Context, reqEd
 	return ParseSetMyAvatarResponse(rsp)
 }
 
-// AdminDeleteUserWithResponse request returning *AdminDeleteUserResponse
-func (c *ClientWithResponses) AdminDeleteUserWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*AdminDeleteUserResponse, error) {
-	rsp, err := c.AdminDeleteUser(ctx, username, reqEditors...)
+// ListUserEntitlementsWithResponse request returning *ListUserEntitlementsResponse
+func (c *ClientWithResponses) ListUserEntitlementsWithResponse(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*ListUserEntitlementsResponse, error) {
+	rsp, err := c.ListUserEntitlements(ctx, userId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseAdminDeleteUserResponse(rsp)
+	return ParseListUserEntitlementsResponse(rsp)
+}
+
+// GrantUserEntitlementWithBodyWithResponse request with arbitrary body returning *GrantUserEntitlementResponse
+func (c *ClientWithResponses) GrantUserEntitlementWithBodyWithResponse(ctx context.Context, userId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GrantUserEntitlementResponse, error) {
+	rsp, err := c.GrantUserEntitlementWithBody(ctx, userId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGrantUserEntitlementResponse(rsp)
+}
+
+func (c *ClientWithResponses) GrantUserEntitlementWithResponse(ctx context.Context, userId string, body GrantUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*GrantUserEntitlementResponse, error) {
+	rsp, err := c.GrantUserEntitlement(ctx, userId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGrantUserEntitlementResponse(rsp)
+}
+
+// RevokeUserEntitlementWithResponse request returning *RevokeUserEntitlementResponse
+func (c *ClientWithResponses) RevokeUserEntitlementWithResponse(ctx context.Context, userId string, eid string, reqEditors ...RequestEditorFn) (*RevokeUserEntitlementResponse, error) {
+	rsp, err := c.RevokeUserEntitlement(ctx, userId, eid, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevokeUserEntitlementResponse(rsp)
+}
+
+// UpdateUserEntitlementWithBodyWithResponse request with arbitrary body returning *UpdateUserEntitlementResponse
+func (c *ClientWithResponses) UpdateUserEntitlementWithBodyWithResponse(ctx context.Context, userId string, eid string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateUserEntitlementResponse, error) {
+	rsp, err := c.UpdateUserEntitlementWithBody(ctx, userId, eid, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateUserEntitlementResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateUserEntitlementWithResponse(ctx context.Context, userId string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateUserEntitlementResponse, error) {
+	rsp, err := c.UpdateUserEntitlement(ctx, userId, eid, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateUserEntitlementResponse(rsp)
+}
+
+// GetUserQuotaWithResponse request returning *GetUserQuotaResponse
+func (c *ClientWithResponses) GetUserQuotaWithResponse(ctx context.Context, userId string, reqEditors ...RequestEditorFn) (*GetUserQuotaResponse, error) {
+	rsp, err := c.GetUserQuota(ctx, userId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetUserQuotaResponse(rsp)
 }
 
 // GetUserProfileWithResponse request returning *GetUserProfileResponse
@@ -30989,75 +30332,6 @@ func (c *ClientWithResponses) GetUserProfileWithResponse(ctx context.Context, us
 		return nil, err
 	}
 	return ParseGetUserProfileResponse(rsp)
-}
-
-// SetUserStatusWithBodyWithResponse request with arbitrary body returning *SetUserStatusResponse
-func (c *ClientWithResponses) SetUserStatusWithBodyWithResponse(ctx context.Context, username string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetUserStatusResponse, error) {
-	rsp, err := c.SetUserStatusWithBody(ctx, username, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSetUserStatusResponse(rsp)
-}
-
-func (c *ClientWithResponses) SetUserStatusWithResponse(ctx context.Context, username string, body SetUserStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetUserStatusResponse, error) {
-	rsp, err := c.SetUserStatus(ctx, username, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSetUserStatusResponse(rsp)
-}
-
-// ListUserEntitlementsWithResponse request returning *ListUserEntitlementsResponse
-func (c *ClientWithResponses) ListUserEntitlementsWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*ListUserEntitlementsResponse, error) {
-	rsp, err := c.ListUserEntitlements(ctx, username, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListUserEntitlementsResponse(rsp)
-}
-
-// GrantUserEntitlementWithBodyWithResponse request with arbitrary body returning *GrantUserEntitlementResponse
-func (c *ClientWithResponses) GrantUserEntitlementWithBodyWithResponse(ctx context.Context, username string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GrantUserEntitlementResponse, error) {
-	rsp, err := c.GrantUserEntitlementWithBody(ctx, username, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGrantUserEntitlementResponse(rsp)
-}
-
-func (c *ClientWithResponses) GrantUserEntitlementWithResponse(ctx context.Context, username string, body GrantUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*GrantUserEntitlementResponse, error) {
-	rsp, err := c.GrantUserEntitlement(ctx, username, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGrantUserEntitlementResponse(rsp)
-}
-
-// RevokeUserEntitlementWithResponse request returning *RevokeUserEntitlementResponse
-func (c *ClientWithResponses) RevokeUserEntitlementWithResponse(ctx context.Context, username string, eid string, reqEditors ...RequestEditorFn) (*RevokeUserEntitlementResponse, error) {
-	rsp, err := c.RevokeUserEntitlement(ctx, username, eid, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRevokeUserEntitlementResponse(rsp)
-}
-
-// UpdateUserEntitlementWithBodyWithResponse request with arbitrary body returning *UpdateUserEntitlementResponse
-func (c *ClientWithResponses) UpdateUserEntitlementWithBodyWithResponse(ctx context.Context, username string, eid string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateUserEntitlementResponse, error) {
-	rsp, err := c.UpdateUserEntitlementWithBody(ctx, username, eid, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateUserEntitlementResponse(rsp)
-}
-
-func (c *ClientWithResponses) UpdateUserEntitlementWithResponse(ctx context.Context, username string, eid string, body UpdateUserEntitlementJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateUserEntitlementResponse, error) {
-	rsp, err := c.UpdateUserEntitlement(ctx, username, eid, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateUserEntitlementResponse(rsp)
 }
 
 // ListUserObjectsWithResponse request returning *ListUserObjectsResponse
@@ -42857,119 +42131,6 @@ func ParseEmptyTrashResponse(rsp *http.Response) (*EmptyTrashResponse, error) {
 	return response, nil
 }
 
-// ParseDeleteUsersResponse parses an HTTP response from a DeleteUsersWithResponse call
-func ParseDeleteUsersResponse(rsp *http.Response) (*DeleteUsersResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteUsersResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Deleted int      `json:"deleted"`
-			Ids     []string `json:"ids"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseAdminListUsersResponse parses an HTTP response from a AdminListUsersWithResponse call
-func ParseAdminListUsersResponse(rsp *http.Response) (*AdminListUsersResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &AdminListUsersResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest UserList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseSetUsersStatusResponse parses an HTTP response from a SetUsersStatusWithResponse call
-func ParseSetUsersStatusResponse(rsp *http.Response) (*SetUsersStatusResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &SetUsersStatusResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Ids     []string `json:"ids"`
-			Status  string   `json:"status"`
-			Updated int      `json:"updated"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseDeleteMyAvatarResponse parses an HTTP response from a DeleteMyAvatarWithResponse call
 func ParseDeleteMyAvatarResponse(rsp *http.Response) (*DeleteMyAvatarResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -43048,118 +42209,6 @@ func ParseSetMyAvatarResponse(rsp *http.Response) (*SetMyAvatarResponse, error) 
 			return nil, err
 		}
 		response.JSON503 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseAdminDeleteUserResponse parses an HTTP response from a AdminDeleteUserWithResponse call
-func ParseAdminDeleteUserResponse(rsp *http.Response) (*AdminDeleteUserResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &AdminDeleteUserResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Deleted AdminDeleteUser200JSONResponseBodyDeleted `json:"deleted"`
-			Id      string                                    `json:"id"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetUserProfileResponse parses an HTTP response from a GetUserProfileWithResponse call
-func ParseGetUserProfileResponse(rsp *http.Response) (*GetUserProfileResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetUserProfileResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest UserDetail
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseSetUserStatusResponse parses an HTTP response from a SetUserStatusWithResponse call
-func ParseSetUserStatusResponse(rsp *http.Response) (*SetUserStatusResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &SetUserStatusResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Id     string `json:"id"`
-			Status string `json:"status"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
 
 	}
 
@@ -43313,6 +42362,65 @@ func ParseUpdateUserEntitlementResponse(rsp *http.Response) (*UpdateUserEntitlem
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetUserQuotaResponse parses an HTTP response from a GetUserQuotaWithResponse call
+func ParseGetUserQuotaResponse(rsp *http.Response) (*GetUserQuotaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetUserQuotaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminUserQuota
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetUserProfileResponse parses an HTTP response from a GetUserProfileWithResponse call
+func ParseGetUserProfileResponse(rsp *http.Response) (*GetUserProfileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetUserProfileResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PublicProfile
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error

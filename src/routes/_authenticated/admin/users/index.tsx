@@ -11,14 +11,15 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { batchDeleteUsers, batchUpdateUserStatus, listUsers, type UserWithOrg, updateUserStatus } from '@/lib/api'
+import { getUserQuotaById } from '@/lib/api'
+import { type AdminUser, adminListUsers, adminRemoveUser, adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/users/')({
   component: UsersPage,
 })
 
-type UserRow = UserWithOrg
+type UserRow = AdminUser & { quotaUsed: number; quotaTotal: number }
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
@@ -37,12 +38,34 @@ function UsersPage() {
 
   const usersQuery = useQuery({
     queryKey: ['admin', 'users', page, pageSize, search],
-    queryFn: () => listUsers(page, pageSize, search),
+    queryFn: () => adminListUsers({ limit: pageSize, offset: (page - 1) * pageSize, search }),
   })
 
+  const baseUsers = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data])
+  const pageUserIds = useMemo(() => baseUsers.map((user) => user.id), [baseUsers])
+
+  // better-auth's admin list knows identity but not storage quota — fan out over
+  // the per-user quota sub-resource for the visible page and merge the results.
+  const quotaQuery = useQuery({
+    queryKey: ['admin', 'user-quotas', pageUserIds],
+    queryFn: async () => {
+      const entries = await Promise.all(pageUserIds.map(async (id) => [id, await getUserQuotaById(id)] as const))
+      return new Map(entries)
+    },
+    enabled: pageUserIds.length > 0,
+  })
+
+  const users: UserRow[] = useMemo(() => {
+    const quota = quotaQuery.data
+    return baseUsers.map((user) => ({
+      ...user,
+      quotaUsed: quota?.get(user.id)?.used ?? 0,
+      quotaTotal: quota?.get(user.id)?.total ?? 0,
+    }))
+  }, [baseUsers, quotaQuery.data])
+
   const toggleStatusMutation = useMutation({
-    mutationFn: ({ userId, status }: { userId: string; status: 'active' | 'disabled' }) =>
-      updateUserStatus(userId, status),
+    mutationFn: ({ userId, banned }: { userId: string; banned: boolean }) => adminSetUserBanned(userId, banned),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       toast.success(t('admin.users.statusUpdated'))
@@ -53,12 +76,12 @@ function UsersPage() {
   })
 
   const batchStatusMutation = useMutation({
-    mutationFn: ({ ids, status }: { ids: string[]; status: 'active' | 'disabled' }) =>
-      batchUpdateUserStatus(ids, status),
-    onSuccess: (result) => {
+    mutationFn: ({ ids, banned }: { ids: string[]; banned: boolean }) =>
+      Promise.all(ids.map((id) => adminSetUserBanned(id, banned))),
+    onSuccess: (_result, variables) => {
       setSelectedIds([])
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
-      toast.success(t('admin.users.batchStatusUpdated', { count: result.updated }))
+      toast.success(t('admin.users.batchStatusUpdated', { count: variables.ids.length }))
     },
     onError: (err) => {
       toast.error(err.message)
@@ -66,26 +89,21 @@ function UsersPage() {
   })
 
   const batchDeleteMutation = useMutation({
-    mutationFn: (ids: string[]) => batchDeleteUsers(ids),
-    onSuccess: (result) => {
+    mutationFn: (ids: string[]) => Promise.all(ids.map((id) => adminRemoveUser(id))),
+    onSuccess: (_result, ids) => {
       setSelectedIds([])
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
-      toast.success(t('admin.users.batchDeleted', { count: result.deleted }))
+      toast.success(t('admin.users.batchDeleted', { count: ids.length }))
     },
     onError: (err) => {
       toast.error(err.message)
     },
   })
 
-  const users: UserRow[] = useMemo(() => {
-    return usersQuery.data?.items ?? []
-  }, [usersQuery.data])
-
   const total = usersQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const isLoading = usersQuery.isLoading
   const selectedCount = selectedIds.length
-  const pageUserIds = users.map((user) => user.id)
   const allPageSelected = pageUserIds.length > 0 && pageUserIds.every((id) => selectedIds.includes(id))
   const batchPending = batchStatusMutation.isPending || batchDeleteMutation.isPending
 
@@ -159,7 +177,7 @@ function UsersPage() {
               variant="outline"
               size="sm"
               disabled={batchPending}
-              onClick={() => batchStatusMutation.mutate({ ids: selectedIds, status: 'disabled' })}
+              onClick={() => batchStatusMutation.mutate({ ids: selectedIds, banned: true })}
             >
               <UserX />
               {t('admin.users.batchDisable')}
@@ -168,7 +186,7 @@ function UsersPage() {
               variant="outline"
               size="sm"
               disabled={batchPending}
-              onClick={() => batchStatusMutation.mutate({ ids: selectedIds, status: 'active' })}
+              onClick={() => batchStatusMutation.mutate({ ids: selectedIds, banned: false })}
             >
               <UserCheck />
               {t('admin.users.batchEnable')}
@@ -217,12 +235,7 @@ function UsersPage() {
                 showQuota
                 onSelect={(checked) => toggleUserSelection(user.id, checked)}
                 onOpenUser={() => navigate({ to: '/admin/users/$userId', params: { userId: user.id } })}
-                onToggleStatus={() =>
-                  toggleStatusMutation.mutate({
-                    userId: user.id,
-                    status: user.banned ? 'active' : 'disabled',
-                  })
-                }
+                onToggleStatus={() => toggleStatusMutation.mutate({ userId: user.id, banned: !user.banned })}
                 onDelete={() => setDeleteDialogUser({ id: user.id, name: user.name || user.username })}
               />
             ))}

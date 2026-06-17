@@ -19,7 +19,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { getUser, listUserEntitlements, revokeUserEntitlement } from '@/lib/api'
+import { getUserQuotaById, listUserEntitlements, revokeUserEntitlement } from '@/lib/api'
+import { adminGetUser } from '@/lib/auth-client'
 import { formatDate, formatSize, formatStorageUsage, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/users/$userId')({
@@ -36,7 +37,12 @@ function AdminUserDetailPage() {
 
   const userQuery = useQuery({
     queryKey: ['admin', 'users', userId],
-    queryFn: () => getUser(userId),
+    queryFn: () => adminGetUser(userId),
+  })
+
+  const quotaQuery = useQuery({
+    queryKey: ['admin', 'user-quotas', userId],
+    queryFn: () => getUserQuotaById(userId),
   })
 
   const revokeMutation = useMutation({
@@ -66,7 +72,9 @@ function AdminUserDetailPage() {
   const displayName = user ? user.name || user.username || user.email : ''
   const statusLabel = user?.banned ? t('admin.users.disabled') : t('admin.users.active')
   const statusVariant = user?.banned ? 'destructive' : 'secondary'
-  const quotaLabel = user ? formatStorageUsage(user.quotaUsed, user.quotaTotal) : ''
+  const quota = quotaQuery.data
+  const hasPersonalOrg = quota?.hasPersonalOrg ?? false
+  const quotaLabel = quota?.hasPersonalOrg ? formatStorageUsage(quota.used, quota.total) : '—'
 
   const activeItems = useMemo(() => items.filter((item) => item.status === 'active'), [items])
 
@@ -146,7 +154,7 @@ function AdminUserDetailPage() {
         <CardHeader>
           <CardTitle>{t('admin.users.entitlements')}</CardTitle>
           <CardAction>
-            <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)} disabled={!user.orgId}>
+            <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)} disabled={!hasPersonalOrg}>
               <BadgeCent />
               {t('admin.users.addEntitlement')}
             </Button>

@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { listQuotas, listSiteInvitations, listStorages, listUsers } from '@/lib/api'
+import { listQuotas, listSiteInvitations, listStorages } from '@/lib/api'
+import { adminListUsers } from '@/lib/auth-client'
 import { formatSize } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/')({
@@ -17,7 +18,7 @@ function OverviewPage() {
 
   const usersQuery = useQuery({
     queryKey: ['admin', 'users', { page: 1, pageSize: 1 }],
-    queryFn: () => listUsers(1, 1),
+    queryFn: () => adminListUsers({ limit: 1, offset: 0 }),
   })
 
   const storagesQuery = useQuery({

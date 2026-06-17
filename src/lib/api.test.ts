@@ -2,8 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
-  batchDeleteUsers,
-  batchUpdateUserStatus,
   buildShareObjectUrl,
   cancelBackgroundJob,
   cancelCloudOrder,
@@ -40,7 +38,6 @@ import {
   deleteShare,
   deleteStorage,
   deleteTeamLogo,
-  deleteUser,
   disconnectCloud,
   emptyTrash,
   enableIhostFeature,
@@ -63,8 +60,8 @@ import {
   getSystemOption,
   getTeam,
   getUnreadCount,
-  getUser,
   getUserQuota,
+  getUserQuotaById,
   grantOrgEntitlement,
   grantUserEntitlement,
   isNameConflictError,
@@ -100,7 +97,6 @@ import {
   listTeamActivities,
   listTeams,
   listUserEntitlements,
-  listUsers,
   listWebDavAppPasswords,
   markAllNotificationsRead,
   markNotificationRead,
@@ -137,7 +133,6 @@ import {
   updateOrgEntitlement,
   updateStorage,
   updateUserEntitlement,
-  updateUserStatus,
   uploadAvatar,
   uploadPartToS3,
   uploadTeamLogo,
@@ -1455,163 +1450,6 @@ describe('api', () => {
     })
   })
 
-  describe('getUser', () => {
-    it('fetches a single user and returns it', async () => {
-      const payload = { id: 'u1', name: 'Alice', username: 'alice' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await getUser('u1')
-
-      expect(result).toEqual(payload)
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/users/u1')
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'User not found' }, false, 404))
-
-      await expect(getUser('missing')).rejects.toThrow('User not found')
-    })
-  })
-
-  describe('listUsers', () => {
-    it('fetches users with page and pageSize query params', async () => {
-      const payload = { items: [{ id: 'u1', name: 'Alice' }], total: 1 }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await listUsers(2, 20)
-
-      expect(result).toEqual(payload)
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/users')
-      expect(url).toContain('page=2')
-      expect(url).toContain('pageSize=20')
-    })
-
-    it('includes search query when provided', async () => {
-      const payload = { items: [], total: 0 }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      await listUsers(1, 20, 'alice')
-
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('search=alice')
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
-
-      await expect(listUsers(1, 10)).rejects.toThrow('forbidden')
-    })
-  })
-
-  describe('updateUserStatus', () => {
-    it('patches user and returns updated user', async () => {
-      const updated = { id: 'u1', status: 'active' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(updated))
-
-      const result = await updateUserStatus('u1', 'active')
-
-      expect(result).toEqual(updated)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/users/u1')
-      expect(init.method).toBe('PATCH')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ status: 'active' })
-    })
-
-    it('sends disabled status correctly', async () => {
-      const updated = { id: 'u1', status: 'disabled' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(updated))
-
-      await updateUserStatus('u1', 'disabled')
-
-      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ status: 'disabled' })
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
-
-      await expect(updateUserStatus('missing', 'active')).rejects.toThrow('not found')
-    })
-  })
-
-  describe('deleteUser', () => {
-    it('sends DELETE request and returns deleted flag', async () => {
-      const payload = { id: 'u1', deleted: true }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await deleteUser('u1')
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/users/u1')
-      expect(init.method).toBe('DELETE')
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
-
-      await expect(deleteUser('u1')).rejects.toThrow('forbidden')
-    })
-  })
-
-  describe('batchUpdateUserStatus', () => {
-    it('patches batch endpoint with disable action', async () => {
-      const payload = { updated: 2, ids: ['u1', 'u2'], status: 'disabled' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await batchUpdateUserStatus(['u1', 'u2'], 'disabled')
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/users')
-      expect(init.method).toBe('PATCH')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ action: 'disable', ids: ['u1', 'u2'] })
-    })
-
-    it('patches batch endpoint with enable action', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ updated: 1, ids: ['u1'], status: 'active' }))
-
-      await batchUpdateUserStatus(['u1'], 'active')
-
-      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ action: 'enable', ids: ['u1'] })
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
-
-      await expect(batchUpdateUserStatus(['missing'], 'disabled')).rejects.toThrow('not found')
-    })
-  })
-
-  describe('batchDeleteUsers', () => {
-    it('deletes users through batch endpoint', async () => {
-      const payload = { deleted: 2, ids: ['u1', 'u2'] }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await batchDeleteUsers(['u1', 'u2'])
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/users')
-      expect(init.method).toBe('DELETE')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ ids: ['u1', 'u2'] })
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
-
-      await expect(batchDeleteUsers(['u1'])).rejects.toThrow('forbidden')
-    })
-  })
-
   describe('user entitlements', () => {
     it('lists user quota entitlements', async () => {
       const payload = {
@@ -1778,6 +1616,25 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
       await expect(listQuotas()).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('getUserQuotaById', () => {
+    it('fetches a single user quota from the user sub-resource', async () => {
+      const payload = { used: 512, total: 1024, hasPersonalOrg: true }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getUserQuotaById('u1')
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/users/u1/quota')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(getUserQuotaById('u1')).rejects.toThrow('forbidden')
     })
   })
 
