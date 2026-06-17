@@ -140,6 +140,7 @@ const unbindRoute = createRoute({
   middleware: [requireAdmin] as const,
   responses: {
     204: { description: 'Unbound' },
+    502: errorResponse('Cloud unbind failed'),
   },
 })
 
@@ -213,10 +214,11 @@ export const licensingAdmin = adminApp
     return c.json({ success: true, last_refresh_at: lastRefreshAt }, 200)
   })
   .openapi(unbindRoute, async (c) => {
-    await unbindLicense(c.get('deps'), {
+    const result = await unbindLicense(c.get('deps'), {
       baseUrl: getCloudBaseUrl(c),
       userId: c.get('userId')!,
       orgId: c.get('orgId')!,
     })
+    if (!result.ok) throw result.error
     return c.body(null, 204)
   })

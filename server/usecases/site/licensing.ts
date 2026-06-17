@@ -564,7 +564,7 @@ export interface UnbindLicenseParams {
 export async function unbindLicense(
   deps: UnbindLicenseDeps,
   params: UnbindLicenseParams,
-): Promise<{ cloudUnbindError: string | null }> {
+): Promise<{ ok: true } | { ok: false; error: AppError }> {
   const state = await deps.licenseBinding.loadLicenseState()
   let cloudUnbindError: string | null = null
 
@@ -576,6 +576,8 @@ export async function unbindLicense(
     }
   }
 
+  // The local binding is always cleared — the resource is gone regardless of
+  // whether the cloud could be notified.
   await deps.licenseBinding.clearLicenseBinding()
 
   await deps.activity.record({
@@ -587,5 +589,17 @@ export async function unbindLicense(
     metadata: cloudUnbindError ? { cloudUnbindError } : undefined,
   })
 
-  return { cloudUnbindError }
+  // A best-effort cloud unbind that failed is still a partial failure: surface it
+  // as a 502 (local binding gone, cloud left dangling) rather than swallowing it.
+  if (cloudUnbindError) {
+    return {
+      ok: false,
+      error: new AppError(502, 'License unbound locally, but cloud unbind failed', {
+        reason: 'CLOUD_UNBIND_FAILED',
+        metadata: { cloudUnbindError },
+      }),
+    }
+  }
+
+  return { ok: true }
 }

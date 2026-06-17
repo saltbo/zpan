@@ -25814,6 +25814,7 @@ func (r DeleteInviteCodeResponse) ContentType() string {
 type UnbindLicenseResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -40222,6 +40223,16 @@ func ParseUnbindLicenseResponse(rsp *http.Response) (*UnbindLicenseResponse, err
 	response := &UnbindLicenseResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
 	}
 
 	return response, nil
