@@ -1,6 +1,5 @@
 import { createMiddleware } from 'hono/factory'
-import { apiError } from '../http/openapi'
-import { ApiKeyRateLimitError } from '../usecases/ports'
+import { ApiKeyRateLimitError, forbidden, rateLimited, unauthorized } from '../usecases/ports'
 import type { Env } from './platform'
 
 // 'member' is the better-auth schema default; map it to viewer level so
@@ -46,10 +45,10 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       apiKey = await deps.apiKeys.verifyApiKey(c.get('auth'), platform.db, token)
     } catch (error) {
       if (error instanceof ApiKeyRateLimitError) {
-        const res = apiError(c, 429, error.message)
-        if (error.retryAfterMs !== undefined)
-          res.headers.set('Retry-After', String(Math.ceil(error.retryAfterMs / 1000)))
-        return res
+        throw rateLimited(
+          error.message,
+          error.retryAfterMs === undefined ? undefined : Math.ceil(error.retryAfterMs / 1000),
+        )
       }
       throw error
     }
@@ -78,7 +77,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
 
   if (result?.user?.id) {
     if (await c.get('deps').userAdmin.isBanned(result.user.id)) {
-      return apiError(c, 403, 'Account disabled')
+      throw forbidden('Account disabled')
     }
   }
 
@@ -105,14 +104,14 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
 
 export const requireDownloader = createMiddleware<Env>(async (c, next) => {
   const principal = c.get('principal')
-  if (principal?.kind !== 'downloader') return apiError(c, 401, 'Unauthorized')
+  if (principal?.kind !== 'downloader') throw unauthorized('Unauthorized')
   await next()
 })
 
 export const requireAuth = createMiddleware<Env>(async (c, next) => {
   const userId = c.get('userId')
   if (!userId) {
-    return apiError(c, 401, 'Unauthorized')
+    throw unauthorized('Unauthorized')
   }
   await next()
 })
@@ -120,11 +119,11 @@ export const requireAuth = createMiddleware<Env>(async (c, next) => {
 export const requireAdmin = createMiddleware<Env>(async (c, next) => {
   const userId = c.get('userId')
   if (!userId) {
-    return apiError(c, 401, 'Unauthorized')
+    throw unauthorized('Unauthorized')
   }
   const userRole = c.get('userRole')
   if (userRole !== 'admin') {
-    return apiError(c, 403, 'Forbidden')
+    throw forbidden('Forbidden')
   }
   await next()
 })
@@ -137,7 +136,7 @@ export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
     const orgId = c.get('orgId')
     const userId = c.get('userId')
     if (!orgId || !userId) {
-      return apiError(c, 401, 'Unauthorized')
+      throw unauthorized('Unauthorized')
     }
 
     // Query member role first — avoids an extra DB round trip for the common case.
@@ -147,7 +146,7 @@ export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
     if (role !== null) {
       const userLevel = ROLE_LEVELS[role] ?? 0
       if (userLevel < ROLE_LEVELS[minRole]) {
-        return apiError(c, 403, 'Forbidden')
+        throw forbidden('Forbidden')
       }
       await next()
       return
@@ -159,6 +158,6 @@ export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
       return
     }
 
-    return apiError(c, 403, 'Forbidden')
+    throw forbidden('Forbidden')
   })
 }

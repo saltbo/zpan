@@ -8,7 +8,20 @@
 // inputs (cloud base URL, referer header, request origin), and renders the
 // route-specific Responses from the discriminated outcomes below.
 
-import type { ImageHostingRepo, QuotaRepo, S3Gateway, ShareRepo, StorageRepo } from './ports'
+import {
+  type AppError,
+  expired as expiredError,
+  forbidden,
+  type ImageHostingRepo,
+  insufficientCredits,
+  notFound,
+  type QuotaRepo,
+  quotaExceeded,
+  type S3Gateway,
+  type ShareRepo,
+  type StorageRepo,
+  storageNotFound,
+} from './ports'
 import { PRESIGN_TTL_SECS } from './share'
 import { type CloudTrafficMeteringDeps, meterDownloadTraffic, reportDownloadEgress } from './store/traffic-metering'
 
@@ -24,15 +37,7 @@ export type RedirectDeps = CloudTrafficMeteringDeps & {
 
 // ─── Direct share (ds_) ──────────────────────────────────────────────────────
 
-export type DirectShareOutcome =
-  | { ok: true; url: string }
-  | { ok: false; reason: 'matter_trashed' }
-  | { ok: false; reason: 'not_found' }
-  | { ok: false; reason: 'expired' }
-  | { ok: false; reason: 'limit_exceeded' }
-  | { ok: false; reason: 'storage_not_found' }
-  | { ok: false; reason: 'quota_exceeded' }
-  | { ok: false; reason: 'insufficient_credits' }
+export type DirectShareOutcome = { ok: true; url: string } | { ok: false; error: AppError }
 
 // Resolve a ds_ token to a presigned download URL, running the share gates,
 // atomically reserving a download, metering traffic, and presigning. On a
@@ -45,22 +50,23 @@ export async function resolveDirectShareDownload(
   const now = params.now ?? new Date()
   const resolved = await deps.share.resolveByToken(params.token)
   if (resolved.status !== 'ok') {
-    if (resolved.status === 'matter_trashed') return { ok: false, reason: 'matter_trashed' }
-    return { ok: false, reason: 'not_found' }
+    if (resolved.status === 'matter_trashed') return { ok: false, error: expiredError('File no longer available') }
+    return { ok: false, error: notFound('Share not found or revoked') }
   }
 
   const { share, matter } = resolved
-  if (share.kind !== 'direct') return { ok: false, reason: 'not_found' }
+  if (share.kind !== 'direct') return { ok: false, error: notFound('Share not found or revoked') }
 
-  if (share.expiresAt && share.expiresAt < now) return { ok: false, reason: 'expired' }
+  if (share.expiresAt && share.expiresAt < now) return { ok: false, error: expiredError('Share has expired') }
 
-  if (!(await deps.share.hasDownloadsAvailable(share.id))) return { ok: false, reason: 'limit_exceeded' }
+  if (!(await deps.share.hasDownloadsAvailable(share.id)))
+    return { ok: false, error: expiredError('Download limit exceeded') }
 
   const storage = await deps.storages.get(matter.storageId)
-  if (!storage) return { ok: false, reason: 'storage_not_found' }
+  if (!storage) return { ok: false, error: storageNotFound() }
 
   const { ok } = await deps.share.incrementDownloadsAtomic(share.id)
-  if (!ok) return { ok: false, reason: 'limit_exceeded' }
+  if (!ok) return { ok: false, error: expiredError('Download limit exceeded') }
 
   const bytes = matter.size ?? 0
   const metered = await meterDownloadTraffic(deps, {
@@ -72,7 +78,14 @@ export async function resolveDirectShareDownload(
     sourceId: share.id,
     onRejected: () => deps.share.decrementDownloads(share.id),
   })
-  if (!metered.ok) return { ok: false, reason: metered.reason }
+  if (!metered.ok)
+    return {
+      ok: false,
+      error:
+        metered.reason === 'quota_exceeded'
+          ? quotaExceeded('Traffic quota exceeded')
+          : insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
+    }
 
   let url: string
   try {
@@ -88,13 +101,7 @@ export async function resolveDirectShareDownload(
 
 // ─── Image hosting (ih_) ─────────────────────────────────────────────────────
 
-export type ImageHostingOutcome =
-  | { ok: true; url: string }
-  | { ok: false; reason: 'not_found' }
-  | { ok: false; reason: 'forbidden_referer' }
-  | { ok: false; reason: 'storage_not_found' }
-  | { ok: false; reason: 'quota_exceeded' }
-  | { ok: false; reason: 'insufficient_credits' }
+export type ImageHostingOutcome = { ok: true; url: string } | { ok: false; error: AppError }
 
 // Resolve an ih_ token to a presigned inline URL. Order matters and mirrors the
 // historical flow: enforce the referer allowlist, consume traffic quota, presign
@@ -107,21 +114,21 @@ export async function resolveImageHostingDownload(
   params: { token: string; cloudBaseUrl: string; refererHeader: string | null; requestOrigin: string },
 ): Promise<ImageHostingOutcome> {
   const resolved = await deps.imageHosting.resolveActiveByToken(params.token)
-  if (!resolved) return { ok: false, reason: 'not_found' }
+  if (!resolved) return { ok: false, error: notFound() }
 
   const { image, refererAllowlist } = resolved
 
   // Allow same-origin requests (e.g. Web UI viewing its own images).
   const isSameOrigin = params.refererHeader ? new URL(params.refererHeader).origin === params.requestOrigin : false
   if (!isSameOrigin && !checkReferer(refererAllowlist, params.refererHeader)) {
-    return { ok: false, reason: 'forbidden_referer' }
+    return { ok: false, error: forbidden('forbidden referer') }
   }
 
   const storage = await deps.storages.get(image.storageId)
-  if (!storage) return { ok: false, reason: 'storage_not_found' }
+  if (!storage) return { ok: false, error: storageNotFound() }
 
   const trafficAllowed = await deps.quota.consumeTrafficIfQuotaAllows(image.orgId, image.size)
-  if (!trafficAllowed) return { ok: false, reason: 'quota_exceeded' }
+  if (!trafficAllowed) return { ok: false, error: quotaExceeded('Traffic quota exceeded') }
 
   let url: string
   try {
@@ -140,7 +147,11 @@ export async function resolveImageHostingDownload(
     sourceId: image.id,
   })
   // reportDownloadEgress never consumes quota, so it cannot return quota_exceeded.
-  if (!reported.ok) return { ok: false, reason: 'insufficient_credits' }
+  if (!reported.ok)
+    return {
+      ok: false,
+      error: insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
+    }
 
   try {
     await deps.imageHosting.incrementAccessCount(image.id)

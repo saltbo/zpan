@@ -11,6 +11,7 @@ import { getTrustedPublicKeys } from '../../domain/license-keys'
 import { effectiveFeatures, hasFeature } from '../../domain/licensing'
 import {
   type ActivityRepo,
+  AppError,
   type CloudInstanceInfo,
   CloudInvalidResponseError,
   CloudNetworkError,
@@ -427,11 +428,20 @@ export interface PollPairingParams {
 export type PollPairingOutcome =
   | { ok: true; status: 'approved'; edition: LicenseEdition; cloudStoreId: string }
   | { ok: true; status: 'pending' | 'denied' | 'expired' }
-  | {
-      ok: false
-      reason: CertificateRejectionReason | 'incomplete_response' | 'no_certificate'
-      cloudUnbindError: string | null
-    }
+  | { ok: false; error: AppError }
+
+// A rejected pairing certificate always renders 502 INVALID_CERTIFICATE; the
+// specific rejection reason and any best-effort cloud-unbind failure ride along
+// as metadata for diagnostics.
+function invalidCertificate(
+  certificateReason: CertificateRejectionReason | 'incomplete_response' | 'no_certificate',
+  cloudUnbindError: string | null,
+): AppError {
+  return new AppError(502, 'Invalid certificate', {
+    reason: 'INVALID_CERTIFICATE',
+    metadata: { certificateReason, ...(cloudUnbindError ? { cloudUnbindError } : {}) },
+  })
+}
 
 // Polls a pairing code. On approval it verifies the returned certificate, and on
 // success persists the binding, best-effort confirms with the cloud, and records
@@ -458,7 +468,7 @@ export async function pollPairing(deps: PollPairingDeps, params: PollPairingPara
   if (!verification?.ok || !result.refreshToken || !result.binding?.storeId || !result.account) {
     const cloudUnbindError = await rollbackCloudBinding(deps.licensingCloud, baseUrl, result)
     const reason = verification ? (verification.ok ? 'incomplete_response' : verification.reason) : 'no_certificate'
-    return { ok: false, reason, cloudUnbindError }
+    return { ok: false, error: invalidCertificate(reason, cloudUnbindError) }
   }
 
   const assertion = verification.assertion

@@ -4,6 +4,7 @@ import { S3Service } from '../adapters/gateways/s3.js'
 import { createShareRepo } from '../adapters/repos/share'
 import { currentTrafficPeriod } from '../domain/quota.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
+import { insufficientCredits } from '../usecases/ports'
 
 const MOCK_PRESIGN_URL = 'https://presigned-download.example.com/file'
 const MOCK_INLINE_URL = 'https://presigned-inline.example.com/image.png'
@@ -354,7 +355,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     const redirectUsecase = await import('../usecases/redirect.js')
     vi.spyOn(redirectUsecase, 'resolveImageHostingDownload').mockResolvedValueOnce({
       ok: false,
-      reason: 'insufficient_credits',
+      error: insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
     })
 
     const res = await app.request('/r/ih_credits', { redirect: 'manual' })

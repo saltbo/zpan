@@ -18,13 +18,21 @@ import type { Platform } from '../platform/interface'
 import { type SaveToDriveDeps, saveShareToDrive } from './object'
 import {
   type ActivityRepo,
+  AppError,
+  badRequest,
   CreateShareError,
   type EmailGateway,
+  expired as expiredError,
+  forbidden,
+  insufficientCredits,
   type Matter,
   type MatterRepo,
   type NotificationRepo,
+  notFound,
   type OrgRepo,
+  passwordRequired,
   type QuotaRepo,
+  quotaExceeded,
   type S3Gateway,
   type ShareNotificationRecipient,
   type ShareNotificationRepo,
@@ -33,6 +41,7 @@ import {
   type ShareRecord,
   type ShareRepo,
   type StorageRepo,
+  storageNotFound,
 } from './ports'
 import type { CloudTrafficMeteringDeps } from './store/traffic-metering'
 import { meterDownloadTraffic } from './store/traffic-metering'
@@ -93,22 +102,22 @@ export type ShareCreatorDto = ShareViewerDto & {
 
 export type ViewShareOutcome =
   | { ok: true; dto: ShareViewerDto | ShareCreatorDto; setViewCookie: boolean }
-  | { ok: false; reason: 'not_found' | 'matter_trashed' }
+  | { ok: false; error: AppError }
 
 export async function viewShare(deps: ShareDeps, params: ViewShareParams): Promise<ViewShareOutcome> {
   const { token, viewerId, viewCookie, accessCookie, now = new Date() } = params
 
   const resolved = await deps.share.resolveByToken(token)
   if (resolved.status !== 'ok') {
-    if (resolved.status === 'matter_trashed') return { ok: false, reason: 'matter_trashed' }
-    return { ok: false, reason: 'not_found' }
+    if (resolved.status === 'matter_trashed') return { ok: false, error: expiredError('File no longer available') }
+    return { ok: false, error: notFound('Share not found or revoked') }
   }
 
   const { share, matter, recipients } = resolved
   const isCreator = !!viewerId && viewerId === share.creatorId
 
   // Direct shares are not publicly viewable; only the creator sees metadata.
-  if (share.kind !== 'landing' && !isCreator) return { ok: false, reason: 'not_found' }
+  if (share.kind !== 'landing' && !isCreator) return { ok: false, error: notFound('Share not found or revoked') }
 
   // View-dedup increment: non-creators whose view cookie isn't yet 'seen'. The
   // handler sets the cookie when setViewCookie is true.
@@ -162,9 +171,7 @@ export async function viewShare(deps: ShareDeps, params: ViewShareParams): Promi
 
 export type VerifySharePasswordParams = { token: string; password: string; now?: Date }
 
-export type VerifySharePasswordOutcome =
-  | { ok: true; setAccessCookieExpiry: Date }
-  | { ok: false; reason: 'not_found' | 'invalid_password' }
+export type VerifySharePasswordOutcome = { ok: true; setAccessCookieExpiry: Date } | { ok: false; error: AppError }
 
 export async function verifySharePassword(
   deps: ShareDeps,
@@ -173,13 +180,13 @@ export async function verifySharePassword(
   const { token, password, now = new Date() } = params
 
   const resolved = await deps.share.resolveByToken(token)
-  if (resolved.status !== 'ok') return { ok: false, reason: 'not_found' }
+  if (resolved.status !== 'ok') return { ok: false, error: notFound('Share not found or revoked') }
 
   const { share } = resolved
-  if (share.kind !== 'landing') return { ok: false, reason: 'not_found' }
+  if (share.kind !== 'landing') return { ok: false, error: notFound('Share not found or revoked') }
 
   if (!share.passwordHash || !verifyPasswordHash(share.passwordHash, password))
-    return { ok: false, reason: 'invalid_password' }
+    return { ok: false, error: forbidden('Invalid password') }
 
   // Cookie lives for up to a day, never past the share's own expiry.
   const oneDayMs = 24 * 60 * 60 * 1000
@@ -212,12 +219,7 @@ export type ListShareObjectsResult = {
   breadcrumb: Array<{ name: string; path: string }>
 }
 
-export type ListShareObjectsOutcome =
-  | { ok: true; result: ListShareObjectsResult }
-  | {
-      ok: false
-      reason: 'not_found' | 'matter_trashed' | 'not_a_folder' | 'password_required' | 'expired' | 'invalid_path'
-    }
+export type ListShareObjectsOutcome = { ok: true; result: ListShareObjectsResult } | { ok: false; error: AppError }
 
 export async function listShareObjects(
   deps: ShareDeps,
@@ -227,20 +229,20 @@ export async function listShareObjects(
 
   const resolved = await deps.share.resolveByToken(token)
   if (resolved.status !== 'ok') {
-    if (resolved.status === 'matter_trashed') return { ok: false, reason: 'matter_trashed' }
-    return { ok: false, reason: 'not_found' }
+    if (resolved.status === 'matter_trashed') return { ok: false, error: expiredError('File no longer available') }
+    return { ok: false, error: notFound('Share not found or revoked') }
   }
 
   const { share, matter, recipients } = resolved
-  if (share.kind !== 'landing') return { ok: false, reason: 'not_found' }
-  if (matter.dirtype === DirType.FILE) return { ok: false, reason: 'not_a_folder' }
+  if (share.kind !== 'landing') return { ok: false, error: notFound('Share not found or revoked') }
+  if (matter.dirtype === DirType.FILE) return { ok: false, error: badRequest('Not a folder share') }
 
   if (checkAccessGate(share.passwordHash, recipients, viewerId, accessCookie) === 'password_required')
-    return { ok: false, reason: 'password_required' }
+    return { ok: false, error: passwordRequired() }
 
-  if (share.expiresAt && share.expiresAt < now) return { ok: false, reason: 'expired' }
+  if (share.expiresAt && share.expiresAt < now) return { ok: false, error: expiredError('Share has expired') }
 
-  if (relativePath.includes('..')) return { ok: false, reason: 'invalid_path' }
+  if (relativePath.includes('..')) return { ok: false, error: badRequest('Invalid path') }
 
   const root = folderRootPath(matter)
   const queryParent = relativePath ? `${root}/${relativePath}` : root
@@ -277,22 +279,7 @@ export type DownloadShareObjectParams = {
   cloudBaseUrl: string
 }
 
-export type DownloadShareObjectOutcome =
-  | { ok: true; url: string }
-  | {
-      ok: false
-      reason:
-        | 'not_found'
-        | 'matter_trashed'
-        | 'invalid_ref'
-        | 'password_required'
-        | 'expired'
-        | 'folder'
-        | 'limit_exceeded'
-        | 'storage_not_found'
-        | 'quota_exceeded'
-        | 'insufficient_credits'
-    }
+export type DownloadShareObjectOutcome = { ok: true; url: string } | { ok: false; error: AppError }
 
 export async function downloadShareObject(
   deps: ShareDeps,
@@ -302,37 +289,38 @@ export async function downloadShareObject(
 
   const resolved = await deps.share.resolveByToken(token)
   if (resolved.status !== 'ok') {
-    if (resolved.status === 'matter_trashed') return { ok: false, reason: 'matter_trashed' }
-    return { ok: false, reason: 'not_found' }
+    if (resolved.status === 'matter_trashed') return { ok: false, error: expiredError('File no longer available') }
+    return { ok: false, error: notFound('File not found or not accessible') }
   }
 
   const { share, matter, recipients } = resolved
-  if (share.kind !== 'landing') return { ok: false, reason: 'not_found' }
+  if (share.kind !== 'landing') return { ok: false, error: notFound('File not found or not accessible') }
 
-  if (matterId === null) return { ok: false, reason: 'invalid_ref' }
+  if (matterId === null) return { ok: false, error: badRequest('Invalid reference') }
 
   if (checkAccessGate(share.passwordHash, recipients, viewerId, accessCookie) === 'password_required')
-    return { ok: false, reason: 'password_required' }
+    return { ok: false, error: passwordRequired() }
 
-  if (share.expiresAt && share.expiresAt < new Date()) return { ok: false, reason: 'expired' }
+  if (share.expiresAt && share.expiresAt < new Date()) return { ok: false, error: expiredError('Share has expired') }
 
   let targetMatter = matter
   if (matterId !== matter.id) {
-    if (matter.dirtype === DirType.FILE) return { ok: false, reason: 'not_found' }
+    if (matter.dirtype === DirType.FILE) return { ok: false, error: notFound('File not found or not accessible') }
     const child = await deps.share.findShareChildMatter(matter, matterId)
-    if (!child) return { ok: false, reason: 'not_found' }
+    if (!child) return { ok: false, error: notFound('File not found or not accessible') }
     targetMatter = child
   } else if (matter.dirtype !== DirType.FILE) {
-    return { ok: false, reason: 'folder' }
+    return { ok: false, error: badRequest('Cannot download a folder directly') }
   }
 
-  if (!(await deps.share.hasDownloadsAvailable(share.id))) return { ok: false, reason: 'limit_exceeded' }
+  if (!(await deps.share.hasDownloadsAvailable(share.id)))
+    return { ok: false, error: expiredError('Download limit exceeded') }
 
   const storage = await deps.storages.get(targetMatter.storageId)
-  if (!storage) return { ok: false, reason: 'storage_not_found' }
+  if (!storage) return { ok: false, error: storageNotFound() }
 
   const { ok: incremented } = await deps.share.incrementDownloadsAtomic(share.id)
-  if (!incremented) return { ok: false, reason: 'limit_exceeded' }
+  if (!incremented) return { ok: false, error: expiredError('Download limit exceeded') }
 
   const bytes = targetMatter.size ?? 0
   const metered = await meterDownloadTraffic(deps, {
@@ -344,7 +332,14 @@ export async function downloadShareObject(
     sourceId: share.id,
     onRejected: () => deps.share.decrementDownloads(share.id),
   })
-  if (!metered.ok) return { ok: false, reason: metered.reason }
+  if (!metered.ok)
+    return {
+      ok: false,
+      error:
+        metered.reason === 'quota_exceeded'
+          ? quotaExceeded('Traffic quota exceeded')
+          : insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
+    }
 
   // Presign. On failure the metering already succeeded, so roll it back
   // ourselves: refund the consumed traffic and the download count, then rethrow.
@@ -418,7 +413,16 @@ export type CreatedShare = {
   downloadLimit: number | null
 }
 
-export type CreateShareOutcome = { ok: true; share: CreatedShare } | { ok: false; reason: CreateShareError['code'] }
+export type CreateShareOutcome = { ok: true; share: CreatedShare } | { ok: false; error: AppError }
+
+// The wire mapping for each CreateShareError code: a 404 (matter missing) or a
+// 400 (invalid direct-share shape), each preserving its stable reason.
+const CREATE_SHARE_ERRORS: Record<CreateShareError['code'], AppError> = {
+  MATTER_NOT_FOUND: new AppError(404, 'Matter not found', { reason: 'MATTER_NOT_FOUND' }),
+  DIRECT_NO_FOLDER: badRequest('Direct shares cannot be folders', 'DIRECT_NO_FOLDER'),
+  DIRECT_NO_PASSWORD: badRequest('Direct shares cannot have a password', 'DIRECT_NO_PASSWORD'),
+  DIRECT_NO_RECIPIENTS: badRequest('Direct shares cannot have recipients', 'DIRECT_NO_RECIPIENTS'),
+}
 
 export async function createShare(
   deps: ShareDeps,
@@ -448,7 +452,7 @@ export async function createShare(
       recipients: input.recipients,
     })
   } catch (err) {
-    if (err instanceof CreateShareError) return { ok: false, reason: err.code }
+    if (err instanceof CreateShareError) return { ok: false, error: CREATE_SHARE_ERRORS[err.code] }
     throw err
   }
 
@@ -486,20 +490,20 @@ export async function createShare(
 
 export type RevokeShareParams = { token: string; userId: string; orgId: string }
 
-export type RevokeShareOutcome = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }
+export type RevokeShareOutcome = { ok: true } | { ok: false; error: AppError }
 
 export async function revokeShare(deps: ShareDeps, params: RevokeShareParams): Promise<RevokeShareOutcome> {
   const { token, userId, orgId } = params
 
   const creatorId = await deps.share.getCreatorByToken(token)
-  if (creatorId === null) return { ok: false, reason: 'not_found' }
-  if (creatorId !== userId) return { ok: false, reason: 'forbidden' }
+  if (creatorId === null) return { ok: false, error: notFound() }
+  if (creatorId !== userId) return { ok: false, error: forbidden() }
 
   // Race-safe: revokeByToken scopes the UPDATE to (token, creatorId). A
   // concurrent revoke or ownership change between the check above and this call
   // returns false — translate to not_found at the boundary.
   const revoked = await deps.share.revokeByToken(token, userId)
-  if (!revoked) return { ok: false, reason: 'not_found' }
+  if (!revoked) return { ok: false, error: notFound() }
 
   await deps.activity.record({
     orgId,
@@ -524,29 +528,33 @@ export type SaveShareParams = {
 
 export type SaveShareOutcome =
   | { ok: true; result: { saved: Matter[]; skipped: Array<{ name: string; reason: string }> } }
-  | {
-      ok: false
-      reason: 'matter_trashed' | 'not_found' | 'direct_forbidden' | 'password_required' | 'forbidden' | 'quota_exceeded'
-    }
+  | { ok: false; error: AppError }
 
 export async function saveShare(deps: ShareDeps, params: SaveShareParams): Promise<SaveShareOutcome> {
   const { token, currentUserId, targetOrgId, targetParent, accessCookie } = params
 
   const resolution = await deps.share.resolveByToken(token)
-  if (resolution.status === 'matter_trashed') return { ok: false, reason: 'matter_trashed' }
-  if (resolution.status !== 'ok') return { ok: false, reason: 'not_found' }
+  if (resolution.status === 'matter_trashed') return { ok: false, error: expiredError('Share target has been deleted') }
+  if (resolution.status !== 'ok') return { ok: false, error: notFound('Share not found') }
 
   const { share, matter, recipients } = resolution
 
-  if (share.kind === 'direct') return { ok: false, reason: 'direct_forbidden' }
+  if (share.kind === 'direct')
+    return {
+      ok: false,
+      error: badRequest(
+        'Direct link shares cannot be saved. Ask the sender for a landing share.',
+        'DIRECT_SAVE_FORBIDDEN',
+      ),
+    }
 
   if (checkAccessGate(share.passwordHash, recipients, currentUserId, accessCookie) === 'password_required')
-    return { ok: false, reason: 'password_required' }
+    return { ok: false, error: passwordRequired('Authentication required for password-protected share') }
 
-  if (!(await deps.org.canWriteToOrg(currentUserId, targetOrgId))) return { ok: false, reason: 'forbidden' }
+  if (!(await deps.org.canWriteToOrg(currentUserId, targetOrgId))) return { ok: false, error: forbidden() }
 
   const totalBytes = await deps.share.computeSourceBytes(matter)
-  if (!(await deps.share.hasQuotaForBytes(targetOrgId, totalBytes))) return { ok: false, reason: 'quota_exceeded' }
+  if (!(await deps.share.hasQuotaForBytes(targetOrgId, totalBytes))) return { ok: false, error: quotaExceeded() }
 
   const result = await saveShareToDrive(deps, { share, matter, currentUserId, targetOrgId, targetParent })
   return { ok: true, result }

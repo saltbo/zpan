@@ -26,9 +26,8 @@ export interface ErrorOptions {
 }
 
 // The single place that builds an AIP-193 (`google.rpc.Status`) error body. Every
-// error the API surfaces — thrown domain errors mapped in `onError`, and inline
-// handler rejections via `apiError` — flows through here, so the wire shape is
-// defined exactly once.
+// error the API surfaces — `AppError` values and mapped domain errors, all rendered
+// by `jsonError` — flows through here, so the wire shape is defined exactly once.
 export function buildErrorBody(httpStatus: number, message: string, opts: ErrorOptions = {}): ErrorResponse {
   const status = opts.status ?? canonicalStatusForHttp(httpStatus)
   const reason = opts.reason ?? status
@@ -46,24 +45,6 @@ export function buildErrorBody(httpStatus: number, message: string, opts: ErrorO
         },
       ],
     },
-  }
-}
-
-// A throwable carrying everything needed to render an AIP-193 body. Handlers and
-// usecases can `throw new ApiError(...)`; `onError` renders it. Inline handler
-// sites that prefer `return` use the `apiError` helper instead (see http/openapi).
-export class ApiError extends Error {
-  constructor(
-    readonly httpStatus: ContentfulStatusCode,
-    message: string,
-    readonly options: ErrorOptions = {},
-  ) {
-    super(message)
-    this.name = 'ApiError'
-  }
-
-  toBody(): ErrorResponse {
-    return buildErrorBody(this.httpStatus, this.message, this.options)
   }
 }
 

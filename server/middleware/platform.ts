@@ -12,8 +12,8 @@ export type Env = {
     userId: string | null
     userRole: string | null
     orgId: string | null
-    // Structured detail for the access log on a failed request. Set by `apiError`
-    // and `app.onError`; read by the accessLog middleware so every 4xx/5xx carries
+    // Structured detail for the access log on a failed request. Set by `jsonError`
+    // (via `app.onError`); read by the accessLog middleware so every 4xx/5xx carries
     // its reason + full message, not just unhandled crashes.
     errorLog: { reason: string; message: string } | null
   }

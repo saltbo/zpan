@@ -123,7 +123,10 @@ describe('site-invitation usecase', () => {
         email: 'dupe@example.com',
         requestUrl: 'https://app.example.com/api/admin/site-invitations',
       })
-      expect(out).toEqual({ ok: false, reason: 'conflict', message: 'Invitation already exists' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(409)
+      expect(out.error.message).toBe('Invitation already exists')
       expect(send).not.toHaveBeenCalled()
       expect(record).not.toHaveBeenCalled()
     })
@@ -142,7 +145,10 @@ describe('site-invitation usecase', () => {
         email: 'dupe@example.com',
         requestUrl: 'https://app.example.com/api/admin/site-invitations',
       })
-      expect(out).toEqual({ ok: false, reason: 'conflict', message: 'Failed to create invitation' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(409)
+      expect(out.error.message).toBe('Failed to create invitation')
     })
 
     it('propagates when email config validation throws, before creating', async () => {
@@ -183,21 +189,30 @@ describe('site-invitation usecase', () => {
     it('returns not_found and does not send', async () => {
       const { deps, send } = makeDeps({ siteInvitations: { resendSiteInvitation: async () => 'not_found' } })
       const out = await resendSiteInvitation(deps, platform, { id: 'x', requestUrl: 'https://app.example.com/r' })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(404)
+      expect(out.error.message).toBe('Invitation not found')
       expect(send).not.toHaveBeenCalled()
     })
 
     it('returns already_accepted and does not send', async () => {
       const { deps, send } = makeDeps({ siteInvitations: { resendSiteInvitation: async () => 'already_accepted' } })
       const out = await resendSiteInvitation(deps, platform, { id: 'x', requestUrl: 'https://app.example.com/r' })
-      expect(out).toEqual({ ok: false, reason: 'already_accepted' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('Invitation has already been used')
       expect(send).not.toHaveBeenCalled()
     })
 
     it('returns already_revoked and does not send', async () => {
       const { deps, send } = makeDeps({ siteInvitations: { resendSiteInvitation: async () => 'already_revoked' } })
       const out = await resendSiteInvitation(deps, platform, { id: 'x', requestUrl: 'https://app.example.com/r' })
-      expect(out).toEqual({ ok: false, reason: 'already_revoked' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('Invitation has been revoked')
       expect(send).not.toHaveBeenCalled()
     })
   })
@@ -224,21 +239,30 @@ describe('site-invitation usecase', () => {
     it('returns not_found without recording', async () => {
       const { deps, record } = makeDeps({ siteInvitations: { revokeSiteInvitation: async () => 'not_found' } })
       const out = await revokeSiteInvitation(deps, { userId: 'u1', orgId: 'o1', id: 'x' })
-      expect(out).toEqual({ ok: false, reason: 'not_found' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(404)
+      expect(out.error.message).toBe('Invitation not found')
       expect(record).not.toHaveBeenCalled()
     })
 
     it('returns already_accepted without recording', async () => {
       const { deps, record } = makeDeps({ siteInvitations: { revokeSiteInvitation: async () => 'already_accepted' } })
       const out = await revokeSiteInvitation(deps, { userId: 'u1', orgId: 'o1', id: 'inv-1' })
-      expect(out).toEqual({ ok: false, reason: 'already_accepted' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('Invitation has already been used')
       expect(record).not.toHaveBeenCalled()
     })
 
     it('returns already_revoked without recording', async () => {
       const { deps, record } = makeDeps({ siteInvitations: { revokeSiteInvitation: async () => 'already_revoked' } })
       const out = await revokeSiteInvitation(deps, { userId: 'u1', orgId: 'o1', id: 'inv-1' })
-      expect(out).toEqual({ ok: false, reason: 'already_revoked' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('Invitation has already been revoked')
       expect(record).not.toHaveBeenCalled()
     })
   })

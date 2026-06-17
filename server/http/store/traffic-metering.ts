@@ -1,7 +1,7 @@
-import { ErrorReason } from '@shared/schemas'
 import type { Context } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import type { Env } from '../../middleware/platform'
+import { insufficientCredits } from '../../usecases/ports'
 import {
   type DownloadTrafficOutcome,
   type DownloadTrafficStorage,
@@ -9,7 +9,6 @@ import {
   reportDownloadEgress,
   type TrafficReportSource,
 } from '../../usecases/store/traffic-metering'
-import { apiError } from '../openapi'
 
 // Thin http adapters over the download-metering usecase: resolve the cloud base
 // URL from the request, call the usecase (deps passed whole), and render the
@@ -30,11 +29,8 @@ interface DownloadTrafficParams {
 
 const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 
-function insufficientCredits(c: Context<Env>): Response {
-  return apiError(c, 402, 'Insufficient credits', {
-    reason: ErrorReason.INSUFFICIENT_CREDITS,
-    metadata: { resource: 'storage_egress' },
-  })
+function throwInsufficientCredits(): never {
+  throw insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } })
 }
 
 /**
@@ -57,7 +53,7 @@ export async function consumeAndReportDownloadTraffic(
     onRejected: params.onRejected,
   })
   if (outcome.ok) return null
-  return outcome.reason === 'quota_exceeded' ? params.quotaExceeded() : insufficientCredits(c)
+  return outcome.reason === 'quota_exceeded' ? params.quotaExceeded() : throwInsufficientCredits()
 }
 
 export async function reportTrafficForDownload(
@@ -81,5 +77,5 @@ export async function reportTrafficForDownload(
     onRejected: params.onRejected,
   })
   // reportDownloadEgress never consumes quota, so it cannot return quota_exceeded.
-  return outcome.ok ? null : insufficientCredits(c)
+  return outcome.ok ? null : throwInsufficientCredits()
 }

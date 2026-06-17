@@ -205,13 +205,16 @@ describe('email-config usecase', () => {
       })
     })
 
-    it('reports send_failed with the error message when the gateway throws', async () => {
+    it('reports a 400 error with the error message when the gateway throws', async () => {
       const send = vi.fn(async () => {
         throw new Error('Email is disabled')
       })
       const { deps } = makeDeps({ email: { send } })
       const out = await sendTestEmail(deps, platform, 'recipient@example.com')
-      expect(out).toEqual({ ok: false, reason: 'send_failed', message: 'Email is disabled' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('Email is disabled')
     })
 
     it('falls back to "Unknown error" when a non-Error is thrown', async () => {
@@ -220,7 +223,10 @@ describe('email-config usecase', () => {
       })
       const { deps } = makeDeps({ email: { send } })
       const out = await sendTestEmail(deps, platform, 'recipient@example.com')
-      expect(out).toEqual({ ok: false, reason: 'send_failed', message: 'Unknown error' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('Unknown error')
     })
   })
 })

@@ -34,7 +34,17 @@ import {
   paymentCreateResponseSchema,
   productListResponseSchema,
 } from 'zpan-cloud-sdk'
-import type { CloudStoreRepo, LicensingCloudGateway, QuotaRepo } from '../ports'
+import {
+  AppError,
+  badGateway,
+  badRequest,
+  type CloudStoreRepo,
+  conflict,
+  forbidden,
+  type LicensingCloudGateway,
+  notFound,
+  type QuotaRepo,
+} from '../ports'
 import { verifyCloudEventToken } from '../site/licensing'
 
 // The Cloud commerce response schemas. Aliased to keep call sites readable; the
@@ -60,13 +70,10 @@ export type BoundCloudClient = { client: CloudClient; storeId: string }
 
 type CloudError = { error: string }
 
-// Storefront proxy outcomes. `binding_missing` → 403 (store not yet bound to
-// Cloud), `cloud_error` → 502 (the upstream Cloud request failed or returned a
-// malformed body). Each endpoint layers its own pre-cloud guards on top.
-export type StorefrontReadOutcome<T> =
-  | { ok: true; value: T }
-  | { ok: false; reason: 'binding_missing'; error: string }
-  | { ok: false; reason: 'cloud_error'; error: string }
+// Storefront proxy outcomes. An unbound store renders 403 (`forbidden`); an
+// upstream Cloud failure or malformed body renders 502 (`badGateway`). Each
+// endpoint layers its own pre-cloud guards on top.
+export type StorefrontReadOutcome<T> = { ok: true; value: T } | { ok: false; error: AppError }
 
 // ─── Cloud-proxy plumbing (port access) ──────────────────────────────────────
 
@@ -168,7 +175,7 @@ async function listDeliverables(
   deliverableType: 'zpan.plan' | 'zpan.credits',
 ): Promise<StorefrontReadOutcome<{ items: unknown[]; total: number }>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, reason: 'binding_missing', error: ready.error }
+  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId'].products.$get({
@@ -178,7 +185,7 @@ async function listDeliverables(
       cloudPackageListResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, reason: 'cloud_error', error: result.error }
+  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
   const items = result.items.filter((item) => item.metadata.deliverable.type === deliverableType)
   return { ok: true, value: { ...result, items, total: items.length } }
 }
@@ -196,7 +203,7 @@ export async function listTargets(
   userId: string,
 ): Promise<StorefrontReadOutcome<{ items: CloudStoreTarget[]; total: number }>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, reason: 'binding_missing', error: ready.error }
+  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
   const items = await deps.cloudStore.getAccessibleTargets(userId)
   return { ok: true, value: { items, total: items.length } }
 }
@@ -211,7 +218,7 @@ export async function getCreditBalance(
   orgId: string,
 ): Promise<StorefrontReadOutcome<unknown>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, reason: 'binding_missing', error: ready.error }
+  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId']['credit-accounts'][':customerId'].balance.$get({
@@ -220,7 +227,7 @@ export async function getCreditBalance(
       cloudCreditBalanceResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, reason: 'cloud_error', error: result.error }
+  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
   return { ok: true, value: result }
 }
 
@@ -230,7 +237,7 @@ export async function getCreditLedger(
   orgId: string,
 ): Promise<StorefrontReadOutcome<unknown>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, reason: 'binding_missing', error: ready.error }
+  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId']['credit-accounts'][':customerId']['ledger-entries'].$get({
@@ -240,7 +247,7 @@ export async function getCreditLedger(
       cloudCreditLedgerResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, reason: 'cloud_error', error: result.error }
+  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
   return { ok: true, value: result }
 }
 
@@ -250,7 +257,7 @@ export async function redeemGiftCard(
   params: { orgId: string; input: RedeemGiftCardInput },
 ): Promise<StorefrontReadOutcome<unknown>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, reason: 'binding_missing', error: ready.error }
+  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId']['credit-accounts'][':customerId'].redemptions.$post({
@@ -260,7 +267,7 @@ export async function redeemGiftCard(
       redeemGiftCardResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, reason: 'cloud_error', error: result.error }
+  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
   return { ok: true, value: result }
 }
 
@@ -270,14 +277,14 @@ export async function getDiscountQuote(
   input: DiscountQuoteInput,
 ): Promise<StorefrontReadOutcome<unknown>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, reason: 'binding_missing', error: ready.error }
+  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId']['discount-quotes'].$post({ param: { storeId }, json: input }),
       cloudDiscountQuoteResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, reason: 'cloud_error', error: result.error }
+  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
   return { ok: true, value: result }
 }
 
@@ -287,7 +294,7 @@ export async function createBillingPortalSession(
   params: { orgId: string; origin: string },
 ): Promise<StorefrontReadOutcome<unknown>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, reason: 'binding_missing', error: ready.error }
+  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId'].billing['portal-sessions'].$post({
@@ -297,18 +304,13 @@ export async function createBillingPortalSession(
       cloudBillingPortalSessionResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, reason: 'cloud_error', error: result.error }
+  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
   return { ok: true, value: result }
 }
 
 // ─── Checkout ────────────────────────────────────────────────────────────────
 
-export type CheckoutOutcome =
-  | { ok: true; value: unknown }
-  | { ok: false; reason: 'binding_missing'; error: string }
-  | { ok: false; reason: 'cloud_error'; error: string }
-  | { ok: false; reason: 'price_missing' }
-  | { ok: false; reason: 'workspace_plan_exists' }
+export type CheckoutOutcome = { ok: true; value: unknown } | { ok: false; error: AppError }
 
 const CHECKOUT_CURRENCY = 'usd'
 
@@ -322,7 +324,7 @@ export async function createCheckout(
   params: { userId: string; orgId: string; origin: string; input: CheckoutInput },
 ): Promise<CheckoutOutcome> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, reason: 'binding_missing', error: ready.error }
+  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
   const { userId, orgId, origin, input } = params
 
   const product = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
@@ -333,7 +335,7 @@ export async function createCheckout(
       cloudPackageResponseSchema,
     ),
   )
-  if (isCloudError(product)) return { ok: false, reason: 'cloud_error', error: product.error }
+  if (isCloudError(product)) return { ok: false, error: badGateway(product.error) }
 
   const price = input.priceId
     ? product.prices.find(
@@ -341,11 +343,12 @@ export async function createCheckout(
           item.id === input.priceId && item.currency === CHECKOUT_CURRENCY && item.recurring?.usageType !== 'metered',
       )
     : product.prices.find((item) => item.currency === CHECKOUT_CURRENCY && item.recurring?.usageType !== 'metered')
-  if (!price) return { ok: false, reason: 'price_missing' }
+  if (!price) return { ok: false, error: badRequest('Package price missing', 'PACKAGE_PRICE_MISSING') }
 
   if (price.recurring) {
     const quota = await deps.quota.getEffectiveQuota(orgId)
-    if (quota.currentPlan?.subscription) return { ok: false, reason: 'workspace_plan_exists' }
+    if (quota.currentPlan?.subscription)
+      return { ok: false, error: conflict('Workspace plan already exists', 'WORKSPACE_PLAN_EXISTS') }
   }
 
   const customerLabel = await deps.cloudStore.getCustomerLabel(userId, orgId)
@@ -363,7 +366,7 @@ export async function createCheckout(
       cloudOrderResponseSchema,
     ),
   )
-  if (isCloudError(order)) return { ok: false, reason: 'cloud_error', error: order.error }
+  if (isCloudError(order)) return { ok: false, error: badGateway(order.error) }
 
   const payment = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
@@ -378,7 +381,7 @@ export async function createCheckout(
       cloudCheckoutResponseSchema,
     ),
   )
-  if (isCloudError(payment)) return { ok: false, reason: 'cloud_error', error: payment.error }
+  if (isCloudError(payment)) return { ok: false, error: badGateway(payment.error) }
   return { ok: true, value: payment }
 }
 
@@ -387,11 +390,7 @@ export async function createCheckout(
 // The store-binding gate (403) is enforced by the handler before these run —
 // for the order routes the original checks binding before the org/orderId guards,
 // so the handler owns that ordering. These assume the store is bound.
-export type OrderActionOutcome =
-  | { ok: true; value: unknown }
-  | { ok: false; reason: 'cloud_error'; error: string }
-  | { ok: false; reason: 'not_found' }
-  | { ok: false; reason: 'forbidden' }
+export type OrderActionOutcome = { ok: true; value: unknown } | { ok: false; error: AppError }
 
 function fetchOrder(
   deps: Pick<CloudStoreDeps, 'cloudStore' | 'licensingCloud'>,
@@ -417,12 +416,12 @@ export async function continueOrderPayment(
   cloudBaseUrl: string,
   params: { orgId: string; orderId: string | undefined; origin: string },
 ): Promise<OrderActionOutcome> {
-  if (!params.orderId) return { ok: false, reason: 'not_found' }
+  if (!params.orderId) return { ok: false, error: notFound('Order not found') }
   const orderId = params.orderId
 
   const order = await fetchOrder(deps, cloudBaseUrl, orderId)
-  if (isCloudError(order)) return { ok: false, reason: 'cloud_error', error: order.error }
-  if (!orderBelongsToTarget(order.target, params.orgId)) return { ok: false, reason: 'forbidden' }
+  if (isCloudError(order)) return { ok: false, error: badGateway(order.error) }
+  if (!orderBelongsToTarget(order.target, params.orgId)) return { ok: false, error: forbidden() }
 
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
@@ -433,7 +432,7 @@ export async function continueOrderPayment(
       cloudCheckoutResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, reason: 'cloud_error', error: result.error }
+  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
   return { ok: true, value: result }
 }
 
@@ -442,12 +441,12 @@ export async function cancelOrder(
   cloudBaseUrl: string,
   params: { orgId: string; orderId: string | undefined; status: 'canceled' },
 ): Promise<OrderActionOutcome> {
-  if (!params.orderId) return { ok: false, reason: 'not_found' }
+  if (!params.orderId) return { ok: false, error: notFound('Order not found') }
   const orderId = params.orderId
 
   const order = await fetchOrder(deps, cloudBaseUrl, orderId)
-  if (isCloudError(order)) return { ok: false, reason: 'cloud_error', error: order.error }
-  if (!orderBelongsToTarget(order.target, params.orgId)) return { ok: false, reason: 'forbidden' }
+  if (isCloudError(order)) return { ok: false, error: badGateway(order.error) }
+  if (!orderBelongsToTarget(order.target, params.orgId)) return { ok: false, error: forbidden() }
 
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
@@ -458,21 +457,19 @@ export async function cancelOrder(
       cloudOrderResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, reason: 'cloud_error', error: result.error }
+  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
   return { ok: true, value: result }
 }
 
 // ─── Delivery webhook ────────────────────────────────────────────────────────
 
-// Why a cloud-delivery webhook was rejected. `invalid_token` (401) means the
-// signed event token failed verification or its eventId did not match the body;
-// `invalid_payload` (400) means the body was not valid JSON or not a quota-change
-// event; `processing_failed` (400) carries the fulfillment error message.
-export type WebhookOutcome =
-  | { ok: true; duplicate: boolean; eventId: string }
-  | { ok: false; reason: 'invalid_token' }
-  | { ok: false; reason: 'invalid_payload' }
-  | { ok: false; reason: 'processing_failed'; error: string }
+// Why a cloud-delivery webhook was rejected. A failed/mismatched event token
+// renders 401 (`INVALID_EVENT_TOKEN`); a non-JSON or non-quota-change body renders
+// 400 (`INVALID_PAYLOAD`); a fulfillment failure renders 400 carrying the error
+// message.
+export type WebhookOutcome = { ok: true; duplicate: boolean; eventId: string } | { ok: false; error: AppError }
+
+const invalidEventToken = () => new AppError(401, 'Invalid event token', { reason: 'INVALID_EVENT_TOKEN' })
 
 // Full webhook decision over the already-read request. Reads the binding, verifies
 // the event token, validates the parsed body, cross-checks the body eventId
@@ -494,12 +491,12 @@ export async function processDeliveryWebhook(
     boundLicenseId: binding.boundLicenseId,
     payloadHash: params.payloadHash,
   })
-  if (!eventAuth) return { ok: false, reason: 'invalid_token' }
+  if (!eventAuth) return { ok: false, error: invalidEventToken() }
 
-  if (!params.body) return { ok: false, reason: 'invalid_payload' }
+  if (!params.body) return { ok: false, error: badRequest('Invalid payload', 'INVALID_PAYLOAD') }
   const parsed = cloudOrderQuotaChangeSchema.safeParse(params.body)
-  if (!parsed.success) return { ok: false, reason: 'invalid_payload' }
-  if (parsed.data.eventId !== eventAuth.eventId) return { ok: false, reason: 'invalid_token' }
+  if (!parsed.success) return { ok: false, error: badRequest('Invalid payload', 'INVALID_PAYLOAD') }
+  if (parsed.data.eventId !== eventAuth.eventId) return { ok: false, error: invalidEventToken() }
 
   try {
     const result = await deps.cloudStore.processCloudOrderQuotaChange(
@@ -509,6 +506,6 @@ export async function processDeliveryWebhook(
     )
     return { ok: true, duplicate: result.duplicate, eventId: result.eventId }
   } catch (error) {
-    return { ok: false, reason: 'processing_failed', error: (error as Error).message }
+    return { ok: false, error: badRequest((error as Error).message) }
   }
 }

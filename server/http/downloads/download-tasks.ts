@@ -17,7 +17,8 @@ import {
   performDownloadTaskAction,
   updateDownloadTask,
 } from '../../usecases/downloads/downloads'
-import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { unauthorized } from '../../usecases/ports'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
 // Every task operation surfaces the same DownloadError-based failure model. The
 // usecases throw it; the global onError converts it (not_found→404, forbidden→403,
@@ -133,7 +134,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     const principal = c.get('principal')
     const query = c.req.valid('query')
     if (query.assignedTo === 'me') {
-      if (principal?.kind !== 'downloader') return apiError(c, 401, 'Unauthorized')
+      if (principal?.kind !== 'downloader') throw unauthorized()
       const result = await listDownloadTasks(c.get('deps'), c.get('platform'), {
         downloaderId: principal.downloaderId,
         status: query.status,
@@ -149,7 +150,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     }
 
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 401, 'Unauthorized')
+    if (!orgId) throw unauthorized()
     const result = await listDownloadTasks(c.get('deps'), c.get('platform'), {
       orgId,
       status: query.status,
@@ -165,25 +166,25 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
   .openapi(createRouteDoc, async (c) => {
     const principal = c.get('principal')
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 401, 'Unauthorized')
+    if (!orgId) throw unauthorized()
     const actorId = principal?.kind === 'api-key' ? `api-key:${principal.keyId}` : (c.get('userId') as string)
     return c.json(await createDownloadTask(c.get('deps'), orgId, actorId, c.req.valid('json')), 201)
   })
   .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 401, 'Unauthorized')
+    if (!orgId) throw unauthorized()
     return c.json(await getDownloadTask(c.get('deps'), orgId, c.req.valid('param').id), 200)
   })
   .openapi(statusRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 401, 'Unauthorized')
+    if (!orgId) throw unauthorized()
     const { status } = c.req.valid('json')
     const action = status === 'paused' ? 'pause' : status === 'queued' ? 'resume' : 'cancel'
     return c.json(await performDownloadTaskAction(c.get('deps'), orgId, c.req.valid('param').id, action), 200)
   })
   .openapi(attemptRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 401, 'Unauthorized')
+    if (!orgId) throw unauthorized()
     const { fresh } = c.req.valid('json')
     return c.json(
       await performDownloadTaskAction(c.get('deps'), orgId, c.req.valid('param').id, fresh ? 'restart' : 'retry'),
@@ -192,7 +193,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
   })
   .openapi(deleteRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 401, 'Unauthorized')
+    if (!orgId) throw unauthorized()
     return c.json(await performDownloadTaskAction(c.get('deps'), orgId, c.req.valid('param').id, 'delete'), 200)
   })
   .openapi(updateRoute, async (c) => {
@@ -206,7 +207,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
       )
     }
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 401, 'Unauthorized')
+    if (!orgId) throw unauthorized()
     return c.json(await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { orgId }), 200)
   })
 

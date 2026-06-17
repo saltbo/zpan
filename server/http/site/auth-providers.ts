@@ -1,15 +1,14 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { ErrorReason, pageSchema } from '@shared/schemas'
+import { pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import {
   deleteAuthProvider,
   listAuthProviders,
   listPublicAuthProviders,
-  type SocialLoginFeatureBlock,
   upsertAuthProvider,
 } from '../../usecases/site/auth-provider'
-import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const maskedProviderConfigSchema = z
   .object({
@@ -38,15 +37,6 @@ const authProviderListSchema = pageSchema(
   z.union([maskedProviderConfigSchema, publicProviderSchema]),
   'AuthProviderList',
 )
-
-const invalidProviderIdMessage = 'Provider ID must contain only lowercase letters, numbers, and hyphens'
-
-const featureBlockMetadata = (block: SocialLoginFeatureBlock): Record<string, string> => ({
-  feature: block.feature,
-  currentCount: String(block.currentCount),
-  limit: String(block.limit),
-  upgradeUrl: '/settings/billing',
-})
 
 const upsertSchema = z.object({
   type: z.enum(['builtin', 'oidc']),
@@ -107,19 +97,12 @@ export const authProviders = new OpenAPIHono<Env>()
   })
   .openapi(upsertRoute, async (c) => {
     const result = await upsertAuthProvider(c.get('deps'), c.req.valid('param').providerId, c.req.valid('json'))
-    if (result.ok) return c.json(result.config, 200)
-    if (result.reason === 'invalid_id') return apiError(c, 400, invalidProviderIdMessage)
-    if (result.reason === 'unknown_builtin')
-      return apiError(c, 400, `Unknown builtin provider: ${c.req.valid('param').providerId}`)
-    if (result.reason === 'missing_discovery') return apiError(c, 400, 'discoveryUrl is required for OIDC providers')
-    return apiError(c, 402, 'Feature not available', {
-      reason: ErrorReason.FEATURE_NOT_AVAILABLE,
-      metadata: featureBlockMetadata(result.block),
-    })
+    if (!result.ok) throw result.error
+    return c.json(result.config, 200)
   })
   .openapi(deleteProviderRoute, async (c) => {
     const providerId = c.req.valid('param').providerId
     const result = await deleteAuthProvider(c.get('deps'), providerId)
-    if (!result.ok) return apiError(c, 400, invalidProviderIdMessage)
+    if (!result.ok) throw result.error
     return c.json({ providerId, deleted: true as const }, 200)
   })

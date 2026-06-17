@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  AppError,
   CfConflictError,
   type CfHostnameStatus,
   type CfHostnamesProvider,
@@ -128,7 +129,12 @@ describe('image-hosting-config usecase', () => {
         { enabled: true, customDomain: 'zpan.example.com' },
         { isConfigured: true, appHost: 'zpan.example.com' },
       )
-      expect(out).toEqual({ ok: false, reason: 'app_host', status: 400 })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(400)
+        expect(out.error.message).toBe('Custom domain cannot be the application default host')
+      }
       expect(getByOrg).not.toHaveBeenCalled()
       expect(create).not.toHaveBeenCalled()
     })
@@ -199,7 +205,12 @@ describe('image-hosting-config usecase', () => {
         },
       })
       const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'taken.com' }, CF_ON)
-      expect(out).toEqual({ ok: false, reason: 'domain_conflict', status: 409 })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(409)
+        expect(out.error.message).toBe('Domain already registered by another organization')
+      }
     })
 
     it('propagates a non-conflict CF register error', async () => {
@@ -226,7 +237,12 @@ describe('image-hosting-config usecase', () => {
         },
       })
       const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'dup.com' }, CF_OFF)
-      expect(out).toEqual({ ok: false, reason: 'domain_conflict', status: 409 })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(409)
+        expect(out.error.message).toBe('Domain already registered by another organization')
+      }
     })
   })
 
@@ -305,7 +321,12 @@ describe('image-hosting-config usecase', () => {
         },
       })
       const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'claimed.com' }, CF_OFF)
-      expect(out).toEqual({ ok: false, reason: 'domain_conflict', status: 409 })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(409)
+        expect(out.error.message).toBe('Domain already registered by another organization')
+      }
     })
 
     it('clears the domain (null) → no CF register, domainVerifiedAt null', async () => {

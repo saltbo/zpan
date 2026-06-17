@@ -2,7 +2,7 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { getEmailConfig, saveEmailConfig, sendTestEmail } from '../../usecases/site/email-config'
-import { apiError, errorResponse, jsonContent } from '../openapi'
+import { errorResponse, jsonContent } from '../openapi'
 
 const smtpConfigSchema = z.object({
   enabled: z.boolean(),
@@ -88,8 +88,8 @@ const emailConfig = app
   })
   .openapi(testRoute, async (c) => {
     const result = await sendTestEmail(c.get('deps'), c.get('platform'), c.req.valid('json').to)
-    if (result.ok) return c.json({ success: true }, 200)
-    return apiError(c, 400, result.message)
+    if (!result.ok) throw result.error
+    return c.json({ success: true }, 200)
   })
 
 export default emailConfig

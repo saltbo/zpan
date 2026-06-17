@@ -34,7 +34,7 @@ import { users } from './http/users'
 import webdav from './http/webdav'
 import { formatError } from './lib/errors'
 import { authMiddleware } from './middleware/auth'
-import { isHandledError, renderError } from './middleware/error-handler'
+import { isHandledError, jsonError } from './middleware/error-handler'
 import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
 import type { Env } from './middleware/platform'
@@ -226,12 +226,12 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
 
   // Backstop for errors thrown outside the accessLog boundary (earlier middleware,
   // or routes without accessLog like /r). For /api and /dav, accessLog already
-  // catches and renders via the same `renderError`, so this rarely fires there.
+  // catches and renders via the same `jsonError`, so this rarely fires there.
   // Genuinely unhandled errors are logged here since those routes aren't access-
-  // logged; mapped/ApiError cases are already carried by their access-log line.
+  // logged; AppError/mapped cases are already carried by their access-log line.
   app.onError((err, c) => {
     if (!isHandledError(err)) console.error(`http.unhandled_error code=${formatError(err)}`)
-    return renderError(c, err)
+    return jsonError(c, err)
   })
 
   return app

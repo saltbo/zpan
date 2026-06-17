@@ -4,12 +4,11 @@ import type { Env } from './platform'
 
 // The request boundary for /api and /dav: one structured line per request, logged
 // after the response is finalized. By the time `next()` returns, the status and
-// `errorLog` are settled regardless of how the response was produced — an inline
-// `apiError(...)` return sets `errorLog` directly, and a thrown error is rendered
-// by `app.onError` (via `renderError`, which also sets `errorLog`) before control
-// returns here. So the log records the REAL mapped status (a thrown 409 logs as
-// 409, not 500) and carries the error's reason + full message for every 4xx/5xx,
-// not just unhandled crashes.
+// `errorLog` are settled — every error is an `AppError` (or domain error) thrown by
+// the handler and rendered by `app.onError` via `jsonError`, which sets `errorLog`
+// before control returns here. So the log records the REAL mapped status (a thrown
+// 409 logs as 409, not 500) and carries the error's reason + full message for every
+// 4xx/5xx, not just unhandled crashes.
 export const accessLog = createMiddleware<Env>(async (c, next) => {
   const start = Date.now()
   await next()
@@ -43,9 +42,9 @@ function accessLogFields(c: Context<Env>, start: number): Array<[string, string 
     )
   }
 
-  // Every failed request carries its reason + full message — set by apiError on
-  // inline returns and by renderError on thrown errors (incl. the full cause
-  // chain for unhandled 500s, which never reaches the client body).
+  // Every failed request carries its reason + full message — set by jsonError when
+  // it renders the thrown error (incl. the full cause chain for unhandled 500s,
+  // which never reaches the client body).
   const errorLog = c.get('errorLog')
   if (errorLog) {
     fields.push(['reason', errorLog.reason], ['error', errorLog.message])

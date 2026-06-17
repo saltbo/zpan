@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
+import { notFound, unauthorized } from '../../usecases/ports'
 import {
   createSiteInvitation,
   getSiteInvitationByToken,
@@ -9,7 +10,7 @@ import {
   resendSiteInvitation,
   revokeSiteInvitation,
 } from '../../usecases/site/invitation'
-import { apiError, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
 // SiteInvitation is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const siteInvitationSchema = z
@@ -112,14 +113,14 @@ export const adminSiteInvitations = new OpenAPIHono<Env>()
   })
   .openapi(createRouteDoc, async (c) => {
     const userId = c.get('userId')
-    if (!userId) return apiError(c, 401, 'Unauthorized')
+    if (!userId) throw unauthorized()
     const result = await createSiteInvitation(c.get('deps'), c.get('platform'), {
       userId,
       orgId: c.get('orgId')!,
       email: c.req.valid('json').email,
       requestUrl: c.req.url,
     })
-    if (!result.ok) return apiError(c, 409, result.message)
+    if (!result.ok) throw result.error
     return c.json(result.invitation, 201)
   })
   .openapi(resendRoute, async (c) => {
@@ -127,24 +128,20 @@ export const adminSiteInvitations = new OpenAPIHono<Env>()
       id: c.req.valid('param').id,
       requestUrl: c.req.url,
     })
-    if (result.ok) return c.json(result.invitation, 200)
-    if (result.reason === 'not_found') return apiError(c, 404, 'Invitation not found')
-    if (result.reason === 'already_accepted') return apiError(c, 400, 'Invitation has already been used')
-    return apiError(c, 400, 'Invitation has been revoked')
+    if (!result.ok) throw result.error
+    return c.json(result.invitation, 200)
   })
   .openapi(revokeRoute, async (c) => {
     const userId = c.get('userId')
-    if (!userId) return apiError(c, 401, 'Unauthorized')
+    if (!userId) throw unauthorized()
     const id = c.req.valid('param').id
     const result = await revokeSiteInvitation(c.get('deps'), { userId, orgId: c.get('orgId')!, id })
-    if (result.ok) return c.json({ id, revoked: true as const }, 200)
-    if (result.reason === 'not_found') return apiError(c, 404, 'Invitation not found')
-    if (result.reason === 'already_accepted') return apiError(c, 400, 'Invitation has already been used')
-    return apiError(c, 400, 'Invitation has already been revoked')
+    if (!result.ok) throw result.error
+    return c.json({ id, revoked: true as const }, 200)
   })
 
 export const publicSiteInvitations = new OpenAPIHono<Env>().openapi(getByTokenRoute, async (c) => {
   const invitation = await getSiteInvitationByToken(c.get('deps'), c.req.valid('param').token)
-  if (!invitation) return apiError(c, 404, 'Invitation not found')
+  if (!invitation) throw notFound('Invitation not found')
   return c.json(invitation, 200)
 })

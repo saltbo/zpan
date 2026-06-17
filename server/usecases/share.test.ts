@@ -5,6 +5,7 @@ import type { Platform } from '../platform/interface'
 import { saveShareToDrive } from './object'
 import {
   type ActivityRepo,
+  AppError,
   CreateShareError,
   type Matter,
   type MatterListResult,
@@ -51,6 +52,22 @@ const CLOUD_BASE_URL = 'https://cloud.example.com'
 const meterOk: DownloadTrafficOutcome = { ok: true }
 const meterQuotaExceeded: DownloadTrafficOutcome = { ok: false, reason: 'quota_exceeded' }
 const meterInsufficientCredits: DownloadTrafficOutcome = { ok: false, reason: 'insufficient_credits' }
+
+// Asserts a usecase returned a failure AppError carrying the given HTTP status,
+// wire reason, and message — the AIP-193 fields the http boundary renders.
+function expectError(
+  out: { ok: true } | { ok: false; error: AppError },
+  httpStatus: number,
+  reason: string | undefined,
+  message: string,
+) {
+  expect(out.ok).toBe(false)
+  const { error } = out as { ok: false; error: AppError }
+  expect(error).toBeInstanceOf(AppError)
+  expect(error.httpStatus).toBe(httpStatus)
+  expect(error.meta.reason).toBe(reason)
+  expect(error.message).toBe(message)
+}
 
 const meter = vi.mocked(meterDownloadTraffic)
 const saveToDrive = vi.mocked(saveShareToDrive)
@@ -200,16 +217,22 @@ beforeEach(() => {
 describe('viewShare', () => {
   it('returns matter_trashed when the matter is trashed', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'matter_trashed' }) } })
-    expect(
+    expectError(
       await viewShare(deps, { token: 't', viewerId: null, viewCookie: undefined, accessCookie: undefined }),
-    ).toEqual({ ok: false, reason: 'matter_trashed' })
+      410,
+      undefined,
+      'File no longer available',
+    )
   })
 
   it('returns not_found for revoked/missing shares', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'revoked' }) } })
-    expect(
+    expectError(
       await viewShare(deps, { token: 't', viewerId: null, viewCookie: undefined, accessCookie: undefined }),
-    ).toEqual({ ok: false, reason: 'not_found' })
+      404,
+      undefined,
+      'Share not found or revoked',
+    )
   })
 
   it('hides a direct share from a non-creator (not_found)', async () => {
@@ -221,7 +244,7 @@ describe('viewShare', () => {
       viewCookie: undefined,
       accessCookie: undefined,
     })
-    expect(out).toEqual({ ok: false, reason: 'not_found' })
+    expectError(out, 404, undefined, 'Share not found or revoked')
   })
 
   it('returns the viewer DTO and signals the view cookie for an anonymous viewer', async () => {
@@ -337,30 +360,34 @@ describe('viewShare', () => {
 describe('verifySharePassword', () => {
   it('returns not_found when the token does not resolve', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'not_found' }) } })
-    expect(await verifySharePassword(deps, { token: 't', password: 'x' })).toEqual({ ok: false, reason: 'not_found' })
+    expectError(
+      await verifySharePassword(deps, { token: 't', password: 'x' }),
+      404,
+      undefined,
+      'Share not found or revoked',
+    )
   })
 
   it('returns not_found for a non-landing share', async () => {
     const direct = { ...landingShare, kind: 'direct', passwordHash: hashPassword('pw') } as ShareRecord
     const { deps } = makeDeps({ share: { resolveByToken: async () => okResolution({ share: direct }) } })
-    expect(await verifySharePassword(deps, { token: 't', password: 'pw' })).toEqual({ ok: false, reason: 'not_found' })
+    expectError(
+      await verifySharePassword(deps, { token: 't', password: 'pw' }),
+      404,
+      undefined,
+      'Share not found or revoked',
+    )
   })
 
   it('returns invalid_password when the share has no password', async () => {
     const { deps } = makeDeps()
-    expect(await verifySharePassword(deps, { token: 't', password: 'pw' })).toEqual({
-      ok: false,
-      reason: 'invalid_password',
-    })
+    expectError(await verifySharePassword(deps, { token: 't', password: 'pw' }), 403, undefined, 'Invalid password')
   })
 
   it('returns invalid_password on a wrong password', async () => {
     const pw = { ...landingShare, passwordHash: hashPassword('correct') } as ShareRecord
     const { deps } = makeDeps({ share: { resolveByToken: async () => okResolution({ share: pw }) } })
-    expect(await verifySharePassword(deps, { token: 't', password: 'wrong' })).toEqual({
-      ok: false,
-      reason: 'invalid_password',
-    })
+    expectError(await verifySharePassword(deps, { token: 't', password: 'wrong' }), 403, undefined, 'Invalid password')
   })
 
   it('caps the cookie expiry at one day from now when no share expiry', async () => {
@@ -393,10 +420,10 @@ describe('listShareObjects', () => {
 
   it('returns matter_trashed / not_found from resolution', async () => {
     const trashed = makeDeps({ share: { resolveByToken: async () => ({ status: 'matter_trashed' }) } })
-    expect(await listShareObjects(trashed.deps, baseParams)).toEqual({ ok: false, reason: 'matter_trashed' })
+    expectError(await listShareObjects(trashed.deps, baseParams), 410, undefined, 'File no longer available')
 
     const revoked = makeDeps({ share: { resolveByToken: async () => ({ status: 'revoked' }) } })
-    expect(await listShareObjects(revoked.deps, baseParams)).toEqual({ ok: false, reason: 'not_found' })
+    expectError(await listShareObjects(revoked.deps, baseParams), 404, undefined, 'Share not found or revoked')
   })
 
   it('returns not_found for a non-landing share', async () => {
@@ -404,12 +431,12 @@ describe('listShareObjects', () => {
     const { deps } = makeDeps({
       share: { resolveByToken: async () => okResolution({ share: direct, matter: folderMatter }) },
     })
-    expect(await listShareObjects(deps, baseParams)).toEqual({ ok: false, reason: 'not_found' })
+    expectError(await listShareObjects(deps, baseParams), 404, undefined, 'Share not found or revoked')
   })
 
   it('returns not_a_folder for a file share', async () => {
     const { deps } = makeDeps() // default matter is a file
-    expect(await listShareObjects(deps, baseParams)).toEqual({ ok: false, reason: 'not_a_folder' })
+    expectError(await listShareObjects(deps, baseParams), 400, undefined, 'Not a folder share')
   })
 
   it('returns password_required when the gate blocks', async () => {
@@ -417,10 +444,12 @@ describe('listShareObjects', () => {
     const { deps } = makeDeps({
       share: { resolveByToken: async () => okResolution({ share: pw, matter: folderMatter }) },
     })
-    expect(await listShareObjects(deps, { ...baseParams, accessCookie: undefined })).toEqual({
-      ok: false,
-      reason: 'password_required',
-    })
+    expectError(
+      await listShareObjects(deps, { ...baseParams, accessCookie: undefined }),
+      401,
+      undefined,
+      'Password required',
+    )
   })
 
   it('returns expired before checking the path', async () => {
@@ -428,20 +457,17 @@ describe('listShareObjects', () => {
     const { deps } = makeDeps({
       share: { resolveByToken: async () => okResolution({ share: expired, matter: folderMatter }) },
     })
-    expect(
+    expectError(
       await listShareObjects(deps, { ...baseParams, relativePath: '../etc', now: new Date('2030-01-01') }),
-    ).toEqual({
-      ok: false,
-      reason: 'expired',
-    })
+      410,
+      undefined,
+      'Share has expired',
+    )
   })
 
   it('returns invalid_path for a traversal attempt', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => okResolution({ matter: folderMatter }) } })
-    expect(await listShareObjects(deps, { ...baseParams, relativePath: 'a/../b' })).toEqual({
-      ok: false,
-      reason: 'invalid_path',
-    })
+    expectError(await listShareObjects(deps, { ...baseParams, relativePath: 'a/../b' }), 400, undefined, 'Invalid path')
   })
 
   it('lists children, maps refs, and builds the breadcrumb at the folder root', async () => {
@@ -560,38 +586,37 @@ describe('downloadShareObject', () => {
 
   it('returns matter_trashed / not_found from resolution', async () => {
     const trashed = makeDeps({ share: { resolveByToken: async () => ({ status: 'matter_trashed' }) } })
-    expect(await downloadShareObject(trashed.deps, baseParams)).toEqual({ ok: false, reason: 'matter_trashed' })
+    expectError(await downloadShareObject(trashed.deps, baseParams), 410, undefined, 'File no longer available')
     const revoked = makeDeps({ share: { resolveByToken: async () => ({ status: 'revoked' }) } })
-    expect(await downloadShareObject(revoked.deps, baseParams)).toEqual({ ok: false, reason: 'not_found' })
+    expectError(await downloadShareObject(revoked.deps, baseParams), 404, undefined, 'File not found or not accessible')
   })
 
   it('returns not_found for a non-landing share', async () => {
     const direct = { ...landingShare, kind: 'direct' } as ShareRecord
     const { deps } = makeDeps({ share: { resolveByToken: async () => okResolution({ share: direct }) } })
-    expect(await downloadShareObject(deps, baseParams)).toEqual({ ok: false, reason: 'not_found' })
+    expectError(await downloadShareObject(deps, baseParams), 404, undefined, 'File not found or not accessible')
   })
 
   it('returns invalid_ref when the decoded matterId is null', async () => {
     const { deps } = makeDeps()
-    expect(await downloadShareObject(deps, { ...baseParams, matterId: null })).toEqual({
-      ok: false,
-      reason: 'invalid_ref',
-    })
+    expectError(await downloadShareObject(deps, { ...baseParams, matterId: null }), 400, undefined, 'Invalid reference')
   })
 
   it('returns password_required when the gate blocks', async () => {
     const pw = { ...landingShare, passwordHash: 'hash' } as ShareRecord
     const { deps } = makeDeps({ share: { resolveByToken: async () => okResolution({ share: pw }) } })
-    expect(await downloadShareObject(deps, { ...baseParams, accessCookie: undefined })).toEqual({
-      ok: false,
-      reason: 'password_required',
-    })
+    expectError(
+      await downloadShareObject(deps, { ...baseParams, accessCookie: undefined }),
+      401,
+      undefined,
+      'Password required',
+    )
   })
 
   it('returns expired when past the share expiry', async () => {
     const expired = { ...landingShare, expiresAt: new Date('2000-01-01') } as ShareRecord
     const { deps } = makeDeps({ share: { resolveByToken: async () => okResolution({ share: expired }) } })
-    expect(await downloadShareObject(deps, baseParams)).toEqual({ ok: false, reason: 'expired' })
+    expectError(await downloadShareObject(deps, baseParams), 410, undefined, 'Share has expired')
   })
 
   it('resolves a descendant ref via findShareChildMatter', async () => {
@@ -607,10 +632,12 @@ describe('downloadShareObject', () => {
 
   it('returns not_found when a descendant ref targets a file share root', async () => {
     const { deps } = makeDeps() // root is a file
-    expect(await downloadShareObject(deps, { ...baseParams, matterId: 'other' })).toEqual({
-      ok: false,
-      reason: 'not_found',
-    })
+    expectError(
+      await downloadShareObject(deps, { ...baseParams, matterId: 'other' }),
+      404,
+      undefined,
+      'File not found or not accessible',
+    )
   })
 
   it('returns not_found when the descendant child is missing', async () => {
@@ -620,23 +647,27 @@ describe('downloadShareObject', () => {
         findShareChildMatter: async () => null,
       },
     })
-    expect(await downloadShareObject(deps, { ...baseParams, matterId: 'm-child' })).toEqual({
-      ok: false,
-      reason: 'not_found',
-    })
+    expectError(
+      await downloadShareObject(deps, { ...baseParams, matterId: 'm-child' }),
+      404,
+      undefined,
+      'File not found or not accessible',
+    )
   })
 
   it('returns folder when the root itself is a folder requested directly', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => okResolution({ matter: folderMatter }) } })
-    expect(await downloadShareObject(deps, { ...baseParams, matterId: 'fld-1' })).toEqual({
-      ok: false,
-      reason: 'folder',
-    })
+    expectError(
+      await downloadShareObject(deps, { ...baseParams, matterId: 'fld-1' }),
+      400,
+      undefined,
+      'Cannot download a folder directly',
+    )
   })
 
   it('returns limit_exceeded when no downloads remain', async () => {
     const { deps, presignDownload } = makeDeps({ share: { hasDownloadsAvailable: async () => false } })
-    expect(await downloadShareObject(deps, baseParams)).toEqual({ ok: false, reason: 'limit_exceeded' })
+    expectError(await downloadShareObject(deps, baseParams), 410, undefined, 'Download limit exceeded')
     expect(presignDownload).not.toHaveBeenCalled()
     expect(meter).not.toHaveBeenCalled()
   })
@@ -645,27 +676,27 @@ describe('downloadShareObject', () => {
     const { deps, presignDownload } = makeDeps({
       share: { incrementDownloadsAtomic: async () => ({ ok: false, downloads: 0 }) },
     })
-    expect(await downloadShareObject(deps, baseParams)).toEqual({ ok: false, reason: 'limit_exceeded' })
+    expectError(await downloadShareObject(deps, baseParams), 410, undefined, 'Download limit exceeded')
     expect(presignDownload).not.toHaveBeenCalled()
     expect(meter).not.toHaveBeenCalled()
   })
 
   it('returns storage_not_found when the storage is missing', async () => {
     const { deps } = makeDeps({ storages: { get: async () => null } })
-    expect(await downloadShareObject(deps, baseParams)).toEqual({ ok: false, reason: 'storage_not_found' })
+    expectError(await downloadShareObject(deps, baseParams), 404, undefined, 'Storage not found')
   })
 
   it('returns quota_exceeded when the meter rejects on quota; presign never runs', async () => {
     meter.mockResolvedValue(meterQuotaExceeded)
     const { deps, presignDownload } = makeDeps()
-    expect(await downloadShareObject(deps, baseParams)).toEqual({ ok: false, reason: 'quota_exceeded' })
+    expectError(await downloadShareObject(deps, baseParams), 422, 'QUOTA_EXCEEDED', 'Traffic quota exceeded')
     expect(presignDownload).not.toHaveBeenCalled()
   })
 
   it('returns insufficient_credits when the meter rejects on credits', async () => {
     meter.mockResolvedValue(meterInsufficientCredits)
     const { deps, presignDownload } = makeDeps()
-    expect(await downloadShareObject(deps, baseParams)).toEqual({ ok: false, reason: 'insufficient_credits' })
+    expectError(await downloadShareObject(deps, baseParams), 402, 'INSUFFICIENT_CREDITS', 'Insufficient credits')
     expect(presignDownload).not.toHaveBeenCalled()
   })
 
@@ -809,17 +840,17 @@ describe('createShare', () => {
   })
 
   it.each([
-    ['MATTER_NOT_FOUND'],
-    ['DIRECT_NO_FOLDER'],
-    ['DIRECT_NO_PASSWORD'],
-    ['DIRECT_NO_RECIPIENTS'],
-  ] as const)('maps CreateShareError %s to a failure outcome without recording activity', async (code) => {
+    ['MATTER_NOT_FOUND', 404, 'Matter not found'],
+    ['DIRECT_NO_FOLDER', 400, 'Direct shares cannot be folders'],
+    ['DIRECT_NO_PASSWORD', 400, 'Direct shares cannot have a password'],
+    ['DIRECT_NO_RECIPIENTS', 400, 'Direct shares cannot have recipients'],
+  ] as const)('maps CreateShareError %s to a failure outcome without recording activity', async (code, status, message) => {
     const create = vi.fn(async () => {
       throw new CreateShareError(code)
     })
     const { deps, record, createNotification, sendEmail } = makeDeps({ share: { create } })
     const out = await createShare(deps, platform, { orgId: 'o-1', userId: 'creator-1', input: baseInput })
-    expect(out).toEqual({ ok: false, reason: code })
+    expectError(out, status, code, message)
     expect(record).not.toHaveBeenCalled()
     await flushDispatch()
     expect(createNotification).not.toHaveBeenCalled()
@@ -842,27 +873,18 @@ describe('createShare', () => {
 describe('revokeShare', () => {
   it('returns not_found when the token has no creator', async () => {
     const { deps, record } = makeDeps({ share: { getCreatorByToken: async () => null } })
-    expect(await revokeShare(deps, { token: 't', userId: 'u1', orgId: 'o-1' })).toEqual({
-      ok: false,
-      reason: 'not_found',
-    })
+    expectError(await revokeShare(deps, { token: 't', userId: 'u1', orgId: 'o-1' }), 404, undefined, 'Not found')
     expect(record).not.toHaveBeenCalled()
   })
 
   it('returns forbidden when the requester is not the creator', async () => {
     const { deps } = makeDeps({ share: { getCreatorByToken: async () => 'someone-else' } })
-    expect(await revokeShare(deps, { token: 't', userId: 'u1', orgId: 'o-1' })).toEqual({
-      ok: false,
-      reason: 'forbidden',
-    })
+    expectError(await revokeShare(deps, { token: 't', userId: 'u1', orgId: 'o-1' }), 403, undefined, 'Forbidden')
   })
 
   it('returns not_found when the scoped revoke loses the race', async () => {
     const { deps } = makeDeps({ share: { getCreatorByToken: async () => 'u1', revokeByToken: async () => false } })
-    expect(await revokeShare(deps, { token: 't', userId: 'u1', orgId: 'o-1' })).toEqual({
-      ok: false,
-      reason: 'not_found',
-    })
+    expectError(await revokeShare(deps, { token: 't', userId: 'u1', orgId: 'o-1' }), 404, undefined, 'Not found')
   })
 
   it('revokes and records activity on success', async () => {
@@ -889,27 +911,34 @@ describe('saveShare', () => {
 
   it('returns matter_trashed when the share target was trashed', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'matter_trashed' }) } })
-    expect(await saveShare(deps, baseParams)).toEqual({ ok: false, reason: 'matter_trashed' })
+    expectError(await saveShare(deps, baseParams), 410, undefined, 'Share target has been deleted')
   })
 
   it('returns not_found for a revoked/missing share', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'revoked' }) } })
-    expect(await saveShare(deps, baseParams)).toEqual({ ok: false, reason: 'not_found' })
+    expectError(await saveShare(deps, baseParams), 404, undefined, 'Share not found')
   })
 
   it('returns direct_forbidden for a direct share', async () => {
     const direct = { ...landingShare, kind: 'direct' } as ShareRecord
     const { deps } = makeDeps({ share: { resolveByToken: async () => okResolution({ share: direct }) } })
-    expect(await saveShare(deps, baseParams)).toEqual({ ok: false, reason: 'direct_forbidden' })
+    expectError(
+      await saveShare(deps, baseParams),
+      400,
+      'DIRECT_SAVE_FORBIDDEN',
+      'Direct link shares cannot be saved. Ask the sender for a landing share.',
+    )
   })
 
   it('returns password_required when the gate blocks a non-recipient', async () => {
     const pw = { ...landingShare, passwordHash: 'hash' } as ShareRecord
     const { deps } = makeDeps({ share: { resolveByToken: async () => okResolution({ share: pw }) } })
-    expect(await saveShare(deps, { ...baseParams, accessCookie: undefined })).toEqual({
-      ok: false,
-      reason: 'password_required',
-    })
+    expectError(
+      await saveShare(deps, { ...baseParams, accessCookie: undefined }),
+      401,
+      undefined,
+      'Authentication required for password-protected share',
+    )
   })
 
   it('bypasses the password gate when the cookie is ok', async () => {
@@ -921,14 +950,14 @@ describe('saveShare', () => {
 
   it('returns forbidden when the user cannot write to the target org', async () => {
     const { deps } = makeDeps({ org: { canWriteToOrg: async () => false } })
-    expect(await saveShare(deps, baseParams)).toEqual({ ok: false, reason: 'forbidden' })
+    expectError(await saveShare(deps, baseParams), 403, undefined, 'Forbidden')
   })
 
   it('returns quota_exceeded when the target org lacks quota', async () => {
     const computeSourceBytes = vi.fn(async () => 5000)
     const hasQuotaForBytes = vi.fn(async () => false)
     const { deps } = makeDeps({ share: { computeSourceBytes, hasQuotaForBytes } })
-    expect(await saveShare(deps, baseParams)).toEqual({ ok: false, reason: 'quota_exceeded' })
+    expectError(await saveShare(deps, baseParams), 422, 'QUOTA_EXCEEDED', 'Quota exceeded')
     expect(hasQuotaForBytes).toHaveBeenCalledWith('o-2', 5000)
     expect(saveToDrive).not.toHaveBeenCalled()
   })

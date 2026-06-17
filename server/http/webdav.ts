@@ -1,4 +1,3 @@
-import { ErrorReason } from '@shared/schemas'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ApiKeyTemplate } from '../../shared/api-key-templates'
@@ -21,7 +20,13 @@ import {
 } from '../domain/webdav-xml'
 import { mapDomainError } from '../lib/http-errors'
 import type { Env } from '../middleware/platform'
-import { ApiKeyRateLimitError, type StorageRecord, WebDavPathError, type WebDavTarget } from '../usecases/ports'
+import {
+  ApiKeyRateLimitError,
+  insufficientCredits,
+  type StorageRecord,
+  WebDavPathError,
+  type WebDavTarget,
+} from '../usecases/ports'
 import {
   activeLocks,
   activeLocksForResources,
@@ -48,7 +53,6 @@ import {
   resolveWebDavDownload,
   resolveWebDavPath,
 } from '../usecases/webdav'
-import { apiError } from './openapi'
 
 const READ_METHODS = new Set(['OPTIONS', 'PROPFIND', 'GET', 'HEAD'])
 const WRITE_METHODS = new Set(['PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY', 'PROPPATCH', 'LOCK', 'UNLOCK'])
@@ -806,10 +810,7 @@ async function reserveWebDavTraffic(
   })
   if (outcome.ok) return null
   if (outcome.reason === 'quota_exceeded') return c.text('Traffic quota exceeded', 422)
-  return apiError(c, 402, 'Insufficient credits', {
-    reason: ErrorReason.INSUFFICIENT_CREDITS,
-    metadata: { resource: 'storage_egress' },
-  })
+  throw insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } })
 }
 
 async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {

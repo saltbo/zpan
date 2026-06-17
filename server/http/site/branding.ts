@@ -1,11 +1,11 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { ErrorReason } from '@shared/schemas'
 import { type BrandingField, type BrandingThemeMode, isBrandingThemePresetId } from '../../../shared/types'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
+import { AppError, badRequest, noStorage, payloadTooLarge, unsupportedMediaType } from '../../usecases/ports'
 import { applyBrandingUpdate, readBranding, resetBranding, type ThemeUpdate } from '../../usecases/site/branding'
-import { apiError, errorResponse, jsonContent } from '../openapi'
+import { errorResponse, jsonContent } from '../openapi'
 
 const brandingThemeValuesSchema = z.object({
   primary_color: z.string(),
@@ -141,16 +141,16 @@ export const publicBranding = new OpenAPIHono<Env>().openapi(readRoute, async (c
 export const brandingAdmin = new OpenAPIHono<Env>()
   .openapi(updateRoute, async (c) => {
     if (!c.req.header('content-type')?.includes('multipart/form-data')) {
-      return apiError(c, 415, 'Expected multipart/form-data', { reason: ErrorReason.UNSUPPORTED_MEDIA_TYPE })
+      throw unsupportedMediaType('Expected multipart/form-data')
     }
     const form = await c.req.formData()
 
     const themeUpdate = parseThemeUpdate(form)
-    if (!themeUpdate.ok) return apiError(c, 422, themeUpdate.error)
+    if (!themeUpdate.ok) throw new AppError(422, themeUpdate.error)
 
     const wordmarkRaw = form.get('wordmark_text')
     if (typeof wordmarkRaw === 'string' && wordmarkRaw.length > 24) {
-      return apiError(c, 422, 'wordmark_text must be 24 characters or fewer')
+      throw new AppError(422, 'wordmark_text must be 24 characters or fewer')
     }
 
     const hidePoweredByRaw = form.get('hide_powered_by')
@@ -167,16 +167,16 @@ export const brandingAdmin = new OpenAPIHono<Env>()
       theme: themeUpdate.values,
     })
     if (!result.ok) {
-      if (result.status === 503) return apiError(c, 503, result.error, { reason: ErrorReason.NO_STORAGE_CONFIGURED })
-      if (result.status === 413) return apiError(c, 413, result.error, { reason: ErrorReason.PAYLOAD_TOO_LARGE })
-      return apiError(c, 400, result.error)
+      if (result.status === 503) throw noStorage(result.error)
+      if (result.status === 413) throw payloadTooLarge(result.error)
+      throw badRequest(result.error)
     }
     return c.json(result.config, 200)
   })
   .openapi(resetRoute, async (c) => {
     const rawField = c.req.valid('param').field
     if (!VALID_RESET_FIELDS.has(rawField as BrandingField)) {
-      return apiError(c, 400, `Invalid field. Valid fields: ${[...VALID_RESET_FIELDS].join(', ')}`)
+      throw badRequest(`Invalid field. Valid fields: ${[...VALID_RESET_FIELDS].join(', ')}`)
     }
     await resetBranding(c.get('deps'), {
       userId: c.get('userId')!,

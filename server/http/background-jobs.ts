@@ -9,8 +9,8 @@ import {
   listBackgroundJobs,
   retryBackgroundJob,
 } from '../usecases/background-job'
-import { BackgroundJobError } from '../usecases/ports'
-import { apiError, errorResponse, jsonBody, jsonContent } from './openapi'
+import { BackgroundJobError, notFound } from '../usecases/ports'
+import { errorResponse, jsonBody, jsonContent } from './openapi'
 
 // BackgroundJob is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const backgroundJobProgressSchema = z.object({
@@ -130,7 +130,7 @@ app.use(requireAuth)
 const backgroundJobs = app
   .openapi(listRoute, async (c) => {
     const orgId = c.get('orgId')
-    if (!orgId) return apiError(c, 404, 'No organization found')
+    if (!orgId) throw notFound('No organization found')
     const query = c.req.valid('query')
     const result = await listBackgroundJobs(c.get('deps'), orgId, query)
     return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)

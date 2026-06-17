@@ -6,6 +6,7 @@
 export * from './ports/activity'
 export * from './ports/announcement'
 export * from './ports/api-keys'
+export * from './ports/app-error'
 export * from './ports/archive-jobs'
 export * from './ports/archive-target-folder'
 export * from './ports/background-job'

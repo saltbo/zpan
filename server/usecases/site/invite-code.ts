@@ -4,14 +4,21 @@
 // logging — so the http handlers only validate input, call these functions, and
 // serialize the result.
 
-import type { ActivityRepo, InviteCodeRecord, InviteRepo } from '../ports'
+import {
+  type ActivityRepo,
+  type AppError,
+  badRequest,
+  type InviteCodeRecord,
+  type InviteRepo,
+  notFound,
+} from '../ports'
 
 export type InviteCodeDeps = {
   invites: InviteRepo
   activity: ActivityRepo
 }
 
-export type DeleteInviteCodeOutcome = { ok: true } | { ok: false; reason: 'not_found' | 'already_used' }
+export type DeleteInviteCodeOutcome = { ok: true } | { ok: false; error: AppError }
 
 export function listInviteCodes(
   deps: Pick<InviteCodeDeps, 'invites'>,
@@ -51,8 +58,8 @@ export async function deleteInviteCode(
 ): Promise<DeleteInviteCodeOutcome> {
   const { userId, orgId, id } = params
   const result = await deps.invites.delete(id)
-  if (result === 'not_found') return { ok: false, reason: 'not_found' }
-  if (result === 'already_used') return { ok: false, reason: 'already_used' }
+  if (result === 'not_found') return { ok: false, error: notFound('Invite code not found') }
+  if (result === 'already_used') return { ok: false, error: badRequest('Cannot delete a used invite code') }
   await deps.activity.record({
     orgId,
     userId,
