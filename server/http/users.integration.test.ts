@@ -28,7 +28,7 @@ async function signUpUser(app: ReturnType<typeof import('../app')['createApp']>,
 }
 
 describe('User entitlements API (admin)', () => {
-  it('GET /api/users/:id/quota returns the user storage used/total', async () => {
+  it('GET /api/users/:id/quota returns the user storage used/total [spec: users/quota-personal-org]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'quota-sub@example.com')
