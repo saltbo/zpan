@@ -122,6 +122,10 @@ const okResolution = (
   over: { share?: ShareRecord; matter?: Matter; recipients?: ShareRecipientRecord[] } = {},
 ): ShareResolution => ({ status: 'ok', share: landingShare, matter: fileMatter, recipients: [], ...over })
 
+const trashedResolution = (
+  over: { share?: ShareRecord; matter?: Matter; recipients?: ShareRecipientRecord[] } = {},
+): ShareResolution => ({ status: 'matter_trashed', share: landingShare, matter: fileMatter, recipients: [], ...over })
+
 function makeShareRepo(over: Partial<ShareRepo> = {}): ShareRepo {
   return {
     resolveByToken: async () => okResolution(),
@@ -215,7 +219,7 @@ beforeEach(() => {
 
 describe('viewShare', () => {
   it('returns matter_trashed when the matter is trashed', async () => {
-    const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'matter_trashed' }) } })
+    const { deps } = makeDeps({ share: { resolveByToken: async () => trashedResolution() } })
     expectError(
       await viewShare(deps, { token: 't', viewerId: null, viewCookie: undefined, accessCookie: undefined }),
       410,
@@ -418,7 +422,7 @@ describe('listShareObjects', () => {
   const baseParams = { token: 'sk_token1', viewerId: null, accessCookie: 'ok', relativePath: '', page: 1, pageSize: 50 }
 
   it('returns matter_trashed / not_found from resolution', async () => {
-    const trashed = makeDeps({ share: { resolveByToken: async () => ({ status: 'matter_trashed' }) } })
+    const trashed = makeDeps({ share: { resolveByToken: async () => trashedResolution() } })
     expectError(await listShareObjects(trashed.deps, baseParams), 410, undefined, 'File no longer available')
 
     const revoked = makeDeps({ share: { resolveByToken: async () => ({ status: 'revoked' }) } })
@@ -584,7 +588,7 @@ describe('downloadShareObject', () => {
   })
 
   it('returns matter_trashed / not_found from resolution', async () => {
-    const trashed = makeDeps({ share: { resolveByToken: async () => ({ status: 'matter_trashed' }) } })
+    const trashed = makeDeps({ share: { resolveByToken: async () => trashedResolution() } })
     expectError(await downloadShareObject(trashed.deps, baseParams), 410, undefined, 'File no longer available')
     const revoked = makeDeps({ share: { resolveByToken: async () => ({ status: 'revoked' }) } })
     expectError(await downloadShareObject(revoked.deps, baseParams), 404, undefined, 'File not found or not accessible')
@@ -902,6 +906,27 @@ describe('revokeShare', () => {
     )
   })
 
+  it('still revokes a share whose matter is trashed (trashing does not cascade)', async () => {
+    const revokeByToken = vi.fn(async () => true)
+    const { deps, record } = makeDeps({ share: { resolveByToken: async () => trashedResolution(), revokeByToken } })
+    const out = await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1', orgId: 'o-1' })
+    expect(out.ok).toBe(true)
+    if (!out.ok) throw new Error('expected ok')
+    expect(out.dto).toMatchObject({ token: 'sk_token1', status: 'revoked', id: 's-1', creatorId: 'creator-1' })
+    expect(revokeByToken).toHaveBeenCalledWith('sk_token1', 'creator-1')
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'share_revoke', targetName: 'sk_token1' }))
+  })
+
+  it('returns forbidden for a non-creator even when the matter is trashed', async () => {
+    const { deps } = makeDeps({ share: { resolveByToken: async () => trashedResolution() } })
+    expectError(
+      await revokeShare(deps, { token: 'sk_token1', userId: 'someone-else', orgId: 'o-1' }),
+      403,
+      undefined,
+      'Forbidden',
+    )
+  })
+
   it('revokes, records activity, and returns the revoked creator view', async () => {
     const revokeByToken = vi.fn(async () => true)
     const { deps, record } = makeDeps({ share: { revokeByToken } })
@@ -934,7 +959,7 @@ describe('saveShare', () => {
   }
 
   it('returns matter_trashed when the share target was trashed', async () => {
-    const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'matter_trashed' }) } })
+    const { deps } = makeDeps({ share: { resolveByToken: async () => trashedResolution() } })
     expectError(await saveShare(deps, baseParams), 410, undefined, 'Share target has been deleted')
   })
 

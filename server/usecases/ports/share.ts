@@ -49,7 +49,11 @@ export interface ShareListItem {
 
 export type ShareResolution =
   | { status: 'ok'; share: ShareRecord; matter: Matter; recipients: ShareRecipientRecord[] }
-  | { status: 'not_found' | 'revoked' | 'matter_trashed' }
+  // matter_trashed carries the records so the creator-only revoke path can still
+  // act on the share; viewer-facing callers branch on `status` and ignore them.
+  | { status: 'matter_trashed'; share: ShareRecord; matter: Matter; recipients: ShareRecipientRecord[] }
+  | { status: 'not_found' }
+  | { status: 'revoked' }
 
 // Thrown by createShare on invalid share-shape combinations. Carries a stable
 // code the http layer maps to a 400/404.

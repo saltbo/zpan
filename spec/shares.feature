@@ -183,6 +183,12 @@ Feature: Shares
     When a non-creator sets its status to revoked
     Then the API responds 403
 
+  @shares/revoke-trashed-matter @api
+  Scenario: A creator can revoke a share whose file was trashed
+    Given a creator's share whose matter is trashed but not purged
+    When they set its status to revoked
+    Then the revoked share view is returned and its status becomes revoked
+
   @shares/received-list @api
   Scenario: Users see shares addressed to them
     Given shares addressed by id and by email

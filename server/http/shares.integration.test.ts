@@ -943,6 +943,29 @@ describe('PUT /api/shares/:token/status', () => {
     expect((await revokeRequest(app, token, headers)).status).toBe(200)
     expect((await revokeRequest(app, token, headers)).status).toBe(404)
   })
+
+  it('creator can still revoke a share whose matter was trashed (not purged) [spec: shares/revoke-trashed-matter]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'del4', name: 'trashed-then-revoked.txt' })
+
+    const createRes = await createShare(app, headers, { matterId: 'del4', kind: 'landing' })
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
+
+    // Soft-delete the matter without purging it — the share row stays active.
+    await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = 'del4'`)
+
+    const res = await revokeRequest(app, token, headers)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { token: string; status: string }
+    expect(body.token).toBe(token)
+    expect(body.status).toBe('revoked')
+
+    const rows = await db.select({ status: shares.status }).from(shares).where(eq(shares.token, token))
+    expect(rows[0]?.status).toBe('revoked')
+  })
 })
 
 describe('GET /api/shares?box=received', () => {

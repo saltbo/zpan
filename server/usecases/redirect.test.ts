@@ -178,7 +178,16 @@ describe('resolveDirectShareDownload', () => {
   })
 
   it('returns matter_trashed when the share resolves to a trashed matter', async () => {
-    const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'matter_trashed' }) } })
+    const { deps } = makeDeps({
+      share: {
+        resolveByToken: async () => ({
+          status: 'matter_trashed',
+          share: sampleShare,
+          matter: sampleMatter,
+          recipients: [],
+        }),
+      },
+    })
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
     expectError(out, 410, undefined, 'File no longer available')
   })

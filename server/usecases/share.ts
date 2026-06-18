@@ -509,10 +509,12 @@ export async function revokeShare(deps: ShareDeps, params: RevokeShareParams): P
 
   // Resolve before revoking: once the status flips to 'revoked', resolveByToken
   // no longer returns the record, so we capture the share here to build the
-  // creator view. An unknown, already-revoked, or trashed-target token resolves
-  // to a non-ok status and is "not found" to the revoker.
+  // creator view. Unknown or already-revoked tokens are "not found" to the
+  // revoker. A trashed matter still carries the records: the owner must be able
+  // to revoke a share whose target was soft-deleted (trashing does not cascade
+  // to shares), so this path stays revocable.
   const resolved = await deps.share.resolveByToken(token)
-  if (resolved.status !== 'ok') return { ok: false, error: notFound() }
+  if (resolved.status === 'not_found' || resolved.status === 'revoked') return { ok: false, error: notFound() }
   if (resolved.share.creatorId !== userId) return { ok: false, error: forbidden() }
 
   // Race-safe: revokeByToken scopes the UPDATE to (token, creatorId). An
