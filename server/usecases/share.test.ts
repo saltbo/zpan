@@ -129,7 +129,6 @@ function makeShareRepo(over: Partial<ShareRepo> = {}): ShareRepo {
     hasDownloadsAvailable: async () => true,
     incrementDownloadsAtomic: async () => ({ ok: true, downloads: 3 }),
     decrementDownloads: async () => {},
-    getCreatorByToken: async () => 'creator-1',
     revokeByToken: async () => true,
     listForApi: async () => ({ items: [], total: 0 }),
     listReceivedForApi: async () => ({ items: [], total: 0 }),
@@ -871,29 +870,54 @@ describe('createShare', () => {
 // ─── revokeShare ─────────────────────────────────────────────────────────────
 
 describe('revokeShare', () => {
-  it('returns not_found when the token has no creator', async () => {
-    const { deps, record } = makeDeps({ share: { getCreatorByToken: async () => null } })
-    expectError(await revokeShare(deps, { token: 't', userId: 'u1', orgId: 'o-1' }), 404, undefined, 'Not found')
+  it('returns not_found when the token does not resolve', async () => {
+    const { deps, record } = makeDeps({ share: { resolveByToken: async () => ({ status: 'not_found' }) } })
+    expectError(await revokeShare(deps, { token: 't', userId: 'creator-1', orgId: 'o-1' }), 404, undefined, 'Not found')
+    expect(record).not.toHaveBeenCalled()
+  })
+
+  it('returns not_found when the share is already revoked', async () => {
+    const { deps, record } = makeDeps({ share: { resolveByToken: async () => ({ status: 'revoked' }) } })
+    expectError(await revokeShare(deps, { token: 't', userId: 'creator-1', orgId: 'o-1' }), 404, undefined, 'Not found')
     expect(record).not.toHaveBeenCalled()
   })
 
   it('returns forbidden when the requester is not the creator', async () => {
-    const { deps } = makeDeps({ share: { getCreatorByToken: async () => 'someone-else' } })
-    expectError(await revokeShare(deps, { token: 't', userId: 'u1', orgId: 'o-1' }), 403, undefined, 'Forbidden')
+    const { deps } = makeDeps()
+    expectError(
+      await revokeShare(deps, { token: 't', userId: 'someone-else', orgId: 'o-1' }),
+      403,
+      undefined,
+      'Forbidden',
+    )
   })
 
   it('returns not_found when the scoped revoke loses the race', async () => {
-    const { deps } = makeDeps({ share: { getCreatorByToken: async () => 'u1', revokeByToken: async () => false } })
-    expectError(await revokeShare(deps, { token: 't', userId: 'u1', orgId: 'o-1' }), 404, undefined, 'Not found')
+    const { deps } = makeDeps({ share: { revokeByToken: async () => false } })
+    expectError(
+      await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1', orgId: 'o-1' }),
+      404,
+      undefined,
+      'Not found',
+    )
   })
 
-  it('revokes and records activity on success', async () => {
+  it('revokes, records activity, and returns the revoked creator view', async () => {
     const revokeByToken = vi.fn(async () => true)
-    const { deps, record } = makeDeps({ share: { getCreatorByToken: async () => 'u1', revokeByToken } })
-    expect(await revokeShare(deps, { token: 'tok', userId: 'u1', orgId: 'o-1' })).toEqual({ ok: true })
-    expect(revokeByToken).toHaveBeenCalledWith('tok', 'u1')
+    const { deps, record } = makeDeps({ share: { revokeByToken } })
+    const out = await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1', orgId: 'o-1' })
+    expect(out.ok).toBe(true)
+    if (!out.ok) throw new Error('expected ok')
+    expect(out.dto).toMatchObject({
+      token: 'sk_token1',
+      status: 'revoked',
+      id: 's-1',
+      creatorId: 'creator-1',
+      recipients: [],
+    })
+    expect(revokeByToken).toHaveBeenCalledWith('sk_token1', 'creator-1')
     expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'share_revoke', targetName: 'tok', orgId: 'o-1', userId: 'u1' }),
+      expect.objectContaining({ action: 'share_revoke', targetName: 'sk_token1', orgId: 'o-1', userId: 'creator-1' }),
     )
   })
 })

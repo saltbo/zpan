@@ -68,7 +68,6 @@ export interface ShareRepo {
   decrementDownloads(shareId: string): Promise<void>
   listRecipientUserIds(shareId: string): Promise<string[]>
   cascadeDeleteByMatter(matterId: string): Promise<void>
-  getCreatorByToken(token: string): Promise<string | null>
   revokeByToken(token: string, creatorId: string): Promise<boolean>
   listForApi(
     creatorId: string,

@@ -104,25 +104,17 @@ export type ViewShareOutcome =
   | { ok: true; dto: ShareViewerDto | ShareCreatorDto; setViewCookie: boolean }
   | { ok: false; error: AppError }
 
-export async function viewShare(deps: ShareDeps, params: ViewShareParams): Promise<ViewShareOutcome> {
-  const { token, viewerId, viewCookie, accessCookie, now = new Date() } = params
-
-  const resolved = await deps.share.resolveByToken(token)
-  if (resolved.status !== 'ok') {
-    if (resolved.status === 'matter_trashed') return { ok: false, error: expiredError('File no longer available') }
-    return { ok: false, error: notFound('Share not found or revoked') }
-  }
-
+// Assemble the share view DTO from resolved share data. The creator (matched by
+// viewerId) gets the richer ShareCreatorDto; everyone else gets the viewer DTO.
+// Shared by viewShare and revokeShare so both expose an identically-shaped view.
+async function composeShareView(
+  deps: ShareDeps,
+  resolved: { share: ShareRecord; matter: Matter; recipients: ShareRecipientRecord[] },
+  opts: { viewerId: string | null; accessCookie: string | undefined; now: Date },
+): Promise<ShareViewerDto | ShareCreatorDto> {
   const { share, matter, recipients } = resolved
+  const { viewerId, accessCookie, now } = opts
   const isCreator = !!viewerId && viewerId === share.creatorId
-
-  // Direct shares are not publicly viewable; only the creator sees metadata.
-  if (share.kind !== 'landing' && !isCreator) return { ok: false, error: notFound('Share not found or revoked') }
-
-  // View-dedup increment: non-creators whose view cookie isn't yet 'seen'. The
-  // handler sets the cookie when setViewCookie is true.
-  const setViewCookie = !isCreator && viewCookie !== 'seen'
-  if (setViewCookie) await deps.share.incrementViews(share.id)
 
   const accessibleByUser = viewerId ? isAccessibleByUser(recipients, viewerId) : false
   const requiresPassword = !isCreator && !!(share.passwordHash && !accessibleByUser && accessCookie !== 'ok')
@@ -146,25 +138,45 @@ export async function viewShare(deps: ShareDeps, params: ViewShareParams): Promi
     accessibleByUser,
     downloads: share.downloads,
     views: share.views,
-    rootRef: encodeChildRef(token, matter.id),
+    rootRef: encodeChildRef(share.token, matter.id),
   }
 
   if (isCreator) {
     return {
-      ok: true,
-      setViewCookie,
-      dto: {
-        ...base,
-        id: share.id,
-        matterId: share.matterId,
-        orgId: share.orgId,
-        creatorId: share.creatorId,
-        createdAt: share.createdAt,
-        recipients,
-      },
+      ...base,
+      id: share.id,
+      matterId: share.matterId,
+      orgId: share.orgId,
+      creatorId: share.creatorId,
+      createdAt: share.createdAt,
+      recipients,
     }
   }
-  return { ok: true, setViewCookie, dto: base }
+  return base
+}
+
+export async function viewShare(deps: ShareDeps, params: ViewShareParams): Promise<ViewShareOutcome> {
+  const { token, viewerId, viewCookie, accessCookie, now = new Date() } = params
+
+  const resolved = await deps.share.resolveByToken(token)
+  if (resolved.status !== 'ok') {
+    if (resolved.status === 'matter_trashed') return { ok: false, error: expiredError('File no longer available') }
+    return { ok: false, error: notFound('Share not found or revoked') }
+  }
+
+  const { share, matter, recipients } = resolved
+  const isCreator = !!viewerId && viewerId === share.creatorId
+
+  // Direct shares are not publicly viewable; only the creator sees metadata.
+  if (share.kind !== 'landing' && !isCreator) return { ok: false, error: notFound('Share not found or revoked') }
+
+  // View-dedup increment: non-creators whose view cookie isn't yet 'seen'. The
+  // handler sets the cookie when setViewCookie is true.
+  const setViewCookie = !isCreator && viewCookie !== 'seen'
+  if (setViewCookie) await deps.share.incrementViews(share.id)
+
+  const dto = await composeShareView(deps, { share, matter, recipients }, { viewerId, accessCookie, now })
+  return { ok: true, setViewCookie, dto }
 }
 
 // ─── POST /:token/sessions — verify password → access-cookie decision ────────
@@ -486,22 +498,26 @@ export async function createShare(
   }
 }
 
-// ─── DELETE /:token — revoke (ownership-scoped) ──────────────────────────────
+// ─── PUT /:token/status — revoke (ownership-scoped) ──────────────────────────
 
-export type RevokeShareParams = { token: string; userId: string; orgId: string }
+export type RevokeShareParams = { token: string; userId: string; orgId: string; now?: Date }
 
-export type RevokeShareOutcome = { ok: true } | { ok: false; error: AppError }
+export type RevokeShareOutcome = { ok: true; dto: ShareViewerDto | ShareCreatorDto } | { ok: false; error: AppError }
 
 export async function revokeShare(deps: ShareDeps, params: RevokeShareParams): Promise<RevokeShareOutcome> {
-  const { token, userId, orgId } = params
+  const { token, userId, orgId, now = new Date() } = params
 
-  const creatorId = await deps.share.getCreatorByToken(token)
-  if (creatorId === null) return { ok: false, error: notFound() }
-  if (creatorId !== userId) return { ok: false, error: forbidden() }
+  // Resolve before revoking: once the status flips to 'revoked', resolveByToken
+  // no longer returns the record, so we capture the share here to build the
+  // creator view. An unknown, already-revoked, or trashed-target token resolves
+  // to a non-ok status and is "not found" to the revoker.
+  const resolved = await deps.share.resolveByToken(token)
+  if (resolved.status !== 'ok') return { ok: false, error: notFound() }
+  if (resolved.share.creatorId !== userId) return { ok: false, error: forbidden() }
 
-  // Race-safe: revokeByToken scopes the UPDATE to (token, creatorId). A
-  // concurrent revoke or ownership change between the check above and this call
-  // returns false — translate to not_found at the boundary.
+  // Race-safe: revokeByToken scopes the UPDATE to (token, creatorId). An
+  // ownership change between the resolve above and this call returns false —
+  // translate to not_found at the boundary.
   const revoked = await deps.share.revokeByToken(token, userId)
   if (!revoked) return { ok: false, error: notFound() }
 
@@ -513,7 +529,13 @@ export async function revokeShare(deps: ShareDeps, params: RevokeShareParams): P
     targetName: token,
   })
 
-  return { ok: true }
+  // Return the creator view reflecting the post-revoke state.
+  const dto = await composeShareView(
+    deps,
+    { share: { ...resolved.share, status: 'revoked' }, matter: resolved.matter, recipients: resolved.recipients },
+    { viewerId: userId, accessCookie: undefined, now },
+  )
+  return { ok: true, dto }
 }
 
 // ─── POST /:token/objects — save-to-drive (gates + copy) ─────────────────────

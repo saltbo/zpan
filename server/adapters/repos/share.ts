@@ -170,11 +170,6 @@ export function createShareRepo(db: Database): ShareRepo {
       ])
     },
 
-    async getCreatorByToken(token: string): Promise<string | null> {
-      const rows = await db.select({ creatorId: shares.creatorId }).from(shares).where(eq(shares.token, token))
-      return rows[0]?.creatorId ?? null
-    },
-
     async revokeByToken(token: string, creatorId: string): Promise<boolean> {
       const result = await db
         .update(shares)

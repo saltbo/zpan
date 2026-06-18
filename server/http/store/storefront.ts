@@ -188,8 +188,8 @@ const cancelOrderRoute = createRoute({
   operationId: 'cancelOrder',
   summary: 'Cancel an order',
   tags: ['Store'],
-  method: 'patch',
-  path: '/orders/{orderId}',
+  method: 'put',
+  path: '/orders/{orderId}/status',
   middleware: [requireTeamRole('owner')] as const,
   request: { params: z.object({ orderId: z.string() }), ...jsonBody(z.object({ status: z.literal('canceled') })) },
   responses: {

@@ -1026,8 +1026,8 @@ describe('Quota Store API', () => {
       status: 200,
       json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, customerId: orgId } }),
     } as Response)
-    const canceled = await app.request('/api/store/orders/order-cloud-1', {
-      method: 'PATCH',
+    const canceled = await app.request('/api/store/orders/order-cloud-1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'canceled' }),
     })
@@ -1072,8 +1072,8 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers,
     })
-    const canceled = await app.request('/api/store/orders/order-other-org', {
-      method: 'PATCH',
+    const canceled = await app.request('/api/store/orders/order-other-org/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'canceled' }),
     })
@@ -2406,8 +2406,8 @@ describe('Quota Store API — storefront proxy error branches', () => {
       status: 500,
       json: async () => ({ error: 'cloud_boom' }),
     } as Response)
-    const cancel = await app.request('/api/store/orders/order-err', {
-      method: 'PATCH',
+    const cancel = await app.request('/api/store/orders/order-err/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'canceled' }),
     })
@@ -2423,8 +2423,8 @@ describe('Quota Store API — storefront proxy error branches', () => {
 
     const orders = await app.request('/api/store/orders', { headers })
     const payment = await app.request('/api/store/orders/order-1/payments', { method: 'POST', headers })
-    const cancel = await app.request('/api/store/orders/order-1', {
-      method: 'PATCH',
+    const cancel = await app.request('/api/store/orders/order-1/status', {
+      method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'canceled' }),
     })

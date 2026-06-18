@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useClipboard } from '@/hooks/use-clipboard'
-import { deleteShare, listReceivedShares, listShares, type ShareListItem } from '@/lib/api'
+import { listReceivedShares, listShares, revokeShare, type ShareListItem } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/shares/')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -65,7 +65,7 @@ function SharesPage() {
   })
 
   const revokeMutation = useMutation({
-    mutationFn: (token: string) => deleteShare(token),
+    mutationFn: (token: string) => revokeShare(token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shares'] })
       toast.success(t('shares.revokeSuccess'))

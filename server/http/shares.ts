@@ -341,11 +341,14 @@ const revokeShareRoute = createRoute({
   operationId: 'revokeShare',
   summary: 'Revoke a share',
   tags: ['Shares'],
-  method: 'delete',
-  path: '/{token}',
-  request: { params: z.object({ token: z.string() }) },
+  method: 'put',
+  path: '/{token}/status',
+  request: {
+    params: z.object({ token: z.string() }),
+    ...jsonBody(z.object({ status: z.literal('revoked') })),
+  },
   responses: {
-    204: { description: 'Revoked' },
+    200: jsonContent(shareViewSchema, 'Revoked share'),
     403: errorResponse('Forbidden'),
     404: errorResponse('Not found'),
   },
@@ -405,7 +408,7 @@ export const authedShares = authedApp
       userId: c.get('userId')!,
       orgId: c.get('orgId')!,
     })
-    if (out.ok) return c.body(null, 204)
+    if (out.ok) return c.json(toShareViewDTO(out.dto), 200)
     throw out.error
   })
   .openapi(saveShareRoute, async (c) => {
