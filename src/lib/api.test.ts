@@ -35,7 +35,6 @@ import {
   deleteIhostImage,
   deleteInviteCode,
   deleteObject,
-  deleteShare,
   deleteStorage,
   deleteTeamLogo,
   disconnectCloud,
@@ -112,6 +111,7 @@ import {
   revokeIhostApiKey,
   revokeOrgEntitlement,
   revokeRemoteDownloadApiKey,
+  revokeShare,
   revokeSiteInvitation,
   revokeUserEntitlement,
   revokeWebDavAppPassword,
@@ -425,8 +425,8 @@ describe('api', () => {
       expect(JSON.parse(calls[2][1].body as string)).toEqual({ code: 'GIFT-123' })
       expect(calls[3][0]).toBe('/api/store/orders/order-1/payments')
       expect(calls[3][1].method).toBe('POST')
-      expect(calls[4][0]).toBe('/api/store/orders/order-1')
-      expect(calls[4][1].method).toBe('PATCH')
+      expect(calls[4][0]).toBe('/api/store/orders/order-1/status')
+      expect(calls[4][1].method).toBe('PUT')
       expect(JSON.parse(calls[4][1].body as string)).toEqual({ status: 'canceled' })
     })
 
@@ -2357,20 +2357,27 @@ describe('api', () => {
     })
   })
 
-  describe('deleteShare', () => {
-    it('calls DELETE /api/shares/:token and resolves on 204', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+  describe('revokeShare', () => {
+    it('puts status: revoked to /api/shares/:token/status and resolves with the revoked share', async () => {
+      const payload = { token: 'tok123', status: 'revoked', kind: 'landing' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      await expect(deleteShare('tok123')).resolves.toBeUndefined()
+      const result = await revokeShare('tok123')
+
+      expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/shares/tok123')
-      expect(init.method).toBe('DELETE')
+      expect(url).toContain('/api/shares/tok123/status')
+      expect(init.method).toBe('PUT')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toEqual({ status: 'revoked' })
     })
 
     it('throws ApiError on non-ok response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 403, statusText: 'Forbidden' } as Response)
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
 
-      await expect(deleteShare('tok123')).rejects.toThrow('Forbidden')
+      await expect(revokeShare('tok123')).rejects.toThrow('Forbidden')
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+      await expect(revokeShare('tok123')).rejects.toBeInstanceOf(ApiError)
     })
   })
 

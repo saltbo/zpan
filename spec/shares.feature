@@ -171,17 +171,23 @@ Feature: Shares
     When they save a share there
     Then the API responds 403
 
-  @shares/delete @api
+  @shares/revoke @api
   Scenario: A creator revokes their share
     Given a creator's share
-    When they delete it
-    Then its status becomes revoked
+    When they set its status to revoked
+    Then the revoked share view is returned and its status becomes revoked
 
-  @shares/delete-non-creator @api
-  Scenario: Non-creators cannot delete a share
+  @shares/revoke-non-creator @api
+  Scenario: Non-creators cannot revoke a share
     Given a share owned by someone else
-    When a non-creator deletes it
+    When a non-creator sets its status to revoked
     Then the API responds 403
+
+  @shares/revoke-trashed-matter @api
+  Scenario: A creator can revoke a share whose file was trashed
+    Given a creator's share whose matter is trashed but not purged
+    When they set its status to revoked
+    Then the revoked share view is returned and its status becomes revoked
 
   @shares/received-list @api
   Scenario: Users see shares addressed to them

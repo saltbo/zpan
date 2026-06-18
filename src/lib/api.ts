@@ -611,7 +611,7 @@ export function continueCloudOrderPayment(orderId: string) {
 
 export function cancelCloudOrder(orderId: string) {
   return unwrap<CloudOrder>(
-    cloudStoreApi.orders[':orderId'].$patch({ param: { orderId }, json: { status: 'canceled' } }),
+    cloudStoreApi.orders[':orderId'].status.$put({ param: { orderId }, json: { status: 'canceled' } }),
   )
 }
 
@@ -885,10 +885,8 @@ export function getShare(token: string) {
   return unwrap<ShareView>(publicSharesApi[':token'].$get({ param: { token } }))
 }
 
-export function deleteShare(token: string) {
-  return authedSharesApi[':token'].$delete({ param: { token } }).then((res) => {
-    if (!res.ok) throw new ApiError(res.status, toErrorBody(res.status, { error: res.statusText }))
-  })
+export function revokeShare(token: string) {
+  return unwrap<ShareView>(authedSharesApi[':token'].status.$put({ param: { token }, json: { status: 'revoked' } }))
 }
 
 export interface CreateShareResult {

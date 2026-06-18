@@ -418,7 +418,7 @@ describe('GET /api/shares', () => {
     const body2 = (await res2.json()) as Record<string, unknown>
 
     // Revoke the second share
-    await app.request(`/api/shares/${body2.token}`, { method: 'DELETE', headers })
+    await revokeRequest(app, body2.token as string, headers)
 
     const resActive = await app.request('/api/shares?status=active', { headers })
     const activeBody = (await resActive.json()) as { items: unknown[]; total: number }
@@ -859,22 +859,33 @@ describe('POST /api/shares/:token/objects', () => {
   })
 })
 
-// ─── DELETE /api/shares/:token ────────────────────────────────────────────────
+// ─── PUT /api/shares/:token/status ───────────────────────────────────────────
 
-describe('DELETE /api/shares/:token (auth guard)', () => {
+const revokeRequest = (app: Awaited<ReturnType<typeof createTestApp>>['app'], token: string, headers: HeadersInit) =>
+  app.request(`/api/shares/${token}/status`, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'revoked' }),
+  })
+
+describe('PUT /api/shares/:token/status (auth guard)', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/shares/some-token', { method: 'DELETE' })
+    const res = await app.request('/api/shares/some-token/status', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'revoked' }),
+    })
     expect(res.status).toBe(401)
   })
 })
 
-describe('DELETE /api/shares/:token', () => {
+describe('PUT /api/shares/:token/status', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('creator can delete their share and share status becomes revoked in DB [spec: shares/delete]', async () => {
+  it('creator can revoke their share, gets the revoked view, and DB status flips [spec: shares/revoke]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -884,14 +895,18 @@ describe('DELETE /api/shares/:token', () => {
     const createRes = await createShare(app, headers, { matterId: 'del1', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const res = await app.request(`/api/shares/${token}`, { method: 'DELETE', headers })
-    expect(res.status).toBe(204)
+    const res = await revokeRequest(app, token, headers)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { token: string; status: string; id?: string }
+    expect(body.token).toBe(token)
+    expect(body.status).toBe('revoked')
+    expect(body.id).toBeTruthy()
 
     const rows = await db.select({ status: shares.status }).from(shares).where(eq(shares.token, token))
     expect(rows[0]?.status).toBe('revoked')
   })
 
-  it('returns 403 when non-creator tries to delete a share [spec: shares/delete-non-creator]', async () => {
+  it('returns 403 when non-creator tries to revoke a share [spec: shares/revoke-non-creator]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
 
@@ -903,7 +918,7 @@ describe('DELETE /api/shares/:token', () => {
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
     const headersB = await authedHeaders(app, `del-other-${nanoid()}@example.com`)
-    const res = await app.request(`/api/shares/${token}`, { method: 'DELETE', headers: headersB })
+    const res = await revokeRequest(app, token, headersB)
     expect(res.status).toBe(403)
   })
 
@@ -911,8 +926,45 @@ describe('DELETE /api/shares/:token', () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
 
-    const res = await app.request('/api/shares/does-not-exist', { method: 'DELETE', headers })
+    const res = await revokeRequest(app, 'does-not-exist', headers)
     expect(res.status).toBe(404)
+  })
+
+  it('returns 404 when revoking an already-revoked share', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'del3', name: 'twice.txt' })
+
+    const createRes = await createShare(app, headers, { matterId: 'del3', kind: 'landing' })
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
+
+    expect((await revokeRequest(app, token, headers)).status).toBe(200)
+    expect((await revokeRequest(app, token, headers)).status).toBe(404)
+  })
+
+  it('creator can still revoke a share whose matter was trashed (not purged) [spec: shares/revoke-trashed-matter]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'del4', name: 'trashed-then-revoked.txt' })
+
+    const createRes = await createShare(app, headers, { matterId: 'del4', kind: 'landing' })
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
+
+    // Soft-delete the matter without purging it — the share row stays active.
+    await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = 'del4'`)
+
+    const res = await revokeRequest(app, token, headers)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { token: string; status: string }
+    expect(body.token).toBe(token)
+    expect(body.status).toBe('revoked')
+
+    const rows = await db.select({ status: shares.status }).from(shares).where(eq(shares.token, token))
+    expect(rows[0]?.status).toBe('revoked')
   })
 })
 
@@ -980,8 +1032,8 @@ describe('GET /api/shares?box=received', () => {
       recipients: [{ recipientUserId: recipientId }],
     })
     const token = ((await created.json()) as Record<string, unknown>).token as string
-    const revoke = await app.request(`/api/shares/${token}`, { method: 'DELETE', headers: creatorHeaders })
-    expect(revoke.status).toBe(204)
+    const revoke = await revokeRequest(app, token, creatorHeaders)
+    expect(revoke.status).toBe(200)
 
     const res = await app.request('/api/shares?box=received', { headers: recipientHeaders })
     const body = (await res.json()) as { total: number }

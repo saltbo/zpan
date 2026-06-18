@@ -88,9 +88,11 @@ export function createShareRepo(db: Database): ShareRepo {
       const row = rows[0]
       if (!row) return { status: 'not_found' }
       if (row.share.status === 'revoked') return { status: 'revoked' }
-      if (row.matter.status === 'trashed') return { status: 'matter_trashed' }
 
       const recipients = await db.select().from(shareRecipients).where(eq(shareRecipients.shareId, row.share.id))
+
+      if (row.matter.status === 'trashed')
+        return { status: 'matter_trashed', share: row.share, matter: row.matter, recipients }
 
       return { status: 'ok', share: row.share, matter: row.matter, recipients }
     },
@@ -168,11 +170,6 @@ export function createShareRepo(db: Database): ShareRepo {
         db.delete(shareRecipients).where(inArray(shareRecipients.shareId, shareIds)),
         db.delete(shares).where(inArray(shares.id, shareIds)),
       ])
-    },
-
-    async getCreatorByToken(token: string): Promise<string | null> {
-      const rows = await db.select({ creatorId: shares.creatorId }).from(shares).where(eq(shares.token, token))
-      return rows[0]?.creatorId ?? null
     },
 
     async revokeByToken(token: string, creatorId: string): Promise<boolean> {

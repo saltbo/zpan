@@ -1071,18 +1071,33 @@ func (e VerifySharePassword200JSONResponseBodyOk) Valid() bool {
 	}
 }
 
+// Defines values for RevokeShareJSONBodyStatus.
+const (
+	RevokeShareJSONBodyStatusRevoked RevokeShareJSONBodyStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the RevokeShareJSONBodyStatus enum.
+func (e RevokeShareJSONBodyStatus) Valid() bool {
+	switch e {
+	case RevokeShareJSONBodyStatusRevoked:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListAnnouncementsParamsScope.
 const (
-	ListAnnouncementsParamsScopeActive ListAnnouncementsParamsScope = "active"
-	ListAnnouncementsParamsScopeAll    ListAnnouncementsParamsScope = "all"
+	Active ListAnnouncementsParamsScope = "active"
+	All    ListAnnouncementsParamsScope = "all"
 )
 
 // Valid indicates whether the value is a known member of the ListAnnouncementsParamsScope enum.
 func (e ListAnnouncementsParamsScope) Valid() bool {
 	switch e {
-	case ListAnnouncementsParamsScopeActive:
+	case Active:
 		return true
-	case ListAnnouncementsParamsScopeAll:
+	case All:
 		return true
 	default:
 		return false
@@ -3479,6 +3494,14 @@ type VerifySharePasswordJSONBody struct {
 // VerifySharePassword200JSONResponseBodyOk defines parameters for VerifySharePassword.
 type VerifySharePassword200JSONResponseBodyOk bool
 
+// RevokeShareJSONBody defines parameters for RevokeShare.
+type RevokeShareJSONBody struct {
+	Status RevokeShareJSONBodyStatus `json:"status"`
+}
+
+// RevokeShareJSONBodyStatus defines parameters for RevokeShare.
+type RevokeShareJSONBodyStatus string
+
 // ListAnnouncementsParams defines parameters for ListAnnouncements.
 type ListAnnouncementsParams struct {
 	Page     *int                           `form:"page,omitempty" json:"page,omitempty"`
@@ -4001,6 +4024,9 @@ type SaveShareJSONRequestBody SaveShareJSONBody
 
 // VerifySharePasswordJSONRequestBody defines body for VerifySharePassword for application/json ContentType.
 type VerifySharePasswordJSONRequestBody VerifySharePasswordJSONBody
+
+// RevokeShareJSONRequestBody defines body for RevokeShare for application/json ContentType.
+type RevokeShareJSONRequestBody RevokeShareJSONBody
 
 // CreateAnnouncementJSONRequestBody defines body for CreateAnnouncement for application/json ContentType.
 type CreateAnnouncementJSONRequestBody CreateAnnouncementJSONBody
@@ -5017,9 +5043,6 @@ type ClientInterface interface {
 
 	CreateShare(ctx context.Context, body CreateShareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RevokeShare request
-	RevokeShare(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetShare request
 	GetShare(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5035,6 +5058,11 @@ type ClientInterface interface {
 	VerifySharePasswordWithBody(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	VerifySharePassword(ctx context.Context, token string, body VerifySharePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RevokeShareWithBody request with any body
+	RevokeShareWithBody(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RevokeShare(ctx context.Context, token string, body RevokeShareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListAnnouncements request
 	ListAnnouncements(ctx context.Context, params *ListAnnouncementsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5208,13 +5236,13 @@ type ClientInterface interface {
 	// ListOrders request
 	ListOrders(ctx context.Context, params *ListOrdersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ContinueOrderPayment request
+	ContinueOrderPayment(ctx context.Context, orderId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CancelOrderWithBody request with any body
 	CancelOrderWithBody(ctx context.Context, orderId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CancelOrder(ctx context.Context, orderId string, body CancelOrderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ContinueOrderPayment request
-	ContinueOrderPayment(ctx context.Context, orderId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListStorePackages request
 	ListStorePackages(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7788,18 +7816,6 @@ func (c *Client) CreateShare(ctx context.Context, body CreateShareJSONRequestBod
 	return c.Client.Do(req)
 }
 
-func (c *Client) RevokeShare(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRevokeShareRequest(c.Server, token)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) GetShare(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetShareRequest(c.Server, token)
 	if err != nil {
@@ -7862,6 +7878,30 @@ func (c *Client) VerifySharePasswordWithBody(ctx context.Context, token string, 
 
 func (c *Client) VerifySharePassword(ctx context.Context, token string, body VerifySharePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewVerifySharePasswordRequest(c.Server, token, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RevokeShareWithBody(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevokeShareRequestWithBody(c.Server, token, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RevokeShare(ctx context.Context, token string, body RevokeShareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevokeShareRequest(c.Server, token, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8616,6 +8656,18 @@ func (c *Client) ListOrders(ctx context.Context, params *ListOrdersParams, reqEd
 	return c.Client.Do(req)
 }
 
+func (c *Client) ContinueOrderPayment(ctx context.Context, orderId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewContinueOrderPaymentRequest(c.Server, orderId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) CancelOrderWithBody(ctx context.Context, orderId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelOrderRequestWithBody(c.Server, orderId, contentType, body)
 	if err != nil {
@@ -8630,18 +8682,6 @@ func (c *Client) CancelOrderWithBody(ctx context.Context, orderId string, conten
 
 func (c *Client) CancelOrder(ctx context.Context, orderId string, body CancelOrderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelOrderRequest(c.Server, orderId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ContinueOrderPayment(ctx context.Context, orderId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewContinueOrderPaymentRequest(c.Server, orderId)
 	if err != nil {
 		return nil, err
 	}
@@ -14702,40 +14742,6 @@ func NewCreateShareRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
-// NewRevokeShareRequest generates requests for RevokeShare
-func NewRevokeShareRequest(server string, token string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "token", token, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/shares/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetShareRequest generates requests for GetShare
 func NewGetShareRequest(server string, token string) (*http.Request, error) {
 	var err error
@@ -14940,6 +14946,53 @@ func NewVerifySharePasswordRequestWithBody(server string, token string, contentT
 	}
 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRevokeShareRequest calls the generic RevokeShare builder with application/json body
+func NewRevokeShareRequest(server string, token string, body RevokeShareJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRevokeShareRequestWithBody(server, token, "application/json", bodyReader)
+}
+
+// NewRevokeShareRequestWithBody generates requests for RevokeShare with any type of body
+func NewRevokeShareRequestWithBody(server string, token string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "token", token, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/shares/%s/status", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -16840,53 +16893,6 @@ func NewListOrdersRequest(server string, params *ListOrdersParams) (*http.Reques
 	return req, nil
 }
 
-// NewCancelOrderRequest calls the generic CancelOrder builder with application/json body
-func NewCancelOrderRequest(server string, orderId string, body CancelOrderJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCancelOrderRequestWithBody(server, orderId, "application/json", bodyReader)
-}
-
-// NewCancelOrderRequestWithBody generates requests for CancelOrder with any type of body
-func NewCancelOrderRequestWithBody(server string, orderId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orderId", orderId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/store/orders/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewContinueOrderPaymentRequest generates requests for ContinueOrderPayment
 func NewContinueOrderPaymentRequest(server string, orderId string) (*http.Request, error) {
 	var err error
@@ -16917,6 +16923,53 @@ func NewContinueOrderPaymentRequest(server string, orderId string) (*http.Reques
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewCancelOrderRequest calls the generic CancelOrder builder with application/json body
+func NewCancelOrderRequest(server string, orderId string, body CancelOrderJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCancelOrderRequestWithBody(server, orderId, "application/json", bodyReader)
+}
+
+// NewCancelOrderRequestWithBody generates requests for CancelOrder with any type of body
+func NewCancelOrderRequestWithBody(server string, orderId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orderId", orderId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/store/orders/%s/status", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -18460,9 +18513,6 @@ type ClientWithResponsesInterface interface {
 
 	CreateShareWithResponse(ctx context.Context, body CreateShareJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateShareResponse, error)
 
-	// RevokeShareWithResponse request
-	RevokeShareWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*RevokeShareResponse, error)
-
 	// GetShareWithResponse request
 	GetShareWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*GetShareResponse, error)
 
@@ -18478,6 +18528,11 @@ type ClientWithResponsesInterface interface {
 	VerifySharePasswordWithBodyWithResponse(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VerifySharePasswordResponse, error)
 
 	VerifySharePasswordWithResponse(ctx context.Context, token string, body VerifySharePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*VerifySharePasswordResponse, error)
+
+	// RevokeShareWithBodyWithResponse request with any body
+	RevokeShareWithBodyWithResponse(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RevokeShareResponse, error)
+
+	RevokeShareWithResponse(ctx context.Context, token string, body RevokeShareJSONRequestBody, reqEditors ...RequestEditorFn) (*RevokeShareResponse, error)
 
 	// ListAnnouncementsWithResponse request
 	ListAnnouncementsWithResponse(ctx context.Context, params *ListAnnouncementsParams, reqEditors ...RequestEditorFn) (*ListAnnouncementsResponse, error)
@@ -18651,13 +18706,13 @@ type ClientWithResponsesInterface interface {
 	// ListOrdersWithResponse request
 	ListOrdersWithResponse(ctx context.Context, params *ListOrdersParams, reqEditors ...RequestEditorFn) (*ListOrdersResponse, error)
 
+	// ContinueOrderPaymentWithResponse request
+	ContinueOrderPaymentWithResponse(ctx context.Context, orderId string, reqEditors ...RequestEditorFn) (*ContinueOrderPaymentResponse, error)
+
 	// CancelOrderWithBodyWithResponse request with any body
 	CancelOrderWithBodyWithResponse(ctx context.Context, orderId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelOrderResponse, error)
 
 	CancelOrderWithResponse(ctx context.Context, orderId string, body CancelOrderJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelOrderResponse, error)
-
-	// ContinueOrderPaymentWithResponse request
-	ContinueOrderPaymentWithResponse(ctx context.Context, orderId string, reqEditors ...RequestEditorFn) (*ContinueOrderPaymentResponse, error)
 
 	// ListStorePackagesWithResponse request
 	ListStorePackagesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListStorePackagesResponse, error)
@@ -24835,37 +24890,6 @@ func (r CreateShareResponse) ContentType() string {
 	return ""
 }
 
-type RevokeShareResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON403      *Error
-	JSON404      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r RevokeShareResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RevokeShareResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r RevokeShareResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type GetShareResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -24996,6 +25020,38 @@ func (r VerifySharePasswordResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r VerifySharePasswordResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RevokeShareResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShareView
+	JSON403      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r RevokeShareResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RevokeShareResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RevokeShareResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -26507,40 +26563,6 @@ func (r ListOrdersResponse) ContentType() string {
 	return ""
 }
 
-type CancelOrderResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *CloudStoreValue
-	JSON400      *Error
-	JSON403      *Error
-	JSON404      *Error
-	JSON502      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CancelOrderResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CancelOrderResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CancelOrderResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type ContinueOrderPaymentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -26569,6 +26591,40 @@ func (r ContinueOrderPaymentResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ContinueOrderPaymentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CancelOrderResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *CloudStoreValue
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON502      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelOrderResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelOrderResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CancelOrderResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -29158,15 +29214,6 @@ func (c *ClientWithResponses) CreateShareWithResponse(ctx context.Context, body 
 	return ParseCreateShareResponse(rsp)
 }
 
-// RevokeShareWithResponse request returning *RevokeShareResponse
-func (c *ClientWithResponses) RevokeShareWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*RevokeShareResponse, error) {
-	rsp, err := c.RevokeShare(ctx, token, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRevokeShareResponse(rsp)
-}
-
 // GetShareWithResponse request returning *GetShareResponse
 func (c *ClientWithResponses) GetShareWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*GetShareResponse, error) {
 	rsp, err := c.GetShare(ctx, token, reqEditors...)
@@ -29217,6 +29264,23 @@ func (c *ClientWithResponses) VerifySharePasswordWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseVerifySharePasswordResponse(rsp)
+}
+
+// RevokeShareWithBodyWithResponse request with arbitrary body returning *RevokeShareResponse
+func (c *ClientWithResponses) RevokeShareWithBodyWithResponse(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RevokeShareResponse, error) {
+	rsp, err := c.RevokeShareWithBody(ctx, token, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevokeShareResponse(rsp)
+}
+
+func (c *ClientWithResponses) RevokeShareWithResponse(ctx context.Context, token string, body RevokeShareJSONRequestBody, reqEditors ...RequestEditorFn) (*RevokeShareResponse, error) {
+	rsp, err := c.RevokeShare(ctx, token, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevokeShareResponse(rsp)
 }
 
 // ListAnnouncementsWithResponse request returning *ListAnnouncementsResponse
@@ -29763,6 +29827,15 @@ func (c *ClientWithResponses) ListOrdersWithResponse(ctx context.Context, params
 	return ParseListOrdersResponse(rsp)
 }
 
+// ContinueOrderPaymentWithResponse request returning *ContinueOrderPaymentResponse
+func (c *ClientWithResponses) ContinueOrderPaymentWithResponse(ctx context.Context, orderId string, reqEditors ...RequestEditorFn) (*ContinueOrderPaymentResponse, error) {
+	rsp, err := c.ContinueOrderPayment(ctx, orderId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseContinueOrderPaymentResponse(rsp)
+}
+
 // CancelOrderWithBodyWithResponse request with arbitrary body returning *CancelOrderResponse
 func (c *ClientWithResponses) CancelOrderWithBodyWithResponse(ctx context.Context, orderId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelOrderResponse, error) {
 	rsp, err := c.CancelOrderWithBody(ctx, orderId, contentType, body, reqEditors...)
@@ -29778,15 +29851,6 @@ func (c *ClientWithResponses) CancelOrderWithResponse(ctx context.Context, order
 		return nil, err
 	}
 	return ParseCancelOrderResponse(rsp)
-}
-
-// ContinueOrderPaymentWithResponse request returning *ContinueOrderPaymentResponse
-func (c *ClientWithResponses) ContinueOrderPaymentWithResponse(ctx context.Context, orderId string, reqEditors ...RequestEditorFn) (*ContinueOrderPaymentResponse, error) {
-	rsp, err := c.ContinueOrderPayment(ctx, orderId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseContinueOrderPaymentResponse(rsp)
 }
 
 // ListStorePackagesWithResponse request returning *ListStorePackagesResponse
@@ -39150,39 +39214,6 @@ func ParseCreateShareResponse(rsp *http.Response) (*CreateShareResponse, error) 
 	return response, nil
 }
 
-// ParseRevokeShareResponse parses an HTTP response from a RevokeShareWithResponse call
-func ParseRevokeShareResponse(rsp *http.Response) (*RevokeShareResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RevokeShareResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseGetShareResponse parses an HTTP response from a GetShareWithResponse call
 func ParseGetShareResponse(rsp *http.Response) (*GetShareResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -39363,6 +39394,46 @@ func ParseVerifySharePasswordResponse(rsp *http.Response) (*VerifySharePasswordR
 		var dest struct {
 			Ok VerifySharePassword200JSONResponseBodyOk `json:"ok"`
 		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRevokeShareResponse parses an HTTP response from a RevokeShareWithResponse call
+func ParseRevokeShareResponse(rsp *http.Response) (*RevokeShareResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RevokeShareResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShareView
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41015,15 +41086,15 @@ func ParseListOrdersResponse(rsp *http.Response) (*ListOrdersResponse, error) {
 	return response, nil
 }
 
-// ParseCancelOrderResponse parses an HTTP response from a CancelOrderWithResponse call
-func ParseCancelOrderResponse(rsp *http.Response) (*CancelOrderResponse, error) {
+// ParseContinueOrderPaymentResponse parses an HTTP response from a ContinueOrderPaymentWithResponse call
+func ParseContinueOrderPaymentResponse(rsp *http.Response) (*ContinueOrderPaymentResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &CancelOrderResponse{
+	response := &ContinueOrderPaymentResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -41069,15 +41140,15 @@ func ParseCancelOrderResponse(rsp *http.Response) (*CancelOrderResponse, error) 
 	return response, nil
 }
 
-// ParseContinueOrderPaymentResponse parses an HTTP response from a ContinueOrderPaymentWithResponse call
-func ParseContinueOrderPaymentResponse(rsp *http.Response) (*ContinueOrderPaymentResponse, error) {
+// ParseCancelOrderResponse parses an HTTP response from a CancelOrderWithResponse call
+func ParseCancelOrderResponse(rsp *http.Response) (*CancelOrderResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ContinueOrderPaymentResponse{
+	response := &CancelOrderResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

@@ -288,7 +288,7 @@ describe('Share lifecycle audit events', () => {
     expect(meta.hasPassword).toBe(false)
   })
 
-  it('records share_revoke when a share is deleted', async () => {
+  it('records share_revoke when a share is revoked', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -303,11 +303,12 @@ describe('Share lifecycle audit events', () => {
     })
     const { token } = (await createRes.json()) as { token: string }
 
-    const revokeRes = await app.request(`/api/shares/${token}`, {
-      method: 'DELETE',
-      headers,
+    const revokeRes = await app.request(`/api/shares/${token}/status`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'revoked' }),
     })
-    expect(revokeRes.status).toBe(204)
+    expect(revokeRes.status).toBe(200)
 
     const evt = await getLatestActivity(db, 'share_revoke')
     expect(evt).toBeDefined()
