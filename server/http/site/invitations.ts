@@ -85,7 +85,7 @@ const revokeRoute = createRoute({
   middleware: [requireAdmin] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
-    200: jsonContent(z.object({ id: z.string(), revoked: z.literal(true) }), 'Revoked invitation'),
+    204: { description: 'Revoked invitation' },
     400: errorResponse('Invitation is no longer pending'),
     401: errorResponse('Unauthorized'),
     404: errorResponse('Invitation not found'),
@@ -137,7 +137,7 @@ export const adminSiteInvitations = new OpenAPIHono<Env>()
     const id = c.req.valid('param').id
     const result = await revokeSiteInvitation(c.get('deps'), { userId, orgId: c.get('orgId')!, id })
     if (!result.ok) throw result.error
-    return c.json({ id, revoked: true as const }, 200)
+    return c.body(null, 204)
   })
 
 export const publicSiteInvitations = new OpenAPIHono<Env>().openapi(getByTokenRoute, async (c) => {

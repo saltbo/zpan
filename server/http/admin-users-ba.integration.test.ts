@@ -21,7 +21,7 @@ async function adminCookie(app: ReturnType<typeof import('../app')['createApp']>
 }
 
 describe('better-auth admin user endpoints (migration target)', () => {
-  it('GET /api/auth/admin/list-users returns users for an admin session', async () => {
+  it('GET /api/auth/admin/list-users returns users for an admin session [spec: users/list]', async () => {
     const { app } = await createTestApp()
     const headers = await adminCookie(app)
     await authedHeaders(app, 'member@example.com', 'password123456')
@@ -33,7 +33,7 @@ describe('better-auth admin user endpoints (migration target)', () => {
     expect(body.users.map((u) => u.email)).toEqual(expect.arrayContaining(['admin@example.com', 'member@example.com']))
   })
 
-  it('rejects list-users for a non-admin session', async () => {
+  it('rejects list-users for a non-admin session [spec: users/admin-only]', async () => {
     const { app } = await createTestApp()
     await authedHeaders(app, 'admin@example.com', 'password123456')
     const memberHeaders = await authedHeaders(app, 'member@example.com', 'password123456')
@@ -42,7 +42,7 @@ describe('better-auth admin user endpoints (migration target)', () => {
     expect(res.status).toBe(403)
   })
 
-  it('POST /api/auth/admin/ban-user sets banned, and our middleware then rejects the user', async () => {
+  it('POST /api/auth/admin/ban-user sets banned, and our middleware then rejects the user [spec: users/disable]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminCookie(app)
     const memberHeaders = await authedHeaders(app, 'ban-me@example.com', 'password123456')
@@ -87,7 +87,7 @@ describe('better-auth admin user endpoints (migration target)', () => {
     expect(enableEvt).toEqual([{ user_id: adminId }])
   })
 
-  it('does NOT audit a failed admin action (ban of a nonexistent user)', async () => {
+  it('does NOT audit a failed admin action (ban of a nonexistent user) [spec: users/patch-missing]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminCookie(app)
 
@@ -102,7 +102,7 @@ describe('better-auth admin user endpoints (migration target)', () => {
     expect(evts).toHaveLength(0)
   })
 
-  it('POST /api/auth/admin/remove-user deletes the user', async () => {
+  it('POST /api/auth/admin/remove-user deletes the user [spec: users/delete]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminCookie(app)
     await authedHeaders(app, 'delete-me@example.com', 'password123456')

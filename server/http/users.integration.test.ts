@@ -28,7 +28,7 @@ async function signUpUser(app: ReturnType<typeof import('../app')['createApp']>,
 }
 
 describe('User entitlements API (admin)', () => {
-  it('GET /api/users/:id/quota returns the user storage used/total', async () => {
+  it('GET /api/users/:id/quota returns the user storage used/total [spec: users/quota-personal-org]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'quota-sub@example.com')
@@ -166,9 +166,7 @@ describe('User entitlements API (admin)', () => {
       headers,
     })
 
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { entitlement: Record<string, unknown> }
-    expect(body.entitlement).toMatchObject({ id: entitlement.id, status: 'revoked' })
+    expect(res.status).toBe(204)
     const rows = await db.all<{ status: string }>(
       sql`SELECT status FROM org_quota_entitlements WHERE id = ${entitlement.id}`,
     )
@@ -507,7 +505,7 @@ describe('DELETE /api/users/me/avatar', () => {
     await db.run(sql`UPDATE user SET image = 'https://example.com/old.png'`)
 
     const res = await app.request('/api/users/me/avatar', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(204)
 
     const rows = await db.all<{ image: string | null }>(sql`SELECT image FROM user LIMIT 1`)
     expect(rows[0]?.image).toBeNull()
@@ -521,7 +519,7 @@ describe('DELETE /api/users/me/avatar', () => {
     await db.run(sql`UPDATE user SET image = 'https://example.com/old.png'`)
 
     const res = await app.request('/api/users/me/avatar', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(204)
     const rows = await db.all<{ image: string | null }>(sql`SELECT image FROM user LIMIT 1`)
     expect(rows[0]?.image).toBeNull()
   })

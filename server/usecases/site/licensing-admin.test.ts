@@ -429,7 +429,7 @@ describe('unbindLicense', () => {
 
     const out = await unbindLicense(deps, params)
 
-    expect(out).toEqual({ cloudUnbindError: null })
+    expect(out).toEqual({ ok: true })
     expect(cloud.unbindCloudLicense).toHaveBeenCalledWith(BASE_URL, 'bind-1', 'old-token')
     expect(binding.clearLicenseBinding).toHaveBeenCalledTimes(1)
     expect(activity.record).toHaveBeenCalledWith(
@@ -449,7 +449,12 @@ describe('unbindLicense', () => {
 
     const out = await unbindLicense(deps, params)
 
-    expect(out).toEqual({ cloudUnbindError: 'Cloud unbind failed: 401' })
+    expect(out.ok).toBe(false)
+    if (!out.ok) {
+      expect(out.error.httpStatus).toBe(502)
+      expect(out.error.meta.reason).toBe('CLOUD_UNBIND_FAILED')
+      expect(out.error.meta.metadata).toEqual({ cloudUnbindError: 'Cloud unbind failed: 401' })
+    }
     expect(binding.clearLicenseBinding).toHaveBeenCalledTimes(1)
     expect(activity.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -467,7 +472,7 @@ describe('unbindLicense', () => {
 
     const out = await unbindLicense(deps, params)
 
-    expect(out).toEqual({ cloudUnbindError: null })
+    expect(out).toEqual({ ok: true })
     expect(cloud.unbindCloudLicense).not.toHaveBeenCalled()
     expect(binding.clearLicenseBinding).toHaveBeenCalledTimes(1)
     expect(activity.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'license_disconnect' }))

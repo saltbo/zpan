@@ -1,59 +1,37 @@
 Feature: User administration
-  Admins list, filter, disable, and delete users, and manage per-user storage
-  entitlement grants against each user's personal org.
-
-  @users/auth-required @api
-  Scenario: User administration requires authentication
-    Given an unauthenticated request
-    When it calls the admin users API
-    Then the API responds 401
+  Admin user management runs through better-auth's admin plugin
+  (/api/auth/admin/*). ZPan owns the per-user storage quota and the entitlement
+  grants against each user's personal org, and enforces bans in its auth
+  middleware.
 
   @users/admin-only @api
   Scenario: Non-admins cannot administer users
     Given an authenticated non-admin user
-    When they call the admin users API
+    When they call the better-auth admin user endpoints
     Then the API responds 403
 
   @users/list @api
-  Scenario: Admins list users with pagination
+  Scenario: Admins list users
     Given several users
     When an admin lists users
-    Then a paginated list of users is returned
+    Then the users are returned
 
   @users/quota-personal-org @api
-  Scenario: A listed user shows their personal-org quota
+  Scenario: A user's quota reflects their personal org
     Given a user with a personal org
-    When an admin lists users
-    Then the user's quota reflects their personal organization
-
-  @users/quota-entitlements @api
-  Scenario: A listed user's quota includes active entitlements
-    Given a user with an active plan and extra storage entitlements
-    When an admin lists users
-    Then the quota total is computed from plan plus entitlements
-
-  @users/filter @api
-  Scenario: Admins filter users
-    Given users with various names, usernames, and emails
-    When an admin filters the list
-    Then only matching users and the filtered totals are returned
+    When an admin reads the user's quota
+    Then the quota reflects their personal organization
 
   @users/disable @api
-  Scenario: Admins disable a user
+  Scenario: Admins disable (ban) a user
     Given an active user
-    When an admin sets their status to disabled
+    When an admin bans them
     Then the user is disabled
 
-  @users/invalid-status @api
-  Scenario: Setting an invalid status is rejected
-    Given an existing user
-    When an admin sets an invalid status
-    Then the API rejects it
-
   @users/patch-missing @api
-  Scenario: Updating a missing user returns 404
+  Scenario: Acting on a missing user returns 404
     Given a user id that does not exist
-    When an admin updates it
+    When an admin acts on it
     Then the API responds 404
 
   @users/disabled-session-rejected @api
@@ -65,14 +43,8 @@ Feature: User administration
   @users/delete @api
   Scenario: Admins delete a user
     Given an existing user
-    When an admin deletes them
+    When an admin removes them
     Then the user is removed
-
-  @users/batch @api
-  Scenario: Admins batch-toggle user status
-    Given several users
-    When an admin batch-disables and enables them
-    Then each user's status is updated
 
   @users/grant-entitlement @api
   Scenario: Admins grant a storage entitlement

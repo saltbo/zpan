@@ -388,8 +388,8 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/draft-cancel', { method: 'DELETE', headers })
 
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { id: string; deleted: boolean; purged: boolean }
-    expect(body).toEqual({ id: 'draft-cancel', deleted: true, purged: false })
+    const body = (await res.json()) as { purged: number | false }
+    expect(body).toEqual({ purged: false })
     expect(S3Service.prototype.deleteObject).toHaveBeenCalledWith(
       expect.objectContaining({ id: validStorage.id }),
       'some/key.txt',
@@ -439,8 +439,7 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.id).toBe('f1')
-    expect(body.deleted).toBe(true)
+    expect(body.purged).toBe(1)
 
     const check = await app.request('/api/objects/f1', { headers })
     expect(check.status).toBe(404)
@@ -465,7 +464,7 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/movie-folder', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body).toMatchObject({ id: 'movie-folder', deleted: true, purged: 2 })
+    expect(body).toEqual({ purged: 2 })
 
     expect(await getMatter(db, 'movie-folder', orgId)).toBeNull()
     expect(await getMatter(db, 'movie-file', orgId)).toBeNull()
@@ -685,7 +684,7 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/m1', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.deleted).toBe(true)
+    expect(body.purged).toBe(1)
     expect(S3Service.prototype.deleteObjects).toHaveBeenCalled()
   })
 

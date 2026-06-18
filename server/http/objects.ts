@@ -252,7 +252,7 @@ const abortUploadRoute = createRoute({
   middleware: [requireObjectWriteAccess] as const,
   request: { params: sessionParams },
   responses: {
-    200: jsonContent(objectUploadSessionSchema, 'Aborted object multipart upload session'),
+    204: { description: 'Aborted object multipart upload session' },
     400: errorResponse('Invalid upload session'),
     403: errorResponse('Forbidden'),
     404: errorResponse('Not found'),
@@ -320,7 +320,7 @@ const deleteObjectRoute = createRoute({
     200: jsonContent(
       // `purged` is the count of permanently removed items, or `false` when a
       // draft is discarded (nothing was purged).
-      z.object({ id: z.string(), deleted: z.literal(true), purged: z.number().int().or(z.literal(false)) }),
+      z.object({ purged: z.number().int().or(z.literal(false)) }),
       'Deleted object',
     ),
     400: errorResponse('No active organization'),
@@ -453,13 +453,13 @@ const objects = app
   .openapi(abortUploadRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
-    const session = await patchUploadSession(c.get('deps'), {
+    await patchUploadSession(c.get('deps'), {
       orgId,
       objectId: c.req.valid('param').id,
       sessionId: c.req.valid('param').uploadSessionId,
       input: { action: 'abort' },
     })
-    return c.json(session, 200)
+    return c.body(null, 204)
   })
   .openapi(getObjectRoute, async (c) => {
     const orgId = c.get('orgId')
@@ -536,12 +536,12 @@ const objects = app
     if (!orgId) throw badRequest('No active organization')
     const objectId = c.req.valid('param').id
     const result = await deleteObject(c.get('deps'), { orgId, objectId, userId: c.get('userId')! })
-    if (result.ok) return c.json({ id: result.id, deleted: true as const, purged: result.purged }, 200)
+    if (result.ok) return c.json({ purged: result.purged }, 200)
     if (result.reason === 'not_trashed') {
       // A draft (upload never confirmed) is discarded directly; a live object
       // must be trashed before it can be permanently deleted.
       const cancelled = await cancelObject(c.get('deps'), { orgId, objectId, actorId: actorId(c) })
-      if (cancelled.ok) return c.json({ id: cancelled.id, deleted: true as const, purged: false as const }, 200)
+      if (cancelled.ok) return c.json({ purged: false as const }, 200)
       throw conflict('Object must be trashed before permanent deletion')
     }
     throw notFound()

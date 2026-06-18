@@ -353,9 +353,7 @@ describe('DELETE /api/site/branding/:field', () => {
     await seedBrandingOption(db, 'branding_wordmark_text', 'MyCloud')
 
     const res = await app.request('/api/site/branding/wordmark_text', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { reset: boolean }
-    expect(body.reset).toBe(true)
+    expect(res.status).toBe(204)
 
     // Verify removed from DB
     const { systemOptions } = await import('../../db/schema.js')
@@ -372,7 +370,7 @@ describe('DELETE /api/site/branding/:field', () => {
     await seedBrandingOption(db, 'branding_theme_preset', 'rose')
 
     const res = await app.request('/api/site/branding/theme', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(204)
     const getRes = await app.request('/api/site/branding')
     const body = (await getRes.json()) as BrandingConfig
     expect(body.theme).toMatchObject({
@@ -391,7 +389,7 @@ describe('DELETE /api/site/branding/:field', () => {
     await seedBrandingOption(db, 'branding_theme_preset', 'rose')
 
     const res = await app.request('/api/site/branding/theme_preset', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(204)
     const getRes = await app.request('/api/site/branding')
     const body = (await getRes.json()) as BrandingConfig
     expect(body.theme.configured).toBe(false)

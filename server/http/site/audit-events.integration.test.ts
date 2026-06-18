@@ -407,7 +407,7 @@ describe('System option audit events', () => {
       method: 'DELETE',
       headers: admin,
     })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(204)
 
     const evt = await getLatestActivity(db, 'system_option_delete')
     expect(evt).toBeDefined()
@@ -508,7 +508,7 @@ describe('Storage audit events', () => {
       method: 'DELETE',
       headers: admin,
     })
-    expect(deleteRes.status).toBe(200)
+    expect(deleteRes.status).toBe(204)
 
     const evt = await getLatestActivity(db, 'storage_delete')
     expect(evt).toBeDefined()
@@ -583,7 +583,7 @@ describe('Invite code audit events', () => {
       method: 'DELETE',
       headers: admin,
     })
-    expect(deleteRes.status).toBe(200)
+    expect(deleteRes.status).toBe(204)
 
     const evt = await getLatestActivity(db, 'invite_code_delete')
     expect(evt).toBeDefined()

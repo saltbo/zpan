@@ -80,7 +80,7 @@ const deleteProviderRoute = createRoute({
   middleware: [requireAdmin] as const,
   request: { params: z.object({ providerId: z.string() }) },
   responses: {
-    200: jsonContent(z.object({ providerId: z.string(), deleted: z.literal(true) }), 'Deleted auth provider'),
+    204: { description: 'Deleted auth provider' },
     400: errorResponse('Invalid provider'),
   },
 })
@@ -104,5 +104,5 @@ export const authProviders = new OpenAPIHono<Env>()
     const providerId = c.req.valid('param').providerId
     const result = await deleteAuthProvider(c.get('deps'), providerId)
     if (!result.ok) throw result.error
-    return c.json({ providerId, deleted: true as const }, 200)
+    return c.body(null, 204)
   })

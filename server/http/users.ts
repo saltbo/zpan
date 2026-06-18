@@ -83,7 +83,7 @@ const deleteAvatarRoute = createRoute({
   method: 'delete',
   path: '/me/avatar',
   middleware: [requireAuth] as const,
-  responses: { 200: jsonContent(z.object({ ok: z.literal(true) }), 'Removed') },
+  responses: { 204: { description: 'Removed' } },
 })
 
 const getUserRoute = createRoute({
@@ -185,7 +185,7 @@ const revokeUserEntitlementRoute = createRoute({
   middleware: [requireAdmin] as const,
   request: { params: z.object({ userId: z.string(), eid: z.string() }) },
   responses: {
-    200: jsonContent(entitlementResultSchema, 'Revoked'),
+    204: { description: 'Revoked' },
     400: errorResponse('Bad request'),
     404: errorResponse('Not found'),
   },
@@ -207,7 +207,7 @@ export const users = new OpenAPIHono<Env>()
   })
   .openapi(deleteAvatarRoute, async (c) => {
     await removeAvatar(c.get('deps'), { platform: c.get('platform'), userId: c.get('userId') as string })
-    return c.json({ ok: true as const }, 200)
+    return c.body(null, 204)
   })
   .openapi(getUserRoute, async (c) => {
     const user = await getPublicProfile(c.get('deps'), c.req.valid('param').username)
@@ -266,5 +266,5 @@ export const users = new OpenAPIHono<Env>()
       entitlementId: c.req.valid('param').eid,
     })
     if (!result.ok) throw failureError(result.failure)
-    return c.json(toEntitlementResultDTO(result.result), 200)
+    return c.body(null, 204)
   })

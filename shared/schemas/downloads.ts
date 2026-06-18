@@ -225,11 +225,6 @@ export const createDownloaderResponseSchema = z.object({
   token: z.string(),
 })
 
-export const deleteDownloaderResponseSchema = z.object({
-  id: z.string(),
-  deleted: z.boolean(),
-})
-
 export const updateDownloaderSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   enabled: z.boolean().optional(),

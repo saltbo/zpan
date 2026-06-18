@@ -136,9 +136,7 @@ describe('Admin Site Invitations API', () => {
       headers,
     })
 
-    expect(revokeRes.status).toBe(200)
-    const body = (await revokeRes.json()) as { revoked: boolean }
-    expect(body.revoked).toBe(true)
+    expect(revokeRes.status).toBe(204)
   })
 
   it('returns 409 when creating a duplicate pending invitation [spec: site-invitations/duplicate]', async () => {
@@ -291,7 +289,7 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     const headers = await adminHeaders(ctx.app)
 
     const first = await ctx.app.request(`/api/site/invitations/${id}`, { method: 'DELETE', headers })
-    expect(first.status).toBe(200)
+    expect(first.status).toBe(204)
 
     const second = await ctx.app.request(`/api/site/invitations/${id}`, { method: 'DELETE', headers })
     expect(second.status).toBe(400)

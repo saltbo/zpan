@@ -185,9 +185,7 @@ describe('Admin Storages API', () => {
       method: 'DELETE',
       headers,
     })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.deleted).toBe(true)
+    expect(res.status).toBe(204)
   })
 
   it('DELETE /:id returns 404 for missing storage', async () => {

@@ -92,7 +92,6 @@ export {
   createDownloaderSchema,
   createDownloadTaskSchema,
   createObjectUploadSessionSchema,
-  deleteDownloaderResponseSchema,
   downloaderEngineSchema,
   downloaderHeartbeatResponseSchema,
   downloaderHeartbeatSchema,

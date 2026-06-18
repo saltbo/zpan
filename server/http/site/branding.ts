@@ -127,7 +127,7 @@ const resetRoute = createRoute({
   middleware: [requireAdmin, requireFeature('white_label')] as const,
   request: { params: z.object({ field: z.string() }) },
   responses: {
-    200: jsonContent(z.object({ field: z.string(), reset: z.literal(true) }), 'Reset field'),
+    204: { description: 'Reset field' },
     400: errorResponse('Invalid field'),
   },
 })
@@ -183,5 +183,5 @@ export const brandingAdmin = new OpenAPIHono<Env>()
       orgId: c.get('orgId')!,
       field: rawField as BrandingField,
     })
-    return c.json({ field: rawField, reset: true as const }, 200)
+    return c.body(null, 204)
   })

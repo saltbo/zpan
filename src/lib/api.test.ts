@@ -285,10 +285,10 @@ describe('api', () => {
       expect(init.method).toBe('POST')
     })
 
-    it('revokes a site invitation', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'invite-1', revoked: true }))
+    it('revokes a site invitation (resolves on 204)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      await revokeSiteInvitation('invite-1')
+      await expect(revokeSiteInvitation('invite-1')).resolves.toBeUndefined()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/site/invitations/invite-1')
@@ -564,12 +564,12 @@ describe('api', () => {
 
   describe('cancelUpload', () => {
     it('sends DELETE to discard the draft', async () => {
-      const payload = { id: 'id1', deleted: true, purged: false }
+      const payload = { purged: false }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await cancelUpload('id1')
 
-      expect(result).toEqual(payload)
+      expect(result).toEqual({ purged: false })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/objects/id1')
       expect(init.method).toBe('DELETE')
@@ -583,13 +583,13 @@ describe('api', () => {
   })
 
   describe('deleteObject', () => {
-    it('sends DELETE request and returns deleted flag', async () => {
-      const payload = { id: 'id1', deleted: true }
+    it('sends DELETE request and returns purged count', async () => {
+      const payload = { purged: 3 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await deleteObject('id1')
 
-      expect(result).toEqual(payload)
+      expect(result).toEqual({ purged: 3 })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/objects/id1')
       expect(init.method).toBe('DELETE')
@@ -977,13 +977,11 @@ describe('api', () => {
       expect(init.body).toBe(JSON.stringify({ status: 'completed', parts }))
     })
 
-    it('aborts an upload session via DELETE', async () => {
-      const payload = { id: 'upload-1', status: 'aborted' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+    it('aborts an upload session via DELETE (resolves on 204)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      const result = await patchObjectUploadSession('obj-1', 'upload-1', { action: 'abort' })
+      await expect(patchObjectUploadSession('obj-1', 'upload-1', { action: 'abort' })).resolves.toBeUndefined()
 
-      expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/objects/obj-1/uploads/upload-1')
       expect(init.method).toBe('DELETE')
@@ -1116,10 +1114,10 @@ describe('api', () => {
       expect(init.body).toBe(JSON.stringify({ fresh: true }))
     })
 
-    it('deletes a download task via DELETE', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'task-1', deleted: true }))
+    it('deletes a download task via DELETE (resolves on 204)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      await runDownloadTaskAction('task-1', 'delete')
+      await expect(runDownloadTaskAction('task-1', 'delete')).resolves.toBeUndefined()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/downloads/tasks/task-1')
@@ -1168,13 +1166,11 @@ describe('api', () => {
       expect(init.body).toBe(JSON.stringify(body))
     })
 
-    it('deletes an admin downloader', async () => {
-      const payload = { id: 'downloader-1', deleted: true }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+    it('deletes an admin downloader (resolves on 204)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      const result = await deleteDownloader('downloader-1')
+      await expect(deleteDownloader('downloader-1')).resolves.toBeUndefined()
 
-      expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/downloads/downloaders/downloader-1')
       expect(init.method).toBe('DELETE')
@@ -1431,13 +1427,11 @@ describe('api', () => {
   })
 
   describe('deleteStorage', () => {
-    it('sends DELETE request and returns deleted flag', async () => {
-      const payload = { id: 's1', deleted: true }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+    it('sends DELETE request (resolves on 204)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      const result = await deleteStorage('s1')
+      await expect(deleteStorage('s1')).resolves.toBeUndefined()
 
-      expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/site/storages/s1')
       expect(init.method).toBe('DELETE')
@@ -1544,30 +1538,11 @@ describe('api', () => {
       expect(body).toMatchObject({ bytes: 4096, expiresAt: null })
     })
 
-    it('revokes a user quota entitlement', async () => {
-      const payload = {
-        orgId: 'org-1',
-        entitlement: {
-          id: 'ent-2',
-          orgId: 'org-1',
-          resourceType: 'storage',
-          entitlementType: 'grant',
-          source: 'admin_grant',
-          sourceId: 'admin_grant:1',
-          bytes: 2048,
-          startsAt: '2026-05-01T00:00:00.000Z',
-          expiresAt: null,
-          status: 'revoked',
-          metadata: null,
-          createdAt: '2026-05-01T00:00:00.000Z',
-          updatedAt: '2026-05-02T00:00:00.000Z',
-        },
-      }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+    it('revokes a user quota entitlement (resolves on 204)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      const result = await revokeUserEntitlement('u1', 'ent-2')
+      await expect(revokeUserEntitlement('u1', 'ent-2')).resolves.toBeUndefined()
 
-      expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/users/u1/entitlements/ent-2')
       expect(init.method).toBe('DELETE')
@@ -1708,13 +1683,11 @@ describe('api', () => {
       expect(body).toMatchObject({ bytes: 4096 })
     })
 
-    it('revokes an org entitlement', async () => {
-      const payload = { orgId: 'team-1', entitlement: { id: 'ent-1', status: 'revoked' } }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+    it('revokes an org entitlement (resolves on 204)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      const result = await revokeOrgEntitlement('team-1', 'ent-1')
+      await expect(revokeOrgEntitlement('team-1', 'ent-1')).resolves.toBeUndefined()
 
-      expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/teams/team-1/entitlements/ent-1')
       expect(init.method).toBe('DELETE')
@@ -2268,12 +2241,11 @@ describe('api', () => {
       await expect(updateAnnouncement('ann-1', input)).rejects.toThrow('Invalid announcement')
     })
 
-    it('deletes an announcement', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'ann-1', deleted: true }))
+    it('deletes an announcement (resolves on 204)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      const result = await deleteAnnouncement('ann-1')
+      await expect(deleteAnnouncement('ann-1')).resolves.toBeUndefined()
 
-      expect(result).toEqual({ id: 'ann-1', deleted: true })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/site/announcements/ann-1')
       expect(init.method).toBe('DELETE')
@@ -3435,7 +3407,7 @@ describe('api', () => {
 
   describe('disconnectCloud', () => {
     it('calls the correct endpoint with DELETE', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ deleted: true }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
       await disconnectCloud()
 
@@ -3444,12 +3416,10 @@ describe('api', () => {
       expect(init.method).toBe('DELETE')
     })
 
-    it('returns deleted: true on success', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ deleted: true }))
+    it('resolves on 204', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      const result = await disconnectCloud()
-
-      expect(result).toEqual({ deleted: true })
+      await expect(disconnectCloud()).resolves.toBeUndefined()
     })
 
     it('throws ApiError on failure', async () => {
@@ -3829,10 +3799,10 @@ describe('api', () => {
       expect(init.body).toBe(JSON.stringify(data))
     })
 
-    it('deletes an auth provider', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ providerId: 'google', deleted: true }))
+    it('deletes an auth provider (resolves on 204)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      await deleteAuthProvider('google')
+      await expect(deleteAuthProvider('google')).resolves.toBeUndefined()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/site/auth-providers/google')
@@ -3879,10 +3849,10 @@ describe('api', () => {
       expect(init.body).toBe(JSON.stringify({ count: 2, expiresInDays: 7 }))
     })
 
-    it('deletes an invite code', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'code-1', deleted: true }))
+    it('deletes an invite code (resolves on 204)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      await deleteInviteCode('code-1')
+      await expect(deleteInviteCode('code-1')).resolves.toBeUndefined()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/site/invite-codes/code-1')

@@ -82,7 +82,7 @@ const deleteRoute = createRoute({
   middleware: [requireAdmin] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
-    200: jsonContent(z.object({ id: z.string(), deleted: z.literal(true) }), 'Deleted invite code'),
+    204: { description: 'Deleted invite code' },
     400: errorResponse('Cannot delete a used invite code'),
     404: errorResponse('Invite code not found'),
   },
@@ -117,7 +117,7 @@ export const adminInviteCodes = new OpenAPIHono<Env>()
     const id = c.req.valid('param').id
     const result = await deleteInviteCode(c.get('deps'), { userId: c.get('userId')!, orgId: c.get('orgId')!, id })
     if (!result.ok) throw result.error
-    return c.json({ id, deleted: true as const }, 200)
+    return c.body(null, 204)
   })
 
 export const publicInviteCodes = new OpenAPIHono<Env>().openapi(validateRoute, async (c) => {

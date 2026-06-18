@@ -80,7 +80,7 @@ describe('Admin Announcements API', () => {
     expect(list.items[0].id).toBe(created.id)
 
     const deleteRes = await app.request(`/api/site/announcements/${created.id}`, { method: 'DELETE', headers })
-    expect(deleteRes.status).toBe(200)
+    expect(deleteRes.status).toBe(204)
   })
 })
 
