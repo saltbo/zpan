@@ -471,6 +471,62 @@ func (w *Worker) cleanupRetainedSeed(ctx context.Context, seed retainedSeed, rea
 	if err := w.removeSeedLedger(seed.taskID); err != nil {
 		w.logger.Warn("failed to remove retained seed ledger entry", "task_id", seed.taskID, "error", err)
 	}
+	// Tell the server the task is no longer seeding; otherwise its last runtime
+	// report (phase=seeding) sticks and the UI shows it seeding forever.
+	w.reportSeedingStopped(ctx, seed.taskID, seed.engine)
+}
+
+// reportSeedingStopped flips a completed task's runtime out of the seeding phase
+// so the dashboard stops showing it as actively seeding. The task status stays
+// completed; only the runtime phase/seeding flags change.
+func (w *Worker) reportSeedingStopped(ctx context.Context, taskID string, engineName string) {
+	if engineName == "" && w.engine != nil {
+		engineName = w.engine.Name()
+	}
+	active := false
+	zero := int64(0)
+	if _, err := w.updateTask(ctx, taskID, client.TaskPatch{
+		Runtime: &client.DownloadTaskRuntime{
+			Engine: engineName,
+			Phase:  "completed",
+			Seeding: &client.DownloadTaskSeedingRuntime{
+				Active:               &active,
+				UploadBytesPerSecond: &zero,
+			},
+		},
+	}); err != nil {
+		w.logger.Warn("failed to report seeding stopped", "task_id", taskID, "error", err)
+	}
+}
+
+// clearStaleSeedingReports runs once at startup: any task the server still
+// reports as seeding but the worker is no longer tracking (a seed cleaned up
+// before this fix shipped, or by a worker that never reported it stopped) gets
+// a one-time stopped report so the dashboard clears it.
+func (w *Worker) clearStaleSeedingReports(ctx context.Context) {
+	tasks, err := w.api.SeedingTasks(ctx)
+	if err != nil {
+		w.logger.Warn("failed to list seeding tasks for reconciliation", "error", err)
+		return
+	}
+	if len(tasks) == 0 {
+		return
+	}
+	tracked := map[string]struct{}{}
+	for _, seed := range w.retainedSeedSnapshot() {
+		tracked[seed.taskID] = struct{}{}
+	}
+	cleared := 0
+	for _, task := range tasks {
+		if _, ok := tracked[task.ID]; ok {
+			continue
+		}
+		w.reportSeedingStopped(ctx, task.ID, "")
+		cleared++
+	}
+	if cleared > 0 {
+		w.logger.Info("cleared stale seeding reports", "count", cleared)
+	}
 }
 
 func (w *Worker) cleanupRetainedSeedForTask(ctx context.Context, taskID string, reason string) {

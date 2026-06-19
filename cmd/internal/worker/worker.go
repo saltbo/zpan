@@ -62,6 +62,7 @@ type apiClient interface {
 	Heartbeat(context.Context, client.Heartbeat) error
 	AssignedControlTasks(context.Context) ([]client.DownloadTask, error)
 	AssignedTasks(context.Context) ([]client.DownloadTask, error)
+	SeedingTasks(context.Context) ([]client.DownloadTask, error)
 	UpdateTask(context.Context, string, client.TaskPatch) (client.DownloadTask, error)
 	CreateFolder(context.Context, string, string, string) (client.ObjectDraft, error)
 	CreateObject(context.Context, string, string, int64, string) (client.ObjectDraft, error)
@@ -141,6 +142,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	w.logger.Info("downloader started", "engine", w.cfg.Engine)
 	w.restoreRetainedSeeds(runCtx)
 	w.reconcileEngineSeeds(runCtx)
+	w.clearStaleSeedingReports(runCtx)
 	ticker := time.NewTicker(w.cfg.PollInterval)
 	defer ticker.Stop()
 	seedCleanupTicker := time.NewTicker(time.Minute)
