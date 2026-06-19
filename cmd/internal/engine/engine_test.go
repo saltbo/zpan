@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Braurbeki/arigo"
 	qbittorrent "github.com/autobrr/go-qbittorrent"
@@ -148,6 +149,36 @@ func TestAria2StartArgsForceSaveCompletedSeeds(t *testing.T) {
 		if !strings.Contains(joined, expected) {
 			t.Fatalf("expected aria2 args to contain %q, got %v", expected, args)
 		}
+	}
+}
+
+func TestAria2StartArgsSetsMaxConcurrentDownloads(t *testing.T) {
+	args, err := (Aria2{Dir: t.TempDir(), MaxConcurrentDownloads: 25}).startArgs("6800")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(args, "\n"), "--max-concurrent-downloads=25") {
+		t.Fatalf("expected aria2 args to set max-concurrent-downloads, got %v", args)
+	}
+
+	zeroArgs, err := (Aria2{Dir: t.TempDir()}).startArgs("6800")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(zeroArgs, "\n"), "--max-concurrent-downloads") {
+		t.Fatalf("expected no max-concurrent-downloads flag when unset, got %v", zeroArgs)
+	}
+}
+
+func TestAria2SeedTimeMinutes(t *testing.T) {
+	if got := aria2SeedTimeMinutes(time.Hour); got != 60 {
+		t.Fatalf("expected 1h to map to 60 minutes, got %d", got)
+	}
+	if got := aria2SeedTimeMinutes(0); got != aria2SeedForeverMinutes {
+		t.Fatalf("expected zero duration to seed indefinitely, got %d", got)
+	}
+	if got := aria2SeedTimeMinutes(30 * time.Second); got != 1 {
+		t.Fatalf("expected sub-minute duration to round up to 1, got %d", got)
 	}
 }
 

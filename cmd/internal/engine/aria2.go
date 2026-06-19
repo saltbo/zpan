@@ -23,13 +23,32 @@ import (
 )
 
 type Aria2 struct {
-	URL        string
-	Secret     string
-	Dir        string
-	StateDir   string
-	ListenPort int
-	RetainSeed bool
-	GeoIP      PeerGeoIPResolver
+	URL                    string
+	Secret                 string
+	Dir                    string
+	StateDir               string
+	ListenPort             int
+	MaxConcurrentDownloads int
+	RetainSeed             bool
+	SeedDuration           time.Duration
+	SeedRatio              float64
+	GeoIP                  PeerGeoIPResolver
+}
+
+// aria2 measures --seed-time in minutes. A zero seed duration means "seed
+// indefinitely", which we approximate with a very large value rather than 0
+// (aria2 treats --seed-time=0 as "do not seed at all").
+const aria2SeedForeverMinutes = 1000000
+
+func aria2SeedTimeMinutes(d time.Duration) uint {
+	if d <= 0 {
+		return aria2SeedForeverMinutes
+	}
+	minutes := uint(d.Minutes())
+	if minutes == 0 {
+		return 1
+	}
+	return minutes
 }
 
 var aria2StatusKeys = []string{
@@ -87,6 +106,12 @@ func (a Aria2) startArgs(rpcPort string) ([]string, error) {
 		"--allow-overwrite=true",
 		"--auto-file-renaming=false",
 		"--listen-port=" + listenPortString(a.ListenPort),
+	}
+	if a.MaxConcurrentDownloads > 0 {
+		// Retained seeds count as active downloads in aria2, so this budget must
+		// exceed the worker's download concurrency or seeding would starve new
+		// downloads. The worker caps real download concurrency itself.
+		args = append(args, "--max-concurrent-downloads="+strconv.Itoa(a.MaxConcurrentDownloads))
 	}
 	if a.StateDir != "" {
 		sessionPath := filepath.Join(a.StateDir, "aria2.session")
@@ -246,6 +271,37 @@ func (a Aria2) RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error) {
 	}, nil
 }
 
+func (a Aria2) ListSeeds(ctx context.Context) ([]Seed, error) {
+	aria, err := a.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer aria.Close()
+	statuses, err := a.taskStatuses(ctx, &aria)
+	if err != nil {
+		return nil, err
+	}
+	var seeds []Seed
+	for _, status := range statuses {
+		if !isAria2SeedStatus(status) {
+			continue
+		}
+		path := aria2StatusTaskDir(status, "")
+		if path == "" {
+			continue
+		}
+		seeds = append(seeds, Seed{
+			Engine:   "aria2",
+			ID:       status.GID,
+			InfoHash: strings.ToLower(status.InfoHash),
+			Path:     path,
+			Snapshot: a.seedSnapshot(status.GID),
+			Cleanup:  a.cleanupSeed(status.GID, path),
+		})
+	}
+	return seeds, nil
+}
+
 func (a Aria2) InspectTask(ctx context.Context, task client.DownloadTask) (TaskSnapshot, bool, error) {
 	if task.SourceType() == "http" {
 		return HTTP{Dir: a.Dir}.InspectTask(ctx, task)
@@ -302,7 +358,10 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 		AutoFileRenaming: false,
 	}
 	if a.RetainSeed && task.SourceType() != "http" {
-		options.SeedTime = 1000000
+		// Let aria2 stop seeding on its own after the configured window so a seed
+		// can never outlive its retention even if the worker loses track of it.
+		options.SeedTime = aria2SeedTimeMinutes(a.SeedDuration)
+		options.SeedRatio = float32(a.SeedRatio)
 	}
 	if task.Name() != "" && task.SourceType() == "http" {
 		options.GID = aria2TaskGID(task.ID)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -356,6 +357,88 @@ func (w *Worker) retainedSeedSnapshot() []retainedSeed {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return append([]retainedSeed(nil), w.retainedSeeds...)
+}
+
+func (w *Worker) runningTaskIDs() map[string]struct{} {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	ids := make(map[string]struct{}, len(w.running))
+	for id := range w.running {
+		ids[id] = struct{}{}
+	}
+	return ids
+}
+
+// reconcileEngineSeeds adopts torrents the engine is still seeding but the
+// worker no longer tracks (orphans left behind by restarts or ledger drift),
+// so the normal time/ratio/cache cleanup applies to them instead of letting
+// them seed forever and hold runtime slots. Tasks still mid-flight (running or
+// already tracked) are skipped so reconciliation never races their cleanup.
+func (w *Worker) reconcileEngineSeeds(ctx context.Context) {
+	if !w.cfg.SeedEnabled {
+		return
+	}
+	lister, ok := w.engine.(engine.SeedLister)
+	if !ok {
+		return
+	}
+	seeds, err := lister.ListSeeds(ctx)
+	if err != nil {
+		w.logger.Warn("failed to list engine seeds for reconciliation", "error", err)
+		return
+	}
+	tracked := map[string]struct{}{}
+	for _, seed := range w.retainedSeedSnapshot() {
+		tracked[seed.taskID] = struct{}{}
+	}
+	running := w.runningTaskIDs()
+	now := time.Now()
+	var adopted []retainedSeed
+	for _, seed := range seeds {
+		taskID := filepath.Base(seed.Path)
+		if taskID == "" || taskID == "." || taskID == string(filepath.Separator) {
+			continue
+		}
+		if _, ok := tracked[taskID]; ok {
+			continue
+		}
+		if _, ok := running[taskID]; ok {
+			continue
+		}
+		size, err := directorySize(seed.Path)
+		if err != nil {
+			w.logger.Warn("failed to size adopted seed", "task_id", taskID, "path", seed.Path, "error", err)
+			continue
+		}
+		adoptedSeed := retainedSeed{
+			taskID:     taskID,
+			engine:     seed.Engine,
+			seedID:     seed.ID,
+			infoHash:   strings.ToLower(seed.InfoHash),
+			path:       seed.Path,
+			size:       size,
+			downloaded: size,
+			retainedAt: now,
+			snapshot:   seed.Snapshot,
+			cleanup:    seed.Cleanup,
+		}
+		if w.cfg.SeedDuration > 0 {
+			adoptedSeed.expiresAt = now.Add(w.cfg.SeedDuration)
+		}
+		adopted = append(adopted, adoptedSeed)
+		tracked[taskID] = struct{}{}
+		if err := w.upsertSeedLedger(adoptedSeed, size); err != nil {
+			w.logger.Warn("failed to persist adopted seed", "task_id", taskID, "error", err)
+		}
+	}
+	if len(adopted) == 0 {
+		return
+	}
+	w.mu.Lock()
+	w.retainedSeeds = append(w.retainedSeeds, adopted...)
+	count := len(w.retainedSeeds)
+	w.mu.Unlock()
+	w.logger.Info("adopted untracked engine seeds for managed expiry", "count", len(adopted), "retained_seeds", count)
 }
 
 func (w *Worker) cleanupRetainedSeed(ctx context.Context, seed retainedSeed, reason string) {

@@ -32,6 +32,7 @@ type Config struct {
 	SeedDuration          time.Duration
 	SeedCacheLimit        int64
 	SeedRatio             float64
+	SeedMaxConcurrent     int
 	Aria2Configured       bool
 	QBittorrentConfigured bool
 }
@@ -59,6 +60,7 @@ func Defaults(v *viper.Viper) {
 	v.SetDefault("downloader.seed.duration", "1h")
 	v.SetDefault("downloader.seed.cache_limit", "10GB")
 	v.SetDefault("downloader.seed.ratio", 0)
+	v.SetDefault("downloader.seed.max_concurrent", 10)
 }
 
 func Load(v *viper.Viper) (Config, error) {
@@ -110,6 +112,7 @@ func Load(v *viper.Viper) (Config, error) {
 		SeedDuration:       seedDuration,
 		SeedCacheLimit:     seedCacheLimit,
 		SeedRatio:          v.GetFloat64("downloader.seed.ratio"),
+		SeedMaxConcurrent:  v.GetInt("downloader.seed.max_concurrent"),
 		Aria2Configured: aria2Configured &&
 			(v.GetString("downloader.aria2.url") != DefaultAria2URL || v.GetString("downloader.aria2.secret") != ""),
 		QBittorrentConfigured: qbittorrentConfigured &&
@@ -138,6 +141,9 @@ func Load(v *viper.Viper) (Config, error) {
 	if cfg.SeedRatio < 0 {
 		return Config{}, errors.New("downloader.seed.ratio must not be negative")
 	}
+	if cfg.SeedMaxConcurrent < 0 {
+		return Config{}, errors.New("downloader.seed.max_concurrent must not be negative")
+	}
 	return cfg, nil
 }
 
@@ -160,6 +166,7 @@ func WriteDefaultConfig(path string, serverURL string) error {
 		SeedDuration:       time.Hour,
 		SeedCacheLimit:     10_000_000_000,
 		SeedRatio:          0,
+		SeedMaxConcurrent:  10,
 	}
 	return createConfigFile(path, defaultConfigYAML(cfg))
 }
@@ -216,6 +223,7 @@ func configYAML(cfg Config, includeRuntimeHints bool) string {
 	fmt.Fprintf(&b, "    duration: %s\n", yamlString(formatDuration(cfg.SeedDuration, "1h")))
 	fmt.Fprintf(&b, "    cache_limit: %s\n", yamlString(formatSeedCacheLimit(cfg.SeedCacheLimit)))
 	fmt.Fprintf(&b, "    ratio: %s\n", strconv.FormatFloat(cfg.SeedRatio, 'f', -1, 64))
+	fmt.Fprintf(&b, "    max_concurrent: %d\n", nonZero(cfg.SeedMaxConcurrent, 10))
 	if shouldWriteAria2Config(cfg) {
 		b.WriteString("  aria2:\n")
 		fmt.Fprintf(&b, "    url: %s\n", yamlString(nonEmpty(cfg.Aria2URL, DefaultAria2URL)))

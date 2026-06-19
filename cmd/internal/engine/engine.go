@@ -79,6 +79,13 @@ type SeedRestorer interface {
 	RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error)
 }
 
+// SeedLister enumerates every torrent the engine is currently seeding,
+// including ones the worker is no longer tracking. The worker uses this to
+// reconcile orphaned seeds so they cannot occupy runtime slots forever.
+type SeedLister interface {
+	ListSeeds(ctx context.Context) ([]Seed, error)
+}
+
 type SessionSaver interface {
 	SaveSession(ctx context.Context) error
 }
