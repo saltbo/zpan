@@ -1001,6 +1001,9 @@ func (a Aria2) reconnect(ctx context.Context, aria **arigo.Client) error {
 }
 
 func isAria2RPCDisconnected(err error) bool {
+	if err == nil {
+		return false
+	}
 	return errors.Is(err, rpc2.ErrShutdown) || errors.Is(err, io.ErrClosedPipe) || strings.Contains(err.Error(), "connection is shut down")
 }
 

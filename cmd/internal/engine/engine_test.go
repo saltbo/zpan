@@ -230,6 +230,14 @@ func TestAria2SeedTimeMinutes(t *testing.T) {
 	}
 }
 
+func TestIsAria2RPCDisconnectedNilSafe(t *testing.T) {
+	// findSeed/findTask call this with a nil error when tellStatus succeeded but
+	// the status wasn't what we wanted; it must not panic on err.Error().
+	if isAria2RPCDisconnected(nil) {
+		t.Fatal("nil error must not be treated as disconnected")
+	}
+}
+
 func TestShouldAttachExistingAria2Task(t *testing.T) {
 	// 'interrupted' (how restart resumes a task) must attach to the session-
 	// restored download rather than re-add (which duplicates + orphans it).
