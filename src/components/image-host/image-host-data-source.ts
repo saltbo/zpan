@@ -40,6 +40,7 @@ function toIhostItem(img: ImageHosting): IhostItem {
     object: img.storageKey,
     storageId: img.storageId,
     status: 'active' as const,
+    trashedAt: null,
     createdAt: img.createdAt,
     updatedAt: img.createdAt,
     // IhostItem extra fields

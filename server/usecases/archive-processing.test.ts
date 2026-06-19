@@ -66,10 +66,10 @@ class MemoryS3 {
     return bytes
   }
 
-  async headObject(_storage: unknown, key: string): Promise<{ size: number; contentType: string }> {
+  async headObject(_storage: unknown, key: string): Promise<{ size: number; contentType: string; etag: string }> {
     const bytes = this.objects.get(key)
     if (!bytes) throw new Error(`Object not found: ${key}`)
-    return { size: bytes.byteLength, contentType: 'application/octet-stream' }
+    return { size: bytes.byteLength, contentType: 'application/octet-stream', etag: 'archive-etag' }
   }
 
   async getObjectStream(_storage: unknown, key: string): Promise<ReadableStream<Uint8Array>> {
@@ -715,7 +715,8 @@ describe('archive processing', () => {
       name: 'inactive.txt',
       object: 'objects/inactive.txt',
       size: 1,
-      status: 'trashed',
+      // Trashed = active row with trashedAt set; archiving rejects it.
+      trashedAt: Date.now(),
     })
     await seedMatter(db, {
       id: 'large-file',
@@ -845,12 +846,13 @@ async function seedMatter(
     type?: string
     status?: string
     dirtype?: number
+    trashedAt?: number
   },
 ): Promise<void> {
   const now = Date.now()
   await db.run(sql`
-    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-    VALUES (${opts.id}, ${ORG_ID}, ${`${opts.id}-alias`}, ${opts.name}, ${opts.type ?? 'text/plain'}, ${opts.size}, ${opts.dirtype ?? 0}, ${opts.parent ?? ''}, ${opts.object}, ${STORAGE_ID}, ${opts.status ?? 'active'}, ${now}, ${now})
+    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
+    VALUES (${opts.id}, ${ORG_ID}, ${`${opts.id}-alias`}, ${opts.name}, ${opts.type ?? 'text/plain'}, ${opts.size}, ${opts.dirtype ?? 0}, ${opts.parent ?? ''}, ${opts.object}, ${STORAGE_ID}, ${opts.status ?? 'active'}, ${opts.trashedAt ?? null}, ${now}, ${now})
   `)
 }
 

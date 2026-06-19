@@ -48,10 +48,14 @@ export class S3Service implements S3Gateway {
     }
 
     const client = this.createClient(storage)
+    // Only sign ContentType/ContentDisposition when provided. A signed header must
+    // be sent verbatim by the client or S3 rejects the PUT; the object-upload flow
+    // passes neither (a bare PUT) so its uniform slice uploader needs no headers,
+    // while image hosting passes a contentType it echoes back.
     const command = new PutObjectCommand({
       Bucket: storage.bucket,
       Key: key,
-      ContentType: contentType,
+      ...(contentType ? { ContentType: contentType } : {}),
       ...(filename ? { ContentDisposition: attachmentContentDisposition(filename) } : {}),
     })
     const url = await getSignedUrl(client, command, { expiresIn: ttl })
@@ -199,12 +203,16 @@ export class S3Service implements S3Gateway {
     return `${storage.endpoint.replace(/\/$/, '')}/${storage.bucket}/${key}`
   }
 
-  async headObject(storage: S3StorageCredentials, key: string): Promise<{ size: number; contentType: string }> {
+  async headObject(
+    storage: S3StorageCredentials,
+    key: string,
+  ): Promise<{ size: number; contentType: string; etag: string }> {
     const client = this.createClient(storage)
     const result = await client.send(new HeadObjectCommand({ Bucket: storage.bucket, Key: key }))
     return {
       size: result.ContentLength ?? 0,
       contentType: result.ContentType ?? 'application/octet-stream',
+      etag: (result.ETag ?? '').replace(/"/g, ''),
     }
   }
 

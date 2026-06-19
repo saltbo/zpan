@@ -31,8 +31,12 @@ describe('global OpenAPI document', () => {
         '/api/events',
         '/api/objects',
         '/api/objects/{id}',
-        '/api/objects/{id}/status',
-        '/api/objects/{id}/uploads/{uploadSessionId}/status',
+        '/api/objects/{id}/uploads/{uploadSessionId}/parts',
+        '/api/objects/{id}/uploads/{uploadSessionId}/completions',
+        '/api/objects/{id}/uploads/{uploadSessionId}',
+        '/api/trash/objects',
+        '/api/trash/objects/{id}',
+        '/api/trash/objects/{id}/restorations',
       ]),
     )
   })

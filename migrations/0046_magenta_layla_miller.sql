@@ -1,0 +1,1 @@
+ALTER TABLE `object_upload_sessions` ADD `on_conflict` text DEFAULT 'fail' NOT NULL;

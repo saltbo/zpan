@@ -1,4 +1,4 @@
-import { and, eq, like, or } from 'drizzle-orm'
+import { and, eq, isNull, like, or } from 'drizzle-orm'
 import { DirType } from '../../../shared/constants'
 import { matters } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -27,7 +27,8 @@ async function collectCompressionPlan(
     .from(matters)
     .where(and(eq(matters.orgId, orgId), or(...uniqueIds.map((id) => eq(matters.id, id)))))
   if (roots.length !== uniqueIds.length) throw new Error('Some archive source IDs do not belong to this organization')
-  if (roots.some((matter) => matter.status !== 'active')) throw new Error('Only active matters can be archived')
+  if (roots.some((matter) => matter.status !== 'active' || matter.trashedAt != null))
+    throw new Error('Only active matters can be archived')
 
   const files: CompressionSourceFile[] = []
   const directories: CompressionSourceDirectory[] = []
@@ -95,6 +96,7 @@ async function collectRootEntries(
       and(
         eq(matters.orgId, orgId),
         eq(matters.status, 'active'),
+        isNull(matters.trashedAt),
         or(eq(matters.parent, rootPath), like(matters.parent, `${rootPath}/%`)),
       ),
     )

@@ -91,7 +91,7 @@ export function createShareRepo(db: Database): ShareRepo {
 
       const recipients = await db.select().from(shareRecipients).where(eq(shareRecipients.shareId, row.share.id))
 
-      if (row.matter.status === 'trashed')
+      if (row.matter.trashedAt != null)
         return { status: 'matter_trashed', share: row.share, matter: row.matter, recipients }
 
       return { status: 'ok', share: row.share, matter: row.matter, recipients }
@@ -300,6 +300,7 @@ export function createShareRepo(db: Database): ShareRepo {
           and(
             eq(matters.orgId, matter.orgId),
             eq(matters.status, 'active'),
+            isNull(matters.trashedAt),
             eq(matters.dirtype, DirType.FILE),
             or(eq(matters.parent, folderPath), like(matters.parent, `${folderPath}/%`)),
           ),
@@ -311,7 +312,14 @@ export function createShareRepo(db: Database): ShareRepo {
       return db
         .select()
         .from(matters)
-        .where(and(eq(matters.orgId, orgId), eq(matters.parent, folderPath), eq(matters.status, 'active')))
+        .where(
+          and(
+            eq(matters.orgId, orgId),
+            eq(matters.parent, folderPath),
+            eq(matters.status, 'active'),
+            isNull(matters.trashedAt),
+          ),
+        )
     },
 
     hasQuotaForBytes(orgId: string, bytes: number): Promise<boolean> {
@@ -347,6 +355,7 @@ export function createShareRepo(db: Database): ShareRepo {
             eq(matters.id, childId),
             eq(matters.orgId, rootMatter.orgId),
             eq(matters.status, 'active'),
+            isNull(matters.trashedAt),
             or(eq(matters.parent, root), sql`${matters.parent} LIKE ${likePattern} ESCAPE '\\'`),
           ),
         )

@@ -188,7 +188,8 @@ async function runExtractionJob(
   request: Extract<CreateBackgroundJobRequest, { type: 'archive_extract' }>,
 ): Promise<BackgroundJob> {
   const zipMatter = await deps.matter.get(request.matterId, orgId)
-  if (!zipMatter || zipMatter.status !== 'active') throw new Error('ZIP matter not found')
+  if (!zipMatter || zipMatter.status !== 'active' || zipMatter.trashedAt != null)
+    throw new Error('ZIP matter not found')
   if (zipMatter.dirtype !== DirType.FILE || !zipMatter.name.toLowerCase().endsWith('.zip')) {
     throw new Error('Extraction source must be a .zip file')
   }

@@ -73,6 +73,14 @@ beforeEach(() => {
   vi.spyOn(S3Service.prototype, 'presignUpload').mockResolvedValue('https://presigned-upload.example.com')
   vi.spyOn(S3Service.prototype, 'presignDownload').mockResolvedValue('https://presigned-download.example.com')
   vi.spyOn(S3Service.prototype, 'copyObject').mockResolvedValue(undefined)
+  // Single-PUT completion HEADs the object and matches the client's reported ETag.
+  // Tests that finalize a ≤5 GiB upload send parts:[{partNumber:1, etag:'abc'}].
+  vi.spyOn(S3Service.prototype, 'headObject').mockResolvedValue({
+    size: 100,
+    contentType: 'text/plain',
+    etag: 'abc',
+  })
+  vi.spyOn(S3Service.prototype, 'completeMultipartUpload').mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -110,27 +118,54 @@ async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']
 async function insertFolder(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
   orgId: string,
-  opts: { id: string; name: string; parent?: string },
+  opts: { id: string; name: string; parent?: string; trashedAt?: number },
 ) {
   const now = Date.now()
   await db.run(sql`
-    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'folder', 0, 1, ${opts.parent ?? ''}, '', ${validStorage.id}, 'active', ${now}, ${now})
+    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
+    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'folder', 0, 1, ${opts.parent ?? ''}, '', ${validStorage.id}, 'active', ${opts.trashedAt ?? null}, ${now}, ${now})
   `)
 }
 
+// Inserts a matter row. A "trashed" object is status='active' with trashedAt set;
+// a "draft" is status='draft'. Pass `trashedAt` to drop the row in the recycle bin.
 async function insertFile(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
   orgId: string,
-  opts: { id: string; name: string; parent?: string; status?: string; size?: number },
+  opts: { id: string; name: string; parent?: string; status?: string; size?: number; trashedAt?: number },
 ) {
   const now = Date.now()
   const status = opts.status ?? 'active'
   const size = opts.size ?? 100
   await db.run(sql`
-    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', ${size}, 0, ${opts.parent ?? ''}, 'some/key.txt', ${validStorage.id}, ${status}, ${now}, ${now})
+    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
+    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', ${size}, 0, ${opts.parent ?? ''}, 'some/key.txt', ${validStorage.id}, ${status}, ${opts.trashedAt ?? null}, ${now}, ${now})
   `)
+}
+
+// Drives the full file-upload flow against the in-memory app: POST /api/objects
+// creates a draft + upload session, then POST .../completions finalizes it to a
+// live object. Returns the created object id. The S3 spies make the single-PUT
+// HEAD return etag 'abc', so completions sends a matching part.
+async function _uploadFile(
+  app: Awaited<ReturnType<typeof createTestApp>>['app'],
+  headers: Record<string, string>,
+  body: { name: string; type?: string; size?: number; parent?: string; onConflict?: string },
+): Promise<string> {
+  const createRes = await app.request('/api/objects', {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'text/plain', size: 100, parent: '', dirtype: 0, ...body }),
+  })
+  if (createRes.status !== 201) throw new Error(`create failed: ${createRes.status}`)
+  const created = (await createRes.json()) as { id: string; upload: { sessionId: string } }
+  const completeRes = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}/completions`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
+  })
+  if (completeRes.status !== 200) throw new Error(`complete failed: ${completeRes.status}`)
+  return created.id
 }
 
 async function getOrgQuota(db: Awaited<ReturnType<typeof createTestApp>>['db'], orgId: string) {
@@ -260,7 +295,7 @@ describe('Objects API', () => {
     expect(body.items[0].name).toBe('nested.txt')
   })
 
-  it('GET /api/objects filters by status [spec: objects/list-by-status]', async () => {
+  it('GET /api/objects lists live objects only — excludes drafts and trashed [spec: objects/list-live-only]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -268,11 +303,12 @@ describe('Objects API', () => {
 
     await insertFile(db, orgId, { id: 'm1', name: 'active.txt', status: 'active' })
     await insertFile(db, orgId, { id: 'm2', name: 'draft.txt', status: 'draft' })
+    await insertFile(db, orgId, { id: 'm3', name: 'trashed.txt', trashedAt: Date.now() })
 
-    const res = await app.request('/api/objects?status=draft', { headers })
+    const res = await app.request('/api/objects', { headers })
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.total).toBe(1)
-    expect(body.items[0].name).toBe('draft.txt')
+    expect(body.items[0].name).toBe('active.txt')
   })
 
   it('GET /api/objects/:id returns folder detail [spec: objects/detail]', async () => {
@@ -344,172 +380,104 @@ describe('Objects API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/objects/:id (action: confirm) confirms upload [spec: objects/confirm-upload]', async () => {
+  it('POST /api/objects/:id/uploads/:sid/completions finalizes a draft to a live object [spec: objects/complete-upload]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
-    const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'm1', name: 'uploading.txt', status: 'draft' })
 
-    const res = await app.request('/api/objects/m1/status', {
-      method: 'PUT',
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
+      body: JSON.stringify({ name: 'uploading.txt', type: 'text/plain', size: 100, parent: '', dirtype: 0 }),
+    })
+    expect(createRes.status).toBe(201)
+    const created = (await createRes.json()) as { id: string; status: string; upload: { sessionId: string } }
+    expect(created.status).toBe('draft')
+
+    const res = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}/completions`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.status).toBe('active')
+    expect(body.trashedAt).toBeNull()
+
+    // The live object now appears in the listing.
+    const list = await app.request('/api/objects', { headers })
+    expect(((await list.json()) as { total: number }).total).toBe(1)
+    void db
   })
 
-  it('PUT /api/objects/:id/status {active} is a no-op for an already-active object [spec: objects/confirm-non-draft]', async () => {
+  it('POST .../completions rejects a single-PUT whose ETag does not match the HEAD [spec: objects/complete-etag-mismatch]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
-    const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'm1', name: 'already-active.txt', status: 'active' })
+    void db
 
-    const res = await app.request('/api/objects/m1/status', {
-      method: 'PUT',
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
+      body: JSON.stringify({ name: 'mismatch.txt', type: 'text/plain', size: 100, parent: '', dirtype: 0 }),
     })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.status).toBe('active')
-  })
+    const created = (await createRes.json()) as { id: string; upload: { sessionId: string } }
 
-  it('DELETE /api/objects/:id discards a draft upload and cleans up S3 [spec: objects/cancel-draft]', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'draft-cancel', name: 'cancel.txt', status: 'draft' })
-
-    const res = await app.request('/api/objects/draft-cancel', { method: 'DELETE', headers })
-
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { purged: number | false }
-    expect(body).toEqual({ purged: false })
-    expect(S3Service.prototype.deleteObject).toHaveBeenCalledWith(
-      expect.objectContaining({ id: validStorage.id }),
-      'some/key.txt',
-    )
-
-    const check = await app.request('/api/objects/draft-cancel', { headers })
-    expect(check.status).toBe(404)
-  })
-
-  it('DELETE /api/objects/:id rejects an active object with 409 (must trash first)', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'active-cancel', name: 'active.txt', status: 'active' })
-
-    const res = await app.request('/api/objects/active-cancel', { method: 'DELETE', headers })
-
+    const res = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}/completions`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'wrong' }] }),
+    })
+    // ETag mismatch surfaces as an invalid upload-session state → 409.
     expect(res.status).toBe(409)
   })
 
-  it('DELETE /api/objects/:id rejects active object (must trash first) [spec: objects/delete-requires-trash]', async () => {
+  it('DELETE /api/objects/:id/uploads/:sid aborts the upload and discards the draft [spec: objects/abort-upload]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
-    const orgId = await getOrgId(db)
-    await insertFolder(db, orgId, { id: 'f1', name: 'Active Folder' })
 
-    const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
-    expect(res.status).toBe(409)
-  })
-
-  it('DELETE /api/objects/:id permanently deletes a trashed folder [spec: objects/purge-folder]', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    await insertFolder(db, orgId, { id: 'f1', name: 'Delete Me' })
-
-    const trashRes = await app.request('/api/objects/f1/status', {
-      method: 'PUT',
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
+      body: JSON.stringify({ name: 'cancel.txt', type: 'text/plain', size: 100, parent: '', dirtype: 0 }),
     })
-    expect(trashRes.status).toBe(200)
+    const created = (await createRes.json()) as { id: string; upload: { sessionId: string } }
 
-    const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.purged).toBe(1)
-
-    const check = await app.request('/api/objects/f1', { headers })
+    const res = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}`, {
+      method: 'DELETE',
+      headers,
+    })
+    expect(res.status).toBe(204)
+    // Single-PUT abort best-effort deletes the S3 object and removes the draft row.
+    expect(S3Service.prototype.deleteObject).toHaveBeenCalled()
+    const check = await app.request(`/api/objects/${created.id}`, { headers })
     expect(check.status).toBe(404)
+    void db
   })
 
-  it('DELETE /api/objects/:id permanently deletes a trashed folder with spaces and bracketed tags', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    const folderName = 'Project Hail Mary (2026) [IMAX] [1080p] [WEBRip] [5.1] [YTS.BZ]'
-    await insertFolder(db, orgId, { id: 'movie-folder', name: folderName })
-    await insertFile(db, orgId, { id: 'movie-file', name: 'movie.mkv', parent: folderName })
-
-    const trashRes = await app.request('/api/objects/movie-folder/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
-    })
-    expect(trashRes.status).toBe(200)
-
-    const res = await app.request('/api/objects/movie-folder', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body).toEqual({ purged: 2 })
-
-    expect(await getMatter(db, 'movie-folder', orgId)).toBeNull()
-    expect(await getMatter(db, 'movie-file', orgId)).toBeNull()
-  })
-
-  it('PATCH /api/objects/:id (action: trash) trashes a file [spec: objects/trash]', async () => {
+  it('DELETE /api/objects/:id soft-deletes a live object → 204 and moves it to trash [spec: objects/trash]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'a.txt' })
 
-    const res = await app.request('/api/objects/m1/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
-    })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.status).toBe('trashed')
-    expect(body.trashedAt).toBeTruthy()
+    const res = await app.request('/api/objects/m1', { method: 'DELETE', headers })
+    expect(res.status).toBe(204)
 
-    const list = await app.request('/api/objects?status=trashed', { headers })
-    const listBody = (await list.json()) as { total: number }
-    expect(listBody.total).toBe(1)
+    // Gone from the live listing…
+    const list = await app.request('/api/objects', { headers })
+    expect(((await list.json()) as { total: number }).total).toBe(0)
+    // …and present in the recycle bin with trashedAt set.
+    const trash = await app.request('/api/trash/objects', { headers })
+    const trashBody = (await trash.json()) as { items: Array<{ id: string; trashedAt: number }>; total: number }
+    expect(trashBody.total).toBe(1)
+    expect(trashBody.items[0].id).toBe('m1')
+    expect(trashBody.items[0].trashedAt).toBeTruthy()
   })
 
-  it('PATCH /api/objects/:id (action: restore) restores a trashed file [spec: objects/restore]', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
-
-    const res = await app.request('/api/objects/m1/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
-    })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.status).toBe('active')
-  })
-
-  it('PATCH /api/objects/:id (action: trash) cascades to folder children [spec: objects/trash-cascade]', async () => {
+  it('DELETE /api/objects/:id soft-deletes a folder, cascading its subtree to trash [spec: objects/trash-cascade]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -519,30 +487,59 @@ describe('Objects API', () => {
     await insertFolder(db, orgId, { id: 'f2', name: 'Sub', parent: 'Parent' })
     await insertFile(db, orgId, { id: 'm2', name: 'deep.txt', parent: 'f2' })
 
-    const res = await app.request('/api/objects/f1/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
-    })
-    expect(res.status).toBe(200)
+    const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
+    expect(res.status).toBe(204)
 
-    const trashed = await app.request('/api/objects?status=trashed', { headers })
-    const tBody = (await trashed.json()) as { total: number }
-    // Only the root folder shows in root listing of trash
-    expect(tBody.total).toBe(1)
+    // Only the root folder shows in the trash root listing…
+    const trash = await app.request('/api/trash/objects', { headers })
+    expect(((await trash.json()) as { total: number }).total).toBe(1)
 
-    // But all descendants are flagged trashed: restore restores them all
-    await app.request('/api/objects/f1/status', {
-      method: 'PUT',
+    // …but every descendant is flagged trashed: restore brings them all back.
+    const restoreRes = await app.request('/api/trash/objects/f1/restorations', {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
+      body: JSON.stringify({}),
     })
+    expect(restoreRes.status).toBe(200)
     const childRes = await app.request('/api/objects/m2', { headers })
-    const childBody = (await childRes.json()) as Record<string, unknown>
-    expect(childBody.status).toBe('active')
+    expect(((await childRes.json()) as { status: string }).status).toBe('active')
   })
 
-  it('GET /api/objects?status=trashed returns trashed folder roots nested under active parents [spec: objects/list-trashed]', async () => {
+  it('POST /api/trash/objects/:id/restorations restores a trashed object [spec: objects/restore]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', trashedAt: Date.now() })
+
+    const res = await app.request('/api/trash/objects/m1/restorations', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('active')
+    expect(body.trashedAt).toBeNull()
+  })
+
+  it('GET /api/trash/objects/:id returns a trashed object; 404 for a live one [spec: objects/get-trashed]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'gone', name: 'gone.txt', trashedAt: Date.now() })
+    await insertFile(db, orgId, { id: 'live', name: 'live.txt' })
+
+    const trashedRes = await app.request('/api/trash/objects/gone', { headers })
+    expect(trashedRes.status).toBe(200)
+    expect(((await trashedRes.json()) as { id: string }).id).toBe('gone')
+
+    const liveRes = await app.request('/api/trash/objects/live', { headers })
+    expect(liveRes.status).toBe(404)
+  })
+
+  it('GET /api/trash/objects lists trashed folder roots only [spec: objects/list-trashed]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -552,36 +549,55 @@ describe('Objects API', () => {
     await insertFolder(db, orgId, { id: 'album', name: 'Album', parent: 'Media/Music' })
     await insertFile(db, orgId, { id: 'track', name: 'track.flac', parent: 'Media/Music/Album' })
 
-    const trashRes = await app.request('/api/objects/album/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
-    })
-    expect(trashRes.status).toBe(200)
+    const trashRes = await app.request('/api/objects/album', { method: 'DELETE', headers })
+    expect(trashRes.status).toBe(204)
 
-    const res = await app.request('/api/objects?status=trashed', { headers })
+    const res = await app.request('/api/trash/objects', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
-
     expect(body.total).toBe(1)
     expect(body.items.map((item) => item.id)).toEqual(['album'])
   })
 
-  it('DELETE /api/trash purges all trashed items [spec: objects/purge-all]', async () => {
+  it('DELETE /api/trash/objects/:id permanently purges a trashed folder [spec: objects/purge-folder]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
-    await insertFile(db, orgId, { id: 'm2', name: 'b.txt', status: 'trashed' })
+    await insertFolder(db, orgId, { id: 'f1', name: 'Delete Me', trashedAt: Date.now() })
 
-    const res = await app.request('/api/trash', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { purged: number }
-    expect(body.purged).toBe(2)
+    const res = await app.request('/api/trash/objects/f1', { method: 'DELETE', headers })
+    expect(res.status).toBe(204)
 
-    const check = await app.request('/api/objects/m1', { headers })
-    expect(check.status).toBe(404)
+    expect(await getMatter(db, 'f1', orgId)).toBeNull()
+  })
+
+  it('DELETE /api/trash/objects/:id purges a trashed folder with spaces and bracketed tags', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const folderName = 'Project Hail Mary (2026) [IMAX] [1080p] [WEBRip] [5.1] [YTS.BZ]'
+    const trashedAt = Date.now()
+    await insertFolder(db, orgId, { id: 'movie-folder', name: folderName, trashedAt })
+    await insertFile(db, orgId, { id: 'movie-file', name: 'movie.mkv', parent: folderName, trashedAt })
+
+    const res = await app.request('/api/trash/objects/movie-folder', { method: 'DELETE', headers })
+    expect(res.status).toBe(204)
+
+    expect(await getMatter(db, 'movie-folder', orgId)).toBeNull()
+    expect(await getMatter(db, 'movie-file', orgId)).toBeNull()
+  })
+
+  it('DELETE /api/objects/:id is idempotent for an already-trashed object → 204', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', trashedAt: Date.now() })
+
+    const res = await app.request('/api/objects/m1', { method: 'DELETE', headers })
+    expect(res.status).toBe(204)
   })
 
   it('DELETE /api/objects/:id returns 404 for missing object', async () => {
@@ -626,18 +642,18 @@ describe('Objects API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/objects/:id (action: confirm) returns 404 for missing object', async () => {
+  it('POST .../completions returns 404 for a missing upload session', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/nonexistent/status', {
-      method: 'PUT',
+    const res = await app.request('/api/objects/nonexistent/uploads/no-session/completions', {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
     })
     expect(res.status).toBe(404)
   })
 
-  it('POST /api/objects creates a file with upload URL [spec: objects/create-file-presign]', async () => {
+  it('POST /api/objects creates a file draft with single-PUT upload instructions [spec: objects/create-file-presign]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -647,10 +663,31 @@ describe('Objects API', () => {
       body: JSON.stringify({ name: 'photo.jpg', type: 'image/jpeg', size: 2048 }),
     })
     expect(res.status).toBe(201)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = (await res.json()) as {
+      status: string
+      object: string
+      upload: { sessionId: string; partSize: number; urls: string[] }
+    }
     expect(body.status).toBe('draft')
-    expect(body.uploadUrl).toBe('https://presigned-upload.example.com')
     expect(body.object).toBeTruthy()
+    // ≤5 GiB → single PutObject: one URL, partSize equals the file size.
+    expect(body.upload.sessionId).toBeTruthy()
+    expect(body.upload.partSize).toBe(2048)
+    expect(body.upload.urls).toEqual(['https://presigned-upload.example.com'])
+  })
+
+  it('POST /api/objects rejects a file larger than 5 TiB [spec: objects/create-file-too-large]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'huge.bin', type: 'application/octet-stream', size: 5 * 1024 ** 4 + 1 }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('FILE_TOO_LARGE')
   })
 
   it('POST /api/objects/copy copies a file with S3 [spec: objects/copy-file]', async () => {
@@ -669,141 +706,82 @@ describe('Objects API', () => {
     expect(S3Service.prototype.copyObject).toHaveBeenCalled()
   })
 
-  it('DELETE /api/objects/:id permanently deletes a trashed file with S3 cleanup [spec: objects/purge-file-s3]', async () => {
+  it('DELETE /api/trash/objects/:id permanently deletes a trashed file with S3 cleanup [spec: objects/purge-file-s3]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'm1', name: 'file.txt' })
+    await insertFile(db, orgId, { id: 'm1', name: 'file.txt', trashedAt: Date.now() })
 
-    await app.request('/api/objects/m1/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
-    })
-    const res = await app.request('/api/objects/m1', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.purged).toBe(1)
+    const res = await app.request('/api/trash/objects/m1', { method: 'DELETE', headers })
+    expect(res.status).toBe(204)
     expect(S3Service.prototype.deleteObjects).toHaveBeenCalled()
+    expect(await getMatter(db, 'm1', orgId)).toBeNull()
   })
 
-  it('DELETE /api/objects/:id purges folder with file children from S3', async () => {
+  it('DELETE /api/trash/objects/:id purges a folder with file children from S3', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFolder(db, orgId, { id: 'f1', name: 'Folder' })
-    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', parent: 'Folder' })
-    await insertFile(db, orgId, { id: 'm2', name: 'b.txt', parent: 'Folder' })
+    const trashedAt = Date.now()
+    await insertFolder(db, orgId, { id: 'f1', name: 'Folder', trashedAt })
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', parent: 'Folder', trashedAt })
+    await insertFile(db, orgId, { id: 'm2', name: 'b.txt', parent: 'Folder', trashedAt })
 
-    await app.request('/api/objects/f1/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
-    })
-    const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { purged: number }
-    expect(body.purged).toBe(3)
+    const res = await app.request('/api/trash/objects/f1', { method: 'DELETE', headers })
+    expect(res.status).toBe(204)
     expect(S3Service.prototype.deleteObjects).toHaveBeenCalled()
+    expect(await getMatter(db, 'f1', orgId)).toBeNull()
+    expect(await getMatter(db, 'm1', orgId)).toBeNull()
+    expect(await getMatter(db, 'm2', orgId)).toBeNull()
   })
 
-  it('PATCH /api/objects/:id (action: trash) returns 404 for missing object', async () => {
+  it('DELETE /api/objects/:id returns 404 for a missing object (soft-delete)', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/nonexistent/status', {
-      method: 'PUT',
+    const res = await app.request('/api/objects/nonexistent', { method: 'DELETE', headers })
+    expect(res.status).toBe(404)
+  })
+
+  it('DELETE /api/trash/objects/:id returns 404 for a live (non-trashed) object', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt' })
+
+    const res = await app.request('/api/trash/objects/m1', { method: 'DELETE', headers })
+    expect(res.status).toBe(404)
+  })
+
+  it('POST /api/trash/objects/:id/restorations returns 404 for a missing object', async () => {
+    const { app } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/trash/objects/nonexistent/restorations', {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
+      body: JSON.stringify({}),
     })
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/objects/:id (action: trash) is idempotent for already-trashed item', async () => {
+  it('POST /api/trash/objects/:id/restorations on a live object is a no-op (stays active)', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
-    const res = await app.request('/api/objects/m1/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
-    })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.status).toBe('trashed')
-  })
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt' })
 
-  it('PATCH /api/objects/:id (action: restore) returns 404 for missing object', async () => {
-    const { app } = await createTestApp()
-    const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/nonexistent/status', {
-      method: 'PUT',
+    const res = await app.request('/api/trash/objects/m1/restorations', {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
-    })
-    expect(res.status).toBe(404)
-  })
-
-  it('PATCH /api/objects/:id (action: restore) is no-op for active item', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'active' })
-
-    const res = await app.request('/api/objects/m1/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
+      body: JSON.stringify({}),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.status).toBe('active')
-  })
-
-  it('DELETE /api/trash with files calls S3 deleteObjects', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
-
-    const res = await app.request('/api/trash', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
-    expect(S3Service.prototype.deleteObjects).toHaveBeenCalled()
-  })
-
-  it('DELETE /api/trash handles folders (no S3 object) and files together', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    await insertFolder(db, orgId, { id: 'f1', name: 'Trash Folder' })
-    await insertFile(db, orgId, { id: 'm1', name: 'child.txt', parent: 'Trash Folder' })
-
-    // Trash the folder (cascades to child)
-    await app.request('/api/objects/f1/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
-    })
-
-    const res = await app.request('/api/trash', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { purged: number }
-    expect(body.purged).toBe(2)
-  })
-
-  it('DELETE /api/trash returns 0 when trash is empty', async () => {
-    const { app } = await createTestApp()
-    const headers = await authedHeaders(app)
-    const res = await app.request('/api/trash', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { purged: number }
-    expect(body.purged).toBe(0)
+    expect(body.trashedAt).toBeNull()
   })
 
   it('GET /api/objects/:id returns downloadUrl for files [spec: objects/download-url]', async () => {
@@ -929,11 +907,11 @@ describe('Matter service', () => {
       status: 'active',
     })
 
-    const page1 = await listMatters(db, 'org-1', { parent: '', status: 'active', page: 1, pageSize: 1 })
+    const page1 = await listMatters(db, 'org-1', { parent: '', page: 1, pageSize: 1 })
     expect(page1.items).toHaveLength(1)
     expect(page1.total).toBe(2)
 
-    const page2 = await listMatters(db, 'org-1', { parent: '', status: 'active', page: 2, pageSize: 1 })
+    const page2 = await listMatters(db, 'org-1', { parent: '', page: 2, pageSize: 1 })
     expect(page2.items).toHaveLength(1)
   })
 
@@ -1161,19 +1139,26 @@ describe('Objects API — name conflict (409 responses)', () => {
     expect(body.parent).toBe('Dest')
   })
 
-  it('PATCH /api/objects/:id (action: confirm) returns 409 when active sibling was created during upload', async () => {
+  it('POST .../completions returns 409 when an active sibling appeared during upload', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    // Draft file whose name is now taken by an active sibling
-    await insertFile(db, orgId, { id: 'draft1', name: 'upload.txt', status: 'draft' })
+
+    // Start a real upload (creates the draft + session)…
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'upload.txt', type: 'text/plain', size: 100, parent: '', dirtype: 0 }),
+    })
+    const created = (await createRes.json()) as { id: string; upload: { sessionId: string } }
+    // …then a same-named active sibling lands before completion.
     await insertFile(db, orgId, { id: 'active1', name: 'upload.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/draft1/status', {
-      method: 'PUT',
+    const res = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}/completions`, {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
     })
 
     expect(res.status).toBe(409)
@@ -1181,18 +1166,18 @@ describe('Objects API — name conflict (409 responses)', () => {
     expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
-  it('PATCH /api/objects/:id (action: restore) returns 409 when restore name is already taken [spec: objects/restore-conflict]', async () => {
+  it('POST /api/trash/objects/:id/restorations returns 409 when restore name is already taken [spec: objects/restore-conflict]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'trashed1', name: 'note.txt', status: 'trashed' })
+    await insertFile(db, orgId, { id: 'trashed1', name: 'note.txt', trashedAt: Date.now() })
     await insertFile(db, orgId, { id: 'active2', name: 'note.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/trashed1/status', {
-      method: 'PUT',
+    const res = await app.request('/api/trash/objects/trashed1/restorations', {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
+      body: JSON.stringify({}),
     })
 
     expect(res.status).toBe(409)
@@ -1200,18 +1185,18 @@ describe('Objects API — name conflict (409 responses)', () => {
     expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
-  it('PATCH /api/objects/:id (action: restore) with onConflict: rename restores with suffix', async () => {
+  it('POST /api/trash/objects/:id/restorations with onConflict: rename restores with suffix', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'trashed2', name: 'note.txt', status: 'trashed' })
+    await insertFile(db, orgId, { id: 'trashed2', name: 'note.txt', trashedAt: Date.now() })
     await insertFile(db, orgId, { id: 'active3', name: 'note.txt', status: 'active' })
 
-    const res = await app.request('/api/objects/trashed2/status', {
-      method: 'PUT',
+    const res = await app.request('/api/trash/objects/trashed2/restorations', {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active', onConflict: 'rename' }),
+      body: JSON.stringify({ onConflict: 'rename' }),
     })
 
     expect(res.status).toBe(200)
@@ -1356,7 +1341,7 @@ describe('POST /api/objects/:id/transfers', () => {
     const source = await getMatter(db, 'src-move', orgId)
     expect(source).toBeNull()
     expect((await getOrgQuota(db, orgId))?.used ?? 0).toBe(0)
-    const targetList = await listMatters(db, 'team-b', { parent: '', status: 'active', page: 1, pageSize: 10 })
+    const targetList = await listMatters(db, 'team-b', { parent: '', page: 1, pageSize: 10 })
     expect(targetList.items.map((m) => m.name)).toContain('photo.jpg')
   })
 
@@ -1464,15 +1449,15 @@ describe('Objects API — quota enforcement', () => {
   async function insertFile(
     db: Awaited<ReturnType<typeof createTestApp>>['db'],
     orgId: string,
-    opts: { id: string; name: string; size?: number; status?: string },
+    opts: { id: string; name: string; size?: number; status?: string; trashedAt?: number },
   ) {
     const now = Date.now()
     const size = opts.size ?? 100
     const status = opts.status ?? 'active'
     await db.run(sql`
-      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
       VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', ${size}, 0, '',
-              'some/key.txt', ${validStorage.id}, ${status}, ${now}, ${now})
+              'some/key.txt', ${validStorage.id}, ${status}, ${opts.trashedAt ?? null}, ${now}, ${now})
     `)
   }
 
@@ -1727,49 +1712,46 @@ describe('Objects API — quota enforcement', () => {
       await setOrgQuota(db, orgId, 1000, 300)
       await insertFile(db, orgId, { id: 'm-trash-usage', name: 'keep-accounted.txt', size: 300 })
 
-      const res = await app.request('/api/objects/m-trash-usage/status', {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'trashed' }),
-      })
+      // Soft delete keeps trashed bytes counted (they still occupy storage).
+      const res = await app.request('/api/objects/m-trash-usage', { method: 'DELETE', headers })
 
-      expect(res.status).toBe(200)
+      expect(res.status).toBe(204)
       const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
       const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
       expect(storageRows[0].used).toBe(300)
       expect(quotaRows[0].used).toBe(300)
     })
 
-    it('emptying trash releases only purged files and keeps active file usage', async () => {
+    it('purging a trashed root releases only its bytes and keeps active file usage', async () => {
       const { app, db } = await createTestApp()
       const headers = await authedHeaders(app)
       await insertStorage(db, 500)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 1000, 500)
       await insertFile(db, orgId, { id: 'm-active-after-empty', name: 'active.txt', size: 300 })
-      await insertFile(db, orgId, { id: 'm-trashed-empty', name: 'trashed.txt', size: 200, status: 'trashed' })
+      await insertFile(db, orgId, { id: 'm-trashed-empty', name: 'trashed.txt', size: 200, trashedAt: Date.now() })
 
-      const res = await app.request('/api/trash', { method: 'DELETE', headers })
+      const res = await app.request('/api/trash/objects/m-trashed-empty', { method: 'DELETE', headers })
 
-      expect(res.status).toBe(200)
+      expect(res.status).toBe(204)
       const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
       const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
       expect(storageRows[0].used).toBe(300)
       expect(quotaRows[0].used).toBe(300)
     })
 
-    it('emptying trash recalculates usage when counters had drifted below active file bytes', async () => {
+    it('purging a trashed root recalculates usage when counters had drifted below active file bytes', async () => {
       const { app, db } = await createTestApp()
       const headers = await authedHeaders(app)
       await insertStorage(db, 200)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 1000, 200)
       await insertFile(db, orgId, { id: 'm-active-drift', name: 'active.txt', size: 300 })
-      await insertFile(db, orgId, { id: 'm-trashed-drift', name: 'trashed.txt', size: 200, status: 'trashed' })
+      await insertFile(db, orgId, { id: 'm-trashed-drift', name: 'trashed.txt', size: 200, trashedAt: Date.now() })
 
-      const res = await app.request('/api/trash', { method: 'DELETE', headers })
+      const res = await app.request('/api/trash/objects/m-trashed-drift', { method: 'DELETE', headers })
 
-      expect(res.status).toBe(200)
+      expect(res.status).toBe(204)
       const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
       const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
       expect(storageRows[0].used).toBe(300)
@@ -1894,9 +1876,42 @@ describe('Objects API — quota enforcement', () => {
     })
   })
 
-  // ─── PATCH /api/objects/:id (action: confirm) — quota enforcement via confirmUpload ─────────
+  // ─── POST .../completions — quota enforcement via the activation path ──────────
+  // The completions endpoint finalizes a draft (draft → live), reserving quota
+  // through the same confirmUpload core. These tests drive the real upload flow:
+  // POST /api/objects (creates the draft + session) then POST .../completions.
 
-  describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via confirmUpload', () => {
+  describe('POST .../completions — quota enforcement', () => {
+    // Creates a file draft via the API and returns {id, sessionId}. The S3 spies
+    // make the single-PUT HEAD return etag 'abc'.
+    async function createDraft(
+      app: Awaited<ReturnType<typeof createTestApp>>['app'],
+      headers: Record<string, string>,
+      body: { name: string; size: number; onConflict?: string },
+    ): Promise<{ id: string; sessionId: string }> {
+      const res = await app.request('/api/objects', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'text/plain', parent: '', dirtype: 0, ...body }),
+      })
+      if (res.status !== 201) throw new Error(`create failed: ${res.status} ${await res.text()}`)
+      const created = (await res.json()) as { id: string; upload: { sessionId: string } }
+      return { id: created.id, sessionId: created.upload.sessionId }
+    }
+    // The conflict strategy is fixed at create time (stored on the session); the
+    // completions body carries only the uploaded parts.
+    function complete(
+      app: Awaited<ReturnType<typeof createTestApp>>['app'],
+      headers: Record<string, string>,
+      ref: { id: string; sessionId: string },
+    ) {
+      return app.request(`/api/objects/${ref.id}/uploads/${ref.sessionId}/completions`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
+      })
+    }
+
     it('returns 200 and increments usage when quota allows', async () => {
       const { app, db } = await createTestApp()
       await seedProLicense(db)
@@ -1904,13 +1919,9 @@ describe('Objects API — quota enforcement', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 10000, 0)
-      await insertFile(db, orgId, { id: 'm-done', name: 'uploading.txt', size: 350, status: 'draft' })
+      const ref = await createDraft(app, headers, { name: 'uploading.txt', size: 350 })
 
-      const res = await app.request('/api/objects/m-done/status', {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active' }),
-      })
+      const res = await complete(app, headers, ref)
       expect(res.status).toBe(200)
       const body = (await res.json()) as Record<string, unknown>
       expect(body.status).toBe('active')
@@ -1919,7 +1930,7 @@ describe('Objects API — quota enforcement', () => {
       expect(quotaRows[0].used).toBe(350)
     })
 
-    it('uses active storage entitlements when confirming upload', async () => {
+    it('uses active storage entitlements when finalizing upload', async () => {
       const { app, db } = await createTestApp()
       await seedProLicense(db)
       const headers = await authedHeaders(app)
@@ -1927,14 +1938,9 @@ describe('Objects API — quota enforcement', () => {
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 100, 90)
       await addStorageEntitlement(db, orgId, 100)
-      await insertFile(db, orgId, { id: 'm-done-entitlement', name: 'entitled.txt', size: 50, status: 'draft' })
+      const ref = await createDraft(app, headers, { name: 'entitled.txt', size: 50 })
 
-      const res = await app.request('/api/objects/m-done-entitlement/status', {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active' }),
-      })
-
+      const res = await complete(app, headers, ref)
       expect(res.status).toBe(200)
       const quotaRows = await db.all<{ used: number; quota: number }>(
         sql`SELECT used, quota FROM org_quotas WHERE org_id = ${orgId}`,
@@ -1950,19 +1956,9 @@ describe('Objects API — quota enforcement', () => {
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 0, 90)
       await addStorageEntitlement(db, orgId, 100)
-      await insertFile(db, orgId, {
-        id: 'm-done-zero-base-entitlement',
-        name: 'limited.txt',
-        size: 11,
-        status: 'draft',
-      })
+      const ref = await createDraft(app, headers, { name: 'limited.txt', size: 11 })
 
-      const res = await app.request('/api/objects/m-done-zero-base-entitlement/status', {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active' }),
-      })
-
+      const res = await complete(app, headers, ref)
       expect(res.status).toBe(422)
       await expect(res.json()).resolves.toMatchObject({ error: { message: 'Quota exceeded' } })
     })
@@ -1973,19 +1969,15 @@ describe('Objects API — quota enforcement', () => {
       await insertStorage(db, 100)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 10000, 100)
-      await insertFile(db, orgId, { id: 'm-done2', name: 'photo.jpg', size: 400, status: 'draft' })
+      const ref = await createDraft(app, headers, { name: 'photo.jpg', size: 400 })
 
-      await app.request('/api/objects/m-done2/status', {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active' }),
-      })
+      await complete(app, headers, ref)
 
       const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
       expect(storageRows[0].used).toBe(500)
     })
 
-    it('returns 422 when confirming upload would exceed quota', async () => {
+    it('returns 422 when finalizing upload would exceed quota', async () => {
       const { app, db } = await createTestApp()
       await seedProLicense(db)
       const headers = await authedHeaders(app)
@@ -1993,32 +1985,26 @@ describe('Objects API — quota enforcement', () => {
       const orgId = await getOrgId(db)
       // quota = 100, used = 90, file size = 50 → exceeds
       await setOrgQuota(db, orgId, 100, 90)
-      await insertFile(db, orgId, { id: 'm-done-quota', name: 'toobig.txt', size: 50, status: 'draft' })
+      const ref = await createDraft(app, headers, { name: 'toobig.txt', size: 50 })
 
-      const res = await app.request('/api/objects/m-done-quota/status', {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active' }),
-      })
+      const res = await complete(app, headers, ref)
       expect(res.status).toBe(422)
       const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
       expect(body.error.message).toBe('Quota exceeded')
       expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     })
 
-    it('does not change usage when a file with size 0 is confirmed', async () => {
+    it('does not change usage when a file with size 0 is finalized', async () => {
       const { app, db } = await createTestApp()
       const headers = await authedHeaders(app)
       await insertStorage(db, 50)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 10000, 50)
-      await insertFile(db, orgId, { id: 'm-done3', name: 'empty.txt', size: 0, status: 'draft' })
+      // HEAD returns size 0 for the empty file; the reported etag still matches.
+      vi.mocked(S3Service.prototype.headObject).mockResolvedValue({ size: 0, contentType: 'text/plain', etag: 'abc' })
+      const ref = await createDraft(app, headers, { name: 'empty.txt', size: 0 })
 
-      await app.request('/api/objects/m-done3/status', {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active' }),
-      })
+      await complete(app, headers, ref)
 
       const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
       const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
@@ -2030,15 +2016,10 @@ describe('Objects API — quota enforcement', () => {
       const { app, db } = await createTestApp()
       const headers = await authedHeaders(app)
       await insertStorage(db)
-      const orgId = await getOrgId(db)
       // No quota row — unlimited
-      await insertFile(db, orgId, { id: 'm-done-nolimit', name: 'nolimit.txt', size: 5000, status: 'draft' })
+      const ref = await createDraft(app, headers, { name: 'nolimit.txt', size: 5000 })
 
-      const res = await app.request('/api/objects/m-done-nolimit/status', {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active' }),
-      })
+      const res = await complete(app, headers, ref)
       expect(res.status).toBe(200)
       const body = (await res.json()) as Record<string, unknown>
       expect(body.status).toBe('active')
@@ -2053,29 +2034,13 @@ describe('Objects API — quota enforcement', () => {
       await insertFile(db, orgId, { id: 'incumbent', name: 'doc.txt', size: 100 })
       await setOrgQuota(db, orgId, 100, 100)
 
-      // Create the replacement draft (incumbent stays active — overwrite deferred).
-      const createRes = await app.request('/api/objects', {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'doc.txt',
-          type: 'text/plain',
-          size: 100,
-          parent: '',
-          dirtype: 0,
-          onConflict: 'replace',
-        }),
-      })
-      expect(createRes.status).toBe(201)
-      const draft = (await createRes.json()) as { id: string }
+      // Create the replacement draft with onConflict:'replace' (stored on the
+      // session; incumbent stays active — overwrite deferred to completion).
+      const ref = await createDraft(app, headers, { name: 'doc.txt', size: 100, onConflict: 'replace' })
 
-      // Confirm with replace. Before the fix this 422'd (headroom for both copies).
-      const confirmRes = await app.request(`/api/objects/${draft.id}/status`, {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active', onConflict: 'replace' }),
-      })
-      expect(confirmRes.status).toBe(200)
+      // Complete: the incumbent's bytes are freed so this is net-neutral.
+      const completeRes = await complete(app, headers, ref)
+      expect(completeRes.status).toBe(200)
 
       // Incumbent purged (overwritten, not trashed) and usage unchanged.
       const incumbent = await db.all(sql`SELECT id FROM matters WHERE id = 'incumbent'`)
@@ -2162,6 +2127,28 @@ describe('object multipart upload API with S3-compatible storage', () => {
           return
         }
 
+        // Single PutObject (≤5 GiB upload): store the body and return its ETag.
+        if (req.method === 'PUT') {
+          const body = await readBody(req)
+          objects.set(objectKey, body)
+          res.writeHead(200, { etag: etag(body) })
+          res.end('')
+          return
+        }
+
+        // HeadObject — completions HEADs the object to confirm the single-PUT ETag.
+        if (req.method === 'HEAD') {
+          const object = objects.get(objectKey)
+          if (!object) {
+            res.writeHead(404)
+            res.end('')
+            return
+          }
+          res.writeHead(200, { 'Content-Length': object.byteLength, etag: etag(object) })
+          res.end('')
+          return
+        }
+
         if (req.method === 'GET') {
           const object = objects.get(objectKey)
           if (!object) {
@@ -2220,62 +2207,46 @@ describe('object multipart upload API with S3-compatible storage', () => {
     server = undefined
   })
 
-  it('uploads a small object through the multipart API without a large fixture', async () => {
+  it('uploads a small object end-to-end via the single-PUT flow against a live S3 mock', async () => {
     const s3 = await startMultipartS3Mock()
     server = s3.server
     const { app, db } = await createTestApp()
     await insertStorage(db, s3.endpoint)
     const headers = await authedHeaders(app)
 
+    // ≤5 GiB → one presigned PUT URL and partSize === size.
     const createRes = await app.request('/api/objects', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: 'multipart-smoke.txt',
+        name: 'upload-smoke.txt',
         type: 'text/plain',
         size: 11,
         parent: '',
       }),
     })
     expect(createRes.status).toBe(201)
-    const object = (await createRes.json()) as { id: string }
+    const object = (await createRes.json()) as {
+      id: string
+      upload: { sessionId: string; partSize: number; urls: string[] }
+    }
+    expect(object.upload.urls).toHaveLength(1)
+    expect(object.upload.partSize).toBe(11)
 
-    const sessionRes = await app.request(`/api/objects/${object.id}/uploads`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partSize: 5 * 1024 * 1024 }),
-    })
-    expect(sessionRes.status).toBe(201)
-    const session = (await sessionRes.json()) as { id: string; uploadId: string }
-    expect(session.uploadId).toBeTruthy()
-
-    const partsRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}/parts`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partNumbers: [1] }),
-    })
-    expect(partsRes.status).toBe(200)
-    const presigned = (await partsRes.json()) as { parts: Array<{ partNumber: number; url: string }> }
-    expect(presigned.parts).toHaveLength(1)
-
-    const partRes = await fetch(presigned.parts[0].url, { method: 'PUT', body: 'hello world' })
-    expect(partRes.status).toBe(200)
-    const etagHeader = partRes.headers.get('etag')
+    // PUT the bytes directly to the presigned URL, read the ETag.
+    const putRes = await fetch(object.upload.urls[0], { method: 'PUT', body: 'hello world' })
+    expect(putRes.status).toBe(200)
+    const etagHeader = putRes.headers.get('etag')
     expect(etagHeader).toBeTruthy()
 
-    const completeRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}/status`, {
-      method: 'PUT',
+    // Finalize: completions HEADs the object and matches the reported ETag.
+    const completeRes = await app.request(`/api/objects/${object.id}/uploads/${object.upload.sessionId}/completions`, {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'completed', parts: [{ partNumber: 1, etag: etagHeader }] }),
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: etagHeader }] }),
     })
     expect(completeRes.status).toBe(200)
-
-    const confirmRes = await app.request(`/api/objects/${object.id}/status`, {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
-    })
-    expect(confirmRes.status).toBe(200)
+    expect(((await completeRes.json()) as { status: string }).status).toBe('active')
 
     const objectRes = await app.request(`/api/objects/${object.id}`, { headers })
     expect(objectRes.status).toBe(200)
@@ -2463,33 +2434,33 @@ describe('Objects API — error branches', () => {
     expect(body.error.message).toBe('Not found')
   })
 
-  it('rejects a download-task-upload token that tries to trash an object', async () => {
+  it('rejects a download-task-upload token that tries to soft-delete (trash) an object', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
     await insertFile(db, orgId, { id: 'm-task-trash', name: 'file.txt', parent: 'Remote' })
 
-    const res = await app.request('/api/objects/m-task-trash/status', {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
+    // DELETE /objects/:id is editor-gated; a download-task-upload token has no
+    // team role (userId is null) so it is rejected — it may only finalize uploads.
+    const res = await app.request('/api/objects/m-task-trash', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${uploadToken}` },
     })
-    expect(res.status).toBe(403)
-    const body = (await res.json()) as { error: { message: string } }
-    expect(body.error.message).toBe('Download task upload token can only confirm uploads')
+    expect(res.status).toBe(401)
   })
 
-  it('rejects a download-task-upload confirm outside the task target folder', async () => {
+  it('rejects a download-task-upload completion outside the task target folder', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
-    // Draft sits outside the token's authorized folder, so the confirm guard denies.
+    // Draft sits outside the token's authorized folder, so the completion guard denies
+    // before any session lookup.
     await insertFile(db, orgId, { id: 'm-task-outside', name: 'file.txt', parent: 'Elsewhere', status: 'draft' })
 
-    const res = await app.request('/api/objects/m-task-outside/status', {
-      method: 'PUT',
+    const res = await app.request('/api/objects/m-task-outside/uploads/any-session/completions', {
+      method: 'POST',
       headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
     })
     expect(res.status).toBe(403)
     const body = (await res.json()) as { error: { message: string } }

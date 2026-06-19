@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { DirType } from '../../../shared/constants'
 import { matters } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -14,7 +14,13 @@ async function requireTargetFolder(db: Database, orgId: string, targetFolder: st
     .select()
     .from(matters)
     .where(
-      and(eq(matters.orgId, orgId), eq(matters.parent, parent), eq(matters.name, name), eq(matters.status, 'active')),
+      and(
+        eq(matters.orgId, orgId),
+        eq(matters.parent, parent),
+        eq(matters.name, name),
+        eq(matters.status, 'active'),
+        isNull(matters.trashedAt),
+      ),
     )
     .limit(1)
   const target = rows[0]

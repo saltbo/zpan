@@ -2,13 +2,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
+  abortObjectUpload,
   buildShareObjectUrl,
   cancelBackgroundJob,
   cancelCloudOrder,
-  cancelUpload,
   clearSessionCache,
+  completeObjectUpload,
   confirmIhostImage,
-  confirmUpload,
   connectCloud,
   continueCloudOrderPayment,
   copyObject,
@@ -21,7 +21,6 @@ import {
   createIhostApiKey,
   createIhostImagePresign,
   createObject,
-  createObjectUploadSession,
   createRemoteDownloadApiKey,
   createShare,
   createSiteInvitation,
@@ -38,7 +37,6 @@ import {
   deleteStorage,
   deleteTeamLogo,
   disconnectCloud,
-  emptyTrash,
   enableIhostFeature,
   generateInviteCodes,
   getAnnouncement,
@@ -58,6 +56,7 @@ import {
   getStorage,
   getSystemOption,
   getTeam,
+  getTrashObject,
   getUnreadCount,
   getUserQuota,
   getUserQuotaById,
@@ -82,7 +81,6 @@ import {
   listIhostImages,
   listInviteCodes,
   listNotifications,
-  listObjects,
   listObjectsByPath,
   listOrgEntitlements,
   listQuotas,
@@ -95,13 +93,14 @@ import {
   listSystemOptions,
   listTeamActivities,
   listTeams,
+  listTrash,
   listUserEntitlements,
   listWebDavAppPasswords,
   markAllNotificationsRead,
   markNotificationRead,
-  patchObjectUploadSession,
   pollPairing,
   presignObjectUploadParts,
+  purgeTrashObject,
   redeemCloudGiftCard,
   refreshLicense,
   resendSiteInvitation,
@@ -124,7 +123,6 @@ import {
   setSystemOption,
   testEmail,
   transferObject,
-  trashObject,
   updateAnnouncement,
   updateDownloader,
   updateDownloadTask,
@@ -160,38 +158,40 @@ describe('api', () => {
     vi.unstubAllGlobals()
   })
 
-  describe('listObjects', () => {
+  describe('listObjectsByPath (defaults and unwrap edge cases)', () => {
     it('calls correct URL with defaults', async () => {
       const fetchMock = vi.mocked(fetch)
       fetchMock.mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
 
-      await listObjects('root')
+      await listObjectsByPath('root')
 
       const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/objects?')
-      expect(url).toContain('parent=root')
-      expect(url).toContain('status=active')
+      expect(url).toContain('path=root')
       expect(url).toContain('page=1')
       expect(url).toContain('pageSize=500')
     })
 
-    it('uses provided status, page, and pageSize', async () => {
+    it('uses provided page, pageSize, and opts', async () => {
       const fetchMock = vi.mocked(fetch)
       fetchMock.mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 2, pageSize: 20 }))
 
-      await listObjects('folder1', 'trashed', 2, 20)
+      await listObjectsByPath('folder1', 2, 20, { type: 'image', search: 'cat', orgId: 'org-1' })
 
       const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('status=trashed')
+      expect(url).toContain('path=folder1')
       expect(url).toContain('page=2')
       expect(url).toContain('pageSize=20')
+      expect(url).toContain('type=image')
+      expect(url).toContain('search=cat')
+      expect(url).toContain('orgId=org-1')
     })
 
     it('returns parsed paginated response', async () => {
       const payload = { items: [{ id: 'abc' }], total: 1, page: 1, pageSize: 500 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await listObjects('root')
+      const result = await listObjectsByPath('root')
 
       expect(result).toEqual(payload)
     })
@@ -199,13 +199,13 @@ describe('api', () => {
     it('throws when response is not ok', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
-      await expect(listObjects('root')).rejects.toThrow('forbidden')
+      await expect(listObjectsByPath('root')).rejects.toThrow('forbidden')
     })
 
     it('falls back to HTTP status when error body has no error field', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({}, false, 500))
 
-      await expect(listObjects('root')).rejects.toThrow('HTTP 500')
+      await expect(listObjectsByPath('root')).rejects.toThrow('HTTP 500')
     })
 
     it('falls back to HTTP status when json parse fails', async () => {
@@ -219,13 +219,13 @@ describe('api', () => {
       } as unknown as Response
       vi.mocked(fetch).mockResolvedValueOnce(res)
 
-      await expect(listObjects('root')).rejects.toThrow('HTTP 503')
+      await expect(listObjectsByPath('root')).rejects.toThrow('HTTP 503')
     })
 
     it('passes credentials: include', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
 
-      await listObjects('root')
+      await listObjectsByPath('root')
 
       const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(init.credentials).toBe('include')
@@ -479,8 +479,12 @@ describe('api', () => {
   })
 
   describe('createObject', () => {
-    it('posts to /api/objects with JSON body', async () => {
-      const created = { id: 'new1', name: 'doc.pdf', uploadUrl: 'https://s3/presigned' }
+    it('posts to /api/objects with JSON body and returns the draft with upload instructions', async () => {
+      const created = {
+        id: 'new1',
+        name: 'doc.pdf',
+        upload: { sessionId: 'sess-1', partSize: 5 * 1024 * 1024, urls: ['https://s3/part-1'] },
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(created))
 
       const result = await createObject({
@@ -492,6 +496,7 @@ describe('api', () => {
       })
 
       expect(result).toEqual(created)
+      expect(result.upload).toEqual({ sessionId: 'sess-1', partSize: 5 * 1024 * 1024, urls: ['https://s3/part-1'] })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/objects')
       expect(init.method).toBe('POST')
@@ -502,10 +507,63 @@ describe('api', () => {
       expect(headers.get('Content-Type')).toContain('application/json')
     })
 
+    it('returns a folder without upload instructions', async () => {
+      const created = { id: 'folder1', name: 'photos', type: 'folder' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(created))
+
+      const result = await createObject({ name: 'photos', type: 'folder', parent: 'root', dirtype: 1 })
+
+      expect(result).toEqual(created)
+      expect(result.upload).toBeUndefined()
+    })
+
     it('throws on error response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'quota exceeded' }, false, 422))
 
       await expect(createObject({ name: 'f', type: 't', parent: 'p', dirtype: 0 })).rejects.toThrow('quota exceeded')
+    })
+  })
+
+  describe('completeObjectUpload', () => {
+    it('posts parts to /api/objects/:id/uploads/:sessionId/completions and returns the live object', async () => {
+      const live = { id: 'obj-1', name: 'doc.pdf', status: 'active' }
+      const parts = [
+        { partNumber: 1, etag: 'etag-1' },
+        { partNumber: 2, etag: 'etag-2' },
+      ]
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(live))
+
+      const result = await completeObjectUpload('obj-1', 'sess-1', parts)
+
+      expect(result).toEqual(live)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/objects/obj-1/uploads/sess-1/completions')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({ parts })
+    })
+
+    it('throws ApiError on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'invalid parts' }, false, 400))
+
+      await expect(completeObjectUpload('obj-1', 'sess-1', [])).rejects.toThrow('invalid parts')
+    })
+  })
+
+  describe('abortObjectUpload', () => {
+    it('sends DELETE to /api/objects/:id/uploads/:sessionId and resolves on 204', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
+
+      await expect(abortObjectUpload('obj-1', 'sess-1')).resolves.toBeUndefined()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/objects/obj-1/uploads/sess-1')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws ApiError on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(abortObjectUpload('obj-1', 'missing')).rejects.toThrow('not found')
     })
   })
 
@@ -540,56 +598,12 @@ describe('api', () => {
     })
   })
 
-  describe('confirmUpload', () => {
-    it('puts status: active to /status', async () => {
-      const obj = { id: 'id1', status: 'active' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
-
-      const result = await confirmUpload('id1')
-
-      expect(result).toEqual(obj)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/id1/status')
-      expect(init.method).toBe('PUT')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ status: 'active' })
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
-
-      await expect(confirmUpload('missing')).rejects.toThrow('not found')
-    })
-  })
-
-  describe('cancelUpload', () => {
-    it('sends DELETE to discard the draft', async () => {
-      const payload = { purged: false }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await cancelUpload('id1')
-
-      expect(result).toEqual({ purged: false })
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/id1')
-      expect(init.method).toBe('DELETE')
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
-
-      await expect(cancelUpload('missing')).rejects.toThrow('not found')
-    })
-  })
-
   describe('deleteObject', () => {
-    it('sends DELETE request and returns purged count', async () => {
-      const payload = { purged: 3 }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+    it('sends DELETE request (soft delete to trash) and resolves on 204', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      const result = await deleteObject('id1')
+      await expect(deleteObject('id1')).resolves.toBeUndefined()
 
-      expect(result).toEqual({ purged: 3 })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/objects/id1')
       expect(init.method).toBe('DELETE')
@@ -888,8 +902,86 @@ describe('api', () => {
     })
   })
 
+  describe('presignObjectUploadParts', () => {
+    it('presigns parts via POST /api/objects/:id/uploads/:sessionId/parts', async () => {
+      const payload = {
+        uploadId: 'mp-1',
+        partSize: 5 * 1024 * 1024,
+        parts: [{ partNumber: 1, url: 'https://s3/part-1' }],
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await presignObjectUploadParts('obj-1', 'sess-1', { partNumbers: [1] })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/objects/obj-1/uploads/sess-1/parts')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify({ partNumbers: [1] }))
+    })
+
+    it('throws ApiError on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'upload denied' }, false, 403))
+
+      await expect(presignObjectUploadParts('obj-1', 'sess-1', { partNumbers: [1] })).rejects.toThrow('upload denied')
+    })
+  })
+
+  describe('listTrash', () => {
+    it('calls GET /api/trash/objects with default pagination', async () => {
+      const payload = { items: [], total: 0, page: 1, pageSize: 20 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listTrash()
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/trash/objects?')
+      expect(url).toContain('page=1')
+      expect(url).toContain('pageSize=20')
+      expect(init.method).toBe('GET')
+    })
+
+    it('passes provided page and pageSize', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 3, pageSize: 50 }))
+
+      await listTrash(3, 50)
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('page=3')
+      expect(url).toContain('pageSize=50')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(listTrash()).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('getTrashObject', () => {
+    it('fetches a trashed object via GET /api/trash/objects/:id', async () => {
+      // A trashed object is active with trashedAt set.
+      const obj = { id: 'id1', name: 'file.txt', status: 'active', trashedAt: 1700000000000 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
+
+      const result = await getTrashObject('id1')
+
+      expect(result).toEqual(obj)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/trash/objects/id1')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(getTrashObject('missing')).rejects.toThrow('not found')
+    })
+  })
+
   describe('restoreObject', () => {
-    it('puts status: active to /status for the given id', async () => {
+    it('posts to /api/trash/objects/:id/restorations and returns the restored object', async () => {
       const obj = { id: 'id1', status: 'active' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
 
@@ -897,10 +989,20 @@ describe('api', () => {
 
       expect(result).toEqual(obj)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/id1/status')
-      expect(init.method).toBe('PUT')
+      expect(url).toBe('/api/trash/objects/id1/restorations')
+      expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ status: 'active' })
+      expect(body).toEqual({})
+    })
+
+    it('forwards an onConflict strategy in the body', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'id1', status: 'active' }))
+
+      await restoreObject('id1', 'rename')
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toEqual({ onConflict: 'rename' })
     })
 
     it('throws on error response', async () => {
@@ -910,87 +1012,21 @@ describe('api', () => {
     })
   })
 
-  describe('emptyTrash', () => {
-    it('sends DELETE to trash endpoint', async () => {
-      const payload = { purged: 5 }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+  describe('purgeTrashObject', () => {
+    it('sends DELETE to /api/trash/objects/:id and resolves on 204', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      const result = await emptyTrash()
+      await expect(purgeTrashObject('id1')).resolves.toBeUndefined()
 
-      expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/trash')
+      expect(url).toBe('/api/trash/objects/id1')
       expect(init.method).toBe('DELETE')
     })
 
     it('throws on error response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'server error' }, false, 500))
 
-      await expect(emptyTrash()).rejects.toThrow('server error')
-    })
-  })
-
-  describe('object upload sessions api', () => {
-    it('creates an upload session for an object', async () => {
-      const payload = { id: 'upload-1', object: { id: 'obj-1' } }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await createObjectUploadSession('obj-1', {
-        partSize: 5 * 1024 * 1024,
-      })
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/obj-1/uploads')
-      expect(init.method).toBe('POST')
-      expect(init.body).toBe(JSON.stringify({ partSize: 5 * 1024 * 1024 }))
-    })
-
-    it('presigns upload session parts', async () => {
-      const payload = {
-        uploadId: 'mp-1',
-        partSize: 5 * 1024 * 1024,
-        parts: [{ partNumber: 1, url: 'https://s3/part-1' }],
-      }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await presignObjectUploadParts('obj-1', 'upload-1', { partNumbers: [1] })
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/obj-1/uploads/upload-1/parts')
-      expect(init.method).toBe('POST')
-      expect(init.body).toBe(JSON.stringify({ partNumbers: [1] }))
-    })
-
-    it('completes an upload session via PUT /status', async () => {
-      const payload = { id: 'upload-1', status: 'completed', object: { id: 'obj-1' } }
-      const parts = [{ partNumber: 1, etag: 'etag-1' }]
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await patchObjectUploadSession('obj-1', 'upload-1', { action: 'complete', parts })
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/obj-1/uploads/upload-1/status')
-      expect(init.method).toBe('PUT')
-      expect(init.body).toBe(JSON.stringify({ status: 'completed', parts }))
-    })
-
-    it('aborts an upload session via DELETE (resolves on 204)', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
-
-      await expect(patchObjectUploadSession('obj-1', 'upload-1', { action: 'abort' })).resolves.toBeUndefined()
-
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/obj-1/uploads/upload-1')
-      expect(init.method).toBe('DELETE')
-    })
-
-    it('throws ApiError on upload session failure', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'upload denied' }, false, 403))
-
-      await expect(createObjectUploadSession('obj-1', { partSize: 5 * 1024 * 1024 })).rejects.toThrow('upload denied')
+      await expect(purgeTrashObject('id1')).rejects.toThrow('server error')
     })
   })
 
@@ -1922,28 +1958,6 @@ describe('api', () => {
       const result = await getSession()
       expect(result).toEqual({ session: { id: 'sess1' }, user: { id: 'u1' } })
       expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2)
-    })
-  })
-
-  describe('trashObject', () => {
-    it('puts status: trashed to /status for the given id', async () => {
-      const obj = { id: 'id1', status: 'trashed' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
-
-      const result = await trashObject('id1')
-
-      expect(result).toEqual(obj)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/id1/status')
-      expect(init.method).toBe('PUT')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ status: 'trashed' })
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
-
-      await expect(trashObject('missing')).rejects.toThrow('not found')
     })
   })
 
@@ -3726,12 +3740,11 @@ describe('api', () => {
     it('sends path and optional filters as query params', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
 
-      await listObjectsByPath('a/b', 'trashed', 2, 50, { type: 'dir', search: 'doc', orgId: 'org-1' })
+      await listObjectsByPath('a/b', 2, 50, { type: 'dir', search: 'doc', orgId: 'org-1' })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/objects?')
       expect(url).toContain('path=a%2Fb')
-      expect(url).toContain('status=trashed')
       expect(url).toContain('page=2')
       expect(url).toContain('pageSize=50')
       expect(url).toContain('type=dir')

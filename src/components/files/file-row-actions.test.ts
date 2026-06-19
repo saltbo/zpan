@@ -23,6 +23,7 @@ function makeObject(dirtype: DirType = DirType.FILE): StorageObject {
     object: '',
     storageId: 'stor-1',
     status: 'active',
+    trashedAt: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
   }

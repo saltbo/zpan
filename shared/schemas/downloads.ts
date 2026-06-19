@@ -319,42 +319,16 @@ export const listDownloadTasksQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 })
 
-export const createObjectUploadSessionSchema = z.object({
-  partSize: z
-    .number()
-    .int()
-    .min(5 * 1024 * 1024)
-    .max(512 * 1024 * 1024)
-    .optional(),
-})
-
+// Re-presign expired part URLs mid-upload (multipart sessions only). The happy
+// path uses the URLs returned by POST /objects; this is the fallback.
 export const presignObjectUploadPartsSchema = z.object({
   partNumbers: z.array(z.number().int().min(1).max(10_000)).min(1).max(100),
 })
 
-// Internal command shape for the upload-session usecase. The HTTP boundary now
-// speaks REST — PUT /uploads/:sid/status {status:'completed', parts} to complete,
-// DELETE /uploads/:sid to abort — and translates into this union.
-export const patchObjectUploadSessionSchema = z.discriminatedUnion('action', [
-  z.object({
-    action: z.literal('complete'),
-    parts: z
-      .array(
-        z.object({
-          partNumber: z.number().int().min(1).max(10_000),
-          etag: z.string().min(1),
-        }),
-      )
-      .min(1),
-  }),
-  z.object({
-    action: z.literal('abort'),
-  }),
-])
-
-// PUT /api/objects/:id/uploads/:sid/status — complete a multipart upload.
-export const objectUploadStatusSchema = z.object({
-  status: z.literal('completed'),
+// POST /api/objects/:id/uploads/:sid/completions — finalize the upload.
+// Uniform for every file: one entry for a ≤5 GiB single PutObject, N entries for
+// a >5 GiB multipart. Each etag comes from the S3 PUT response header.
+export const completeObjectUploadSchema = z.object({
   parts: z
     .array(
       z.object({
@@ -374,6 +348,5 @@ export type DownloadTaskActionInput = z.infer<typeof downloadTaskActionInputSche
 export type ListDownloadTasksQuery = z.infer<typeof listDownloadTasksQuerySchema>
 export type DownloadTaskRuntime = z.infer<typeof downloadTaskRuntimeSchema>
 export type DownloadTaskSchema = z.infer<typeof downloadTaskSchema>
-export type CreateObjectUploadSessionInput = z.infer<typeof createObjectUploadSessionSchema>
 export type PresignObjectUploadPartsInput = z.infer<typeof presignObjectUploadPartsSchema>
-export type PatchObjectUploadSessionInput = z.infer<typeof patchObjectUploadSessionSchema>
+export type CompleteObjectUploadInput = z.infer<typeof completeObjectUploadSchema>

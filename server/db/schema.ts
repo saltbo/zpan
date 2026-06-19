@@ -13,8 +13,8 @@ export const matters = sqliteTable('matters', {
   parent: text('parent').notNull().default(''),
   object: text('object').notNull().default(''),
   storageId: text('storage_id').notNull(),
-  status: text('status').notNull().default('draft'), // draft, active, trashed
-  trashedAt: integer('trashed_at'),
+  status: text('status').notNull().default('draft'), // draft, active
+  trashedAt: integer('trashed_at'), // null = live, epoch ms = in trash (soft delete)
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
@@ -372,8 +372,9 @@ export const objectUploadSessions = sqliteTable(
     objectId: text('object_id').notNull(),
     storageId: text('storage_id').notNull(),
     storageKey: text('storage_key').notNull(),
-    uploadId: text('upload_id').notNull(),
+    uploadId: text('upload_id'), // null for a single-PutObject (≤5 GiB) session; set for multipart
     partSize: integer('part_size').notNull(),
+    onConflict: text('on_conflict').notNull().default('fail'), // strategy captured at create, applied at completion
     status: text('status').notNull(),
     createdBy: text('created_by').notNull(),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),

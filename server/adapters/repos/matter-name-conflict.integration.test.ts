@@ -56,6 +56,7 @@ async function insertMatter(
     dirtype?: number
     status?: string
     storageId?: string
+    trashedAt?: number
   },
 ) {
   const id = opts.id ?? nanoid()
@@ -63,9 +64,10 @@ async function insertMatter(
   const status = opts.status ?? ObjectStatus.ACTIVE
   const dirtype = opts.dirtype ?? DirType.FILE
   const storageId = opts.storageId ?? 'st-1'
+  const trashedAt = opts.trashedAt ?? null
   await db.run(sql`
-    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-    VALUES (${id}, ${opts.orgId}, ${`${id}-alias`}, ${opts.name}, 'text/plain', 0, ${dirtype}, ${opts.parent ?? ''}, '', ${storageId}, ${status}, ${now}, ${now})
+    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
+    VALUES (${id}, ${opts.orgId}, ${`${id}-alias`}, ${opts.name}, 'text/plain', 0, ${dirtype}, ${opts.parent ?? ''}, '', ${storageId}, ${status}, ${trashedAt}, ${now}, ${now})
   `)
   return id
 }
@@ -125,7 +127,7 @@ describe('findActiveConflict', () => {
     const { db } = await createTestApp()
     await insertStorage(db)
     const orgId = nanoid()
-    await insertMatter(db, { orgId, name: 'gone.txt', status: ObjectStatus.TRASHED })
+    await insertMatter(db, { orgId, name: 'gone.txt', status: ObjectStatus.ACTIVE, trashedAt: Date.now() })
 
     const result = await findActiveConflict(db, orgId, '', 'gone.txt')
     expect(result).toBeNull()
@@ -273,8 +275,10 @@ describe('applyConflictResolution — strategy: replace', () => {
     const result = await applyConflictResolution(db, orgId, '', 'data.csv', 'replace', { isFolder: false })
     expect(result).toBe('data.csv')
 
-    const rows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = ${existingId}`)
-    expect(rows[0].status).toBe(ObjectStatus.TRASHED)
+    const rows = await db.all<{ trashed_at: number | null }>(
+      sql`SELECT trashed_at FROM matters WHERE id = ${existingId}`,
+    )
+    expect(rows[0].trashed_at).not.toBeNull()
   })
 
   it('sets trashedAt on the replaced file', async () => {
@@ -436,7 +440,9 @@ describe('commitConflictPlan', () => {
     const plan = await planConflictResolution(db, orgId, '', 'old.txt', 'replace')
     await commitConflictPlan(db, orgId, plan)
 
-    const rows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = ${existingId}`)
-    expect(rows[0].status).toBe(ObjectStatus.TRASHED)
+    const rows = await db.all<{ trashed_at: number | null }>(
+      sql`SELECT trashed_at FROM matters WHERE id = ${existingId}`,
+    )
+    expect(rows[0].trashed_at).not.toBeNull()
   })
 })

@@ -1,13 +1,12 @@
 import { DirType } from '@shared/constants'
-import type { ConflictStrategy } from '@shared/schemas'
 import { Upload } from 'lucide-react'
 import { forwardRef, useCallback, useImperativeHandle } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useTranslation } from 'react-i18next'
 import type { Prompt } from '@/components/files/hooks/use-conflict-resolver'
 import { withConflictRetry } from '@/components/files/hooks/use-conflict-resolver'
-import { cancelUpload, confirmUpload, createObject, isNameConflictError, uploadToS3 } from '../../lib/api'
-import { MULTIPART_THRESHOLD, uploadFileInParts } from './multipart-upload'
+import { abortObjectUpload, completeObjectUpload, createObject } from '../../lib/api'
+import { uploadObjectSlices } from './multipart-upload'
 import { type UploadRunnerContext, useUploadQueue } from './upload-queue'
 
 type DirectoryFile = File & {
@@ -119,9 +118,12 @@ async function ensureDirectoryPath(
 }
 
 /**
- * Uploads a file end-to-end: create draft → presigned PUT → confirm.
+ * Uploads a file end-to-end with one uniform flow: create draft (the server
+ * decides single-PUT vs multipart and returns all upload URLs) → PUT each slice
+ * directly to S3, reading its ETag → complete (draft → live).
  * Returns true on success, or 'cancelled' when the user dismissed a conflict dialog.
- * Conflicts can fire at either step: pre-upload (create) or post-upload (confirm).
+ * The name conflict is resolved once, at create; the chosen strategy is applied at
+ * completion server-side (a deferred 'replace' purges the incumbent then).
  */
 async function uploadFile(
   file: File,
@@ -131,25 +133,21 @@ async function uploadFile(
   ctx: UploadRunnerContext,
 ): Promise<boolean | 'cancelled'> {
   ctx.setStatus('preparing')
-  // Step 1: create draft (detects the conflict against existing actives BEFORE
-  // the S3 PUT). For 'replace' the backend defers the overwrite to confirm, so
-  // remember the chosen strategy to reuse there without prompting again.
-  let resolvedStrategy: ConflictStrategy | undefined
+  // Create the draft. This detects the conflict against existing live items
+  // BEFORE any bytes are uploaded.
   const created = prompt
     ? await withConflictRetry(
         prompt,
         'file',
-        (strategy) => {
-          resolvedStrategy = strategy
-          return createObject({
+        (strategy) =>
+          createObject({
             name: file.name,
             type: file.type || 'application/octet-stream',
             size: file.size,
             parent,
             dirtype: DirType.FILE,
             onConflict: strategy,
-          })
-        },
+          }),
         { showApplyToAll },
       )
     : await createObject({
@@ -160,38 +158,20 @@ async function uploadFile(
         dirtype: DirType.FILE,
       })
   if (!created) return 'cancelled'
+  const upload = created.upload
+  if (!upload) throw new Error('No upload instructions returned')
   if (ctx.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError')
+
+  ctx.registerCleanup(async () => {
+    await abortObjectUpload(created.id, upload.sessionId)
+  })
 
   ctx.setStatus('uploading')
-  if (file.size > MULTIPART_THRESHOLD) {
-    // Large files: chunked, resumable multipart. Single-PUT caps at 5 GiB and
-    // fails the whole transfer on any network blip.
-    await uploadFileInParts(created.id, file, ctx)
-  } else {
-    if (!created.uploadUrl) throw new Error('No upload URL returned')
-    ctx.registerCleanup(async () => {
-      await cancelUpload(created.id)
-    })
-    await uploadToS3(created.uploadUrl, file, {
-      onProgress: ctx.onProgress,
-      signal: ctx.signal,
-      contentDisposition: created.contentDisposition,
-    })
-  }
+  const parts = await uploadObjectSlices(upload, file, ctx)
   if (ctx.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError')
 
-  // Step 2: confirm using the strategy already chosen at create, so the user is
-  // not prompted twice. A conflict can still surface here if another client
-  // activated the same name during our S3 PUT — the resolver handles that.
   ctx.setStatus('confirming')
-  try {
-    await confirmUpload(created.id, resolvedStrategy)
-  } catch (e) {
-    if (!prompt || !isNameConflictError(e)) throw e
-    const res = await prompt({ kind: 'file', name: e.metadata?.conflictingName, showApplyToAll })
-    if ('cancelled' in res) return 'cancelled'
-    await confirmUpload(created.id, res.strategy)
-  }
+  await completeObjectUpload(created.id, upload.sessionId, parts)
   return true
 }
 

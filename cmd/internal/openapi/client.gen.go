@@ -831,21 +831,6 @@ func (e CreateObjectJSONBodyOnConflict) Valid() bool {
 	}
 }
 
-// Defines values for DeleteObject200JSONResponseBodyPurged1.
-const (
-	False DeleteObject200JSONResponseBodyPurged1 = false
-)
-
-// Valid indicates whether the value is a known member of the DeleteObject200JSONResponseBodyPurged1 enum.
-func (e DeleteObject200JSONResponseBodyPurged1) Valid() bool {
-	switch e {
-	case False:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UpdateObjectJSONBodyOnConflict.
 const (
 	UpdateObjectJSONBodyOnConflictFail    UpdateObjectJSONBodyOnConflict = "fail"
@@ -888,45 +873,6 @@ func (e CopyObjectJSONBodyOnConflict) Valid() bool {
 	}
 }
 
-// Defines values for SetObjectStatusJSONBodyOnConflict.
-const (
-	SetObjectStatusJSONBodyOnConflictFail    SetObjectStatusJSONBodyOnConflict = "fail"
-	SetObjectStatusJSONBodyOnConflictRename  SetObjectStatusJSONBodyOnConflict = "rename"
-	SetObjectStatusJSONBodyOnConflictReplace SetObjectStatusJSONBodyOnConflict = "replace"
-)
-
-// Valid indicates whether the value is a known member of the SetObjectStatusJSONBodyOnConflict enum.
-func (e SetObjectStatusJSONBodyOnConflict) Valid() bool {
-	switch e {
-	case SetObjectStatusJSONBodyOnConflictFail:
-		return true
-	case SetObjectStatusJSONBodyOnConflictRename:
-		return true
-	case SetObjectStatusJSONBodyOnConflictReplace:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SetObjectStatusJSONBodyStatus.
-const (
-	SetObjectStatusJSONBodyStatusActive  SetObjectStatusJSONBodyStatus = "active"
-	SetObjectStatusJSONBodyStatusTrashed SetObjectStatusJSONBodyStatus = "trashed"
-)
-
-// Valid indicates whether the value is a known member of the SetObjectStatusJSONBodyStatus enum.
-func (e SetObjectStatusJSONBodyStatus) Valid() bool {
-	switch e {
-	case SetObjectStatusJSONBodyStatusActive:
-		return true
-	case SetObjectStatusJSONBodyStatusTrashed:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for TransferObjectJSONBodyMode.
 const (
 	Copy TransferObjectJSONBodyMode = "copy"
@@ -939,63 +885,6 @@ func (e TransferObjectJSONBodyMode) Valid() bool {
 	case Copy:
 		return true
 	case Move:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateObjectUploadSession201JSONResponseBodyStatus.
-const (
-	CreateObjectUploadSession201JSONResponseBodyStatusAborted   CreateObjectUploadSession201JSONResponseBodyStatus = "aborted"
-	CreateObjectUploadSession201JSONResponseBodyStatusActive    CreateObjectUploadSession201JSONResponseBodyStatus = "active"
-	CreateObjectUploadSession201JSONResponseBodyStatusCompleted CreateObjectUploadSession201JSONResponseBodyStatus = "completed"
-)
-
-// Valid indicates whether the value is a known member of the CreateObjectUploadSession201JSONResponseBodyStatus enum.
-func (e CreateObjectUploadSession201JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case CreateObjectUploadSession201JSONResponseBodyStatusAborted:
-		return true
-	case CreateObjectUploadSession201JSONResponseBodyStatusActive:
-		return true
-	case CreateObjectUploadSession201JSONResponseBodyStatusCompleted:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CompleteObjectUploadJSONBodyStatus.
-const (
-	CompleteObjectUploadJSONBodyStatusCompleted CompleteObjectUploadJSONBodyStatus = "completed"
-)
-
-// Valid indicates whether the value is a known member of the CompleteObjectUploadJSONBodyStatus enum.
-func (e CompleteObjectUploadJSONBodyStatus) Valid() bool {
-	switch e {
-	case CompleteObjectUploadJSONBodyStatusCompleted:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CompleteObjectUpload200JSONResponseBodyStatus.
-const (
-	CompleteObjectUpload200JSONResponseBodyStatusAborted   CompleteObjectUpload200JSONResponseBodyStatus = "aborted"
-	CompleteObjectUpload200JSONResponseBodyStatusActive    CompleteObjectUpload200JSONResponseBodyStatus = "active"
-	CompleteObjectUpload200JSONResponseBodyStatusCompleted CompleteObjectUpload200JSONResponseBodyStatus = "completed"
-)
-
-// Valid indicates whether the value is a known member of the CompleteObjectUpload200JSONResponseBodyStatus enum.
-func (e CompleteObjectUpload200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case CompleteObjectUpload200JSONResponseBodyStatusAborted:
-		return true
-	case CompleteObjectUpload200JSONResponseBodyStatusActive:
-		return true
-	case CompleteObjectUpload200JSONResponseBodyStatusCompleted:
 		return true
 	default:
 		return false
@@ -1341,6 +1230,27 @@ const (
 func (e JoinTeam200JSONResponseBodyOk) Valid() bool {
 	switch e {
 	case JoinTeam200JSONResponseBodyOkTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RestoreObjectJSONBodyOnConflict.
+const (
+	RestoreObjectJSONBodyOnConflictFail    RestoreObjectJSONBodyOnConflict = "fail"
+	RestoreObjectJSONBodyOnConflictRename  RestoreObjectJSONBodyOnConflict = "rename"
+	RestoreObjectJSONBodyOnConflictReplace RestoreObjectJSONBodyOnConflict = "replace"
+)
+
+// Valid indicates whether the value is a known member of the RestoreObjectJSONBodyOnConflict enum.
+func (e RestoreObjectJSONBodyOnConflict) Valid() bool {
+	switch e {
+	case RestoreObjectJSONBodyOnConflictFail:
+		return true
+	case RestoreObjectJSONBodyOnConflictRename:
+		return true
+	case RestoreObjectJSONBodyOnConflictReplace:
 		return true
 	default:
 		return false
@@ -2307,6 +2217,32 @@ type TransferResult struct {
 		Reason string `json:"reason"`
 	} `json:"skipped"`
 	SourceDeleted bool `json:"sourceDeleted"`
+}
+
+// TrashObject defines model for TrashObject.
+type TrashObject struct {
+	Alias     string `json:"alias"`
+	CreatedAt string `json:"createdAt"`
+	Dirtype   *int   `json:"dirtype"`
+	Id        string `json:"id"`
+	Name      string `json:"name"`
+	Object    string `json:"object"`
+	OrgId     string `json:"orgId"`
+	Parent    string `json:"parent"`
+	Size      *int   `json:"size"`
+	Status    string `json:"status"`
+	StorageId string `json:"storageId"`
+	TrashedAt *int   `json:"trashedAt"`
+	Type      string `json:"type"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+// TrashObjectPage defines model for TrashObjectPage.
+type TrashObjectPage struct {
+	Items    []TrashObject `json:"items"`
+	Page     int           `json:"page"`
+	PageSize int           `json:"pageSize"`
+	Total    int           `json:"total"`
 }
 
 // User defines model for User.
@@ -3343,7 +3279,6 @@ type ListObjectsParams struct {
 	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	Parent   *string `form:"parent,omitempty" json:"parent,omitempty"`
 	Path     *string `form:"path,omitempty" json:"path,omitempty"`
-	Status   *string `form:"status,omitempty" json:"status,omitempty"`
 	Type     *string `form:"type,omitempty" json:"type,omitempty"`
 	Search   *string `form:"search,omitempty" json:"search,omitempty"`
 	OrgId    *string `form:"orgId,omitempty" json:"orgId,omitempty"`
@@ -3361,17 +3296,6 @@ type CreateObjectJSONBody struct {
 
 // CreateObjectJSONBodyOnConflict defines parameters for CreateObject.
 type CreateObjectJSONBodyOnConflict string
-
-// DeleteObject200JSONResponseBodyPurged0 defines parameters for DeleteObject.
-type DeleteObject200JSONResponseBodyPurged0 = int
-
-// DeleteObject200JSONResponseBodyPurged1 defines parameters for DeleteObject.
-type DeleteObject200JSONResponseBodyPurged1 bool
-
-// DeleteObject200JSONResponseBody_Purged defines parameters for DeleteObject.
-type DeleteObject200JSONResponseBody_Purged struct {
-	union json.RawMessage
-}
 
 // UpdateObjectJSONBody defines parameters for UpdateObject.
 type UpdateObjectJSONBody struct {
@@ -3392,18 +3316,6 @@ type CopyObjectJSONBody struct {
 // CopyObjectJSONBodyOnConflict defines parameters for CopyObject.
 type CopyObjectJSONBodyOnConflict string
 
-// SetObjectStatusJSONBody defines parameters for SetObjectStatus.
-type SetObjectStatusJSONBody struct {
-	OnConflict *SetObjectStatusJSONBodyOnConflict `json:"onConflict,omitempty"`
-	Status     SetObjectStatusJSONBodyStatus      `json:"status"`
-}
-
-// SetObjectStatusJSONBodyOnConflict defines parameters for SetObjectStatus.
-type SetObjectStatusJSONBodyOnConflict string
-
-// SetObjectStatusJSONBodyStatus defines parameters for SetObjectStatus.
-type SetObjectStatusJSONBodyStatus string
-
 // TransferObjectJSONBody defines parameters for TransferObject.
 type TransferObjectJSONBody struct {
 	Mode         TransferObjectJSONBodyMode `json:"mode"`
@@ -3414,33 +3326,18 @@ type TransferObjectJSONBody struct {
 // TransferObjectJSONBodyMode defines parameters for TransferObject.
 type TransferObjectJSONBodyMode string
 
-// CreateObjectUploadSessionJSONBody defines parameters for CreateObjectUploadSession.
-type CreateObjectUploadSessionJSONBody struct {
-	PartSize *int `json:"partSize,omitempty"`
-}
-
-// CreateObjectUploadSession201JSONResponseBodyStatus defines parameters for CreateObjectUploadSession.
-type CreateObjectUploadSession201JSONResponseBodyStatus string
-
-// PresignObjectUploadPartsJSONBody defines parameters for PresignObjectUploadParts.
-type PresignObjectUploadPartsJSONBody struct {
-	PartNumbers []int `json:"partNumbers"`
-}
-
 // CompleteObjectUploadJSONBody defines parameters for CompleteObjectUpload.
 type CompleteObjectUploadJSONBody struct {
 	Parts []struct {
 		Etag       string `json:"etag"`
 		PartNumber int    `json:"partNumber"`
 	} `json:"parts"`
-	Status CompleteObjectUploadJSONBodyStatus `json:"status"`
 }
 
-// CompleteObjectUploadJSONBodyStatus defines parameters for CompleteObjectUpload.
-type CompleteObjectUploadJSONBodyStatus string
-
-// CompleteObjectUpload200JSONResponseBodyStatus defines parameters for CompleteObjectUpload.
-type CompleteObjectUpload200JSONResponseBodyStatus string
+// PresignObjectUploadPartsJSONBody defines parameters for PresignObjectUploadParts.
+type PresignObjectUploadPartsJSONBody struct {
+	PartNumbers []int `json:"partNumbers"`
+}
 
 // ListSharesParams defines parameters for ListShares.
 type ListSharesParams struct {
@@ -3767,6 +3664,20 @@ type JoinTeamJSONBody struct {
 // JoinTeam200JSONResponseBodyOk defines parameters for JoinTeam.
 type JoinTeam200JSONResponseBodyOk bool
 
+// ListTrashObjectsParams defines parameters for ListTrashObjects.
+type ListTrashObjectsParams struct {
+	Page     *int `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// RestoreObjectJSONBody defines parameters for RestoreObject.
+type RestoreObjectJSONBody struct {
+	OnConflict *RestoreObjectJSONBodyOnConflict `json:"onConflict,omitempty"`
+}
+
+// RestoreObjectJSONBodyOnConflict defines parameters for RestoreObject.
+type RestoreObjectJSONBodyOnConflict string
+
 // GrantUserEntitlementJSONBody defines parameters for GrantUserEntitlement.
 type GrantUserEntitlementJSONBody struct {
 	Bytes        int                                      `json:"bytes"`
@@ -4001,20 +3912,14 @@ type UpdateObjectJSONRequestBody UpdateObjectJSONBody
 // CopyObjectJSONRequestBody defines body for CopyObject for application/json ContentType.
 type CopyObjectJSONRequestBody CopyObjectJSONBody
 
-// SetObjectStatusJSONRequestBody defines body for SetObjectStatus for application/json ContentType.
-type SetObjectStatusJSONRequestBody SetObjectStatusJSONBody
-
 // TransferObjectJSONRequestBody defines body for TransferObject for application/json ContentType.
 type TransferObjectJSONRequestBody TransferObjectJSONBody
 
-// CreateObjectUploadSessionJSONRequestBody defines body for CreateObjectUploadSession for application/json ContentType.
-type CreateObjectUploadSessionJSONRequestBody CreateObjectUploadSessionJSONBody
+// CompleteObjectUploadJSONRequestBody defines body for CompleteObjectUpload for application/json ContentType.
+type CompleteObjectUploadJSONRequestBody CompleteObjectUploadJSONBody
 
 // PresignObjectUploadPartsJSONRequestBody defines body for PresignObjectUploadParts for application/json ContentType.
 type PresignObjectUploadPartsJSONRequestBody PresignObjectUploadPartsJSONBody
-
-// CompleteObjectUploadJSONRequestBody defines body for CompleteObjectUpload for application/json ContentType.
-type CompleteObjectUploadJSONRequestBody CompleteObjectUploadJSONBody
 
 // CreateShareJSONRequestBody defines body for CreateShare for application/json ContentType.
 type CreateShareJSONRequestBody CreateShareJSONBody
@@ -4084,6 +3989,9 @@ type CreateTeamInviteLinkJSONRequestBody CreateTeamInviteLinkJSONBody
 
 // JoinTeamJSONRequestBody defines body for JoinTeam for application/json ContentType.
 type JoinTeamJSONRequestBody JoinTeamJSONBody
+
+// RestoreObjectJSONRequestBody defines body for RestoreObject for application/json ContentType.
+type RestoreObjectJSONRequestBody RestoreObjectJSONBody
 
 // GrantUserEntitlementJSONRequestBody defines body for GrantUserEntitlement for application/json ContentType.
 type GrantUserEntitlementJSONRequestBody GrantUserEntitlementJSONBody
@@ -4273,68 +4181,6 @@ func (t CreateBackgroundJobJSONBody) MarshalJSON() ([]byte, error) {
 }
 
 func (t *CreateBackgroundJobJSONBody) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsDeleteObject200JSONResponseBodyPurged0 returns the union data inside the DeleteObject200JSONResponseBody_Purged as a DeleteObject200JSONResponseBodyPurged0
-func (t DeleteObject200JSONResponseBody_Purged) AsDeleteObject200JSONResponseBodyPurged0() (DeleteObject200JSONResponseBodyPurged0, error) {
-	var body DeleteObject200JSONResponseBodyPurged0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromDeleteObject200JSONResponseBodyPurged0 overwrites any union data inside the DeleteObject200JSONResponseBody_Purged as the provided DeleteObject200JSONResponseBodyPurged0
-func (t *DeleteObject200JSONResponseBody_Purged) FromDeleteObject200JSONResponseBodyPurged0(v DeleteObject200JSONResponseBodyPurged0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeDeleteObject200JSONResponseBodyPurged0 performs a merge with any union data inside the DeleteObject200JSONResponseBody_Purged, using the provided DeleteObject200JSONResponseBodyPurged0
-func (t *DeleteObject200JSONResponseBody_Purged) MergeDeleteObject200JSONResponseBodyPurged0(v DeleteObject200JSONResponseBodyPurged0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsDeleteObject200JSONResponseBodyPurged1 returns the union data inside the DeleteObject200JSONResponseBody_Purged as a DeleteObject200JSONResponseBodyPurged1
-func (t DeleteObject200JSONResponseBody_Purged) AsDeleteObject200JSONResponseBodyPurged1() (DeleteObject200JSONResponseBodyPurged1, error) {
-	var body DeleteObject200JSONResponseBodyPurged1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromDeleteObject200JSONResponseBodyPurged1 overwrites any union data inside the DeleteObject200JSONResponseBody_Purged as the provided DeleteObject200JSONResponseBodyPurged1
-func (t *DeleteObject200JSONResponseBody_Purged) FromDeleteObject200JSONResponseBodyPurged1(v DeleteObject200JSONResponseBodyPurged1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeDeleteObject200JSONResponseBodyPurged1 performs a merge with any union data inside the DeleteObject200JSONResponseBody_Purged, using the provided DeleteObject200JSONResponseBodyPurged1
-func (t *DeleteObject200JSONResponseBody_Purged) MergeDeleteObject200JSONResponseBodyPurged1(v DeleteObject200JSONResponseBodyPurged1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t DeleteObject200JSONResponseBody_Purged) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *DeleteObject200JSONResponseBody_Purged) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -5001,33 +4847,23 @@ type ClientInterface interface {
 
 	CopyObject(ctx context.Context, id string, body CopyObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// SetObjectStatusWithBody request with any body
-	SetObjectStatusWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	SetObjectStatus(ctx context.Context, id string, body SetObjectStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// TransferObjectWithBody request with any body
 	TransferObjectWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	TransferObject(ctx context.Context, id string, body TransferObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateObjectUploadSessionWithBody request with any body
-	CreateObjectUploadSessionWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateObjectUploadSession(ctx context.Context, id string, body CreateObjectUploadSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// AbortObjectUpload request
 	AbortObjectUpload(ctx context.Context, id string, uploadSessionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PresignObjectUploadPartsWithBody request with any body
-	PresignObjectUploadPartsWithBody(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PresignObjectUploadParts(ctx context.Context, id string, uploadSessionId string, body PresignObjectUploadPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CompleteObjectUploadWithBody request with any body
 	CompleteObjectUploadWithBody(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CompleteObjectUpload(ctx context.Context, id string, uploadSessionId string, body CompleteObjectUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PresignObjectUploadPartsWithBody request with any body
+	PresignObjectUploadPartsWithBody(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PresignObjectUploadParts(ctx context.Context, id string, uploadSessionId string, body PresignObjectUploadPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListQuotaOverview request
 	ListQuotaOverview(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5297,8 +5133,19 @@ type ClientInterface interface {
 
 	JoinTeam(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// EmptyTrash request
-	EmptyTrash(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListTrashObjects request
+	ListTrashObjects(ctx context.Context, params *ListTrashObjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PurgeTrashObject request
+	PurgeTrashObject(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTrashObject request
+	GetTrashObject(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RestoreObjectWithBody request with any body
+	RestoreObjectWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RestoreObject(ctx context.Context, id string, body RestoreObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteMyAvatar request
 	DeleteMyAvatar(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7624,30 +7471,6 @@ func (c *Client) CopyObject(ctx context.Context, id string, body CopyObjectJSONR
 	return c.Client.Do(req)
 }
 
-func (c *Client) SetObjectStatusWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetObjectStatusRequestWithBody(c.Server, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SetObjectStatus(ctx context.Context, id string, body SetObjectStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetObjectStatusRequest(c.Server, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) TransferObjectWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTransferObjectRequestWithBody(c.Server, id, contentType, body)
 	if err != nil {
@@ -7672,56 +7495,8 @@ func (c *Client) TransferObject(ctx context.Context, id string, body TransferObj
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateObjectUploadSessionWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateObjectUploadSessionRequestWithBody(c.Server, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateObjectUploadSession(ctx context.Context, id string, body CreateObjectUploadSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateObjectUploadSessionRequest(c.Server, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) AbortObjectUpload(ctx context.Context, id string, uploadSessionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewAbortObjectUploadRequest(c.Server, id, uploadSessionId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PresignObjectUploadPartsWithBody(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPresignObjectUploadPartsRequestWithBody(c.Server, id, uploadSessionId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PresignObjectUploadParts(ctx context.Context, id string, uploadSessionId string, body PresignObjectUploadPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPresignObjectUploadPartsRequest(c.Server, id, uploadSessionId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7746,6 +7521,30 @@ func (c *Client) CompleteObjectUploadWithBody(ctx context.Context, id string, up
 
 func (c *Client) CompleteObjectUpload(ctx context.Context, id string, uploadSessionId string, body CompleteObjectUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCompleteObjectUploadRequest(c.Server, id, uploadSessionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PresignObjectUploadPartsWithBody(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPresignObjectUploadPartsRequestWithBody(c.Server, id, uploadSessionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PresignObjectUploadParts(ctx context.Context, id string, uploadSessionId string, body PresignObjectUploadPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPresignObjectUploadPartsRequest(c.Server, id, uploadSessionId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8920,8 +8719,56 @@ func (c *Client) JoinTeam(ctx context.Context, teamId string, body JoinTeamJSONR
 	return c.Client.Do(req)
 }
 
-func (c *Client) EmptyTrash(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEmptyTrashRequest(c.Server)
+func (c *Client) ListTrashObjects(ctx context.Context, params *ListTrashObjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTrashObjectsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PurgeTrashObject(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPurgeTrashObjectRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTrashObject(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTrashObjectRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RestoreObjectWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRestoreObjectRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RestoreObject(ctx context.Context, id string, body RestoreObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRestoreObjectRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14004,18 +13851,6 @@ func NewListObjectsRequest(server string, params *ListObjectsParams) (*http.Requ
 
 		}
 
-		if params.Status != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
 		if params.Type != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "type", *params.Type, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -14268,53 +14103,6 @@ func NewCopyObjectRequestWithBody(server string, id string, contentType string, 
 	return req, nil
 }
 
-// NewSetObjectStatusRequest calls the generic SetObjectStatus builder with application/json body
-func NewSetObjectStatusRequest(server string, id string, body SetObjectStatusJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewSetObjectStatusRequestWithBody(server, id, "application/json", bodyReader)
-}
-
-// NewSetObjectStatusRequestWithBody generates requests for SetObjectStatus with any type of body
-func NewSetObjectStatusRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/objects/%s/status", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewTransferObjectRequest calls the generic TransferObject builder with application/json body
 func NewTransferObjectRequest(server string, id string, body TransferObjectJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -14343,53 +14131,6 @@ func NewTransferObjectRequestWithBody(server string, id string, contentType stri
 	}
 
 	operationPath := fmt.Sprintf("/api/objects/%s/transfers", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewCreateObjectUploadSessionRequest calls the generic CreateObjectUploadSession builder with application/json body
-func NewCreateObjectUploadSessionRequest(server string, id string, body CreateObjectUploadSessionJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateObjectUploadSessionRequestWithBody(server, id, "application/json", bodyReader)
-}
-
-// NewCreateObjectUploadSessionRequestWithBody generates requests for CreateObjectUploadSession with any type of body
-func NewCreateObjectUploadSessionRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/objects/%s/uploads", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -14450,6 +14191,60 @@ func NewAbortObjectUploadRequest(server string, id string, uploadSessionId strin
 	return req, nil
 }
 
+// NewCompleteObjectUploadRequest calls the generic CompleteObjectUpload builder with application/json body
+func NewCompleteObjectUploadRequest(server string, id string, uploadSessionId string, body CompleteObjectUploadJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCompleteObjectUploadRequestWithBody(server, id, uploadSessionId, "application/json", bodyReader)
+}
+
+// NewCompleteObjectUploadRequestWithBody generates requests for CompleteObjectUpload with any type of body
+func NewCompleteObjectUploadRequestWithBody(server string, id string, uploadSessionId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "uploadSessionId", uploadSessionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s/uploads/%s/completions", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewPresignObjectUploadPartsRequest calls the generic PresignObjectUploadParts builder with application/json body
 func NewPresignObjectUploadPartsRequest(server string, id string, uploadSessionId string, body PresignObjectUploadPartsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -14495,60 +14290,6 @@ func NewPresignObjectUploadPartsRequestWithBody(server string, id string, upload
 	}
 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewCompleteObjectUploadRequest calls the generic CompleteObjectUpload builder with application/json body
-func NewCompleteObjectUploadRequest(server string, id string, uploadSessionId string, body CompleteObjectUploadJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCompleteObjectUploadRequestWithBody(server, id, uploadSessionId, "application/json", bodyReader)
-}
-
-// NewCompleteObjectUploadRequestWithBody generates requests for CompleteObjectUpload with any type of body
-func NewCompleteObjectUploadRequestWithBody(server string, id string, uploadSessionId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "uploadSessionId", uploadSessionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/objects/%s/uploads/%s/status", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -17568,8 +17309,8 @@ func NewJoinTeamRequestWithBody(server string, teamId string, contentType string
 	return req, nil
 }
 
-// NewEmptyTrashRequest generates requests for EmptyTrash
-func NewEmptyTrashRequest(server string) (*http.Request, error) {
+// NewListTrashObjectsRequest generates requests for ListTrashObjects
+func NewListTrashObjectsRequest(server string, params *ListTrashObjectsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -17577,7 +17318,80 @@ func NewEmptyTrashRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/trash")
+	operationPath := fmt.Sprintf("/api/trash/objects")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPurgeTrashObjectRequest generates requests for PurgeTrashObject
+func NewPurgeTrashObjectRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/trash/objects/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -17591,6 +17405,87 @@ func NewEmptyTrashRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewGetTrashObjectRequest generates requests for GetTrashObject
+func NewGetTrashObjectRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/trash/objects/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRestoreObjectRequest calls the generic RestoreObject builder with application/json body
+func NewRestoreObjectRequest(server string, id string, body RestoreObjectJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRestoreObjectRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewRestoreObjectRequestWithBody generates requests for RestoreObject with any type of body
+func NewRestoreObjectRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/trash/objects/%s/restorations", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -18471,33 +18366,23 @@ type ClientWithResponsesInterface interface {
 
 	CopyObjectWithResponse(ctx context.Context, id string, body CopyObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*CopyObjectResponse, error)
 
-	// SetObjectStatusWithBodyWithResponse request with any body
-	SetObjectStatusWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetObjectStatusResponse, error)
-
-	SetObjectStatusWithResponse(ctx context.Context, id string, body SetObjectStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetObjectStatusResponse, error)
-
 	// TransferObjectWithBodyWithResponse request with any body
 	TransferObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TransferObjectResponse, error)
 
 	TransferObjectWithResponse(ctx context.Context, id string, body TransferObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*TransferObjectResponse, error)
 
-	// CreateObjectUploadSessionWithBodyWithResponse request with any body
-	CreateObjectUploadSessionWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateObjectUploadSessionResponse, error)
-
-	CreateObjectUploadSessionWithResponse(ctx context.Context, id string, body CreateObjectUploadSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateObjectUploadSessionResponse, error)
-
 	// AbortObjectUploadWithResponse request
 	AbortObjectUploadWithResponse(ctx context.Context, id string, uploadSessionId string, reqEditors ...RequestEditorFn) (*AbortObjectUploadResponse, error)
-
-	// PresignObjectUploadPartsWithBodyWithResponse request with any body
-	PresignObjectUploadPartsWithBodyWithResponse(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PresignObjectUploadPartsResponse, error)
-
-	PresignObjectUploadPartsWithResponse(ctx context.Context, id string, uploadSessionId string, body PresignObjectUploadPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*PresignObjectUploadPartsResponse, error)
 
 	// CompleteObjectUploadWithBodyWithResponse request with any body
 	CompleteObjectUploadWithBodyWithResponse(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteObjectUploadResponse, error)
 
 	CompleteObjectUploadWithResponse(ctx context.Context, id string, uploadSessionId string, body CompleteObjectUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteObjectUploadResponse, error)
+
+	// PresignObjectUploadPartsWithBodyWithResponse request with any body
+	PresignObjectUploadPartsWithBodyWithResponse(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PresignObjectUploadPartsResponse, error)
+
+	PresignObjectUploadPartsWithResponse(ctx context.Context, id string, uploadSessionId string, body PresignObjectUploadPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*PresignObjectUploadPartsResponse, error)
 
 	// ListQuotaOverviewWithResponse request
 	ListQuotaOverviewWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListQuotaOverviewResponse, error)
@@ -18767,8 +18652,19 @@ type ClientWithResponsesInterface interface {
 
 	JoinTeamWithResponse(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*JoinTeamResponse, error)
 
-	// EmptyTrashWithResponse request
-	EmptyTrashWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*EmptyTrashResponse, error)
+	// ListTrashObjectsWithResponse request
+	ListTrashObjectsWithResponse(ctx context.Context, params *ListTrashObjectsParams, reqEditors ...RequestEditorFn) (*ListTrashObjectsResponse, error)
+
+	// PurgeTrashObjectWithResponse request
+	PurgeTrashObjectWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*PurgeTrashObjectResponse, error)
+
+	// GetTrashObjectWithResponse request
+	GetTrashObjectWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetTrashObjectResponse, error)
+
+	// RestoreObjectWithBodyWithResponse request with any body
+	RestoreObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RestoreObjectResponse, error)
+
+	RestoreObjectWithResponse(ctx context.Context, id string, body RestoreObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*RestoreObjectResponse, error)
 
 	// DeleteMyAvatarWithResponse request
 	DeleteMyAvatarWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteMyAvatarResponse, error)
@@ -24344,22 +24240,25 @@ type CreateObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *struct {
-		Alias              string  `json:"alias"`
-		ContentDisposition *string `json:"contentDisposition,omitempty"`
-		CreatedAt          string  `json:"createdAt"`
-		Dirtype            *int    `json:"dirtype"`
-		Id                 string  `json:"id"`
-		Name               string  `json:"name"`
-		Object             string  `json:"object"`
-		OrgId              string  `json:"orgId"`
-		Parent             string  `json:"parent"`
-		Size               *int    `json:"size"`
-		Status             string  `json:"status"`
-		StorageId          string  `json:"storageId"`
-		TrashedAt          *int    `json:"trashedAt"`
-		Type               string  `json:"type"`
-		UpdatedAt          string  `json:"updatedAt"`
-		UploadUrl          *string `json:"uploadUrl,omitempty"`
+		Alias     string `json:"alias"`
+		CreatedAt string `json:"createdAt"`
+		Dirtype   *int   `json:"dirtype"`
+		Id        string `json:"id"`
+		Name      string `json:"name"`
+		Object    string `json:"object"`
+		OrgId     string `json:"orgId"`
+		Parent    string `json:"parent"`
+		Size      *int   `json:"size"`
+		Status    string `json:"status"`
+		StorageId string `json:"storageId"`
+		TrashedAt *int   `json:"trashedAt"`
+		Type      string `json:"type"`
+		UpdatedAt string `json:"updatedAt"`
+		Upload    *struct {
+			PartSize  int      `json:"partSize"`
+			SessionId string   `json:"sessionId"`
+			Urls      []string `json:"urls"`
+		} `json:"upload,omitempty"`
 	}
 	JSON400 *Error
 	JSON403 *Error
@@ -24394,12 +24293,8 @@ func (r CreateObjectResponse) ContentType() string {
 type DeleteObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Purged DeleteObject200JSONResponseBody_Purged `json:"purged"`
-	}
-	JSON400 *Error
-	JSON404 *Error
-	JSON409 *Error
+	JSON400      *Error
+	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -24540,40 +24435,6 @@ func (r CopyObjectResponse) ContentType() string {
 	return ""
 }
 
-type SetObjectStatusResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Matter
-	JSON400      *Error
-	JSON403      *Error
-	JSON404      *Error
-	JSON422      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r SetObjectStatusResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r SetObjectStatusResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r SetObjectStatusResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type TransferObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -24608,49 +24469,6 @@ func (r TransferObjectResponse) ContentType() string {
 	return ""
 }
 
-type CreateObjectUploadSessionResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *struct {
-		CreatedAt string                                             `json:"createdAt"`
-		ExpiresAt string                                             `json:"expiresAt"`
-		Id        string                                             `json:"id"`
-		ObjectId  string                                             `json:"objectId"`
-		PartSize  int                                                `json:"partSize"`
-		Status    CreateObjectUploadSession201JSONResponseBodyStatus `json:"status"`
-		UpdatedAt string                                             `json:"updatedAt"`
-		UploadId  string                                             `json:"uploadId"`
-	}
-	JSON400 *Error
-	JSON403 *Error
-	JSON404 *Error
-	JSON502 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateObjectUploadSessionResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateObjectUploadSessionResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateObjectUploadSessionResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type AbortObjectUploadResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -24677,6 +24495,41 @@ func (r AbortObjectUploadResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r AbortObjectUploadResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CompleteObjectUploadResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Matter
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON422      *Error
+	JSON502      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CompleteObjectUploadResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CompleteObjectUploadResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CompleteObjectUploadResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -24718,49 +24571,6 @@ func (r PresignObjectUploadPartsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PresignObjectUploadPartsResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CompleteObjectUploadResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		CreatedAt string                                        `json:"createdAt"`
-		ExpiresAt string                                        `json:"expiresAt"`
-		Id        string                                        `json:"id"`
-		ObjectId  string                                        `json:"objectId"`
-		PartSize  int                                           `json:"partSize"`
-		Status    CompleteObjectUpload200JSONResponseBodyStatus `json:"status"`
-		UpdatedAt string                                        `json:"updatedAt"`
-		UploadId  string                                        `json:"uploadId"`
-	}
-	JSON400 *Error
-	JSON403 *Error
-	JSON404 *Error
-	JSON502 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CompleteObjectUploadResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CompleteObjectUploadResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CompleteObjectUploadResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -27109,17 +26919,15 @@ func (r JoinTeamResponse) ContentType() string {
 	return ""
 }
 
-type EmptyTrashResponse struct {
+type ListTrashObjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Purged int `json:"purged"`
-	}
-	JSON400 *Error
+	JSON200      *TrashObjectPage
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
-func (r EmptyTrashResponse) Status() string {
+func (r ListTrashObjectsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -27127,7 +26935,7 @@ func (r EmptyTrashResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r EmptyTrashResponse) StatusCode() int {
+func (r ListTrashObjectsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -27135,7 +26943,103 @@ func (r EmptyTrashResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r EmptyTrashResponse) ContentType() string {
+func (r ListTrashObjectsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PurgeTrashObjectResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r PurgeTrashObjectResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PurgeTrashObjectResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PurgeTrashObjectResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetTrashObjectResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TrashObject
+	JSON400      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTrashObjectResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTrashObjectResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetTrashObjectResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RestoreObjectResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TrashObject
+	JSON400      *Error
+	JSON404      *Error
+	JSON409      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r RestoreObjectResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RestoreObjectResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RestoreObjectResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -29076,23 +28980,6 @@ func (c *ClientWithResponses) CopyObjectWithResponse(ctx context.Context, id str
 	return ParseCopyObjectResponse(rsp)
 }
 
-// SetObjectStatusWithBodyWithResponse request with arbitrary body returning *SetObjectStatusResponse
-func (c *ClientWithResponses) SetObjectStatusWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetObjectStatusResponse, error) {
-	rsp, err := c.SetObjectStatusWithBody(ctx, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSetObjectStatusResponse(rsp)
-}
-
-func (c *ClientWithResponses) SetObjectStatusWithResponse(ctx context.Context, id string, body SetObjectStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetObjectStatusResponse, error) {
-	rsp, err := c.SetObjectStatus(ctx, id, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSetObjectStatusResponse(rsp)
-}
-
 // TransferObjectWithBodyWithResponse request with arbitrary body returning *TransferObjectResponse
 func (c *ClientWithResponses) TransferObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TransferObjectResponse, error) {
 	rsp, err := c.TransferObjectWithBody(ctx, id, contentType, body, reqEditors...)
@@ -29110,23 +28997,6 @@ func (c *ClientWithResponses) TransferObjectWithResponse(ctx context.Context, id
 	return ParseTransferObjectResponse(rsp)
 }
 
-// CreateObjectUploadSessionWithBodyWithResponse request with arbitrary body returning *CreateObjectUploadSessionResponse
-func (c *ClientWithResponses) CreateObjectUploadSessionWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateObjectUploadSessionResponse, error) {
-	rsp, err := c.CreateObjectUploadSessionWithBody(ctx, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateObjectUploadSessionResponse(rsp)
-}
-
-func (c *ClientWithResponses) CreateObjectUploadSessionWithResponse(ctx context.Context, id string, body CreateObjectUploadSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateObjectUploadSessionResponse, error) {
-	rsp, err := c.CreateObjectUploadSession(ctx, id, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateObjectUploadSessionResponse(rsp)
-}
-
 // AbortObjectUploadWithResponse request returning *AbortObjectUploadResponse
 func (c *ClientWithResponses) AbortObjectUploadWithResponse(ctx context.Context, id string, uploadSessionId string, reqEditors ...RequestEditorFn) (*AbortObjectUploadResponse, error) {
 	rsp, err := c.AbortObjectUpload(ctx, id, uploadSessionId, reqEditors...)
@@ -29134,23 +29004,6 @@ func (c *ClientWithResponses) AbortObjectUploadWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseAbortObjectUploadResponse(rsp)
-}
-
-// PresignObjectUploadPartsWithBodyWithResponse request with arbitrary body returning *PresignObjectUploadPartsResponse
-func (c *ClientWithResponses) PresignObjectUploadPartsWithBodyWithResponse(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PresignObjectUploadPartsResponse, error) {
-	rsp, err := c.PresignObjectUploadPartsWithBody(ctx, id, uploadSessionId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePresignObjectUploadPartsResponse(rsp)
-}
-
-func (c *ClientWithResponses) PresignObjectUploadPartsWithResponse(ctx context.Context, id string, uploadSessionId string, body PresignObjectUploadPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*PresignObjectUploadPartsResponse, error) {
-	rsp, err := c.PresignObjectUploadParts(ctx, id, uploadSessionId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePresignObjectUploadPartsResponse(rsp)
 }
 
 // CompleteObjectUploadWithBodyWithResponse request with arbitrary body returning *CompleteObjectUploadResponse
@@ -29168,6 +29021,23 @@ func (c *ClientWithResponses) CompleteObjectUploadWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseCompleteObjectUploadResponse(rsp)
+}
+
+// PresignObjectUploadPartsWithBodyWithResponse request with arbitrary body returning *PresignObjectUploadPartsResponse
+func (c *ClientWithResponses) PresignObjectUploadPartsWithBodyWithResponse(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PresignObjectUploadPartsResponse, error) {
+	rsp, err := c.PresignObjectUploadPartsWithBody(ctx, id, uploadSessionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePresignObjectUploadPartsResponse(rsp)
+}
+
+func (c *ClientWithResponses) PresignObjectUploadPartsWithResponse(ctx context.Context, id string, uploadSessionId string, body PresignObjectUploadPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*PresignObjectUploadPartsResponse, error) {
+	rsp, err := c.PresignObjectUploadParts(ctx, id, uploadSessionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePresignObjectUploadPartsResponse(rsp)
 }
 
 // ListQuotaOverviewWithResponse request returning *ListQuotaOverviewResponse
@@ -30020,13 +29890,48 @@ func (c *ClientWithResponses) JoinTeamWithResponse(ctx context.Context, teamId s
 	return ParseJoinTeamResponse(rsp)
 }
 
-// EmptyTrashWithResponse request returning *EmptyTrashResponse
-func (c *ClientWithResponses) EmptyTrashWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*EmptyTrashResponse, error) {
-	rsp, err := c.EmptyTrash(ctx, reqEditors...)
+// ListTrashObjectsWithResponse request returning *ListTrashObjectsResponse
+func (c *ClientWithResponses) ListTrashObjectsWithResponse(ctx context.Context, params *ListTrashObjectsParams, reqEditors ...RequestEditorFn) (*ListTrashObjectsResponse, error) {
+	rsp, err := c.ListTrashObjects(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseEmptyTrashResponse(rsp)
+	return ParseListTrashObjectsResponse(rsp)
+}
+
+// PurgeTrashObjectWithResponse request returning *PurgeTrashObjectResponse
+func (c *ClientWithResponses) PurgeTrashObjectWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*PurgeTrashObjectResponse, error) {
+	rsp, err := c.PurgeTrashObject(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePurgeTrashObjectResponse(rsp)
+}
+
+// GetTrashObjectWithResponse request returning *GetTrashObjectResponse
+func (c *ClientWithResponses) GetTrashObjectWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetTrashObjectResponse, error) {
+	rsp, err := c.GetTrashObject(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTrashObjectResponse(rsp)
+}
+
+// RestoreObjectWithBodyWithResponse request with arbitrary body returning *RestoreObjectResponse
+func (c *ClientWithResponses) RestoreObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RestoreObjectResponse, error) {
+	rsp, err := c.RestoreObjectWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRestoreObjectResponse(rsp)
+}
+
+func (c *ClientWithResponses) RestoreObjectWithResponse(ctx context.Context, id string, body RestoreObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*RestoreObjectResponse, error) {
+	rsp, err := c.RestoreObject(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRestoreObjectResponse(rsp)
 }
 
 // DeleteMyAvatarWithResponse request returning *DeleteMyAvatarResponse
@@ -38500,22 +38405,25 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest struct {
-			Alias              string  `json:"alias"`
-			ContentDisposition *string `json:"contentDisposition,omitempty"`
-			CreatedAt          string  `json:"createdAt"`
-			Dirtype            *int    `json:"dirtype"`
-			Id                 string  `json:"id"`
-			Name               string  `json:"name"`
-			Object             string  `json:"object"`
-			OrgId              string  `json:"orgId"`
-			Parent             string  `json:"parent"`
-			Size               *int    `json:"size"`
-			Status             string  `json:"status"`
-			StorageId          string  `json:"storageId"`
-			TrashedAt          *int    `json:"trashedAt"`
-			Type               string  `json:"type"`
-			UpdatedAt          string  `json:"updatedAt"`
-			UploadUrl          *string `json:"uploadUrl,omitempty"`
+			Alias     string `json:"alias"`
+			CreatedAt string `json:"createdAt"`
+			Dirtype   *int   `json:"dirtype"`
+			Id        string `json:"id"`
+			Name      string `json:"name"`
+			Object    string `json:"object"`
+			OrgId     string `json:"orgId"`
+			Parent    string `json:"parent"`
+			Size      *int   `json:"size"`
+			Status    string `json:"status"`
+			StorageId string `json:"storageId"`
+			TrashedAt *int   `json:"trashedAt"`
+			Type      string `json:"type"`
+			UpdatedAt string `json:"updatedAt"`
+			Upload    *struct {
+				PartSize  int      `json:"partSize"`
+				SessionId string   `json:"sessionId"`
+				Urls      []string `json:"urls"`
+			} `json:"upload,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -38569,15 +38477,6 @@ func ParseDeleteObjectResponse(rsp *http.Response) (*DeleteObjectResponse, error
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Purged DeleteObject200JSONResponseBody_Purged `json:"purged"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -38591,13 +38490,6 @@ func ParseDeleteObjectResponse(rsp *http.Response) (*DeleteObjectResponse, error
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
 
 	}
 
@@ -38754,60 +38646,6 @@ func ParseCopyObjectResponse(rsp *http.Response) (*CopyObjectResponse, error) {
 	return response, nil
 }
 
-// ParseSetObjectStatusResponse parses an HTTP response from a SetObjectStatusWithResponse call
-func ParseSetObjectStatusResponse(rsp *http.Response) (*SetObjectStatusResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &SetObjectStatusResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Matter
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON422 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseTransferObjectResponse parses an HTTP response from a TransferObjectWithResponse call
 func ParseTransferObjectResponse(rsp *http.Response) (*TransferObjectResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -38862,69 +38700,6 @@ func ParseTransferObjectResponse(rsp *http.Response) (*TransferObjectResponse, e
 	return response, nil
 }
 
-// ParseCreateObjectUploadSessionResponse parses an HTTP response from a CreateObjectUploadSessionWithResponse call
-func ParseCreateObjectUploadSessionResponse(rsp *http.Response) (*CreateObjectUploadSessionResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateObjectUploadSessionResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest struct {
-			CreatedAt string                                             `json:"createdAt"`
-			ExpiresAt string                                             `json:"expiresAt"`
-			Id        string                                             `json:"id"`
-			ObjectId  string                                             `json:"objectId"`
-			PartSize  int                                                `json:"partSize"`
-			Status    CreateObjectUploadSession201JSONResponseBodyStatus `json:"status"`
-			UpdatedAt string                                             `json:"updatedAt"`
-			UploadId  string                                             `json:"uploadId"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON502 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseAbortObjectUploadResponse parses an HTTP response from a AbortObjectUploadWithResponse call
 func ParseAbortObjectUploadResponse(rsp *http.Response) (*AbortObjectUploadResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -38965,29 +38740,22 @@ func ParseAbortObjectUploadResponse(rsp *http.Response) (*AbortObjectUploadRespo
 	return response, nil
 }
 
-// ParsePresignObjectUploadPartsResponse parses an HTTP response from a PresignObjectUploadPartsWithResponse call
-func ParsePresignObjectUploadPartsResponse(rsp *http.Response) (*PresignObjectUploadPartsResponse, error) {
+// ParseCompleteObjectUploadResponse parses an HTTP response from a CompleteObjectUploadWithResponse call
+func ParseCompleteObjectUploadResponse(rsp *http.Response) (*CompleteObjectUploadResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PresignObjectUploadPartsResponse{
+	response := &CompleteObjectUploadResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			PartSize int `json:"partSize"`
-			Parts    []struct {
-				PartNumber int    `json:"partNumber"`
-				Url        string `json:"url"`
-			} `json:"parts"`
-			UploadId string `json:"uploadId"`
-		}
+		var dest Matter
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39014,6 +38782,13 @@ func ParsePresignObjectUploadPartsResponse(rsp *http.Response) (*PresignObjectUp
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -39026,15 +38801,15 @@ func ParsePresignObjectUploadPartsResponse(rsp *http.Response) (*PresignObjectUp
 	return response, nil
 }
 
-// ParseCompleteObjectUploadResponse parses an HTTP response from a CompleteObjectUploadWithResponse call
-func ParseCompleteObjectUploadResponse(rsp *http.Response) (*CompleteObjectUploadResponse, error) {
+// ParsePresignObjectUploadPartsResponse parses an HTTP response from a PresignObjectUploadPartsWithResponse call
+func ParsePresignObjectUploadPartsResponse(rsp *http.Response) (*PresignObjectUploadPartsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &CompleteObjectUploadResponse{
+	response := &PresignObjectUploadPartsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -39042,14 +38817,12 @@ func ParseCompleteObjectUploadResponse(rsp *http.Response) (*CompleteObjectUploa
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			CreatedAt string                                        `json:"createdAt"`
-			ExpiresAt string                                        `json:"expiresAt"`
-			Id        string                                        `json:"id"`
-			ObjectId  string                                        `json:"objectId"`
-			PartSize  int                                           `json:"partSize"`
-			Status    CompleteObjectUpload200JSONResponseBodyStatus `json:"status"`
-			UpdatedAt string                                        `json:"updatedAt"`
-			UploadId  string                                        `json:"uploadId"`
+			PartSize int `json:"partSize"`
+			Parts    []struct {
+				PartNumber int    `json:"partNumber"`
+				Url        string `json:"url"`
+			} `json:"parts"`
+			UploadId string `json:"uploadId"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -41756,24 +41529,22 @@ func ParseJoinTeamResponse(rsp *http.Response) (*JoinTeamResponse, error) {
 	return response, nil
 }
 
-// ParseEmptyTrashResponse parses an HTTP response from a EmptyTrashWithResponse call
-func ParseEmptyTrashResponse(rsp *http.Response) (*EmptyTrashResponse, error) {
+// ParseListTrashObjectsResponse parses an HTTP response from a ListTrashObjectsWithResponse call
+func ParseListTrashObjectsResponse(rsp *http.Response) (*ListTrashObjectsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &EmptyTrashResponse{
+	response := &ListTrashObjectsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Purged int `json:"purged"`
-		}
+		var dest TrashObjectPage
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -41785,6 +41556,126 @@ func ParseEmptyTrashResponse(rsp *http.Response) (*EmptyTrashResponse, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePurgeTrashObjectResponse parses an HTTP response from a PurgeTrashObjectWithResponse call
+func ParsePurgeTrashObjectResponse(rsp *http.Response) (*PurgeTrashObjectResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PurgeTrashObjectResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTrashObjectResponse parses an HTTP response from a GetTrashObjectWithResponse call
+func ParseGetTrashObjectResponse(rsp *http.Response) (*GetTrashObjectResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTrashObjectResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TrashObject
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRestoreObjectResponse parses an HTTP response from a RestoreObjectWithResponse call
+func ParseRestoreObjectResponse(rsp *http.Response) (*RestoreObjectResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RestoreObjectResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TrashObject
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 

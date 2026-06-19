@@ -39,7 +39,7 @@ export function SaveToDriveDialog({ open, onOpenChange, token, onPasswordRequire
 
   const foldersQuery = useQuery({
     queryKey: ['folders-for-save', selectedOrgId],
-    queryFn: () => listObjectsByPath('', 'active', 1, 200, { type: 'folder', orgId: selectedOrgId }),
+    queryFn: () => listObjectsByPath('', 1, 200, { type: 'folder', orgId: selectedOrgId }),
     enabled: !!selectedOrgId,
   })
 

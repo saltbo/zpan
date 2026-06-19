@@ -23,7 +23,7 @@ import { Card } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
-import { createBackgroundJob, getObject, listObjectsByPath, trashObject, updateObject } from '@/lib/api'
+import { createBackgroundJob, deleteObject, getObject, listObjectsByPath, updateObject } from '@/lib/api'
 import { runSequentialOperation } from '@/lib/sequential-operation'
 import { cn } from '@/lib/utils'
 import { getColumns } from './columns'
@@ -221,7 +221,7 @@ export function FileManager({
     queryKey: [...(dataSource?.queryKeyPrefix ?? ['objects', 'active', 'path']), currentPath, filterType ?? ''],
     queryFn: () =>
       dataSource?.list(currentPath, { filterType }) ??
-      listObjectsByPath(currentPath, 'active', 1, FILES_PAGE_SIZE, {
+      listObjectsByPath(currentPath, 1, FILES_PAGE_SIZE, {
         type: filterType,
       }),
   })
@@ -678,7 +678,7 @@ export function FileManager({
           onDeleteClose={() => setDeleteTargetIds([])}
           onDeleteConfirm={() => {
             const ids = [...deleteTargetIds]
-            runFileOperation(t('files.moveToTrash'), ids, (id) => trashObject(id), t('files.trashSuccess'))
+            runFileOperation(t('files.moveToTrash'), ids, (id) => deleteObject(id), t('files.trashSuccess'))
               .then(() => {
                 setDeleteTargetIds([])
                 setRowSelection({})

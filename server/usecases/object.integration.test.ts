@@ -183,7 +183,7 @@ describe('resolveShareByToken', () => {
     const orgId = nanoid()
     const matter = await seedMatter(db, { orgId, status: 'active' })
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
-    await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = ${matter.id}`)
+    await db.run(sql`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = ${matter.id}`)
 
     const result = await resolveShareByToken(db, share.token)
     expect(result.status).toBe('matter_trashed')
@@ -583,7 +583,7 @@ describe('POST /api/shares/:token/objects', () => {
 
   it('returns 410 when shared matter is trashed', async () => {
     const { app, db, share, matter, headers, personalOrgId } = await setup()
-    await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = ${matter.id}`)
+    await db.run(sql`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = ${matter.id}`)
 
     const res = await app.request(`/api/shares/${share.token}/objects`, {
       method: 'POST',
@@ -843,7 +843,7 @@ describe('trash purge', () => {
   async function insertFile(
     db: TestDb,
     orgId: string,
-    opts: { id: string; size: number; status: 'active' | 'trashed'; trashedAt?: number },
+    opts: { id: string; size: number; status: 'active'; trashedAt?: number },
   ) {
     const now = Date.now()
     await db.run(sql`
@@ -878,15 +878,15 @@ describe('trash purge', () => {
       const orgId = nanoid()
       await insertOrg(db, orgId)
       const now = Date.now()
-      await insertFile(db, orgId, { id: 'old', size: 100, status: 'trashed', trashedAt: now - 40 * DAY_MS })
-      await insertFile(db, orgId, { id: 'recent', size: 200, status: 'trashed', trashedAt: now - 5 * DAY_MS })
+      await insertFile(db, orgId, { id: 'old', size: 100, status: 'active', trashedAt: now - 40 * DAY_MS })
+      await insertFile(db, orgId, { id: 'recent', size: 200, status: 'active', trashedAt: now - 5 * DAY_MS })
       await insertFile(db, orgId, { id: 'active', size: 300, status: 'active' })
 
       const purged = await purgeExpiredTrash(deps, 30, now)
 
       expect(purged).toBe(1)
       expect(await getMatter(db, 'old', orgId)).toBeNull()
-      expect((await getMatter(db, 'recent', orgId))?.status).toBe('trashed')
+      expect((await getMatter(db, 'recent', orgId))?.trashedAt).not.toBeNull()
       expect((await getMatter(db, 'active', orgId))?.status).toBe('active')
       expect(S3Service.prototype.deleteObjects).toHaveBeenCalled()
       // reconcile counts active + trashed: recent(200) + active(300); old(100) freed.
@@ -898,7 +898,7 @@ describe('trash purge', () => {
       await insertStorage(db)
       const orgId = nanoid()
       await insertOrg(db, orgId)
-      await insertFile(db, orgId, { id: 'old', size: 100, status: 'trashed', trashedAt: Date.now() - 400 * DAY_MS })
+      await insertFile(db, orgId, { id: 'old', size: 100, status: 'active', trashedAt: Date.now() - 400 * DAY_MS })
 
       const purged = await purgeExpiredTrash(deps, 0)
 

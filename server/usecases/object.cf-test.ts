@@ -108,7 +108,8 @@ describe('[CF] resolveShareByToken', () => {
     const matter = await seedMatter(db, orgId)
 
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'cf-user-3', kind: 'landing' })
-    await db.run(`UPDATE matters SET status = 'trashed' WHERE id = '${matter.id}'`)
+    // Trash = active row with trashedAt set (no 'trashed' status).
+    await db.run(`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = '${matter.id}'`)
 
     const result = await resolveShareByToken(db, share.token)
     expect(result.status).toBe('matter_trashed')

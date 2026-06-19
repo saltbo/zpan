@@ -37,14 +37,14 @@ async function insertStorage(db: TestDb, id = validStorage.id) {
 async function insertFile(
   db: TestDb,
   orgId: string,
-  opts: { id: string; name: string; parent?: string; status?: string; size?: number },
+  opts: { id: string; name: string; parent?: string; status?: string; size?: number; trashedAt?: number },
 ) {
   const now = Date.now()
   const status = opts.status ?? 'active'
   const size = opts.size ?? 100
   await db.run(sql`
-    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', ${size}, 0, ${opts.parent ?? ''}, 'some/key.txt', ${validStorage.id}, ${status}, ${now}, ${now})
+    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
+    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', ${size}, 0, ${opts.parent ?? ''}, 'some/key.txt', ${validStorage.id}, ${status}, ${opts.trashedAt ?? null}, ${now}, ${now})
   `)
 }
 
@@ -58,10 +58,6 @@ async function getPersonalOrgId(db: TestDb): Promise<string> {
 async function getLatestActivity(db: TestDb, action: string) {
   const rows = await db.select().from(activityEvents).all()
   return rows.filter((r) => r.action === action).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]
-}
-
-async function getAllActivities(db: TestDb) {
-  return db.select().from(activityEvents).all()
 }
 
 function assertNoSecrets(metadata: string | null) {
@@ -98,26 +94,31 @@ beforeEach(() => {
 // ─── Object lifecycle ─────────────────────────────────────────────────────────
 
 describe('Object lifecycle audit events', () => {
-  it('records upload_confirm when confirming a draft upload', async () => {
+  it('records upload_confirm when finalizing a draft upload', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
+    vi.spyOn(S3Service.prototype, 'headObject').mockResolvedValue({
+      size: 1024,
+      contentType: 'application/pdf',
+      etag: 'abc',
+    })
 
-    // Create draft file
+    // Create draft file (returns upload instructions with a session id)
     const createRes = await app.request('/api/objects', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'report.pdf', type: 'application/pdf', size: 1024, dirtype: 0, parent: '' }),
     })
     expect(createRes.status).toBe(201)
-    const { id: matterId } = (await createRes.json()) as { id: string }
+    const created = (await createRes.json()) as { id: string; upload: { sessionId: string } }
 
-    // Confirm upload
-    const confirmRes = await app.request(`/api/objects/${matterId}/status`, {
-      method: 'PUT',
+    // Finalize via completions
+    const confirmRes = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}/completions`, {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
     })
     expect(confirmRes.status).toBe(200)
 
@@ -129,7 +130,7 @@ describe('Object lifecycle audit events', () => {
     assertNoSecrets(evt?.metadata ?? null)
   })
 
-  it('records upload_cancel when cancelling a draft upload', async () => {
+  it('records upload_cancel when aborting a draft upload', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -141,13 +142,14 @@ describe('Object lifecycle audit events', () => {
       body: JSON.stringify({ name: 'draft.pdf', type: 'application/pdf', size: 1024, dirtype: 0, parent: '' }),
     })
     expect(createRes.status).toBe(201)
-    const { id: matterId } = (await createRes.json()) as { id: string }
+    const created = (await createRes.json()) as { id: string; upload: { sessionId: string } }
 
-    const cancelRes = await app.request(`/api/objects/${matterId}`, {
+    // Abort the in-progress upload (discards the draft, records upload_cancel).
+    const cancelRes = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}`, {
       method: 'DELETE',
       headers,
     })
-    expect(cancelRes.status).toBe(200)
+    expect(cancelRes.status).toBe(204)
 
     const evt = await getLatestActivity(db, 'upload_cancel')
     expect(evt).toBeDefined()
@@ -184,13 +186,14 @@ describe('Object lifecycle audit events', () => {
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
 
-    await insertFile(db, orgId, { id: 'trashed-file', name: 'trashed.txt', status: 'trashed' })
+    await insertFile(db, orgId, { id: 'trashed-file', name: 'trashed.txt', trashedAt: Date.now() })
 
-    const deleteRes = await app.request('/api/objects/trashed-file', {
+    // Permanent purge of a trashed root → 204.
+    const deleteRes = await app.request('/api/trash/objects/trashed-file', {
       method: 'DELETE',
       headers,
     })
-    expect(deleteRes.status).toBe(200)
+    expect(deleteRes.status).toBe(204)
 
     const evt = await getLatestActivity(db, 'object_purge')
     expect(evt).toBeDefined()
@@ -208,53 +211,15 @@ describe('Object lifecycle audit events', () => {
 
     await insertFile(db, orgId, { id: 'trash-file', name: 'file1.txt' })
 
-    const res = await app.request('/api/objects/trash-file/status', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'trashed' }),
-    })
-    expect(res.status).toBe(200)
+    // Soft delete moves the live object to trash → 204.
+    const res = await app.request('/api/objects/trash-file', { method: 'DELETE', headers })
+    expect(res.status).toBe(204)
 
     const evt = await getLatestActivity(db, 'delete')
     expect(evt).toBeDefined()
     expect(evt?.orgId).toBe(orgId)
     expect(evt?.targetName).toBe('file1.txt')
     assertNoSecrets(evt?.metadata ?? null)
-  })
-
-  it('records trash_empty when emptying trash', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getPersonalOrgId(db)
-
-    await insertFile(db, orgId, { id: 'te-file1', name: 'junk1.txt', status: 'trashed' })
-
-    const res = await app.request('/api/trash', {
-      method: 'DELETE',
-      headers,
-    })
-    expect(res.status).toBe(200)
-
-    const evt = await getLatestActivity(db, 'trash_empty')
-    expect(evt).toBeDefined()
-    expect(evt?.orgId).toBe(orgId)
-    const meta = JSON.parse(evt?.metadata ?? '{}') as { count: number }
-    expect(meta.count).toBeGreaterThan(0)
-    assertNoSecrets(evt?.metadata ?? null)
-  })
-
-  it('does NOT record trash_empty when trash was already empty', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-
-    const before = await getAllActivities(db)
-    const res = await app.request('/api/trash', { method: 'DELETE', headers })
-    expect(res.status).toBe(200)
-
-    const after = await getAllActivities(db)
-    const newTrashEmpty = after.filter((e) => e.action === 'trash_empty' && !before.some((b) => b.id === e.id))
-    expect(newTrashEmpty).toHaveLength(0)
   })
 })
 

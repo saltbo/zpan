@@ -40,7 +40,7 @@ export function createStorageUsageRepo(db: Database): StorageUsageRepo {
             FROM ${matters}
             WHERE ${matters.orgId} = ${orgId}
               AND ${matters.dirtype} = ${DirType.FILE}
-              AND ${matters.status} IN ('active', 'trashed')
+              AND ${matters.status} = 'active'
           ), 0) + COALESCE((
             SELECT SUM(${imageHostings.size})
             FROM ${imageHostings}
@@ -59,7 +59,7 @@ export function createStorageUsageRepo(db: Database): StorageUsageRepo {
               FROM ${matters}
               WHERE ${matters.storageId} = ${storageId}
                 AND ${matters.dirtype} = ${DirType.FILE}
-                AND ${matters.status} IN ('active', 'trashed')
+                AND ${matters.status} = 'active'
             ), 0) + COALESCE((
               SELECT SUM(${imageHostings.size})
               FROM ${imageHostings}

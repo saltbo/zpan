@@ -1,19 +1,10 @@
-import {
-  cancelUpload,
-  createObjectUploadSession,
-  patchObjectUploadSession,
-  presignObjectUploadParts,
-  uploadPartToS3,
-} from '@/lib/api'
+import type { ObjectUploadInstructions } from '@shared/types'
+import { uploadPartToS3 } from '@/lib/api'
 import type { UploadRunnerContext } from './upload-queue'
 
-/** Files larger than this use S3 multipart (chunked, resumable parts). */
-export const MULTIPART_THRESHOLD = 100 * 1024 * 1024
-/** Max part numbers presigned per request (matches presignObjectUploadPartsSchema). */
-const PRESIGN_BATCH = 100
-/** Concurrent part PUTs in flight. */
+/** Concurrent slice PUTs in flight. */
 const PART_CONCURRENCY = 4
-/** Retry attempts per part before giving up — survives transient network blips. */
+/** Retry attempts per slice before giving up — survives transient network blips. */
 const PART_ATTEMPTS = 3
 
 function isAbortError(err: unknown): boolean {
@@ -54,19 +45,17 @@ async function runPool<T>(items: T[], concurrency: number, worker: (item: T) => 
 }
 
 /**
- * Uploads a draft object's bytes via S3 multipart: open session → presign parts
- * in batches → PUT each part (bounded concurrency, per-part retry) → complete.
- * On cancellation the registered cleanup aborts the multipart and the draft.
+ * The uniform upload: PUT every presigned slice directly to S3 (1 URL = single
+ * PutObject, N URLs = 5 GiB-part multipart — the server already decided), read
+ * each slice's ETag, and return them sorted for the completions call. Bounded
+ * concurrency, per-slice retry, aggregated progress. Bytes never touch our server.
  */
-export async function uploadFileInParts(objectId: string, file: File, ctx: UploadRunnerContext): Promise<void> {
-  const session = await createObjectUploadSession(objectId, {})
-  ctx.registerCleanup(async () => {
-    await patchObjectUploadSession(objectId, session.id, { action: 'abort' }).catch(() => undefined)
-    await cancelUpload(objectId).catch(() => undefined)
-  })
-
-  const partSize = session.partSize
-  const partCount = Math.max(1, Math.ceil(file.size / partSize))
+export async function uploadObjectSlices(
+  upload: ObjectUploadInstructions,
+  file: File,
+  ctx: UploadRunnerContext,
+): Promise<Array<{ partNumber: number; etag: string }>> {
+  const { partSize, urls } = upload
   const completed: Array<{ partNumber: number; etag: string }> = []
   const loadedByPart = new Map<number, number>()
 
@@ -76,28 +65,23 @@ export async function uploadFileInParts(objectId: string, file: File, ctx: Uploa
     ctx.onProgress({ loaded, total: file.size })
   }
 
-  for (let batchStart = 1; batchStart <= partCount; batchStart += PRESIGN_BATCH) {
+  const slices = urls.map((url, index) => ({ url, partNumber: index + 1 }))
+  await runPool(slices, PART_CONCURRENCY, async ({ url, partNumber }) => {
     if (ctx.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError')
-    const partNumbers: number[] = []
-    for (let n = batchStart; n < batchStart + PRESIGN_BATCH && n <= partCount; n++) partNumbers.push(n)
-
-    const { parts } = await presignObjectUploadParts(objectId, session.id, { partNumbers })
-    await runPool(parts, PART_CONCURRENCY, async ({ partNumber, url }) => {
-      const start = (partNumber - 1) * partSize
-      const slice = file.slice(start, Math.min(start + partSize, file.size))
-      const etag = await uploadPartWithRetry(url, slice, {
-        signal: ctx.signal,
-        onProgress: (loaded) => {
-          loadedByPart.set(partNumber, loaded)
-          reportProgress()
-        },
-      })
-      loadedByPart.set(partNumber, slice.size)
-      reportProgress()
-      completed.push({ partNumber, etag })
+    const start = (partNumber - 1) * partSize
+    const slice = file.slice(start, Math.min(start + partSize, file.size))
+    const etag = await uploadPartWithRetry(url, slice, {
+      signal: ctx.signal,
+      onProgress: (loaded) => {
+        loadedByPart.set(partNumber, loaded)
+        reportProgress()
+      },
     })
-  }
+    loadedByPart.set(partNumber, slice.size)
+    reportProgress()
+    completed.push({ partNumber, etag })
+  })
 
   completed.sort((a, b) => a.partNumber - b.partNumber)
-  await patchObjectUploadSession(objectId, session.id, { action: 'complete', parts: completed })
+  return completed
 }

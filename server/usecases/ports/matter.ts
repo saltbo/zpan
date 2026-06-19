@@ -38,9 +38,10 @@ export interface CreateMatterInput {
   onConflict?: ConflictStrategy
 }
 
+// Live-object listing only (status='active' AND trashedAt IS NULL); the recycle
+// bin is served separately by listTrashedRoots.
 export interface MatterListFilters {
   parent?: string
-  status: string
   page: number
   pageSize: number
   typeFilter?: string

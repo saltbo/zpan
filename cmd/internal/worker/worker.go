@@ -62,10 +62,7 @@ type apiClient interface {
 	UpdateTask(context.Context, string, client.TaskPatch) (client.DownloadTask, error)
 	CreateFolder(context.Context, string, string, string) (client.ObjectDraft, error)
 	CreateObject(context.Context, string, string, int64, string) (client.ObjectDraft, error)
-	ConfirmObject(context.Context, string, string) error
-	CreateObjectUploadSession(context.Context, string, string, int64) (client.ObjectUploadSession, error)
-	PresignObjectUploadParts(context.Context, string, string, string, []int) ([]client.PresignedObjectUploadPart, error)
-	CompleteObjectUploadSession(context.Context, string, string, string, []client.CompletedObjectUploadPart) error
+	CompleteObjectUpload(context.Context, string, string, string, []client.CompletedObjectUploadPart) error
 	AbortObjectUploadSession(context.Context, string, string, string) error
 }
 
@@ -612,22 +609,6 @@ func uploadETA(progress *uploadProgress, bps int64) *int64 {
 	remaining := progress.totalBytes - progress.uploaded
 	eta := (remaining + bps - 1) / bps
 	return &eta
-}
-
-func multipartPartSize(size int64) int64 {
-	partSize := int64(defaultMultipartPartSize)
-	minPartSize := (size + maxMultipartParts - 1) / maxMultipartParts
-	if minPartSize > partSize {
-		partSize = minPartSize
-		remainder := partSize % (1024 * 1024)
-		if remainder != 0 {
-			partSize += (1024 * 1024) - remainder
-		}
-	}
-	if partSize > maxMultipartPartSize {
-		return maxMultipartPartSize
-	}
-	return partSize
 }
 
 type directoryEntry struct {

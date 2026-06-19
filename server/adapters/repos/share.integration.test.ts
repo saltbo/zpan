@@ -28,7 +28,7 @@ const verifyPassword = (share: { passwordHash: string | null }, plaintext: strin
 
 async function seedMatter(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
-  opts: { orgId: string; storageId?: string; dirtype?: number; status?: string },
+  opts: { orgId: string; storageId?: string; dirtype?: number; status?: string; trashedAt?: number | null },
 ) {
   const now = new Date()
   const matter = {
@@ -43,7 +43,7 @@ async function seedMatter(
     object: opts.dirtype !== DirType.FILE ? '' : `objects/${nanoid()}`,
     storageId: opts.storageId ?? 'storage-1',
     status: opts.status ?? 'active',
-    trashedAt: null,
+    trashedAt: opts.trashedAt ?? null,
     createdAt: now,
     updatedAt: now,
   }
@@ -214,7 +214,7 @@ describe('resolveShareByToken', () => {
   it('returns trashed when underlying matter is trashed', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
-    const matter = await seedMatter(db, { orgId, status: 'trashed' })
+    const matter = await seedMatter(db, { orgId, status: 'active', trashedAt: Date.now() })
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
 
     const resolved = await resolveShareByToken(db, share.token)
@@ -230,11 +230,11 @@ describe('resolveShareByToken', () => {
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
 
     // Trash it
-    await db.update(matters).set({ status: 'trashed' }).where(eq(matters.id, matter.id))
+    await db.update(matters).set({ trashedAt: Date.now() }).where(eq(matters.id, matter.id))
     expect((await resolveShareByToken(db, share.token)).status).toBe('matter_trashed')
 
     // Restore it
-    await db.update(matters).set({ status: 'active' }).where(eq(matters.id, matter.id))
+    await db.update(matters).set({ trashedAt: null }).where(eq(matters.id, matter.id))
     const resolved = await resolveShareByToken(db, share.token)
     expect(resolved.status === 'ok').toBe(true)
     if (resolved.status !== 'ok') throw new Error('expected found')

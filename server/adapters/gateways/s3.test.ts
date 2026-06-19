@@ -345,23 +345,24 @@ describe('S3Service', () => {
   })
 
   describe('headObject', () => {
-    it('returns size and contentType', async () => {
+    it('returns size, contentType, and the quote-stripped etag', async () => {
       mockSend.mockResolvedValueOnce({
         ContentLength: 1024,
         ContentType: 'image/png',
+        ETag: '"abc123"',
         $metadata: {},
       })
       const result = await service.headObject(storage, 'test.png')
-      expect(result).toEqual({ size: 1024, contentType: 'image/png' })
+      expect(result).toEqual({ size: 1024, contentType: 'image/png', etag: 'abc123' })
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'test.png' } }),
       )
     })
 
-    it('defaults size to 0 and contentType to application/octet-stream', async () => {
+    it('defaults size to 0, contentType to application/octet-stream, and etag to empty', async () => {
       mockSend.mockResolvedValueOnce({ $metadata: {} })
       const result = await service.headObject(storage, 'test.bin')
-      expect(result).toEqual({ size: 0, contentType: 'application/octet-stream' })
+      expect(result).toEqual({ size: 0, contentType: 'application/octet-stream', etag: '' })
     })
   })
 

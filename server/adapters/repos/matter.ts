@@ -1,6 +1,6 @@
 import { DirType, ObjectStatus } from '@shared/constants'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, count, desc, eq, inArray, isNotNull, like, lt, ne, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, like, lt, ne, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { matters } from '../../db/schema'
 import { suggestRenamed } from '../../domain/matter-name-conflict'
@@ -98,9 +98,11 @@ export function createMatterRepo(db: Database): MatterRepo {
   }
 
   /**
-   * Finds the active sibling that would collide with `name` under `parent`.
+   * Finds the live sibling that would collide with `name` under `parent`.
    * Matching is case-insensitive (mirrors the DB's partial unique index on
-   * LOWER(name)). `excludeId` lets rename/move skip the row being modified.
+   * LOWER(name)). Trashed rows are also status='active', so `trashedAt IS NULL`
+   * keeps the recycle bin from blocking names. `excludeId` lets rename/move skip
+   * the row being modified.
    */
   async function findActiveConflict(
     orgId: string,
@@ -112,6 +114,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       eq(matters.orgId, orgId),
       eq(matters.parent, parent),
       eq(matters.status, ObjectStatus.ACTIVE),
+      isNull(matters.trashedAt),
       sql`lower(${matters.name}) = lower(${name})`,
     ]
     if (excludeId) conditions.push(ne(matters.id, excludeId))
@@ -174,7 +177,7 @@ export function createMatterRepo(db: Database): MatterRepo {
     const now = new Date()
     await db
       .update(matters)
-      .set({ status: ObjectStatus.TRASHED, trashedAt: now.getTime(), updatedAt: now })
+      .set({ trashedAt: now.getTime(), updatedAt: now })
       .where(and(eq(matters.id, existing.id), eq(matters.orgId, orgId)))
 
     if (userId) {
@@ -286,17 +289,9 @@ export function createMatterRepo(db: Database): MatterRepo {
 
     async list(orgId: string, filters: MatterListFilters): Promise<MatterListResult> {
       const offset = (filters.page - 1) * filters.pageSize
-      if (filters.status === 'trashed' && !filters.search && !filters.typeFilter) {
-        const roots = await repo.listTrashedRoots(orgId)
-        return {
-          items: roots.slice(offset, offset + filters.pageSize),
-          total: roots.length,
-          page: filters.page,
-          pageSize: filters.pageSize,
-        }
-      }
-
-      const conditions = [eq(matters.orgId, orgId), eq(matters.status, filters.status)]
+      // Live objects only. Trashed rows are status='active' too, so exclude them
+      // by trashedAt; the recycle bin is served by listTrashedRoots.
+      const conditions = [eq(matters.orgId, orgId), eq(matters.status, ObjectStatus.ACTIVE), isNull(matters.trashedAt)]
       const typeCond = filters.typeFilter ? typeFilterCondition(filters.typeFilter) : undefined
       if (filters.search) {
         conditions.push(like(matters.name, `%${filters.search}%`))
@@ -492,7 +487,9 @@ export function createMatterRepo(db: Database): MatterRepo {
     async trash(orgId, id, userId?): Promise<Matter | null> {
       const existing = await getMatter(id, orgId)
       if (!existing) return null
-      if (existing.status === 'trashed') return existing
+      if (existing.trashedAt != null) return existing // already in trash (idempotent)
+      // Only live objects can be trashed; a draft is discarded via the upload session.
+      if (existing.status !== ObjectStatus.ACTIVE) return null
 
       const now = new Date()
       const nowTs = now.getTime()
@@ -505,13 +502,22 @@ export function createMatterRepo(db: Database): MatterRepo {
         allIds.push(...children.map((m) => m.id), ...descendants.map((m) => m.id))
       }
 
+      // Soft delete: mark trashedAt, keep status='active'. Only mark live rows so a
+      // child already trashed earlier keeps its own trashedAt (and restore later).
       for (const targetId of allIds) {
         await db
           .update(matters)
-          .set({ status: 'trashed', trashedAt: nowTs, updatedAt: now })
-          .where(and(eq(matters.id, targetId), eq(matters.orgId, orgId), eq(matters.status, 'active')))
+          .set({ trashedAt: nowTs, updatedAt: now })
+          .where(
+            and(
+              eq(matters.id, targetId),
+              eq(matters.orgId, orgId),
+              eq(matters.status, ObjectStatus.ACTIVE),
+              isNull(matters.trashedAt),
+            ),
+          )
       }
-      const trashed = { ...existing, status: 'trashed', trashedAt: nowTs, updatedAt: now }
+      const trashed = { ...existing, trashedAt: nowTs, updatedAt: now }
 
       if (userId) {
         await activity.record({
@@ -530,7 +536,7 @@ export function createMatterRepo(db: Database): MatterRepo {
     async restore(orgId, id, userId?, onConflict: ConflictStrategy = 'fail'): Promise<Matter | null> {
       const existing = await getMatter(id, orgId)
       if (!existing) return null
-      if (existing.status !== 'trashed') return existing
+      if (existing.trashedAt == null) return existing // not in trash → no-op
 
       // A same-named active item may have been created in the original parent
       // while this one sat in trash. Resolve before touching descendants so a
@@ -552,9 +558,10 @@ export function createMatterRepo(db: Database): MatterRepo {
         allIds.push(...children.map((m) => m.id), ...descendants.map((m) => m.id))
       }
 
-      // Rename + cascade parent paths BEFORE activation. While everything is still
-      // trashed, these writes cannot violate the active-name unique index, and no
-      // reader ever sees descendants with stale paths in an active state.
+      // Rename + cascade parent paths BEFORE clearing trashedAt. While everything
+      // is still in trash, these writes cannot violate the live-name unique index
+      // (which excludes trashedAt IS NOT NULL), and no reader sees descendants with
+      // stale paths in a live state.
       if (finalName !== existing.name) {
         await db
           .update(matters)
@@ -567,14 +574,15 @@ export function createMatterRepo(db: Database): MatterRepo {
         }
       }
 
+      // Clear the trash mark on the whole subtree (status is already 'active').
       for (const targetId of allIds) {
         await db
           .update(matters)
-          .set({ status: 'active', trashedAt: null, updatedAt: now })
-          .where(and(eq(matters.id, targetId), eq(matters.orgId, orgId), eq(matters.status, 'trashed')))
+          .set({ trashedAt: null, updatedAt: now })
+          .where(and(eq(matters.id, targetId), eq(matters.orgId, orgId), isNotNull(matters.trashedAt)))
       }
 
-      const restored = { ...existing, name: finalName, status: 'active', trashedAt: null, updatedAt: now }
+      const restored = { ...existing, name: finalName, trashedAt: null, updatedAt: now }
 
       if (userId) {
         await activity.record({
@@ -605,7 +613,12 @@ export function createMatterRepo(db: Database): MatterRepo {
         .select()
         .from(matters)
         .where(
-          and(eq(matters.orgId, orgId), eq(matters.status, ObjectStatus.ACTIVE), descendantParentCondition(parentPath)),
+          and(
+            eq(matters.orgId, orgId),
+            eq(matters.status, ObjectStatus.ACTIVE),
+            isNull(matters.trashedAt),
+            descendantParentCondition(parentPath),
+          ),
         )
       return rows.map(toMatter)
     },
@@ -614,7 +627,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       if (ids.length === 0) return
       await db
         .update(matters)
-        .set({ status: ObjectStatus.TRASHED, trashedAt: Date.now(), updatedAt: new Date() })
+        .set({ trashedAt: Date.now(), updatedAt: new Date() })
         .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids)))
     },
 
@@ -622,7 +635,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       if (ids.length === 0) return
       await db
         .update(matters)
-        .set({ status: ObjectStatus.ACTIVE, trashedAt: null, updatedAt: new Date() })
+        .set({ trashedAt: null, updatedAt: new Date() })
         .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids)))
     },
 
@@ -644,7 +657,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       const all = await db
         .select()
         .from(matters)
-        .where(and(eq(matters.orgId, orgId), eq(matters.status, 'trashed')))
+        .where(and(eq(matters.orgId, orgId), eq(matters.status, ObjectStatus.ACTIVE), isNotNull(matters.trashedAt)))
 
       const trashedPaths = new Set(all.map((m) => buildPath(m.parent, m.name)))
       return all
@@ -662,7 +675,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       const rows = await db
         .selectDistinct({ orgId: matters.orgId })
         .from(matters)
-        .where(and(eq(matters.status, 'trashed'), isNotNull(matters.trashedAt), lt(matters.trashedAt, cutoff)))
+        .where(and(isNotNull(matters.trashedAt), lt(matters.trashedAt, cutoff)))
       return rows.map((r) => r.orgId)
     },
 

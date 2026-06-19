@@ -18,6 +18,8 @@ export interface StorageObject {
   object: string
   storageId: string
   status: ObjectStatus
+  // Soft-delete marker: null = live, epoch ms = in trash.
+  trashedAt: number | null
   createdAt: string
   updatedAt: string
 }
@@ -352,12 +354,22 @@ export interface DownloadTaskSeedingRuntime {
 export interface ObjectUploadSession {
   id: string
   objectId: string
-  uploadId: string
+  // null for a single-PutObject (≤5 GiB) session; set for S3 multipart.
+  uploadId: string | null
   partSize: number
   status: 'active' | 'completed' | 'aborted'
   expiresAt: string
   createdAt: string
   updatedAt: string
+}
+
+// The upload instructions returned by POST /objects for a file draft: the
+// client PUTs each slice to urls[i] (slice i = bytes [i*partSize, …]), reads the
+// ETag of each response, then POSTs them to .../completions.
+export interface ObjectUploadInstructions {
+  sessionId: string
+  partSize: number
+  urls: string[]
 }
 
 export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled'

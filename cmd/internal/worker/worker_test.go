@@ -91,49 +91,70 @@ func TestExplicitlyConfiguredExternalEngineSelectsConfiguredRuntime(t *testing.T
 	}
 }
 
-func TestUploadFileSendsContentLength(t *testing.T) {
+func TestUploadFilePartSendsContentLength(t *testing.T) {
 	path := writeTempFile(t, "hello world")
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
 	var contentLength string
-	var contentDisposition string
+	var body string
 	var uploaded int64
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentLength = r.Header.Get("Content-Length")
-		contentDisposition = r.Header.Get("Content-Disposition")
 		if r.TransferEncoding != nil {
 			t.Fatalf("expected fixed-length upload, got transfer encoding %v", r.TransferEncoding)
 		}
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = string(data)
+		w.Header().Set("ETag", `"etag-1"`)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	if err := uploadFile(context.Background(), server.URL, path, `attachment; filename="hello.txt"`, func(written int64) error {
+	etag, err := uploadFilePart(context.Background(), server.URL, file, 0, 11, func(written int64) error {
 		uploaded += written
 		return nil
-	}); err != nil {
-		t.Fatalf("uploadFile returned error: %v", err)
+	})
+	if err != nil {
+		t.Fatalf("uploadFilePart returned error: %v", err)
 	}
 	if contentLength != "11" {
 		t.Fatalf("expected Content-Length 11, got %q", contentLength)
 	}
-	if contentDisposition != `attachment; filename="hello.txt"` {
-		t.Fatalf("expected Content-Disposition header, got %q", contentDisposition)
+	if body != "hello world" {
+		t.Fatalf("expected uploaded body, got %q", body)
+	}
+	if etag != `"etag-1"` {
+		t.Fatalf("expected ETag, got %q", etag)
 	}
 	if uploaded != 11 {
 		t.Fatalf("expected uploaded bytes 11, got %d", uploaded)
 	}
 }
 
-func TestUploadFileIncludesErrorBody(t *testing.T) {
+func TestUploadFilePartIncludesErrorBody(t *testing.T) {
 	path := writeTempFile(t, "hello")
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "signature mismatch", http.StatusForbidden)
 	}))
 	defer server.Close()
 
-	err := uploadFile(context.Background(), server.URL, path, "", nil)
+	_, err = uploadFilePart(context.Background(), server.URL, file, 0, 5, nil)
 	if err == nil {
-		t.Fatal("expected uploadFile error")
+		t.Fatal("expected uploadFilePart error")
 	}
 	if !strings.Contains(err.Error(), "403 Forbidden") || !strings.Contains(err.Error(), "signature mismatch") {
 		t.Fatalf("expected status and response body in error, got %v", err)
@@ -256,13 +277,14 @@ func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
 		if _, err := io.Copy(io.Discard, r.Body); err != nil {
 			t.Fatal(err)
 		}
+		w.Header().Set("ETag", `"etag-1"`)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer uploadServer.Close()
 
 	api := &recordingAPI{
-		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", UploadURL: uploadServer.URL},
-		confirmErrs:       []error{errors.New("unauthorized"), nil},
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: &client.ObjectUploadInstructions{SessionID: "session-1", PartSize: payloadSize, URLs: []string{uploadServer.URL}}},
+		completeErrs:      []error{errors.New("unauthorized"), nil},
 	}
 	eng := &recordingEngine{
 		downloadResult: engine.Result{Path: payloadPath, Name: "payload.bin", Size: payloadSize},
@@ -322,16 +344,17 @@ func TestWorkerLifecycleRetriesHTTPUploadFromCheckpointWithoutRedownloading(t *t
 		if _, err := io.Copy(io.Discard, r.Body); err != nil {
 			t.Fatal(err)
 		}
+		w.Header().Set("ETag", `"etag-1"`)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer uploadServer.Close()
 
+	payloadSize := int64(len(payload))
 	api := &recordingAPI{
-		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", UploadURL: uploadServer.URL},
-		confirmErrs:       []error{errors.New("unauthorized"), nil},
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: &client.ObjectUploadInstructions{SessionID: "session-1", PartSize: payloadSize, URLs: []string{uploadServer.URL}}},
+		completeErrs:      []error{errors.New("unauthorized"), nil},
 	}
 	downloadDir := t.TempDir()
-	payloadSize := int64(len(payload))
 
 	first := NewWithAPI(config.Config{}, api)
 	first.engine = engine.HTTP{Dir: downloadDir}
@@ -469,8 +492,9 @@ func TestDownloadShutdownMarksTaskInterrupted(t *testing.T) {
 
 func TestUploadShutdownMarksTaskInterrupted(t *testing.T) {
 	payloadPath := writeTempFile(t, "downloaded payload")
+	payloadSize := int64(len("downloaded payload"))
 	api := &recordingAPI{
-		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", UploadURL: "http://127.0.0.1:1"},
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: &client.ObjectUploadInstructions{SessionID: "session-1", PartSize: payloadSize, URLs: []string{"http://127.0.0.1:1"}}},
 	}
 	w := NewWithAPI(config.Config{}, api)
 
@@ -1188,7 +1212,7 @@ type recordingAPI struct {
 	patches           []client.TaskPatch
 	createFolderErr   error
 	createObjectDraft client.ObjectDraft
-	confirmErrs       []error
+	completeErrs      []error
 }
 
 func (a *recordingAPI) Heartbeat(context.Context, client.Heartbeat) error {
@@ -1226,24 +1250,12 @@ func (a *recordingAPI) CreateObject(context.Context, string, string, int64, stri
 	return a.createObjectDraft, nil
 }
 
-func (a *recordingAPI) ConfirmObject(context.Context, string, string) error {
-	if len(a.confirmErrs) > 0 {
-		err := a.confirmErrs[0]
-		a.confirmErrs = a.confirmErrs[1:]
+func (a *recordingAPI) CompleteObjectUpload(context.Context, string, string, string, []client.CompletedObjectUploadPart) error {
+	if len(a.completeErrs) > 0 {
+		err := a.completeErrs[0]
+		a.completeErrs = a.completeErrs[1:]
 		return err
 	}
-	return nil
-}
-
-func (a *recordingAPI) CreateObjectUploadSession(context.Context, string, string, int64) (client.ObjectUploadSession, error) {
-	return client.ObjectUploadSession{}, nil
-}
-
-func (a *recordingAPI) PresignObjectUploadParts(context.Context, string, string, string, []int) ([]client.PresignedObjectUploadPart, error) {
-	return nil, nil
-}
-
-func (a *recordingAPI) CompleteObjectUploadSession(context.Context, string, string, string, []client.CompletedObjectUploadPart) error {
 	return nil
 }
 

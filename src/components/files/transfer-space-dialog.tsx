@@ -40,7 +40,7 @@ export function TransferSpaceDialog({ item, onOpenChange, onCompleted }: Transfe
 
   const foldersQuery = useQuery({
     queryKey: ['folders-for-transfer', selectedOrgId],
-    queryFn: () => listObjectsByPath('', 'active', 1, 200, { type: 'folder', orgId: selectedOrgId }),
+    queryFn: () => listObjectsByPath('', 1, 200, { type: 'folder', orgId: selectedOrgId }),
     enabled: !!selectedOrgId,
   })
   const folders = (foldersQuery.data?.items ?? []).filter((entry) => entry.dirtype !== DirType.FILE)

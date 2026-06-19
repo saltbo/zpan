@@ -1,6 +1,7 @@
 // Tests for src/components/upload/upload-dropzone.tsx
-// Tests the uploadFn prop behavior and default upload logic.
+// Tests the uploadFn prop behavior and default object-upload logic.
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { UploadRunnerContext } from './upload-queue'
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -23,10 +24,13 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@/lib/api', () => ({
   createObject: vi.fn(),
-  confirmUpload: vi.fn(),
-  cancelUpload: vi.fn(),
-  uploadToS3: vi.fn(),
+  completeObjectUpload: vi.fn(),
+  abortObjectUpload: vi.fn(),
   isNameConflictError: vi.fn(() => false),
+}))
+
+vi.mock('./multipart-upload', () => ({
+  uploadObjectSlices: vi.fn(),
 }))
 
 vi.mock('@/components/files/hooks/use-conflict-resolver', () => ({
@@ -43,11 +47,31 @@ vi.mock('react-dropzone', () => ({
 }))
 
 import { toast } from 'sonner'
-import { confirmUpload, createObject, uploadToS3 } from '@/lib/api'
+import { withConflictRetry } from '@/components/files/hooks/use-conflict-resolver'
+import { abortObjectUpload, completeObjectUpload, createObject } from '@/lib/api'
+import { uploadObjectSlices } from './multipart-upload'
 import { directoryFolderParts, relativePathParts } from './upload-dropzone'
 
 // ---------------------------------------------------------------------------
-// Extracted pure logic: simulate the onDrop handler with uploadFn path
+// Test doubles
+// ---------------------------------------------------------------------------
+
+function makeCtx(): UploadRunnerContext & { cleanup?: () => Promise<void> } {
+  const controller = new AbortController()
+  const ctx = {
+    signal: controller.signal,
+    cleanup: undefined as (() => Promise<void>) | undefined,
+    onProgress: vi.fn(),
+    setStatus: vi.fn(),
+    registerCleanup: vi.fn((fn: () => Promise<void>) => {
+      ctx.cleanup = fn
+    }),
+  }
+  return ctx as never
+}
+
+// ---------------------------------------------------------------------------
+// uploadFn path (image host etc.)
 // ---------------------------------------------------------------------------
 
 async function simulateOnDropWithUploadFn(
@@ -77,10 +101,11 @@ async function simulateOnDropWithUploadFn(
 }
 
 // ---------------------------------------------------------------------------
-// Simulate the default object-upload path (no uploadFn)
+// Default object-upload path (no uploadFn): mirrors uploadFile() in the source.
+// create draft → registerCleanup(abort) → uploadObjectSlices → completeObjectUpload.
 // ---------------------------------------------------------------------------
 
-async function simulateDefaultUpload(file: File, parent: string, onUploadComplete: () => void): Promise<void> {
+async function simulateDefaultUpload(file: File, parent: string, ctx: UploadRunnerContext): Promise<void> {
   const created = await createObject({
     name: file.name,
     type: file.type || 'application/octet-stream',
@@ -89,10 +114,26 @@ async function simulateDefaultUpload(file: File, parent: string, onUploadComplet
     dirtype: 0,
   })
   if (!created) return
-  if (!created.uploadUrl) throw new Error('No upload URL returned')
-  await uploadToS3(created.uploadUrl, file)
-  await confirmUpload(created.id)
-  onUploadComplete()
+  const upload = created.upload
+  if (!upload) throw new Error('No upload instructions returned')
+
+  ctx.registerCleanup(async () => {
+    await abortObjectUpload(created.id, upload.sessionId)
+  })
+
+  const parts = await uploadObjectSlices(upload, file, ctx)
+  await completeObjectUpload(created.id, upload.sessionId, parts)
+}
+
+// folder creation via createObject, optionally retrying name conflicts.
+async function simulateCreateFolder(name: string, parent: string, withRetry: boolean): Promise<string | 'cancelled'> {
+  const created = withRetry
+    ? await withConflictRetry((() => Promise.resolve('replace')) as never, 'folder', (strategy) =>
+        createObject({ name, type: 'folder', parent, dirtype: 1, onConflict: strategy }),
+      )
+    : await createObject({ name, type: 'folder', parent, dirtype: 1 })
+  if (!created) return 'cancelled'
+  return created.name
 }
 
 const t = (key: string, opts?: Record<string, unknown>) => (opts ? `${key}:${JSON.stringify(opts)}` : key)
@@ -209,80 +250,107 @@ describe('UploadDropzone — uploadFn path', () => {
 // ---------------------------------------------------------------------------
 
 describe('UploadDropzone — default upload path (no uploadFn)', () => {
-  it('calls createObject when no uploadFn is provided', async () => {
-    vi.mocked(createObject).mockResolvedValue({ id: 'obj-1', uploadUrl: 'https://s3/presigned' } as never)
-    vi.mocked(uploadToS3).mockResolvedValue(undefined)
-    vi.mocked(confirmUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
+  const draft = {
+    id: 'obj-1',
+    upload: { sessionId: 'sess-1', partSize: 5 * 1024 * 1024, urls: ['https://s3/part-1'] },
+  }
+  const parts = [{ partNumber: 1, etag: 'etag-1' }]
+
+  it('creates the draft via createObject with file metadata', async () => {
+    vi.mocked(createObject).mockResolvedValue(draft as never)
+    vi.mocked(uploadObjectSlices).mockResolvedValue(parts)
+    vi.mocked(completeObjectUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
 
     const file = new File(['data'], 'photo.png', { type: 'image/png' })
-    const onUploadComplete = vi.fn()
-
-    await simulateDefaultUpload(file, 'root', onUploadComplete)
+    await simulateDefaultUpload(file, 'root', makeCtx())
 
     expect(createObject).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'photo.png', type: 'image/png', parent: 'root', dirtype: 0 }),
     )
   })
 
-  it('calls uploadToS3 with the presigned URL from createObject', async () => {
-    vi.mocked(createObject).mockResolvedValue({ id: 'obj-1', uploadUrl: 'https://s3/presigned' } as never)
-    vi.mocked(uploadToS3).mockResolvedValue(undefined)
-    vi.mocked(confirmUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
+  it('uploads slices with the upload instructions from createObject', async () => {
+    vi.mocked(createObject).mockResolvedValue(draft as never)
+    vi.mocked(uploadObjectSlices).mockResolvedValue(parts)
+    vi.mocked(completeObjectUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
 
     const file = new File(['data'], 'photo.png', { type: 'image/png' })
-    const onUploadComplete = vi.fn()
+    const ctx = makeCtx()
+    await simulateDefaultUpload(file, 'root', ctx)
 
-    await simulateDefaultUpload(file, 'root', onUploadComplete)
-
-    expect(uploadToS3).toHaveBeenCalledWith('https://s3/presigned', file)
+    expect(uploadObjectSlices).toHaveBeenCalledWith(draft.upload, file, ctx)
   })
 
-  it('calls confirmUpload with the object id', async () => {
-    vi.mocked(createObject).mockResolvedValue({ id: 'obj-1', uploadUrl: 'https://s3/presigned' } as never)
-    vi.mocked(uploadToS3).mockResolvedValue(undefined)
-    vi.mocked(confirmUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
+  it('completes the upload with the object id, session id, and parts', async () => {
+    vi.mocked(createObject).mockResolvedValue(draft as never)
+    vi.mocked(uploadObjectSlices).mockResolvedValue(parts)
+    vi.mocked(completeObjectUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
 
     const file = new File(['data'], 'photo.png', { type: 'image/png' })
-    const onUploadComplete = vi.fn()
+    await simulateDefaultUpload(file, 'root', makeCtx())
 
-    await simulateDefaultUpload(file, 'root', onUploadComplete)
-
-    expect(confirmUpload).toHaveBeenCalledWith('obj-1')
+    expect(completeObjectUpload).toHaveBeenCalledWith('obj-1', 'sess-1', parts)
   })
 
-  it('calls onUploadComplete after successful upload', async () => {
-    vi.mocked(createObject).mockResolvedValue({ id: 'obj-1', uploadUrl: 'https://s3/presigned' } as never)
-    vi.mocked(uploadToS3).mockResolvedValue(undefined)
-    vi.mocked(confirmUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
+  it('registers a cleanup that aborts the upload session', async () => {
+    vi.mocked(createObject).mockResolvedValue(draft as never)
+    vi.mocked(uploadObjectSlices).mockResolvedValue(parts)
+    vi.mocked(completeObjectUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
+    vi.mocked(abortObjectUpload).mockResolvedValue(undefined)
 
     const file = new File(['data'], 'photo.png', { type: 'image/png' })
-    const onUploadComplete = vi.fn()
+    const ctx = makeCtx()
+    await simulateDefaultUpload(file, 'root', ctx)
 
-    await simulateDefaultUpload(file, 'root', onUploadComplete)
-
-    expect(onUploadComplete).toHaveBeenCalledTimes(1)
+    expect(ctx.registerCleanup).toHaveBeenCalledTimes(1)
+    await ctx.cleanup?.()
+    expect(abortObjectUpload).toHaveBeenCalledWith('obj-1', 'sess-1')
   })
 
   it('uses application/octet-stream when file type is empty', async () => {
-    vi.mocked(createObject).mockResolvedValue({ id: 'obj-1', uploadUrl: 'https://s3/presigned' } as never)
-    vi.mocked(uploadToS3).mockResolvedValue(undefined)
-    vi.mocked(confirmUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
+    vi.mocked(createObject).mockResolvedValue(draft as never)
+    vi.mocked(uploadObjectSlices).mockResolvedValue(parts)
+    vi.mocked(completeObjectUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
 
     const file = new File(['data'], 'blob') // no type
-    const onUploadComplete = vi.fn()
-
-    await simulateDefaultUpload(file, 'root', onUploadComplete)
+    await simulateDefaultUpload(file, 'root', makeCtx())
 
     expect(createObject).toHaveBeenCalledWith(expect.objectContaining({ type: 'application/octet-stream' }))
   })
 
-  it('throws when createObject returns no uploadUrl', async () => {
-    vi.mocked(createObject).mockResolvedValue({ id: 'obj-1', uploadUrl: undefined } as never)
-    vi.mocked(uploadToS3).mockResolvedValue(undefined)
+  it('throws when createObject returns no upload instructions', async () => {
+    vi.mocked(createObject).mockResolvedValue({ id: 'obj-1', upload: undefined } as never)
 
     const file = new File(['data'], 'photo.png', { type: 'image/png' })
-    const onUploadComplete = vi.fn()
 
-    await expect(simulateDefaultUpload(file, 'root', onUploadComplete)).rejects.toThrow('No upload URL returned')
+    await expect(simulateDefaultUpload(file, 'root', makeCtx())).rejects.toThrow('No upload instructions returned')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Folder creation (createObject for folders, with conflict-retry)
+// ---------------------------------------------------------------------------
+
+describe('UploadDropzone — folder creation', () => {
+  it('creates a folder via createObject', async () => {
+    vi.mocked(createObject).mockResolvedValue({ id: 'folder-1', name: 'photos', type: 'folder' } as never)
+
+    const name = await simulateCreateFolder('photos', 'root', false)
+
+    expect(name).toBe('photos')
+    expect(createObject).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'photos', type: 'folder', parent: 'root', dirtype: 1 }),
+    )
+  })
+
+  it('retries folder creation through withConflictRetry when a prompt is set', async () => {
+    vi.mocked(withConflictRetry).mockImplementation(async (_prompt, _kind, run) => run('replace' as never))
+    vi.mocked(createObject).mockResolvedValue({ id: 'folder-2', name: 'photos (1)', type: 'folder' } as never)
+
+    const name = await simulateCreateFolder('photos', 'root', true)
+
+    expect(withConflictRetry).toHaveBeenCalledTimes(1)
+    expect(createObject).toHaveBeenCalledWith(expect.objectContaining({ onConflict: 'replace' }))
+    expect(name).toBe('photos (1)')
   })
 })
