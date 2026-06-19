@@ -86,6 +86,25 @@ func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
 	}
 }
 
+func TestAssignedControlTasksFetchesControlStatuses(t *testing.T) {
+	var statuses []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		statuses = append(statuses, r.URL.Query().Get("status"))
+		_ = json.NewEncoder(w).Encode(Page[DownloadTask]{Items: []DownloadTask{}})
+	}))
+	defer server.Close()
+
+	if _, err := mustClient(t, server.URL, "token").AssignedControlTasks(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(statuses)
+	expected := []string{"canceling", "pausing", "suspended"}
+	if !reflect.DeepEqual(statuses, expected) {
+		t.Fatalf("expected control statuses %v, got %v", expected, statuses)
+	}
+}
+
 func TestSeedingTasksFiltersCompletedSeedingPhase(t *testing.T) {
 	var status string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

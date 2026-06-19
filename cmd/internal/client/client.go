@@ -312,8 +312,9 @@ func (c *Client) AssignedTasks(ctx context.Context) ([]DownloadTask, error) {
 
 func (c *Client) AssignedControlTasks(ctx context.Context) ([]DownloadTask, error) {
 	return c.assignedTasks(ctx, []openapi.ListDownloadTasksParamsStatus{
-		openapi.ListDownloadTasksParamsStatus("pausing"),
-		openapi.ListDownloadTasksParamsStatus("canceling"),
+		openapi.ListDownloadTasksParamsStatusPausing,
+		openapi.ListDownloadTasksParamsStatusCanceling,
+		openapi.ListDownloadTasksParamsStatusSuspended,
 	})
 }
 

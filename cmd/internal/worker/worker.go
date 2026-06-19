@@ -24,9 +24,9 @@ import (
 const Version = "0.1.0"
 const maxTaskErrorMessageLength = 1000
 
-var errBillingPaused = errors.New("billing paused")
 var errTaskPausing = errors.New("task pausing")
 var errTaskCanceling = errors.New("task canceling")
+var errTaskSuspended = errors.New("task suspended")
 var errEngineExited = errors.New("managed downloader engine exited")
 
 type taskWorkStage int
@@ -255,36 +255,30 @@ func (w *Worker) downloadThenUpload(
 	currentDetail *client.DownloadTaskRuntime,
 ) {
 	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "downloading"}); err != nil {
-		log.Error("failed to mark task downloading", "error", err)
-		if w.resolveControlledTaskUpdate(ctx, task.ID, err, log) {
-			return
-		}
+		log.Warn("failed to mark task downloading", "error", err)
 	}
 
 	var lastProgressLog time.Time
+	// Progress reporting is pure telemetry: it never decides whether to stop.
+	// Control transitions (pause/cancel/suspend) arrive through the task poll
+	// and cancel this context; a failed report just gets logged and retried.
 	result, err := w.engine.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error {
 		w.setTaskTransferSpeed(task.ID, transferSpeeds{downloadBps: bps})
 		detail = withDownloadRuntime(detail, downloaded, total, bps)
 		if detail != nil {
 			currentDetail = detail
 		}
-		_, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{
+		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{
 			Progress: downloadProgressPatch(downloaded, total, bps),
 			Runtime:  detail,
-		})
-		if updateErr != nil && strings.Contains(updateErr.Error(), "insufficient_credits") {
-			log.Warn("task paused by billing", "downloaded_bytes", downloaded, "total_bytes", optionalInt64(total), "bps", bps)
-			return errBillingPaused
-		}
-		if updateErr != nil {
-			log.Error("failed to report task progress", "downloaded_bytes", downloaded, "total_bytes", optionalInt64(total), "bps", bps, "error", updateErr)
-			return updateErr
+		}); updateErr != nil {
+			log.Warn("failed to report task progress", "downloaded_bytes", downloaded, "total_bytes", optionalInt64(total), "bps", bps, "error", updateErr)
 		}
 		if time.Since(lastProgressLog) >= 10*time.Second {
 			log.Debug("task download progress", "downloaded_bytes", downloaded, "total_bytes", optionalInt64(total), "bps", bps)
 			lastProgressLog = time.Now()
 		}
-		return updateErr
+		return nil
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -302,6 +296,12 @@ func (w *Worker) downloadThenUpload(
 				log.Info("task canceled by control action")
 				return
 			}
+			if errors.Is(context.Cause(ctx), errTaskSuspended) {
+				// The server already moved the task to suspended (billing); the
+				// poll told us to stop. Don't touch its status.
+				log.Info("task stopped because it was suspended")
+				return
+			}
 			zero := int64(0)
 			downloaded, total := downloadCheckpoint(currentDetail)
 			if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
@@ -312,17 +312,6 @@ func (w *Worker) downloadThenUpload(
 				log.Error("failed to mark task interrupted after shutdown", "error", updateErr)
 			}
 			log.Info("task stopped by context cancellation")
-			return
-		}
-		if isControlledTaskUpdateError(err) {
-			if w.resolveControlledTaskUpdate(context.WithoutCancel(ctx), task.ID, err, log) {
-				return
-			}
-			log.Info("task stopped because server state no longer accepts progress", "error", err)
-			return
-		}
-		if errors.Is(err, errBillingPaused) {
-			log.Warn("task stopped because credits are insufficient")
 			return
 		}
 		msg := taskErrorMessage(err)
@@ -772,12 +761,15 @@ func (w *Worker) cancelRunning(task client.DownloadTask) bool {
 	if cancel == nil {
 		return false
 	}
-	w.taskLogger(task).Info("canceling running task from server state", "status", task.State())
-	if task.State() == "pausing" {
+	w.taskLogger(task).Info("stopping running task from server state", "status", task.State())
+	switch task.State() {
+	case "pausing":
 		cancel(errTaskPausing)
-		return true
+	case "suspended":
+		cancel(errTaskSuspended)
+	default:
+		cancel(errTaskCanceling)
 	}
-	cancel(errTaskCanceling)
 	return true
 }
 
@@ -821,31 +813,6 @@ func (w *Worker) heartbeat() client.Heartbeat {
 		UploadBps:          speeds.uploadBps,
 		FreeDiskBytes:      0,
 	}
-}
-
-func (w *Worker) resolveControlledTaskUpdate(ctx context.Context, taskID string, err error, log *slog.Logger) bool {
-	message := err.Error()
-	if strings.Contains(message, "Task is pausing") {
-		if _, updateErr := w.updateTask(ctx, taskID, client.TaskPatch{Status: "paused"}); updateErr != nil {
-			log.Error("failed to mark task paused", "error", updateErr)
-		}
-		return true
-	}
-	if strings.Contains(message, "Task is canceling") {
-		if _, updateErr := w.updateTask(ctx, taskID, client.TaskPatch{Status: "canceled"}); updateErr != nil {
-			log.Error("failed to mark task canceled", "error", updateErr)
-		}
-		return true
-	}
-	return strings.Contains(message, "Task is paused") || strings.Contains(message, "Task is canceled")
-}
-
-func isControlledTaskUpdateError(err error) bool {
-	message := err.Error()
-	return strings.Contains(message, "Task is pausing") ||
-		strings.Contains(message, "Task is paused") ||
-		strings.Contains(message, "Task is canceling") ||
-		strings.Contains(message, "Task is canceled")
 }
 
 func (w *Worker) currentTasks() int {
