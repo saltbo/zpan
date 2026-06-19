@@ -642,12 +642,8 @@ export function listAuthProviders() {
   return unwrap<{ items: AuthProvider[] }>(authProviders.index.$get())
 }
 
-export function listAdminAuthProviders() {
-  return unwrap<{ items: OAuthProviderConfig[] }>(authProviders.index.$get())
-}
-
 export function upsertAuthProvider(providerId: string, data: Omit<OAuthProviderConfig, 'providerId'>) {
-  return unwrap<OAuthProviderConfig>(authProviders[':providerId'].$put({ param: { providerId }, json: data }))
+  return unwrap<AuthProvider>(authProviders[':providerId'].$put({ param: { providerId }, json: data }))
 }
 
 export function deleteAuthProvider(providerId: string) {
@@ -942,7 +938,7 @@ export function saveShareToDrive(token: string, data: SaveShareInput) {
 export type { IhostConfigResponse }
 
 export function getIhostConfig() {
-  return unwrap<IhostConfigResponse | null>(ihostConfigApi.index.$get())
+  return unwrap<IhostConfigResponse>(ihostConfigApi.index.$get())
 }
 
 export function enableIhostFeature() {

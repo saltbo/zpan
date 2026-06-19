@@ -1,4 +1,5 @@
-import { BUILTIN_PROVIDER_IDS, type OAuthProviderConfig, OAuthProviderMeta } from '@shared/oauth-providers'
+import { BUILTIN_PROVIDER_IDS, OAuthProviderMeta } from '@shared/oauth-providers'
+import type { AuthProvider } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { deleteAuthProvider, listAdminAuthProviders, upsertAuthProvider } from '@/lib/api'
+import { deleteAuthProvider, listAuthProviders, upsertAuthProvider } from '@/lib/api'
 
 const providersQueryKey = ['admin', 'auth-providers'] as const
 
@@ -74,7 +75,7 @@ export function OAuthProvidersSection() {
 
   const { data, isLoading } = useQuery({
     queryKey: providersQueryKey,
-    queryFn: listAdminAuthProviders,
+    queryFn: listAuthProviders,
   })
 
   const upsertMutation = useMutation({
@@ -119,12 +120,12 @@ export function OAuthProvidersSection() {
     setDialogOpen(true)
   }
 
-  const openEdit = (p: OAuthProviderConfig) => {
+  const openEdit = (p: AuthProvider) => {
     setForm({
-      type: p.type,
+      type: p.type as ProviderType,
       providerId: p.providerId,
       clientId: p.clientId,
-      clientSecret: p.clientSecret,
+      clientSecret: p.clientSecret ?? '',
       enabled: p.enabled,
       discoveryUrl: p.discoveryUrl ?? '',
       scopes: p.scopes?.join(', ') ?? '',

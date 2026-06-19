@@ -12,6 +12,8 @@ import {
 import { unauthorized } from '../../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
+// One monomorphic shape for every state: not-configured carries `enabled: false`
+// with every other field null, configured carries `enabled: true` with values.
 const ihostConfigSchema = z
   .object({
     enabled: z.boolean(),
@@ -20,14 +22,9 @@ const ihostConfigSchema = z
     domainStatus: z.enum(['none', 'pending', 'verified']),
     dnsInstructions: z.object({ recordType: z.string(), name: z.string(), target: z.string() }).nullable(),
     refererAllowlist: z.array(z.string()).nullable(),
-    createdAt: z.number().int(),
+    createdAt: z.number().int().nullable(),
   })
   .openapi('ImageHostingConfig')
-
-// GET returns the full config when configured, or just `{ enabled: false }`.
-const ihostConfigResponseSchema = z
-  .union([ihostConfigSchema, z.object({ enabled: z.literal(false) })])
-  .openapi('ImageHostingConfigResponse')
 
 function toUnixMs(d: Date | null | undefined): number | null {
   if (!d) return null
@@ -41,10 +38,22 @@ function buildResponse(
     domainVerifiedAt: Date | null
     refererAllowlist: string | null
     createdAt: Date
-  },
+  } | null,
   cnameTarget: string,
   isCfConfigured: boolean,
 ): IhostConfigResponse {
+  if (!row) {
+    return {
+      enabled: false,
+      customDomain: null,
+      domainVerifiedAt: null,
+      domainStatus: 'none',
+      dnsInstructions: null,
+      refererAllowlist: null,
+      createdAt: null,
+    }
+  }
+
   const verifiedAtMs = toUnixMs(row.domainVerifiedAt)
 
   let domainStatus: IhostConfigResponse['domainStatus'] = 'none'
@@ -87,7 +96,7 @@ const getRoute = createRoute({
   method: 'get',
   path: '/',
   responses: {
-    200: jsonContent(ihostConfigResponseSchema, 'Image-hosting config'),
+    200: jsonContent(ihostConfigSchema, 'Image-hosting config'),
     401: errorResponse('Unauthorized'),
   },
 })
@@ -130,7 +139,6 @@ const ihostConfig = app
     if (!orgId) throw unauthorized()
     const { isCfConfigured, cnameTarget, cf } = cfFrom(c)
     const row = await getImageHostingConfig(c.get('deps'), orgId, cf)
-    if (!row) return c.json({ enabled: false as const }, 200)
     return c.json(buildResponse(row, cnameTarget, isCfConfigured), 200)
   })
   .openapi(putRoute, async (c) => {

@@ -230,7 +230,7 @@ describe('/api/image-hosting/config — role enforcement', () => {
 // ─── GET ───────────────────────────────────────────────────────────────────────
 
 describe('GET /api/image-hosting/config', () => {
-  it('returns { enabled: false } when no config row exists [spec: image-hosting-config/default-disabled]', async () => {
+  it('returns the full disabled shape when no config row exists [spec: image-hosting-config/default-disabled]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetHeaders(app, `get-no-config-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -239,8 +239,17 @@ describe('GET /api/image-hosting/config', () => {
 
     const res = await app.request('/api/image-hosting/config', { headers: { Cookie: updatedCookies } })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { enabled: boolean }
-    expect(body.enabled).toBe(false)
+    const body = await res.json()
+    // One monomorphic shape: enabled false carries every other field as null/none.
+    expect(body).toEqual({
+      enabled: false,
+      customDomain: null,
+      domainVerifiedAt: null,
+      domainStatus: 'none',
+      dnsInstructions: null,
+      refererAllowlist: null,
+      createdAt: null,
+    })
   })
 
   it('returns domainStatus=none and null dnsInstructions when no customDomain set [spec: image-hosting-config/no-domain]', async () => {

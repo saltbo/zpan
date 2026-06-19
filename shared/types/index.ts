@@ -182,11 +182,18 @@ export interface SystemOption {
   public: boolean
 }
 
+// One monomorphic shape for every caller. Role changes values only: admin sees a
+// masked `clientSecret`, front-of-house sees `clientSecret: null` (and the enabled-only list).
 export interface AuthProvider {
   providerId: string
   type: string
+  enabled: boolean
   name: string
   icon: string
+  clientId: string
+  discoveryUrl: string | null
+  scopes: string[] | null
+  clientSecret: string | null
 }
 
 export interface PaginatedResponse<T> {
@@ -537,7 +544,7 @@ export interface IhostConfigResponse {
   domainStatus: 'none' | 'pending' | 'verified'
   dnsInstructions: { recordType: string; name: string; target: string } | null
   refererAllowlist: string[] | null
-  createdAt: number
+  createdAt: number | null
 }
 
 export type ImageHostingStatus = 'draft' | 'active'
