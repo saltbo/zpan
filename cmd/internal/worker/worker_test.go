@@ -662,11 +662,16 @@ func TestUploadExistingResultMissingRuntimeFailsWithoutRedownloading(t *testing.
 	}
 }
 
-func TestUploadExistingResultIncompleteRuntimeTaskFailsWithoutRedownloading(t *testing.T) {
+func TestUploadExistingResultIncompleteRuntimeResumesDownload(t *testing.T) {
+	// The server checkpoint can route a task to "upload the finished download"
+	// while the engine isn't reporting it complete yet — e.g. aria2 re-checking
+	// on-disk files after a restart. That must resume the download path, not
+	// panic/fail the task.
 	api := &recordingAPI{}
 	eng := &recordingEngine{
 		taskSnapshot: engine.TaskSnapshot{State: engine.TaskStateDownloading, Downloaded: 10},
 		taskFound:    true,
+		downloadErr:  errors.New("resumed via download path"),
 	}
 	w := NewWithAPI(config.Config{}, api)
 	w.engine = eng
@@ -677,12 +682,13 @@ func TestUploadExistingResultIncompleteRuntimeTaskFailsWithoutRedownloading(t *t
 		&client.DownloadTaskRuntime{Phase: "uploading"},
 	))
 
-	if eng.downloadCalls != 0 {
-		t.Fatalf("expected incomplete runtime task not to restart download, got %d download calls", eng.downloadCalls)
+	if eng.downloadCalls != 1 {
+		t.Fatalf("expected incomplete runtime to resume via the download path, got %d download calls", eng.downloadCalls)
 	}
-	failed := lastPatchWithStatus(t, api.patches, "failed")
-	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "server task requires upload but runtime task is not completed") {
-		t.Fatalf("expected invariant failure to be reported, got %#v", failed.ErrorMessage)
+	for _, p := range api.patches {
+		if p.Status == "failed" && p.ErrorMessage != nil && strings.Contains(*p.ErrorMessage, "not completed") {
+			t.Fatalf("expected no upload-invariant failure, got %q", *p.ErrorMessage)
+		}
 	}
 }
 

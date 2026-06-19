@@ -356,16 +356,21 @@ func (w *Worker) uploadExistingResult(
 		}
 		return
 	}
-	if snapshot.State != engine.TaskStateCompleted {
-		panic(fmt.Errorf(
-			"server task requires upload but runtime task is not completed: runtime_state=%s downloaded=%d total=%v",
-			snapshot.State,
-			snapshot.Downloaded,
-			optionalInt64(snapshot.Total),
-		))
-	}
-	if snapshot.Result == nil {
-		panic("runtime reported completed task without a local result")
+	if snapshot.State != engine.TaskStateCompleted || snapshot.Result == nil {
+		// The server checkpoint routed us here to upload an already-finished
+		// download, but the engine isn't reporting it complete yet — e.g. aria2
+		// is re-checking on-disk files after a restart, or the download was lost
+		// and must resume. Fall back to the download path, which attaches/resumes
+		// and uploads on completion, instead of failing the task.
+		log.Info(
+			"runtime not ready for direct upload; resuming via download path",
+			"runtime_state", snapshot.State,
+			"downloaded", snapshot.Downloaded,
+			"total", optionalInt64(snapshot.Total),
+			"has_result", snapshot.Result != nil,
+		)
+		w.downloadThenUpload(ctx, log, task, currentDetail)
+		return
 	}
 	log.Info("using completed runtime result", "path", snapshot.Result.Path, "name", snapshot.Result.Name, "size", snapshot.Result.Size)
 	w.uploadAndComplete(ctx, log, task, *snapshot.Result, currentDetail)
