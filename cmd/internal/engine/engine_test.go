@@ -152,6 +152,35 @@ func TestAria2StartArgsForceSaveCompletedSeeds(t *testing.T) {
 	}
 }
 
+func TestAria2StartArgsEnablesPeerDiscovery(t *testing.T) {
+	stateDir := t.TempDir()
+	args, err := (Aria2{Dir: t.TempDir(), StateDir: stateDir}).startArgs("6800")
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, "\n")
+	for _, expected := range []string{
+		"--enable-dht=true",
+		"--enable-peer-exchange=true",
+		"--bt-tracker=",
+		"udp://tracker.opentrackr.org:1337/announce",
+		"--dht-file-path=" + filepath.Join(stateDir, "dht.dat"),
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("expected aria2 args to contain %q for magnet peer discovery, got %v", expected, args)
+		}
+	}
+
+	// A provided (live-fetched) tracker list is used verbatim instead of the fallback.
+	custom, err := (Aria2{Dir: t.TempDir(), BtTrackers: "udp://custom.example:1337/announce"}).startArgs("6800")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(custom, "\n"), "--bt-tracker=udp://custom.example:1337/announce") {
+		t.Fatalf("expected provided BtTrackers to be used, got %v", custom)
+	}
+}
+
 func TestAria2StartArgsSetsMaxConcurrentDownloads(t *testing.T) {
 	args, err := (Aria2{Dir: t.TempDir(), MaxConcurrentDownloads: 25}).startArgs("6800")
 	if err != nil {

@@ -33,7 +33,10 @@ type Aria2 struct {
 	RetainSeed             bool
 	SeedDuration           time.Duration
 	SeedRatio              float64
-	GeoIP                  PeerGeoIPResolver
+	// BtTrackers is the comma-separated --bt-tracker list (aria2 format). When
+	// empty, startArgs falls back to the bundled defaultBtTrackers snapshot.
+	BtTrackers string
+	GeoIP      PeerGeoIPResolver
 }
 
 // aria2 measures --seed-time in minutes. A zero seed duration means "seed
@@ -101,7 +104,59 @@ func (a Aria2) Start(ctx context.Context) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
+// btTrackerListURL is the maintained XIU2 TrackersListCollection "best" list in
+// aria2 (comma-separated) format. Fetched at startup so dead magnet trackers are
+// supplemented with currently-healthy ones.
+const btTrackerListURL = "https://raw.githubusercontent.com/XIU2/TrackersListCollection/master/best_aria2.txt"
+
+// defaultBtTrackers is the bundled fallback (a snapshot of the XIU2 best list)
+// used only when the live list can't be fetched. Combined with DHT + PEX this is
+// what lets stale magnets — whose own announce list has rotted — still resolve.
+var defaultBtTrackers = []string{
+	"udp://tracker.opentrackr.org:1337/announce",
+	"udp://open.demonii.com:1337/announce",
+	"udp://open.stealth.si:80/announce",
+	"udp://tracker.torrent.eu.org:451/announce",
+	"udp://exodus.desync.com:6969/announce",
+	"udp://tracker.openbittorrent.com:6969/announce",
+	"udp://opentracker.i2p.rocks:6969/announce",
+	"udp://tracker.dler.org:6969/announce",
+	"http://tracker.openbittorrent.com:80/announce",
+	"udp://tracker.moeking.me:6969/announce",
+}
+
+// FetchBtTrackers pulls the maintained XIU2 best-tracker list, falling back to
+// the bundled snapshot if the network fetch fails or returns empty.
+func FetchBtTrackers() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, btTrackerListURL, nil)
+	if err != nil {
+		return strings.Join(defaultBtTrackers, ",")
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return strings.Join(defaultBtTrackers, ",")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return strings.Join(defaultBtTrackers, ",")
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return strings.Join(defaultBtTrackers, ",")
+	}
+	if list := strings.TrimSpace(string(body)); list != "" {
+		return list
+	}
+	return strings.Join(defaultBtTrackers, ",")
+}
+
 func (a Aria2) startArgs(rpcPort string) ([]string, error) {
+	trackers := a.BtTrackers
+	if trackers == "" {
+		trackers = strings.Join(defaultBtTrackers, ",")
+	}
 	args := []string{
 		"--enable-rpc=true",
 		"--rpc-listen-all=false",
@@ -111,6 +166,12 @@ func (a Aria2) startArgs(rpcPort string) ([]string, error) {
 		"--allow-overwrite=true",
 		"--auto-file-renaming=false",
 		"--listen-port=" + listenPortString(a.ListenPort),
+		// Magnets often ship dead trackers; broaden peer discovery so metadata
+		// can still be fetched (DHT + peer exchange + a curated live tracker list).
+		"--enable-dht=true",
+		"--enable-peer-exchange=true",
+		"--bt-load-saved-metadata=true",
+		"--bt-tracker=" + trackers,
 	}
 	if a.MaxConcurrentDownloads > 0 {
 		// Retained seeds count as active downloads in aria2, so this budget must
@@ -133,6 +194,9 @@ func (a Aria2) startArgs(rpcPort string) ([]string, error) {
 			"--save-session="+sessionPath,
 			"--save-session-interval=30",
 			"--force-save=true",
+			// Persist the DHT routing table so peer discovery is warm on restart
+			// instead of re-bootstrapping cold (which leaves magnets stuck).
+			"--dht-file-path="+filepath.Join(a.StateDir, "dht.dat"),
 		)
 	}
 	if a.Secret != "" {

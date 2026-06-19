@@ -178,6 +178,7 @@ func externalEngines(cfg config.Config, geoIP engine.PeerGeoIPResolver) []engine
 			RetainSeed:             cfg.SeedEnabled,
 			SeedDuration:           cfg.SeedDuration,
 			SeedRatio:              cfg.SeedRatio,
+			BtTrackers:             engine.FetchBtTrackers(),
 			GeoIP:                  geoIP,
 		},
 		engine.QBittorrent{URL: cfg.QBittorrentURL, Username: cfg.QBittorrentUser, Password: cfg.QBittorrentPass, Dir: cfg.DownloadDir, StateDir: cfg.StateDir, ListenPort: cfg.BTListenPort, RetainSeed: cfg.SeedEnabled, GeoIP: geoIP},
