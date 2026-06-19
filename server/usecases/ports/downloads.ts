@@ -164,6 +164,8 @@ export interface DownloaderRepo {
   listAssignmentCandidates(leaseCutoff: Date): Promise<DownloaderRecord[]>
   /** Ids of online, enabled downloaders whose last heartbeat is older than the cutoff. */
   listStaleIds(leaseCutoff: Date): Promise<string[]>
+  /** Ids of all downloaders past the heartbeat lease, including ones already offline. */
+  listUnreachableIds(leaseCutoff: Date): Promise<string[]>
   markStaleOffline(ids: string[], now: Date): Promise<void>
 }
 

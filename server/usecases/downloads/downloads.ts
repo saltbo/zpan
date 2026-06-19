@@ -488,12 +488,18 @@ async function selectDownloader(deps: DownloadsDeps, sourceType: string): Promis
 async function recoverStaleDownloaderAssignments(deps: DownloadsDeps): Promise<void> {
   const now = new Date()
   const leaseCutoff = new Date(now.getTime() - DOWNLOADER_HEARTBEAT_LEASE_MS)
+  // Settle canceling/pausing tasks for any unreachable downloader — including ones
+  // a prior sweep already marked offline — since their owner will never ack the
+  // transition. Idempotent, so it runs every sweep regardless of new staleness.
+  const unreachableIds = await deps.downloaders.listUnreachableIds(leaseCutoff)
+  if (unreachableIds.length > 0) {
+    await deps.downloadTasks.resolveControlAssignedToMany(unreachableIds, now)
+  }
+  // Requeue in-flight work and flip status to offline only on the online→offline
+  // transition, so already-handled tasks are not re-queued repeatedly.
   const staleIds = await deps.downloaders.listStaleIds(leaseCutoff)
   if (staleIds.length === 0) return
   await deps.downloadTasks.requeueAssignedToMany(staleIds, STALE_REQUEUE_STATUSES, now)
-  // canceling/pausing tasks must settle terminally, not requeue — their owner is
-  // gone, so no downloader will ever ack the transition otherwise.
-  await deps.downloadTasks.resolveControlAssignedToMany(staleIds, now)
   await deps.downloaders.markStaleOffline(staleIds, now)
 }
 

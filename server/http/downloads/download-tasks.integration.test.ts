@@ -383,11 +383,12 @@ describe('Download tasks API integration', () => {
     expect(cancelRes.status).toBe(200)
     await expect(cancelRes.json()).resolves.toMatchObject({ status: { state: 'canceling' } })
 
-    // The downloader goes offline before it can ack.
+    // The downloader went offline before acking — and a prior sweep already
+    // flipped its status to 'offline' (the case that left tasks stuck forever).
     const staleHeartbeatAt = Date.now() - 60_000
     await db.run(sql`
       UPDATE downloaders
-      SET last_heartbeat_at = ${staleHeartbeatAt}, updated_at = ${staleHeartbeatAt}
+      SET last_heartbeat_at = ${staleHeartbeatAt}, status = 'offline', updated_at = ${staleHeartbeatAt}
       WHERE id = ${downloader.downloader.id}
     `)
 

@@ -216,6 +216,16 @@ export function createDownloaderRepo(db: Database): DownloaderRepo {
       return rows.map((row) => row.id)
     },
 
+    async listUnreachableIds(leaseCutoff) {
+      // No status filter: a downloader already flipped to 'offline' by an earlier
+      // sweep can still hold canceling/pausing tasks that need settling.
+      const rows = await db
+        .select({ id: downloaders.id })
+        .from(downloaders)
+        .where(lt(downloaders.lastHeartbeatAt, leaseCutoff))
+      return rows.map((row) => row.id)
+    },
+
     async markStaleOffline(ids, now) {
       if (ids.length === 0) return
       await db
