@@ -20,6 +20,36 @@ import (
 	"github.com/saltbo/zpan/internal/engine"
 )
 
+func TestCancelRunningUsesCauseForControlState(t *testing.T) {
+	cases := []struct {
+		state string
+		want  error
+	}{
+		{"pausing", errTaskPausing},
+		{"canceling", errTaskCanceling},
+		{"suspended", errTaskSuspended},
+	}
+	for _, tc := range cases {
+		t.Run(tc.state, func(t *testing.T) {
+			w := NewWithAPI(config.Config{MaxConcurrentTasks: 5}, &recordingAPI{})
+			w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+			taskCtx, ok := w.startTask(context.Background(), "task-1")
+			if !ok {
+				t.Fatal("expected to start task")
+			}
+			defer w.finish("task-1")
+
+			if !w.cancelRunning(clientTaskWithStatus("task-1", tc.state)) {
+				t.Fatal("expected cancelRunning to act on a running task")
+			}
+			<-taskCtx.Done()
+			if cause := context.Cause(taskCtx); !errors.Is(cause, tc.want) {
+				t.Fatalf("expected cancel cause %v, got %v", tc.want, cause)
+			}
+		})
+	}
+}
+
 func TestWatchEngineProcessFatalOnUnexpectedExit(t *testing.T) {
 	w := NewWithAPI(config.Config{}, nil)
 	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
