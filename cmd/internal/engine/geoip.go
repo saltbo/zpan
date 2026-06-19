@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/oschwald/geoip2-golang"
-	"github.com/saltbo/zpan/cmd/internal/client"
+	"github.com/saltbo/zpan/internal/client"
 )
 
 var geoIPCodePattern = regexp.MustCompile(`^[A-Z0-9-]+$`)

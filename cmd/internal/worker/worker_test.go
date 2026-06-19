@@ -8,16 +8,67 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/saltbo/zpan/cmd/internal/client"
-	"github.com/saltbo/zpan/cmd/internal/config"
-	"github.com/saltbo/zpan/cmd/internal/engine"
+	"github.com/saltbo/zpan/internal/client"
+	"github.com/saltbo/zpan/internal/config"
+	"github.com/saltbo/zpan/internal/engine"
 )
+
+func TestWatchEngineProcessFatalOnUnexpectedExit(t *testing.T) {
+	w := NewWithAPI(config.Config{}, nil)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	runCtx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	w.cancelRun = cancel
+
+	cmd := exec.Command("sleep", "30")
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start managed process stub: %v", err)
+	}
+	done := make(chan struct{})
+	go func() {
+		w.watchEngineProcess("aria2", cmd)
+		close(done)
+	}()
+	// Simulate the engine dying out from under the worker.
+	_ = cmd.Process.Kill()
+
+	select {
+	case <-runCtx.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected run context to be cancelled after the engine exits")
+	}
+	if cause := context.Cause(runCtx); !errors.Is(cause, errEngineExited) {
+		t.Fatalf("expected errEngineExited cause, got %v", cause)
+	}
+	<-done
+}
+
+func TestWatchEngineProcessQuietOnDeliberateStop(t *testing.T) {
+	w := NewWithAPI(config.Config{}, nil)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	runCtx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	w.cancelRun = cancel
+	w.markStopping()
+
+	cmd := exec.Command("sleep", "30")
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start managed process stub: %v", err)
+	}
+	_ = cmd.Process.Kill()
+	w.watchEngineProcess("aria2", cmd)
+
+	if cause := context.Cause(runCtx); cause != nil {
+		t.Fatalf("expected run context to stay live during a deliberate stop, got %v", cause)
+	}
+}
 
 func TestHeartbeatReportsAggregateTransferSpeeds(t *testing.T) {
 	w := NewWithAPI(config.Config{Engine: "auto", MaxConcurrentTasks: 5}, &recordingAPI{})

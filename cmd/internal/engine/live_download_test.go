@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/saltbo/zpan/cmd/internal/client"
+	"github.com/saltbo/zpan/internal/client"
 )
 
 func liveTask(id, sourceType, sourceURI, name string) client.DownloadTask {

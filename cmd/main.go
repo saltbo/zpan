@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/saltbo/zpan/cmd/internal/client"
-	"github.com/saltbo/zpan/cmd/internal/config"
-	"github.com/saltbo/zpan/cmd/internal/host"
-	"github.com/saltbo/zpan/cmd/internal/worker"
+	"github.com/saltbo/zpan/internal/client"
+	"github.com/saltbo/zpan/internal/config"
+	"github.com/saltbo/zpan/internal/host"
+	"github.com/saltbo/zpan/internal/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

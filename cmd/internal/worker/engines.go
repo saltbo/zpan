@@ -3,11 +3,12 @@ package worker
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
-	"github.com/saltbo/zpan/cmd/internal/config"
-	"github.com/saltbo/zpan/cmd/internal/engine"
+	"github.com/saltbo/zpan/internal/config"
+	"github.com/saltbo/zpan/internal/engine"
 )
 
 func (w *Worker) resolveEngine(ctx context.Context) error {
@@ -86,12 +87,35 @@ func (w *Worker) startEngine(ctx context.Context, downloader engine.Engine) erro
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
+		_ = cmd.Wait()
 		return err
 	}
+	go w.watchEngineProcess(downloader.Name(), cmd)
 	return nil
 }
 
+// watchEngineProcess waits on a managed engine subprocess for the worker's
+// lifetime. The engine is expected to outlive every task, so any exit we did
+// not initiate is fatal: log it and cancel the run context, which makes Run
+// return errEngineExited and the process exit non-zero so the supervisor
+// restarts the whole downloader.
+func (w *Worker) watchEngineProcess(name string, cmd *exec.Cmd) {
+	err := cmd.Wait()
+	if w.isStopping() {
+		return
+	}
+	pid := 0
+	if cmd.Process != nil {
+		pid = cmd.Process.Pid
+	}
+	w.logger.Error("managed downloader engine exited unexpectedly", "engine", name, "pid", pid, "error", err)
+	if w.cancelRun != nil {
+		w.cancelRun(fmt.Errorf("%w: %s (pid %d): %v", errEngineExited, name, pid, err))
+	}
+}
+
 func (w *Worker) stopStartedEngines() {
+	w.markStopping()
 	if len(w.started) > 0 {
 		if saver, ok := w.engine.(engine.SessionSaver); ok {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/saltbo/zpan/cmd/internal/client"
-	"github.com/saltbo/zpan/cmd/internal/engine"
+	"github.com/saltbo/zpan/internal/client"
+	"github.com/saltbo/zpan/internal/engine"
 )
 
 type uploadProgress struct {

@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/saltbo/zpan/cmd/internal/client"
-	"github.com/saltbo/zpan/cmd/internal/config"
-	"github.com/saltbo/zpan/cmd/internal/engine"
-	"github.com/saltbo/zpan/cmd/internal/host"
+	"github.com/saltbo/zpan/internal/client"
+	"github.com/saltbo/zpan/internal/config"
+	"github.com/saltbo/zpan/internal/engine"
+	"github.com/saltbo/zpan/internal/host"
 )
 
 const Version = "0.1.0"
@@ -27,6 +27,7 @@ const maxTaskErrorMessageLength = 1000
 var errBillingPaused = errors.New("billing paused")
 var errTaskPausing = errors.New("task pausing")
 var errTaskCanceling = errors.New("task canceling")
+var errEngineExited = errors.New("managed downloader engine exited")
 
 type taskWorkStage int
 
@@ -46,6 +47,8 @@ type Worker struct {
 	retainedSeeds []retainedSeed
 	attempts      map[string]int
 	started       []*exec.Cmd
+	cancelRun     context.CancelCauseFunc
+	stopping      bool
 	wg            sync.WaitGroup
 	mu            sync.Mutex
 }
@@ -114,12 +117,20 @@ func (w *Worker) Run(ctx context.Context) error {
 		w.logger.Info("geoip database loaded", "path", w.cfg.GeoIPDBPath)
 		defer w.geoIP.Close()
 	}
-	if err := w.resolveEngine(ctx); err != nil {
+	// runCtx is cancelled either by the parent ctx (signal-driven shutdown) or
+	// by watchEngineProcess when a managed engine subprocess dies. The latter
+	// surfaces errEngineExited as the cancel cause so Run returns a non-nil
+	// error and the process exits non-zero for the supervisor to restart.
+	runCtx, cancelRun := context.WithCancelCause(ctx)
+	defer cancelRun(nil)
+	w.cancelRun = cancelRun
+
+	if err := w.resolveEngine(runCtx); err != nil {
 		return err
 	}
 	defer w.stopStartedEngines()
 
-	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	checkCtx, cancel := context.WithTimeout(runCtx, 10*time.Second)
 	defer cancel()
 	w.logger.Info("checking downloader engine", "engine", w.cfg.Engine)
 	if err := w.engine.Check(checkCtx); err != nil {
@@ -128,7 +139,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	}
 	w.logger.Info("downloader engine check passed", "engine", w.cfg.Engine)
 	w.logger.Info("downloader started", "engine", w.cfg.Engine)
-	w.restoreRetainedSeeds(ctx)
+	w.restoreRetainedSeeds(runCtx)
 	ticker := time.NewTicker(w.cfg.PollInterval)
 	defer ticker.Stop()
 	seedCleanupTicker := time.NewTicker(time.Minute)
@@ -136,25 +147,30 @@ func (w *Worker) Run(ctx context.Context) error {
 	seedReportTicker := time.NewTicker(retainedSeedReportInterval)
 	defer seedReportTicker.Stop()
 
-	if err := w.tick(ctx); err != nil {
+	if err := w.tick(runCtx); err != nil {
 		w.logger.Error("downloader tick failed", "error", err)
 	}
 	for {
 		select {
-		case <-ctx.Done():
-			w.logger.Info("downloader stopped", "reason", ctx.Err())
-			w.reportRetainedSeedsStopped(context.WithoutCancel(ctx))
+		case <-runCtx.Done():
+			cause := context.Cause(runCtx)
+			w.reportRetainedSeedsStopped(context.WithoutCancel(runCtx))
 			w.waitForTasks()
+			if errors.Is(cause, errEngineExited) {
+				// watchEngineProcess already logged the exit at error level.
+				return cause
+			}
+			w.logger.Info("downloader stopped", "reason", cause)
 			return nil
 		case <-ticker.C:
-			if err := w.tick(ctx); err != nil {
+			if err := w.tick(runCtx); err != nil {
 				w.logger.Error("downloader tick failed", "error", err)
 			}
 		case <-seedCleanupTicker.C:
-			w.cleanupRetainedSeeds(ctx)
+			w.cleanupRetainedSeeds(runCtx)
 		case <-seedReportTicker.C:
-			w.restoreRetainedSeeds(ctx)
-			w.reportRetainedSeeds(ctx)
+			w.restoreRetainedSeeds(runCtx)
+			w.reportRetainedSeeds(runCtx)
 		}
 	}
 }
@@ -716,6 +732,20 @@ func (w *Worker) finish(taskID string) {
 	if exists {
 		w.wg.Done()
 	}
+}
+
+// markStopping records that the worker is shutting down on purpose so
+// watchEngineProcess can tell a deliberate engine kill from a crash.
+func (w *Worker) markStopping() {
+	w.mu.Lock()
+	w.stopping = true
+	w.mu.Unlock()
+}
+
+func (w *Worker) isStopping() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.stopping
 }
 
 func (w *Worker) waitForTasks() {

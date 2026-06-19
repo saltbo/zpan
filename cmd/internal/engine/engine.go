@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/saltbo/zpan/cmd/internal/client"
+	"github.com/saltbo/zpan/internal/client"
 )
 
 type Result struct {

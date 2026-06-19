@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/saltbo/zpan/cmd/internal/config"
+	"github.com/saltbo/zpan/internal/config"
 )
 
 func TestRegistrationHeartbeatNormalizesAutoEngine(t *testing.T) {

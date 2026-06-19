@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/saltbo/zpan/cmd/internal/openapi"
+	"github.com/saltbo/zpan/internal/openapi"
 )
 
 type Client struct {
