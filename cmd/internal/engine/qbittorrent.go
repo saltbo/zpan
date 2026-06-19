@@ -13,7 +13,7 @@ import (
 	"time"
 
 	qbittorrent "github.com/autobrr/go-qbittorrent"
-	"github.com/saltbo/zpan/cmd/internal/client"
+	"github.com/saltbo/zpan/internal/client"
 )
 
 type QBittorrent struct {
@@ -49,7 +49,6 @@ func (q QBittorrent) Start(ctx context.Context) (*exec.Cmd, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	go func() { _ = cmd.Wait() }()
 	return cmd, nil
 }
 

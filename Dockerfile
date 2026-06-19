@@ -27,7 +27,7 @@ WORKDIR /app/cmd
 COPY cmd/go.mod cmd/go.sum ./
 RUN go mod download
 COPY cmd ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/zpan ./zpan
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/zpan .
 
 FROM debian:bookworm-slim AS geoip-db
 ARG GEOIP_DB_MONTH=2026-06

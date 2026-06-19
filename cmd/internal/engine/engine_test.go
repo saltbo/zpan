@@ -14,7 +14,7 @@ import (
 	"github.com/Braurbeki/arigo"
 	qbittorrent "github.com/autobrr/go-qbittorrent"
 	"github.com/cenkalti/rpc2"
-	"github.com/saltbo/zpan/cmd/internal/client"
+	"github.com/saltbo/zpan/internal/client"
 )
 
 func downloadTask(id, sourceType, sourceURI string) client.DownloadTask {
@@ -222,6 +222,18 @@ func TestIsAria2DownloadNotFound(t *testing.T) {
 		t.Fatal("expected aria2 download result not found to be ignored during reset")
 	}
 	if isAria2DownloadNotFound(errors.New("aria2 download ended with status error")) {
+		t.Fatal("expected ordinary aria2 download errors to stay visible")
+	}
+}
+
+func TestIsAria2GIDNotFound(t *testing.T) {
+	if !isAria2GIDNotFound(errors.New("GID 8bddd19e07ad6dc3 is not found")) {
+		t.Fatal("expected tellStatus GID-not-found to trigger re-discovery")
+	}
+	if !isAria2GIDNotFound(errors.New("Active Download not found for GID#b384ccaa7eae88da")) {
+		t.Fatal("expected aria2 active download not found to trigger re-discovery")
+	}
+	if isAria2GIDNotFound(errors.New("aria2 download ended with status error")) {
 		t.Fatal("expected ordinary aria2 download errors to stay visible")
 	}
 }

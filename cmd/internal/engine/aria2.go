@@ -19,7 +19,7 @@ import (
 
 	"github.com/Braurbeki/arigo"
 	"github.com/cenkalti/rpc2"
-	"github.com/saltbo/zpan/cmd/internal/client"
+	"github.com/saltbo/zpan/internal/client"
 )
 
 type Aria2 struct {
@@ -74,7 +74,6 @@ func (a Aria2) Start(ctx context.Context) (*exec.Cmd, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	go func() { _ = cmd.Wait() }()
 	return cmd, nil
 }
 
@@ -191,6 +190,20 @@ func isAria2DownloadNotFound(err error) bool {
 	}
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "download") && strings.Contains(msg, "not found")
+}
+
+// isAria2GIDNotFound reports whether a status lookup failed because aria2 has no
+// record of the GID — the message aria2 returns from tellStatus is
+// "GID <gid> is not found", which lacks the word "download" that
+// isAria2DownloadNotFound looks for. This happens when aria2 restarts mid-task
+// and re-creates the download under a fresh GID.
+func isAria2GIDNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "not found") &&
+		(strings.Contains(msg, "gid") || strings.Contains(msg, "download"))
 }
 
 func (a Aria2) SaveSession(ctx context.Context) error {
@@ -412,7 +425,7 @@ func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task client.
 		initialProgress = func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error { return nil }
 	}
 	primaryGID := gid
-	status, err := a.waitAria2(ctx, aria, primaryGID, initialProgress)
+	status, err := a.waitAria2(ctx, aria, task, primaryGID, initialProgress)
 	if err != nil {
 		_ = (*aria).Remove(primaryGID)
 		return Result{}, fmt.Errorf("wait primary gid %s: %w", primaryGID, err)
@@ -420,7 +433,7 @@ func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task client.
 	resultGID := status.GID
 	if len(status.FollowedBy) > 0 {
 		childGID := status.FollowedBy[0]
-		status, err = a.waitAria2(ctx, aria, childGID, progress)
+		status, err = a.waitAria2(ctx, aria, task, childGID, progress)
 		if err != nil {
 			_ = (*aria).Remove(childGID)
 			return Result{}, fmt.Errorf("wait followed gid %s: %w", childGID, err)
@@ -741,7 +754,7 @@ func (a Aria2) cleanupSeed(gid string, localPath string) func(context.Context) e
 	}
 }
 
-func (a Aria2) waitAria2(ctx context.Context, aria **arigo.Client, gid string, progress Progress) (arigo.Status, error) {
+func (a Aria2) waitAria2(ctx context.Context, aria **arigo.Client, task client.DownloadTask, gid string, progress Progress) (arigo.Status, error) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
@@ -755,6 +768,17 @@ func (a Aria2) waitAria2(ctx context.Context, aria **arigo.Client, gid string, p
 					if err := a.reconnect(ctx, aria); err != nil {
 						return arigo.Status{}, err
 					}
+					continue
+				}
+				if isAria2GIDNotFound(err) {
+					recovered, ok, findErr := a.findTask(ctx, aria, task)
+					if findErr != nil {
+						return arigo.Status{}, findErr
+					}
+					if !ok || recovered.GID == gid {
+						return arigo.Status{}, err
+					}
+					gid = recovered.GID
 					continue
 				}
 				return arigo.Status{}, err

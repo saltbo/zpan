@@ -1,4 +1,4 @@
-module github.com/saltbo/zpan/cmd
+module github.com/saltbo/zpan
 
 go 1.25.0
 
