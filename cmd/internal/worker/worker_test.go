@@ -70,6 +70,56 @@ func TestWatchEngineProcessQuietOnDeliberateStop(t *testing.T) {
 	}
 }
 
+func TestClearStaleSeedingReportsClearsUntrackedOnly(t *testing.T) {
+	api := &recordingAPI{seedingTasks: []client.DownloadTask{
+		clientTaskWithStatus("stale-task", "completed"),
+		clientTaskWithStatus("live-seed", "completed"),
+	}}
+	w := NewWithAPI(config.Config{SeedEnabled: true}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = &recordingEngine{}
+	w.retainedSeeds = []retainedSeed{{taskID: "live-seed"}}
+
+	w.clearStaleSeedingReports(context.Background())
+
+	if len(api.patchedIDs) != 1 || api.patchedIDs[0] != "stale-task" {
+		t.Fatalf("expected exactly the untracked task to be cleared, got %v", api.patchedIDs)
+	}
+	patch := api.patches[0]
+	if patch.Runtime == nil || patch.Runtime.Phase != "completed" {
+		t.Fatalf("expected completed-phase runtime, got %#v", patch.Runtime)
+	}
+	if patch.Runtime.Seeding == nil || patch.Runtime.Seeding.Active == nil || *patch.Runtime.Seeding.Active {
+		t.Fatal("expected seeding.active=false in the stopped report")
+	}
+}
+
+func TestCleanupRetainedSeedReportsStopped(t *testing.T) {
+	api := &recordingAPI{}
+	w := NewWithAPI(config.Config{SeedEnabled: true}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = &recordingEngine{}
+	cleaned := false
+	w.retainedSeeds = []retainedSeed{{
+		taskID:  "seed-task",
+		engine:  "aria2",
+		cleanup: func(context.Context) error { cleaned = true; return nil },
+	}}
+
+	w.cleanupRetainedSeed(context.Background(), w.retainedSeeds[0], "expired")
+
+	if !cleaned {
+		t.Fatal("expected engine cleanup to run")
+	}
+	if len(api.patchedIDs) != 1 || api.patchedIDs[0] != "seed-task" {
+		t.Fatalf("expected a stopped report for the cleaned seed, got %v", api.patchedIDs)
+	}
+	if patch := api.patches[0]; patch.Runtime == nil || patch.Runtime.Seeding == nil ||
+		patch.Runtime.Seeding.Active == nil || *patch.Runtime.Seeding.Active {
+		t.Fatalf("expected seeding cleared in cleanup report, got %#v", patch.Runtime)
+	}
+}
+
 func TestReconcileEngineSeedsAdoptsUntrackedOrphans(t *testing.T) {
 	root := t.TempDir()
 	orphanDir := filepath.Join(root, "orphan-task")
@@ -867,7 +917,8 @@ func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 
 func TestReportRetainedSeedsCleansMissingSeed(t *testing.T) {
 	cleaned := false
-	w := NewWithAPI(config.Config{SeedEnabled: true}, nil)
+	w := NewWithAPI(config.Config{SeedEnabled: true}, &recordingAPI{})
+	w.engine = &recordingEngine{}
 	w.retainedSeeds = []retainedSeed{{
 		taskID: "task-1",
 		engine: "aria2",
@@ -1067,7 +1118,7 @@ func TestRestoreRetainedSeedsDoesNotDuplicateAlreadyRestoredSeed(t *testing.T) {
 
 func TestCleanupRetainedSeedsRemovesExpiredSeed(t *testing.T) {
 	dir := t.TempDir()
-	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour}, nil)
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour}, &recordingAPI{})
 	cleaned := false
 	w.retainedSeeds = []retainedSeed{{
 		taskID:    "task-1",
@@ -1096,7 +1147,7 @@ func TestCleanupRetainedSeedsRemovesExpiredSeed(t *testing.T) {
 
 func TestCleanupRetainedSeedsRemovesSeedAfterRatio(t *testing.T) {
 	dir := t.TempDir()
-	w := NewWithAPI(config.Config{SeedEnabled: true, SeedRatio: 1.5}, nil)
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedRatio: 1.5}, &recordingAPI{})
 	cleaned := false
 	uploaded := int64(151)
 	w.retainedSeeds = []retainedSeed{{
@@ -1146,7 +1197,7 @@ func TestCleanupRetainedSeedsRemovesOldestWhenCacheLimitExceeded(t *testing.T) {
 	}
 
 	var cleaned []string
-	w := NewWithAPI(config.Config{SeedEnabled: true, SeedCacheLimit: 3}, nil)
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedCacheLimit: 3}, &recordingAPI{})
 	w.retainedSeeds = []retainedSeed{
 		{
 			taskID:     "old",
@@ -1324,6 +1375,8 @@ func (e *recordingEngine) Download(context.Context, client.DownloadTask, engine.
 
 type recordingAPI struct {
 	patches           []client.TaskPatch
+	patchedIDs        []string
+	seedingTasks      []client.DownloadTask
 	createFolderErr   error
 	createObjectDraft client.ObjectDraft
 	completeErrs      []error
@@ -1341,8 +1394,13 @@ func (a *recordingAPI) AssignedTasks(context.Context) ([]client.DownloadTask, er
 	return nil, nil
 }
 
+func (a *recordingAPI) SeedingTasks(context.Context) ([]client.DownloadTask, error) {
+	return a.seedingTasks, nil
+}
+
 func (a *recordingAPI) UpdateTask(_ context.Context, id string, patch client.TaskPatch) (client.DownloadTask, error) {
 	a.patches = append(a.patches, patch)
+	a.patchedIDs = append(a.patchedIDs, id)
 	task := clientTaskWithStatus(id, patch.State())
 	task.Status.Runtime = patch.Runtime
 	if patch.Progress != nil {

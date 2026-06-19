@@ -349,6 +349,47 @@ func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.ListDownl
 	return tasks, nil
 }
 
+// SeedingTasks returns this downloader's completed tasks whose runtime still
+// reports the seeding phase. Used to reconcile stale "seeding" state the server
+// kept after a seed was cleaned up without a stopped report.
+func (c *Client) SeedingTasks(ctx context.Context) ([]DownloadTask, error) {
+	seeding := make([]DownloadTask, 0)
+	assignedTo := openapi.Me
+	status := openapi.ListDownloadTasksParamsStatusCompleted
+	pageSize := 100
+	for page := 1; page <= 20; page++ {
+		pageNum := page
+		res, err := c.api.ListDownloadTasksWithResponse(ctx, &openapi.ListDownloadTasksParams{
+			AssignedTo: &assignedTo,
+			Status:     &status,
+			Page:       &pageNum,
+			PageSize:   &pageSize,
+		}, bearer(c.token))
+		if err != nil {
+			return nil, err
+		}
+		if err := expectStatus("GET", "/api/downloads/tasks", res.StatusCode(), res.Body, http.StatusOK); err != nil {
+			return nil, err
+		}
+		if res.JSON200 == nil {
+			return nil, fmt.Errorf("GET /api/downloads/tasks failed: empty response")
+		}
+		for _, item := range res.JSON200.Items {
+			task, err := downloadTaskFromOpenAPI(item)
+			if err != nil {
+				return nil, fmt.Errorf("GET /api/downloads/tasks failed: %w", err)
+			}
+			if runtime := task.Runtime(); runtime != nil && runtime.Phase == "seeding" {
+				seeding = append(seeding, task)
+			}
+		}
+		if len(res.JSON200.Items) < pageSize {
+			break
+		}
+	}
+	return seeding, nil
+}
+
 func (c *Client) RequestDeviceCode(ctx context.Context) (DeviceCode, error) {
 	scope := "downloader:register"
 	res, err := c.api.PostApiAuthDeviceCodeWithResponse(ctx, openapi.PostApiAuthDeviceCodeJSONRequestBody{

@@ -86,6 +86,31 @@ func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
 	}
 }
 
+func TestSeedingTasksFiltersCompletedSeedingPhase(t *testing.T) {
+	var status string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		status = r.URL.Query().Get("status")
+		w.Header().Set("Content-Type", "application/json")
+		seeding := downloadTaskFixture("seed-1", "completed")
+		seeding.Status.Runtime = &DownloadTaskRuntime{Phase: "seeding"}
+		plain := downloadTaskFixture("done-1", "completed")
+		plain.Status.Runtime = &DownloadTaskRuntime{Phase: "completed"}
+		_ = json.NewEncoder(w).Encode(Page[DownloadTask]{Items: []DownloadTask{seeding, plain}})
+	}))
+	defer server.Close()
+
+	tasks, err := mustClient(t, server.URL, "token").SeedingTasks(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != "completed" {
+		t.Fatalf("expected status=completed query, got %q", status)
+	}
+	if len(tasks) != 1 || tasks[0].ID != "seed-1" {
+		t.Fatalf("expected only the seeding-phase task, got %v", tasks)
+	}
+}
+
 func TestUpdateTaskUsesGeneratedRequestShape(t *testing.T) {
 	var body map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
