@@ -63,6 +63,12 @@ Feature: Remote download tasks
     When it marks an assigned task downloading
     Then the task is suspended with a reason and no bytes are pulled
 
+  @download-tasks/billing-recover @api
+  Scenario: A suspended task recovers once credits are restored
+    Given a task suspended for insufficient credits
+    When the credits are restored and the unit is retried
+    Then the charge succeeds and the task is no longer suspended
+
   @download-tasks/stale-clears-seeding @api
   Scenario: Unreachable downloader's completed task stops showing seeding
     Given a completed task still flagged seeding on a stale downloader

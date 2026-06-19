@@ -46,7 +46,9 @@ export async function reportRemoteDownloadUnit(
   const eventId = `remote_download:${params.taskId}:${params.unitIndex}`
   const existing = await deps.remoteDownloadUsage.findByEventId(eventId)
   if (existing?.status === 'reported') return { status: 'reported', eventId }
-  if (existing?.status === 'blocked') throw new RemoteDownloadBillingBlockedError()
+  // A previously 'blocked' unit is NOT terminal: re-sync it below so a credit
+  // top-up since the block takes effect. Short-circuiting here would wedge the
+  // task in 'suspended' forever, even after the user recharges.
 
   const now = new Date()
   if (!existing) {
