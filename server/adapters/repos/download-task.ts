@@ -262,16 +262,22 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
 
     async clearStaleSeedingRuntime(leaseCutoff, now) {
       // A completed task only keeps 'seeding' while a live downloader reports it.
-      // Drop the stale runtime on any completed+seeding task NOT owned by a
-      // recently-heartbeating downloader — covers offline, deleted, and orphaned
-      // (null) owners. The LIKE only matches the seeding flag, so it's a one-shot.
+      // Flip the stale runtime out of the seeding phase on any completed+seeding
+      // task NOT owned by a recently-heartbeating downloader — covers offline,
+      // deleted, and orphaned (null) owners. Surgically edit the JSON (phase ->
+      // completed, drop the seeding object) so the download/upload progress and
+      // file list are preserved; nulling it would erase the transfer record.
+      // The LIKE only matches the seeding flag, so it's a one-shot.
       const liveDownloaders = db
         .select({ id: downloaders.id })
         .from(downloaders)
         .where(gte(downloaders.lastHeartbeatAt, leaseCutoff))
       await db
         .update(downloadTasks)
-        .set({ runtime: null, updatedAt: now })
+        .set({
+          runtime: sql`json_remove(json_set(${downloadTasks.runtime}, '$.phase', 'completed'), '$.seeding')`,
+          updatedAt: now,
+        })
         .where(
           and(
             eq(downloadTasks.status, 'completed'),

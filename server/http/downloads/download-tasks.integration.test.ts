@@ -423,7 +423,15 @@ describe('Download tasks API integration', () => {
       expect(res.status).toBe(201)
       return (await res.json()) as DownloadTask
     }
-    const seedingRuntime = JSON.stringify({ engine: 'aria2', phase: 'seeding', seeding: { active: true } })
+    const seedingRuntime = JSON.stringify({
+      engine: 'aria2',
+      phase: 'seeding',
+      seeding: { active: true },
+      progress: {
+        download: { bytes: 2048, totalBytes: 2048, bytesPerSecond: 0 },
+        upload: { bytes: 2048, totalBytes: 2048, bytesPerSecond: 0 },
+      },
+    })
 
     // Live task: completed + seeding, still owned by the live downloader → kept.
     const liveTask = await create('https://example.com/live-seed.bin')
@@ -438,9 +446,10 @@ describe('Download tasks API integration', () => {
       WHERE id = ${orphanTask.id}
     `)
 
-    const phaseOf = async (id: string) =>
+    const runtimeOf = async (id: string) =>
       ((await (await app.request(`/api/downloads/tasks/${id}`, { headers: user })).json()) as DownloadTask).status
-        .runtime?.phase ?? null
+        .runtime
+    const phaseOf = async (id: string) => (await runtimeOf(id))?.phase ?? null
     expect(await phaseOf(liveTask.id)).toBe('seeding')
     expect(await phaseOf(orphanTask.id)).toBe('seeding')
 
@@ -448,7 +457,11 @@ describe('Download tasks API integration', () => {
     expect((await app.request('/api/downloads/downloaders', { headers: admin })).status).toBe(200)
 
     expect(await phaseOf(liveTask.id)).toBe('seeding') // live downloader's seed is preserved
-    expect(await phaseOf(orphanTask.id)).not.toBe('seeding') // deleted owner's stale seed is cleared
+    const orphanRuntime = await runtimeOf(orphanTask.id)
+    expect(orphanRuntime?.phase).not.toBe('seeding') // deleted owner's stale seed is cleared
+    expect(orphanRuntime?.seeding ?? null).toBeNull() // the stale seeding object is dropped
+    // ...but the download/upload transfer record is preserved, not wiped.
+    expect(orphanRuntime?.progress?.download).toMatchObject({ bytes: 2048, totalBytes: 2048 })
   })
 
   it('reassigns unfinished tasks from stale downloaders on live heartbeat [spec: download-tasks/reassign-on-heartbeat]', async () => {
@@ -1036,7 +1049,15 @@ describe('Download tasks API integration', () => {
     })
     expect(replacementRuntimeRes.status).toBe(200)
     const replacementRuntimeTask = (await replacementRuntimeRes.json()) as DownloadTask
-    expect(replacementRuntimeTask.status.runtime).toEqual({ phase: 'uploading' })
+    // A phase-only report (e.g. a seeding-stopped report) replaces the snapshot
+    // fields but preserves the cumulative download/upload progress.
+    expect(replacementRuntimeTask.status.runtime).toEqual({
+      phase: 'uploading',
+      progress: {
+        download: { bytes: totalBytes, totalBytes, bytesPerSecond: 0 },
+        upload: { bytes: 4 * 1024 * 1024, totalBytes, bytesPerSecond: 256_000 },
+      },
+    })
 
     const completedRes = await app.request(`/api/downloads/tasks/${task.id}`, {
       method: 'PATCH',
@@ -1058,6 +1079,11 @@ describe('Download tasks API integration', () => {
       torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
     })
     expect(completedTask.status.runtime).not.toHaveProperty('etaSeconds')
+    // The completed snapshot omitted progress, but the transfer record survives.
+    expect(completedTask.status.runtime?.progress).toMatchObject({
+      download: { bytes: totalBytes, totalBytes },
+      upload: { bytes: 4 * 1024 * 1024, totalBytes },
+    })
 
     const seedingRes = await app.request(`/api/downloads/tasks/${task.id}`, {
       method: 'PATCH',

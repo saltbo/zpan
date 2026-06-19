@@ -580,7 +580,14 @@ function nextTaskRuntime(
   status: string,
   now: Date,
 ): DownloadTaskRuntime | null {
-  const runtime = input === undefined ? current : input
+  let runtime = input === undefined ? current : input
+  // Transfer progress is cumulative, not a per-report snapshot: a runtime report
+  // that omits it (e.g. a seeding-stopped report carrying only phase) must not
+  // erase the download/upload totals already recorded. Carry the current
+  // progress forward; mergeTaskRuntime still applies any progress patch on top.
+  if (input && !input.progress && current?.progress) {
+    runtime = { ...input, progress: current.progress }
+  }
   const merged = mergeTaskRuntime(runtime, progress, now)
   if (!EXECUTABLE_TASK_STATUSES.includes(status as (typeof EXECUTABLE_TASK_STATUSES)[number])) {
     return merged
