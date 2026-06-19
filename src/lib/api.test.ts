@@ -66,7 +66,6 @@ import {
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
-  listAdminAuthProviders,
   listAnnouncements,
   listAuthProviders,
   listBackgroundJobs,
@@ -2568,16 +2567,26 @@ describe('api', () => {
       expect(url).toContain('/api/image-hosting/config')
     })
 
-    it('returns null when feature is not enabled', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null))
+    it('returns the disabled shape when feature is not enabled', async () => {
+      const disabled = {
+        enabled: false,
+        customDomain: null,
+        domainVerifiedAt: null,
+        domainStatus: 'none',
+        dnsInstructions: null,
+        refererAllowlist: null,
+        createdAt: null,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(disabled))
 
       const result = await getIhostConfig()
 
-      expect(result).toBeNull()
+      expect(result).toEqual(disabled)
+      expect(result.enabled).toBe(false)
     })
 
     it('passes credentials: include', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ enabled: false }))
 
       await getIhostConfig()
 
@@ -3797,16 +3806,6 @@ describe('api', () => {
   })
 
   describe('admin auth providers api', () => {
-    it('lists admin auth providers', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [] }))
-
-      await listAdminAuthProviders()
-
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/site/auth-providers')
-      expect(init.method).toBe('GET')
-    })
-
     it('upserts an auth provider', async () => {
       const data = { enabled: true, clientId: 'cid', clientSecret: 'secret' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ providerId: 'google', ...data }))
@@ -3832,7 +3831,7 @@ describe('api', () => {
     it('throws ApiError on failure', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
-      await expect(listAdminAuthProviders()).rejects.toThrow('forbidden')
+      await expect(upsertAuthProvider('google', {} as never)).rejects.toThrow('forbidden')
     })
   })
 

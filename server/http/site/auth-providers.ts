@@ -2,41 +2,27 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
-import {
-  deleteAuthProvider,
-  listAuthProviders,
-  listPublicAuthProviders,
-  upsertAuthProvider,
-} from '../../usecases/site/auth-provider'
+import { deleteAuthProvider, listAuthProviders, upsertAuthProvider } from '../../usecases/site/auth-provider'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
-const maskedProviderConfigSchema = z
+// One monomorphic schema for every caller. Role changes values only — admin gets a
+// masked `clientSecret`, front-of-house gets `clientSecret: null` (and the enabled-only
+// list). clientId/discoveryUrl/scopes are not secrets, so they are exposed to everyone.
+const authProviderSchema = z
   .object({
     providerId: z.string(),
     type: z.string(),
-    clientId: z.string(),
-    clientSecret: z.string(),
     enabled: z.boolean(),
-    discoveryUrl: z.string().optional(),
-    scopes: z.array(z.string()).optional(),
-  })
-  .openapi('AuthProviderConfig')
-
-const publicProviderSchema = z
-  .object({
-    providerId: z.string(),
-    type: z.string(),
     name: z.string(),
     icon: z.string(),
+    clientId: z.string(),
+    discoveryUrl: z.string().nullable(),
+    scopes: z.array(z.string()).nullable(),
+    clientSecret: z.string().nullable(),
   })
-  .openapi('PublicAuthProvider')
+  .openapi('AuthProvider')
 
-// GET / returns the admin config list (with masked secrets) to admins, or the
-// public display list to anonymous/login callers — hence the union.
-const authProviderListSchema = pageSchema(
-  z.union([maskedProviderConfigSchema, publicProviderSchema]),
-  'AuthProviderList',
-)
+const authProviderListSchema = pageSchema(authProviderSchema, 'AuthProviderList')
 
 const upsertSchema = z.object({
   type: z.enum(['builtin', 'oidc']),
@@ -65,7 +51,7 @@ const upsertRoute = createRoute({
   middleware: [requireAdmin] as const,
   request: { params: z.object({ providerId: z.string() }), ...jsonBody(upsertSchema) },
   responses: {
-    200: jsonContent(maskedProviderConfigSchema, 'Upserted auth provider'),
+    200: jsonContent(authProviderSchema, 'Upserted auth provider'),
     400: errorResponse('Invalid provider'),
     402: errorResponse('Feature not available'),
   },
@@ -89,10 +75,7 @@ const deleteProviderRoute = createRoute({
 // anonymous/login callers, and the full config to admins; writes are admin-only.
 export const authProviders = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
-    const { items } =
-      c.get('userRole') === 'admin'
-        ? await listAuthProviders(c.get('deps'))
-        : await listPublicAuthProviders(c.get('deps'))
+    const { items } = await listAuthProviders(c.get('deps'), { isAdmin: c.get('userRole') === 'admin' })
     return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
   })
   .openapi(upsertRoute, async (c) => {

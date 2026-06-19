@@ -54,7 +54,7 @@ describe('Auth Providers — public list', () => {
     expect(body.items[0].providerId).toBe('github')
   })
 
-  it('does not include clientSecret in public response [spec: auth-providers/public-no-secret]', async () => {
+  it('nulls clientSecret in public response [spec: auth-providers/public-no-secret]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -62,7 +62,7 @@ describe('Auth Providers — public list', () => {
 
     const res = await app.request('/api/site/auth-providers')
     const body = (await res.json()) as { items: Array<Record<string, unknown>> }
-    expect(body.items[0]).not.toHaveProperty('clientSecret')
+    expect(body.items[0].clientSecret).toBeNull()
   })
 
   it('returns display name and icon from provider metadata [spec: auth-providers/metadata]', async () => {
@@ -114,7 +114,7 @@ describe('Auth Providers — admin list', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>> }
     expect(body.items).toHaveLength(1)
-    expect(body.items[0]).not.toHaveProperty('clientSecret')
+    expect(body.items[0].clientSecret).toBeNull()
   })
 
   it('serves the public (secret-free) list to non-admin users [spec: auth-providers/admin-only]', async () => {
@@ -133,7 +133,7 @@ describe('Auth Providers — admin list', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>> }
     expect(body.items).toHaveLength(1)
-    expect(body.items[0]).not.toHaveProperty('clientSecret')
+    expect(body.items[0].clientSecret).toBeNull()
   })
 
   it('returns empty items when no providers are configured', async () => {

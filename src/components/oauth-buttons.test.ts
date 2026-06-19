@@ -19,9 +19,24 @@ function shouldRender(isLoading: boolean, providers: AuthProvider[]): boolean {
   return !isLoading && providers.length > 0
 }
 
+// Front-of-house provider shape: display fields populated, secrets nulled.
+function makeProvider(providerId: string, name: string): AuthProvider {
+  return {
+    providerId,
+    type: 'builtin',
+    enabled: true,
+    name,
+    icon: providerId,
+    clientId: '',
+    discoveryUrl: null,
+    scopes: null,
+    clientSecret: null,
+  }
+}
+
 describe('OAuthButtons — render visibility logic', () => {
   it('returns false (renders null) when loading', () => {
-    const providers: AuthProvider[] = [{ providerId: 'github', type: 'oauth', name: 'GitHub', icon: '' }]
+    const providers: AuthProvider[] = [makeProvider('github', 'GitHub')]
 
     expect(shouldRender(true, providers)).toBe(false)
   })
@@ -35,16 +50,13 @@ describe('OAuthButtons — render visibility logic', () => {
   })
 
   it('returns true (renders buttons) when not loading and providers exist', () => {
-    const providers: AuthProvider[] = [{ providerId: 'github', type: 'oauth', name: 'GitHub', icon: '' }]
+    const providers: AuthProvider[] = [makeProvider('github', 'GitHub')]
 
     expect(shouldRender(false, providers)).toBe(true)
   })
 
   it('returns true when multiple providers are present', () => {
-    const providers: AuthProvider[] = [
-      { providerId: 'github', type: 'oauth', name: 'GitHub', icon: '' },
-      { providerId: 'google', type: 'oauth', name: 'Google', icon: '' },
-    ]
+    const providers: AuthProvider[] = [makeProvider('github', 'GitHub'), makeProvider('google', 'Google')]
 
     expect(shouldRender(false, providers)).toBe(true)
   })
@@ -53,10 +65,6 @@ describe('OAuthButtons — render visibility logic', () => {
 // ---------------------------------------------------------------------------
 // Provider data contract — shape expected from listAuthProviders
 // ---------------------------------------------------------------------------
-
-function makeProvider(providerId: string, name: string): AuthProvider {
-  return { providerId, type: 'oauth', name, icon: providerId }
-}
 
 describe('OAuthButtons — provider data contract', () => {
   it('provider has a providerId field used as the key and social sign-in provider', () => {

@@ -6,7 +6,6 @@ import {
   type AuthProviderDeps,
   deleteAuthProvider,
   listAuthProviders,
-  listPublicAuthProviders,
   type UpsertProviderInput,
   upsertAuthProvider,
 } from './auth-provider'
@@ -66,28 +65,57 @@ function makeDeps(systemOptions: Partial<SystemOptionsRepo> = {}) {
 beforeEach(() => vi.clearAllMocks())
 
 describe('auth-provider usecase', () => {
-  describe('listPublicAuthProviders', () => {
-    it('returns only enabled providers with metadata, no secrets', async () => {
+  describe('listAuthProviders — front-of-house (isAdmin: false)', () => {
+    it('returns only enabled providers with metadata and a null secret', async () => {
       const { deps } = makeDeps({
         listByKeyLike: async () => [
           row({ providerId: 'github', type: 'builtin', clientId: 'a', clientSecret: 's', enabled: true }),
           row({ providerId: 'google', type: 'builtin', clientId: 'b', clientSecret: 's', enabled: false }),
         ],
       })
-      const out = await listPublicAuthProviders(deps)
-      expect(out.items).toEqual([{ providerId: 'github', type: 'builtin', name: 'GitHub', icon: 'github' }])
-      expect(out.items[0]).not.toHaveProperty('clientSecret')
+      const out = await listAuthProviders(deps, { isAdmin: false })
+      expect(out.items).toEqual([
+        {
+          providerId: 'github',
+          type: 'builtin',
+          enabled: true,
+          name: 'GitHub',
+          icon: 'github',
+          clientId: 'a',
+          discoveryUrl: null,
+          scopes: null,
+          clientSecret: null,
+        },
+      ])
     })
 
     it('falls back to providerId for name and icon of an unknown OIDC provider', async () => {
       const { deps } = makeDeps({
         listByKeyLike: async () => [
-          row({ providerId: 'my-custom-oidc', type: 'oidc', clientId: 'a', clientSecret: 's', enabled: true }),
+          row({
+            providerId: 'my-custom-oidc',
+            type: 'oidc',
+            clientId: 'a',
+            clientSecret: 's',
+            enabled: true,
+            discoveryUrl: 'https://accounts.example.com/.well-known/openid-configuration',
+            scopes: ['openid'],
+          }),
         ],
       })
-      const out = await listPublicAuthProviders(deps)
+      const out = await listAuthProviders(deps, { isAdmin: false })
       expect(out.items).toEqual([
-        { providerId: 'my-custom-oidc', type: 'oidc', name: 'my-custom-oidc', icon: 'my-custom-oidc' },
+        {
+          providerId: 'my-custom-oidc',
+          type: 'oidc',
+          enabled: true,
+          name: 'my-custom-oidc',
+          icon: 'my-custom-oidc',
+          clientId: 'a',
+          discoveryUrl: 'https://accounts.example.com/.well-known/openid-configuration',
+          scopes: ['openid'],
+          clientSecret: null,
+        },
       ])
     })
 
@@ -95,16 +123,16 @@ describe('auth-provider usecase', () => {
       const { deps } = makeDeps({
         listByKeyLike: async () => [{ key: 'oauth_provider_bad', value: 'not-json' }],
       })
-      expect(await listPublicAuthProviders(deps)).toEqual({ items: [] })
+      expect(await listAuthProviders(deps, { isAdmin: false })).toEqual({ items: [] })
     })
 
     it('returns empty when nothing is configured', async () => {
       const { deps } = makeDeps()
-      expect(await listPublicAuthProviders(deps)).toEqual({ items: [] })
+      expect(await listAuthProviders(deps, { isAdmin: false })).toEqual({ items: [] })
     })
   })
 
-  describe('listAuthProviders', () => {
+  describe('listAuthProviders — admin (isAdmin: true)', () => {
     it('returns all configs, enabled or not, with masked secrets', async () => {
       const { deps } = makeDeps({
         listByKeyLike: async () => [
@@ -118,7 +146,7 @@ describe('auth-provider usecase', () => {
           row({ providerId: 'google', type: 'builtin', clientId: 'b', clientSecret: 's', enabled: false }),
         ],
       })
-      const out = await listAuthProviders(deps)
+      const out = await listAuthProviders(deps, { isAdmin: true })
       expect(out.items).toHaveLength(2)
       expect(out.items[0].clientSecret).toMatch(/^\*+alue$/)
       expect(out.items[0].clientSecret).not.toBe('super-secret-value')
@@ -130,7 +158,7 @@ describe('auth-provider usecase', () => {
           row({ providerId: 'github', type: 'builtin', clientId: 'a', clientSecret: 'abc', enabled: true }),
         ],
       })
-      const out = await listAuthProviders(deps)
+      const out = await listAuthProviders(deps, { isAdmin: true })
       expect(out.items[0].clientSecret).toBe('****')
     })
 
@@ -138,7 +166,7 @@ describe('auth-provider usecase', () => {
       const { deps } = makeDeps({
         listByKeyLike: async () => [{ key: 'oauth_provider_bad', value: '{' }],
       })
-      expect(await listAuthProviders(deps)).toEqual({ items: [] })
+      expect(await listAuthProviders(deps, { isAdmin: true })).toEqual({ items: [] })
     })
   })
 

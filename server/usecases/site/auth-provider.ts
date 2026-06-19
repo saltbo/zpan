@@ -19,6 +19,7 @@ import {
   type OAuthProviderType,
   parseProviderConfig,
 } from '@shared/oauth-providers'
+import type { AuthProvider } from '@shared/types'
 import { hasFeature } from '../../domain/licensing'
 import { type AppError, badRequest, featureBlocked, type LicenseBindingRepo, type SystemOptionsRepo } from '../ports'
 import { loadBindingState } from './licensing'
@@ -37,20 +38,23 @@ function maskSecret(secret: string): string {
   return `${'*'.repeat(secret.length - 4)}${secret.slice(-4)}`
 }
 
-// A stored config with its clientSecret masked — the shape the admin routes
-// return (list items and the upsert response body).
-export type MaskedProviderConfig = Omit<OAuthProviderConfig, 'clientSecret'> & { clientSecret: string }
-
-function maskConfig(config: OAuthProviderConfig): MaskedProviderConfig {
-  return { ...config, clientSecret: maskSecret(config.clientSecret) }
-}
-
-// A login-page button: just the public-safe display fields, never secrets.
-export type PublicProvider = {
-  providerId: string
-  type: OAuthProviderType
-  name: string
-  icon: string
+// Map a stored config to the one monomorphic AuthProvider shape every caller sees.
+// Role changes values only: admin gets a masked clientSecret, front-of-house gets null.
+// name/icon come from the static OAuthProviderMeta registry (providerId fallback);
+// clientId/discoveryUrl/scopes are not secrets, so they are exposed to everyone.
+function toAuthProvider(config: OAuthProviderConfig, isAdmin: boolean): AuthProvider {
+  const meta = OAuthProviderMeta[config.providerId]
+  return {
+    providerId: config.providerId,
+    type: config.type,
+    enabled: config.enabled,
+    name: meta?.name ?? config.providerId,
+    icon: meta?.icon ?? config.providerId,
+    clientId: config.clientId,
+    discoveryUrl: config.discoveryUrl ?? null,
+    scopes: config.scopes ?? null,
+    clientSecret: isAdmin ? maskSecret(config.clientSecret) : null,
+  }
 }
 
 // `invalid_id` / `unknown_builtin` / `missing_discovery` are 400 validations;
@@ -64,45 +68,25 @@ export type UpsertProviderInput = {
   scopes?: string[]
 }
 
-export type UpsertProviderOutcome = { ok: true; config: MaskedProviderConfig } | { ok: false; error: AppError }
+export type UpsertProviderOutcome = { ok: true; config: AuthProvider } | { ok: false; error: AppError }
 
 export type DeleteProviderOutcome = { ok: true } | { ok: false; error: AppError }
 
 const INVALID_PROVIDER_ID_MESSAGE = 'Provider ID must contain only lowercase letters, numbers, and hyphens'
 
-// Public: enabled providers only, no secrets (for login page buttons).
-export async function listPublicAuthProviders(
-  deps: Pick<AuthProviderDeps, 'systemOptions'>,
-): Promise<{ items: PublicProvider[] }> {
-  const rows = await deps.systemOptions.listByKeyLike(OAUTH_PROVIDER_KEY_PATTERN)
-  const items = rows
-    .map((r) => {
-      const config = parseProviderConfig(r.value)
-      if (!config?.enabled) return null
-      const meta = OAuthProviderMeta[config.providerId]
-      return {
-        providerId: config.providerId,
-        type: config.type,
-        name: meta?.name ?? config.providerId,
-        icon: meta?.icon ?? config.providerId,
-      }
-    })
-    .filter((item) => item !== null)
-  return { items }
-}
-
-// Admin: full CRUD with secrets masked — every stored config, enabled or not.
+// One list, one shape. Admin sees every stored config with a masked secret;
+// front-of-house sees the enabled-only subset with `clientSecret: null` — a content
+// difference (mask / null / filter), never a shape difference.
 export async function listAuthProviders(
   deps: Pick<AuthProviderDeps, 'systemOptions'>,
-): Promise<{ items: MaskedProviderConfig[] }> {
+  { isAdmin }: { isAdmin: boolean },
+): Promise<{ items: AuthProvider[] }> {
   const rows = await deps.systemOptions.listByKeyLike(OAUTH_PROVIDER_KEY_PATTERN)
   const items = rows
-    .map((r) => {
-      const config = parseProviderConfig(r.value)
-      if (!config) return null
-      return maskConfig(config)
-    })
-    .filter((item) => item !== null)
+    .map((r) => parseProviderConfig(r.value))
+    .filter((config) => config !== null)
+    .filter((config) => isAdmin || config.enabled)
+    .map((config) => toAuthProvider(config, isAdmin))
   return { items }
 }
 
@@ -148,7 +132,7 @@ export async function upsertAuthProvider(
     await deps.systemOptions.set(key, value, false)
   }
 
-  return { ok: true, config: maskConfig(config) }
+  return { ok: true, config: toAuthProvider(config, true) }
 }
 
 export async function deleteAuthProvider(

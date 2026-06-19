@@ -237,21 +237,6 @@ func (e ImageHostingConfigDomainStatus) Valid() bool {
 	}
 }
 
-// Defines values for ImageHostingConfigResponse1Enabled.
-const (
-	ImageHostingConfigResponse1EnabledFalse ImageHostingConfigResponse1Enabled = false
-)
-
-// Valid indicates whether the value is a known member of the ImageHostingConfigResponse1Enabled enum.
-func (e ImageHostingConfigResponse1Enabled) Valid() bool {
-	switch e {
-	case ImageHostingConfigResponse1EnabledFalse:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ChangeEmail200JSONResponseBodyMessage.
 const (
 	ChangeEmail200JSONResponseBodyMessageEmailUpdated          ChangeEmail200JSONResponseBodyMessage = "Email updated"
@@ -389,13 +374,13 @@ func (e PostApiAuthOauth2Link200JSONResponseBodyRedirect) Valid() bool {
 
 // Defines values for SignInEmail200JSONResponseBodyRedirect.
 const (
-	SignInEmail200JSONResponseBodyRedirectFalse SignInEmail200JSONResponseBodyRedirect = false
+	False SignInEmail200JSONResponseBodyRedirect = false
 )
 
 // Valid indicates whether the value is a known member of the SignInEmail200JSONResponseBodyRedirect enum.
 func (e SignInEmail200JSONResponseBodyRedirect) Valid() bool {
 	switch e {
-	case SignInEmail200JSONResponseBodyRedirectFalse:
+	case False:
 		return true
 	default:
 		return false
@@ -1354,28 +1339,25 @@ type AuditEventPage struct {
 	Total    int          `json:"total"`
 }
 
-// AuthProviderConfig defines model for AuthProviderConfig.
-type AuthProviderConfig struct {
+// AuthProvider defines model for AuthProvider.
+type AuthProvider struct {
 	ClientId     string    `json:"clientId"`
-	ClientSecret string    `json:"clientSecret"`
-	DiscoveryUrl *string   `json:"discoveryUrl,omitempty"`
+	ClientSecret *string   `json:"clientSecret"`
+	DiscoveryUrl *string   `json:"discoveryUrl"`
 	Enabled      bool      `json:"enabled"`
+	Icon         string    `json:"icon"`
+	Name         string    `json:"name"`
 	ProviderId   string    `json:"providerId"`
-	Scopes       *[]string `json:"scopes,omitempty"`
+	Scopes       *[]string `json:"scopes"`
 	Type         string    `json:"type"`
 }
 
 // AuthProviderList defines model for AuthProviderList.
 type AuthProviderList struct {
-	Items    []AuthProviderList_Items_Item `json:"items"`
-	Page     int                           `json:"page"`
-	PageSize int                           `json:"pageSize"`
-	Total    int                           `json:"total"`
-}
-
-// AuthProviderList_Items_Item defines model for AuthProviderList.items.Item.
-type AuthProviderList_Items_Item struct {
-	union json.RawMessage
+	Items    []AuthProvider `json:"items"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+	Total    int            `json:"total"`
 }
 
 // BackgroundJob defines model for BackgroundJob.
@@ -1729,7 +1711,7 @@ type ImageHosting struct {
 
 // ImageHostingConfig defines model for ImageHostingConfig.
 type ImageHostingConfig struct {
-	CreatedAt       int     `json:"createdAt"`
+	CreatedAt       *int    `json:"createdAt"`
 	CustomDomain    *string `json:"customDomain"`
 	DnsInstructions *struct {
 		Name       string `json:"name"`
@@ -1744,19 +1726,6 @@ type ImageHostingConfig struct {
 
 // ImageHostingConfigDomainStatus defines model for ImageHostingConfig.DomainStatus.
 type ImageHostingConfigDomainStatus string
-
-// ImageHostingConfigResponse defines model for ImageHostingConfigResponse.
-type ImageHostingConfigResponse struct {
-	union json.RawMessage
-}
-
-// ImageHostingConfigResponse1 defines model for .
-type ImageHostingConfigResponse1 struct {
-	Enabled ImageHostingConfigResponse1Enabled `json:"enabled"`
-}
-
-// ImageHostingConfigResponse1Enabled defines model for ImageHostingConfigResponse.1.Enabled.
-type ImageHostingConfigResponse1Enabled bool
 
 // ImageHostingDraft defines model for ImageHostingDraft.
 type ImageHostingDraft struct {
@@ -1907,14 +1876,6 @@ type PendingInvitation struct {
 	ExpiresAt *string `json:"expiresAt"`
 	Id        string  `json:"id"`
 	Role      string  `json:"role"`
-}
-
-// PublicAuthProvider defines model for PublicAuthProvider.
-type PublicAuthProvider struct {
-	Icon       string `json:"icon"`
-	Name       string `json:"name"`
-	ProviderId string `json:"providerId"`
-	Type       string `json:"type"`
 }
 
 // PublicProfile defines model for PublicProfile.
@@ -3998,130 +3959,6 @@ type GrantUserEntitlementJSONRequestBody GrantUserEntitlementJSONBody
 
 // UpdateUserEntitlementJSONRequestBody defines body for UpdateUserEntitlement for application/json ContentType.
 type UpdateUserEntitlementJSONRequestBody UpdateUserEntitlementJSONBody
-
-// AsAuthProviderConfig returns the union data inside the AuthProviderList_Items_Item as a AuthProviderConfig
-func (t AuthProviderList_Items_Item) AsAuthProviderConfig() (AuthProviderConfig, error) {
-	var body AuthProviderConfig
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuthProviderConfig overwrites any union data inside the AuthProviderList_Items_Item as the provided AuthProviderConfig
-func (t *AuthProviderList_Items_Item) FromAuthProviderConfig(v AuthProviderConfig) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuthProviderConfig performs a merge with any union data inside the AuthProviderList_Items_Item, using the provided AuthProviderConfig
-func (t *AuthProviderList_Items_Item) MergeAuthProviderConfig(v AuthProviderConfig) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsPublicAuthProvider returns the union data inside the AuthProviderList_Items_Item as a PublicAuthProvider
-func (t AuthProviderList_Items_Item) AsPublicAuthProvider() (PublicAuthProvider, error) {
-	var body PublicAuthProvider
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPublicAuthProvider overwrites any union data inside the AuthProviderList_Items_Item as the provided PublicAuthProvider
-func (t *AuthProviderList_Items_Item) FromPublicAuthProvider(v PublicAuthProvider) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePublicAuthProvider performs a merge with any union data inside the AuthProviderList_Items_Item, using the provided PublicAuthProvider
-func (t *AuthProviderList_Items_Item) MergePublicAuthProvider(v PublicAuthProvider) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t AuthProviderList_Items_Item) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *AuthProviderList_Items_Item) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsImageHostingConfig returns the union data inside the ImageHostingConfigResponse as a ImageHostingConfig
-func (t ImageHostingConfigResponse) AsImageHostingConfig() (ImageHostingConfig, error) {
-	var body ImageHostingConfig
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromImageHostingConfig overwrites any union data inside the ImageHostingConfigResponse as the provided ImageHostingConfig
-func (t *ImageHostingConfigResponse) FromImageHostingConfig(v ImageHostingConfig) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeImageHostingConfig performs a merge with any union data inside the ImageHostingConfigResponse, using the provided ImageHostingConfig
-func (t *ImageHostingConfigResponse) MergeImageHostingConfig(v ImageHostingConfig) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsImageHostingConfigResponse1 returns the union data inside the ImageHostingConfigResponse as a ImageHostingConfigResponse1
-func (t ImageHostingConfigResponse) AsImageHostingConfigResponse1() (ImageHostingConfigResponse1, error) {
-	var body ImageHostingConfigResponse1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromImageHostingConfigResponse1 overwrites any union data inside the ImageHostingConfigResponse as the provided ImageHostingConfigResponse1
-func (t *ImageHostingConfigResponse) FromImageHostingConfigResponse1(v ImageHostingConfigResponse1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeImageHostingConfigResponse1 performs a merge with any union data inside the ImageHostingConfigResponse, using the provided ImageHostingConfigResponse1
-func (t *ImageHostingConfigResponse) MergeImageHostingConfigResponse1(v ImageHostingConfigResponse1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t ImageHostingConfigResponse) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *ImageHostingConfigResponse) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
 
 // AsCreateBackgroundJobJSONBody0 returns the union data inside the CreateBackgroundJobJSONBody as a CreateBackgroundJobJSONBody0
 func (t CreateBackgroundJobJSONBody) AsCreateBackgroundJobJSONBody0() (CreateBackgroundJobJSONBody0, error) {
@@ -23854,7 +23691,7 @@ func (r DeleteImageHostingConfigResponse) ContentType() string {
 type GetImageHostingConfigResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ImageHostingConfigResponse
+	JSON200      *ImageHostingConfig
 	JSON401      *Error
 }
 
@@ -25114,7 +24951,7 @@ func (r DeleteAuthProviderResponse) ContentType() string {
 type UpsertAuthProviderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AuthProviderConfig
+	JSON200      *AuthProvider
 	JSON400      *Error
 	JSON402      *Error
 }
@@ -37941,7 +37778,7 @@ func ParseGetImageHostingConfigResponse(rsp *http.Response) (*GetImageHostingCon
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ImageHostingConfigResponse
+		var dest ImageHostingConfig
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39475,7 +39312,7 @@ func ParseUpsertAuthProviderResponse(rsp *http.Response) (*UpsertAuthProviderRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthProviderConfig
+		var dest AuthProvider
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
