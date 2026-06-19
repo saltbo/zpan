@@ -70,6 +70,62 @@ func TestWatchEngineProcessQuietOnDeliberateStop(t *testing.T) {
 	}
 }
 
+func TestReconcileEngineSeedsAdoptsUntrackedOrphans(t *testing.T) {
+	root := t.TempDir()
+	orphanDir := filepath.Join(root, "orphan-task")
+	if err := os.MkdirAll(orphanDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(orphanDir, "file.bin"), make([]byte, 1024), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	trackedDir := filepath.Join(root, "tracked-task")
+	runningDir := filepath.Join(root, "running-task")
+	for _, dir := range []string{trackedDir, runningDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	eng := &recordingEngine{listSeeds: []engine.Seed{
+		{Engine: "aria2", ID: "g1", InfoHash: "AAAA", Path: orphanDir},
+		{Engine: "aria2", ID: "g2", InfoHash: "BBBB", Path: trackedDir},
+		{Engine: "aria2", ID: "g3", InfoHash: "CCCC", Path: runningDir},
+	}}
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour}, &recordingAPI{})
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = eng
+	w.retainedSeeds = []retainedSeed{{taskID: "tracked-task"}}
+	w.running["running-task"] = func(error) {}
+
+	w.reconcileEngineSeeds(context.Background())
+
+	got := map[string]retainedSeed{}
+	trackedCount := 0
+	for _, seed := range w.retainedSeedSnapshot() {
+		got[seed.taskID] = seed
+		if seed.taskID == "tracked-task" {
+			trackedCount++
+		}
+	}
+	orphan, adopted := got["orphan-task"]
+	if !adopted {
+		t.Fatal("expected the untracked orphan seed to be adopted")
+	}
+	if orphan.expiresAt.IsZero() {
+		t.Fatal("expected the adopted orphan to receive an expiry")
+	}
+	if orphan.size != 1024 {
+		t.Fatalf("expected adopted orphan size 1024, got %d", orphan.size)
+	}
+	if _, ok := got["running-task"]; ok {
+		t.Fatal("expected the in-flight running task to be skipped, not adopted")
+	}
+	if trackedCount != 1 {
+		t.Fatalf("expected the already-tracked seed to stay single, got %d", trackedCount)
+	}
+}
+
 func TestHeartbeatReportsAggregateTransferSpeeds(t *testing.T) {
 	w := NewWithAPI(config.Config{Engine: "auto", MaxConcurrentTasks: 5}, &recordingAPI{})
 
@@ -1215,10 +1271,12 @@ type recordingEngine struct {
 	inspectPanic   any
 	taskFound      bool
 	restoreSeed    *engine.Seed
+	listSeeds      []engine.Seed
 	downloadCalls  int
 	resetCalls     int
 	inspectCalls   int
 	restoreCalls   int
+	listSeedsCalls int
 }
 
 func (e *recordingEngine) Name() string {
@@ -1247,6 +1305,11 @@ func (e *recordingEngine) InspectTask(context.Context, client.DownloadTask) (eng
 func (e *recordingEngine) RestoreSeed(context.Context, engine.SeedRef) (*engine.Seed, error) {
 	e.restoreCalls++
 	return e.restoreSeed, nil
+}
+
+func (e *recordingEngine) ListSeeds(context.Context) ([]engine.Seed, error) {
+	e.listSeedsCalls++
+	return e.listSeeds, nil
 }
 
 func (e *recordingEngine) ResetTask(context.Context, client.DownloadTask) error {

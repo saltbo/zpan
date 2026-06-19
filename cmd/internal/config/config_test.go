@@ -19,6 +19,7 @@ func TestLoadParsesSeedPolicy(t *testing.T) {
 	v.Set("downloader.seed.duration", "30m")
 	v.Set("downloader.seed.cache_limit", "10GB")
 	v.Set("downloader.seed.ratio", 1.5)
+	v.Set("downloader.seed.max_concurrent", 7)
 
 	cfg, err := Load(v)
 	if err != nil {
@@ -26,6 +27,9 @@ func TestLoadParsesSeedPolicy(t *testing.T) {
 	}
 	if !cfg.SeedEnabled {
 		t.Fatal("expected seed policy to be enabled")
+	}
+	if cfg.SeedMaxConcurrent != 7 {
+		t.Fatalf("expected seed max_concurrent 7, got %d", cfg.SeedMaxConcurrent)
 	}
 	if cfg.SeedDuration != 30*time.Minute {
 		t.Fatalf("expected seed duration 30m, got %s", cfg.SeedDuration)
@@ -57,6 +61,9 @@ func TestLoadUsesSafeSeedDefaults(t *testing.T) {
 	}
 	if cfg.SeedCacheLimit != 10_000_000_000 {
 		t.Fatalf("expected default seed cache limit 10GB, got %d", cfg.SeedCacheLimit)
+	}
+	if cfg.SeedMaxConcurrent != 10 {
+		t.Fatalf("expected default seed max_concurrent 10, got %d", cfg.SeedMaxConcurrent)
 	}
 	if cfg.Token != "" {
 		t.Fatalf("expected missing token to be accepted for device login bootstrap, got %q", cfg.Token)
@@ -119,6 +126,7 @@ func TestLoadRejectsInvalidSeedPolicy(t *testing.T) {
 		{name: "duration", key: "downloader.seed.duration", value: "-1s"},
 		{name: "cache limit", key: "downloader.seed.cache_limit", value: "-1GB"},
 		{name: "ratio", key: "downloader.seed.ratio", value: "-1"},
+		{name: "max concurrent", key: "downloader.seed.max_concurrent", value: "-1"},
 	}
 
 	for _, tt := range tests {

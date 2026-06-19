@@ -140,6 +140,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	w.logger.Info("downloader engine check passed", "engine", w.cfg.Engine)
 	w.logger.Info("downloader started", "engine", w.cfg.Engine)
 	w.restoreRetainedSeeds(runCtx)
+	w.reconcileEngineSeeds(runCtx)
 	ticker := time.NewTicker(w.cfg.PollInterval)
 	defer ticker.Stop()
 	seedCleanupTicker := time.NewTicker(time.Minute)
@@ -170,6 +171,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			w.cleanupRetainedSeeds(runCtx)
 		case <-seedReportTicker.C:
 			w.restoreRetainedSeeds(runCtx)
+			w.reconcileEngineSeeds(runCtx)
 			w.reportRetainedSeeds(runCtx)
 		}
 	}

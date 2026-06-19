@@ -168,9 +168,32 @@ func explicitlyConfiguredExternalEngine(cfg config.Config, geoIP engine.PeerGeoI
 
 func externalEngines(cfg config.Config, geoIP engine.PeerGeoIPResolver) []engine.Engine {
 	return []engine.Engine{
-		engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, StateDir: cfg.StateDir, ListenPort: cfg.BTListenPort, RetainSeed: cfg.SeedEnabled, GeoIP: geoIP},
+		engine.Aria2{
+			URL:                    cfg.Aria2URL,
+			Secret:                 cfg.Aria2Secret,
+			Dir:                    cfg.DownloadDir,
+			StateDir:               cfg.StateDir,
+			ListenPort:             cfg.BTListenPort,
+			MaxConcurrentDownloads: aria2MaxConcurrentDownloads(cfg),
+			RetainSeed:             cfg.SeedEnabled,
+			SeedDuration:           cfg.SeedDuration,
+			SeedRatio:              cfg.SeedRatio,
+			GeoIP:                  geoIP,
+		},
 		engine.QBittorrent{URL: cfg.QBittorrentURL, Username: cfg.QBittorrentUser, Password: cfg.QBittorrentPass, Dir: cfg.DownloadDir, StateDir: cfg.StateDir, ListenPort: cfg.BTListenPort, RetainSeed: cfg.SeedEnabled, GeoIP: geoIP},
 	}
+}
+
+// aria2MaxConcurrentDownloads keeps download and seeding concurrency separate.
+// max_concurrent_tasks is the worker's download budget; retained seeds (which
+// aria2 counts as active downloads) get their own budget on top so they never
+// consume a download slot.
+func aria2MaxConcurrentDownloads(cfg config.Config) int {
+	limit := cfg.MaxConcurrentTasks
+	if cfg.SeedEnabled {
+		limit += cfg.SeedMaxConcurrent
+	}
+	return limit
 }
 
 func waitForEngine(ctx context.Context, downloader engine.Engine) error {
