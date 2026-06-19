@@ -230,6 +230,21 @@ func TestAria2SeedTimeMinutes(t *testing.T) {
 	}
 }
 
+func TestShouldAttachExistingAria2Task(t *testing.T) {
+	// 'interrupted' (how restart resumes a task) must attach to the session-
+	// restored download rather than re-add (which duplicates + orphans it).
+	for _, state := range []string{"downloading", "uploading", "interrupted"} {
+		if !shouldAttachExistingAria2Task(client.DownloadTask{Status: client.DownloadTaskStatus{State: state}}) {
+			t.Fatalf("expected to attach for state %q", state)
+		}
+	}
+	for _, state := range []string{"queued", "assigned", "paused", "completed", "canceling"} {
+		if shouldAttachExistingAria2Task(client.DownloadTask{Status: client.DownloadTaskStatus{State: state}}) {
+			t.Fatalf("did not expect to attach for state %q", state)
+		}
+	}
+}
+
 func TestAria2PeerProgress(t *testing.T) {
 	if p := aria2PeerProgress(arigo.Peer{Seeder: true}); p == nil || *p != 1.0 {
 		t.Fatalf("expected seeder progress 1.0, got %v", p)

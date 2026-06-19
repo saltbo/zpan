@@ -468,7 +468,16 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 }
 
 func shouldAttachExistingAria2Task(task client.DownloadTask) bool {
-	return task.State() == "downloading" || task.State() == "uploading"
+	// 'interrupted' is how a task comes back after a downloader restart. aria2
+	// reloads the same download from its saved session, so we must attach to it
+	// — re-adding would create a duplicate that errors (infohash already
+	// registered) and orphans the real download from progress reporting.
+	switch task.State() {
+	case "downloading", "uploading", "interrupted":
+		return true
+	default:
+		return false
+	}
 }
 
 func (a Aria2) snapshotTask(
@@ -696,6 +705,12 @@ func (a Aria2) findTask(ctx context.Context, aria **arigo.Client, task client.Do
 	taskDir := filepath.Clean(filepath.Join(a.Dir, task.ID))
 	infoHash := aria2TaskInfoHash(task)
 	for _, status := range statuses {
+		// Skip dead duplicates (e.g. an error-12 "infohash already registered"
+		// entry left by a prior re-add) so we attach to the live download, not it.
+		switch string(status.Status) {
+		case string(arigo.StatusError), string(arigo.StatusRemoved):
+			continue
+		}
 		if aria2StatusMatchesTask(status, taskDir, gid, infoHash) {
 			return status, true, nil
 		}
