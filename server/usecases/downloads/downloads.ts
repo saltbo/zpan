@@ -501,10 +501,13 @@ async function recoverStaleDownloaderAssignments(deps: DownloadsDeps): Promise<v
   // Settle canceling/pausing tasks for any unreachable downloader — including ones
   // a prior sweep already marked offline — since their owner will never ack the
   // transition. Idempotent, so it runs every sweep regardless of new staleness.
+  // Stale 'seeding' can also linger on a completed task whose downloader was
+  // deleted — its id is gone from the table, so it never shows up in any stale
+  // list. Clear by the live-downloader set instead, every sweep (idempotent).
+  await deps.downloadTasks.clearStaleSeedingRuntime(leaseCutoff, now)
   const unreachableIds = await deps.downloaders.listUnreachableIds(leaseCutoff)
   if (unreachableIds.length > 0) {
     await deps.downloadTasks.resolveControlAssignedToMany(unreachableIds, now)
-    await deps.downloadTasks.clearStaleSeedingRuntime(unreachableIds, now)
   }
   // Requeue in-flight work and flip status to offline only on the online→offline
   // transition, so already-handled tasks are not re-queued repeatedly.

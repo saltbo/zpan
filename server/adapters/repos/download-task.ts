@@ -1,7 +1,7 @@
 import { downloadTaskRuntimeSchema } from '@shared/schemas'
 import type { DownloadTask, DownloadTaskRuntime } from '@shared/types'
-import { and, asc, count, desc, eq, inArray, like, type SQL, sql } from 'drizzle-orm'
-import { downloadTasks } from '../../db/schema'
+import { and, asc, count, desc, eq, gte, inArray, isNull, like, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { downloaders, downloadTasks } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import {
   type CreateDownloadTaskRecordInput,
@@ -260,19 +260,26 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         .where(and(inArray(downloadTasks.assignedDownloaderId, downloaderIds), eq(downloadTasks.status, 'pausing')))
     },
 
-    async clearStaleSeedingRuntime(downloaderIds, now) {
-      if (downloaderIds.length === 0) return
-      // A completed task still flagged 'seeding' whose downloader is gone isn't
-      // actually seeding anymore. Drop the stale runtime so it stops showing as
-      // seeding. (The LIKE only matches the seeding flag, so it's a one-shot.)
+    async clearStaleSeedingRuntime(leaseCutoff, now) {
+      // A completed task only keeps 'seeding' while a live downloader reports it.
+      // Drop the stale runtime on any completed+seeding task NOT owned by a
+      // recently-heartbeating downloader — covers offline, deleted, and orphaned
+      // (null) owners. The LIKE only matches the seeding flag, so it's a one-shot.
+      const liveDownloaders = db
+        .select({ id: downloaders.id })
+        .from(downloaders)
+        .where(gte(downloaders.lastHeartbeatAt, leaseCutoff))
       await db
         .update(downloadTasks)
         .set({ runtime: null, updatedAt: now })
         .where(
           and(
-            inArray(downloadTasks.assignedDownloaderId, downloaderIds),
             eq(downloadTasks.status, 'completed'),
             like(downloadTasks.runtime, '%"phase":"seeding"%'),
+            or(
+              isNull(downloadTasks.assignedDownloaderId),
+              notInArray(downloadTasks.assignedDownloaderId, liveDownloaders),
+            ),
           ),
         )
     },
