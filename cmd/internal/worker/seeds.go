@@ -369,6 +369,22 @@ func (w *Worker) runningTaskIDs() map[string]struct{} {
 	return ids
 }
 
+// assignedSeedTaskIDs lists tasks the server still considers assigned to us and
+// unfinished, so the seed reconciler won't adopt a download the task loop hasn't
+// uploaded yet. A fetch error returns an empty set (reconcile as before).
+func (w *Worker) assignedSeedTaskIDs(ctx context.Context) map[string]struct{} {
+	ids := map[string]struct{}{}
+	tasks, err := w.api.AssignedTasks(ctx)
+	if err != nil {
+		w.logger.Warn("failed to list assigned tasks for seed reconciliation", "error", err)
+		return ids
+	}
+	for _, task := range tasks {
+		ids[task.ID] = struct{}{}
+	}
+	return ids
+}
+
 // reconcileEngineSeeds adopts torrents the engine is still seeding but the
 // worker no longer tracks (orphans left behind by restarts or ledger drift),
 // so the normal time/ratio/cache cleanup applies to them instead of letting
@@ -392,6 +408,12 @@ func (w *Worker) reconcileEngineSeeds(ctx context.Context) {
 		tracked[seed.taskID] = struct{}{}
 	}
 	running := w.runningTaskIDs()
+	// Tasks still assigned to us (downloading/interrupted/uploading) are owned by
+	// the task loop, which will upload then seed them. The reconciler runs at
+	// startup before the loop marks them running, so without this an
+	// auto-seeding-but-not-yet-uploaded torrent gets adopted as a done seed and
+	// its upload is skipped (file lost when the seed expires).
+	assigned := w.assignedSeedTaskIDs(ctx)
 	now := time.Now()
 	var adopted []retainedSeed
 	for _, seed := range seeds {
@@ -403,6 +425,9 @@ func (w *Worker) reconcileEngineSeeds(ctx context.Context) {
 			continue
 		}
 		if _, ok := running[taskID]; ok {
+			continue
+		}
+		if _, ok := assigned[taskID]; ok {
 			continue
 		}
 		size, err := directorySize(seed.Path)

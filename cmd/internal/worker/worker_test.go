@@ -175,7 +175,8 @@ func TestReconcileEngineSeedsAdoptsUntrackedOrphans(t *testing.T) {
 	}
 	trackedDir := filepath.Join(root, "tracked-task")
 	runningDir := filepath.Join(root, "running-task")
-	for _, dir := range []string{trackedDir, runningDir} {
+	assignedDir := filepath.Join(root, "assigned-task")
+	for _, dir := range []string{trackedDir, runningDir, assignedDir} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -185,14 +186,25 @@ func TestReconcileEngineSeedsAdoptsUntrackedOrphans(t *testing.T) {
 		{Engine: "aria2", ID: "g1", InfoHash: "AAAA", Path: orphanDir},
 		{Engine: "aria2", ID: "g2", InfoHash: "BBBB", Path: trackedDir},
 		{Engine: "aria2", ID: "g3", InfoHash: "CCCC", Path: runningDir},
+		{Engine: "aria2", ID: "g4", InfoHash: "DDDD", Path: assignedDir},
 	}}
-	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour}, &recordingAPI{})
+	// 'assigned-task' is still assigned/unfinished — it auto-seeds but hasn't been
+	// uploaded yet, so the reconciler must NOT adopt it as a done seed.
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour}, &recordingAPI{
+		assignedTasks: []client.DownloadTask{{ID: "assigned-task"}},
+	})
 	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	w.engine = eng
 	w.retainedSeeds = []retainedSeed{{taskID: "tracked-task"}}
 	w.running["running-task"] = func(error) {}
 
 	w.reconcileEngineSeeds(context.Background())
+
+	for _, seed := range w.retainedSeedSnapshot() {
+		if seed.taskID == "assigned-task" {
+			t.Fatal("expected an assigned (not-yet-uploaded) task's seed to be skipped, not adopted")
+		}
+	}
 
 	got := map[string]retainedSeed{}
 	trackedCount := 0
@@ -1421,6 +1433,7 @@ type recordingAPI struct {
 	patches            []client.TaskPatch
 	patchedIDs         []string
 	seedingTasks       []client.DownloadTask
+	assignedTasks      []client.DownloadTask
 	suspendDownloading bool
 	createFolderErr    error
 	createObjectDraft  client.ObjectDraft
@@ -1436,7 +1449,7 @@ func (a *recordingAPI) AssignedControlTasks(context.Context) ([]client.DownloadT
 }
 
 func (a *recordingAPI) AssignedTasks(context.Context) ([]client.DownloadTask, error) {
-	return nil, nil
+	return a.assignedTasks, nil
 }
 
 func (a *recordingAPI) SeedingTasks(context.Context) ([]client.DownloadTask, error) {
