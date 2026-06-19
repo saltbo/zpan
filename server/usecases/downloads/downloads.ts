@@ -491,6 +491,9 @@ async function recoverStaleDownloaderAssignments(deps: DownloadsDeps): Promise<v
   const staleIds = await deps.downloaders.listStaleIds(leaseCutoff)
   if (staleIds.length === 0) return
   await deps.downloadTasks.requeueAssignedToMany(staleIds, STALE_REQUEUE_STATUSES, now)
+  // canceling/pausing tasks must settle terminally, not requeue — their owner is
+  // gone, so no downloader will ever ack the transition otherwise.
+  await deps.downloadTasks.resolveControlAssignedToMany(staleIds, now)
   await deps.downloaders.markStaleOffline(staleIds, now)
 }
 

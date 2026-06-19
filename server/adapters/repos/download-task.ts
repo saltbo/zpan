@@ -238,5 +238,26 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         .set({ status: 'queued', assignedDownloaderId: null, assignedAt: null, runtime: null, updatedAt: now })
         .where(and(inArray(downloadTasks.assignedDownloaderId, downloaderIds), inArray(downloadTasks.status, statuses)))
     },
+
+    async resolveControlAssignedToMany(downloaderIds, now) {
+      if (downloaderIds.length === 0) return
+      // A canceling task whose downloader vanished is effectively canceled.
+      await db
+        .update(downloadTasks)
+        .set({
+          status: 'canceled',
+          assignedDownloaderId: null,
+          assignedAt: null,
+          runtime: null,
+          finishedAt: now,
+          updatedAt: now,
+        })
+        .where(and(inArray(downloadTasks.assignedDownloaderId, downloaderIds), eq(downloadTasks.status, 'canceling')))
+      // A pausing task whose downloader vanished settles to paused (resumable).
+      await db
+        .update(downloadTasks)
+        .set({ status: 'paused', assignedDownloaderId: null, assignedAt: null, runtime: null, updatedAt: now })
+        .where(and(inArray(downloadTasks.assignedDownloaderId, downloaderIds), eq(downloadTasks.status, 'pausing')))
+    },
   }
 }
