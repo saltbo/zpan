@@ -2,6 +2,18 @@
 
 ZPan ships as a single Docker image. By default it uses an embedded SQLite database (`better-sqlite3`). For production multi-replica deployments you can opt into [Turso](https://turso.tech) (libSQL) as a shared remote database.
 
+## Image tags
+
+Images are published to `ghcr.io/saltbo/zpan`. A CLI-only variant (downloader) is published under the matching `-cli` suffix.
+
+| Tag | Built from | When | Use for |
+| --- | --- | --- | --- |
+| `latest`, `2.6.1`, `2.6`, `2` | release tags (`v*`) | on every release | **production** — stable, version-pinned |
+| `dev` | `main` HEAD | every push to `main` (after CI passes) | trying the newest code as soon as it lands |
+| `nightly` | `main` HEAD | daily, full no-cache rebuild | newest code **plus** fresh base-image/OS security patches |
+
+`dev` and `nightly` are moving, unreviewed tags — do not pin production to them. Pulling without a tag (`ghcr.io/saltbo/zpan`) resolves to `latest`.
+
 ## Default: local SQLite
 
 No extra configuration needed. Mount a volume so the database survives container restarts:
