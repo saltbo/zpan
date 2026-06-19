@@ -25018,7 +25018,6 @@ type UpdateBrandingResponse struct {
 	JSON413      *Error
 	JSON415      *Error
 	JSON422      *Error
-	JSON503      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -39411,13 +39410,6 @@ func ParseUpdateBrandingResponse(rsp *http.Response) (*UpdateBrandingResponse, e
 			return nil, err
 		}
 		response.JSON422 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
 
 	}
 

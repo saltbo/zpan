@@ -5,19 +5,19 @@ import {
   type BrandingThemeMode,
   isBrandingThemePresetId,
 } from '@shared/types'
-import { mimeToExt } from '../../lib/mime-utils'
-import type { ActivityRepo, S3Gateway, StorageRecord, StorageRepo, SystemOptionsRepo } from '../ports'
+import type { ActivityRepo, SystemOptionsRepo } from '../ports'
 
 export type BrandingDeps = {
-  s3: S3Gateway
-  storages: StorageRepo
   systemOptions: SystemOptionsRepo
   activity: ActivityRepo
 }
 
 const LOGO_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'] as const
 const FAVICON_MIMES = ['image/png', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/svg+xml'] as const
-export const MAX_BRANDING_FILE_SIZE = 2 * 1024 * 1024 // 2 MiB
+// Caps apply to the RAW uploaded bytes. Base64 inflates ~33%, but GET
+// /api/site/branding is public + 5-min cached so the stored payload stays small.
+export const MAX_LOGO_SIZE = 256 * 1024 // 256 KB
+export const MAX_FAVICON_SIZE = 64 * 1024 // 64 KB
 
 export const BRANDING_KEYS = {
   logo: 'branding_logo_url',
@@ -46,7 +46,7 @@ const THEME_KEYS = [
 export type ThemeField = (typeof THEME_KEYS)[number]
 export type ThemeUpdate = Partial<Record<ThemeField, string>>
 
-export type BrandingUploadResult = { ok: true; url: string } | { ok: false; status: 400 | 413 | 503; error: string }
+export type BrandingUploadResult = { ok: true; url: string } | { ok: false; status: 400 | 413; error: string }
 
 // The parsed, already-validated PUT payload. Multipart parsing, theme/color
 // validation, and the wordmark-length check are http concerns; this usecase
@@ -63,11 +63,11 @@ export type BrandingUpdateInput = {
 }
 
 // On an image-upload failure the handler maps `status`/`error` straight to its
-// response (400 invalid type, 413 too large, 503 no public storage). On success
-// the freshly-read config is returned for serialization.
+// response (400 invalid type, 413 too large). On success the freshly-read config
+// is returned for serialization.
 export type BrandingUpdateOutcome =
   | { ok: true; config: BrandingConfig }
-  | { ok: false; status: 400 | 413 | 503; error: string }
+  | { ok: false; status: 400 | 413; error: string }
 
 export async function readBranding(deps: Pick<BrandingDeps, 'systemOptions'>): Promise<BrandingConfig> {
   const keys = Object.values(BRANDING_KEYS)
@@ -167,8 +167,11 @@ export async function resetBranding(
   })
 }
 
+// Encodes the uploaded file as a `data:` URI and stores it in the branding
+// system option. No S3 / public storage is involved — the data URI is served
+// inline by the public, cached GET /api/site/branding.
 export async function uploadBrandingImage(
-  deps: Pick<BrandingDeps, 's3' | 'storages' | 'systemOptions'>,
+  deps: Pick<BrandingDeps, 'systemOptions'>,
   field: 'logo' | 'favicon',
   file: File,
 ): Promise<BrandingUploadResult> {
@@ -176,22 +179,14 @@ export async function uploadBrandingImage(
   if (!(allowedMimes as readonly string[]).includes(file.type)) {
     return { ok: false, status: 400, error: `Invalid file type for ${field}. Allowed: ${allowedMimes.join(', ')}` }
   }
-  if (file.size > MAX_BRANDING_FILE_SIZE) {
-    return { ok: false, status: 413, error: 'File too large. Max 2 MiB.' }
+  const maxSize = field === 'logo' ? MAX_LOGO_SIZE : MAX_FAVICON_SIZE
+  if (file.size > maxSize) {
+    const label = field === 'logo' ? 'Logo' : 'Favicon'
+    return { ok: false, status: 413, error: `${label} too large. Max ${maxSize / 1024} KB.` }
   }
 
-  let storage: StorageRecord
-  try {
-    storage = await deps.storages.select('public')
-  } catch {
-    return { ok: false, status: 503, error: 'No public storage configured' }
-  }
-
-  const ext = mimeToExt(file.type)
-  const key = `_system/branding/${field}.${ext}`
   const bytes = new Uint8Array(await file.arrayBuffer())
-  await deps.s3.putObject(storage, key, bytes, file.type)
-  const url = deps.s3.getPublicUrl(storage, key)
+  const url = `data:${file.type};base64,${Buffer.from(bytes).toString('base64')}`
 
   await deps.systemOptions.set(BRANDING_KEYS[field], url, true)
   return { ok: true, url }

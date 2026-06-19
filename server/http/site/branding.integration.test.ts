@@ -1,22 +1,11 @@
-import { sql } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { BrandingConfig } from '../../../shared/types'
-import { S3Service } from '../../adapters/gateways/s3.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense as seedProLicenseRow } from '../../test/setup.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const NOW = Date.now()
-
 async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   await seedProLicenseRow(db)
-}
-
-async function seedPublicStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  await db.run(sql`
-    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES ('branding-storage', 'Public', 'public', 'test-bucket', 'https://s3.example.com', 'us-east-1', 'key', 'secret', '', '', 0, 0, 'active', ${NOW}, ${NOW})
-  `)
 }
 
 async function seedBrandingOption(db: Awaited<ReturnType<typeof createTestApp>>['db'], key: string, value: string) {
@@ -64,6 +53,18 @@ describe('GET /api/site/branding', () => {
     expect(body.hide_powered_by).toBe(true)
   })
 
+  it('still returns a legacy absolute-URL logo/favicon unchanged [spec: branding/legacy-url-compat]', async () => {
+    const { app, db } = await createTestApp()
+    await seedBrandingOption(db, 'branding_logo_url', 'https://cdn.example.com/_system/branding/logo.svg')
+    await seedBrandingOption(db, 'branding_favicon_url', 'https://cdn.example.com/_system/branding/favicon.png')
+
+    const res = await app.request('/api/site/branding')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as BrandingConfig
+    expect(body.logo_url).toBe('https://cdn.example.com/_system/branding/logo.svg')
+    expect(body.favicon_url).toBe('https://cdn.example.com/_system/branding/favicon.png')
+  })
+
   it('returns stored built-in theme values when set', async () => {
     const { app, db } = await createTestApp()
     await seedBrandingOption(db, 'branding_theme_mode', 'preset')
@@ -109,15 +110,6 @@ describe('GET /api/site/branding', () => {
 // ─── PUT /api/site/branding ──────────────────────────────────────────────────
 
 describe('PUT /api/site/branding', () => {
-  beforeEach(() => {
-    vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(16)
-    vi.spyOn(S3Service.prototype, 'getPublicUrl').mockReturnValue('https://cdn.example.com/logo.png')
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/site/branding', { method: 'PUT' })
@@ -268,28 +260,50 @@ describe('PUT /api/site/branding', () => {
     expect(res.status).toBe(422)
   })
 
-  it('uploads logo file to S3 and stores URL [spec: branding/logo-upload]', async () => {
+  it('stores an uploaded logo as a data URI — no public storage required [spec: branding/logo-upload]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    await seedPublicStorage(db)
+    // Intentionally no storage seeded — branding must not depend on mode='public' storage.
 
-    const logoFile = new File(['<svg></svg>'], 'logo.svg', { type: 'image/svg+xml' })
+    const svg = '<svg></svg>'
+    const logoFile = new File([svg], 'logo.svg', { type: 'image/svg+xml' })
     const form = new FormData()
     form.set('logo', logoFile)
 
     const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { logo_url: string }
-    expect(body.logo_url).toBe('https://cdn.example.com/logo.png')
-    expect(S3Service.prototype.putObject).toHaveBeenCalledTimes(1)
+    const expected = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+    expect(body.logo_url).toBe(expected)
+
+    // GET reflects the same data URI.
+    const getRes = await app.request('/api/site/branding')
+    const getBody = (await getRes.json()) as BrandingConfig
+    expect(getBody.logo_url).toBe(expected)
+  })
+
+  it('stores an uploaded favicon as a data URI [spec: branding/favicon-upload]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+
+    const bytes = new Uint8Array([1, 2, 3, 4, 5])
+    const faviconFile = new File([bytes], 'favicon.ico', { type: 'image/x-icon' })
+    const form = new FormData()
+    form.set('favicon', faviconFile)
+
+    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { favicon_url: string }
+    const expected = `data:image/x-icon;base64,${Buffer.from(bytes).toString('base64')}`
+    expect(body.favicon_url).toBe(expected)
   })
 
   it('returns 400 for invalid logo MIME type [spec: branding/logo-mime]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    await seedPublicStorage(db)
 
     const badFile = new File(['data'], 'malware.exe', { type: 'application/octet-stream' })
     const form = new FormData()
@@ -299,15 +313,12 @@ describe('PUT /api/site/branding', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 413 for logo file exceeding 2MB [spec: branding/logo-size]', async () => {
+  it('returns 413 for a logo exceeding 256 KB [spec: branding/logo-size]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    await seedPublicStorage(db)
 
-    // 2MB + 1 byte
-    const bigData = new Uint8Array(2 * 1024 * 1024 + 1)
-    const bigFile = new File([bigData], 'big.png', { type: 'image/png' })
+    const bigFile = new File([new Uint8Array(256 * 1024 + 1)], 'big.png', { type: 'image/png' })
     const form = new FormData()
     form.set('logo', bigFile)
 
@@ -315,18 +326,18 @@ describe('PUT /api/site/branding', () => {
     expect(res.status).toBe(413)
   })
 
-  it('returns 503 when no public storage is configured [spec: branding/logo-needs-storage]', async () => {
+  it('returns 413 for a favicon exceeding 64 KB [spec: branding/favicon-size]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    // No storage seeded — selectStorage will throw
 
-    const logoFile = new File(['<svg></svg>'], 'logo.svg', { type: 'image/svg+xml' })
+    // Under the 256 KB logo cap, but over the 64 KB favicon cap — proves per-field limits.
+    const bigFile = new File([new Uint8Array(64 * 1024 + 1)], 'big.png', { type: 'image/png' })
     const form = new FormData()
-    form.set('logo', logoFile)
+    form.set('favicon', bigFile)
 
     const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
-    expect(res.status).toBe(503)
+    expect(res.status).toBe(413)
   })
 })
 

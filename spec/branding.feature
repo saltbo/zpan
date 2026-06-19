@@ -20,6 +20,12 @@ Feature: Branding
     When the public branding is requested
     Then the stored values are returned
 
+  @branding/legacy-url-compat @api
+  Scenario: Legacy absolute-URL logo and favicon are still served
+    Given stored branding with absolute-URL logo and favicon
+    When the public branding is requested
+    Then the absolute URLs are returned unchanged
+
   @branding/custom-theme @api
   Scenario: Custom theme colors are served
     Given stored custom theme colors
@@ -69,10 +75,16 @@ Feature: Branding
     Then the API responds 422 and the stored theme is unchanged
 
   @branding/logo-upload @api
-  Scenario: A logo is uploaded to S3
-    Given an admin with Pro and a public storage
+  Scenario: A logo is stored as a data URI
+    Given an admin with Pro and no public storage
     When they upload a valid logo
-    Then it is stored to S3 and its URL recorded
+    Then it is stored as a base64 data URI and returned unchanged
+
+  @branding/favicon-upload @api
+  Scenario: A favicon is stored as a data URI
+    Given an admin with Pro
+    When they upload a valid favicon
+    Then it is stored as a base64 data URI carrying its mime type
 
   @branding/logo-mime @api
   Scenario: Logo type is validated
@@ -83,14 +95,14 @@ Feature: Branding
   @branding/logo-size @api
   Scenario: Logo size is limited
     Given an admin with Pro
-    When they upload a logo larger than 2MB
+    When they upload a logo larger than 256KB
     Then the API responds 413
 
-  @branding/logo-needs-storage @api
-  Scenario: Logo upload needs a public storage
-    Given no public storage
-    When an admin uploads a logo
-    Then the API responds 503
+  @branding/favicon-size @api
+  Scenario: Favicon size is limited
+    Given an admin with Pro
+    When they upload a favicon larger than 64KB
+    Then the API responds 413
 
   @branding/admin-only @api
   Scenario: Only admins update branding
