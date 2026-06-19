@@ -1,0 +1,56 @@
+name: Docker Nightly
+
+# A genuine daily rebuild of main's HEAD. Unlike `:dev` (which only rebuilds when
+# code lands), this runs on a schedule with no cache so it picks up base-image and
+# OS security updates (node/debian, aria2, qbittorrent-nox) even on quiet days.
+# Scheduled runs only fire on the default branch, so this always tracks main.
+on:
+  schedule:
+    - cron: '27 3 * * *' # 03:27 UTC daily — minute offset dodges GitHub's congested top-of-hour scheduling
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    name: Nightly image
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build & push server image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          pull: true
+          no-cache: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            APP_VERSION=nightly
+            APP_COMMIT=${{ github.sha }}
+          tags: ghcr.io/${{ github.repository }}:nightly
+
+      - name: Build & push CLI image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: cli
+          push: true
+          pull: true
+          no-cache: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            APP_VERSION=nightly
+            APP_COMMIT=${{ github.sha }}
+          tags: ghcr.io/${{ github.repository }}:nightly-cli
