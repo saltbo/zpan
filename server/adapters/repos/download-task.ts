@@ -259,5 +259,22 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         .set({ status: 'paused', assignedDownloaderId: null, assignedAt: null, runtime: null, updatedAt: now })
         .where(and(inArray(downloadTasks.assignedDownloaderId, downloaderIds), eq(downloadTasks.status, 'pausing')))
     },
+
+    async clearStaleSeedingRuntime(downloaderIds, now) {
+      if (downloaderIds.length === 0) return
+      // A completed task still flagged 'seeding' whose downloader is gone isn't
+      // actually seeding anymore. Drop the stale runtime so it stops showing as
+      // seeding. (The LIKE only matches the seeding flag, so it's a one-shot.)
+      await db
+        .update(downloadTasks)
+        .set({ runtime: null, updatedAt: now })
+        .where(
+          and(
+            inArray(downloadTasks.assignedDownloaderId, downloaderIds),
+            eq(downloadTasks.status, 'completed'),
+            like(downloadTasks.runtime, '%"phase":"seeding"%'),
+          ),
+        )
+    },
   }
 }

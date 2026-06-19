@@ -63,6 +63,12 @@ Feature: Remote download tasks
     When it marks an assigned task downloading
     Then the task is suspended with a reason and no bytes are pulled
 
+  @download-tasks/stale-clears-seeding @api
+  Scenario: Unreachable downloader's completed task stops showing seeding
+    Given a completed task still flagged seeding on a stale downloader
+    When stale recovery runs
+    Then its stale seeding runtime is cleared
+
   @download-tasks/upload-flow @api
   Scenario: A completed remote download uploads via the object API
     Given an assigned task

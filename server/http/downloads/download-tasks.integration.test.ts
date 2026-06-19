@@ -400,6 +400,56 @@ describe('Download tasks API integration', () => {
     await expect(taskRes.json()).resolves.toMatchObject({ status: { state: 'canceled', assignment: null } })
   })
 
+  it('clears stale seeding runtime on an unreachable downloader’s completed task [spec: download-tasks/stale-clears-seeding]', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const admin = await adminHeaders(app)
+    const downloader = await registerDownloaderThroughDeviceLogin(app, 'stale-seed-downloader', admin)
+    expect(
+      await app.request('/api/downloads/downloaders/me/heartbeats', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${downloader.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+      }),
+    ).toHaveProperty('status', 200)
+
+    const user = await authedHeaders(app, 'stale-seed-user@example.com')
+    const createRes = await app.request('/api/downloads/tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: { type: 'http', uri: 'https://example.com/seed.bin' }, targetFolder: '' }),
+    })
+    expect(createRes.status).toBe(201)
+    const task = (await createRes.json()) as DownloadTask
+
+    // A completed task still flagged seeding, on a downloader that then went offline.
+    await db.run(sql`
+      UPDATE download_tasks
+      SET status = 'completed',
+          runtime = ${JSON.stringify({ engine: 'aria2', phase: 'seeding', seeding: { active: true } })}
+      WHERE id = ${task.id}
+    `)
+    const staleAt = Date.now() - 60_000
+    await db.run(sql`
+      UPDATE downloaders SET last_heartbeat_at = ${staleAt}, status = 'offline', updated_at = ${staleAt}
+      WHERE id = ${downloader.downloader.id}
+    `)
+
+    const before = (await (
+      await app.request(`/api/downloads/tasks/${task.id}`, { headers: user })
+    ).json()) as DownloadTask
+    expect(before.status.runtime?.phase).toBe('seeding')
+
+    // Trigger stale recovery via the admin downloaders list.
+    expect((await app.request('/api/downloads/downloaders', { headers: admin })).status).toBe(200)
+
+    const after = (await (
+      await app.request(`/api/downloads/tasks/${task.id}`, { headers: user })
+    ).json()) as DownloadTask
+    expect(after.status.state).toBe('completed')
+    expect(after.status.runtime?.phase ?? null).not.toBe('seeding')
+  })
+
   it('reassigns unfinished tasks from stale downloaders on live heartbeat [spec: download-tasks/reassign-on-heartbeat]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)

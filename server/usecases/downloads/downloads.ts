@@ -504,6 +504,7 @@ async function recoverStaleDownloaderAssignments(deps: DownloadsDeps): Promise<v
   const unreachableIds = await deps.downloaders.listUnreachableIds(leaseCutoff)
   if (unreachableIds.length > 0) {
     await deps.downloadTasks.resolveControlAssignedToMany(unreachableIds, now)
+    await deps.downloadTasks.clearStaleSeedingRuntime(unreachableIds, now)
   }
   // Requeue in-flight work and flip status to offline only on the online→offline
   // transition, so already-handled tasks are not re-queued repeatedly.
