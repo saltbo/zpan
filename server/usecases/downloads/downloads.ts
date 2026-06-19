@@ -260,14 +260,23 @@ export async function updateDownloadTask(
   let billingChargedCredits = task.billingChargedCredits
   let billingStatus = task.billingStatus
   const currentRuntime = parseTaskRuntime(task.runtime)
-  const nextRuntime = nextTaskRuntime(currentRuntime, input.runtime, input.progress, status, now)
+  let nextRuntime = nextTaskRuntime(currentRuntime, input.runtime, input.progress, status, now)
   const currentDownloadedBytes = currentRuntime?.progress?.download.bytes ?? 0
   const nextDownloadedBytes = nextRuntime?.progress?.download.bytes ?? currentDownloadedBytes
+  const totalBytes = nextRuntime?.progress?.download.totalBytes ?? 0
 
-  if (actor.downloaderId && nextDownloadedBytes > currentDownloadedBytes) {
+  // Pre-authorize remote-download credits one unit ahead of the bytes pulled, so
+  // the downloader never fetches bytes it hasn't paid for. The first unit is
+  // charged on entry into 'downloading' (before any bytes), which gates a
+  // no-credit task out of downloading entirely. Capped at the task's total size,
+  // so the lifetime charge stays exactly ceil(total / unit) — same as before,
+  // only billed earlier.
+  if (actor.downloaderId && (status === 'downloading' || nextDownloadedBytes > currentDownloadedBytes)) {
     const downloader = await deps.downloaders.getRecord(actor.downloaderId)
-    const targetUnits = Math.ceil(nextDownloadedBytes / downloader.remoteDownloadCreditUnitBytes)
-    const currentUnits = Math.ceil(task.billingChargedBytes / downloader.remoteDownloadCreditUnitBytes)
+    const unitBytes = downloader.remoteDownloadCreditUnitBytes
+    const totalUnits = totalBytes > 0 ? Math.ceil(totalBytes / unitBytes) : Number.POSITIVE_INFINITY
+    const targetUnits = Math.min(Math.ceil(nextDownloadedBytes / unitBytes) + 1, totalUnits)
+    const currentUnits = Math.ceil(task.billingChargedBytes / unitBytes)
     const cloudBaseUrl = platform.getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
     try {
       for (let unit = currentUnits + 1; unit <= targetUnits; unit += 1) {
@@ -277,7 +286,7 @@ export async function updateDownloadTask(
           downloaderId: actor.downloaderId,
           taskId: task.id,
           unitIndex: unit,
-          unitBytes: downloader.remoteDownloadCreditUnitBytes,
+          unitBytes,
           creditsPerUnit: downloader.remoteDownloadCreditPerUnit,
           enabled: downloader.remoteDownloadCreditBillingEnabled,
         })
@@ -286,7 +295,7 @@ export async function updateDownloadTask(
           : 0
       }
       if (targetUnits > currentUnits) {
-        billingChargedBytes = targetUnits * downloader.remoteDownloadCreditUnitBytes
+        billingChargedBytes = targetUnits * unitBytes
         billingAuthorizedBytes = billingChargedBytes
         billingStatus = 'ok'
       }
@@ -294,6 +303,7 @@ export async function updateDownloadTask(
       if (error instanceof RemoteDownloadBillingBlockedError) {
         status = 'suspended'
         billingStatus = 'insufficient_credits'
+        nextRuntime = { ...(nextRuntime ?? {}), message: 'Suspended: insufficient remote-download credits' }
       } else {
         throw error
       }

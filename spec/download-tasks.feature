@@ -57,6 +57,12 @@ Feature: Remote download tasks
     When stale recovery runs
     Then the task settles to canceled
 
+  @download-tasks/billing-suspend-gate @api
+  Scenario: A task with no credits is suspended before downloading
+    Given a downloader with credit billing and no remaining credits
+    When it marks an assigned task downloading
+    Then the task is suspended with a reason and no bytes are pulled
+
   @download-tasks/upload-flow @api
   Scenario: A completed remote download uploads via the object API
     Given an assigned task

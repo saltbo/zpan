@@ -753,16 +753,69 @@ describe('Download tasks API integration', () => {
     await expect(patchRes.json()).resolves.toMatchObject({
       status: {
         state: 'downloading',
-        billing: { state: 'ok', chargedBytes: 5 * 1024 * 1024, chargedCredits: 1 },
+        // 5MB downloaded of a 10MB (2-unit) file pre-authorizes the current unit
+        // plus the next — units 1 and 2 — so the whole file is paid up front.
+        billing: { state: 'ok', chargedBytes: 10 * 1024 * 1024, chargedCredits: 2 },
       },
     })
     await expect(db.select().from(remoteDownloadUsageReports)).resolves.toMatchObject([
-      {
-        eventId: `remote_download:${task.id}:1`,
-        status: 'reported',
-        error: null,
-      },
+      { eventId: `remote_download:${task.id}:1`, status: 'reported', error: null },
+      { eventId: `remote_download:${task.id}:2`, status: 'reported', error: null },
     ])
+  })
+
+  it('suspends with a reason at the downloading gate when credits are exhausted [spec: download-tasks/billing-suspend-gate]', async () => {
+    const { app, db } = await createTestApp({
+      DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret',
+      ZPAN_CLOUD_URL: 'https://cloud.example',
+    })
+    await insertStorage(db)
+    await seedCloudBinding(db)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(makeCloudResponse({ error: { code: 'insufficient_credits' } }, 402)),
+    )
+
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'billing-suspend-downloader')
+    await db.run(sql`
+      UPDATE downloaders
+      SET remote_download_credit_billing_enabled = 1,
+          remote_download_credit_unit_bytes = ${5 * 1024 * 1024},
+          remote_download_credit_per_unit = 1
+      WHERE id = ${createdDownloader.downloader.id}
+    `)
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    expect(
+      await app.request('/api/downloads/downloaders/me/heartbeats', {
+        method: 'POST',
+        headers: downloaderHeaders,
+        body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+      }),
+    ).toHaveProperty('status', 200)
+
+    const user = await authedHeaders(app, 'billing-suspend-user@example.com')
+    const createTaskRes = await app.request('/api/downloads/tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: { type: 'http', uri: 'https://example.com/no-credit.bin' }, targetFolder: '' }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const task = (await createTaskRes.json()) as DownloadTask
+
+    // The downloader marks the task downloading (the credit gate) before pulling any bytes.
+    const patchRes = await app.request(`/api/downloads/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'downloading' }),
+    })
+    expect(patchRes.status).toBe(200)
+    const patched = (await patchRes.json()) as DownloadTask
+    expect(patched.status.state).toBe('suspended')
+    expect(patched.status.runtime?.message ?? '').toContain('credit')
+    expect(patched.status.progress.download.bytes).toBe(0)
   })
 
   it('stores downloader runtime reports as snapshots while progress remains patchable [spec: download-tasks/runtime-reports]', async () => {

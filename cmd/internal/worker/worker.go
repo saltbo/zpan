@@ -254,8 +254,15 @@ func (w *Worker) downloadThenUpload(
 	task client.DownloadTask,
 	currentDetail *client.DownloadTaskRuntime,
 ) {
-	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "downloading"}); err != nil {
+	// Marking the task downloading is also the credit gate: the server charges the
+	// first unit on this transition and answers with the authoritative status. If
+	// it comes back suspended, don't pull a single byte. (Progress reports below
+	// stay pure telemetry — control still flows through the poll.)
+	if updated, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "downloading"}); err != nil {
 		log.Warn("failed to mark task downloading", "error", err)
+	} else if updated.State() == "suspended" {
+		log.Warn("task suspended before download started; insufficient credits")
+		return
 	}
 
 	var lastProgressLog time.Time

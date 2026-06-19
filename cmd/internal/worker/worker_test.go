@@ -50,6 +50,20 @@ func TestCancelRunningUsesCauseForControlState(t *testing.T) {
 	}
 }
 
+func TestDownloadThenUploadStopsWhenSuspendedAtStart(t *testing.T) {
+	api := &recordingAPI{suspendDownloading: true}
+	w := NewWithAPI(config.Config{}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	eng := &recordingEngine{}
+	w.engine = eng
+
+	w.downloadThenUpload(context.Background(), w.logger, clientTaskWithStatus("task-1", "assigned"), nil)
+
+	if eng.downloadCalls != 0 {
+		t.Fatalf("expected no download when the task is suspended at start, got %d calls", eng.downloadCalls)
+	}
+}
+
 func TestWatchEngineProcessFatalOnUnexpectedExit(t *testing.T) {
 	w := NewWithAPI(config.Config{}, nil)
 	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -1404,12 +1418,13 @@ func (e *recordingEngine) Download(context.Context, client.DownloadTask, engine.
 }
 
 type recordingAPI struct {
-	patches           []client.TaskPatch
-	patchedIDs        []string
-	seedingTasks      []client.DownloadTask
-	createFolderErr   error
-	createObjectDraft client.ObjectDraft
-	completeErrs      []error
+	patches            []client.TaskPatch
+	patchedIDs         []string
+	seedingTasks       []client.DownloadTask
+	suspendDownloading bool
+	createFolderErr    error
+	createObjectDraft  client.ObjectDraft
+	completeErrs       []error
 }
 
 func (a *recordingAPI) Heartbeat(context.Context, client.Heartbeat) error {
@@ -1431,7 +1446,11 @@ func (a *recordingAPI) SeedingTasks(context.Context) ([]client.DownloadTask, err
 func (a *recordingAPI) UpdateTask(_ context.Context, id string, patch client.TaskPatch) (client.DownloadTask, error) {
 	a.patches = append(a.patches, patch)
 	a.patchedIDs = append(a.patchedIDs, id)
-	task := clientTaskWithStatus(id, patch.State())
+	state := patch.State()
+	if a.suspendDownloading && state == "downloading" {
+		state = "suspended"
+	}
+	task := clientTaskWithStatus(id, state)
 	task.Status.Runtime = patch.Runtime
 	if patch.Progress != nil {
 		if patch.Progress.Download != nil {
