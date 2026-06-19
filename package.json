@@ -78,7 +78,7 @@
     "lucide-react": "^0.577.0",
     "nanoid": "^5.1.11",
     "next-themes": "^0.4.6",
-    "nodemailer": "^8.0.9",
+    "nodemailer": "^9.0.1",
     "paseto-ts": "^2.0.6",
     "pdfjs-dist": "^5.6.205",
     "posthog-node": "^5.36.4",
