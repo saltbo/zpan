@@ -11,16 +11,15 @@
 // 404 / 409 / 502.
 
 import { DirType } from '@shared/constants'
-import { attachmentContentDisposition } from '@shared/content-disposition'
 import type {
+  CompleteObjectUploadInput,
   ConflictStrategy,
   CreateMatterInput,
   PatchMatterInput,
-  PatchObjectUploadSessionInput,
   PresignObjectUploadPartsInput,
   TransferMatterInput,
 } from '@shared/schemas'
-import type { ObjectUploadSession } from '@shared/types'
+import type { ObjectUploadInstructions } from '@shared/types'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import type { Deps } from './deps'
 import { assertTaskUploadAllowed } from './downloads/downloads'
@@ -36,8 +35,6 @@ import {
   noStorage,
   notFound,
   ObjectUploadSessionError,
-  type ObjectUploadSessionRecord,
-  type ObjectUploadSessionRepo,
   type QuotaRepo,
   quotaExceeded,
   type S3Gateway,
@@ -141,26 +138,39 @@ export async function listObjects(
   return { ok: true, result }
 }
 
-// ─── Create (folder or file draft + presigned upload) ─────────────────────────
+// ─── Create (folder, or file draft + size-decided upload) ─────────────────────
+
+// The server picks the S3 mechanism by size: ≤5 GiB → single PutObject (1 URL),
+// >5 GiB → multipart with 5 GiB parts (N URLs), >5 TiB → rejected (S3's hard
+// single-object ceiling). The client's flow is uniform: PUT each slice, read the
+// ETag, then POST them to .../completions.
+const PART_SIZE_BYTES = 5 * 1024 * 1024 * 1024 // 5 GiB
+const MAX_OBJECT_BYTES = 5 * 1024 * 1024 * 1024 * 1024 // 5 TiB
 
 export type CreateObjectOutcome =
   | { ok: true; matter: Matter }
-  | { ok: true; matter: Matter; uploadUrl: string; contentDisposition: string }
+  | { ok: true; matter: Matter; upload: ObjectUploadInstructions }
   | { ok: false; error: AppError }
 
 export async function createObject(
-  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'downloaders' | 'downloadTasks'>,
+  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'downloaders' | 'downloadTasks'>,
   params: { orgId: string; actor: ObjectActor; input: CreateMatterInput },
 ): Promise<CreateObjectOutcome> {
   const { orgId, actor, input } = params
-  const { name, type, size, parent, dirtype, onConflict } = input
+  const { name, type, parent, dirtype, onConflict } = input
   const isFolder = dirtype !== DirType.FILE
+  const size = input.size ?? 0
 
   if (actor.kind === 'download-task-upload') {
     if (!isWithinDownloadTarget(parent, actor.targetFolder)) {
       return { ok: false, error: forbidden('Target folder is outside task authorization') }
     }
     await assertTaskUploadAllowed(deps as Deps, { taskId: actor.taskId, downloaderId: actor.downloaderId })
+  }
+
+  // Reject oversize before creating anything, so no orphan draft is left behind.
+  if (!isFolder && size > MAX_OBJECT_BYTES) {
+    return { ok: false, error: badRequest('File exceeds the 5 TiB maximum', 'FILE_TOO_LARGE') }
   }
 
   let storage: StorageRecord
@@ -190,28 +200,81 @@ export async function createObject(
   })
 
   if (isFolder) return { ok: true, matter }
-  const contentDisposition = attachmentContentDisposition(name)
-  const uploadUrl = await deps.s3.presignUpload(storage, objectKey, type, name)
-  return { ok: true, matter, uploadUrl, contentDisposition }
+
+  const upload = await prepareUpload(deps, {
+    orgId,
+    objectId: matter.id,
+    storage,
+    storageKey: objectKey,
+    contentType: type,
+    size,
+    onConflict: onConflict ?? 'fail',
+    actorId: actorLogId(actor),
+  })
+  return { ok: true, matter, upload }
 }
 
-// ─── Multipart upload sessions ────────────────────────────────────────────────
+// Decides the S3 mechanism, presigns every URL up front, and records the upload
+// session. The chosen onConflict is stored on the session so completion can apply
+// a deferred 'replace' (createMatter keeps the incumbent until bytes land).
+async function prepareUpload(
+  deps: Pick<Deps, 's3' | 'objectUploadSessions'>,
+  params: {
+    orgId: string
+    objectId: string
+    storage: StorageRecord
+    storageKey: string
+    contentType: string
+    size: number
+    onConflict: ConflictStrategy
+    actorId: string
+  },
+): Promise<ObjectUploadInstructions> {
+  const { storage, storageKey, contentType, size } = params
+  let uploadId: string | null = null
+  let partSize: number
+  let urls: string[]
+
+  if (size <= PART_SIZE_BYTES) {
+    // Single PutObject — one presigned PUT, no S3 multipart overhead. Presign a
+    // bare PUT (no signed ContentType) so the uniform slice uploader can PUT raw
+    // bytes with no headers, exactly like a multipart part. The object's
+    // content-type is applied at download/view time (presignDownload/Inline).
+    partSize = size
+    urls = [await deps.s3.presignUpload(storage, storageKey, '')]
+  } else {
+    partSize = PART_SIZE_BYTES
+    const partCount = Math.ceil(size / partSize)
+    try {
+      uploadId = await deps.s3.createMultipartUpload(storage, storageKey, contentType)
+    } catch (error) {
+      throw new ObjectUploadSessionError(
+        'storage_failure',
+        `Storage multipart upload failed: ${(error as Error).message}`,
+      )
+    }
+    const mpId = uploadId
+    urls = await Promise.all(
+      Array.from({ length: partCount }, (_, i) => deps.s3.presignUploadPart(storage, storageKey, mpId, i + 1)),
+    )
+  }
+
+  const record = await deps.objectUploadSessions.create({
+    orgId: params.orgId,
+    objectId: params.objectId,
+    storageId: storage.id,
+    storageKey,
+    uploadId,
+    partSize,
+    onConflict: params.onConflict,
+    actorId: params.actorId,
+  })
+  return { sessionId: record.id, partSize, urls }
+}
+
+// ─── Upload finalize / abort / re-presign ─────────────────────────────────────
 // These throw ObjectUploadSessionError (not_found / invalid_state /
 // storage_failure); the handler maps the code to 404 / 409 / 502.
-
-async function loadDraftForUploadSession(
-  deps: Pick<Deps, 'matter' | 'storages'>,
-  orgId: string,
-  objectId: string,
-): Promise<{ matter: Matter; storage: StorageRecord }> {
-  const matter = await deps.matter.get(objectId, orgId)
-  if (!matter || matter.status !== 'draft' || matter.dirtype !== DirType.FILE || !matter.object) {
-    throw new ObjectUploadSessionError('not_found')
-  }
-  const storage = await deps.storages.get(matter.storageId)
-  if (!storage) throw new ObjectUploadSessionError('not_found')
-  return { matter, storage }
-}
 
 async function loadObjectForUploadSession(
   deps: Pick<Deps, 'matter' | 'storages'>,
@@ -225,31 +288,8 @@ async function loadObjectForUploadSession(
   return { matter, storage }
 }
 
-export async function createUploadSession(
-  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'downloaders' | 'downloadTasks'>,
-  params: { orgId: string; objectId: string; actor: ObjectActor; partSize?: number },
-): Promise<ObjectUploadSession> {
-  const { matter, storage } = await loadDraftForUploadSession(deps, params.orgId, params.objectId)
-  if (params.actor.kind === 'download-task-upload') {
-    if (!isWithinDownloadTarget(matter.parent, params.actor.targetFolder)) {
-      throw new ObjectUploadSessionError('invalid_state')
-    }
-    await assertTaskUploadAllowed(deps as Deps, {
-      taskId: params.actor.taskId,
-      downloaderId: params.actor.downloaderId,
-    })
-  }
-  return createObjectUploadSession(deps, {
-    orgId: params.orgId,
-    objectId: matter.id,
-    storage,
-    storageKey: matter.object,
-    contentType: matter.type,
-    partSize: params.partSize,
-    actorId: actorLogId(params.actor),
-  })
-}
-
+// Re-presign expired part URLs mid-upload (multipart sessions only). The happy
+// path uses the URLs returned by createObject; this is the fallback.
 export async function presignUploadSessionParts(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions'>,
   params: {
@@ -258,29 +298,119 @@ export async function presignUploadSessionParts(
     sessionId: string
     partNumbers: PresignObjectUploadPartsInput['partNumbers']
   },
-): Promise<Awaited<ReturnType<typeof presignObjectUploadParts>>> {
-  const { matter, storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
-  return presignObjectUploadParts(deps, {
-    orgId: params.orgId,
-    objectId: matter.id,
-    sessionId: params.sessionId,
-    storage,
-    partNumbers: params.partNumbers,
-  })
+): Promise<{ uploadId: string; partSize: number; parts: Array<{ partNumber: number; url: string }> }> {
+  const { storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
+  const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
+  if (!record) throw new ObjectUploadSessionError('not_found')
+  if (record.status !== 'active' || record.expiresAt.getTime() <= Date.now()) {
+    throw new ObjectUploadSessionError('invalid_state')
+  }
+  // Only multipart sessions have re-presignable parts; a single PutObject does not.
+  if (record.uploadId == null) throw new ObjectUploadSessionError('invalid_state')
+  const uploadId = record.uploadId
+  const parts = await Promise.all(
+    params.partNumbers.map(async (partNumber) => ({
+      partNumber,
+      url: await deps.s3.presignUploadPart(storage, record.storageKey, uploadId, partNumber),
+    })),
+  )
+  return { uploadId, partSize: record.partSize, parts }
 }
 
-export async function patchUploadSession(
-  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions'>,
-  params: { orgId: string; objectId: string; sessionId: string; input: PatchObjectUploadSessionInput },
-): Promise<ObjectUploadSession> {
-  const { matter, storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
-  return patchObjectUploadSession(deps, {
-    orgId: params.orgId,
-    objectId: matter.id,
-    sessionId: params.sessionId,
-    storage,
-    input: params.input,
+export type CompleteUploadOutcome =
+  | { ok: true; matter: Matter }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; error: AppError }
+
+// Finalizes a draft upload (draft → live). For a single PutObject it HEADs the
+// object and checks the reported ETag; for multipart it calls
+// CompleteMultipartUpload. Then it runs the quota-guarded activation (reusing the
+// session's stored conflict strategy) and returns the live object.
+export async function completeUpload(
+  deps: Pick<
+    Deps,
+    'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'quota' | 'storageUsage' | 'activity' | 'share'
+  >,
+  params: {
+    orgId: string
+    objectId: string
+    sessionId: string
+    parts: CompleteObjectUploadInput['parts']
+    actorId: string
+  },
+): Promise<CompleteUploadOutcome> {
+  const { storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
+  const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
+  if (!record) throw new ObjectUploadSessionError('not_found')
+  if (record.status !== 'active') throw new ObjectUploadSessionError('invalid_state')
+
+  if (record.uploadId == null) {
+    // Single PutObject: confirm the object landed and matches the reported ETag.
+    let head: { size: number; contentType: string; etag: string }
+    try {
+      head = await deps.s3.headObject(storage, record.storageKey)
+    } catch (error) {
+      throw new ObjectUploadSessionError('invalid_state', `Uploaded object not found: ${(error as Error).message}`)
+    }
+    const reported = params.parts[0]?.etag.replace(/"/g, '')
+    if (!reported || reported !== head.etag) {
+      throw new ObjectUploadSessionError('invalid_state', 'Uploaded object ETag does not match')
+    }
+  } else {
+    try {
+      await deps.s3.completeMultipartUpload(storage, record.storageKey, record.uploadId, params.parts)
+    } catch (error) {
+      throw new ObjectUploadSessionError(
+        'storage_failure',
+        `Storage multipart upload complete failed: ${(error as Error).message}`,
+      )
+    }
+  }
+  await deps.objectUploadSessions.setStatus(record.id, 'completed')
+
+  // Draft → live: reserve quota, apply the stored conflict strategy, activate.
+  const { matter, quotaExceeded: exceeded } = await confirmUpload(deps, params.objectId, params.orgId, {
+    onConflict: record.onConflict,
+    userId: params.actorId,
+    purgeReplaced: (incumbent) => purgeRecursively(deps, params.orgId, [incumbent]).then(() => undefined),
   })
+  if (exceeded) return { ok: false, error: quotaExceeded() }
+  if (!matter) return { ok: false, reason: 'not_found' }
+  return { ok: true, matter }
+}
+
+// Aborts an in-progress upload and discards the draft. Idempotent for an
+// already-aborted session; rejects completing one.
+export async function abortUpload(
+  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions'>,
+  params: { orgId: string; objectId: string; sessionId: string; actorId: string },
+): Promise<void> {
+  const { storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
+  const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
+  if (!record) throw new ObjectUploadSessionError('not_found')
+  if (record.status === 'completed') throw new ObjectUploadSessionError('invalid_state', 'Upload already completed')
+  if (record.status === 'aborted') return
+
+  if (record.uploadId != null) {
+    try {
+      await deps.s3.abortMultipartUpload(storage, record.storageKey, record.uploadId)
+    } catch (error) {
+      throw new ObjectUploadSessionError(
+        'storage_failure',
+        `Storage multipart upload abort failed: ${(error as Error).message}`,
+      )
+    }
+  } else {
+    // Single PutObject: best-effort cleanup; the browser may abort before any
+    // bytes reach S3.
+    try {
+      await deps.s3.deleteObject(storage, record.storageKey)
+    } catch {
+      // ignore
+    }
+  }
+  await deps.objectUploadSessions.setStatus(record.id, 'aborted')
+  await deps.matter.cancelDraft(params.objectId, params.orgId, params.actorId)
 }
 
 // ─── Detail / download ────────────────────────────────────────────────────────
@@ -302,7 +432,8 @@ export async function getObject(
   params: { orgId: string; objectId: string; cloudBaseUrl: string },
 ): Promise<GetObjectOutcome> {
   const matter = await deps.matter.get(params.objectId, params.orgId)
-  if (!matter) return { ok: false, error: notFound() }
+  // Live objects only — a trashed object is fetched via GET /trash/objects/{id}.
+  if (!matter || matter.trashedAt != null) return { ok: false, error: notFound() }
   if (matter.dirtype !== DirType.FILE || !matter.object) return { ok: true, matter }
 
   const storage = await deps.storages.get(matter.storageId)
@@ -336,7 +467,39 @@ export async function getObject(
   return { ok: true, matter, downloadUrl }
 }
 
-// ─── Update / confirm / cancel / trash / restore ──────────────────────────────
+// ─── Trash listing / detail ─────────────────────────────────────────────────
+
+// Lists trashed objects, ROOTS ONLY (a trashed folder shows one entry, not its
+// cascade-marked subtree). Paginated over the root set.
+export async function listTrashedObjects(
+  deps: Pick<Deps, 'matter'>,
+  params: { orgId: string; page: number; pageSize: number },
+): Promise<{ ok: true; result: { items: Matter[]; total: number; page: number; pageSize: number } }> {
+  const roots = await deps.matter.listTrashedRoots(params.orgId)
+  const offset = (params.page - 1) * params.pageSize
+  return {
+    ok: true,
+    result: {
+      items: roots.slice(offset, offset + params.pageSize),
+      total: roots.length,
+      page: params.page,
+      pageSize: params.pageSize,
+    },
+  }
+}
+
+// Loads a single trashed object (GET /trash/objects/{id}); a live object is 404
+// here (use GET /objects/{id}).
+export async function getTrashObject(
+  deps: Pick<Deps, 'matter'>,
+  params: { orgId: string; objectId: string },
+): Promise<{ ok: true; matter: Matter } | { ok: false; error: AppError }> {
+  const matter = await deps.matter.get(params.objectId, params.orgId)
+  if (!matter || matter.trashedAt == null) return { ok: false, error: notFound() }
+  return { ok: true, matter }
+}
+
+// ─── Update / trash / restore ──────────────────────────────────────────────────
 
 export type UpdateObjectOutcome = { ok: true; matter: Matter } | { ok: false; error: AppError }
 
@@ -347,49 +510,6 @@ export async function updateObject(
   const { name, parent, onConflict } = params.input
   const matter = await deps.matter.update(params.objectId, params.orgId, { name, parent, onConflict }, params.actorId)
   return matter ? { ok: true, matter } : { ok: false, error: notFound() }
-}
-
-// `not_found` stays a control-flow reason: the handler falls through to
-// `restoreObject` on it (status:'active' confirms a draft, otherwise restores
-// from trash). Quota exhaustion is a terminal error the handler throws.
-export type ConfirmObjectOutcome =
-  | { ok: true; matter: Matter }
-  | { ok: false; reason: 'not_found' }
-  | { ok: false; error: AppError }
-
-export async function confirmObject(
-  deps: Pick<Deps, 'matter' | 'quota' | 'storageUsage' | 'activity' | 's3' | 'storages' | 'share'>,
-  params: { orgId: string; objectId: string; actorId: string; onConflict?: ConflictStrategy },
-): Promise<ConfirmObjectOutcome> {
-  const { matter, quotaExceeded: exceeded } = await confirmUpload(deps, params.objectId, params.orgId, {
-    onConflict: params.onConflict,
-    userId: params.actorId,
-    purgeReplaced: (incumbent) => purgeRecursively(deps, params.orgId, [incumbent]).then(() => undefined),
-  })
-  if (exceeded) return { ok: false, error: quotaExceeded() }
-  if (!matter) return { ok: false, reason: 'not_found' }
-  return { ok: true, matter }
-}
-
-export type CancelObjectOutcome = { ok: true; id: string } | { ok: false; reason: 'not_found' }
-
-export async function cancelObject(
-  deps: Pick<Deps, 'matter' | 'storages' | 's3'>,
-  params: { orgId: string; objectId: string; actorId: string },
-): Promise<CancelObjectOutcome> {
-  const matter = await deps.matter.cancelDraft(params.objectId, params.orgId, params.actorId)
-  if (!matter) return { ok: false, reason: 'not_found' }
-  if (matter.object) {
-    const storage = await deps.storages.get(matter.storageId)
-    if (storage) {
-      try {
-        await deps.s3.deleteObject(storage, matter.object)
-      } catch {
-        // Best-effort cleanup: the browser may abort before S3 writes anything.
-      }
-    }
-  }
-  return { ok: true, id: matter.id }
 }
 
 export type TrashObjectOutcome = { ok: true; matter: Matter } | { ok: false; error: AppError }
@@ -412,8 +532,9 @@ export async function restoreObject(
   return matter ? { ok: true, matter } : { ok: false, error: notFound() }
 }
 
-// Authorizes a download-task-upload token to confirm a specific object: it may
-// only confirm its draft (PUT /status {active}) and only within its target folder.
+// Authorizes a download-task-upload token to finalize a specific object: it may
+// only complete its own draft (POST .../completions) and only within its target
+// folder.
 export type ConfirmAuthorizationOutcome = { ok: true } | { ok: false; error: AppError }
 
 export async function authorizeTaskUploadConfirm(
@@ -447,7 +568,8 @@ export async function deleteObject(
 ): Promise<DeleteObjectOutcome> {
   const ms = await deps.matter.collectForPurge(params.orgId, params.objectId)
   if (!ms) return { ok: false, reason: 'not_found' }
-  if (ms[0].status !== 'trashed') return { ok: false, reason: 'not_trashed' }
+  // Only a trashed object can be permanently purged.
+  if (ms[0].trashedAt == null) return { ok: false, reason: 'not_trashed' }
   const purged = await purgeRecursively(deps, params.orgId, ms)
   await deps.activity.record({
     orgId: params.orgId,
@@ -472,7 +594,7 @@ export async function copyObject(
   const { orgId, userId, input } = params
   const { copyFrom, parent, onConflict } = input
   const source = await deps.matter.get(copyFrom, orgId)
-  if (!source) return { ok: false, error: notFound() }
+  if (!source || source.trashedAt != null) return { ok: false, error: notFound() }
 
   const sourceSize = source.size ?? 0
   const storage = source.object ? await deps.storages.get(source.storageId) : null
@@ -512,7 +634,7 @@ export async function transferObject(
   if (targetOrgId === orgId) return { ok: false, error: badRequest('Target must be a different space', 'SAME_ORG') }
 
   const source = await deps.matter.get(objectId, orgId)
-  if (!source || source.status !== 'active') return { ok: false, error: notFound() }
+  if (!source || source.status !== 'active' || source.trashedAt != null) return { ok: false, error: notFound() }
 
   // Copying out only needs read access on the source space (granted by the route
   // middleware); moving also trashes the source, which needs editor.
@@ -669,130 +791,6 @@ export async function confirmUpload(
     if (error instanceof Error && error.message === 'CONFIRM_UPLOAD_RACE') return { matter: null }
     throw error
   }
-}
-
-// ── upload sessions ──────────────────────────────────────────────────────────
-
-export type ObjectUploadSessionDeps = { s3: S3Gateway; objectUploadSessions: ObjectUploadSessionRepo }
-
-const DEFAULT_PART_SIZE = 16 * 1024 * 1024
-
-function toDto(record: ObjectUploadSessionRecord): ObjectUploadSession {
-  return {
-    id: record.id,
-    objectId: record.objectId,
-    uploadId: record.uploadId,
-    partSize: record.partSize,
-    status: record.status,
-    expiresAt: record.expiresAt.toISOString(),
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString(),
-  }
-}
-
-export async function createObjectUploadSession(
-  deps: ObjectUploadSessionDeps,
-  params: {
-    orgId: string
-    objectId: string
-    storage: StorageRecord
-    storageKey: string
-    contentType: string
-    partSize?: number
-    actorId: string
-  },
-): Promise<ObjectUploadSession> {
-  let uploadId: string
-  try {
-    uploadId = await deps.s3.createMultipartUpload(params.storage, params.storageKey, params.contentType)
-  } catch (error) {
-    throw new ObjectUploadSessionError(
-      'storage_failure',
-      `Storage multipart upload failed: ${(error as Error).message}`,
-    )
-  }
-  const record = await deps.objectUploadSessions.create({
-    orgId: params.orgId,
-    objectId: params.objectId,
-    storageId: params.storage.id,
-    storageKey: params.storageKey,
-    uploadId,
-    partSize: params.partSize ?? DEFAULT_PART_SIZE,
-    actorId: params.actorId,
-  })
-  return toDto(record)
-}
-
-export async function getObjectUploadSession(
-  deps: ObjectUploadSessionDeps,
-  orgId: string,
-  objectId: string,
-  id: string,
-): Promise<ObjectUploadSession> {
-  const record = await deps.objectUploadSessions.get(orgId, objectId, id)
-  if (!record) throw new ObjectUploadSessionError('not_found')
-  return toDto(record)
-}
-
-export async function presignObjectUploadParts(
-  deps: ObjectUploadSessionDeps,
-  params: {
-    orgId: string
-    objectId: string
-    sessionId: string
-    storage: StorageRecord
-    partNumbers: number[]
-  },
-): Promise<{ uploadId: string; partSize: number; parts: Array<{ partNumber: number; url: string }> }> {
-  const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
-  if (!record) throw new ObjectUploadSessionError('not_found')
-  if (record.status !== 'active' || record.expiresAt.getTime() <= Date.now()) {
-    throw new ObjectUploadSessionError('invalid_state')
-  }
-  const parts = await Promise.all(
-    params.partNumbers.map(async (partNumber) => ({
-      partNumber,
-      url: await deps.s3.presignUploadPart(params.storage, record.storageKey, record.uploadId, partNumber),
-    })),
-  )
-  return { uploadId: record.uploadId, partSize: record.partSize, parts }
-}
-
-export async function patchObjectUploadSession(
-  deps: ObjectUploadSessionDeps,
-  params: {
-    orgId: string
-    objectId: string
-    sessionId: string
-    storage: StorageRecord
-    input: PatchObjectUploadSessionInput
-  },
-): Promise<ObjectUploadSession> {
-  const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
-  if (!record) throw new ObjectUploadSessionError('not_found')
-  if (record.status !== 'active') throw new ObjectUploadSessionError('invalid_state')
-  if (params.input.action === 'complete') {
-    try {
-      await deps.s3.completeMultipartUpload(params.storage, record.storageKey, record.uploadId, params.input.parts)
-    } catch (error) {
-      throw new ObjectUploadSessionError(
-        'storage_failure',
-        `Storage multipart upload complete failed: ${(error as Error).message}`,
-      )
-    }
-    await deps.objectUploadSessions.setStatus(record.id, 'completed')
-  } else {
-    try {
-      await deps.s3.abortMultipartUpload(params.storage, record.storageKey, record.uploadId)
-    } catch (error) {
-      throw new ObjectUploadSessionError(
-        'storage_failure',
-        `Storage multipart upload abort failed: ${(error as Error).message}`,
-      )
-    }
-    await deps.objectUploadSessions.setStatus(record.id, 'aborted')
-  }
-  return getObjectUploadSession(deps, params.orgId, params.objectId, params.sessionId)
 }
 
 // ── recursive purge ──────────────────────────────────────────────────────────

@@ -79,14 +79,15 @@ async function makeFile(
   db: TestDb,
   orgId: string,
   name: string,
-  opts: { parent?: string; status?: string; id?: string } = {},
+  opts: { parent?: string; status?: string; id?: string; trashedAt?: number } = {},
 ) {
   const id = opts.id ?? nanoid()
   const now = Date.now()
   const status = opts.status ?? ObjectStatus.ACTIVE
+  const trashedAt = opts.trashedAt ?? null
   await db.run(sql`
-    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-    VALUES (${id}, ${orgId}, ${`${id}-alias`}, ${name}, 'text/plain', 100, 0, ${opts.parent ?? ''}, 'key.txt', ${STORAGE_ID}, ${status}, ${now}, ${now})
+    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
+    VALUES (${id}, ${orgId}, ${`${id}-alias`}, ${name}, 'text/plain', 100, 0, ${opts.parent ?? ''}, 'key.txt', ${STORAGE_ID}, ${status}, ${trashedAt}, ${now}, ${now})
   `)
   return id
 }
@@ -303,8 +304,8 @@ describe('updateMatter — name conflict on rename', () => {
 
     const result = await updateMatter(db, id, orgId, { name: 'b.txt', onConflict: 'replace' })
     expect(result?.name).toBe('b.txt')
-    const rows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = ${targetId}`)
-    expect(rows[0].status).toBe(ObjectStatus.TRASHED)
+    const rows = await db.all<{ trashed_at: number | null }>(sql`SELECT trashed_at FROM matters WHERE id = ${targetId}`)
+    expect(rows[0].trashed_at).not.toBeNull()
   })
 
   it('allows rename-in-place (A → A) without conflict even with fail strategy', async () => {
@@ -452,7 +453,7 @@ describe('restoreMatter — name conflict', () => {
     await insertStorage(db)
     const orgId = nanoid()
 
-    const trashedId = await makeFile(db, orgId, 'note.txt', { status: 'trashed' })
+    const trashedId = await makeFile(db, orgId, 'note.txt', { trashedAt: Date.now() })
     await makeFile(db, orgId, 'note.txt') // active sibling created while original was in trash
 
     await expect(restoreMatter(db, orgId, trashedId)).rejects.toThrow(NameConflictError)
@@ -463,7 +464,7 @@ describe('restoreMatter — name conflict', () => {
     await insertStorage(db)
     const orgId = nanoid()
 
-    const trashedId = await makeFile(db, orgId, 'note.txt', { status: 'trashed' })
+    const trashedId = await makeFile(db, orgId, 'note.txt', { trashedAt: Date.now() })
     await makeFile(db, orgId, 'note.txt') // active sibling
 
     const result = await restoreMatter(db, orgId, trashedId, undefined, 'rename')
@@ -476,7 +477,7 @@ describe('restoreMatter — name conflict', () => {
     await insertStorage(db)
     const orgId = nanoid()
 
-    const trashedId = await makeFile(db, orgId, 'safe.txt', { status: 'trashed' })
+    const trashedId = await makeFile(db, orgId, 'safe.txt', { trashedAt: Date.now() })
 
     const result = await restoreMatter(db, orgId, trashedId)
     expect(result?.name).toBe('safe.txt')
@@ -587,13 +588,13 @@ describe('restoreMatter — rename-before-activate ordering', () => {
     const folderNow = Date.now()
     await db.run(sql`
       INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
-      VALUES (${folderId}, ${orgId}, ${`${folderId}-alias`}, 'A', 'folder', 0, 1, '', '', ${STORAGE_ID}, 'trashed', ${folderNow}, ${folderNow}, ${folderNow})
+      VALUES (${folderId}, ${orgId}, ${`${folderId}-alias`}, 'A', 'folder', 0, 1, '', '', ${STORAGE_ID}, 'active', ${folderNow}, ${folderNow}, ${folderNow})
     `)
 
     const childId = nanoid()
     await db.run(sql`
       INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
-      VALUES (${childId}, ${orgId}, ${`${childId}-alias`}, 'child.txt', 'text/plain', 0, 0, 'A', 'child.txt', ${STORAGE_ID}, 'trashed', ${folderNow}, ${folderNow}, ${folderNow})
+      VALUES (${childId}, ${orgId}, ${`${childId}-alias`}, 'child.txt', 'text/plain', 0, 0, 'A', 'child.txt', ${STORAGE_ID}, 'active', ${folderNow}, ${folderNow}, ${folderNow})
     `)
 
     // Active folder also named "A" — restore will rename the trashed one to "A (1)"

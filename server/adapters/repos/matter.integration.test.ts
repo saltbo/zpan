@@ -296,7 +296,7 @@ describe('reserveStorageUsage', () => {
       INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
       VALUES
         ('active-file', ${orgId}, 'active-file-alias', 'active.txt', 'text/plain', 100, 0, '', 'active-key', ${storageId}, 'active', NULL, ${now}, ${now}),
-        ('trashed-file', ${orgId}, 'trashed-file-alias', 'trashed.txt', 'text/plain', 200, 0, '', 'trashed-key', ${storageId}, 'trashed', ${now}, ${now}, ${now}),
+        ('trashed-file', ${orgId}, 'trashed-file-alias', 'trashed.txt', 'text/plain', 200, 0, '', 'trashed-key', ${storageId}, 'active', ${now}, ${now}, ${now}),
         ('draft-file', ${orgId}, 'draft-file-alias', 'draft.txt', 'text/plain', 300, 0, '', 'draft-key', ${storageId}, 'draft', NULL, ${now}, ${now}),
         ('active-folder', ${orgId}, 'active-folder-alias', 'Folder', 'folder', 400, 1, '', '', ${storageId}, 'active', NULL, ${now}, ${now})
     `)
@@ -448,7 +448,7 @@ async function insertTrashedMatter(
   const now = Date.now()
   await db.run(sql`
     INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
-    VALUES (${opts.id}, ${orgId}, ${opts.alias}, ${opts.name}, 'text/plain', 0, ${opts.dirtype}, ${opts.parent}, '', ${opts.storageId}, 'trashed', ${now}, ${now}, ${now})
+    VALUES (${opts.id}, ${orgId}, ${opts.alias}, ${opts.name}, 'text/plain', 0, ${opts.dirtype}, ${opts.parent}, '', ${opts.storageId}, 'active', ${now}, ${now}, ${now})
   `)
 }
 

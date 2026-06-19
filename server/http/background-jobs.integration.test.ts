@@ -46,7 +46,7 @@ describe('background jobs API', () => {
     vi.spyOn(S3Service.prototype, 'headObject').mockImplementation(async (_storage, key) => {
       const bytes = objectStore.get(key)
       if (!bytes) throw new Error(`missing ${key}`)
-      return { size: bytes.byteLength, contentType: 'application/zip' }
+      return { size: bytes.byteLength, contentType: 'application/zip', etag: 'job-etag' }
     })
     vi.spyOn(S3Service.prototype, 'getObjectBytes').mockImplementation(async (_storage, key, range) => {
       const bytes = objectStore.get(key)
@@ -110,7 +110,7 @@ describe('background jobs API', () => {
     vi.spyOn(S3Service.prototype, 'headObject').mockImplementation(async (_storage, key) => {
       const bytes = objectStore.get(key)
       if (!bytes) throw new Error(`missing ${key}`)
-      return { size: bytes.byteLength, contentType: 'application/zip' }
+      return { size: bytes.byteLength, contentType: 'application/zip', etag: 'job-etag' }
     })
     vi.spyOn(S3Service.prototype, 'getObjectBytes').mockImplementation(async (_storage, key, range) => {
       const bytes = objectStore.get(key)

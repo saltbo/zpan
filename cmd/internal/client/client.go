@@ -222,17 +222,19 @@ func (p TaskPatch) State() string {
 }
 
 type ObjectDraft struct {
-	ID                 string `json:"id"`
-	Name               string `json:"name"`
-	UploadURL          string `json:"uploadUrl"`
-	ContentDisposition string `json:"contentDisposition,omitempty"`
+	ID     string                    `json:"id"`
+	Name   string                    `json:"name"`
+	Upload *ObjectUploadInstructions `json:"upload,omitempty"`
 }
 
-type ObjectUploadSession struct {
-	ID       string `json:"id"`
-	ObjectID string `json:"objectId"`
-	UploadID string `json:"uploadId"`
-	PartSize int64  `json:"partSize"`
+// ObjectUploadInstructions is returned by CreateObject for a file draft: the
+// server-decided part size and one presigned PUT URL per slice (1 URL = single
+// PutObject, N URLs = multipart). The client PUTs each slice, reads the ETag, and
+// posts them to CompleteObjectUpload.
+type ObjectUploadInstructions struct {
+	SessionID string   `json:"sessionId"`
+	PartSize  int64    `json:"partSize"`
+	URLs      []string `json:"urls"`
 }
 
 type PresignedObjectUploadPart struct {
@@ -538,48 +540,17 @@ func (c *Client) createMatter(
 		return ObjectDraft{}, err
 	}
 	if res.JSON201 != nil {
-		return ObjectDraft{
-			ID:                 res.JSON201.Id,
-			Name:               res.JSON201.Name,
-			UploadURL:          derefString(res.JSON201.UploadUrl),
-			ContentDisposition: derefString(res.JSON201.ContentDisposition),
-		}, nil
+		draft := ObjectDraft{ID: res.JSON201.Id, Name: res.JSON201.Name}
+		if u := res.JSON201.Upload; u != nil {
+			draft.Upload = &ObjectUploadInstructions{
+				SessionID: u.SessionId,
+				PartSize:  int64(u.PartSize),
+				URLs:      u.Urls,
+			}
+		}
+		return draft, nil
 	}
 	return ObjectDraft{}, fmt.Errorf("POST /api/objects failed: empty response")
-}
-
-func (c *Client) ConfirmObject(ctx context.Context, token string, id string) error {
-	onConflict := openapi.SetObjectStatusJSONBodyOnConflictRename
-	res, err := c.api.SetObjectStatusWithResponse(ctx, id, openapi.SetObjectStatusJSONRequestBody{
-		Status:     openapi.SetObjectStatusJSONBodyStatusActive,
-		OnConflict: &onConflict,
-	}, bearer(token))
-	if err != nil {
-		return err
-	}
-	return expectStatus("PUT", "/api/objects/"+id+"/status", res.StatusCode(), res.Body, http.StatusOK)
-}
-
-func (c *Client) CreateObjectUploadSession(ctx context.Context, token string, id string, partSize int64) (ObjectUploadSession, error) {
-	partSizeInt := int(partSize)
-	res, err := c.api.CreateObjectUploadSessionWithResponse(ctx, id, openapi.CreateObjectUploadSessionJSONRequestBody{
-		PartSize: &partSizeInt,
-	}, bearer(token))
-	if err != nil {
-		return ObjectUploadSession{}, err
-	}
-	if err := expectStatus("POST", "/api/objects/"+id+"/uploads", res.StatusCode(), res.Body, http.StatusCreated); err != nil {
-		return ObjectUploadSession{}, err
-	}
-	if res.JSON201 == nil {
-		return ObjectUploadSession{}, fmt.Errorf("POST /api/objects/%s/uploads failed: empty response", id)
-	}
-	return ObjectUploadSession{
-		ID:       res.JSON201.Id,
-		ObjectID: res.JSON201.ObjectId,
-		UploadID: res.JSON201.UploadId,
-		PartSize: int64(res.JSON201.PartSize),
-	}, nil
 }
 
 func (c *Client) PresignObjectUploadParts(ctx context.Context, token string, id string, sessionID string, partNumbers []int) ([]PresignedObjectUploadPart, error) {
@@ -603,9 +574,8 @@ func (c *Client) PresignObjectUploadParts(ctx context.Context, token string, id 
 	return parts, nil
 }
 
-func (c *Client) CompleteObjectUploadSession(ctx context.Context, token string, id string, sessionID string, parts []CompletedObjectUploadPart) error {
+func (c *Client) CompleteObjectUpload(ctx context.Context, token string, id string, sessionID string, parts []CompletedObjectUploadPart) error {
 	body := openapi.CompleteObjectUploadJSONRequestBody{
-		Status: openapi.CompleteObjectUploadJSONBodyStatusCompleted,
 		Parts: make([]struct {
 			Etag       string `json:"etag"`
 			PartNumber int    `json:"partNumber"`
@@ -621,7 +591,7 @@ func (c *Client) CompleteObjectUploadSession(ctx context.Context, token string, 
 	if err != nil {
 		return err
 	}
-	return expectStatus("PUT", "/api/objects/"+id+"/uploads/"+sessionID+"/status", res.StatusCode(), res.Body, http.StatusOK)
+	return expectStatus("POST", "/api/objects/"+id+"/uploads/"+sessionID+"/completions", res.StatusCode(), res.Body, http.StatusOK)
 }
 
 func (c *Client) AbortObjectUploadSession(ctx context.Context, token string, id string, sessionID string) error {
@@ -629,7 +599,7 @@ func (c *Client) AbortObjectUploadSession(ctx context.Context, token string, id 
 	if err != nil {
 		return err
 	}
-	return expectStatus("DELETE", "/api/objects/"+id+"/uploads/"+sessionID, res.StatusCode(), res.Body, http.StatusOK)
+	return expectStatus("DELETE", "/api/objects/"+id+"/uploads/"+sessionID, res.StatusCode(), res.Body, http.StatusNoContent)
 }
 
 func derefString(value *string) string {

@@ -1131,10 +1131,11 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key),
     })
     expect(del.status).toBe(204)
-    const rows = await db.all<{ status: string }>(
-      sql`SELECT status FROM matters WHERE org_id = ${workspace.id} AND name = 'copied.txt'`,
+    const rows = await db.all<{ trashed_at: number | null }>(
+      sql`SELECT trashed_at FROM matters WHERE org_id = ${workspace.id} AND name = 'copied.txt'`,
     )
-    expect(rows[0]?.status).toBe('trashed')
+    // Soft delete: the row stays active with trashedAt set.
+    expect(rows[0]?.trashed_at).not.toBeNull()
   })
 
   it('MOVE and COPY reject invalid destinations', async () => {
@@ -1400,10 +1401,12 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key),
     })
     expect(listing.status).toBe(404)
-    const rows = await db.all<{ status: string }>(
-      sql`SELECT status FROM matters WHERE id IN ('delete-folder', 'delete-file') ORDER BY id`,
+    const rows = await db.all<{ id: string; trashed_at: number | null }>(
+      sql`SELECT id, trashed_at FROM matters WHERE id IN ('delete-folder', 'delete-file') ORDER BY id`,
     )
-    expect(rows).toEqual([{ status: 'trashed' }, { status: 'trashed' }])
+    // Soft delete cascades trashedAt to the whole subtree (status stays active).
+    expect(rows).toHaveLength(2)
+    expect(rows.every((r) => r.trashed_at !== null)).toBe(true)
   })
 
   it('moves, copies, and deletes WebDAV dead properties and locks with namespace changes', async () => {
@@ -1932,13 +1935,15 @@ describe('WebDAV API', () => {
       }),
     })
     expect(replaced.status).toBe(204)
-    const rows = await db.all<{ id: string; name: string; status: string }>(
-      sql`SELECT id, name, status FROM matters WHERE id IN ('move-source', 'move-target') ORDER BY id`,
+    const rows = await db.all<{ id: string; name: string; status: string; trashed_at: number | null }>(
+      sql`SELECT id, name, status, trashed_at FROM matters WHERE id IN ('move-source', 'move-target') ORDER BY id`,
     )
+    // The moved row is live; the overwritten destination is trashed (active + trashedAt).
     expect(rows).toEqual([
-      { id: 'move-source', name: 'move-target.txt', status: 'active' },
-      { id: 'move-target', name: 'move-target.txt', status: 'trashed' },
+      { id: 'move-source', name: 'move-target.txt', status: 'active', trashed_at: null },
+      expect.objectContaining({ id: 'move-target', name: 'move-target.txt', status: 'active' }),
     ])
+    expect(rows[1].trashed_at).not.toBeNull()
   })
 
   it('COPY honors Overwrite header for existing destinations and copies collection roots', async () => {
@@ -1968,8 +1973,11 @@ describe('WebDAV API', () => {
       }),
     })
     expect(replaced.status).toBe(204)
-    const rows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = 'copy-target'`)
-    expect(rows[0]?.status).toBe('trashed')
+    const rows = await db.all<{ trashed_at: number | null }>(
+      sql`SELECT trashed_at FROM matters WHERE id = 'copy-target'`,
+    )
+    // The overwritten destination is trashed (active + trashedAt).
+    expect(rows[0]?.trashed_at).not.toBeNull()
 
     const collection = await app.request(`/dav/${workspace.slug}/Copy%20Folder`, {
       method: 'COPY',

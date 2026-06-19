@@ -1,5 +1,5 @@
 import { ObjectStatus } from '@shared/constants'
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { member, organization } from '../../db/auth-schema'
 import { matters } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -53,7 +53,14 @@ export function createWebDavPathRepo(db: Database): WebDavPathRepo {
       return db
         .select()
         .from(matters)
-        .where(and(eq(matters.orgId, orgId), eq(matters.parent, parent), eq(matters.status, ObjectStatus.ACTIVE)))
+        .where(
+          and(
+            eq(matters.orgId, orgId),
+            eq(matters.parent, parent),
+            eq(matters.status, ObjectStatus.ACTIVE),
+            isNull(matters.trashedAt),
+          ),
+        )
         .orderBy(desc(matters.dirtype), asc(matters.name))
     },
 
@@ -105,6 +112,7 @@ async function findMatterByPath(db: Database, orgId: string, parent: string, nam
         eq(matters.parent, parent),
         eq(matters.name, name),
         eq(matters.status, ObjectStatus.ACTIVE),
+        isNull(matters.trashedAt),
       ),
     )
     .limit(1)

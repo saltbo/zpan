@@ -1,11 +1,9 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import {
+  completeObjectUploadSchema,
   copyObjectBodySchema,
   createMatterSchema,
-  createObjectUploadSessionSchema,
-  objectStatusSchema,
-  objectUploadSessionSchema,
-  objectUploadStatusSchema,
+  objectUploadInstructionsSchema,
   pageQuerySchema,
   pageSchema,
   patchMatterSchema,
@@ -19,26 +17,22 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
+  abortUpload,
   authorizeTaskUploadConfirm,
-  cancelObject,
-  confirmObject,
+  completeUpload,
   copyObject,
   createObject,
-  createUploadSession,
-  deleteObject,
   getObject,
   hasEditorAccess,
   listObjects,
   type ObjectActor,
   ObjectUploadSessionError,
-  patchUploadSession,
   presignUploadSessionParts,
-  restoreObject,
   transferObject,
   trashObject,
   updateObject,
 } from '../usecases/object'
-import { badRequest, conflict, forbidden, type Matter, notFound, unauthorized } from '../usecases/ports'
+import { badRequest, forbidden, type Matter, unauthorized } from '../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
 
 // The wire shape of a file/folder — exactly what the API serializes. Timestamps
@@ -92,12 +86,10 @@ function toMatterDTO(m: Matter): MatterDTO {
 
 const objectPageSchema = pageSchema(matterSchema, 'ObjectPage')
 
-// POST / returns the created object plus, for direct uploads, the presigned URL
-// to PUT the bytes to.
-const objectCreateResultSchema = matterSchema.extend({
-  uploadUrl: z.string().optional(),
-  contentDisposition: z.string().optional(),
-})
+// POST / returns the created object plus, for a file draft, the upload
+// instructions: the server-decided part size and the presigned URLs to PUT each
+// slice to (1 URL = single PutObject, N URLs = multipart).
+const objectCreateResultSchema = matterSchema.extend({ upload: objectUploadInstructionsSchema.optional() })
 
 // GET /{id} returns the object plus, when egress is metered/allowed, a presigned
 // download URL.
@@ -108,12 +100,11 @@ const objectWithDownloadSchema = matterSchema.extend({ downloadUrl: z.string().o
 // comes from the shared integer-coerced pagination schema. The file manager loads a
 // whole folder client-side (no UI paging, FILES_PAGE_SIZE=500), so this list
 // overrides the shared pageSize cap of 100 with a higher ceiling — the rest of the
-// API keeps the 100 default.
+// API keeps the 100 default. Live objects only — the recycle bin is GET /trash/objects.
 const listObjectsQuerySchema = pageQuerySchema.extend({
   pageSize: z.coerce.number().int().min(1).max(1000).default(20),
   parent: z.string().optional(),
   path: z.string().optional(),
-  status: z.string().optional(),
   type: z.string().optional(),
   search: z.string().optional(),
   orgId: z.string().optional(),
@@ -184,34 +175,17 @@ const createObjectRoute = createRoute({
   middleware: [requireObjectWriteAccess] as const,
   request: jsonBody(createMatterSchema),
   responses: {
-    201: jsonContent(objectCreateResultSchema, 'Created object draft with upload URL'),
-    400: errorResponse('No active organization'),
+    201: jsonContent(objectCreateResultSchema, 'Created object (folder, or file draft with upload instructions)'),
+    400: errorResponse('No active organization or file too large'),
     403: errorResponse('Forbidden'),
     409: errorResponse('Name conflict'),
     503: errorResponse('No storage configured'),
   },
 })
 
-const createUploadSessionRoute = createRoute({
-  operationId: 'createObjectUploadSession',
-  summary: 'Start multipart upload',
-  tags: ['Objects'],
-  method: 'post',
-  path: '/{id}/uploads',
-  middleware: [requireObjectWriteAccess] as const,
-  request: { params: idParam, ...jsonBody(createObjectUploadSessionSchema) },
-  responses: {
-    201: jsonContent(objectUploadSessionSchema, 'Object multipart upload session'),
-    400: errorResponse('Invalid upload session'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Not found'),
-    502: errorResponse('Storage failure'),
-  },
-})
-
 const presignPartsRoute = createRoute({
   operationId: 'presignObjectUploadParts',
-  summary: 'Presign upload parts',
+  summary: 'Re-presign upload parts',
   tags: ['Objects'],
   method: 'post',
   path: '/{id}/uploads/{uploadSessionId}/parts',
@@ -226,33 +200,34 @@ const presignPartsRoute = createRoute({
   },
 })
 
-const completeUploadRoute = createRoute({
+const completionsRoute = createRoute({
   operationId: 'completeObjectUpload',
-  summary: 'Complete multipart upload',
+  summary: 'Complete upload',
   tags: ['Objects'],
-  method: 'put',
-  path: '/{id}/uploads/{uploadSessionId}/status',
+  method: 'post',
+  path: '/{id}/uploads/{uploadSessionId}/completions',
   middleware: [requireObjectWriteAccess] as const,
-  request: { params: sessionParams, ...jsonBody(objectUploadStatusSchema) },
+  request: { params: sessionParams, ...jsonBody(completeObjectUploadSchema) },
   responses: {
-    200: jsonContent(objectUploadSessionSchema, 'Completed object multipart upload session'),
+    200: jsonContent(matterSchema, 'Finalized live object'),
     400: errorResponse('Invalid upload session'),
     403: errorResponse('Forbidden'),
     404: errorResponse('Not found'),
+    422: errorResponse('Quota exceeded'),
     502: errorResponse('Storage failure'),
   },
 })
 
 const abortUploadRoute = createRoute({
   operationId: 'abortObjectUpload',
-  summary: 'Abort multipart upload',
+  summary: 'Abort upload',
   tags: ['Objects'],
   method: 'delete',
   path: '/{id}/uploads/{uploadSessionId}',
   middleware: [requireObjectWriteAccess] as const,
   request: { params: sessionParams },
   responses: {
-    204: { description: 'Aborted object multipart upload session' },
+    204: { description: 'Aborted upload and discarded the draft' },
     400: errorResponse('Invalid upload session'),
     403: errorResponse('Forbidden'),
     404: errorResponse('Not found'),
@@ -291,23 +266,6 @@ const patchObjectRoute = createRoute({
   },
 })
 
-const objectStatusRoute = createRoute({
-  operationId: 'setObjectStatus',
-  summary: 'Change object status',
-  tags: ['Objects'],
-  method: 'put',
-  path: '/{id}/status',
-  middleware: [requireObjectWriteAccess] as const,
-  request: { params: idParam, ...jsonBody(objectStatusSchema) },
-  responses: {
-    200: jsonContent(matterSchema, 'Updated object'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Not found'),
-    422: errorResponse('Quota exceeded'),
-  },
-})
-
 const deleteObjectRoute = createRoute({
   operationId: 'deleteObject',
   summary: 'Delete object',
@@ -317,15 +275,11 @@ const deleteObjectRoute = createRoute({
   middleware: [requireTeamRole('editor')] as const,
   request: { params: idParam },
   responses: {
-    200: jsonContent(
-      // `purged` is the count of permanently removed items, or `false` when a
-      // draft is discarded (nothing was purged).
-      z.object({ purged: z.number().int().or(z.literal(false)) }),
-      'Deleted object',
-    ),
+    // Soft delete: the object moves to trash (GET /trash/objects). Permanent
+    // removal is DELETE /trash/objects/{id}.
+    204: { description: 'Object moved to trash' },
     400: errorResponse('No active organization'),
     404: errorResponse('Not found'),
-    409: errorResponse('Object must be trashed before permanent deletion'),
   },
 })
 
@@ -394,7 +348,6 @@ const objects = app
       orgOverride: query.orgId,
       filters: {
         parent: query.path ?? query.parent ?? '',
-        status: query.status ?? 'active',
         typeFilter: query.type,
         search: query.search,
         page: query.page,
@@ -410,23 +363,8 @@ const objects = app
 
     const result = await createObject(c.get('deps'), { orgId, actor: objectActor(c), input: c.req.valid('json') })
     if (!result.ok) throw result.error
-    if ('uploadUrl' in result)
-      return c.json(
-        { ...toMatterDTO(result.matter), uploadUrl: result.uploadUrl, contentDisposition: result.contentDisposition },
-        201,
-      )
+    if ('upload' in result) return c.json({ ...toMatterDTO(result.matter), upload: result.upload }, 201)
     return c.json(toMatterDTO(result.matter), 201)
-  })
-  .openapi(createUploadSessionRoute, async (c) => {
-    const orgId = c.get('orgId')
-    if (!orgId) throw new ObjectUploadSessionError('not_found')
-    const session = await createUploadSession(c.get('deps'), {
-      orgId,
-      objectId: c.req.valid('param').id,
-      actor: objectActor(c),
-      partSize: c.req.valid('json').partSize,
-    })
-    return c.json(session, 201)
   })
   .openapi(presignPartsRoute, async (c) => {
     const orgId = c.get('orgId')
@@ -439,25 +377,48 @@ const objects = app
     })
     return c.json(result, 200)
   })
-  .openapi(completeUploadRoute, async (c) => {
+  // Finalize the upload (draft → live). The client has PUT every slice and read
+  // its ETag; the server HEADs (single PutObject) or CompleteMultipartUpload,
+  // then activates the draft. NameConflictError / StorageQuotaExceededError thrown
+  // by the activation propagate to onError (409 / 422).
+  .openapi(completionsRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
-    const session = await patchUploadSession(c.get('deps'), {
+    const objectId = c.req.valid('param').id
+
+    const principal = c.get('principal')
+    if (principal?.kind === 'download-task-upload') {
+      const authorized = await authorizeTaskUploadConfirm(c.get('deps'), {
+        orgId,
+        objectId,
+        taskId: principal.taskId,
+        downloaderId: principal.downloaderId,
+        targetFolder: principal.targetFolder,
+      })
+      if (!authorized.ok) throw authorized.error
+    }
+
+    const result = await completeUpload(c.get('deps'), {
       orgId,
-      objectId: c.req.valid('param').id,
+      objectId,
       sessionId: c.req.valid('param').uploadSessionId,
-      input: { action: 'complete', parts: c.req.valid('json').parts },
+      parts: c.req.valid('json').parts,
+      actorId: actorId(c),
     })
-    return c.json(session, 200)
+    if (!result.ok) {
+      if ('error' in result) throw result.error // quota exceeded
+      throw new ObjectUploadSessionError('not_found') // draft gone
+    }
+    return c.json(toMatterDTO(result.matter), 200)
   })
   .openapi(abortUploadRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
-    await patchUploadSession(c.get('deps'), {
+    await abortUpload(c.get('deps'), {
       orgId,
       objectId: c.req.valid('param').id,
       sessionId: c.req.valid('param').uploadSessionId,
-      input: { action: 'abort' },
+      actorId: actorId(c),
     })
     return c.body(null, 204)
   })
@@ -489,62 +450,18 @@ const objects = app
     if (!result.ok) throw result.error
     return c.json(toMatterDTO(result.matter), 200)
   })
-  // Lifecycle transitions: { status:'active' } confirms a draft or restores from
-  // trash (server picks by current state); { status:'trashed' } soft-deletes.
-  .openapi(objectStatusRoute, async (c) => {
-    const orgId = c.get('orgId')
-    if (!orgId) throw badRequest('No active organization')
-    const objectId = c.req.valid('param').id
-    const { status, onConflict } = c.req.valid('json')
-
-    const principal = c.get('principal')
-    if (principal?.kind === 'download-task-upload') {
-      // Upload tokens may only confirm their own draft.
-      if (status !== 'active') {
-        throw forbidden('Download task upload token can only confirm uploads')
-      }
-      const authorized = await authorizeTaskUploadConfirm(c.get('deps'), {
-        orgId,
-        objectId,
-        taskId: principal.taskId,
-        downloaderId: principal.downloaderId,
-        targetFolder: principal.targetFolder,
-      })
-      if (!authorized.ok) throw authorized.error
-    }
-
-    if (status === 'trashed') {
-      const result = await trashObject(c.get('deps'), { orgId, objectId, actorId: actorId(c) })
-      if (!result.ok) throw result.error
-      return c.json(toMatterDTO(result.matter), 200)
-    }
-
-    // status === 'active': confirm a draft, otherwise restore from trash.
-    // NameConflictError / StorageQuotaExceededError thrown here propagate to the
-    // global onError, which maps them to 409 / 422.
-    const confirmed = await confirmObject(c.get('deps'), { orgId, objectId, actorId: actorId(c), onConflict })
-    if (confirmed.ok) return c.json(toMatterDTO(confirmed.matter), 200)
-    // `not_found` falls through to a restore attempt; a quota block is terminal.
-    if ('error' in confirmed) throw confirmed.error
-
-    const restored = await restoreObject(c.get('deps'), { orgId, objectId, actorId: actorId(c), onConflict })
-    if (!restored.ok) throw restored.error
-    return c.json(toMatterDTO(restored.matter), 200)
-  })
+  // Soft delete: move a live object to trash. Permanent removal is
+  // DELETE /trash/objects/{id}; discarding a draft is DELETE /{id}/uploads/{sid}.
   .openapi(deleteObjectRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw badRequest('No active organization')
-    const objectId = c.req.valid('param').id
-    const result = await deleteObject(c.get('deps'), { orgId, objectId, userId: c.get('userId')! })
-    if (result.ok) return c.json({ purged: result.purged }, 200)
-    if (result.reason === 'not_trashed') {
-      // A draft (upload never confirmed) is discarded directly; a live object
-      // must be trashed before it can be permanently deleted.
-      const cancelled = await cancelObject(c.get('deps'), { orgId, objectId, actorId: actorId(c) })
-      if (cancelled.ok) return c.json({ purged: false as const }, 200)
-      throw conflict('Object must be trashed before permanent deletion')
-    }
-    throw notFound()
+    const result = await trashObject(c.get('deps'), {
+      orgId,
+      objectId: c.req.valid('param').id,
+      actorId: actorId(c),
+    })
+    if (!result.ok) throw result.error
+    return c.body(null, 204)
   })
   .openapi(copyObjectRoute, async (c) => {
     const orgId = c.get('orgId')

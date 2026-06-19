@@ -18,6 +18,7 @@ function makeObject(overrides: Partial<StorageObject & { downloadUrl?: string }>
     object: 'object-key',
     storageId: 'storage-1',
     status: ObjectStatus.ACTIVE,
+    trashedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     downloadUrl: 'https://example.com/song.mp3',

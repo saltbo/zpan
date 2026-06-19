@@ -602,7 +602,7 @@ describe('POST /api/shares/:token/objects', () => {
     const createRes = await createShare(app, headers, { matterId: 'sv-trashed', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = 'sv-trashed'`)
+    await db.run(sql`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = 'sv-trashed'`)
 
     const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
@@ -955,7 +955,7 @@ describe('PUT /api/shares/:token/status', () => {
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
     // Soft-delete the matter without purging it — the share row stays active.
-    await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = 'del4'`)
+    await db.run(sql`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = 'del4'`)
 
     const res = await revokeRequest(app, token, headers)
     expect(res.status).toBe(200)
@@ -1102,24 +1102,24 @@ describe('Public share routes', () => {
   async function insertFile(
     db: Awaited<ReturnType<typeof createTestApp>>['db'],
     orgId: string,
-    opts: { id: string; name: string; parent?: string; status?: string },
+    opts: { id: string; name: string; parent?: string; status?: string; trashedAt?: number },
   ) {
     const now = Date.now()
     await db.run(sql`
-      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-      VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', 1024, 0, ${opts.parent ?? ''}, 'some/key.txt', ${STORAGE_ID}, ${opts.status ?? 'active'}, ${now}, ${now})
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
+      VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', 1024, 0, ${opts.parent ?? ''}, 'some/key.txt', ${STORAGE_ID}, ${opts.status ?? 'active'}, ${opts.trashedAt ?? null}, ${now}, ${now})
     `)
   }
 
   async function insertFolder(
     db: Awaited<ReturnType<typeof createTestApp>>['db'],
     orgId: string,
-    opts: { id: string; name: string; parent?: string; status?: string },
+    opts: { id: string; name: string; parent?: string; status?: string; trashedAt?: number },
   ) {
     const now = Date.now()
     await db.run(sql`
-      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-      VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'folder', 0, 1, ${opts.parent ?? ''}, '', ${STORAGE_ID}, ${opts.status ?? 'active'}, ${now}, ${now})
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
+      VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'folder', 0, 1, ${opts.parent ?? ''}, '', ${STORAGE_ID}, ${opts.status ?? 'active'}, ${opts.trashedAt ?? null}, ${now}, ${now})
     `)
   }
 
@@ -1227,7 +1227,7 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFile(db, orgId, { id: 'f3', name: 'gone.txt', status: 'trashed' })
+      await insertFile(db, orgId, { id: 'f3', name: 'gone.txt', trashedAt: Date.now() })
       const now = Date.now()
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
@@ -1654,7 +1654,7 @@ describe('Public share routes', () => {
       // gets trashed — resolveByToken returns matter_trashed for the download.
       const share = await createShareRepo(db).create({ matterId: 'dl-trash', orgId, creatorId, kind: 'landing' })
       const rootRef = await fetchRootRef(app, share.token)
-      await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = 'dl-trash'`)
+      await db.run(sql`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = 'dl-trash'`)
 
       const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
       expect(res.status).toBe(410)
@@ -1719,7 +1719,7 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFolder(db, orgId, { id: 'trashed-dir', name: 'Gone', status: 'trashed' })
+      await insertFolder(db, orgId, { id: 'trashed-dir', name: 'Gone', trashedAt: Date.now() })
       const now = Date.now()
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
@@ -1985,7 +1985,7 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFile(db, orgId, { id: 'dlx3', name: 'trashed.txt', status: 'trashed' })
+      await insertFile(db, orgId, { id: 'dlx3', name: 'trashed.txt', trashedAt: Date.now() })
       const now = Date.now()
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)

@@ -36,6 +36,7 @@ function toStorageObject(item: {
     object: item.ref,
     storageId: '',
     status: 'active',
+    trashedAt: null,
     createdAt: now,
     updatedAt: now,
   }

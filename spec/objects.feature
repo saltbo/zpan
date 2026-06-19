@@ -1,8 +1,9 @@
 Feature: Objects
-  Files and folders ("matters") are the core entity. Clients create folders, presign
-  file uploads directly to S3 then confirm, browse/rename/move, trash and restore,
-  permanently purge, copy, and transfer across spaces — with name-conflict resolution
-  and quota enforcement throughout.
+  Files and folders ("matters") are the core entity. Creating a file returns
+  size-decided upload instructions; the client PUTs each slice directly to S3,
+  reads the ETags, and completes the upload. Clients browse/rename/move, soft-delete
+  to trash and restore, permanently purge, copy, and transfer across spaces — with
+  name-conflict resolution and quota enforcement throughout.
 
   @objects/auth-required @api
   Scenario: Object access requires authentication
@@ -28,11 +29,11 @@ Feature: Objects
     When listing filters by parent
     Then only that parent's children are returned
 
-  @objects/list-by-status @api
-  Scenario: Objects filter by status
-    Given active and trashed objects
-    When listing filters by status
-    Then only matching objects are returned
+  @objects/list-live-only @api
+  Scenario: Listing returns live objects only
+    Given live and trashed objects
+    When objects are listed
+    Then only live (non-trashed) objects are returned
 
   @objects/create-folder @api
   Scenario: A folder is created
@@ -53,10 +54,16 @@ Feature: Objects
     Then the API responds 500
 
   @objects/create-file-presign @api
-  Scenario: Creating a file returns a presigned upload URL
+  Scenario: Creating a file returns upload instructions
     Given a configured storage
     When a file object is created
-    Then a draft with a presigned upload URL is returned
+    Then a draft with upload instructions (part size + presigned URLs) is returned
+
+  @objects/create-file-too-large @api
+  Scenario: Creating an oversized file is rejected
+    Given a file larger than the 5 TiB maximum
+    When the file object is created
+    Then the API responds 400
 
   @objects/detail @api
   Scenario: An object's detail is returned
@@ -82,35 +89,29 @@ Feature: Objects
     When it is moved to a new parent
     Then its location is updated
 
-  @objects/confirm-upload @api
-  Scenario: A draft upload is confirmed
-    Given a draft object whose bytes were uploaded
-    When the upload is confirmed
-    Then the object becomes active
+  @objects/complete-upload @api
+  Scenario: An upload is completed
+    Given a draft object whose slices were uploaded to S3
+    When the upload is completed with the part ETags
+    Then the object becomes live
 
-  @objects/confirm-non-draft @api
-  Scenario: Confirming a non-draft object is 404
-    Given a non-draft object
-    When confirm is requested
-    Then the API responds 404
+  @objects/complete-etag-mismatch @api
+  Scenario: Completing with a mismatched ETag is rejected
+    Given a draft single-PutObject upload
+    When it is completed with an ETag that does not match the stored object
+    Then the API responds 409
 
-  @objects/cancel-draft @api
-  Scenario: A draft upload is cancelled
-    Given a draft object
-    When it is cancelled
-    Then it is deleted and its S3 object cleaned up
-
-  @objects/delete-requires-trash @api
-  Scenario: Active objects cannot be deleted directly
-    Given an active object
-    When a permanent delete is attempted
-    Then it is rejected — it must be trashed first
+  @objects/abort-upload @api
+  Scenario: An upload is aborted
+    Given a draft object with an open upload session
+    When the upload is aborted
+    Then the draft is discarded and its S3 upload is cleaned up
 
   @objects/trash @api
-  Scenario: A file is trashed
-    Given an active file
-    When it is trashed
-    Then its status becomes trashed
+  Scenario: A file is soft-deleted to trash
+    Given a live file
+    When it is deleted
+    Then it moves to trash (trashedAt is set)
 
   @objects/trash-cascade @api
   Scenario: Trashing a folder cascades to children
@@ -142,11 +143,11 @@ Feature: Objects
     When it is permanently deleted
     Then it is removed and its S3 object deleted
 
-  @objects/purge-all @api
-  Scenario: Emptying the trash purges everything
-    Given trashed items
-    When the trash is emptied
-    Then all trashed items are purged
+  @objects/get-trashed @api
+  Scenario: A trashed object's detail is returned from the trash
+    Given a trashed object
+    When its trash detail is requested
+    Then the trashed object is returned
 
   @objects/download-url @api
   Scenario: A file detail returns a download URL

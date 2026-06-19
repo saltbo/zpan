@@ -65,19 +65,24 @@ async function seedFile(page: Page, name: string, bytes: Buffer) {
     },
   })
   expect(draftResponse.ok()).toBe(true)
-  const draft = (await draftResponse.json()) as StorageObject & { uploadUrl: string }
-  expect(draft.uploadUrl).toBeTruthy()
+  const draft = (await draftResponse.json()) as StorageObject & {
+    upload: { sessionId: string; partSize: number; urls: string[] }
+  }
+  // Small fixture → single PutObject (one URL).
+  expect(draft.upload?.urls?.length).toBe(1)
 
-  const uploadResponse = await page.request.put(draft.uploadUrl, {
+  const uploadResponse = await page.request.put(draft.upload.urls[0], {
     headers: { 'Content-Type': textType },
     data: bytes,
   })
   expect(uploadResponse.ok()).toBe(true)
+  const etag = uploadResponse.headers().etag
 
-  const confirmResponse = await page.request.put(`/api/objects/${draft.id}/status`, {
-    data: { status: 'active' },
-  })
-  expect(confirmResponse.ok()).toBe(true)
+  const completeResponse = await page.request.post(
+    `/api/objects/${draft.id}/uploads/${draft.upload.sessionId}/completions`,
+    { data: { parts: [{ partNumber: 1, etag }] } },
+  )
+  expect(completeResponse.ok()).toBe(true)
 }
 
 async function selectFile(page: Page, name: string) {

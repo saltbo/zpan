@@ -27,10 +27,11 @@ export const StorageStatus = {
 
 export type StorageStatus = (typeof StorageStatus)[keyof typeof StorageStatus]
 
+// Soft delete is tracked by the `trashedAt` timestamp, not a status value:
+// live = active & trashedAt IS NULL, trash = active & trashedAt IS NOT NULL.
 export const ObjectStatus = {
   DRAFT: 'draft',
   ACTIVE: 'active',
-  TRASHED: 'trashed',
 } as const
 
 export type ObjectStatus = (typeof ObjectStatus)[keyof typeof ObjectStatus]

@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { deleteObject, emptyTrash, listObjects, restoreObject } from '@/lib/api'
+import { listTrash, purgeTrashObject, restoreObject } from '@/lib/api'
 import { runSequentialOperation } from '@/lib/sequential-operation'
 
 export const Route = createFileRoute('/_authenticated/trash/')({
@@ -42,7 +42,7 @@ function TrashPage() {
 
   const trashQuery = useQuery({
     queryKey: [...QUERY_KEY, page, PAGE_SIZE],
-    queryFn: () => listObjects('', 'trashed', page, PAGE_SIZE),
+    queryFn: () => listTrash(page, PAGE_SIZE),
   })
 
   async function runTrashPageOperation(
@@ -135,7 +135,7 @@ function TrashPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      await runTrashPageOperation(t('trash.deletePermanently'), ids, (id) => deleteObject(id))
+      await runTrashPageOperation(t('trash.deletePermanently'), ids, (id) => purgeTrashObject(id))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
@@ -151,7 +151,17 @@ function TrashPage() {
   })
 
   const emptyTrashMutation = useMutation({
-    mutationFn: () => emptyTrash(),
+    // Trash lists roots only, so emptying = looping DELETE over every root (each
+    // does the recursive subtree purge backend-side). Paginate to collect them all.
+    mutationFn: async () => {
+      const allIds: string[] = []
+      for (let p = 1; ; p++) {
+        const res = await listTrash(p, 100)
+        allIds.push(...res.items.map((item) => item.id))
+        if (res.items.length === 0 || p * 100 >= res.total) break
+      }
+      await runTrashPageOperation(t('trash.empty'), allIds, (id) => purgeTrashObject(id))
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })

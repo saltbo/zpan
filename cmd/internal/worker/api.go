@@ -40,35 +40,9 @@ func (w *Worker) createObject(ctx context.Context, token string, name string, si
 	return draft, err
 }
 
-func (w *Worker) confirmObject(ctx context.Context, token string, id string) error {
-	return w.callAPI(ctx, "confirm object", func(ctx context.Context) error {
-		return w.api.ConfirmObject(ctx, token, id)
-	})
-}
-
-func (w *Worker) createObjectUploadSession(ctx context.Context, token string, id string, partSize int64) (client.ObjectUploadSession, error) {
-	var session client.ObjectUploadSession
-	err := w.callAPI(ctx, "create multipart upload session", func(ctx context.Context) error {
-		var err error
-		session, err = w.api.CreateObjectUploadSession(ctx, token, id, partSize)
-		return err
-	})
-	return session, err
-}
-
-func (w *Worker) presignObjectUploadParts(ctx context.Context, token string, id string, sessionID string, partNumbers []int) ([]client.PresignedObjectUploadPart, error) {
-	var parts []client.PresignedObjectUploadPart
-	err := w.callAPI(ctx, "presign multipart upload parts", func(ctx context.Context) error {
-		var err error
-		parts, err = w.api.PresignObjectUploadParts(ctx, token, id, sessionID, partNumbers)
-		return err
-	})
-	return parts, err
-}
-
-func (w *Worker) completeObjectUploadSession(ctx context.Context, token string, id string, sessionID string, parts []client.CompletedObjectUploadPart) error {
-	return w.callAPI(ctx, "complete multipart upload session", func(ctx context.Context) error {
-		return w.api.CompleteObjectUploadSession(ctx, token, id, sessionID, parts)
+func (w *Worker) completeObjectUpload(ctx context.Context, token string, id string, sessionID string, parts []client.CompletedObjectUploadPart) error {
+	return w.callAPI(ctx, "complete upload", func(ctx context.Context) error {
+		return w.api.CompleteObjectUpload(ctx, token, id, sessionID, parts)
 	})
 }
 

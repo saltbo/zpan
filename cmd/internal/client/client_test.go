@@ -138,53 +138,13 @@ func TestUpdateTaskUsesGeneratedRequestShape(t *testing.T) {
 	}
 }
 
-func TestConfirmObjectUsesRenameConflictStrategy(t *testing.T) {
-	var body map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/objects/object-1/status" {
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatal(err)
-		}
-		_ = json.NewEncoder(w).Encode(ObjectDraft{ID: "object-1", Name: "movie (1).mkv"})
-	}))
-	defer server.Close()
-
-	if err := mustClient(t, server.URL, "token").ConfirmObject(context.Background(), "upload-token", "object-1"); err != nil {
-		t.Fatal(err)
-	}
-	if body["status"] != "active" {
-		t.Fatalf("expected active status, got %#v", body["status"])
-	}
-	if body["onConflict"] != "rename" {
-		t.Fatalf("expected onConflict rename, got %#v", body["onConflict"])
-	}
-}
-
 func TestMultipartUploadSessionClientMethods(t *testing.T) {
-	var createBody map[string]any
 	var presignBody map[string]any
 	var completeBody map[string]any
 	var abortCalled bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/objects/object-1/uploads":
-			if err := json.NewDecoder(r.Body).Decode(&createBody); err != nil {
-				t.Fatal(err)
-			}
-			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":        "session-1",
-				"objectId":  "object-1",
-				"uploadId":  "upload-1",
-				"partSize":  67108864,
-				"status":    "active",
-				"expiresAt": "2026-06-05T00:00:00Z",
-				"createdAt": "2026-06-04T00:00:00Z",
-				"updatedAt": "2026-06-04T00:00:00Z",
-			})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/objects/object-1/uploads/session-1/parts":
 			if err := json.NewDecoder(r.Body).Decode(&presignBody); err != nil {
 				t.Fatal(err)
@@ -197,32 +157,18 @@ func TestMultipartUploadSessionClientMethods(t *testing.T) {
 					{"partNumber": 2, "url": "https://s3/part-2"},
 				},
 			})
-		case r.Method == http.MethodPut && r.URL.Path == "/api/objects/object-1/uploads/session-1/status":
+		case r.Method == http.MethodPost && r.URL.Path == "/api/objects/object-1/uploads/session-1/completions":
 			if err := json.NewDecoder(r.Body).Decode(&completeBody); err != nil {
 				t.Fatal(err)
 			}
+			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":        "session-1",
-				"objectId":  "object-1",
-				"uploadId":  "upload-1",
-				"partSize":  67108864,
-				"status":    "completed",
-				"expiresAt": "2026-06-05T00:00:00Z",
-				"createdAt": "2026-06-04T00:00:00Z",
-				"updatedAt": "2026-06-04T00:00:00Z",
+				"id":   "object-1",
+				"name": "movie.mkv",
 			})
 		case r.Method == http.MethodDelete && r.URL.Path == "/api/objects/object-1/uploads/session-1":
 			abortCalled = true
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":        "session-1",
-				"objectId":  "object-1",
-				"uploadId":  "upload-1",
-				"partSize":  67108864,
-				"status":    "aborted",
-				"expiresAt": "2026-06-05T00:00:00Z",
-				"createdAt": "2026-06-04T00:00:00Z",
-				"updatedAt": "2026-06-04T00:00:00Z",
-			})
+			w.WriteHeader(http.StatusNoContent)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
@@ -230,13 +176,6 @@ func TestMultipartUploadSessionClientMethods(t *testing.T) {
 	defer server.Close()
 
 	api := mustClient(t, server.URL, "token")
-	session, err := api.CreateObjectUploadSession(context.Background(), "upload-token", "object-1", 64*1024*1024)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if session.ID != "session-1" || session.PartSize != 64*1024*1024 {
-		t.Fatalf("unexpected session: %#v", session)
-	}
 	parts, err := api.PresignObjectUploadParts(context.Background(), "upload-token", "object-1", "session-1", []int{1, 2})
 	if err != nil {
 		t.Fatal(err)
@@ -244,7 +183,7 @@ func TestMultipartUploadSessionClientMethods(t *testing.T) {
 	if !reflect.DeepEqual(parts, []PresignedObjectUploadPart{{PartNumber: 1, URL: "https://s3/part-1"}, {PartNumber: 2, URL: "https://s3/part-2"}}) {
 		t.Fatalf("unexpected presigned parts: %#v", parts)
 	}
-	err = api.CompleteObjectUploadSession(context.Background(), "upload-token", "object-1", "session-1", []CompletedObjectUploadPart{{PartNumber: 1, ETag: `"etag-1"`}})
+	err = api.CompleteObjectUpload(context.Background(), "upload-token", "object-1", "session-1", []CompletedObjectUploadPart{{PartNumber: 1, ETag: `"etag-1"`}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,14 +192,16 @@ func TestMultipartUploadSessionClientMethods(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if createBody["partSize"] != float64(64*1024*1024) {
-		t.Fatalf("expected create partSize, got %#v", createBody)
-	}
 	if !reflect.DeepEqual(presignBody["partNumbers"], []any{float64(1), float64(2)}) {
 		t.Fatalf("expected presign part numbers, got %#v", presignBody)
 	}
-	if completeBody["status"] != "completed" {
+	completeParts, ok := completeBody["parts"].([]any)
+	if !ok || len(completeParts) != 1 {
 		t.Fatalf("unexpected complete body: %#v", completeBody)
+	}
+	part, ok := completeParts[0].(map[string]any)
+	if !ok || part["partNumber"] != float64(1) || part["etag"] != `"etag-1"` {
+		t.Fatalf("unexpected complete part: %#v", completeBody)
 	}
 	if !abortCalled {
 		t.Fatalf("abort was not called")

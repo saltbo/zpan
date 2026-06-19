@@ -74,24 +74,23 @@ export {
   redeemGiftCardResponseSchema,
 } from './cloud-store'
 export type {
+  CompleteObjectUploadInput,
   CreateDownloaderInput,
   CreateDownloadTaskInput,
-  CreateObjectUploadSessionInput,
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
   DownloadTaskRuntime,
   DownloadTaskSchema,
   ListDownloadTasksQuery,
-  PatchObjectUploadSessionInput,
   PresignObjectUploadPartsInput,
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
 } from './downloads'
 export {
+  completeObjectUploadSchema,
   createDownloaderResponseSchema,
   createDownloaderSchema,
   createDownloadTaskSchema,
-  createObjectUploadSessionSchema,
   downloaderEngineSchema,
   downloaderHeartbeatResponseSchema,
   downloaderHeartbeatSchema,
@@ -108,8 +107,6 @@ export {
   downloadTaskStatusSchema,
   downloadTaskStatusUpdateSchema,
   listDownloadTasksQuerySchema,
-  objectUploadStatusSchema,
-  patchObjectUploadSessionSchema,
   presignObjectUploadPartsSchema,
   updateDownloaderSchema,
   updateDownloadTaskSchema,
@@ -173,22 +170,14 @@ export const updateMatterSchema = z.object({
 
 export type UpdateMatterInput = z.infer<typeof updateMatterSchema>
 
-export const objectDraftSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  uploadUrl: z.string().optional(),
-  contentDisposition: z.string().optional(),
-})
-
-export const objectUploadSessionSchema = z.object({
-  id: z.string(),
-  objectId: z.string(),
-  uploadId: z.string(),
+// The upload instructions returned by POST /objects for a file draft. The server
+// decides the S3 mechanism by size: 1 URL = single PutObject (≤5 GiB), N URLs =
+// multipart 5 GiB parts (>5 GiB). The client PUTs each slice, reads the ETag, and
+// posts them to .../completions.
+export const objectUploadInstructionsSchema = z.object({
+  sessionId: z.string(),
   partSize: z.number().int(),
-  status: z.enum(['active', 'completed', 'aborted']),
-  expiresAt: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  urls: z.array(z.string()),
 })
 
 export const presignedObjectUploadPartSchema = z.object({
@@ -211,16 +200,14 @@ export const patchMatterSchema = z.object({
 
 export type PatchMatterInput = z.infer<typeof patchMatterSchema>
 
-// PUT /api/objects/:id/status — lifecycle transitions.
-//   { status: 'active' }  → confirm a draft, or restore from trash (server picks by current state)
-//   { status: 'trashed' } → move a live object to trash
-// Discarding a draft and purging a trashed object are both DELETE /api/objects/:id.
-export const objectStatusSchema = z.object({
-  status: z.enum(['active', 'trashed']),
+// POST /api/trash/objects/:id/restorations — move a trashed object back to live.
+// onConflict resolves a same-named item created in the original parent while this
+// one sat in trash (default 'fail').
+export const restoreObjectSchema = z.object({
   onConflict: conflictStrategySchema.optional(),
 })
 
-export type ObjectStatusInput = z.infer<typeof objectStatusSchema>
+export type RestoreObjectInput = z.infer<typeof restoreObjectSchema>
 
 export const copyMatterSchema = z.object({
   copyFrom: z.string().min(1),

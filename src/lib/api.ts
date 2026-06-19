@@ -5,16 +5,15 @@ import type {
   AnnouncementInput,
   CloudCreditBalanceResponse,
   CloudCreditLedgerResponse,
+  CompleteObjectUploadInput,
   ConflictStrategy,
   CreateBackgroundJobRequest,
   CreateDownloadTaskInput,
-  CreateObjectUploadSessionInput,
   CreateShareRequest,
   CreateStorageInput,
   DiscountQuote,
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
-  PatchObjectUploadSessionInput,
   PresignObjectUploadPartsInput,
   RedeemGiftCardResponse,
   UpdateDownloaderInput,
@@ -44,7 +43,7 @@ import type {
   ImageHosting,
   InstanceInfo,
   Notification,
-  ObjectUploadSession,
+  ObjectUploadInstructions,
   OrgQuota,
   OrgQuotaEntitlement,
   PaginatedResponse,
@@ -188,22 +187,15 @@ async function discard(promise: Promise<Response>): Promise<void> {
   }
 }
 
-// Objects API
-
-export function listObjects(parent: string, status = 'active', page = 1, pageSize = 500) {
-  return unwrap<PaginatedResponse<StorageObject>>(
-    objects.index.$get({ query: { parent, status, page: String(page), pageSize: String(pageSize) } }),
-  )
-}
+// Objects API — lists live objects only (the recycle bin is listTrash).
 
 export function listObjectsByPath(
   path: string,
-  status = 'active',
   page = 1,
   pageSize = 500,
   opts?: { type?: string; search?: string; orgId?: string },
 ) {
-  const query: Record<string, string> = { path, status, page: String(page), pageSize: String(pageSize) }
+  const query: Record<string, string> = { path, page: String(page), pageSize: String(pageSize) }
   if (opts?.type) query.type = opts.type
   if (opts?.search) query.search = opts.search
   if (opts?.orgId) query.orgId = opts.orgId
@@ -214,9 +206,10 @@ export function getObject(id: string) {
   return unwrap<StorageObject & { downloadUrl?: string }>(objects[':id'].$get({ param: { id } }))
 }
 
+// POST /api/objects returns a folder, or a file draft with `upload` instructions:
+// the server-decided part size and one presigned PUT URL per slice.
 export interface CreateObjectResult extends StorageObject {
-  uploadUrl?: string
-  contentDisposition?: string
+  upload?: ObjectUploadInstructions
 }
 
 export function createObject(data: {
@@ -234,18 +227,33 @@ export function updateObject(id: string, data: { name?: string; parent?: string;
   return unwrap<StorageObject>(objects[':id'].$patch({ param: { id }, json: data }))
 }
 
-export function confirmUpload(id: string, onConflict?: ConflictStrategy) {
+// Finalize an upload (draft → live): the client has PUT every slice and read each
+// ETag. Returns the live object.
+export function completeObjectUpload(id: string, uploadSessionId: string, parts: CompleteObjectUploadInput['parts']) {
   return unwrap<StorageObject>(
-    objects[':id'].status.$put({ param: { id }, json: { status: 'active' as const, onConflict } }),
+    objects[':id'].uploads[':uploadSessionId'].completions.$post({ param: { id, uploadSessionId }, json: { parts } }),
   )
 }
 
-export function cancelUpload(id: string) {
-  return unwrap<{ purged: number | false }>(objects[':id'].$delete({ param: { id } }))
+// Abort an in-progress upload and discard the draft.
+export function abortObjectUpload(id: string, uploadSessionId: string) {
+  return discard(objects[':id'].uploads[':uploadSessionId'].$delete({ param: { id, uploadSessionId } }))
 }
 
+// Re-presign expired part URLs mid-upload (multipart only); the happy path uses
+// the URLs from createObject.
+export function presignObjectUploadParts(id: string, uploadSessionId: string, data: PresignObjectUploadPartsInput) {
+  return unwrap<{ uploadId: string; partSize: number; parts: Array<{ partNumber: number; url: string }> }>(
+    objects[':id'].uploads[':uploadSessionId'].parts.$post({
+      param: { id, uploadSessionId },
+      json: data,
+    }),
+  )
+}
+
+// Soft delete: move a live object to trash (DELETE /api/objects/:id → 204).
 export function deleteObject(id: string) {
-  return unwrap<{ purged: number | false }>(objects[':id'].$delete({ param: { id } }))
+  return discard(objects[':id'].$delete({ param: { id } }))
 }
 
 export function copyObject(id: string, parent: string, onConflict?: ConflictStrategy) {
@@ -265,45 +273,26 @@ export function transferObject(
   return unwrap<TransferObjectResult>(objects[':id'].transfers.$post({ param: { id }, json: input }))
 }
 
-export function trashObject(id: string) {
-  return unwrap<StorageObject>(objects[':id'].status.$put({ param: { id }, json: { status: 'trashed' as const } }))
+// ── Trash (the /objects grouping for trashed items) ──────────────────────────
+
+// Lists trashed objects, roots only (a trashed folder is one entry).
+export function listTrash(page = 1, pageSize = 20) {
+  return unwrap<PaginatedResponse<StorageObject>>(
+    trash.objects.$get({ query: { page: String(page), pageSize: String(pageSize) } }),
+  )
+}
+
+export function getTrashObject(id: string) {
+  return unwrap<StorageObject>(trash.objects[':id'].$get({ param: { id } }))
 }
 
 export function restoreObject(id: string, onConflict?: ConflictStrategy) {
-  return unwrap<StorageObject>(
-    objects[':id'].status.$put({ param: { id }, json: { status: 'active' as const, onConflict } }),
-  )
+  return unwrap<StorageObject>(trash.objects[':id'].restorations.$post({ param: { id }, json: { onConflict } }))
 }
 
-export function emptyTrash() {
-  return unwrap<{ purged: number }>(trash.index.$delete())
-}
-
-export function createObjectUploadSession(id: string, data: CreateObjectUploadSessionInput) {
-  return unwrap<ObjectUploadSession & { object: StorageObject }>(
-    objects[':id'].uploads.$post({ param: { id }, json: data }),
-  )
-}
-
-export function presignObjectUploadParts(id: string, uploadSessionId: string, data: PresignObjectUploadPartsInput) {
-  return unwrap<{ uploadId: string; partSize: number; parts: Array<{ partNumber: number; url: string }> }>(
-    objects[':id'].uploads[':uploadSessionId'].parts.$post({
-      param: { id, uploadSessionId },
-      json: data,
-    }),
-  )
-}
-
-export function patchObjectUploadSession(id: string, uploadSessionId: string, data: PatchObjectUploadSessionInput) {
-  if (data.action === 'complete') {
-    return unwrap<ObjectUploadSession & { object?: StorageObject }>(
-      objects[':id'].uploads[':uploadSessionId'].status.$put({
-        param: { id, uploadSessionId },
-        json: { status: 'completed' as const, parts: data.parts },
-      }),
-    )
-  }
-  return discard(objects[':id'].uploads[':uploadSessionId'].$delete({ param: { id, uploadSessionId } }))
+// Permanently delete one trashed root (recursive subtree purge, DELETE → 204).
+export function purgeTrashObject(id: string) {
+  return discard(trash.objects[':id'].$delete({ param: { id } }))
 }
 
 // Remote Download API

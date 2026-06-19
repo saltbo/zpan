@@ -259,7 +259,7 @@ export async function listShareObjects(
   const root = folderRootPath(matter)
   const queryParent = relativePath ? `${root}/${relativePath}` : root
 
-  const result = await deps.matter.list(matter.orgId, { parent: queryParent, status: 'active', page, pageSize })
+  const result = await deps.matter.list(matter.orgId, { parent: queryParent, page, pageSize })
 
   return {
     ok: true,

@@ -487,7 +487,7 @@ describe('listShareObjects', () => {
     const out = await listShareObjects(deps, baseParams)
     if (!out.ok) throw new Error('expected ok')
     // folderMatter.parent='root', name='docs' → queryParent='root/docs'
-    expect(list).toHaveBeenCalledWith('o-1', { parent: 'root/docs', status: 'active', page: 1, pageSize: 50 })
+    expect(list).toHaveBeenCalledWith('o-1', { parent: 'root/docs', page: 1, pageSize: 50 })
     expect(out.result.items).toEqual([
       { ref: encodeChildRef('sk_token1', 'fld-1'), name: 'docs', type: 'folder', size: 0, isFolder: true },
       {
@@ -509,7 +509,7 @@ describe('listShareObjects', () => {
     })
     const out = await listShareObjects(deps, { ...baseParams, relativePath: 'a/b' })
     if (!out.ok) throw new Error('expected ok')
-    expect(list).toHaveBeenCalledWith('o-1', { parent: 'root/docs/a/b', status: 'active', page: 1, pageSize: 50 })
+    expect(list).toHaveBeenCalledWith('o-1', { parent: 'root/docs/a/b', page: 1, pageSize: 50 })
     expect(out.result.breadcrumb).toEqual([
       { name: 'docs', path: '' },
       { name: 'a', path: 'a' },

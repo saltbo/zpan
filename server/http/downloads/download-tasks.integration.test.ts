@@ -14,6 +14,8 @@ beforeEach(() => {
   vi.spyOn(S3Service.prototype, 'createMultipartUpload').mockResolvedValue('upload-1')
   vi.spyOn(S3Service.prototype, 'presignUploadPart').mockResolvedValue('https://presigned-part.example.com')
   vi.spyOn(S3Service.prototype, 'completeMultipartUpload').mockResolvedValue(undefined)
+  // Single-PUT completion HEADs the object; return the etag the tests send.
+  vi.spyOn(S3Service.prototype, 'headObject').mockResolvedValue({ size: 0, contentType: 'text/plain', etag: 'etag-1' })
 })
 
 const heartbeat = {
@@ -528,15 +530,23 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createNestedObjectRes.status).toBe(201)
-    const nestedObject = (await createNestedObjectRes.json()) as { id: string; status: string; uploadUrl: string }
+    const nestedObject = (await createNestedObjectRes.json()) as {
+      id: string
+      status: string
+      upload: { sessionId: string; urls: string[] }
+    }
     expect(nestedObject.status).toBe('draft')
-    expect(nestedObject.uploadUrl).toBe('https://presigned-upload.example.com')
+    expect(nestedObject.upload.urls).toEqual(['https://presigned-upload.example.com'])
 
-    const nestedConfirmRes = await app.request(`/api/objects/${nestedObject.id}/status`, {
-      method: 'PUT',
-      headers: uploadHeaders,
-      body: JSON.stringify({ status: 'active', onConflict: 'fail' }),
-    })
+    // Finalize the nested upload via the completions endpoint (single-PUT path).
+    const nestedConfirmRes = await app.request(
+      `/api/objects/${nestedObject.id}/uploads/${nestedObject.upload.sessionId}/completions`,
+      {
+        method: 'POST',
+        headers: uploadHeaders,
+        body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'etag-1' }] }),
+      },
+    )
     expect(nestedConfirmRes.status).toBe(200)
 
     const outsideFolderRes = await app.request('/api/objects', {
@@ -562,40 +572,27 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createObjectRes.status).toBe(201)
-    const object = (await createObjectRes.json()) as { id: string; status: string; uploadUrl: string }
+    const object = (await createObjectRes.json()) as {
+      id: string
+      status: string
+      upload: { sessionId: string; partSize: number; urls: string[] }
+    }
     expect(object.status).toBe('draft')
-    expect(object.uploadUrl).toBe('https://presigned-upload.example.com')
+    // 10 MiB ≤ 5 GiB → single PutObject: one presigned URL.
+    expect(object.upload.urls).toEqual(['https://presigned-upload.example.com'])
 
-    const sessionRes = await app.request(`/api/objects/${object.id}/uploads`, {
-      method: 'POST',
-      headers: uploadHeaders,
-      body: JSON.stringify({ partSize: 5 * 1024 * 1024 }),
-    })
-    expect(sessionRes.status).toBe(201)
-    const session = (await sessionRes.json()) as { id: string; uploadId: string; status: string }
-    expect(session.uploadId).toBe('upload-1')
-    expect(session.status).toBe('active')
-
-    const partsRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}/parts`, {
+    // Re-presign is multipart-only; this single-PUT session has no parts to re-presign.
+    const partsRes = await app.request(`/api/objects/${object.id}/uploads/${object.upload.sessionId}/parts`, {
       method: 'POST',
       headers: uploadHeaders,
       body: JSON.stringify({ partNumbers: [1] }),
     })
-    expect(partsRes.status).toBe(200)
-    const parts = (await partsRes.json()) as { parts: Array<{ partNumber: number; url: string }> }
-    expect(parts.parts).toEqual([{ partNumber: 1, url: 'https://presigned-part.example.com' }])
+    expect(partsRes.status).toBe(409)
 
-    const completeUploadRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}/status`, {
-      method: 'PUT',
+    const confirmRes = await app.request(`/api/objects/${object.id}/uploads/${object.upload.sessionId}/completions`, {
+      method: 'POST',
       headers: uploadHeaders,
-      body: JSON.stringify({ status: 'completed', parts: [{ partNumber: 1, etag: 'etag-1' }] }),
-    })
-    expect(completeUploadRes.status).toBe(200)
-
-    const confirmRes = await app.request(`/api/objects/${object.id}/status`, {
-      method: 'PUT',
-      headers: uploadHeaders,
-      body: JSON.stringify({ status: 'active', onConflict: 'fail' }),
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'etag-1' }] }),
     })
     expect(confirmRes.status).toBe(200)
     const confirmed = (await confirmRes.json()) as { id: string; status: string }
@@ -903,6 +900,8 @@ describe('Download tasks API integration', () => {
       Authorization: `Bearer ${tasks.items[0].status.assignment?.uploadToken}`,
       'Content-Type': 'application/json',
     }
+    // A >5 GiB file is multipart; createObject opens the S3 multipart upload up
+    // front, so the failure surfaces on POST /api/objects itself.
     const createObjectRes = await app.request('/api/objects', {
       method: 'POST',
       headers: uploadHeaders,
@@ -913,17 +912,9 @@ describe('Download tasks API integration', () => {
         parent: 'Remote Downloads',
       }),
     })
-    expect(createObjectRes.status).toBe(201)
-    const object = (await createObjectRes.json()) as { id: string }
 
-    const sessionRes = await app.request(`/api/objects/${object.id}/uploads`, {
-      method: 'POST',
-      headers: uploadHeaders,
-      body: JSON.stringify({ partSize: 64 * 1024 * 1024 }),
-    })
-
-    expect(sessionRes.status).toBe(502)
-    const sessionBody = (await sessionRes.json()) as { error: { message: string; details: { reason: string }[] } }
+    expect(createObjectRes.status).toBe(502)
+    const sessionBody = (await createObjectRes.json()) as { error: { message: string; details: { reason: string }[] } }
     expect(sessionBody.error.message).toBe('Storage multipart upload failed: bucket does not support multipart')
     expect(sessionBody.error.details[0].reason).toBe('STORAGE_FAILURE')
   })
@@ -974,20 +965,13 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createObjectRes.status).toBe(201)
-    const object = (await createObjectRes.json()) as { id: string }
+    const object = (await createObjectRes.json()) as { id: string; upload: { sessionId: string } }
 
-    const sessionRes = await app.request(`/api/objects/${object.id}/uploads`, {
+    // Multipart completion calls CompleteMultipartUpload, which is mocked to reject.
+    const completeRes = await app.request(`/api/objects/${object.id}/uploads/${object.upload.sessionId}/completions`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ partSize: 64 * 1024 * 1024 }),
-    })
-    expect(sessionRes.status).toBe(201)
-    const session = (await sessionRes.json()) as { id: string }
-
-    const completeRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}/status`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ status: 'completed', parts: [{ partNumber: 1, etag: '"etag-1"' }] }),
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: '"etag-1"' }] }),
     })
 
     expect(completeRes.status).toBe(502)

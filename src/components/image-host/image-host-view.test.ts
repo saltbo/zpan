@@ -66,6 +66,7 @@ function makeIhostItem(id: string, overrides: Partial<IhostItem> = {}): IhostIte
     object: `ih/${id}`,
     storageId: 'stor-1',
     status: 'active',
+    trashedAt: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
     token: `tok_${id}`,

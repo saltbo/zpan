@@ -21,7 +21,8 @@ describe('constants', () => {
   it('ObjectStatus values', () => {
     expect(ObjectStatus.DRAFT).toBe('draft')
     expect(ObjectStatus.ACTIVE).toBe('active')
-    expect(ObjectStatus.TRASHED).toBe('trashed')
+    // Trash is tracked by trashedAt, not a status value — there is no TRASHED.
+    expect(Object.keys(ObjectStatus)).toEqual(['DRAFT', 'ACTIVE'])
   })
 
   it('SignupMode.OPEN equals "open"', () => {

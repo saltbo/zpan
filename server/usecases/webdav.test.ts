@@ -123,7 +123,7 @@ function makeDeps(
       copy: async (source: Matter, parent: string, object: string) =>
         file('copy', { parent, object, name: source.name }),
       update: async () => file('m1'),
-      trash: async () => file('m1', { status: 'trashed' }),
+      trash: async () => file('m1', { trashedAt: Date.now() }),
       trashByIds: async () => {},
       restoreActiveByIds: async () => {},
       touch: async () => {},
@@ -533,7 +533,7 @@ describe('webdav usecase', () => {
       })
       const trash = vi.fn(async () => {
         order.push('trash')
-        return file('m1', { status: 'trashed' })
+        return file('m1', { trashedAt: Date.now() })
       })
       const deps = makeDeps({ webdavState: { deleteWebDavState }, matter: { trash } })
       await deleteWebDavMatter(deps, { orgId: 'ws-1', resourcePath: 'gone.txt', matterId: 'm1', userId: 'u1' })
@@ -565,7 +565,7 @@ describe('webdav usecase', () => {
     })
 
     it('trashes an overwritten destination before moving', async () => {
-      const trash = vi.fn(async () => file('t1', { status: 'trashed' }))
+      const trash = vi.fn(async () => file('t1', { trashedAt: Date.now() }))
       const deleteWebDavState = vi.fn(async () => {})
       const deps = makeDeps({ matter: { trash }, webdavState: { deleteWebDavState } })
       await moveWebDavMatter(deps, {
@@ -611,7 +611,7 @@ describe('webdav usecase', () => {
     })
 
     it('returns 204 and trashes the destination when overwriting', async () => {
-      const trash = vi.fn(async () => file('t1', { status: 'trashed' }))
+      const trash = vi.fn(async () => file('t1', { trashedAt: Date.now() }))
       const deps = makeDeps({ matter: { trash } })
       const out = await copyWebDavFile(deps, copyParams({ replacedMatterId: 't1', replacingTarget: true }))
       expect(out).toEqual({ ok: true, status: 204, location: 'dst.txt' })

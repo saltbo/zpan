@@ -11,7 +11,7 @@ import { listObjectsByPath } from '@/lib/api'
 function useFolders(path: string, enabled: boolean) {
   return useQuery({
     queryKey: ['folders', path],
-    queryFn: () => listObjectsByPath(path, 'active', 1, 100),
+    queryFn: () => listObjectsByPath(path, 1, 100),
     enabled,
     select: (data) => data.items.filter((item) => item.dirtype !== DirType.FILE),
   })
