@@ -125,7 +125,9 @@ jobs:
         with:
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
+          # Dev images are amd64-only to skip slow arm64 QEMU emulation
+          # (native better-sqlite3/sharp). Releases stay multi-arch.
+          platforms: linux/amd64
           build-args: |
             APP_VERSION=dev
             APP_COMMIT=${{ github.sha }}
@@ -139,7 +141,8 @@ jobs:
           context: .
           target: cli
           push: true
-          platforms: linux/amd64,linux/arm64
+          # Dev images are amd64-only (see server image above). Releases stay multi-arch.
+          platforms: linux/amd64
           build-args: |
             APP_VERSION=dev
             APP_COMMIT=${{ github.sha }}

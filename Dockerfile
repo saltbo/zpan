@@ -22,12 +22,18 @@ ENV ZPAN_APP_COMMIT=${APP_COMMIT}
 RUN pnpm build:node \
  && pnpm prune --prod --ignore-scripts
 
-FROM golang:1.25 AS cli-builder
+# Build on the native build platform and cross-compile to the target arch, so
+# the arm64 image doesn't go through slow QEMU emulation. CGO is off, so Go
+# cross-compiles cleanly. Build/mod caches make incremental rebuilds fast.
+FROM --platform=$BUILDPLATFORM golang:1.25 AS cli-builder
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /app/cmd
 COPY cmd/go.mod cmd/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY cmd ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/zpan .
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/zpan .
 
 FROM debian:bookworm-slim AS geoip-db
 ARG GEOIP_DB_MONTH=2026-06
