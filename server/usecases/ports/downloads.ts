@@ -186,6 +186,8 @@ export interface DownloadTaskRepo {
   requeueAssignedTo(downloaderId: string, statuses: string[], now: Date): Promise<void>
   /** Re-queue in-flight tasks held by stale downloaders. */
   requeueAssignedToMany(downloaderIds: string[], statuses: string[], now: Date): Promise<void>
+  /** Resolve control states (canceling→canceled, pausing→paused) held by stale downloaders. */
+  resolveControlAssignedToMany(downloaderIds: string[], now: Date): Promise<void>
 }
 
 export interface UpdateDownloadTaskFields {

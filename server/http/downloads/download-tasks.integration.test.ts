@@ -351,6 +351,54 @@ describe('Download tasks API integration', () => {
     expect(listed?.status).toBe('offline')
   })
 
+  it('settles a stale downloader’s canceling task to canceled [spec: download-tasks/stale-resolves-canceling]', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const admin = await adminHeaders(app)
+    const downloader = await registerDownloaderThroughDeviceLogin(app, 'stale-cancel-downloader', admin)
+    expect(
+      await app.request('/api/downloads/downloaders/me/heartbeats', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${downloader.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+      }),
+    ).toHaveProperty('status', 200)
+
+    const user = await authedHeaders(app, 'stale-cancel-user@example.com')
+    const createRes = await app.request('/api/downloads/tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: { type: 'http', uri: 'https://example.com/stale-cancel.bin' }, targetFolder: '' }),
+    })
+    expect(createRes.status).toBe(201)
+    const task = (await createRes.json()) as DownloadTask
+    expect(task.status.assignment?.downloaderId).toBe(downloader.downloader.id)
+
+    // Cancel while assigned → canceling, waiting for the downloader to ack.
+    const cancelRes = await app.request(`/api/downloads/tasks/${task.id}/status`, {
+      method: 'PUT',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+    expect(cancelRes.status).toBe(200)
+    await expect(cancelRes.json()).resolves.toMatchObject({ status: { state: 'canceling' } })
+
+    // The downloader goes offline before it can ack.
+    const staleHeartbeatAt = Date.now() - 60_000
+    await db.run(sql`
+      UPDATE downloaders
+      SET last_heartbeat_at = ${staleHeartbeatAt}, updated_at = ${staleHeartbeatAt}
+      WHERE id = ${downloader.downloader.id}
+    `)
+
+    // Stale recovery (triggered here by the admin list) must settle it, not leave it stuck.
+    expect((await app.request('/api/downloads/downloaders', { headers: admin })).status).toBe(200)
+
+    const taskRes = await app.request(`/api/downloads/tasks/${task.id}`, { headers: user })
+    expect(taskRes.status).toBe(200)
+    await expect(taskRes.json()).resolves.toMatchObject({ status: { state: 'canceled', assignment: null } })
+  })
+
   it('reassigns unfinished tasks from stale downloaders on live heartbeat [spec: download-tasks/reassign-on-heartbeat]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
