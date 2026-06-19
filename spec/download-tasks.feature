@@ -51,6 +51,12 @@ Feature: Remote download tasks
     When a live heartbeat arrives
     Then the tasks are reassigned
 
+  @download-tasks/stale-resolves-canceling @api
+  Scenario: Stale downloader's canceling task settles to canceled
+    Given a canceling task on a stale downloader
+    When stale recovery runs
+    Then the task settles to canceled
+
   @download-tasks/upload-flow @api
   Scenario: A completed remote download uploads via the object API
     Given an assigned task
