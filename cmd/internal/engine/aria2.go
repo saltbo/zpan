@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/bits"
 	"net/http"
 	"net/url"
 	"os"
@@ -1026,6 +1027,34 @@ func aria2Leechers(peers []arigo.Peer) *int64 {
 	return &count
 }
 
+// aria2PeerProgress derives a peer's 0..1 completion from its piece bitfield
+// (aria2 has no direct percentage like qBittorrent). A seeder has every piece.
+// Spare bits past the last piece are zero, so dividing by the bitfield's bit
+// length only differs from the true piece count by sub-1% — fine for a bar.
+func aria2PeerProgress(peer arigo.Peer) *float64 {
+	if peer.Seeder {
+		full := 1.0
+		return &full
+	}
+	if peer.BitField == "" {
+		return nil
+	}
+	set := 0
+	for _, digit := range peer.BitField {
+		nibble, err := strconv.ParseUint(string(digit), 16, 8)
+		if err != nil {
+			return nil
+		}
+		set += bits.OnesCount8(uint8(nibble))
+	}
+	total := len(peer.BitField) * 4
+	if total == 0 {
+		return nil
+	}
+	progress := float64(set) / float64(total)
+	return &progress
+}
+
 func aria2Peers(peers []arigo.Peer, geoIP PeerGeoIPResolver) []client.DownloadTaskPeer {
 	out := make([]client.DownloadTaskPeer, 0, min(len(peers), 20))
 	for _, peer := range peers {
@@ -1036,6 +1065,7 @@ func aria2Peers(peers []arigo.Peer, geoIP PeerGeoIPResolver) []client.DownloadTa
 		up := int64(peer.UploadSpeed)
 		item := client.DownloadTaskPeer{
 			Address:     fmt.Sprintf("%s:%d", peer.IP, peer.Port),
+			Progress:    aria2PeerProgress(peer),
 			DownloadBps: &down,
 			UploadBps:   &up,
 		}

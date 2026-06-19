@@ -201,6 +201,21 @@ func TestAria2SeedTimeMinutes(t *testing.T) {
 	}
 }
 
+func TestAria2PeerProgress(t *testing.T) {
+	if p := aria2PeerProgress(arigo.Peer{Seeder: true}); p == nil || *p != 1.0 {
+		t.Fatalf("expected seeder progress 1.0, got %v", p)
+	}
+	if p := aria2PeerProgress(arigo.Peer{BitField: "ff"}); p == nil || *p != 1.0 {
+		t.Fatalf("expected full bitfield 1.0, got %v", p)
+	}
+	if p := aria2PeerProgress(arigo.Peer{BitField: "f0"}); p == nil || *p != 0.5 {
+		t.Fatalf("expected half bitfield 0.5, got %v", p)
+	}
+	if p := aria2PeerProgress(arigo.Peer{BitField: ""}); p != nil {
+		t.Fatalf("expected nil progress for empty bitfield, got %v", p)
+	}
+}
+
 func TestQBittorrentStartArgsWritesManagedListenPort(t *testing.T) {
 	stateDir := t.TempDir()
 	downloadDir := t.TempDir()

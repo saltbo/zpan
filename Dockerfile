@@ -11,7 +11,16 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     corepack enable \
  && pnpm install --frozen-lockfile
 
-COPY . .
+# Copy only what the JS build (vite + tsup) and the final server image consume,
+# so a cmd/-only change (the Go downloader) doesn't bust this layer and force a
+# full server rebuild. Keep in sync with the build inputs + the final-stage COPYs.
+COPY index.html vite.config.ts tsconfig.json ./
+COPY src ./src
+COPY server ./server
+COPY shared ./shared
+COPY public ./public
+COPY migrations ./migrations
+COPY scripts ./scripts
 # .git is excluded from the build context, so git describe cannot run here.
 # The release workflow passes the tag via APP_VERSION and the commit SHA via
 # APP_COMMIT; resolveAppVersion/resolveAppCommit read them.
