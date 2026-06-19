@@ -170,6 +170,25 @@ func TestAria2StartArgsSetsMaxConcurrentDownloads(t *testing.T) {
 	}
 }
 
+func TestAria2StatusKeysCoverReportedFields(t *testing.T) {
+	// aria2's tellStatus only returns the keys it's asked for. aria2Detail reads
+	// these fields, so they must be requested or the runtime reports zeros
+	// (e.g. seeding upload speed/total showing 0 while peers upload).
+	required := []string{
+		"status", "totalLength", "completedLength", "downloadSpeed",
+		"uploadLength", "uploadSpeed", "connections", "numSeeders",
+	}
+	have := map[string]bool{}
+	for _, key := range aria2StatusKeys {
+		have[key] = true
+	}
+	for _, key := range required {
+		if !have[key] {
+			t.Fatalf("aria2StatusKeys missing %q — tellStatus won't return it, so aria2Detail reports 0", key)
+		}
+	}
+}
+
 func TestAria2SeedTimeMinutes(t *testing.T) {
 	if got := aria2SeedTimeMinutes(time.Hour); got != 60 {
 		t.Fatalf("expected 1h to map to 60 minutes, got %d", got)
