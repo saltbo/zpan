@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ActivityRepo, S3Gateway, StorageRecord, StorageRepo, SystemOptionsRepo } from '../ports'
+import type { ActivityRepo, SystemOptionsRepo } from '../ports'
 import {
   applyBrandingUpdate,
   BRANDING_KEYS,
   type BrandingDeps,
   type BrandingUpdateInput,
-  MAX_BRANDING_FILE_SIZE,
+  MAX_FAVICON_SIZE,
+  MAX_LOGO_SIZE,
   readBranding,
   resetBranding,
   resetBrandingTheme,
@@ -13,19 +14,7 @@ import {
   uploadBrandingImage,
 } from './branding'
 
-const sampleStorage = {
-  id: 'st-1',
-  title: 'Public',
-  mode: 'public',
-  bucket: 'b',
-  endpoint: 'https://s3.example.com',
-  region: 'us-east-1',
-  accessKey: 'k',
-  secretKey: 's',
-  customHost: null,
-} as unknown as StorageRecord
-
-function makeDeps(overrides: { options?: Map<string, string>; storages?: Partial<StorageRepo> } = {}) {
+function makeDeps(overrides: { options?: Map<string, string> } = {}) {
   const store = overrides.options ?? new Map<string, string>()
 
   const set = vi.fn(async (key: string, value: string, _isPublic: boolean) => {
@@ -37,18 +26,11 @@ function makeDeps(overrides: { options?: Map<string, string>; storages?: Partial
   const listByKeyLike = vi.fn(async (_pattern: string) => [...store].map(([key, value]) => ({ key, value })))
   const systemOptions = { set, delete: del, listByKeyLike } as unknown as SystemOptionsRepo
 
-  const select = vi.fn(async (_mode: 'private' | 'public') => sampleStorage)
-  const storages = { select, ...overrides.storages } as unknown as StorageRepo
-
-  const putObject = vi.fn(async () => 16)
-  const getPublicUrl = vi.fn(() => 'https://cdn.example.com/logo.png')
-  const s3 = { putObject, getPublicUrl } as unknown as S3Gateway
-
   const record = vi.fn(async () => {})
   const activity = { record } as unknown as ActivityRepo
 
-  const deps: BrandingDeps = { s3, storages, systemOptions, activity }
-  return { deps, store, set, del, listByKeyLike, select, putObject, getPublicUrl, record }
+  const deps: BrandingDeps = { systemOptions, activity }
+  return { deps, store, set, del, listByKeyLike, record }
 }
 
 function baseUpdate(over: Partial<BrandingUpdateInput> = {}): BrandingUpdateInput {
@@ -65,6 +47,9 @@ function baseUpdate(over: Partial<BrandingUpdateInput> = {}): BrandingUpdateInpu
 }
 
 const imageFile = (type = 'image/png', size = 10) => new File([new Uint8Array(size)], 'f', { type }) as unknown as File
+const imageFileFrom = (type: string, bytes: Uint8Array<ArrayBuffer>) =>
+  new File([bytes], 'f', { type }) as unknown as File
+const dataUri = (type: string, bytes: Uint8Array) => `data:${type};base64,${Buffer.from(bytes).toString('base64')}`
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -168,10 +153,10 @@ describe('readBranding', () => {
 
 describe('uploadBrandingImage', () => {
   it('rejects an invalid logo MIME with 400', async () => {
-    const { deps, putObject } = makeDeps()
+    const { deps, set } = makeDeps()
     const res = await uploadBrandingImage(deps, 'logo', imageFile('application/octet-stream'))
     expect(res).toEqual({ ok: false, status: 400, error: expect.stringContaining('Invalid file type for logo') })
-    expect(putObject).not.toHaveBeenCalled()
+    expect(set).not.toHaveBeenCalled()
   })
 
   it('rejects an invalid favicon MIME with 400 listing favicon mimes', async () => {
@@ -186,37 +171,49 @@ describe('uploadBrandingImage', () => {
     expect(res.ok).toBe(true)
   })
 
-  it('rejects a file larger than the max with 413', async () => {
-    const { deps, putObject } = makeDeps()
-    const big = imageFile('image/png', MAX_BRANDING_FILE_SIZE + 1)
+  it('rejects a logo larger than 256 KB with 413 naming the limit', async () => {
+    const { deps, set } = makeDeps()
+    const big = imageFile('image/png', MAX_LOGO_SIZE + 1)
     const res = await uploadBrandingImage(deps, 'logo', big)
-    expect(res).toEqual({ ok: false, status: 413, error: 'File too large. Max 2 MiB.' })
-    expect(putObject).not.toHaveBeenCalled()
+    expect(res).toEqual({ ok: false, status: 413, error: 'Logo too large. Max 256 KB.' })
+    expect(set).not.toHaveBeenCalled()
   })
 
-  it('returns 503 when no public storage is configured', async () => {
-    const select = vi.fn(async () => {
-      throw new Error('no public storage')
+  it('rejects a favicon larger than 64 KB with 413 naming the limit', async () => {
+    const { deps, set } = makeDeps()
+    const big = imageFile('image/png', MAX_FAVICON_SIZE + 1)
+    const res = await uploadBrandingImage(deps, 'favicon', big)
+    expect(res).toEqual({ ok: false, status: 413, error: 'Favicon too large. Max 64 KB.' })
+    expect(set).not.toHaveBeenCalled()
+  })
+
+  it('applies per-field caps: a 128 KB file is fine for a logo but too large for a favicon', async () => {
+    const { deps } = makeDeps()
+    const size = 128 * 1024
+    expect((await uploadBrandingImage(deps, 'logo', imageFile('image/png', size))).ok).toBe(true)
+    expect(await uploadBrandingImage(deps, 'favicon', imageFile('image/png', size))).toMatchObject({
+      ok: false,
+      status: 413,
     })
-    const { deps } = makeDeps({ storages: { select } })
-    const res = await uploadBrandingImage(deps, 'logo', imageFile('image/png'))
-    expect(res).toEqual({ ok: false, status: 503, error: 'No public storage configured' })
   })
 
-  it('uploads, names the key from the mime ext, stores the public URL, and returns it', async () => {
-    const { deps, store, putObject, getPublicUrl, set, select } = makeDeps()
-    const res = await uploadBrandingImage(deps, 'logo', imageFile('image/svg+xml'))
-    expect(res).toEqual({ ok: true, url: 'https://cdn.example.com/logo.png' })
-    expect(select).toHaveBeenCalledWith('public')
-    expect(putObject).toHaveBeenCalledWith(
-      sampleStorage,
-      '_system/branding/logo.svg',
-      expect.any(Uint8Array),
-      'image/svg+xml',
-    )
-    expect(getPublicUrl).toHaveBeenCalledWith(sampleStorage, '_system/branding/logo.svg')
-    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.logo, 'https://cdn.example.com/logo.png', true)
-    expect(store.get(BRANDING_KEYS.logo)).toBe('https://cdn.example.com/logo.png')
+  it('encodes the logo as a data URI matching the uploaded bytes, stores it, and returns it', async () => {
+    const { deps, store, set } = makeDeps()
+    const bytes = new Uint8Array([0x3c, 0x73, 0x76, 0x67, 0x3e]) // "<svg>"
+    const res = await uploadBrandingImage(deps, 'logo', imageFileFrom('image/svg+xml', bytes))
+    const expected = dataUri('image/svg+xml', bytes)
+    expect(res).toEqual({ ok: true, url: expected })
+    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.logo, expected, true)
+    expect(store.get(BRANDING_KEYS.logo)).toBe(expected)
+  })
+
+  it('encodes a favicon as a data URI carrying its own mime type', async () => {
+    const { deps, store } = makeDeps()
+    const bytes = new Uint8Array([1, 2, 3, 4, 5, 6, 7])
+    const res = await uploadBrandingImage(deps, 'favicon', imageFileFrom('image/x-icon', bytes))
+    const expected = dataUri('image/x-icon', bytes)
+    expect(res).toEqual({ ok: true, url: expected })
+    expect(store.get(BRANDING_KEYS.favicon)).toBe(expected)
   })
 })
 
@@ -287,51 +284,55 @@ describe('applyBrandingUpdate', () => {
     )
   })
 
-  it('uploads logo then favicon and lists both as changed', async () => {
-    const { deps, putObject, record } = makeDeps()
+  it('stores logo then favicon as data URIs and lists both as changed', async () => {
+    const { deps, store, record } = makeDeps()
+    const logoBytes = new Uint8Array([10, 20, 30])
+    const faviconBytes = new Uint8Array([40, 50, 60, 70])
     const out = await applyBrandingUpdate(
       deps,
-      baseUpdate({ logoFile: imageFile('image/png'), faviconFile: imageFile('image/x-icon') }),
+      baseUpdate({
+        logoFile: imageFileFrom('image/png', logoBytes),
+        faviconFile: imageFileFrom('image/x-icon', faviconBytes),
+      }),
     )
     expect(out.ok).toBe(true)
-    expect(putObject).toHaveBeenCalledTimes(2)
+    expect(store.get(BRANDING_KEYS.logo)).toBe(dataUri('image/png', logoBytes))
+    expect(store.get(BRANDING_KEYS.favicon)).toBe(dataUri('image/x-icon', faviconBytes))
     expect(record).toHaveBeenCalledWith(expect.objectContaining({ metadata: { fields: ['logo', 'favicon'] } }))
   })
 
   it('short-circuits on a logo upload failure without touching favicon or recording activity', async () => {
-    const { deps, putObject, record } = makeDeps()
+    const { deps, store, record } = makeDeps()
     const out = await applyBrandingUpdate(
       deps,
       baseUpdate({ logoFile: imageFile('application/pdf'), faviconFile: imageFile('image/png') }),
     )
     expect(out).toEqual({ ok: false, status: 400, error: expect.stringContaining('Invalid file type for logo') })
-    expect(putObject).not.toHaveBeenCalled()
+    expect(store.has(BRANDING_KEYS.logo)).toBe(false)
+    expect(store.has(BRANDING_KEYS.favicon)).toBe(false)
     expect(record).not.toHaveBeenCalled()
   })
 
-  it('propagates a 503 storage failure from the favicon upload after the logo succeeded', async () => {
-    let calls = 0
-    const select = vi.fn(async () => {
-      calls += 1
-      if (calls === 2) throw new Error('gone') // logo ok, favicon fails
-      return sampleStorage
-    })
-    const { deps, record } = makeDeps({ storages: { select } })
+  it('propagates a 413 from the favicon upload after the logo succeeded', async () => {
+    const { deps, store, record } = makeDeps()
     const out = await applyBrandingUpdate(
       deps,
-      baseUpdate({ logoFile: imageFile('image/png'), faviconFile: imageFile('image/png') }),
+      baseUpdate({
+        logoFile: imageFile('image/png'),
+        faviconFile: imageFile('image/png', MAX_FAVICON_SIZE + 1),
+      }),
     )
-    expect(out).toEqual({ ok: false, status: 503, error: 'No public storage configured' })
+    expect(out).toEqual({ ok: false, status: 413, error: 'Favicon too large. Max 64 KB.' })
+    expect(store.has(BRANDING_KEYS.favicon)).toBe(false)
     expect(record).not.toHaveBeenCalled()
   })
 
   it('does not record an audit event when nothing changed', async () => {
-    const { deps, record, set, putObject } = makeDeps()
+    const { deps, record, set } = makeDeps()
     const out = await applyBrandingUpdate(deps, baseUpdate())
     expect(out.ok).toBe(true)
     expect(record).not.toHaveBeenCalled()
     expect(set).not.toHaveBeenCalled()
-    expect(putObject).not.toHaveBeenCalled()
   })
 
   it('records the full changed-field list across files, scalars, and theme', async () => {

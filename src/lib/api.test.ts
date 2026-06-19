@@ -3478,8 +3478,9 @@ describe('api', () => {
     })
 
     it('resolves with stored branding values', async () => {
+      const logoDataUri = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='
       const payload = {
-        logo_url: 'https://cdn.example.com/logo.svg',
+        logo_url: logoDataUri,
         favicon_url: null,
         wordmark_text: 'MyCloud',
         hide_powered_by: true,
@@ -3489,7 +3490,7 @@ describe('api', () => {
 
       const result = await getBranding()
 
-      expect(result.logo_url).toBe('https://cdn.example.com/logo.svg')
+      expect(result.logo_url).toBe(logoDataUri)
       expect(result.wordmark_text).toBe('MyCloud')
       expect(result.hide_powered_by).toBe(true)
     })
@@ -3560,7 +3561,7 @@ describe('api', () => {
 
     it('includes only logo file fields in FormData when provided', async () => {
       const payload = {
-        logo_url: 'https://cdn/logo.png',
+        logo_url: 'data:image/png;base64,cG5nLWRhdGE=',
         favicon_url: null,
         wordmark_text: null,
         hide_powered_by: false,

@@ -3,7 +3,7 @@ import { type BrandingField, type BrandingThemeMode, isBrandingThemePresetId } f
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import { AppError, badRequest, noStorage, payloadTooLarge, unsupportedMediaType } from '../../usecases/ports'
+import { AppError, badRequest, payloadTooLarge, unsupportedMediaType } from '../../usecases/ports'
 import { applyBrandingUpdate, readBranding, resetBranding, type ThemeUpdate } from '../../usecases/site/branding'
 import { errorResponse, jsonContent } from '../openapi'
 
@@ -114,7 +114,6 @@ const updateRoute = createRoute({
     413: errorResponse('File too large'),
     415: errorResponse('Expected multipart/form-data'),
     422: errorResponse('Invalid theme or wordmark'),
-    503: errorResponse('No public storage configured'),
   },
 })
 
@@ -167,7 +166,6 @@ export const brandingAdmin = new OpenAPIHono<Env>()
       theme: themeUpdate.values,
     })
     if (!result.ok) {
-      if (result.status === 503) throw noStorage(result.error)
       if (result.status === 413) throw payloadTooLarge(result.error)
       throw badRequest(result.error)
     }
