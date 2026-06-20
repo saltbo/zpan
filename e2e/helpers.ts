@@ -51,8 +51,12 @@ export async function signInAsAdmin(page: Page) {
   ])
   expect(resp.status()).toBe(200)
   await expect(page).toHaveURL(/files/, { timeout: 10000 })
-  await page.goto('/admin/storages')
-  await expect(page).toHaveURL(/admin\/storages/, { timeout: 10000 })
+  // The post-sign-in client redirect to /files can still be in flight and
+  // interrupt this navigation; retry the goto until /admin/storages commits.
+  await expect(async () => {
+    await page.goto('/admin/storages')
+    await expect(page).toHaveURL(/admin\/storages/, { timeout: 5000 })
+  }).toPass({ timeout: 15000 })
 }
 
 export async function expandSignUpForm(page: Page) {
