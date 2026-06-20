@@ -34,7 +34,8 @@ export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function genPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  const values = crypto.getRandomValues(new Uint32Array(12))
+  return Array.from(values, (v) => chars[v % chars.length]).join('')
 }
 
 export function addDays(n: number): string {

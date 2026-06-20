@@ -16,8 +16,9 @@ const server = createServer(async (req, res) => {
   try {
     await handleRequest(req, res)
   } catch (error) {
+    console.error('[s3-mock] request failed:', error)
     res.writeHead(500, { 'Content-Type': 'text/plain' })
-    res.end(error instanceof Error ? error.message : String(error))
+    res.end('Internal Server Error')
   }
 })
 

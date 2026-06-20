@@ -16,6 +16,9 @@ concurrency:
   group: deploy-aws-lambda
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy

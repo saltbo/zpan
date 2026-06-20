@@ -151,7 +151,7 @@ describe('System API — options CRUD', () => {
       vi.stubGlobal(
         'fetch',
         vi.fn(async (url: string) =>
-          String(url).includes('api.github.com')
+          new URL(String(url)).hostname === 'api.github.com'
             ? ({ ok: true, status: 200, json: async () => ({ tag_name: 'v2.8.0' }) } as unknown as Response)
             : ({ ok: true, status: 200, text: async () => markdown } as unknown as Response),
         ),
