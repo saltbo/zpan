@@ -5,6 +5,7 @@ import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
 import { createDeps } from './composition'
+import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
 import downloadTasks from './http/downloads/download-tasks'
 import downloaders, { downloaderSelfRoute } from './http/downloads/downloaders'
@@ -177,6 +178,8 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   // /r/* is listed separately in run_worker_first.
   // /s/:token is intentionally left for the SPA landing page.
   app.route('/api/shares', publicShares)
+  // Self-hosted avatar blobs (CF + AVATARS R2 binding, no AVATARS_PUBLIC_URL). Public.
+  app.get('/api/avatar-blobs/:scope/:id', serveAvatarBlob)
   app.route('/r', redirect)
   app.route('/api/teams', publicTeams)
   app.route('/api/site/auth-providers', authProviders)

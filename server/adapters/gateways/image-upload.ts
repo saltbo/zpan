@@ -8,7 +8,7 @@ import {
   uploadAvatar,
 } from 'zpan-cloud-sdk'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
-import type { Platform } from '../../platform/interface'
+import { type Platform, PUBLIC_IMAGES_BINDING, type R2BucketLike } from '../../platform/interface'
 import {
   AVATAR_PREFIX,
   type ImageUpload,
@@ -28,6 +28,29 @@ function prefixToScope(prefix: string): AvatarScope {
   if (prefix === AVATAR_PREFIX) return 'user'
   if (prefix === LOGO_PREFIX) return 'team'
   throw new Error(`Unknown image prefix: ${prefix}`)
+}
+
+// The stable R2 object key: scope + entity id, no extension (the content type rides in
+// R2 metadata, so one key serves any image format). One key per entity → re-uploads
+// overwrite in place; the `?v=` cache-buster on the URL forces browsers to refetch.
+function avatarKey(scope: AvatarScope, id: string): string {
+  return `${scope}/${id}`
+}
+
+async function contentVersion(buffer: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', buffer)
+  return Array.from(new Uint8Array(digest).slice(0, 6))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+// Public URL for an R2-hosted avatar. With PUBLIC_IMAGES_URL set (an R2 custom domain)
+// the browser hits R2 directly (no Worker egress); otherwise it goes through this
+// instance's own /api/avatar-blobs serve route (works in local miniflare too, where R2
+// has no public URL). A relative URL resolves against the instance origin.
+function r2AvatarUrl(platform: Platform, key: string, version: string): string {
+  const base = platform.getEnv('PUBLIC_IMAGES_URL')?.replace(/\/$/, '')
+  return base ? `${base}/${key}?v=${version}` : `/api/avatar-blobs/${key}?v=${version}`
 }
 
 function cloudErrorCode(data: unknown): string | null {
@@ -58,16 +81,53 @@ async function cloudUploadError(res: {
   }
 }
 
-// Host user avatars + team logos on the ZPan Cloud avatar service. Requires the
-// instance to be paired to Cloud (an active license binding with a refresh token);
-// an unbound instance can't host images, so upload returns `cloud_required` (503)
-// and delete is a best-effort no-op. Never throws on the unbound path.
+// Host user avatars + team logos. On Cloudflare with a `PUBLIC_IMAGES` R2 binding, uploads go
+// straight to that bucket and are served from this instance (or an R2 custom domain).
+// Without the binding (Node/Docker, or a Worker without it) it falls back to the ZPan
+// Cloud avatar service, which requires an active license binding — an unbound instance
+// then returns `cloud_required` (503) and delete is a best-effort no-op.
 export function createImageUploadGateway(
   licenseBinding: LicenseBindingRepo,
   licensingCloud: LicensingCloudGateway,
 ): ImageUpload {
   function cloudBaseUrl(platform: Platform): string {
     return platform.getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
+  }
+
+  async function r2Upload(
+    bucket: R2BucketLike,
+    platform: Platform,
+    scope: AvatarScope,
+    id: string,
+    file: File,
+    contentType: string,
+  ): Promise<ImageUploadResult> {
+    const buffer = await file.arrayBuffer()
+    const key = avatarKey(scope, id)
+    await bucket.put(key, buffer, { httpMetadata: { contentType } })
+    return { ok: true, url: r2AvatarUrl(platform, key, await contentVersion(buffer)) }
+  }
+
+  async function cloudUpload(
+    platform: Platform,
+    scope: AvatarScope,
+    id: string,
+    file: File,
+    contentType: AvatarContentType,
+  ): Promise<ImageUploadResult> {
+    const binding = await licenseBinding.loadActiveLicenseBinding()
+    if (!binding?.refreshToken) return { ok: false, status: 503, error: 'cloud_required' }
+
+    const client = licensingCloud.createAvatarUploadClient(cloudBaseUrl(platform), binding.refreshToken)
+    try {
+      const res = await uploadAvatar(client, { scope, id, body: file, contentType })
+      if (!res.ok) return cloudUploadError(res)
+      const parsed = avatarUploadResponseSchema.safeParse(await res.json())
+      if (!parsed.success) return { ok: false, status: 500, error: 'invalid_cloud_response' }
+      return { ok: true, url: parsed.data.url }
+    } catch {
+      return { ok: false, status: 500, error: 'cloud_request_failed' }
+    }
   }
 
   return {
@@ -80,31 +140,32 @@ export function createImageUploadGateway(
         return { ok: false, status: 413, error: 'File too large. Max 1 MiB.' }
       }
 
-      const binding = await licenseBinding.loadActiveLicenseBinding()
-      if (!binding?.refreshToken) return { ok: false, status: 503, error: 'cloud_required' }
-
-      const client = licensingCloud.createAvatarUploadClient(cloudBaseUrl(platform), binding.refreshToken)
-      try {
-        const res = await uploadAvatar(client, { scope: prefixToScope(prefix), id, body: file, contentType })
-        if (!res.ok) return cloudUploadError(res)
-        const parsed = avatarUploadResponseSchema.safeParse(await res.json())
-        if (!parsed.success) return { ok: false, status: 500, error: 'invalid_cloud_response' }
-        return { ok: true, url: parsed.data.url }
-      } catch {
-        return { ok: false, status: 500, error: 'cloud_request_failed' }
-      }
+      const scope = prefixToScope(prefix)
+      const bucket = platform.getBinding<R2BucketLike>(PUBLIC_IMAGES_BINDING)
+      if (bucket) return r2Upload(bucket, platform, scope, id, file, contentType)
+      return cloudUpload(platform, scope, id, file, contentType)
     },
 
-    // Best-effort delete of the Cloud-hosted image. DB clearing is the caller's
-    // responsibility — this only removes the object from the Cloud avatar service.
-    // An unbound instance has nothing to delete, so it is a silent no-op.
+    // Best-effort delete of the hosted image. DB clearing is the caller's responsibility —
+    // this only removes the object from R2 (CF) or the Cloud avatar service (fallback).
     async deletePublicImageVariants(platform, prefix, id): Promise<void> {
+      const scope = prefixToScope(prefix)
+
+      const bucket = platform.getBinding<R2BucketLike>(PUBLIC_IMAGES_BINDING)
+      if (bucket) {
+        try {
+          await bucket.delete(avatarKey(scope, id))
+        } catch (err) {
+          console.warn('[image-upload] r2 avatar delete skipped:', err)
+        }
+        return
+      }
+
       const binding = await licenseBinding.loadActiveLicenseBinding()
       if (!binding?.refreshToken) return
-
       const client = licensingCloud.createAvatarUploadClient(cloudBaseUrl(platform), binding.refreshToken)
       try {
-        await deleteAvatar(client, { scope: prefixToScope(prefix), id })
+        await deleteAvatar(client, { scope, id })
       } catch (err) {
         console.warn('[image-upload] cloud avatar delete skipped:', err)
       }

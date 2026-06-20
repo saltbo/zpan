@@ -43,7 +43,7 @@ export function UserAccountMenu({
       <DropdownMenuTrigger asChild>
         <SidebarMenuButton className="flex-1 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
           <Avatar size="sm">
-            {user?.image && <AvatarImage src={user.image} alt={user.name || user.username || ''} />}
+            <AvatarImage src={user?.image ?? undefined} alt={user?.name || user?.username || ''} />
             <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
               {user ? getInitials(user.name || user.username || '?') : '?'}
             </AvatarFallback>
