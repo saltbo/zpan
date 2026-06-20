@@ -16,24 +16,23 @@
 //     failure outward unchanged so the http layer maps {status} directly.
 
 import type { Platform } from '../platform/interface'
-import type {
-  ActivityEventWithUser,
-  ActivityRepo,
-  EntitlementResult,
-  ImageUpload,
-  ImageUploadResult,
-  InviteLinkInfo,
-  OrgRepo,
-  PendingInvitation,
-  QuotaEntitlementItem,
-  TeamInviteRepo,
-  TeamRepo,
-  TeamSummary,
-  UserAdminRepo,
-  UserOperationFailure,
+import {
+  type ActivityEventWithUser,
+  type ActivityRepo,
+  type EntitlementResult,
+  type ImageUpload,
+  type ImageUploadResult,
+  type InviteLinkInfo,
+  LOGO_PREFIX,
+  type OrgRepo,
+  type PendingInvitation,
+  type QuotaEntitlementItem,
+  type TeamInviteRepo,
+  type TeamRepo,
+  type TeamSummary,
+  type UserAdminRepo,
+  type UserOperationFailure,
 } from './ports'
-
-const LOGO_PREFIX = '_system/org-logos'
 
 export type TeamDeps = {
   teams: TeamRepo
@@ -137,14 +136,14 @@ export async function listActivity(
 
 // ─── User-facing: org logo ───────────────────────────────────────────────────
 
-// Logo writes require owner or admin. The MIME/size validation (and the
-// no-public-storage case) is owned by imageUpload, which returns
-// { ok:false, status } for the 400/413/503 outcomes; setTeamLogo threads that
-// status outward unchanged. A failed role check is the only 403 it raises itself.
+// Logo writes require owner or admin. The MIME/size validation (and the unbound
+// instance case) is owned by imageUpload, which returns { ok:false, status } for
+// the 400/403/413/500/503 outcomes; setTeamLogo threads that status outward
+// unchanged. A failed role check is the only 403 it raises itself.
 export type SetTeamLogoOutcome =
   | { ok: true; url: string }
   | { ok: false; reason: 'forbidden' }
-  | { ok: false; reason: 'upload_failed'; status: 400 | 413 | 503; error: string }
+  | { ok: false; reason: 'upload_failed'; status: 400 | 403 | 413 | 500 | 503; error: string }
 
 export async function setTeamLogo(
   deps: Pick<TeamDeps, 'org' | 'teams' | 'imageUpload' | 'activity'>,

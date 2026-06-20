@@ -29,7 +29,6 @@ function bytesToDisplay(bytes: number): { value: number; unit: Unit } {
 
 const storageFormSchema = z.object({
   title: z.string().min(1),
-  mode: z.enum(['private', 'public']),
   bucket: z.string().min(1),
   endpoint: z.string().url(),
   region: z.string().min(1),
@@ -48,7 +47,6 @@ type StorageFormValues = z.infer<typeof storageFormSchema>
 
 const DEFAULT_VALUES: StorageFormValues = {
   title: '',
-  mode: 'private',
   bucket: '',
   endpoint: '',
   region: 'auto',
@@ -88,7 +86,6 @@ export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilli
       const egressUnit = bytesToDisplay(storage.egressCreditUnitBytes ?? UNITS.MB * 100)
       form.reset({
         title: storage.title,
-        mode: storage.mode,
         bucket: storage.bucket,
         endpoint: storage.endpoint,
         region: storage.region,
@@ -151,16 +148,6 @@ export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilli
             <div className="grid gap-4">
               <FormField label={t('admin.storages.fieldTitle')} error={form.formState.errors.title?.message}>
                 <Input {...form.register('title')} />
-              </FormField>
-
-              <FormField label={t('admin.storages.fieldMode')} error={form.formState.errors.mode?.message}>
-                <select
-                  {...form.register('mode')}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="private">{t('admin.storages.modePrivate')}</option>
-                  <option value="public">{t('admin.storages.modePublic')}</option>
-                </select>
               </FormField>
 
               <FormField label={t('admin.storages.fieldBucket')} error={form.formState.errors.bucket?.message}>

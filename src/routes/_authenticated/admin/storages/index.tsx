@@ -74,7 +74,6 @@ function StoragesPage() {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colTitle')}</th>
-              <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">{t('admin.storages.colMode')}</th>
               <th className="hidden px-4 py-3 text-left font-medium md:table-cell">{t('admin.storages.colBucket')}</th>
               <th className="hidden max-w-48 px-4 py-3 text-left font-medium lg:table-cell">
                 {t('admin.storages.colEndpoint')}
@@ -98,7 +97,7 @@ function StoragesPage() {
             ))}
             {storages.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                   <div className="flex flex-col items-center gap-3">
                     <Database className="h-10 w-10" />
                     <p>{t('admin.storages.noStorages')}</p>
@@ -141,19 +140,11 @@ function StorageTableRow({
 
   const isActive = storage.status === StorageStatus.ACTIVE
 
-  const modeBadge =
-    storage.mode === 'public' ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-primary/10 text-primary'
-
   const statusBadge = isActive ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground'
 
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
       <td className="px-4 py-3 font-medium">{storage.title}</td>
-      <td className="hidden px-4 py-3 sm:table-cell">
-        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${modeBadge}`}>
-          {storage.mode === 'public' ? t('admin.storages.modePublic') : t('admin.storages.modePrivate')}
-        </span>
-      </td>
       <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{storage.bucket}</td>
       <td className="hidden max-w-48 truncate px-4 py-3 text-muted-foreground lg:table-cell">{storage.endpoint}</td>
       <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">

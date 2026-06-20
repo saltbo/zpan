@@ -1,211 +1,252 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Platform } from '../../platform/interface'
-import type { S3Gateway, StorageRecord, StorageRepo } from '../../usecases/ports'
-import { createImageUploadGateway, isImageMime } from './image-upload'
+import type { LicenseBindingRepo, LicenseState, LicensingCloudGateway } from '../../usecases/ports'
+import { createImageUploadGateway, isAvatarContentType } from './image-upload'
 
 // biome-ignore lint/suspicious/noExplicitAny: test stub intentionally opaque
 type Any = any
 
-function mockR2Bucket() {
+const AVATAR_PREFIX = '_system/avatars'
+const LOGO_PREFIX = '_system/org-logos'
+
+function mockPlatform(env: Record<string, string | undefined> = {}): Platform {
+  return { db: {} as Any, getEnv: (k: string) => env[k], getBinding: () => undefined } as unknown as Platform
+}
+
+function activeBinding(refreshToken: string | null = 'refresh-token'): LicenseState {
   return {
-    put: vi.fn().mockResolvedValue(undefined),
-    delete: vi.fn().mockResolvedValue(undefined),
+    id: 'binding-1',
+    cloudBindingId: 'cb',
+    cloudStoreId: null,
+    instanceId: 'instance-1',
+    cloudAccountId: 'account-1',
+    cloudAccountEmail: null,
+    status: 'active',
+    refreshToken,
+    cachedCert: null,
+    cachedExpiresAt: null,
+    boundAt: 0,
+    disconnectedAt: null,
+    lastRefreshAt: null,
+    lastRefreshError: null,
   }
 }
 
-function mockPlatform(opts: { r2?: ReturnType<typeof mockR2Bucket>; publicUrl?: string } = {}): Platform {
-  return {
-    db: {} as Any,
-    getEnv: (key) => (key === 'PUBLIC_IMAGES_URL' ? opts.publicUrl : undefined),
-    getBinding: <T>(key: string) => (key === 'PUBLIC_IMAGES' && opts.r2 ? (opts.r2 as unknown as T) : undefined),
-  }
+function mockLicenseBinding(binding: LicenseState | null): LicenseBindingRepo {
+  return { loadActiveLicenseBinding: vi.fn(async () => binding) } as unknown as LicenseBindingRepo
 }
 
-// A StorageRepo whose `select('public')` either returns a storage or throws
-// (no public storage configured). Only `select` is exercised by the gateway.
-function mockStorages(opts: { storage?: StorageRecord; selectThrows?: boolean } = {}): StorageRepo {
-  return {
-    select: async () => {
-      if (opts.selectThrows) throw new Error('no storage')
-      return opts.storage as StorageRecord
-    },
-  } as unknown as StorageRepo
+// A fake Cloud client capturing the avatar PUT/DELETE the SDK helper issues. The
+// gateway calls the REAL `uploadAvatar`/`deleteAvatar` SDK helpers against it, so
+// these spies see exactly what the SDK forwards (param + per-request init).
+function mockAvatarClient(putResponse: () => Response = () => json201()) {
+  const put = vi.fn(async (_args: unknown, _opt: unknown) => putResponse())
+  const del = vi.fn(async (_args: unknown) => new Response(null, { status: 204 }))
+  const client = { avatars: { ':scope': { ':id': { $put: put, $delete: del } } } }
+  return { client, put, del }
 }
 
-function mockS3() {
-  return {
-    putObject: vi.fn().mockResolvedValue(16),
-    getPublicUrl: vi.fn().mockReturnValue('https://s3.example/bucket/key'),
-    deleteObject: vi.fn().mockResolvedValue(undefined),
-  } as unknown as S3Gateway & {
-    putObject: ReturnType<typeof vi.fn>
-    getPublicUrl: ReturnType<typeof vi.fn>
-    deleteObject: ReturnType<typeof vi.fn>
-  }
+function json201(
+  body: unknown = { url: 'https://cloud.example/avatars/user/u1.png', key: 'avatars/user/u1' },
+): Response {
+  return new Response(JSON.stringify(body), { status: 201, headers: { 'content-type': 'application/json' } })
+}
+
+function cloudError(status: number, code: string): Response {
+  return new Response(JSON.stringify({ error: code }), { status, headers: { 'content-type': 'application/json' } })
+}
+
+function mockLicensingCloud(client: unknown) {
+  const createAvatarUploadClient = vi.fn(() => client)
+  return { gateway: { createAvatarUploadClient } as unknown as LicensingCloudGateway, createAvatarUploadClient }
 }
 
 function makeFile(type: string, bytes = 16): File {
-  return new File([new Uint8Array(bytes)], `f.${type.split('/')[1]}`, { type })
+  return new File([new Uint8Array(bytes)], `f.${type.split('/')[1] ?? 'bin'}`, { type })
 }
 
-describe('isImageMime', () => {
-  it('accepts png/jpeg/webp', () => {
-    expect(isImageMime('image/png')).toBe(true)
-    expect(isImageMime('image/jpeg')).toBe(true)
-    expect(isImageMime('image/webp')).toBe(true)
+describe('isAvatarContentType', () => {
+  it('accepts the Cloud avatar content types (incl. gif)', () => {
+    expect(isAvatarContentType('image/png')).toBe(true)
+    expect(isAvatarContentType('image/jpeg')).toBe(true)
+    expect(isAvatarContentType('image/webp')).toBe(true)
+    expect(isAvatarContentType('image/gif')).toBe(true)
   })
 
-  it('rejects other mimes', () => {
-    expect(isImageMime('image/gif')).toBe(false)
-    expect(isImageMime('application/pdf')).toBe(false)
-    expect(isImageMime('')).toBe(false)
-    expect(isImageMime(undefined)).toBe(false)
-    expect(isImageMime(42)).toBe(false)
+  it('rejects unsupported mimes', () => {
+    expect(isAvatarContentType('application/pdf')).toBe(false)
+    expect(isAvatarContentType('image/bmp')).toBe(false)
+    expect(isAvatarContentType('')).toBe(false)
+    expect(isAvatarContentType(undefined)).toBe(false)
+    expect(isAvatarContentType(42)).toBe(false)
   })
 })
 
-describe('uploadPublicImage — R2 binding path', () => {
-  it('uses R2 binding when PUBLIC_IMAGES + PUBLIC_IMAGES_URL both set', async () => {
-    const r2 = mockR2Bucket()
-    const gw = createImageUploadGateway(mockS3(), mockStorages({ selectThrows: true }))
-    const platform = mockPlatform({ r2, publicUrl: 'https://pub-abc.r2.dev' })
+describe('uploadPublicImage — Cloud avatar service', () => {
+  it('uploads a user avatar via the Cloud avatar service with the image content type', async () => {
+    const { client, put } = mockAvatarClient()
+    const { gateway, createAvatarUploadClient } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
+    const file = makeFile('image/png')
 
-    const result = await gw.uploadPublicImage(platform, '_system/avatars', 'u1', makeFile('image/png'))
-
-    expect(result.ok).toBe(true)
-    if (result.ok) expect(result.url).toBe('https://pub-abc.r2.dev/_system/avatars/u1.png')
-    expect(r2.put).toHaveBeenCalledOnce()
-    expect(r2.put.mock.calls[0]?.[0]).toBe('_system/avatars/u1.png')
-    expect(r2.put.mock.calls[0]?.[2]).toEqual({ httpMetadata: { contentType: 'image/png' } })
-  })
-
-  it('maps mime to correct file extension (jpeg → jpg)', async () => {
-    const r2 = mockR2Bucket()
-    const gw = createImageUploadGateway(mockS3(), mockStorages({ selectThrows: true }))
-    const platform = mockPlatform({ r2, publicUrl: 'https://pub-abc.r2.dev' })
-
-    const result = await gw.uploadPublicImage(platform, '_system/avatars', 'u1', makeFile('image/jpeg'))
+    const result = await gw.uploadPublicImage(
+      mockPlatform({ ZPAN_CLOUD_URL: 'https://cloud.example' }),
+      AVATAR_PREFIX,
+      'u1',
+      file,
+    )
 
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.url).toMatch(/\.jpg$/)
+    if (result.ok) expect(result.url).toBe('https://cloud.example/avatars/user/u1.png')
+    // Bound client built from the active binding's refresh token + the cloud base url.
+    expect(createAvatarUploadClient).toHaveBeenCalledWith('https://cloud.example', 'refresh-token')
+    // The SDK PUT targets /avatars/user/u1 and sends the IMAGE content type (not JSON).
+    expect(put).toHaveBeenCalledOnce()
+    expect(put.mock.calls[0]?.[0]).toEqual({ param: { scope: 'user', id: 'u1' } })
+    const init = (put.mock.calls[0]?.[1] as { init: { body: unknown; headers: Record<string, string> } }).init
+    expect(init.headers['content-type']).toBe('image/png')
+    expect(init.body).toBe(file)
   })
 
-  it('trims a trailing slash in PUBLIC_IMAGES_URL', async () => {
-    const r2 = mockR2Bucket()
-    const gw = createImageUploadGateway(mockS3(), mockStorages({ selectThrows: true }))
-    const platform = mockPlatform({ r2, publicUrl: 'https://pub-abc.r2.dev/' })
+  it('maps the org-logo prefix to the team scope', async () => {
+    const { client, put } = mockAvatarClient()
+    const { gateway } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
 
-    const result = await gw.uploadPublicImage(platform, '_system/avatars', 'u1', makeFile('image/png'))
+    await gw.uploadPublicImage(mockPlatform(), LOGO_PREFIX, 'team-1', makeFile('image/webp'))
 
-    expect(result.ok).toBe(true)
-    if (result.ok) expect(result.url).toBe('https://pub-abc.r2.dev/_system/avatars/u1.png')
+    expect(put.mock.calls[0]?.[0]).toEqual({ param: { scope: 'team', id: 'team-1' } })
   })
 
-  it('rejects invalid mime (gif) before touching R2', async () => {
-    const r2 = mockR2Bucket()
-    const gw = createImageUploadGateway(mockS3(), mockStorages({ selectThrows: true }))
-    const platform = mockPlatform({ r2, publicUrl: 'https://pub-abc.r2.dev' })
+  it('rejects an unsupported mime with 400 before any Cloud call', async () => {
+    const { client, put } = mockAvatarClient()
+    const { gateway, createAvatarUploadClient } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
 
-    const result = await gw.uploadPublicImage(platform, '_system/avatars', 'u1', makeFile('image/gif'))
+    const result = await gw.uploadPublicImage(mockPlatform(), AVATAR_PREFIX, 'u1', makeFile('application/pdf'))
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.status).toBe(400)
-    expect(r2.put).not.toHaveBeenCalled()
+    expect(createAvatarUploadClient).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
   })
 
-  it('rejects file > 2 MiB before touching R2', async () => {
-    const r2 = mockR2Bucket()
-    const gw = createImageUploadGateway(mockS3(), mockStorages({ selectThrows: true }))
-    const platform = mockPlatform({ r2, publicUrl: 'https://pub-abc.r2.dev' })
+  it('rejects a file larger than 1 MiB with 413 before any Cloud call', async () => {
+    const { client, put } = mockAvatarClient()
+    const { gateway } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
 
-    const result = await gw.uploadPublicImage(platform, '_system/avatars', 'u1', makeFile('image/png', 3 * 1024 * 1024))
+    const result = await gw.uploadPublicImage(
+      mockPlatform(),
+      AVATAR_PREFIX,
+      'u1',
+      makeFile('image/png', 2 * 1024 * 1024),
+    )
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.status).toBe(413)
-    expect(r2.put).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
   })
 
-  it('falls back to S3 path when binding is missing (PUBLIC_IMAGES_URL alone ignored)', async () => {
-    const gw = createImageUploadGateway(mockS3(), mockStorages({ selectThrows: true }))
-    const platform = mockPlatform({ publicUrl: 'https://pub-abc.r2.dev' })
+  it('returns 503 cloud_required when the instance is not paired to Cloud', async () => {
+    const { client, put } = mockAvatarClient()
+    const { gateway, createAvatarUploadClient } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(null), gateway)
 
-    const result = await gw.uploadPublicImage(platform, '_system/avatars', 'u1', makeFile('image/png'))
+    const result = await gw.uploadPublicImage(mockPlatform(), AVATAR_PREFIX, 'u1', makeFile('image/png'))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.status).toBe(503)
+      expect(result.error).toBe('cloud_required')
+    }
+    expect(createAvatarUploadClient).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it('returns 503 cloud_required when the active binding has no refresh token', async () => {
+    const { client } = mockAvatarClient()
+    const { gateway } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding(null)), gateway)
+
+    const result = await gw.uploadPublicImage(mockPlatform(), AVATAR_PREFIX, 'u1', makeFile('image/png'))
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.status).toBe(503)
   })
 
-  it('falls back to S3 path when PUBLIC_IMAGES_URL is missing (binding alone ignored)', async () => {
-    const r2 = mockR2Bucket()
-    const gw = createImageUploadGateway(mockS3(), mockStorages({ selectThrows: true }))
-    const platform = mockPlatform({ r2 })
+  it.each([
+    ['unsupported_media_type', 415, 400],
+    ['payload_too_large', 413, 413],
+    ['license_inactive', 403, 403],
+    ['something_else', 500, 500],
+  ])('maps Cloud error %s to local status %i', async (code, cloudStatus, localStatus) => {
+    const { client } = mockAvatarClient(() => cloudError(cloudStatus, code))
+    const { gateway } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
 
-    const result = await gw.uploadPublicImage(platform, '_system/avatars', 'u1', makeFile('image/png'))
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.status).toBe(503)
-    expect(r2.put).not.toHaveBeenCalled()
-  })
-
-  it('returns 503 when neither binding nor public S3 storage is available', async () => {
-    const gw = createImageUploadGateway(mockS3(), mockStorages({ selectThrows: true }))
-    const platform = mockPlatform()
-
-    const result = await gw.uploadPublicImage(platform, '_system/avatars', 'u1', makeFile('image/png'))
+    const result = await gw.uploadPublicImage(mockPlatform(), AVATAR_PREFIX, 'u1', makeFile('image/png'))
 
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.status).toBe(503)
+    if (!result.ok) expect(result.status).toBe(localStatus)
   })
 
-  it('uploads via S3 gateway when a public storage is configured', async () => {
-    const s3 = mockS3()
-    const storage = { id: 's1', bucket: 'b', endpoint: 'https://s3.example' } as unknown as StorageRecord
-    const gw = createImageUploadGateway(s3, mockStorages({ storage }))
-    const platform = mockPlatform()
+  it('returns 500 when the Cloud 201 body is malformed', async () => {
+    const { client } = mockAvatarClient(() => json201({ nope: true }))
+    const { gateway } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
 
-    const result = await gw.uploadPublicImage(platform, '_system/avatars', 'u1', makeFile('image/png'))
+    const result = await gw.uploadPublicImage(mockPlatform(), AVATAR_PREFIX, 'u1', makeFile('image/png'))
 
-    expect(result.ok).toBe(true)
-    if (result.ok) expect(result.url).toBe('https://s3.example/bucket/key')
-    expect(s3.putObject).toHaveBeenCalledOnce()
-    expect(s3.putObject.mock.calls[0]?.[1]).toBe('_system/avatars/u1.png')
-    expect(s3.getPublicUrl.mock.calls[0]?.[1]).toBe('_system/avatars/u1.png')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.status).toBe(500)
+  })
+
+  it('returns 500 when the Cloud request throws', async () => {
+    const put = vi.fn(async () => {
+      throw new Error('network down')
+    })
+    const client = { avatars: { ':scope': { ':id': { $put: put, $delete: vi.fn() } } } }
+    const { gateway } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
+
+    const result = await gw.uploadPublicImage(mockPlatform(), AVATAR_PREFIX, 'u1', makeFile('image/png'))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.status).toBe(500)
   })
 })
 
-describe('deletePublicImageVariants — R2 binding path', () => {
-  it('deletes all 3 mime variants via R2 binding', async () => {
-    const r2 = mockR2Bucket()
-    const gw = createImageUploadGateway(mockS3(), mockStorages({ selectThrows: true }))
-    const platform = mockPlatform({ r2, publicUrl: 'https://pub-abc.r2.dev' })
+describe('deletePublicImageVariants — Cloud avatar service', () => {
+  it('deletes the Cloud-hosted avatar for the scope/id', async () => {
+    const { client, del } = mockAvatarClient()
+    const { gateway } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
 
-    await gw.deletePublicImageVariants(platform, '_system/avatars', 'u1')
+    await gw.deletePublicImageVariants(mockPlatform(), AVATAR_PREFIX, 'u1')
 
-    expect(r2.delete).toHaveBeenCalledTimes(3)
-    const keys = r2.delete.mock.calls.map((c) => c[0] as string)
-    expect(keys).toContain('_system/avatars/u1.png')
-    expect(keys).toContain('_system/avatars/u1.jpg')
-    expect(keys).toContain('_system/avatars/u1.webp')
+    expect(del).toHaveBeenCalledOnce()
+    expect(del.mock.calls[0]?.[0]).toEqual({ param: { scope: 'user', id: 'u1' } })
   })
 
-  it('deletes all 3 mime variants via S3 gateway when a public storage is configured', async () => {
-    const s3 = mockS3()
-    const storage = { id: 's1', bucket: 'b', endpoint: 'https://s3.example' } as unknown as StorageRecord
-    const gw = createImageUploadGateway(s3, mockStorages({ storage }))
-    const platform = mockPlatform()
+  it('is a no-op when the instance is not paired to Cloud', async () => {
+    const { client, del } = mockAvatarClient()
+    const { gateway, createAvatarUploadClient } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(null), gateway)
 
-    await gw.deletePublicImageVariants(platform, '_system/avatars', 'u1')
-
-    expect(s3.deleteObject).toHaveBeenCalledTimes(3)
-    const keys = s3.deleteObject.mock.calls.map((c) => c[1] as string)
-    expect(keys).toContain('_system/avatars/u1.png')
-    expect(keys).toContain('_system/avatars/u1.jpg')
-    expect(keys).toContain('_system/avatars/u1.webp')
+    await expect(gw.deletePublicImageVariants(mockPlatform(), AVATAR_PREFIX, 'u1')).resolves.toBeUndefined()
+    expect(createAvatarUploadClient).not.toHaveBeenCalled()
+    expect(del).not.toHaveBeenCalled()
   })
 
-  it('is a no-op when no backend is configured', async () => {
-    const gw = createImageUploadGateway(mockS3(), mockStorages({ selectThrows: true }))
-    const platform = mockPlatform()
-    await expect(gw.deletePublicImageVariants(platform, '_system/avatars', 'u1')).resolves.toBeUndefined()
+  it('swallows Cloud delete failures (best-effort)', async () => {
+    const del = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    const client = { avatars: { ':scope': { ':id': { $put: vi.fn(), $delete: del } } } }
+    const { gateway } = mockLicensingCloud(client)
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
+
+    await expect(gw.deletePublicImageVariants(mockPlatform(), LOGO_PREFIX, 'team-1')).resolves.toBeUndefined()
   })
 })

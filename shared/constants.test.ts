@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { DirType, ObjectStatus, SignupMode, StorageMode, UserRole } from './constants.js'
+import { DirType, ObjectStatus, SignupMode, UserRole } from './constants.js'
 
 describe('constants', () => {
-  it('StorageMode values', () => {
-    expect(StorageMode.PRIVATE).toBe('private')
-    expect(StorageMode.PUBLIC).toBe('public')
-  })
-
   it('UserRole values', () => {
     expect(UserRole.ADMIN).toBe('admin')
     expect(UserRole.MEMBER).toBe('member')

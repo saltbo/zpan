@@ -46,7 +46,6 @@ describe('signUpSchema', () => {
 describe('createStorageSchema', () => {
   const valid = {
     title: 'My S3',
-    mode: 'private' as const,
     bucket: 'my-bucket',
     endpoint: 'https://s3.amazonaws.com',
     accessKey: 'AK',
@@ -59,11 +58,6 @@ describe('createStorageSchema', () => {
     if (result.success) {
       expect(result.data.region).toBe('auto')
     }
-  })
-
-  it('rejects invalid mode', () => {
-    const result = createStorageSchema.safeParse({ ...valid, mode: 'shared' })
-    expect(result.success).toBe(false)
   })
 
   it('rejects invalid endpoint URL', () => {

@@ -115,7 +115,7 @@ export async function uploadImageHosting(
 ): Promise<UploadImageHostingOutcome> {
   let storage: StorageRecord
   try {
-    storage = await deps.storages.select('private')
+    storage = await deps.storages.select()
   } catch {
     return { ok: false, error: noStorage() }
   }
@@ -152,7 +152,7 @@ export async function presignImageHostingUpload(
 ): Promise<PresignImageHostingOutcome> {
   let storage: StorageRecord
   try {
-    storage = await deps.storages.select('private')
+    storage = await deps.storages.select()
   } catch {
     return { ok: false, error: noStorage() }
   }

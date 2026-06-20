@@ -330,6 +330,13 @@
       "when": 1781825438681,
       "tag": "0047_trash-via-trashedat",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1781925137737,
+      "tag": "0048_drop-storages-mode",
+      "breakpoints": true
     }
   ]
 }

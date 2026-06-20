@@ -38,6 +38,7 @@ export const expired = (message = 'Expired') => new AppError(410, message)
 export const conflict = (message: string, reason?: string) => new AppError(409, message, { reason })
 export const badRequest = (message: string, reason?: string) => new AppError(400, message, { reason })
 export const badGateway = (message: string, reason?: string) => new AppError(502, message, { reason })
+export const internalError = (message = 'Internal error', reason?: string) => new AppError(500, message, { reason })
 
 export const payloadTooLarge = (message = 'Payload too large') =>
   new AppError(413, message, { reason: ErrorReason.PAYLOAD_TOO_LARGE })

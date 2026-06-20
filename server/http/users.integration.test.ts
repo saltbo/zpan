@@ -1,10 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { S3Service } from '../adapters/gateways/s3.js'
 import { buildBreadcrumb } from '../domain/breadcrumb.js'
-import { authedHeaders, createTestApp } from '../test/setup.js'
-
-type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
+import { authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
 
 async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']>) {
   // Sign up first user (gets promoted to admin via hook)
@@ -374,12 +371,36 @@ describe('User entitlements API (admin)', () => {
 
 // ─── User avatar (PUT/DELETE /api/users/me/avatar) ────────────────────────────
 
-async function insertPublicStorage(db: TestDb) {
-  const now = Date.now()
-  await db.run(sql`
-    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES ('st-me', 'Public', 'public', 'test-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AKID', 'secret', '', '', 0, 0, 'active', ${now}, ${now})
-  `)
+const CLOUD_AVATAR_URL = 'https://avatars.zpan.cloud/user/u1.webp'
+
+// Stub the Cloud avatar service and capture each avatar request so tests can
+// assert the /avatars/:scope/:id path, the image content type, and the bearer
+// auth that reach Cloud. `seedBusinessLicense` makes the instance Cloud-paired
+// (active license binding, refresh token 'test-refresh-token').
+function stubCloudAvatarFetch() {
+  const calls: { url: string; method: string; contentType: string | null; authorization: string | null }[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url)
+      if (u.includes('/avatars/')) {
+        const headers = new Headers(init?.headers)
+        calls.push({
+          url: u,
+          method: init?.method ?? 'GET',
+          contentType: headers.get('content-type'),
+          authorization: headers.get('authorization'),
+        })
+        if (init?.method === 'DELETE') return new Response(null, { status: 204 })
+        return new Response(JSON.stringify({ url: CLOUD_AVATAR_URL, key: 'avatars/user/u1' }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      return new Response('unexpected fetch', { status: 404 })
+    }),
+  )
+  return calls
 }
 
 function makeFile(type: string, bytes = 16): File {
@@ -389,7 +410,7 @@ function makeFile(type: string, bytes = 16): File {
 describe('PUT /api/users/me/avatar', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(16)
+    vi.unstubAllGlobals()
   })
 
   it('returns 401 without auth [spec: avatar/auth-required]', async () => {
@@ -420,27 +441,31 @@ describe('PUT /api/users/me/avatar', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when mime is not PNG/JPG/WebP [spec: avatar/mime-validated]', async () => {
+  it('returns 400 for an unsupported mime, before any Cloud call [spec: avatar/mime-validated]', async () => {
     const { app, db } = await createTestApp()
-    await insertPublicStorage(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app)
+    const calls = stubCloudAvatarFetch()
     const form = new FormData()
-    form.set('file', makeFile('image/gif'))
+    form.set('file', makeFile('application/pdf'))
     const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(400)
+    expect(calls).toHaveLength(0)
   })
 
-  it('returns 413 when file exceeds 2 MiB [spec: avatar/size-limit]', async () => {
+  it('returns 413 when the file exceeds 1 MiB, before any Cloud call [spec: avatar/size-limit]', async () => {
     const { app, db } = await createTestApp()
-    await insertPublicStorage(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app)
+    const calls = stubCloudAvatarFetch()
     const form = new FormData()
-    form.set('file', makeFile('image/png', 3 * 1024 * 1024))
+    form.set('file', makeFile('image/png', 2 * 1024 * 1024))
     const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(413)
+    expect(calls).toHaveLength(0)
   })
 
-  it('returns 503 when no public storage is configured [spec: avatar/needs-storage]', async () => {
+  it('returns 503 cloud_required when the instance is not paired to Cloud [spec: avatar/needs-cloud]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const form = new FormData()
@@ -449,47 +474,33 @@ describe('PUT /api/users/me/avatar', () => {
     expect(res.status).toBe(503)
   })
 
-  it('uploads the file to S3, writes user.image, returns the URL [spec: avatar/upload]', async () => {
+  it('hosts the avatar on Cloud, writes user.image, returns the URL [spec: avatar/upload]', async () => {
     const { app, db } = await createTestApp()
-    await insertPublicStorage(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app)
+    const calls = stubCloudAvatarFetch()
     const form = new FormData()
     form.set('file', makeFile('image/webp'))
 
     const res = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { url: string }
-    expect(body.url).toContain('_system/avatars/')
-    expect(body.url).toContain('.webp')
-    expect(S3Service.prototype.putObject).toHaveBeenCalledTimes(1)
+    expect(body.url).toBe(CLOUD_AVATAR_URL)
+
+    const put = calls.find((c) => c.method === 'PUT')
+    expect(put?.url).toMatch(/\/avatars\/user\//)
+    expect(put?.contentType).toBe('image/webp')
+    expect(put?.authorization).toBe('Bearer test-refresh-token')
 
     const rows = await db.all<{ image: string | null }>(sql`SELECT image FROM user LIMIT 1`)
-    expect(rows[0]?.image).toBe(body.url)
-  })
-
-  it('is idempotent — re-PUT with same mime returns the same URL [spec: avatar/idempotent]', async () => {
-    const { app, db } = await createTestApp()
-    await insertPublicStorage(db)
-    const headers = await authedHeaders(app)
-
-    const form1 = new FormData()
-    form1.set('file', makeFile('image/png'))
-    const res1 = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form1 })
-    const body1 = (await res1.json()) as { url: string }
-
-    const form2 = new FormData()
-    form2.set('file', makeFile('image/png'))
-    const res2 = await app.request('/api/users/me/avatar', { method: 'PUT', headers, body: form2 })
-    const body2 = (await res2.json()) as { url: string }
-
-    expect(body1.url).toBe(body2.url)
+    expect(rows[0]?.image).toBe(CLOUD_AVATAR_URL)
   })
 })
 
 describe('DELETE /api/users/me/avatar', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(S3Service.prototype, 'deleteObject').mockResolvedValue(undefined)
+    vi.unstubAllGlobals()
   })
 
   it('returns 401 without auth', async () => {
@@ -498,30 +509,34 @@ describe('DELETE /api/users/me/avatar', () => {
     expect(res.status).toBe(401)
   })
 
-  it('clears user.image and removes all mime variants from S3 [spec: avatar/delete]', async () => {
+  it('clears user.image and deletes the Cloud avatar [spec: avatar/delete]', async () => {
     const { app, db } = await createTestApp()
-    await insertPublicStorage(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app)
     await db.run(sql`UPDATE user SET image = 'https://example.com/old.png'`)
+    const calls = stubCloudAvatarFetch()
 
     const res = await app.request('/api/users/me/avatar', { method: 'DELETE', headers })
     expect(res.status).toBe(204)
 
     const rows = await db.all<{ image: string | null }>(sql`SELECT image FROM user LIMIT 1`)
     expect(rows[0]?.image).toBeNull()
-    // 3 mime variants attempted (png, jpg, webp)
-    expect(S3Service.prototype.deleteObject).toHaveBeenCalledTimes(3)
+
+    const del = calls.find((c) => c.method === 'DELETE')
+    expect(del?.url).toMatch(/\/avatars\/user\//)
   })
 
-  it('succeeds when no public storage exists (DB cleared, S3 skipped) [spec: avatar/delete-no-storage]', async () => {
+  it('succeeds when the instance is not paired to Cloud (DB cleared, Cloud delete skipped) [spec: avatar/delete-unbound]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await db.run(sql`UPDATE user SET image = 'https://example.com/old.png'`)
+    const calls = stubCloudAvatarFetch()
 
     const res = await app.request('/api/users/me/avatar', { method: 'DELETE', headers })
     expect(res.status).toBe(204)
     const rows = await db.all<{ image: string | null }>(sql`SELECT image FROM user LIMIT 1`)
     expect(rows[0]?.image).toBeNull()
+    expect(calls).toHaveLength(0)
   })
 })
 

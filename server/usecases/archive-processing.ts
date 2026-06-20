@@ -125,7 +125,7 @@ async function runCompressionJob(
     })
   }
 
-  const targetStorage = await deps.storages.select('private')
+  const targetStorage = await deps.storages.select()
   const key = buildObjectKey({ uid: userId, orgId, rawExt: '.zip' })
   let objectWritten = false
   let outputBytes = 0
@@ -205,7 +205,7 @@ async function runExtractionJob(
   const progress = createArchiveProgressReporter(deps, orgId, jobId, sourceHead.size, plan.fileCount)
   await progress.report(true)
   const targetFolder = request.targetFolder ?? zipMatter.parent
-  const targetStorage = await deps.storages.select('private')
+  const targetStorage = await deps.storages.select()
   const writtenKeys: string[] = []
   const createdMatterIds: string[] = []
   const folderParents = new Map<string, string>()

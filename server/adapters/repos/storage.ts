@@ -32,7 +32,6 @@ export function createStorageRepo(db: Database): StorageRepo {
       const row: StorageRow = {
         id: nanoid(),
         title: input.title,
-        mode: input.mode,
         bucket: input.bucket,
         endpoint: input.endpoint,
         region: input.region ?? 'auto',
@@ -65,7 +64,6 @@ export function createStorageRepo(db: Database): StorageRepo {
       const now = new Date()
       const updated = {
         title: input.title ?? existing.title,
-        mode: input.mode ?? existing.mode,
         bucket: input.bucket ?? existing.bucket,
         endpoint: input.endpoint ?? existing.endpoint,
         region: input.region ?? existing.region,
@@ -95,17 +93,11 @@ export function createStorageRepo(db: Database): StorageRepo {
       return 'ok'
     },
 
-    async select(mode) {
+    async select() {
       const rows = await db
         .select()
         .from(storages)
-        .where(
-          and(
-            eq(storages.mode, mode),
-            eq(storages.status, 'active'),
-            or(eq(storages.capacity, 0), lt(storages.used, storages.capacity)),
-          ),
-        )
+        .where(and(eq(storages.status, 'active'), or(eq(storages.capacity, 0), lt(storages.used, storages.capacity))))
         .orderBy(asc(storages.createdAt))
         .limit(1)
 

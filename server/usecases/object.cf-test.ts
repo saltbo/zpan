@@ -39,8 +39,8 @@ const saveShareToDrive = (db: Database, input: SaveShareInput) => saveShareToDri
 
 async function seedStorage(db: ReturnType<typeof buildDb>, id: string) {
   await db.run(
-    `INSERT OR IGNORE INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-     VALUES ('${id}', 'CF Test S3', 'private', 'cf-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AKIA...', 'secret...', '', '', 0, 0, 'active', ${Date.now()}, ${Date.now()})`,
+    `INSERT OR IGNORE INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+     VALUES ('${id}', 'CF Test S3', 'cf-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AKIA...', 'secret...', '', '', 0, 0, 'active', ${Date.now()}, ${Date.now()})`,
   )
 }
 

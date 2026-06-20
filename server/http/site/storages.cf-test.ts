@@ -35,7 +35,6 @@ async function adminHeaders(app: ReturnType<typeof buildApp>) {
 
 const validStorage = {
   title: 'CF Test S3',
-  mode: 'private',
   bucket: 'cf-test-bucket',
   endpoint: 'https://s3.amazonaws.com',
   region: 'us-east-1',

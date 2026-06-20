@@ -13,7 +13,6 @@ const defaultOrgQuota = process.env.E2E_DEFAULT_ORG_QUOTA ?? String(1024 * 1024 
 
 const storageConfig = {
   title: 'E2E Storage',
-  mode: 'private',
   bucket: process.env.E2E_STORAGE_BUCKET ?? 'e2e-test',
   endpoint: process.env.E2E_STORAGE_ENDPOINT ?? 'https://localhost:9000',
   region: process.env.E2E_STORAGE_REGION ?? 'auto',
@@ -25,18 +24,13 @@ const storageConfig = {
 
 type StorageItem = {
   id: string
-  mode: string
   capacity: number
   used: number
   status: string
 }
 
-function isAvailablePrivateStorage(storage: StorageItem) {
-  return (
-    storage.mode === 'private' &&
-    storage.status === 'active' &&
-    (storage.capacity === 0 || storage.used < storage.capacity)
-  )
+function isAvailableStorage(storage: StorageItem) {
+  return storage.status === 'active' && (storage.capacity === 0 || storage.used < storage.capacity)
 }
 
 function prepareNodeDatabase() {
@@ -115,7 +109,7 @@ function ensureNodeStorage() {
   const storage = sqlite
     .prepare(
       `
-        SELECT id, mode, capacity, used, status
+        SELECT id, capacity, used, status
         FROM storages
         ORDER BY created_at ASC
         LIMIT 1
@@ -128,14 +122,13 @@ function ensureNodeStorage() {
       .prepare(
         `
           UPDATE storages
-          SET title = ?, mode = ?, bucket = ?, endpoint = ?, region = ?, access_key = ?, secret_key = ?,
+          SET title = ?, bucket = ?, endpoint = ?, region = ?, access_key = ?, secret_key = ?,
               capacity = ?, status = ?, updated_at = CAST(unixepoch('subsecond') * 1000 AS INTEGER)
           WHERE id = ?
         `,
       )
       .run(
         storageConfig.title,
-        storageConfig.mode,
         storageConfig.bucket,
         storageConfig.endpoint,
         storageConfig.region,
@@ -153,16 +146,15 @@ function ensureNodeStorage() {
     .prepare(
       `
         INSERT INTO storages (
-          id, title, mode, bucket, endpoint, region, access_key, secret_key,
+          id, title, bucket, endpoint, region, access_key, secret_key,
           file_path, custom_host, capacity, used, status, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, 0, ?, CAST(unixepoch('subsecond') * 1000 AS INTEGER), CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+        VALUES (?, ?, ?, ?, ?, ?, ?, '', '', ?, 0, ?, CAST(unixepoch('subsecond') * 1000 AS INTEGER), CAST(unixepoch('subsecond') * 1000 AS INTEGER))
       `,
     )
     .run(
       crypto.randomUUID(),
       storageConfig.title,
-      storageConfig.mode,
       storageConfig.bucket,
       storageConfig.endpoint,
       storageConfig.region,
@@ -218,7 +210,7 @@ setup('seed admin and storage', async () => {
     if (list.ok()) {
       const data = (await list.json()) as { items?: StorageItem[] }
       const storages = data.items ?? []
-      if (storages.some(isAvailablePrivateStorage)) return
+      if (storages.some(isAvailableStorage)) return
 
       const existing = storages[0]
       if (existing) {

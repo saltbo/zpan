@@ -2,7 +2,6 @@ import { z } from 'zod'
 
 export const createStorageSchema = z.object({
   title: z.string().min(1),
-  mode: z.enum(['private', 'public']),
   bucket: z.string().min(1),
   endpoint: z.string().url(),
   region: z.string().default('auto'),
@@ -17,7 +16,6 @@ export const createStorageSchema = z.object({
 
 export const updateStorageSchema = z.object({
   title: z.string().min(1).optional(),
-  mode: z.enum(['private', 'public']).optional(),
   bucket: z.string().min(1).optional(),
   endpoint: z.string().url().optional(),
   region: z.string().optional(),

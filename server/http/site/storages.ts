@@ -13,7 +13,6 @@ const storageSchema = z
   .object({
     id: z.string(),
     title: z.string(),
-    mode: z.string(),
     bucket: z.string(),
     endpoint: z.string(),
     region: z.string(),

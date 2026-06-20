@@ -1104,42 +1104,6 @@ func (e SaveEmailConfigJSONBody2Provider) Valid() bool {
 	}
 }
 
-// Defines values for CreateStorageJSONBodyMode.
-const (
-	CreateStorageJSONBodyModePrivate CreateStorageJSONBodyMode = "private"
-	CreateStorageJSONBodyModePublic  CreateStorageJSONBodyMode = "public"
-)
-
-// Valid indicates whether the value is a known member of the CreateStorageJSONBodyMode enum.
-func (e CreateStorageJSONBodyMode) Valid() bool {
-	switch e {
-	case CreateStorageJSONBodyModePrivate:
-		return true
-	case CreateStorageJSONBodyModePublic:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UpdateStorageJSONBodyMode.
-const (
-	UpdateStorageJSONBodyModePrivate UpdateStorageJSONBodyMode = "private"
-	UpdateStorageJSONBodyModePublic  UpdateStorageJSONBodyMode = "public"
-)
-
-// Valid indicates whether the value is a known member of the UpdateStorageJSONBodyMode enum.
-func (e UpdateStorageJSONBodyMode) Valid() bool {
-	switch e {
-	case UpdateStorageJSONBodyModePrivate:
-		return true
-	case UpdateStorageJSONBodyModePublic:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UpdateStorageJSONBodyStatus.
 const (
 	UpdateStorageJSONBodyStatusActive   UpdateStorageJSONBodyStatus = "active"
@@ -2095,7 +2059,6 @@ type Storage struct {
 	Endpoint                   string  `json:"endpoint"`
 	FilePath                   string  `json:"filePath"`
 	Id                         string  `json:"id"`
-	Mode                       string  `json:"mode"`
 	Region                     string  `json:"region"`
 	SecretKey                  string  `json:"secretKey"`
 	Status                     string  `json:"status"`
@@ -3511,22 +3474,18 @@ type SetSystemOptionJSONBody struct {
 
 // CreateStorageJSONBody defines parameters for CreateStorage.
 type CreateStorageJSONBody struct {
-	AccessKey                  string                    `json:"accessKey"`
-	Bucket                     string                    `json:"bucket"`
-	Capacity                   *int                      `json:"capacity,omitempty"`
-	CustomHost                 *string                   `json:"customHost,omitempty"`
-	EgressCreditBillingEnabled *bool                     `json:"egressCreditBillingEnabled,omitempty"`
-	EgressCreditPerUnit        *int                      `json:"egressCreditPerUnit,omitempty"`
-	EgressCreditUnitBytes      *int                      `json:"egressCreditUnitBytes,omitempty"`
-	Endpoint                   string                    `json:"endpoint"`
-	Mode                       CreateStorageJSONBodyMode `json:"mode"`
-	Region                     *string                   `json:"region,omitempty"`
-	SecretKey                  string                    `json:"secretKey"`
-	Title                      string                    `json:"title"`
+	AccessKey                  string  `json:"accessKey"`
+	Bucket                     string  `json:"bucket"`
+	Capacity                   *int    `json:"capacity,omitempty"`
+	CustomHost                 *string `json:"customHost,omitempty"`
+	EgressCreditBillingEnabled *bool   `json:"egressCreditBillingEnabled,omitempty"`
+	EgressCreditPerUnit        *int    `json:"egressCreditPerUnit,omitempty"`
+	EgressCreditUnitBytes      *int    `json:"egressCreditUnitBytes,omitempty"`
+	Endpoint                   string  `json:"endpoint"`
+	Region                     *string `json:"region,omitempty"`
+	SecretKey                  string  `json:"secretKey"`
+	Title                      string  `json:"title"`
 }
-
-// CreateStorageJSONBodyMode defines parameters for CreateStorage.
-type CreateStorageJSONBodyMode string
 
 // UpdateStorageJSONBody defines parameters for UpdateStorage.
 type UpdateStorageJSONBody struct {
@@ -3538,15 +3497,11 @@ type UpdateStorageJSONBody struct {
 	EgressCreditPerUnit        *int                         `json:"egressCreditPerUnit,omitempty"`
 	EgressCreditUnitBytes      *int                         `json:"egressCreditUnitBytes,omitempty"`
 	Endpoint                   *string                      `json:"endpoint,omitempty"`
-	Mode                       *UpdateStorageJSONBodyMode   `json:"mode,omitempty"`
 	Region                     *string                      `json:"region,omitempty"`
 	SecretKey                  *string                      `json:"secretKey,omitempty"`
 	Status                     *UpdateStorageJSONBodyStatus `json:"status,omitempty"`
 	Title                      *string                      `json:"title,omitempty"`
 }
-
-// UpdateStorageJSONBodyMode defines parameters for UpdateStorage.
-type UpdateStorageJSONBodyMode string
 
 // UpdateStorageJSONBodyStatus defines parameters for UpdateStorage.
 type UpdateStorageJSONBodyStatus string

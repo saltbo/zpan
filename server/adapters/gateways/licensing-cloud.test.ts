@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { deleteAvatar, uploadAvatar } from 'zpan-cloud-sdk'
 import { CloudInvalidResponseError, CloudNetworkError, CloudUnboundError } from '../../usecases/ports'
 import {
+  createAvatarUploadClient,
   createBoundCloudClient,
   createPairing,
   pollPairing,
@@ -239,6 +241,37 @@ describe('licensing-cloud', () => {
       expect(headerValue(init.headers, 'Authorization')).toBe('Bearer rt-bound')
       expect(JSON.parse(init.body as string)).toEqual({ disabled: true })
       expect(result).toEqual({ state: 'revoked' })
+    })
+  })
+
+  describe('createAvatarUploadClient', () => {
+    it('uploadAvatar sends the image content type AND the bearer token (both survive the per-request merge)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ url: 'https://cloud/x.png', key: 'k' }, 201))
+
+      const client = createAvatarUploadClient(BASE_URL, 'rt-avatar')
+      const body = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' })
+      await uploadAvatar(client, { scope: 'user', id: 'u1', body, contentType: 'image/png' })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('https://cloud.zpan.space/api/avatars/user/u1')
+      expect(init.method).toBe('PUT')
+      // The image content type must reach Cloud (not application/json) AND the
+      // Authorization header must NOT be dropped by hono's per-request header merge.
+      expect(new Headers(init.headers).get('content-type')).toBe('image/png')
+      expect(new Headers(init.headers).get('authorization')).toBe('Bearer rt-avatar')
+      expect(init.body).toBe(body)
+    })
+
+    it('deleteAvatar sends an authenticated DELETE to /avatars/:scope/:id', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, 204))
+
+      const client = createAvatarUploadClient(BASE_URL, 'rt-avatar')
+      await deleteAvatar(client, { scope: 'team', id: 'team-1' })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('https://cloud.zpan.space/api/avatars/team/team-1')
+      expect(init.method).toBe('DELETE')
+      expect(new Headers(init.headers).get('authorization')).toBe('Bearer rt-avatar')
     })
   })
 })

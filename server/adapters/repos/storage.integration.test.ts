@@ -8,7 +8,6 @@ describe('createStorage', () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
       title: 'My Storage',
-      mode: 'private',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -23,7 +22,6 @@ describe('createStorage', () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
       title: 'My Storage',
-      mode: 'private',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -38,7 +36,6 @@ describe('createStorage', () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
       title: 'My Storage',
-      mode: 'private',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -54,7 +51,6 @@ describe('createStorage', () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
       title: 'My Storage',
-      mode: 'private',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -69,7 +65,6 @@ describe('createStorage', () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
       title: 'My Storage',
-      mode: 'private',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -84,7 +79,6 @@ describe('createStorage', () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
       title: 'My Storage',
-      mode: 'public',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'auto',
@@ -100,7 +94,6 @@ describe('createStorage', () => {
     const { db } = await createTestApp()
     const created = await createStorageRepo(db).create({
       title: 'Persisted',
-      mode: 'private',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -118,7 +111,6 @@ describe('updateStorage', () => {
   async function seed(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
     return createStorageRepo(db).create({
       title: 'Original',
-      mode: 'private',
       bucket: 'original-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -152,7 +144,6 @@ describe('updateStorage', () => {
     const created = await seed(db)
     const updated = await createStorageRepo(db).update(created.id, {
       title: 'Updated',
-      mode: 'public',
       bucket: 'new-bucket',
       endpoint: 'https://r2.example.com',
       region: 'auto',
@@ -163,7 +154,6 @@ describe('updateStorage', () => {
       status: 'disabled',
     })
     expect(updated?.title).toBe('Updated')
-    expect(updated?.mode).toBe('public')
     expect(updated?.bucket).toBe('new-bucket')
     expect(updated?.endpoint).toBe('https://r2.example.com')
     expect(updated?.region).toBe('auto')
@@ -203,7 +193,6 @@ describe('listStorages', () => {
     const { db } = await createTestApp()
     await createStorageRepo(db).create({
       title: 'First',
-      mode: 'private',
       bucket: 'b1',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -213,7 +202,6 @@ describe('listStorages', () => {
     })
     await createStorageRepo(db).create({
       title: 'Second',
-      mode: 'public',
       bucket: 'b2',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -238,7 +226,6 @@ describe('getStorage', () => {
     const { db } = await createTestApp()
     const created = await createStorageRepo(db).create({
       title: 'Findable',
-      mode: 'private',
       bucket: 'b',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -254,12 +241,10 @@ describe('getStorage', () => {
 describe('selectStorage', () => {
   async function seedActive(
     db: Awaited<ReturnType<typeof createTestApp>>['db'],
-    mode: 'private' | 'public',
     opts: { capacity?: number; used?: number; status?: string } = {},
   ) {
     return createStorageRepo(db).create({
       title: 'Seed',
-      mode,
       bucket: 'b',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -269,29 +254,16 @@ describe('selectStorage', () => {
     })
   }
 
-  it('returns an active private storage with unlimited capacity', async () => {
+  it('returns an active storage with unlimited capacity', async () => {
     const { db } = await createTestApp()
-    const created = await seedActive(db, 'private')
-    const found = await createStorageRepo(db).select('private')
+    const created = await seedActive(db)
+    const found = await createStorageRepo(db).select()
     expect(found.id).toBe(created.id)
   })
 
-  it('returns an active public storage when requested', async () => {
+  it('throws when no active storage exists', async () => {
     const { db } = await createTestApp()
-    const created = await seedActive(db, 'public')
-    const found = await createStorageRepo(db).select('public')
-    expect(found.id).toBe(created.id)
-  })
-
-  it('throws when no active storage exists for the requested mode', async () => {
-    const { db } = await createTestApp()
-    await expect(createStorageRepo(db).select('private')).rejects.toThrow('No available storage')
-  })
-
-  it('throws when storage is present but mode does not match', async () => {
-    const { db } = await createTestApp()
-    await seedActive(db, 'public')
-    await expect(createStorageRepo(db).select('private')).rejects.toThrow('No available storage')
+    await expect(createStorageRepo(db).select()).rejects.toThrow('No available storage')
   })
 })
 
@@ -306,7 +278,6 @@ describe('deleteStorage', () => {
     const { db } = await createTestApp()
     const created = await createStorageRepo(db).create({
       title: 'Deletable',
-      mode: 'private',
       bucket: 'b',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -323,7 +294,6 @@ describe('deleteStorage', () => {
     const { db } = await createTestApp()
     const created = await createStorageRepo(db).create({
       title: 'In Use',
-      mode: 'private',
       bucket: 'b',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',

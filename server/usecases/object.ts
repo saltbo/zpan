@@ -175,7 +175,7 @@ export async function createObject(
 
   let storage: StorageRecord
   try {
-    storage = await deps.storages.select('private')
+    storage = await deps.storages.select()
   } catch (error) {
     if (error instanceof Error && error.message === 'No available storage') {
       return { ok: false, error: noStorage() }
@@ -1067,7 +1067,7 @@ export async function copyMatterToOrg(deps: SaveToDriveDeps, input: CopyMatterTo
   const sourceStorage = await deps.storages.get(sourceMatter.storageId)
   if (!sourceStorage) throw new Error('Source storage not found')
 
-  const targetStorage = await deps.storages.select('private')
+  const targetStorage = await deps.storages.select()
 
   if (sourceMatter.dirtype === DirType.FILE) {
     const newMatter = await saveFile(

@@ -1,15 +1,22 @@
 import type { Platform } from '../../platform/interface'
 
-export const IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'] as const
-export type ImageMime = (typeof IMAGE_MIMES)[number]
-export const MAX_IMAGE_SIZE = 2 * 1024 * 1024 // 2 MiB
+// User avatars (`AVATAR_PREFIX`) and team/org logos (`LOGO_PREFIX`) are hosted on
+// the ZPan Cloud avatar service. The prefix the usecase passes encodes which one
+// it is; the gateway maps it to the Cloud avatar scope (`user` / `team`).
+export const AVATAR_PREFIX = '_system/avatars'
+export const LOGO_PREFIX = '_system/org-logos'
 
-export type ImageUploadResult = { ok: true; url: string } | { ok: false; status: 400 | 413 | 503; error: string }
+// Cloud-hosting outcome. A failure carries the HTTP status the http layer renders:
+//   400 unsupported image type · 413 too large · 403 license inactive ·
+//   500 unexpected cloud error · 503 instance not paired to Cloud (cloud_required).
+export type ImageUploadResult =
+  | { ok: true; url: string }
+  | { ok: false; status: 400 | 403 | 413 | 500 | 503; error: string }
 
-// Stream-proxy public images (avatars, org logos) to the workspace's public
-// image backend: an R2 binding on CF (zero-auth, zero-egress) or the
-// user-configured public S3 storage everywhere else. The platform is passed
-// per call because the R2 binding + public-URL env are request-scoped.
+// Upload/delete public images (avatars, org logos) via the Cloud avatar service.
+// `platform` is passed per call because the active license binding + cloud base
+// URL are request-scoped. Validation (mime/size) and Cloud error mapping live in
+// the gateway; the unbound instance surfaces as `{ status: 503, 'cloud_required' }`.
 export interface ImageUpload {
   uploadPublicImage(platform: Platform, prefix: string, id: string, file: File): Promise<ImageUploadResult>
   deletePublicImageVariants(platform: Platform, prefix: string, id: string): Promise<void>

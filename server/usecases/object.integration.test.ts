@@ -53,8 +53,8 @@ type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 async function insertStorage(db: TestDb, id = STORAGE_ID) {
   const now = Date.now()
   await db.run(sql`
-    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${id}, 'Test S3', 'private', 'test-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AKIAIOSFODNN7EXAMPLE', 'wJalrXUtnFEMI', '', '', 0, 0, 'active', ${now}, ${now})
+    INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES (${id}, 'Test S3', 'test-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AKIAIOSFODNN7EXAMPLE', 'wJalrXUtnFEMI', '', '', 0, 0, 'active', ${now}, ${now})
   `)
 }
 
@@ -824,8 +824,8 @@ describe('trash purge', () => {
   async function insertStorage(db: TestDb) {
     const now = Date.now()
     await db.run(sql`
-      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-      VALUES ('st-1', 'Test S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'AKID', 'SECRET', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+      INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('st-1', 'Test S3', 'b', 'https://s3.example.com', 'us-east-1', 'AKID', 'SECRET', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
     `)
   }
 

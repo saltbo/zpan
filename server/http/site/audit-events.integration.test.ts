@@ -18,7 +18,6 @@ type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 const validStorage = {
   id: 'st-audit-test',
   title: 'Audit Test S3',
-  mode: 'private',
   bucket: 'test-bucket',
   endpoint: 'https://s3.amazonaws.com',
   region: 'us-east-1',
@@ -29,8 +28,8 @@ const validStorage = {
 async function insertStorage(db: TestDb, id = validStorage.id) {
   const now = Date.now()
   await db.run(sql`
-    INSERT OR IGNORE INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${id}, ${validStorage.title}, ${validStorage.mode}, ${validStorage.bucket}, ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey}, '', '', 0, 0, 'active', ${now}, ${now})
+    INSERT OR IGNORE INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES (${id}, ${validStorage.title}, ${validStorage.bucket}, ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey}, '', '', 0, 0, 'active', ${now}, ${now})
   `)
 }
 
@@ -396,7 +395,6 @@ describe('Storage audit events', () => {
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: 'New Storage',
-        mode: 'private',
         bucket: 'my-bucket',
         endpoint: 'https://s3.amazonaws.com',
         region: 'us-east-1',
@@ -412,8 +410,6 @@ describe('Storage audit events', () => {
     expect(evt?.targetName).toBe('New Storage')
     // Must NOT store secret keys or access keys in metadata
     assertNoSecrets(evt?.metadata ?? null)
-    const meta = JSON.parse(evt?.metadata ?? '{}') as { mode: string }
-    expect(meta.mode).toBe('private')
   })
 
   it('records storage_update when admin updates a storage', async () => {
@@ -426,7 +422,6 @@ describe('Storage audit events', () => {
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: 'Original Storage',
-        mode: 'private',
         bucket: 'my-bucket',
         endpoint: 'https://s3.amazonaws.com',
         region: 'us-east-1',
@@ -460,7 +455,6 @@ describe('Storage audit events', () => {
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: 'Deletable Storage',
-        mode: 'private',
         bucket: 'del-bucket',
         endpoint: 'https://s3.amazonaws.com',
         region: 'us-east-1',

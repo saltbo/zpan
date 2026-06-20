@@ -56,6 +56,8 @@ export function createDeps(platform: Platform): Deps {
   const s3 = new S3Service()
   const storages = createStorageRepo(db)
   const systemOptions = createSystemOptionsRepo(db)
+  const licenseBinding = createLicenseBindingRepo(db)
+  const licensingCloud = createLicensingCloudGateway()
   return {
     activity: createActivityRepo(db),
     announcements: createAnnouncementRepo(db),
@@ -74,10 +76,10 @@ export function createDeps(platform: Platform): Deps {
     invites: createInviteRepo(db),
     imageHostingConfigs: createImageHostingConfigRepo(db),
     imageHosting: createImageHostingRepo(db),
-    imageUpload: createImageUploadGateway(s3, storages),
+    imageUpload: createImageUploadGateway(licenseBinding, licensingCloud),
     instance: createInstanceRepo(db),
-    licenseBinding: createLicenseBindingRepo(db),
-    licensingCloud: createLicensingCloudGateway(),
+    licenseBinding,
+    licensingCloud,
     matter: createMatterRepo(db),
     memberCount: createMemberCountRepo(db),
     notifications: createNotificationRepo(db),

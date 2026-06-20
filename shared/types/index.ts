@@ -1,5 +1,5 @@
 import type { CommercePayment, CommerceProduct, ProductPrice } from 'zpan-cloud-sdk'
-import type { DirType, ObjectStatus, StorageMode, StorageStatus } from '../constants'
+import type { DirType, ObjectStatus, StorageStatus } from '../constants'
 import type {
   CloudOrder as ZPanCloudOrder,
   CloudOrderFulfillmentPayload as ZPanCloudOrderFulfillmentPayload,
@@ -27,7 +27,6 @@ export interface StorageObject {
 export interface Storage {
   id: string
   title: string
-  mode: StorageMode
   bucket: string
   endpoint: string
   region: string

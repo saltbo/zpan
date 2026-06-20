@@ -58,6 +58,6 @@ Feature: Storages
 
   @storages/select-active @api
   Scenario: Uploads pick an active storage with available capacity
-    Given several storages of the requested mode
+    Given several configured storages
     When the platform selects a storage
     Then it returns the oldest active one below capacity and skips full or disabled ones

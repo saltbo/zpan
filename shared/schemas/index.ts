@@ -277,9 +277,11 @@ export const listIhostImagesSchema = z.object({
 })
 
 // ─── Public image upload (avatar, org logo) ─────────────────────────────────
-// Constants only — server validates in services/image-upload.ts; client uses
-// these for pre-submit validation + UI hints.
+// Constants only — avatars/logos are hosted on the ZPan Cloud avatar service; the
+// client uses these for pre-submit validation + UI hints. Kept in sync with the
+// SDK's AVATAR_CONTENT_TYPES + MAX_AVATAR_BYTES so the client rejects what Cloud
+// would reject (the server is the source of truth via zpan-cloud-sdk).
 
-export const PUBLIC_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'] as const
+export const PUBLIC_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const
 export type PublicImageMime = (typeof PUBLIC_IMAGE_MIMES)[number]
-export const MAX_PUBLIC_IMAGE_SIZE = 2 * 1024 * 1024 // 2 MiB
+export const MAX_PUBLIC_IMAGE_SIZE = 1 * 1024 * 1024 // 1 MiB (SDK MAX_AVATAR_BYTES)

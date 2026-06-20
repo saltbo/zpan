@@ -250,9 +250,7 @@ export async function putWebDavFile(
   },
 ): Promise<PutWebDavOutcome> {
   const { orgId, userId, target, fileName, parent, contentType, contentLength, body } = params
-  const storage = target.matter
-    ? await deps.storages.get(target.matter.storageId)
-    : await deps.storages.select('private')
+  const storage = target.matter ? await deps.storages.get(target.matter.storageId) : await deps.storages.select()
   if (!storage) return { ok: false, reason: 'no_storage' }
 
   const objectKey =
@@ -350,7 +348,7 @@ export async function createWebDavCollection(
   deps: Pick<Deps, 'matter' | 'storages'>,
   params: { orgId: string; userId: string; name: string; parent: string },
 ): Promise<void> {
-  const storage = await deps.storages.select('private')
+  const storage = await deps.storages.select()
   await deps.matter.create({
     orgId: params.orgId,
     userId: params.userId,
@@ -613,7 +611,7 @@ export async function createWebDavLock(
   const { orgId, userId, target } = params
   const created = !target.matter && Boolean(target.name)
   if (created) {
-    const storage = await deps.storages.select('private')
+    const storage = await deps.storages.select()
     const objectKey = buildObjectKey({ uid: userId, orgId, rawExt: fileExt(target.name) })
     await deps.s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
     await deps.matter.create({
