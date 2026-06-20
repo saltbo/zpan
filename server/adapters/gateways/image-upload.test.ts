@@ -13,7 +13,7 @@ function mockPlatform(env: Record<string, string | undefined> = {}, avatarsBucke
   return {
     db: {} as Any,
     getEnv: (k: string) => env[k],
-    getBinding: (k: string) => (k === 'AVATARS' ? avatarsBucket : undefined),
+    getBinding: (k: string) => (k === 'PUBLIC_IMAGES' ? avatarsBucket : undefined),
   } as unknown as Platform
 }
 
@@ -271,7 +271,7 @@ describe('deletePublicImageVariants — Cloud avatar service', () => {
   })
 })
 
-describe('uploadPublicImage — AVATARS R2 binding (self-hosted, no Cloud)', () => {
+describe('uploadPublicImage — PUBLIC_IMAGES R2 binding (self-hosted, no Cloud)', () => {
   it('uploads straight to R2 and returns the instance serve URL, never calling Cloud', async () => {
     const r2 = mockR2Bucket()
     const { gateway, createAvatarUploadClient } = mockLicensingCloud({})
@@ -288,13 +288,13 @@ describe('uploadPublicImage — AVATARS R2 binding (self-hosted, no Cloud)', () 
     expect(createAvatarUploadClient).not.toHaveBeenCalled()
   })
 
-  it('uses AVATARS_PUBLIC_URL (R2 custom domain) and the team scope for org logos', async () => {
+  it('uses PUBLIC_IMAGES_URL (R2 custom domain) and the team scope for org logos', async () => {
     const r2 = mockR2Bucket()
     const { gateway } = mockLicensingCloud({})
     const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
 
     const result = await gw.uploadPublicImage(
-      mockPlatform({ AVATARS_PUBLIC_URL: 'https://cdn.example.com/' }, r2.bucket),
+      mockPlatform({ PUBLIC_IMAGES_URL: 'https://cdn.example.com/' }, r2.bucket),
       LOGO_PREFIX,
       'team-1',
       makeFile('image/webp'),
@@ -332,7 +332,7 @@ describe('uploadPublicImage — AVATARS R2 binding (self-hosted, no Cloud)', () 
   })
 })
 
-describe('deletePublicImageVariants — AVATARS R2 binding', () => {
+describe('deletePublicImageVariants — PUBLIC_IMAGES R2 binding', () => {
   it('deletes straight from R2 for the scope/id, never calling Cloud', async () => {
     const r2 = mockR2Bucket()
     const { gateway, createAvatarUploadClient } = mockLicensingCloud({})

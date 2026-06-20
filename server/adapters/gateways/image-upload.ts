@@ -8,7 +8,7 @@ import {
   uploadAvatar,
 } from 'zpan-cloud-sdk'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
-import { AVATARS_BINDING, type Platform, type R2BucketLike } from '../../platform/interface'
+import { type Platform, PUBLIC_IMAGES_BINDING, type R2BucketLike } from '../../platform/interface'
 import {
   AVATAR_PREFIX,
   type ImageUpload,
@@ -44,12 +44,12 @@ async function contentVersion(buffer: ArrayBuffer): Promise<string> {
     .join('')
 }
 
-// Public URL for an R2-hosted avatar. With AVATARS_PUBLIC_URL set (an R2 custom domain)
+// Public URL for an R2-hosted avatar. With PUBLIC_IMAGES_URL set (an R2 custom domain)
 // the browser hits R2 directly (no Worker egress); otherwise it goes through this
 // instance's own /api/avatar-blobs serve route (works in local miniflare too, where R2
 // has no public URL). A relative URL resolves against the instance origin.
 function r2AvatarUrl(platform: Platform, key: string, version: string): string {
-  const base = platform.getEnv('AVATARS_PUBLIC_URL')?.replace(/\/$/, '')
+  const base = platform.getEnv('PUBLIC_IMAGES_URL')?.replace(/\/$/, '')
   return base ? `${base}/${key}?v=${version}` : `/api/avatar-blobs/${key}?v=${version}`
 }
 
@@ -81,7 +81,7 @@ async function cloudUploadError(res: {
   }
 }
 
-// Host user avatars + team logos. On Cloudflare with an `AVATARS` R2 binding, uploads go
+// Host user avatars + team logos. On Cloudflare with a `PUBLIC_IMAGES` R2 binding, uploads go
 // straight to that bucket and are served from this instance (or an R2 custom domain).
 // Without the binding (Node/Docker, or a Worker without it) it falls back to the ZPan
 // Cloud avatar service, which requires an active license binding — an unbound instance
@@ -141,7 +141,7 @@ export function createImageUploadGateway(
       }
 
       const scope = prefixToScope(prefix)
-      const bucket = platform.getBinding<R2BucketLike>(AVATARS_BINDING)
+      const bucket = platform.getBinding<R2BucketLike>(PUBLIC_IMAGES_BINDING)
       if (bucket) return r2Upload(bucket, platform, scope, id, file, contentType)
       return cloudUpload(platform, scope, id, file, contentType)
     },
@@ -151,7 +151,7 @@ export function createImageUploadGateway(
     async deletePublicImageVariants(platform, prefix, id): Promise<void> {
       const scope = prefixToScope(prefix)
 
-      const bucket = platform.getBinding<R2BucketLike>(AVATARS_BINDING)
+      const bucket = platform.getBinding<R2BucketLike>(PUBLIC_IMAGES_BINDING)
       if (bucket) {
         try {
           await bucket.delete(avatarKey(scope, id))

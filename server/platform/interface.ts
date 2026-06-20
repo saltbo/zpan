@@ -18,9 +18,9 @@ export interface Platform {
 }
 
 // R2 bucket binding for self-hosted avatar storage. Present on Cloudflare when the
-// `AVATARS` binding is configured; absent on Node/Docker (callers then fall back to the
+// `PUBLIC_IMAGES` binding is configured; absent on Node/Docker (callers then fall back to the
 // Cloud avatar service).
-export const AVATARS_BINDING = 'AVATARS'
+export const PUBLIC_IMAGES_BINDING = 'PUBLIC_IMAGES'
 
 // Minimal R2 surface we use — typed locally so non-CF builds don't need workers-types.
 export interface R2ObjectBodyLike {

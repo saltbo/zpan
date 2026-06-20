@@ -28,11 +28,11 @@ max_batch_timeout = 1
 max_retries = 3
 
 # Self-hosted avatar storage. When present, avatars upload straight to R2 (served from
-# /api/avatar-blobs, or from AVATARS_PUBLIC_URL if an R2 custom domain is configured)
+# /api/avatar-blobs, or from PUBLIC_IMAGES_URL if an R2 custom domain is configured)
 # instead of the ZPan Cloud avatar service.
 [[r2_buckets]]
-binding = "AVATARS"
-bucket_name = "zpan-avatars"
+binding = "PUBLIC_IMAGES"
+bucket_name = "zpan-public-images"
 
 [observability]
 enabled = true
@@ -59,8 +59,8 @@ database_id = "a9197d7a-6524-42f0-b646-e714dcb30b3b"
 migrations_dir = "./migrations"
 
 [[env.staging.r2_buckets]]
-binding = "AVATARS"
-bucket_name = "zpan-avatars-staging"
+binding = "PUBLIC_IMAGES"
+bucket_name = "zpan-public-images-staging"
 
 [[env.staging.send_email]]
 name = "EMAIL"
