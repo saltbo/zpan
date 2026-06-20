@@ -161,7 +161,8 @@
       "@vitest/snapshot": "4.1.4",
       "@vitest/spy": "4.1.4",
       "@vitest/utils": "4.1.4",
-      "undici": "7.28.0"
+      "undici": "7.28.0",
+    "@esbuild-kit/core-utils>esbuild": "0.25.12"
     },
     "onlyBuiltDependencies": [
       "@swc/core",
