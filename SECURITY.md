@@ -5,16 +5,17 @@ ZPan and its users seriously and appreciate responsible disclosure of any issues
 
 ## Supported Versions
 
-Security fixes are released for the latest published `2.x` minor version. We
-recommend always running the most recent release. ZPan v1 (the legacy Go
-implementation on the [`v1` branch](https://github.com/saltbo/zpan/tree/v1)) is
-no longer maintained and receives no security updates.
+Security fixes ship in the latest release only — we do not backport fixes to
+older versions. If you are affected by a security issue, please upgrade to the
+most recent release. ZPan v1 (the legacy Go implementation on the
+[`v1` branch](https://github.com/saltbo/zpan/tree/v1)) is no longer maintained
+and receives no security updates.
 
-| Version            | Supported          |
-| ------------------ | ------------------ |
-| 2.7.x (latest)     | :white_check_mark: |
-| < 2.7              | :x:                |
-| 1.x (Go, legacy)   | :x:                |
+| Version              | Supported          |
+| -------------------- | ------------------ |
+| Latest 2.x release   | :white_check_mark: |
+| Older 2.x releases   | :x:                |
+| 1.x (Go, legacy)     | :x:                |
 
 ## Reporting a Vulnerability
 
