@@ -14,15 +14,16 @@
 // outward unchanged so the http layer maps {status} directly.
 
 import type { Platform } from '../platform/interface'
-import type {
-  ActivityRepo,
-  EntitlementResult,
-  ImageUpload,
-  ProfileRepo,
-  PublicUser,
-  QuotaEntitlementItem,
-  UserAdminRepo,
-  UserOperationFailure,
+import {
+  type ActivityRepo,
+  AVATAR_PREFIX,
+  type EntitlementResult,
+  type ImageUpload,
+  type ProfileRepo,
+  type PublicUser,
+  type QuotaEntitlementItem,
+  type UserAdminRepo,
+  type UserOperationFailure,
 } from './ports'
 
 export type UserDeps = {
@@ -155,20 +156,22 @@ export async function revokeUserEntitlement(
 
 // ── self: the authenticated user's own avatar ────────────────────────────────
 
-const AVATAR_PREFIX = '_system/avatars'
-
 export type AvatarDeps = {
   imageUpload: ImageUpload
   profiles: ProfileRepo
 }
 
-// The image gateway can reject with a status (400 bad mime, 413 too large, 503
-// no public storage). The http layer turns this into the error body + status;
-// the decision of *which* status lives in the gateway, surfaced verbatim here.
-export type UpdateAvatarOutcome = { ok: true; url: string } | { ok: false; status: 400 | 413 | 503; error: string }
+// The image gateway can reject with a status (400 bad mime, 413 too large, 403
+// license inactive, 500 cloud error, 503 instance not paired to Cloud). The http
+// layer turns this into the error body + status; the decision of *which* status
+// lives in the gateway, surfaced verbatim here.
+export type UpdateAvatarOutcome =
+  | { ok: true; url: string }
+  | { ok: false; status: 400 | 403 | 413 | 500 | 503; error: string }
 
-// `platform` is a request-bound capability (R2 binding + public-URL env are
-// request-scoped), so it is a plain function param — not stored on AvatarDeps.
+// `platform` is a request-bound capability (the active license binding + cloud
+// base URL are request-scoped), so it is a plain function param — not stored on
+// AvatarDeps.
 export async function updateAvatar(
   deps: AvatarDeps,
   params: { platform: Platform; userId: string; file: File },

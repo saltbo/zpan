@@ -1,10 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { S3Service } from '../adapters/gateways/s3.js'
 import { createTeamInviteRepo } from '../adapters/repos/team-invite.js'
 import * as authSchema from '../db/auth-schema.js'
-import { createTestApp } from '../test/setup.js'
+import { createTestApp, seedBusinessLicense } from '../test/setup.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
@@ -659,12 +658,35 @@ describe('GET /api/teams/:teamId/activity — isolation', () => {
 
 // ─── Org logo (PUT/DELETE /:teamId/logo) ─────────────────────────────────────
 
-async function insertPublicStorage(db: TestDb) {
-  const now = Date.now()
-  await db.run(sql`
-    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES ('st-logo', 'Public', 'public', 'test-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AKID', 'secret', '', '', 0, 0, 'active', ${now}, ${now})
-  `)
+const CLOUD_LOGO_URL = 'https://avatars.zpan.cloud/team/logo.png'
+
+// Stub the Cloud avatar service and capture each request so tests can assert the
+// /avatars/team/:id path, the image content type, and the bearer auth that reach
+// Cloud. `seedBusinessLicense` makes the instance Cloud-paired.
+function stubCloudAvatarFetch() {
+  const calls: { url: string; method: string; contentType: string | null; authorization: string | null }[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url)
+      if (u.includes('/avatars/')) {
+        const headers = new Headers(init?.headers)
+        calls.push({
+          url: u,
+          method: init?.method ?? 'GET',
+          contentType: headers.get('content-type'),
+          authorization: headers.get('authorization'),
+        })
+        if (init?.method === 'DELETE') return new Response(null, { status: 204 })
+        return new Response(JSON.stringify({ url: CLOUD_LOGO_URL, key: 'avatars/team/logo' }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      return new Response('unexpected fetch', { status: 404 })
+    }),
+  )
+  return calls
 }
 
 function makeFile(type: string, bytes = 16): File {
@@ -674,7 +696,7 @@ function makeFile(type: string, bytes = 16): File {
 describe('PUT /api/teams/:teamId/logo', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(16)
+    vi.unstubAllGlobals()
   })
 
   it('returns 401 without auth', async () => {
@@ -690,7 +712,6 @@ describe('PUT /api/teams/:teamId/logo', () => {
     const { headers, userId } = await signUpAndGetUser(app, `m-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'member')
-    await insertPublicStorage(db)
 
     const form = new FormData()
     form.set('file', makeFile('image/png'))
@@ -698,33 +719,37 @@ describe('PUT /api/teams/:teamId/logo', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns 400 when mime is invalid (gif)', async () => {
+  it('returns 400 for an unsupported mime, before any Cloud call', async () => {
     const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
     const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'owner')
-    await insertPublicStorage(db)
+    const calls = stubCloudAvatarFetch()
 
     const form = new FormData()
-    form.set('file', makeFile('image/gif'))
+    form.set('file', makeFile('application/pdf'))
     const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'PUT', headers, body: form })
     expect(res.status).toBe(400)
+    expect(calls).toHaveLength(0)
   })
 
-  it('returns 413 when file > 2 MiB', async () => {
+  it('returns 413 when file > 1 MiB, before any Cloud call', async () => {
     const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
     const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'owner')
-    await insertPublicStorage(db)
+    const calls = stubCloudAvatarFetch()
 
     const form = new FormData()
-    form.set('file', makeFile('image/png', 3 * 1024 * 1024))
+    form.set('file', makeFile('image/png', 2 * 1024 * 1024))
     const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'PUT', headers, body: form })
     expect(res.status).toBe(413)
+    expect(calls).toHaveLength(0)
   })
 
-  it('returns 503 when no public storage is configured', async () => {
+  it('returns 503 cloud_required when the instance is not paired to Cloud', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
@@ -736,32 +761,37 @@ describe('PUT /api/teams/:teamId/logo', () => {
     expect(res.status).toBe(503)
   })
 
-  it('uploads + writes organization.logo + returns URL (owner)', async () => {
+  it('hosts the logo on Cloud + writes organization.logo + returns URL (owner)', async () => {
     const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
     const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'owner')
-    await insertPublicStorage(db)
+    const calls = stubCloudAvatarFetch()
 
     const form = new FormData()
     form.set('file', makeFile('image/jpeg'))
     const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { url: string }
-    expect(body.url).toContain(`_system/org-logos/${orgId}`)
-    expect(body.url).toContain('.jpg')
-    expect(S3Service.prototype.putObject).toHaveBeenCalledTimes(1)
+    expect(body.url).toBe(CLOUD_LOGO_URL)
+
+    const put = calls.find((c) => c.method === 'PUT')
+    expect(put?.url).toContain(`/avatars/team/${orgId}`)
+    expect(put?.contentType).toBe('image/jpeg')
+    expect(put?.authorization).toBe('Bearer test-refresh-token')
 
     const rows = await db.all<{ logo: string | null }>(sql`SELECT logo FROM organization WHERE id = ${orgId}`)
-    expect(rows[0]?.logo).toBe(body.url)
+    expect(rows[0]?.logo).toBe(CLOUD_LOGO_URL)
   })
 
   it('succeeds for admin role (not just owner)', async () => {
     const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
     const { headers, userId } = await signUpAndGetUser(app, `a-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'admin')
-    await insertPublicStorage(db)
+    stubCloudAvatarFetch()
 
     const form = new FormData()
     form.set('file', makeFile('image/png'))
@@ -773,7 +803,7 @@ describe('PUT /api/teams/:teamId/logo', () => {
 describe('DELETE /api/teams/:teamId/logo', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(S3Service.prototype, 'deleteObject').mockResolvedValue(undefined)
+    vi.unstubAllGlobals()
   })
 
   it('returns 401 without auth', async () => {
@@ -792,34 +822,37 @@ describe('DELETE /api/teams/:teamId/logo', () => {
     expect(res.status).toBe(403)
   })
 
-  it('clears organization.logo + removes all mime variants from S3', async () => {
+  it('clears organization.logo + deletes the Cloud logo', async () => {
     const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
     const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'owner')
-    await insertPublicStorage(db)
-
     await db.run(sql`UPDATE organization SET logo = 'https://example.com/old.png' WHERE id = ${orgId}`)
+    const calls = stubCloudAvatarFetch()
 
     const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'DELETE', headers })
     expect(res.status).toBe(204)
 
     const rows = await db.all<{ logo: string | null }>(sql`SELECT logo FROM organization WHERE id = ${orgId}`)
     expect(rows[0]?.logo).toBeNull()
-    expect(S3Service.prototype.deleteObject).toHaveBeenCalledTimes(3)
+    const del = calls.find((c) => c.method === 'DELETE')
+    expect(del?.url).toContain(`/avatars/team/${orgId}`)
   })
 
-  it('succeeds when no public storage (DB cleared, S3 skipped)', async () => {
+  it('succeeds when the instance is not paired to Cloud (DB cleared, Cloud delete skipped)', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'owner')
     await db.run(sql`UPDATE organization SET logo = 'https://example.com/old.png' WHERE id = ${orgId}`)
+    const calls = stubCloudAvatarFetch()
 
     const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'DELETE', headers })
     expect(res.status).toBe(204)
     const rows = await db.all<{ logo: string | null }>(sql`SELECT logo FROM organization WHERE id = ${orgId}`)
     expect(rows[0]?.logo).toBeNull()
+    expect(calls).toHaveLength(0)
   })
 })
 

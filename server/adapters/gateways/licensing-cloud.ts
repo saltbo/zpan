@@ -1,5 +1,6 @@
+import { hc } from 'hono/client'
 import type { z } from 'zod'
-import { type CloudClient, createCloudClient } from 'zpan-cloud-sdk'
+import { type AppType, type CloudClient, createCloudClient } from 'zpan-cloud-sdk'
 import {
   type CloudInstanceInfo,
   CloudInvalidResponseError,
@@ -20,6 +21,20 @@ function cloudApiBaseUrl(baseUrl: string): string {
 
 export function createBoundCloudClient(baseUrl: string, refreshToken: string): CloudClient {
   return createCloudClient({ baseUrl: cloudApiBaseUrl(baseUrl), token: refreshToken, headers: JSON_HEADERS })
+}
+
+// A bound client for the Cloud avatar service. Avatar uploads stream raw image
+// bytes with an image `Content-Type`, so this client must NOT carry JSON_HEADERS.
+// It is also built with `hc` directly (not `createCloudClient`) so the bearer
+// token stays a PLAIN-OBJECT header: the SDK's `uploadAvatar` sets a per-request
+// `Content-Type`, and hono's `hc` drops a client-level `Headers` instance when it
+// merges per-request headers (its `deepMerge` spreads a `Headers` instance to
+// `{}`), which would strip Authorization. A plain object survives the merge, so
+// both the bearer token and the image content-type reach Cloud.
+export function createAvatarUploadClient(baseUrl: string, refreshToken: string): CloudClient {
+  return hc<AppType>(cloudApiBaseUrl(baseUrl), {
+    init: { headers: { authorization: `Bearer ${refreshToken}` } },
+  })
 }
 
 function createAnonymousCloudClient(baseUrl: string): CloudClient {
@@ -174,6 +189,7 @@ export function createLicensingCloudGateway(): LicensingCloudGateway {
     unbindCloudLicense,
     confirmCloudLicense,
     createBoundCloudClient,
+    createAvatarUploadClient,
     requestCloudJson,
   }
 }

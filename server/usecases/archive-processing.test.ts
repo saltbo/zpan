@@ -830,8 +830,8 @@ describe('archive processing', () => {
 async function seedStorage(db: TestDb): Promise<void> {
   const now = Date.now()
   await db.run(sql`
-    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${STORAGE_ID}, 'Archive Storage', 'private', 'bucket', 'https://s3.example.com', 'auto', 'ak', 'sk', '', '', 0, 0, 'active', ${now}, ${now})
+    INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES (${STORAGE_ID}, 'Archive Storage', 'bucket', 'https://s3.example.com', 'auto', 'ak', 'sk', '', '', 0, 0, 'active', ${now}, ${now})
   `)
 }
 

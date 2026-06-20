@@ -1,10 +1,3 @@
-export const StorageMode = {
-  PRIVATE: 'private',
-  PUBLIC: 'public',
-} as const
-
-export type StorageMode = (typeof StorageMode)[keyof typeof StorageMode]
-
 export const UserRole = {
   ADMIN: 'admin',
   MEMBER: 'member',

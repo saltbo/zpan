@@ -1,102 +1,112 @@
-import { mimeToExt } from '../../lib/mime-utils'
+import {
+  AVATAR_CONTENT_TYPES,
+  type AvatarContentType,
+  type AvatarScope,
+  avatarUploadResponseSchema,
+  deleteAvatar,
+  MAX_AVATAR_BYTES,
+  uploadAvatar,
+} from 'zpan-cloud-sdk'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import type { Platform } from '../../platform/interface'
-import type {
-  ImageMime,
-  ImageUpload,
-  ImageUploadResult,
-  S3Gateway,
-  StorageRecord,
-  StorageRepo,
+import {
+  AVATAR_PREFIX,
+  type ImageUpload,
+  type ImageUploadResult,
+  type LicenseBindingRepo,
+  type LicensingCloudGateway,
+  LOGO_PREFIX,
 } from '../../usecases/ports'
-import { IMAGE_MIMES, MAX_IMAGE_SIZE } from '../../usecases/ports'
 
-export function isImageMime(v: unknown): v is ImageMime {
-  return typeof v === 'string' && (IMAGE_MIMES as readonly string[]).includes(v)
+export function isAvatarContentType(v: unknown): v is AvatarContentType {
+  return typeof v === 'string' && (AVATAR_CONTENT_TYPES as readonly string[]).includes(v)
 }
 
-export function imageKey(prefix: string, id: string, mime: ImageMime): string {
-  return `${prefix}/${id}.${mimeToExt(mime)}`
+// Only the avatar + org-logo usecases call this port, and they pass these exact
+// prefixes — an unknown prefix is a programming error, so fail fast.
+function prefixToScope(prefix: string): AvatarScope {
+  if (prefix === AVATAR_PREFIX) return 'user'
+  if (prefix === LOGO_PREFIX) return 'team'
+  throw new Error(`Unknown image prefix: ${prefix}`)
 }
 
-// Minimal R2Bucket interface we actually call — typed locally so we don't
-// depend on @cloudflare/workers-types on non-CF builds.
-interface R2BucketLike {
-  put(
-    key: string,
-    value: ArrayBuffer | ArrayBufferView | ReadableStream | Blob,
-    options?: { httpMetadata?: { contentType?: string } },
-  ): Promise<unknown>
-  delete(key: string): Promise<void>
+function cloudErrorCode(data: unknown): string | null {
+  if (!data || typeof data !== 'object' || !('error' in data)) return null
+  const error = (data as { error: unknown }).error
+  if (typeof error === 'string') return error
+  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') return error.code
+  return null
 }
 
-type Backend =
-  | { kind: 'r2'; bucket: R2BucketLike; publicUrlBase: string }
-  | { kind: 's3'; storage: StorageRecord }
-  | { kind: 'none' }
+// Maps a non-2xx Cloud avatar response to the local outcome status. Cloud error
+// codes: unsupported_media_type → 400, payload_too_large → 413,
+// license_inactive → 403, everything else (incl. malformed) → 500.
+async function cloudUploadError(res: {
+  status: number
+  json(): Promise<unknown>
+}): Promise<Extract<ImageUploadResult, { ok: false }>> {
+  const code = cloudErrorCode(await res.json().catch(() => null))
+  switch (code) {
+    case 'unsupported_media_type':
+      return { ok: false, status: 400, error: 'unsupported_media_type' }
+    case 'payload_too_large':
+      return { ok: false, status: 413, error: 'payload_too_large' }
+    case 'license_inactive':
+      return { ok: false, status: 403, error: 'license_inactive' }
+    default:
+      return { ok: false, status: 500, error: code ?? `cloud_request_failed_${res.status}` }
+  }
+}
 
-export function createImageUploadGateway(s3: S3Gateway, storages: StorageRepo): ImageUpload {
-  // CF deployment with `PUBLIC_IMAGES` binding + `PUBLIC_IMAGES_URL` env var →
-  // writes via R2 binding (zero-auth, zero-egress), reads via R2's public
-  // domain (direct browser fetch, no Worker round-trip per image).
-  // Everything else → falls back to the user-configured `mode='public'` S3
-  // storage in the `storages` table.
-  async function getBackend(platform: Platform): Promise<Backend> {
-    const r2 = platform.getBinding<R2BucketLike>('PUBLIC_IMAGES')
-    const publicUrl = platform.getEnv('PUBLIC_IMAGES_URL')
-    if (r2 && publicUrl) {
-      return { kind: 'r2', bucket: r2, publicUrlBase: publicUrl.replace(/\/$/, '') }
-    }
-    try {
-      const storage = await storages.select('public')
-      return { kind: 's3', storage }
-    } catch {
-      return { kind: 'none' }
-    }
+// Host user avatars + team logos on the ZPan Cloud avatar service. Requires the
+// instance to be paired to Cloud (an active license binding with a refresh token);
+// an unbound instance can't host images, so upload returns `cloud_required` (503)
+// and delete is a best-effort no-op. Never throws on the unbound path.
+export function createImageUploadGateway(
+  licenseBinding: LicenseBindingRepo,
+  licensingCloud: LicensingCloudGateway,
+): ImageUpload {
+  function cloudBaseUrl(platform: Platform): string {
+    return platform.getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
   }
 
   return {
     async uploadPublicImage(platform, prefix, id, file): Promise<ImageUploadResult> {
-      if (!isImageMime(file.type)) {
-        return { ok: false, status: 400, error: 'Only PNG, JPG, and WebP images are allowed' }
+      const contentType = file.type
+      if (!isAvatarContentType(contentType)) {
+        return { ok: false, status: 400, error: 'Only PNG, JPG, WebP, and GIF images are allowed' }
       }
-      if (file.size > MAX_IMAGE_SIZE) {
-        return { ok: false, status: 413, error: 'File too large. Max 2 MiB.' }
-      }
-
-      const backend = await getBackend(platform)
-      if (backend.kind === 'none') {
-        return { ok: false, status: 503, error: 'No public storage configured' }
+      if (file.size > MAX_AVATAR_BYTES) {
+        return { ok: false, status: 413, error: 'File too large. Max 1 MiB.' }
       }
 
-      const key = imageKey(prefix, id, file.type)
-      const bytes = new Uint8Array(await file.arrayBuffer())
+      const binding = await licenseBinding.loadActiveLicenseBinding()
+      if (!binding?.refreshToken) return { ok: false, status: 503, error: 'cloud_required' }
 
-      if (backend.kind === 'r2') {
-        await backend.bucket.put(key, bytes, { httpMetadata: { contentType: file.type } })
-        return { ok: true, url: `${backend.publicUrlBase}/${key}` }
+      const client = licensingCloud.createAvatarUploadClient(cloudBaseUrl(platform), binding.refreshToken)
+      try {
+        const res = await uploadAvatar(client, { scope: prefixToScope(prefix), id, body: file, contentType })
+        if (!res.ok) return cloudUploadError(res)
+        const parsed = avatarUploadResponseSchema.safeParse(await res.json())
+        if (!parsed.success) return { ok: false, status: 500, error: 'invalid_cloud_response' }
+        return { ok: true, url: parsed.data.url }
+      } catch {
+        return { ok: false, status: 500, error: 'cloud_request_failed' }
       }
-
-      await s3.putObject(backend.storage, key, bytes, file.type)
-      return { ok: true, url: s3.getPublicUrl(backend.storage, key) }
     },
 
-    // Best-effort delete of every mime variant of a public image. DB clearing is
-    // the caller's responsibility — this only touches the backend object store.
+    // Best-effort delete of the Cloud-hosted image. DB clearing is the caller's
+    // responsibility — this only removes the object from the Cloud avatar service.
+    // An unbound instance has nothing to delete, so it is a silent no-op.
     async deletePublicImageVariants(platform, prefix, id): Promise<void> {
-      const backend = await getBackend(platform)
-      if (backend.kind === 'none') return
+      const binding = await licenseBinding.loadActiveLicenseBinding()
+      if (!binding?.refreshToken) return
 
-      if (backend.kind === 'r2') {
-        await Promise.allSettled(IMAGE_MIMES.map((mime) => backend.bucket.delete(imageKey(prefix, id, mime))))
-        return
-      }
-
+      const client = licensingCloud.createAvatarUploadClient(cloudBaseUrl(platform), binding.refreshToken)
       try {
-        await Promise.allSettled(
-          IMAGE_MIMES.map((mime) => s3.deleteObject(backend.storage, imageKey(prefix, id, mime))),
-        )
+        await deleteAvatar(client, { scope: prefixToScope(prefix), id })
       } catch (err) {
-        console.warn('[image-upload] S3 cleanup skipped:', err)
+        console.warn('[image-upload] cloud avatar delete skipped:', err)
       }
     },
   }

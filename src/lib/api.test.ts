@@ -1387,7 +1387,6 @@ describe('api', () => {
   describe('createStorage', () => {
     const validInput = {
       title: 'minio',
-      mode: 'private' as const,
       bucket: 'files',
       endpoint: 'https://minio.example.com',
       region: 'us-east-1',

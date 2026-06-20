@@ -19,17 +19,13 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.deleted',
   'admin.storages.noStorages',
   'admin.storages.colTitle',
-  'admin.storages.colMode',
   'admin.storages.colBucket',
   'admin.storages.colEndpoint',
   'admin.storages.colStatus',
   'admin.storages.colActions',
-  'admin.storages.modePrivate',
-  'admin.storages.modePublic',
   'admin.storages.statusActive',
   'admin.storages.statusInactive',
   'admin.storages.fieldTitle',
-  'admin.storages.fieldMode',
   'admin.storages.fieldBucket',
   'admin.storages.fieldEndpoint',
   'admin.storages.fieldRegion',
@@ -128,14 +124,6 @@ describe('admin.storages locale keys — English values contract', () => {
     expect(enLocale['admin.storages.noStorages']).toBe('No storages configured')
   })
 
-  it('admin.storages.modePrivate is "Private"', () => {
-    expect(enLocale['admin.storages.modePrivate']).toBe('Private')
-  })
-
-  it('admin.storages.modePublic is "Public"', () => {
-    expect(enLocale['admin.storages.modePublic']).toBe('Public')
-  })
-
   it('admin.storages.statusActive is "Active"', () => {
     expect(enLocale['admin.storages.statusActive']).toBe('Active')
   })
@@ -212,24 +200,6 @@ describe('admin.storages locale keys — i18n runtime translation', () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
     expect(i18n.t('admin.storages.add')).toBe('添加存储')
-  })
-
-  it('translates admin.storages.modePrivate to English', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('en')
-    expect(i18n.t('admin.storages.modePrivate')).toBe('Private')
-  })
-
-  it('translates admin.storages.modePrivate to Chinese', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.storages.modePrivate')).toBe('私有')
-  })
-
-  it('translates admin.storages.modePublic to Chinese', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.storages.modePublic')).toBe('公开')
   })
 
   it('translates admin.storages.statusActive to Chinese', async () => {

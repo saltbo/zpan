@@ -85,6 +85,9 @@ export interface LicensingCloudGateway {
   unbindCloudLicense(baseUrl: string, licenseId: string, refreshToken: string): Promise<void>
   confirmCloudLicense(baseUrl: string, licenseId: string, refreshToken: string): Promise<void>
   createBoundCloudClient(baseUrl: string, refreshToken: string): CloudClient
+  // A bound client for the Cloud avatar service: no forced JSON content-type, and
+  // an auth header that survives the SDK's per-request Content-Type override.
+  createAvatarUploadClient(baseUrl: string, refreshToken: string): CloudClient
   requestCloudJson<T, U = T>(
     response: Promise<{ status: number; ok: boolean; json(): Promise<T>; text(): Promise<string> }>,
     responseSchema?: z.ZodType<U>,

@@ -27,7 +27,7 @@ import {
 // Fakes for the ports the image-hosting usecase touches. Each test overrides the
 // handful of methods it exercises; the rest throw so an unexpected call is loud.
 
-const sampleStorage = { id: 'st-1', title: 'S3', mode: 'private' } as StorageRecord
+const sampleStorage = { id: 'st-1', title: 'S3' } as StorageRecord
 
 const sampleConfig: ImageHostingConfigRecord = {
   orgId: 'o1',
@@ -158,7 +158,7 @@ describe('image-hosting usecase', () => {
       const out = await uploadImageHosting(deps, { orgId: 'o1', path: 'a.png', mime: 'image/png', bytes })
       expect(out.ok).toBe(true)
       if (out.ok) expect(out.row.path).toBe('a.png')
-      expect(select).toHaveBeenCalledWith('private')
+      expect(select).toHaveBeenCalledWith()
       expect(create).toHaveBeenCalledWith(expect.objectContaining({ orgId: 'o1', status: 'draft', size: 100 }))
       expect(putObject).toHaveBeenCalledTimes(1)
       expect(setActive).toHaveBeenCalledTimes(1)

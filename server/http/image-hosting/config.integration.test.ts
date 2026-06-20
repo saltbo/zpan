@@ -999,7 +999,6 @@ describe('DELETE /api/image-hosting/config', () => {
     await db.insert(schema.storages).values({
       id: storageId,
       title: 'Test Storage',
-      mode: 's3',
       bucket: 'test',
       endpoint: 'https://s3.example.com',
       region: 'auto',

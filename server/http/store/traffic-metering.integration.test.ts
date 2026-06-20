@@ -42,12 +42,12 @@ async function insertStorage(db: Database) {
   const now = Date.now()
   await db.run(sql`
     INSERT INTO storages (
-      id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
+      id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
       capacity, used, status, egress_credit_billing_enabled, egress_credit_unit_bytes,
       egress_credit_per_unit, created_at, updated_at
     )
     VALUES (
-      ${STORAGE_ID}, 'Cloud Traffic S3', 'private', 'test-bucket', 'https://s3.amazonaws.com',
+      ${STORAGE_ID}, 'Cloud Traffic S3', 'test-bucket', 'https://s3.amazonaws.com',
       'us-east-1', 'AK', 'SK', '', '', 0, 0, 'active', true, ${100 * 1024 ** 2}, 1, ${now}, ${now}
     )
   `)

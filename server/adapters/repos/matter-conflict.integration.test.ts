@@ -61,8 +61,8 @@ const STORAGE_ID = 'st-conflict'
 async function insertStorage(db: TestDb) {
   const now = Date.now()
   await db.run(sql`
-    INSERT OR IGNORE INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${STORAGE_ID}, 'Test', 'private', 'bucket', 'https://s3.example.com', 'us-east-1', 'K', 'S', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    INSERT OR IGNORE INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES (${STORAGE_ID}, 'Test', 'bucket', 'https://s3.example.com', 'us-east-1', 'K', 'S', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
   `)
 }
 

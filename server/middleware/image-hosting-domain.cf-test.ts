@@ -33,8 +33,8 @@ async function signUpAndGetOrgId(app: ReturnType<typeof createApp>, db: TestDb) 
 async function insertStorage(db: TestDb) {
   const now = Date.now()
   await db.run(sql`
-    INSERT OR IGNORE INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${STORAGE_ID}, 'CF Domain S3', 'private', 'cf-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AK', 'SK', '', '', 0, 0, 'active', ${now}, ${now})
+    INSERT OR IGNORE INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES (${STORAGE_ID}, 'CF Domain S3', 'cf-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AK', 'SK', '', '', 0, 0, 'active', ${now}, ${now})
   `)
 }
 

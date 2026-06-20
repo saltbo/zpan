@@ -1,6 +1,8 @@
 Feature: Avatar
-  Authenticated users upload a personal avatar image, stored on public S3 and
-  surfaced as a URL on their profile. Uploads are validated and idempotent.
+  Authenticated users upload a personal avatar image, hosted on the ZPan Cloud
+  avatar service and surfaced as a URL on their profile. Uploads are validated
+  locally (mime + size) before the Cloud call, and require the instance to be
+  paired to Cloud.
 
   @avatar/auth-required @api
   Scenario: Uploading an avatar requires authentication
@@ -23,41 +25,35 @@ Feature: Avatar
   @avatar/mime-validated @api
   Scenario: Avatars must be a supported image type
     Given an authenticated user
-    When they upload a non PNG/JPG/WebP file
-    Then the API responds 400
+    When they upload a non-image file
+    Then the API responds 400 before any Cloud call
 
   @avatar/size-limit @api
   Scenario: Avatars are size-limited
     Given an authenticated user
-    When they upload a file larger than 2 MiB
-    Then the API responds 413
+    When they upload a file larger than 1 MiB
+    Then the API responds 413 before any Cloud call
 
-  @avatar/needs-storage @api
-  Scenario: Avatar upload needs a public storage
-    Given no public storage is configured
+  @avatar/needs-cloud @api
+  Scenario: Avatar upload needs the instance paired to Cloud
+    Given an instance with no active Cloud license binding
     When an authenticated user uploads an avatar
-    Then the API responds 503
+    Then the API responds 503 cloud_required
 
   @avatar/upload @api
-  Scenario: A valid avatar is stored and returned
-    Given an authenticated user and a public storage
+  Scenario: A valid avatar is hosted on Cloud and returned
+    Given an authenticated user on a Cloud-paired instance
     When they upload a valid image
-    Then it is stored to S3, recorded on the user, and its URL is returned
-
-  @avatar/idempotent @api
-  Scenario: Re-uploading the same type returns the same URL
-    Given a user who already has an avatar
-    When they re-upload with the same mime type
-    Then the same URL is returned
+    Then it is sent to the Cloud avatar service with the image content type, recorded on the user, and its URL is returned
 
   @avatar/delete @api
   Scenario: A user clears their avatar
-    Given a user with an avatar
+    Given a user with an avatar on a Cloud-paired instance
     When they delete it
-    Then the image is cleared and all variants are removed from S3
+    Then the image is cleared and the Cloud avatar is deleted
 
-  @avatar/delete-no-storage @api
-  Scenario: Clearing an avatar succeeds without storage
-    Given a user whose avatar storage is gone
+  @avatar/delete-unbound @api
+  Scenario: Clearing an avatar succeeds without a Cloud binding
+    Given a user with an avatar on an instance not paired to Cloud
     When they delete their avatar
-    Then it succeeds and S3 cleanup is skipped
+    Then it succeeds and the Cloud delete is skipped

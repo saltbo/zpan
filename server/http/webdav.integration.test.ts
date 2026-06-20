@@ -14,7 +14,6 @@ type TestApp = Awaited<ReturnType<typeof createTestApp>>
 const storage = {
   id: 'dav-storage',
   title: 'DAV Storage',
-  mode: 'private',
   bucket: 'dav-bucket',
   endpoint: 'https://s3.example.com',
   region: 'us-east-1',
@@ -48,8 +47,8 @@ function streamBody(text: string): ReadableStream {
 async function seedStorage(db: TestApp['db']) {
   const now = Date.now()
   await db.run(sql`
-    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${storage.id}, ${storage.title}, ${storage.mode}, ${storage.bucket}, ${storage.endpoint}, ${storage.region}, ${storage.accessKey}, ${storage.secretKey}, '', '', 0, 0, 'active', ${now}, ${now})
+    INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES (${storage.id}, ${storage.title}, ${storage.bucket}, ${storage.endpoint}, ${storage.region}, ${storage.accessKey}, ${storage.secretKey}, '', '', 0, 0, 'active', ${now}, ${now})
   `)
 }
 
@@ -2044,7 +2043,6 @@ describe('WebDAV over real HTTP (npm client)', () => {
   const e2eStorage = {
     id: 'webdav-e2e-storage',
     title: 'WebDAV E2E Storage',
-    mode: 'private',
     bucket: 'webdav-e2e-bucket',
     endpoint: 'https://s3.example.com',
     region: 'us-east-1',

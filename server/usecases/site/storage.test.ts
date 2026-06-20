@@ -19,11 +19,10 @@ const BUSINESS: BindingState = { bound: true, active: true, edition: 'business' 
 
 const edition = (state: BindingState) => vi.mocked(loadBindingState).mockResolvedValue(state)
 
-const sampleStorage = { id: 'st-1', title: 'My S3', mode: 'private' } as StorageRecord
+const sampleStorage = { id: 'st-1', title: 'My S3' } as StorageRecord
 
 const validInput: CreateStorageInput = {
   title: 'My S3',
-  mode: 'private',
   bucket: 'b',
   endpoint: 'https://s3.example.com',
   region: 'us-east-1',

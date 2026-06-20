@@ -92,7 +92,6 @@ export async function createStorage(
     targetType: 'storage',
     targetId: storage.id,
     targetName: storage.title,
-    metadata: { mode: storage.mode },
   })
   return { ok: true, storage }
 }
@@ -118,7 +117,6 @@ export async function updateStorage(
     targetType: 'storage',
     targetId: storage.id,
     targetName: storage.title,
-    metadata: { mode: storage.mode },
   })
   return { ok: true, storage }
 }
@@ -139,7 +137,6 @@ export async function deleteStorage(
     targetType: 'storage',
     targetId: id,
     targetName: existing?.title ?? id,
-    metadata: { mode: existing?.mode },
   })
   return { ok: true }
 }

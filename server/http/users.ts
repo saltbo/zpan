@@ -1,7 +1,15 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { badRequest, noStorage, notFound, payloadTooLarge, unsupportedMediaType } from '../usecases/ports'
+import {
+  badRequest,
+  forbidden,
+  internalError,
+  noStorage,
+  notFound,
+  payloadTooLarge,
+  unsupportedMediaType,
+} from '../usecases/ports'
 import { getUserQuota } from '../usecases/quota'
 import {
   getPublicProfile,
@@ -52,9 +60,11 @@ function failureError(failure: { status: 400 | 404; error: string }) {
 }
 
 // Maps the image-upload gateway outcome ({ status, error }) to its error factory.
-function imageUploadError(status: 400 | 413 | 503, error: string) {
+function imageUploadError(status: 400 | 403 | 413 | 500 | 503, error: string) {
   if (status === 413) return payloadTooLarge(error)
   if (status === 503) return noStorage(error)
+  if (status === 403) return forbidden(error)
+  if (status === 500) return internalError(error)
   return badRequest(error)
 }
 
