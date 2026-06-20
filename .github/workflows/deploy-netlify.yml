@@ -16,6 +16,9 @@ concurrency:
   group: deploy-netlify
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy

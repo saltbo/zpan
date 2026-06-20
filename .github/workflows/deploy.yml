@@ -21,6 +21,9 @@ concurrency:
   group: deploy-dispatch
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   detect:
     name: Detect configured platforms

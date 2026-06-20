@@ -28,6 +28,9 @@ concurrency:
   group: deploy-cloud-run
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy

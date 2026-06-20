@@ -15,7 +15,9 @@ function markdownResponse(body: string, ok = true, status = 200): Response {
 function stubFetch(opts: { release: () => Response; changelog: () => Response }) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => (String(url).includes('api.github.com') ? opts.release() : opts.changelog())),
+    vi.fn(async (url: string) =>
+      new URL(String(url)).hostname === 'api.github.com' ? opts.release() : opts.changelog(),
+    ),
   )
 }
 

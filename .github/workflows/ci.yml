@@ -10,6 +10,10 @@ env:
   E2E_CLOUD_PRO_EMAIL: ${{ secrets.E2E_CLOUD_PRO_EMAIL }}
   E2E_CLOUD_PRO_PASSWORD: ${{ secrets.E2E_CLOUD_PRO_PASSWORD }}
 
+# Least-privilege default; jobs that need more (e.g. packages: write) opt in per-job.
+permissions:
+  contents: read
+
 jobs:
   downloader:
     name: Downloader (Go)
