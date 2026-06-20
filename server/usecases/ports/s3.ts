@@ -34,7 +34,6 @@ export interface S3Gateway {
   abortMultipartUpload(storage: S3StorageCredentials, key: string, uploadId: string): Promise<void>
   presignDownload(storage: S3StorageCredentials, key: string, filename: string, expiresIn?: number): Promise<string>
   presignInline(storage: S3StorageCredentials, key: string, mime: string, expiresIn?: number): Promise<string>
-  getPublicUrl(storage: S3StorageCredentials, key: string): string
   // `etag` is the S3 ETag with surrounding quotes stripped (= content MD5 for a
   // single PutObject); used to verify a finalized single-PUT upload.
   headObject(storage: S3StorageCredentials, key: string): Promise<{ size: number; contentType: string; etag: string }>

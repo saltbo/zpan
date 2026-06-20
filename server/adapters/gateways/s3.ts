@@ -196,13 +196,6 @@ export class S3Service implements S3Gateway {
     return parsed.toString()
   }
 
-  getPublicUrl(storage: S3StorageCredentials, key: string): string {
-    if (storage.customHost) {
-      return `${storage.customHost.replace(/\/$/, '')}/${key}`
-    }
-    return `${storage.endpoint.replace(/\/$/, '')}/${storage.bucket}/${key}`
-  }
-
   async headObject(
     storage: S3StorageCredentials,
     key: string,

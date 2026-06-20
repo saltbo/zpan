@@ -322,27 +322,6 @@ describe('S3Service', () => {
     })
   })
 
-  describe('getPublicUrl', () => {
-    it('uses customHost when available', () => {
-      const s = makeStorage({ customHost: 'https://cdn.example.com' })
-      expect(service.getPublicUrl(s, 'a/b.jpg')).toBe('https://cdn.example.com/a/b.jpg')
-    })
-
-    it('strips trailing slash from customHost', () => {
-      const s = makeStorage({ customHost: 'https://cdn.example.com/' })
-      expect(service.getPublicUrl(s, 'a/b.jpg')).toBe('https://cdn.example.com/a/b.jpg')
-    })
-
-    it('falls back to endpoint/bucket when no customHost', () => {
-      expect(service.getPublicUrl(storage, 'a/b.jpg')).toBe('https://s3.example.com/my-bucket/a/b.jpg')
-    })
-
-    it('strips trailing slash from endpoint', () => {
-      const s = makeStorage({ endpoint: 'https://s3.example.com/' })
-      expect(service.getPublicUrl(s, 'a/b.jpg')).toBe('https://s3.example.com/my-bucket/a/b.jpg')
-    })
-  })
-
   describe('headObject', () => {
     it('returns size, contentType, and the quote-stripped etag', async () => {
       mockSend.mockResolvedValueOnce({
