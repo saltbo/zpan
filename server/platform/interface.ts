@@ -16,3 +16,23 @@ export interface Platform {
   // on the return value to pick a runtime-appropriate code path.
   getBinding<T = unknown>(key: string): T | undefined
 }
+
+// R2 bucket binding for self-hosted avatar storage. Present on Cloudflare when the
+// `AVATARS` binding is configured; absent on Node/Docker (callers then fall back to the
+// Cloud avatar service).
+export const AVATARS_BINDING = 'AVATARS'
+
+// Minimal R2 surface we use — typed locally so non-CF builds don't need workers-types.
+export interface R2ObjectBodyLike {
+  arrayBuffer(): Promise<ArrayBuffer>
+  httpMetadata?: { contentType?: string }
+}
+export interface R2BucketLike {
+  put(
+    key: string,
+    value: ArrayBuffer | ArrayBufferView | ReadableStream | Blob,
+    options?: { httpMetadata?: { contentType?: string } },
+  ): Promise<unknown>
+  get(key: string): Promise<R2ObjectBodyLike | null>
+  delete(key: string): Promise<void>
+}

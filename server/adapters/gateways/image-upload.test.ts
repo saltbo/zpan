@@ -9,8 +9,28 @@ type Any = any
 const AVATAR_PREFIX = '_system/avatars'
 const LOGO_PREFIX = '_system/org-logos'
 
-function mockPlatform(env: Record<string, string | undefined> = {}): Platform {
-  return { db: {} as Any, getEnv: (k: string) => env[k], getBinding: () => undefined } as unknown as Platform
+function mockPlatform(env: Record<string, string | undefined> = {}, avatarsBucket?: unknown): Platform {
+  return {
+    db: {} as Any,
+    getEnv: (k: string) => env[k],
+    getBinding: (k: string) => (k === 'AVATARS' ? avatarsBucket : undefined),
+  } as unknown as Platform
+}
+
+// In-memory R2 stand-in capturing put/get/delete the gateway issues.
+function mockR2Bucket() {
+  const store = new Map<string, { body: ArrayBuffer; contentType?: string }>()
+  const put = vi.fn(async (key: string, value: ArrayBuffer, opts?: { httpMetadata?: { contentType?: string } }) => {
+    store.set(key, { body: value, contentType: opts?.httpMetadata?.contentType })
+  })
+  const get = vi.fn(async (key: string) => {
+    const o = store.get(key)
+    return o ? { arrayBuffer: async () => o.body, httpMetadata: { contentType: o.contentType } } : null
+  })
+  const del = vi.fn(async (key: string) => {
+    store.delete(key)
+  })
+  return { bucket: { put, get, delete: del }, put, get, delete: del, store }
 }
 
 function activeBinding(refreshToken: string | null = 'refresh-token'): LicenseState {
@@ -248,5 +268,90 @@ describe('deletePublicImageVariants — Cloud avatar service', () => {
     const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
 
     await expect(gw.deletePublicImageVariants(mockPlatform(), LOGO_PREFIX, 'team-1')).resolves.toBeUndefined()
+  })
+})
+
+describe('uploadPublicImage — AVATARS R2 binding (self-hosted, no Cloud)', () => {
+  it('uploads straight to R2 and returns the instance serve URL, never calling Cloud', async () => {
+    const r2 = mockR2Bucket()
+    const { gateway, createAvatarUploadClient } = mockLicensingCloud({})
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
+
+    const result = await gw.uploadPublicImage(mockPlatform({}, r2.bucket), AVATAR_PREFIX, 'u1', makeFile('image/png'))
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.url).toMatch(/^\/api\/avatar-blobs\/user\/u1\?v=[0-9a-f]{12}$/)
+    expect(r2.put).toHaveBeenCalledOnce()
+    expect(r2.put.mock.calls[0]?.[0]).toBe('user/u1')
+    expect(r2.put.mock.calls[0]?.[2]).toEqual({ httpMetadata: { contentType: 'image/png' } })
+    // The R2 binding short-circuits the Cloud path entirely.
+    expect(createAvatarUploadClient).not.toHaveBeenCalled()
+  })
+
+  it('uses AVATARS_PUBLIC_URL (R2 custom domain) and the team scope for org logos', async () => {
+    const r2 = mockR2Bucket()
+    const { gateway } = mockLicensingCloud({})
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
+
+    const result = await gw.uploadPublicImage(
+      mockPlatform({ AVATARS_PUBLIC_URL: 'https://cdn.example.com/' }, r2.bucket),
+      LOGO_PREFIX,
+      'team-1',
+      makeFile('image/webp'),
+    )
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.url).toMatch(/^https:\/\/cdn\.example\.com\/team\/team-1\?v=[0-9a-f]{12}$/)
+    expect(r2.put.mock.calls[0]?.[0]).toBe('team/team-1')
+  })
+
+  it('still validates mime/size before touching R2', async () => {
+    const r2 = mockR2Bucket()
+    const { gateway } = mockLicensingCloud({})
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
+
+    const bad = await gw.uploadPublicImage(
+      mockPlatform({}, r2.bucket),
+      AVATAR_PREFIX,
+      'u1',
+      makeFile('application/pdf'),
+    )
+    expect(bad.ok).toBe(false)
+    if (!bad.ok) expect(bad.status).toBe(400)
+
+    const big = await gw.uploadPublicImage(
+      mockPlatform({}, r2.bucket),
+      AVATAR_PREFIX,
+      'u1',
+      makeFile('image/png', 2 * 1024 * 1024),
+    )
+    expect(big.ok).toBe(false)
+    if (!big.ok) expect(big.status).toBe(413)
+
+    expect(r2.put).not.toHaveBeenCalled()
+  })
+})
+
+describe('deletePublicImageVariants — AVATARS R2 binding', () => {
+  it('deletes straight from R2 for the scope/id, never calling Cloud', async () => {
+    const r2 = mockR2Bucket()
+    const { gateway, createAvatarUploadClient } = mockLicensingCloud({})
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
+
+    await gw.deletePublicImageVariants(mockPlatform({}, r2.bucket), AVATAR_PREFIX, 'u1')
+
+    expect(r2.delete).toHaveBeenCalledWith('user/u1')
+    expect(createAvatarUploadClient).not.toHaveBeenCalled()
+  })
+
+  it('swallows R2 delete failures (best-effort)', async () => {
+    const r2 = mockR2Bucket()
+    r2.delete.mockRejectedValueOnce(new Error('boom'))
+    const { gateway } = mockLicensingCloud({})
+    const gw = createImageUploadGateway(mockLicenseBinding(activeBinding()), gateway)
+
+    await expect(
+      gw.deletePublicImageVariants(mockPlatform({}, r2.bucket), LOGO_PREFIX, 'team-1'),
+    ).resolves.toBeUndefined()
   })
 })
