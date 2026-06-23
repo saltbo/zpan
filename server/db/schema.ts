@@ -69,6 +69,7 @@ export const storages = sqliteTable('storages', {
   egressCreditBillingEnabled: integer('egress_credit_billing_enabled', { mode: 'boolean' }).notNull().default(false),
   egressCreditUnitBytes: integer('egress_credit_unit_bytes').notNull().default(104857600),
   egressCreditPerUnit: integer('egress_credit_per_unit').notNull().default(1),
+  forcePathStyle: integer('force_path_style', { mode: 'boolean' }).notNull().default(true),
   used: integer('used').notNull().default(0),
   status: text('status').notNull().default('active'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),

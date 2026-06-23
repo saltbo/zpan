@@ -41,6 +41,7 @@ const storageFormSchema = z.object({
   egressCreditUnitValue: z.coerce.number<number>().min(1),
   egressCreditUnit: z.enum(['MB', 'GB', 'TB']),
   egressCreditPerUnit: z.coerce.number<number>().int().min(1),
+  forcePathStyle: z.boolean(),
 })
 
 type StorageFormValues = z.infer<typeof storageFormSchema>
@@ -59,6 +60,7 @@ const DEFAULT_VALUES: StorageFormValues = {
   egressCreditUnitValue: 100,
   egressCreditUnit: 'MB',
   egressCreditPerUnit: 1,
+  forcePathStyle: true,
 }
 
 interface StorageFormDrawerProps {
@@ -98,6 +100,7 @@ export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilli
         egressCreditUnitValue: egressUnit.value,
         egressCreditUnit: egressUnit.unit,
         egressCreditPerUnit: storage.egressCreditPerUnit ?? 1,
+        forcePathStyle: storage.forcePathStyle ?? true,
       })
     } else {
       form.reset({ ...DEFAULT_VALUES, egressCreditBillingEnabled: false })
@@ -184,6 +187,20 @@ export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilli
               <FormField label={t('admin.storages.fieldCustomHost')} error={form.formState.errors.customHost?.message}>
                 <Input {...form.register('customHost')} placeholder={t('admin.storages.customHostPlaceholder')} />
               </FormField>
+
+              <div className="rounded-md border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <Label htmlFor="forcePathStyle">{t('admin.storages.fieldForcePathStyle')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('admin.storages.forcePathStyleHint')}</p>
+                  </div>
+                  <Switch
+                    id="forcePathStyle"
+                    checked={form.watch('forcePathStyle')}
+                    onCheckedChange={(checked) => form.setValue('forcePathStyle', checked)}
+                  />
+                </div>
+              </div>
 
               <FormField label={t('admin.storages.fieldCapacity')} error={form.formState.errors.capacityValue?.message}>
                 <div className="flex items-center gap-2">

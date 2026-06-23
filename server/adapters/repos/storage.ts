@@ -43,6 +43,7 @@ export function createStorageRepo(db: Database): StorageRepo {
         egressCreditBillingEnabled: input.egressCreditBillingEnabled ?? false,
         egressCreditUnitBytes: input.egressCreditUnitBytes ?? 104857600,
         egressCreditPerUnit: input.egressCreditPerUnit ?? 1,
+        forcePathStyle: input.forcePathStyle ?? true,
         used: 0,
         status: 'active',
         createdAt: now,
@@ -74,6 +75,7 @@ export function createStorageRepo(db: Database): StorageRepo {
         egressCreditBillingEnabled: input.egressCreditBillingEnabled ?? existing.egressCreditBillingEnabled,
         egressCreditUnitBytes: input.egressCreditUnitBytes ?? existing.egressCreditUnitBytes,
         egressCreditPerUnit: input.egressCreditPerUnit ?? existing.egressCreditPerUnit,
+        forcePathStyle: input.forcePathStyle ?? existing.forcePathStyle,
         status: input.status ?? existing.status,
         updatedAt: now,
       }

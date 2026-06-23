@@ -735,6 +735,8 @@
   "admin.storages.fieldAccessKey": "Access Key",
   "admin.storages.fieldSecretKey": "Secret Key",
   "admin.storages.fieldCustomHost": "自定义域名",
+  "admin.storages.fieldForcePathStyle": "路径样式",
+  "admin.storages.forcePathStyleHint": "使用路径样式寻址 (endpoint/bucket/key)，关闭则使用虚拟主机样式 (bucket.endpoint/key)。",
   "admin.storages.fieldCapacity": "可用空间",
   "admin.storages.capacityUnlimited": "不限制",
   "admin.storages.capacityHint": "最大存储空间，0 表示不限制。",
