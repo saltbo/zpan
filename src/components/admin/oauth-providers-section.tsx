@@ -184,8 +184,8 @@ export function OAuthProvidersSection() {
           <Table className="table-fixed">
             <TableHeader>
               <TableRow className="border-b bg-muted/50">
-                <TableHead className="w-[30%] px-4 py-3">{t('admin.auth.provider')}</TableHead>
-                <TableHead className="w-[44%] px-4 py-3">{t('admin.auth.clientId')}</TableHead>
+                <TableHead className="w-[20%] px-4 py-3">{t('admin.auth.provider')}</TableHead>
+                <TableHead className="w-[54%] px-4 py-3">{t('admin.auth.clientId')}</TableHead>
                 <TableHead className="w-28 px-4 py-3">{t('admin.auth.enabled')}</TableHead>
                 <TableHead className="w-24 px-4 py-3 text-right">{t('admin.auth.colActions')}</TableHead>
               </TableRow>
