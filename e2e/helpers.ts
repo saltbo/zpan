@@ -178,6 +178,7 @@ export async function unbindCloudTestLicenses(cloudRequest: APIRequestContext) {
   const licenses = body.items
   for (const license of licenses) {
     const deleted = await cloudRequest.delete(`/api/licenses/${encodeURIComponent(license.id)}`)
+    if (deleted.status() === 404 && (await cloudErrorCode(deleted)) === 'not_found') continue
     await expectCloudOk(deleted, 'Cloud license cleanup failed')
   }
 }
