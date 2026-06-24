@@ -1332,6 +1332,29 @@ describe('Download tasks API integration', () => {
       headers: { ...user, 'Content-Type': 'application/json' },
     })
     expect(deleteRes.status).toBe(204)
+
+    const deleteControlRes = await app.request('/api/downloads/tasks?assignedTo=me&status=canceling', {
+      headers: { Authorization: `Bearer ${createdDownloader.token}` },
+    })
+    expect(deleteControlRes.status).toBe(200)
+    const deleteControl = (await deleteControlRes.json()) as DownloadTaskList
+    const deleteControlTask = deleteControl.items.find((item) => item.id === createdTask.id)
+    expect(deleteControlTask).toMatchObject({
+      status: {
+        state: 'canceling',
+        runtime: { state: 'delete_requested' },
+      },
+    })
+
+    const deleteAckRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+    expect(deleteAckRes.status).toBe(200)
+
+    const deletedTaskRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, { headers: user })
+    expect(deletedTaskRes.status).toBe(404)
   })
 
   it('lets the assigned downloader recover interrupted tasks without resuming user-paused tasks [spec: download-tasks/recover-interrupted]', async () => {

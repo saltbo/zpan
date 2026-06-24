@@ -72,6 +72,7 @@ const RESTARTABLE_TASK_STATUSES = [
   'completed',
 ] as const
 const DOWNLOADER_TOKEN_TASK_STATUSES = ['assigned', 'downloading', 'uploading', 'interrupted'] as const
+const DELETE_REQUESTED_RUNTIME_STATE = 'delete_requested'
 const DELETE_DOWNLOADER_REQUEUE_STATUSES = [
   'queued',
   'assigned',
@@ -256,6 +257,16 @@ export async function updateDownloadTask(
     return deps.downloadTasks.get(task.orgId, id)
   }
   if (actor.downloaderId && task.status === 'canceling' && input.status === 'canceled') {
+    if (parseTaskRuntime(task.runtime)?.state === DELETE_REQUESTED_RUNTIME_STATE) {
+      await deps.downloadTasks.delete(id)
+      return downloadTaskFromRecord({
+        ...task,
+        status: 'canceled',
+        runtime: null,
+        finishedAt: task.finishedAt ?? now,
+        updatedAt: now,
+      })
+    }
     await deps.downloadTasks.setFields(id, {
       status: 'canceled',
       runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
@@ -380,16 +391,27 @@ export async function performDownloadTaskAction(
   action: DownloadTaskActionInput['action'],
 ): Promise<DownloadTask | { id: string; deleted: true }> {
   const task = await deps.downloadTasks.getRecord(orgId, id)
+  const now = new Date()
 
   if (action === 'delete') {
     if (!TERMINAL_TASK_STATUSES.includes(task.status as (typeof TERMINAL_TASK_STATUSES)[number])) {
       throw new DownloadError('invalid_state', 'Only completed, failed, or canceled tasks can be deleted')
     }
+    if (task.assignedDownloaderId) {
+      await deps.downloadTasks.setFields(id, {
+        status: 'canceling',
+        runtime: serializeTaskRuntime({
+          ...(parseTaskRuntime(task.runtime) ?? {}),
+          state: DELETE_REQUESTED_RUNTIME_STATE,
+        }),
+        updatedAt: now,
+      })
+      return { id, deleted: true }
+    }
     await deps.downloadTasks.delete(id)
     return { id, deleted: true }
   }
 
-  const now = new Date()
   if (action === 'pause') {
     if (task.status === 'paused') return deps.downloadTasks.get(orgId, id)
     if (!PAUSABLE_TASK_STATUSES.includes(task.status as (typeof PAUSABLE_TASK_STATUSES)[number])) {
@@ -675,6 +697,62 @@ function clearTaskRuntimeMessage(runtime: DownloadTaskRuntime | null): DownloadT
   if (!runtime?.message) return runtime
   const { message: _message, ...rest } = runtime
   return Object.keys(rest).length > 0 ? rest : null
+}
+
+function downloadTaskFromRecord(row: DownloadTaskRecord): DownloadTask {
+  const runtime = parseTaskRuntime(row.runtime)
+  return {
+    id: row.id,
+    orgId: row.orgId,
+    createdBy: row.createdByUserId,
+    spec: {
+      source: {
+        type: row.sourceType as DownloadTask['spec']['source']['type'],
+        uri: row.sourceUri,
+      },
+      destination: {
+        folder: row.targetFolder,
+        name: row.displayName,
+      },
+      labels: {
+        category: row.category,
+        tags: parseStringArray(row.tags),
+      },
+    },
+    status: {
+      state: row.status as DownloadTask['status']['state'],
+      attempt: row.attempt,
+      assignment: row.assignedDownloaderId
+        ? { downloaderId: row.assignedDownloaderId, assignedAt: row.assignedAt?.toISOString() ?? null }
+        : null,
+      progress: runtime?.progress ?? {
+        download: { bytes: 0, totalBytes: null, bytesPerSecond: 0 },
+        upload: { bytes: 0, totalBytes: null, bytesPerSecond: 0 },
+      },
+      billing: {
+        state: row.billingStatus as DownloadTask['status']['billing']['state'],
+        authorizedBytes: row.billingAuthorizedBytes,
+        chargedBytes: row.billingChargedBytes,
+        chargedCredits: row.billingChargedCredits,
+      },
+      output: row.resultObjectId ? { objectId: row.resultObjectId } : null,
+      runtime,
+      error: row.errorMessage ? { code: row.errorCode, message: row.errorMessage } : null,
+      startedAt: row.startedAt?.toISOString() ?? null,
+      finishedAt: row.finishedAt?.toISOString() ?? null,
+      updatedAt: row.updatedAt.toISOString(),
+    },
+    createdAt: row.createdAt.toISOString(),
+  }
+}
+
+function parseStringArray(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
 }
 
 function parseTaskRuntime(value: string | null): DownloadTaskRuntime | null {

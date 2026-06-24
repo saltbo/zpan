@@ -64,7 +64,7 @@ func TestDownloadThenUploadStopsWhenSuspendedAtStart(t *testing.T) {
 	}
 }
 
-func TestCanceledDownloadCleansRuntimeAndMarksCanceled(t *testing.T) {
+func TestCanceledDownloadPreservesRuntimeAndMarksCanceled(t *testing.T) {
 	api := &recordingAPI{}
 	eng := &recordingEngine{downloadErr: context.Canceled}
 	w := NewWithAPI(config.Config{}, api)
@@ -75,8 +75,8 @@ func TestCanceledDownloadCleansRuntimeAndMarksCanceled(t *testing.T) {
 
 	w.downloadThenUpload(ctx, w.logger, clientTaskWithStatus("task-1", "downloading"), nil)
 
-	if eng.resetCalls != 1 {
-		t.Fatalf("expected canceled task cleanup to reset runtime once, got %d", eng.resetCalls)
+	if eng.resetCalls != 0 {
+		t.Fatalf("expected canceled task to preserve runtime, got %d reset calls", eng.resetCalls)
 	}
 	patch := lastPatchWithStatus(t, api.patches, "canceled")
 	if patch.State() != "canceled" {
@@ -84,7 +84,7 @@ func TestCanceledDownloadCleansRuntimeAndMarksCanceled(t *testing.T) {
 	}
 }
 
-func TestSuspendedDownloadCleansRuntimeWithoutStatusChange(t *testing.T) {
+func TestSuspendedDownloadPreservesRuntimeWithoutStatusChange(t *testing.T) {
 	api := &recordingAPI{}
 	eng := &recordingEngine{downloadErr: context.Canceled}
 	w := NewWithAPI(config.Config{}, api)
@@ -95,19 +95,20 @@ func TestSuspendedDownloadCleansRuntimeWithoutStatusChange(t *testing.T) {
 
 	w.downloadThenUpload(ctx, w.logger, clientTaskWithStatus("task-1", "downloading"), nil)
 
-	if eng.resetCalls != 1 {
-		t.Fatalf("expected suspended task cleanup to reset runtime once, got %d", eng.resetCalls)
+	if eng.resetCalls != 0 {
+		t.Fatalf("expected suspended task to preserve runtime, got %d reset calls", eng.resetCalls)
 	}
 	if _, ok := findPatchWithStatus(api.patches, "suspended"); ok {
 		t.Fatalf("expected worker not to overwrite server-owned suspended status, got %#v", api.patches)
 	}
-	patch := api.patches[len(api.patches)-1]
-	if patch.Runtime == nil || patch.Runtime.State != localResultRemovedRuntimeState {
-		t.Fatalf("expected suspended cleanup marker, got %#v", patch.Runtime)
+	for _, patch := range api.patches {
+		if patch.Runtime != nil && patch.Runtime.State == localResultRemovedRuntimeState {
+			t.Fatalf("expected suspended task not to mark local result removed, got %#v", patch.Runtime)
+		}
 	}
 }
 
-func TestTickSuspendedControlTaskCleansRuntimeOnlyOnce(t *testing.T) {
+func TestTickSuspendedControlTaskPreservesRuntime(t *testing.T) {
 	api := &recordingAPI{
 		controlTasks: []client.DownloadTask{clientTaskWithStatus("task-1", "suspended")},
 	}
@@ -119,37 +120,32 @@ func TestTickSuspendedControlTaskCleansRuntimeOnlyOnce(t *testing.T) {
 	if err := w.tick(context.Background()); err != nil {
 		t.Fatalf("first tick: %v", err)
 	}
-	if eng.resetCalls != 1 {
-		t.Fatalf("expected first suspended control poll to clean once, got %d", eng.resetCalls)
+	if eng.resetCalls != 0 {
+		t.Fatalf("expected suspended control poll to preserve runtime, got %d reset calls", eng.resetCalls)
 	}
-	if len(api.patches) != 1 {
-		t.Fatalf("expected first suspended control cleanup to record runtime once, got %#v", api.patches)
-	}
-	patch := api.patches[0]
-	if patch.State() != "" {
-		t.Fatalf("expected suspended control cleanup to preserve server-owned status, got %#v", patch)
-	}
-	if patch.Runtime == nil || patch.Runtime.State != localResultRemovedRuntimeState {
-		t.Fatalf("expected suspended control cleanup marker, got %#v", patch.Runtime)
+	if len(api.patches) != 0 {
+		t.Fatalf("expected suspended control poll not to patch task, got %#v", api.patches)
 	}
 
 	if err := w.tick(context.Background()); err != nil {
 		t.Fatalf("second tick: %v", err)
 	}
-	if eng.resetCalls != 1 {
-		t.Fatalf("expected repeated suspended control polls to avoid duplicate cleanup, got %d", eng.resetCalls)
+	if eng.resetCalls != 0 {
+		t.Fatalf("expected repeated suspended control polls not to clean runtime, got %d reset calls", eng.resetCalls)
 	}
-	if len(api.patches) != 1 {
-		t.Fatalf("expected repeated suspended control polls not to rewrite cleanup marker, got %#v", api.patches)
+	if len(api.patches) != 0 {
+		t.Fatalf("expected repeated suspended control polls not to patch task, got %#v", api.patches)
 	}
 	if got := api.controlTasks[0].State(); got != "suspended" {
 		t.Fatalf("expected recorded control task status to stay suspended, got %q", got)
 	}
 }
 
-func TestSuspendedControlTaskResumeAfterCleanupRedownloads(t *testing.T) {
+func TestDeleteRequestedControlTaskCleansRuntimeAndAcksCanceled(t *testing.T) {
 	api := &recordingAPI{
-		controlTasks: []client.DownloadTask{clientTaskWithStatus("task-1", "suspended")},
+		controlTasks: []client.DownloadTask{
+			withRuntime(clientTaskWithStatus("task-1", "canceling"), &client.DownloadTaskRuntime{State: deleteRequestedRuntimeState}),
+		},
 	}
 	eng := &recordingEngine{}
 	w := NewWithAPI(config.Config{}, api)
@@ -159,31 +155,37 @@ func TestSuspendedControlTaskResumeAfterCleanupRedownloads(t *testing.T) {
 	if err := w.tick(context.Background()); err != nil {
 		t.Fatalf("tick: %v", err)
 	}
-	marker := api.controlTasks[0].Runtime()
-	if marker == nil || marker.State != localResultRemovedRuntimeState {
-		t.Fatalf("expected suspended control task to record cleanup marker, got %#v", marker)
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected delete-requested task to clean runtime once, got %d reset calls", eng.resetCalls)
 	}
-
-	total := int64(100)
-	eng.downloadErr = errors.New("redownload missing local result")
-	w.process(context.Background(), withRuntime(
-		withDownloadCheckpoint(clientTaskWithStatus("task-1", "assigned"), total, &total),
-		marker,
-	))
-
-	if eng.inspectCalls != 0 {
-		t.Fatalf("expected cleaned suspended result to skip runtime upload inspection, got %d inspect calls", eng.inspectCalls)
-	}
-	if eng.downloadCalls != 1 {
-		t.Fatalf("expected cleaned suspended result to resume via download path, got %d download calls", eng.downloadCalls)
-	}
-	failed := lastPatchWithStatus(t, api.patches, "failed")
-	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "redownload missing local result") {
-		t.Fatalf("expected resumed redownload failure to be reported, got %#v", failed.ErrorMessage)
+	patch := lastPatchWithStatus(t, api.patches, "canceled")
+	if patch.State() != "canceled" {
+		t.Fatalf("expected delete-requested cleanup to ack canceled, got %#v", patch)
 	}
 }
 
-func TestFailedDownloadCleansRuntimeAndMarksFailed(t *testing.T) {
+func TestCancelingControlTaskWithoutDeleteRequestPreservesRuntime(t *testing.T) {
+	api := &recordingAPI{
+		controlTasks: []client.DownloadTask{clientTaskWithStatus("task-1", "canceling")},
+	}
+	eng := &recordingEngine{}
+	w := NewWithAPI(config.Config{}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = eng
+
+	if err := w.tick(context.Background()); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if eng.resetCalls != 0 {
+		t.Fatalf("expected canceling task without delete request to preserve runtime, got %d reset calls", eng.resetCalls)
+	}
+	patch := lastPatchWithStatus(t, api.patches, "canceled")
+	if patch.State() != "canceled" {
+		t.Fatalf("expected canceling task to ack canceled, got %#v", patch)
+	}
+}
+
+func TestFailedDownloadPreservesRuntimeAndMarksFailed(t *testing.T) {
 	api := &recordingAPI{}
 	eng := &recordingEngine{downloadErr: errors.New("disk write failed")}
 	w := NewWithAPI(config.Config{}, api)
@@ -192,8 +194,8 @@ func TestFailedDownloadCleansRuntimeAndMarksFailed(t *testing.T) {
 
 	w.downloadThenUpload(context.Background(), w.logger, clientTaskWithStatus("task-1", "downloading"), nil)
 
-	if eng.resetCalls != 1 {
-		t.Fatalf("expected failed task cleanup to reset runtime once, got %d", eng.resetCalls)
+	if eng.resetCalls != 0 {
+		t.Fatalf("expected failed task to preserve runtime, got %d reset calls", eng.resetCalls)
 	}
 	failed := lastPatchWithStatus(t, api.patches, "failed")
 	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "disk write failed") {
@@ -201,7 +203,7 @@ func TestFailedDownloadCleansRuntimeAndMarksFailed(t *testing.T) {
 	}
 }
 
-func TestTerminalDownloadStopsCleanPartialFiles(t *testing.T) {
+func TestTerminalDownloadStopsPreservePartialFiles(t *testing.T) {
 	cases := []struct {
 		name          string
 		cancelCause   error
@@ -278,8 +280,8 @@ func TestTerminalDownloadStopsCleanPartialFiles(t *testing.T) {
 				lastPatchWithStatus(t, api.patches, tc.wantStatus)
 			}
 			taskDir := filepath.Join(downloadDir, task.ID)
-			if _, err := os.Stat(taskDir); !os.IsNotExist(err) {
-				t.Fatalf("expected %s cleanup after %s stop, got err=%v", taskDir, tc.name, err)
+			if _, err := os.Stat(taskDir); err != nil {
+				t.Fatalf("expected %s to remain after %s stop, got err=%v", taskDir, tc.name, err)
 			}
 			if tc.requireStop {
 				for _, forbidden := range []string{"failed", "interrupted", "canceled", "paused"} {
@@ -735,15 +737,15 @@ func TestUploadFailurePersistsDownloadCheckpoint(t *testing.T) {
 	if failed.Progress.Download.TotalBytes == nil || *failed.Progress.Download.TotalBytes != result.Size {
 		t.Fatalf("expected total bytes %d, got %#v", result.Size, failed.Progress.Download.TotalBytes)
 	}
-	if failed.Runtime == nil || failed.Runtime.Phase != "error" || failed.Runtime.State != localResultRemovedRuntimeState {
-		t.Fatalf("expected local-result-removed runtime, got %#v", failed.Runtime)
+	if failed.Runtime != nil && failed.Runtime.State == localResultRemovedRuntimeState {
+		t.Fatalf("expected upload failure to preserve local result runtime, got %#v", failed.Runtime)
 	}
-	if _, err := os.Stat(resultPath); !os.IsNotExist(err) {
-		t.Fatalf("expected upload failure to remove local result path, stat err=%v", err)
+	if _, err := os.Stat(resultPath); err != nil {
+		t.Fatalf("expected upload failure to preserve local result path, stat err=%v", err)
 	}
 }
 
-func TestWorkerLifecycleUploadFailureCleansLocalResult(t *testing.T) {
+func TestWorkerLifecycleUploadFailurePreservesLocalResult(t *testing.T) {
 	payloadPath := writeTempFile(t, "downloaded payload")
 	payloadSize := int64(len("downloaded payload"))
 	uploadRequests := 0
@@ -777,18 +779,18 @@ func TestWorkerLifecycleUploadFailureCleansLocalResult(t *testing.T) {
 	if failed.Progress == nil || failed.Progress.Download == nil || failed.Progress.Download.Bytes != payloadSize {
 		t.Fatalf("expected failed task to persist downloaded bytes %d, got %#v", payloadSize, failed.Progress)
 	}
-	if failed.Runtime == nil || failed.Runtime.State != localResultRemovedRuntimeState {
-		t.Fatalf("expected failed task to mark local result removed, got %#v", failed.Runtime)
+	if failed.Runtime != nil && failed.Runtime.State == localResultRemovedRuntimeState {
+		t.Fatalf("expected failed task to preserve local result runtime, got %#v", failed.Runtime)
 	}
 	if uploadRequests != 1 {
 		t.Fatalf("expected one upload attempt, got %d", uploadRequests)
 	}
-	if _, err := os.Stat(payloadPath); !os.IsNotExist(err) {
-		t.Fatalf("expected failed upload to remove local payload, stat err=%v", err)
+	if _, err := os.Stat(payloadPath); err != nil {
+		t.Fatalf("expected failed upload to preserve local payload, stat err=%v", err)
 	}
 }
 
-func TestWorkerLifecycleHTTPUploadFailureCleansLocalResult(t *testing.T) {
+func TestWorkerLifecycleHTTPUploadFailurePreservesLocalResult(t *testing.T) {
 	payload := "downloaded payload"
 	downloadRequests := 0
 	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -829,8 +831,8 @@ func TestWorkerLifecycleHTTPUploadFailureCleansLocalResult(t *testing.T) {
 	if uploadRequests != 1 {
 		t.Fatalf("expected one upload attempt, got %d", uploadRequests)
 	}
-	if _, err := os.Stat(filepath.Join(downloadDir, "task-1")); !os.IsNotExist(err) {
-		t.Fatalf("expected failed upload to remove local task directory, stat err=%v", err)
+	if _, err := os.Stat(filepath.Join(downloadDir, "task-1")); err != nil {
+		t.Fatalf("expected failed upload to preserve local task directory, stat err=%v", err)
 	}
 
 	second := NewWithAPI(config.Config{}, api)
@@ -841,11 +843,11 @@ func TestWorkerLifecycleHTTPUploadFailureCleansLocalResult(t *testing.T) {
 		failedRuntime,
 	))
 
-	if downloadRequests != 2 {
-		t.Fatalf("expected retry after cleanup to redownload, got %d requests", downloadRequests)
+	if downloadRequests != 1 {
+		t.Fatalf("expected retry after upload failure to reuse local result, got %d download requests", downloadRequests)
 	}
 	if uploadRequests != 2 {
-		t.Fatalf("expected retry to upload redownloaded file, got %d upload requests", uploadRequests)
+		t.Fatalf("expected retry to upload preserved file, got %d upload requests", uploadRequests)
 	}
 	last := api.patches[len(api.patches)-1]
 	if last.State() != "completed" {
@@ -996,7 +998,7 @@ func TestUploadShutdownMarksTaskInterrupted(t *testing.T) {
 	}
 }
 
-func TestSuspendedUploadCleansLocalResultAndForcesRedownload(t *testing.T) {
+func TestSuspendedUploadPreservesLocalResult(t *testing.T) {
 	downloadDir := t.TempDir()
 	taskDir := filepath.Join(downloadDir, "task-1")
 	if err := os.MkdirAll(taskDir, 0o755); err != nil {
@@ -1026,19 +1028,13 @@ func TestSuspendedUploadCleansLocalResultAndForcesRedownload(t *testing.T) {
 	if _, ok := findPatchWithStatus(api.patches, "suspended"); ok {
 		t.Fatalf("expected worker not to overwrite server-owned suspended status, got %#v", api.patches)
 	}
-	patch := api.patches[len(api.patches)-1]
-	if patch.Runtime == nil || patch.Runtime.State != localResultRemovedRuntimeState {
-		t.Fatalf("expected suspended upload cleanup marker, got %#v", patch.Runtime)
+	for _, patch := range api.patches {
+		if patch.Runtime != nil && patch.Runtime.State == localResultRemovedRuntimeState {
+			t.Fatalf("expected suspended upload not to mark local result removed, got %#v", patch.Runtime)
+		}
 	}
-	if _, err := os.Stat(taskDir); !os.IsNotExist(err) {
-		t.Fatalf("expected suspended upload to remove local task directory, stat err=%v", err)
-	}
-	resumed := withRuntime(
-		withDownloadCheckpoint(clientTaskWithStatus("task-1", "assigned"), payloadSize, &payloadSize),
-		patch.Runtime,
-	)
-	if got := nextTaskWorkStage(resumed); got != taskWorkStageDownload {
-		t.Fatalf("expected resumed cleaned upload to redownload, got stage %v", got)
+	if _, err := os.Stat(taskDir); err != nil {
+		t.Fatalf("expected suspended upload to preserve local task directory, stat err=%v", err)
 	}
 }
 
