@@ -1323,6 +1323,7 @@ type AuditEventPage struct {
 
 // AuthProvider defines model for AuthProvider.
 type AuthProvider struct {
+	CallbackUri  string    `json:"callbackUri"`
 	ClientId     string    `json:"clientId"`
 	ClientSecret *string   `json:"clientSecret"`
 	DiscoveryUrl *string   `json:"discoveryUrl"`
@@ -1336,10 +1337,11 @@ type AuthProvider struct {
 
 // AuthProviderList defines model for AuthProviderList.
 type AuthProviderList struct {
-	Items    []AuthProvider `json:"items"`
-	Page     int            `json:"page"`
-	PageSize int            `json:"pageSize"`
-	Total    int            `json:"total"`
+	CallbackBaseUri string         `json:"callbackBaseUri"`
+	Items           []AuthProvider `json:"items"`
+	Page            int            `json:"page"`
+	PageSize        int            `json:"pageSize"`
+	Total           int            `json:"total"`
 }
 
 // BackgroundJob defines model for BackgroundJob.

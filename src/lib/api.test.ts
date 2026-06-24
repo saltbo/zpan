@@ -2016,6 +2016,7 @@ describe('api', () => {
     it('fetches auth providers list from /api/site/auth-providers', async () => {
       const payload = {
         items: [{ providerId: 'github', type: 'oauth', name: 'GitHub', icon: '' }],
+        callbackBaseUri: 'https://files.example',
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
@@ -2028,7 +2029,9 @@ describe('api', () => {
 
     it('returns items array with expected provider shape', async () => {
       const provider = { providerId: 'google', type: 'oauth', name: 'Google', icon: 'google-icon' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [provider] }))
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ items: [provider], callbackBaseUri: 'https://files.example' }),
+      )
 
       const result = await listAuthProviders()
 
@@ -2040,11 +2043,12 @@ describe('api', () => {
     })
 
     it('returns empty items array when no providers are configured', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [] }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], callbackBaseUri: 'https://files.example' }))
 
       const result = await listAuthProviders()
 
       expect(result.items).toHaveLength(0)
+      expect(result.callbackBaseUri).toBe('https://files.example')
     })
 
     it('throws on error response', async () => {
@@ -2054,7 +2058,7 @@ describe('api', () => {
     })
 
     it('passes credentials: include', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [] }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], callbackBaseUri: 'https://files.example' }))
 
       await listAuthProviders()
 

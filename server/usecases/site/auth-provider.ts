@@ -38,11 +38,21 @@ function maskSecret(secret: string): string {
   return `${'*'.repeat(secret.length - 4)}${secret.slice(-4)}`
 }
 
+function callbackPath(config: OAuthProviderConfig): string {
+  return config.type === 'oidc'
+    ? `/api/auth/oauth2/callback/${config.providerId}`
+    : `/api/auth/callback/${config.providerId}`
+}
+
+export function providerCallbackUri(config: OAuthProviderConfig, authOrigin: string): string {
+  return `${authOrigin.replace(/\/$/, '')}${callbackPath(config)}`
+}
+
 // Map a stored config to the one monomorphic AuthProvider shape every caller sees.
 // Role changes values only: admin gets a masked clientSecret, front-of-house gets null.
 // name/icon come from the static OAuthProviderMeta registry (providerId fallback);
 // clientId/discoveryUrl/scopes are not secrets, so they are exposed to everyone.
-function toAuthProvider(config: OAuthProviderConfig, isAdmin: boolean): AuthProvider {
+function toAuthProvider(config: OAuthProviderConfig, isAdmin: boolean, authOrigin: string): AuthProvider {
   const meta = OAuthProviderMeta[config.providerId]
   return {
     providerId: config.providerId,
@@ -53,6 +63,7 @@ function toAuthProvider(config: OAuthProviderConfig, isAdmin: boolean): AuthProv
     clientId: config.clientId,
     discoveryUrl: config.discoveryUrl ?? null,
     scopes: config.scopes ?? null,
+    callbackUri: providerCallbackUri(config, authOrigin),
     clientSecret: isAdmin ? maskSecret(config.clientSecret) : null,
   }
 }
@@ -79,14 +90,14 @@ const INVALID_PROVIDER_ID_MESSAGE = 'Provider ID must contain only lowercase let
 // difference (mask / null / filter), never a shape difference.
 export async function listAuthProviders(
   deps: Pick<AuthProviderDeps, 'systemOptions'>,
-  { isAdmin }: { isAdmin: boolean },
+  { isAdmin, authOrigin }: { isAdmin: boolean; authOrigin: string },
 ): Promise<{ items: AuthProvider[] }> {
   const rows = await deps.systemOptions.listByKeyLike(OAUTH_PROVIDER_KEY_PATTERN)
   const items = rows
     .map((r) => parseProviderConfig(r.value))
     .filter((config) => config !== null)
     .filter((config) => isAdmin || config.enabled)
-    .map((config) => toAuthProvider(config, isAdmin))
+    .map((config) => toAuthProvider(config, isAdmin, authOrigin))
   return { items }
 }
 
@@ -94,6 +105,7 @@ export async function upsertAuthProvider(
   deps: AuthProviderDeps,
   providerId: string,
   input: UpsertProviderInput,
+  { authOrigin }: { authOrigin: string },
 ): Promise<UpsertProviderOutcome> {
   if (!isValidProviderId(providerId)) return { ok: false, error: badRequest(INVALID_PROVIDER_ID_MESSAGE) }
   if (input.type === 'builtin' && !BUILTIN_PROVIDER_IDS.includes(providerId)) {
@@ -132,7 +144,7 @@ export async function upsertAuthProvider(
     await deps.systemOptions.set(key, value, false)
   }
 
-  return { ok: true, config: toAuthProvider(config, true) }
+  return { ok: true, config: toAuthProvider(config, true, authOrigin) }
 }
 
 export async function deleteAuthProvider(

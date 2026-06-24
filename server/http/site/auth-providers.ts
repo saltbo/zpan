@@ -1,5 +1,4 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { deleteAuthProvider, listAuthProviders, upsertAuthProvider } from '../../usecases/site/auth-provider'
@@ -18,11 +17,20 @@ const authProviderSchema = z
     clientId: z.string(),
     discoveryUrl: z.string().nullable(),
     scopes: z.array(z.string()).nullable(),
+    callbackUri: z.string(),
     clientSecret: z.string().nullable(),
   })
   .openapi('AuthProvider')
 
-const authProviderListSchema = pageSchema(authProviderSchema, 'AuthProviderList')
+const authProviderListSchema = z
+  .object({
+    items: z.array(authProviderSchema),
+    total: z.number().int(),
+    page: z.number().int(),
+    pageSize: z.number().int(),
+    callbackBaseUri: z.string(),
+  })
+  .openapi('AuthProviderList')
 
 const upsertSchema = z.object({
   type: z.enum(['builtin', 'oidc']),
@@ -71,15 +79,26 @@ const deleteProviderRoute = createRoute({
   },
 })
 
+function resolveAuthBaseUri(c: { get(key: 'platform'): Env['Variables']['platform']; req: { url: string } }): string {
+  // Prefer the configured Better Auth base URL because OAuth providers validate
+  // redirects against the auth runtime base. Fall back to request origin for
+  // deployments that rely on per-request Worker/Node origin behavior.
+  return c.get('platform').getEnv('BETTER_AUTH_URL')?.trim() || new URL(c.req.url).origin
+}
+
 // One auth-providers resource. GET / serves the enabled list without secrets to
 // anonymous/login callers, and the full config to admins; writes are admin-only.
 export const authProviders = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
-    const { items } = await listAuthProviders(c.get('deps'), { isAdmin: c.get('userRole') === 'admin' })
-    return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
+    const authOrigin = resolveAuthBaseUri(c)
+    const { items } = await listAuthProviders(c.get('deps'), { isAdmin: c.get('userRole') === 'admin', authOrigin })
+    return c.json({ items, total: items.length, page: 1, pageSize: items.length, callbackBaseUri: authOrigin }, 200)
   })
   .openapi(upsertRoute, async (c) => {
-    const result = await upsertAuthProvider(c.get('deps'), c.req.valid('param').providerId, c.req.valid('json'))
+    const authOrigin = resolveAuthBaseUri(c)
+    const result = await upsertAuthProvider(c.get('deps'), c.req.valid('param').providerId, c.req.valid('json'), {
+      authOrigin,
+    })
     if (!result.ok) throw result.error
     return c.json(result.config, 200)
   })
