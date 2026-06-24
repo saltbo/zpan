@@ -64,6 +64,154 @@ func TestDownloadThenUploadStopsWhenSuspendedAtStart(t *testing.T) {
 	}
 }
 
+func TestCanceledDownloadCleansRuntimeAndMarksCanceled(t *testing.T) {
+	api := &recordingAPI{}
+	eng := &recordingEngine{downloadErr: context.Canceled}
+	w := NewWithAPI(config.Config{}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = eng
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cancel(errTaskCanceling)
+
+	w.downloadThenUpload(ctx, w.logger, clientTaskWithStatus("task-1", "downloading"), nil)
+
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected canceled task cleanup to reset runtime once, got %d", eng.resetCalls)
+	}
+	patch := lastPatchWithStatus(t, api.patches, "canceled")
+	if patch.State() != "canceled" {
+		t.Fatalf("expected canceled patch, got %#v", patch)
+	}
+}
+
+func TestSuspendedDownloadCleansRuntimeWithoutStatusChange(t *testing.T) {
+	api := &recordingAPI{}
+	eng := &recordingEngine{downloadErr: context.Canceled}
+	w := NewWithAPI(config.Config{}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = eng
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cancel(errTaskSuspended)
+
+	w.downloadThenUpload(ctx, w.logger, clientTaskWithStatus("task-1", "downloading"), nil)
+
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected suspended task cleanup to reset runtime once, got %d", eng.resetCalls)
+	}
+	if _, ok := findPatchWithStatus(api.patches, "suspended"); ok {
+		t.Fatalf("expected worker not to overwrite server-owned suspended status, got %#v", api.patches)
+	}
+}
+
+func TestFailedDownloadCleansRuntimeAndMarksFailed(t *testing.T) {
+	api := &recordingAPI{}
+	eng := &recordingEngine{downloadErr: errors.New("disk write failed")}
+	w := NewWithAPI(config.Config{}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = eng
+
+	w.downloadThenUpload(context.Background(), w.logger, clientTaskWithStatus("task-1", "downloading"), nil)
+
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected failed task cleanup to reset runtime once, got %d", eng.resetCalls)
+	}
+	failed := lastPatchWithStatus(t, api.patches, "failed")
+	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "disk write failed") {
+		t.Fatalf("expected failure message to be reported, got %#v", failed.ErrorMessage)
+	}
+}
+
+func TestTerminalDownloadStopsCleanPartialFiles(t *testing.T) {
+	cases := []struct {
+		name          string
+		cancelCause   error
+		failedMessage string
+		wantStatus    string
+		requireStop   bool
+	}{
+		{
+			name:        "canceled",
+			cancelCause: errTaskCanceling,
+			wantStatus:  "canceled",
+		},
+		{
+			name:        "suspended",
+			cancelCause: errTaskSuspended,
+			requireStop: true,
+		},
+		{
+			name:          "failed",
+			failedMessage: "disk write failed",
+			wantStatus:    "failed",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			api := &recordingAPI{}
+			downloadDir := t.TempDir()
+			partialPath := filepath.Join(downloadDir, "task-1", "payload.bin")
+			ready := make(chan struct{}, 1)
+			eng := &recordingEngine{
+				downloadFunc: func(ctx context.Context, task client.DownloadTask, progress engine.Progress) (engine.Result, error) {
+					if err := os.MkdirAll(filepath.Dir(partialPath), 0o755); err != nil {
+						return engine.Result{}, err
+					}
+					if err := os.WriteFile(partialPath, []byte("partial"), 0o644); err != nil {
+						return engine.Result{}, err
+					}
+					ready <- struct{}{}
+					if tc.failedMessage != "" {
+						return engine.Result{}, errors.New(tc.failedMessage)
+					}
+					<-ctx.Done()
+					return engine.Result{}, ctx.Err()
+				},
+				resetTaskFn: func(context.Context, client.DownloadTask) error {
+					return os.RemoveAll(filepath.Join(downloadDir, "task-1"))
+				},
+			}
+			w := NewWithAPI(config.Config{DownloadDir: downloadDir}, api)
+			w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+			w.engine = eng
+
+			task := clientHTTPTask("task-1", "downloading", "https://example.com/payload.bin", "payload.bin")
+			if tc.cancelCause != nil {
+				ctx, cancel := context.WithCancelCause(context.Background())
+				done := make(chan struct{})
+				go func() {
+					w.downloadThenUpload(ctx, w.logger, task, nil)
+					close(done)
+				}()
+				select {
+				case <-ready:
+				case <-time.After(5 * time.Second):
+					t.Fatal("timed out waiting for partial download")
+				}
+				cancel(tc.cancelCause)
+				waitForWorkerTestCompletion(t, done)
+			} else {
+				w.downloadThenUpload(context.Background(), w.logger, task, nil)
+			}
+
+			if tc.wantStatus != "" {
+				lastPatchWithStatus(t, api.patches, tc.wantStatus)
+			}
+			taskDir := filepath.Join(downloadDir, task.ID)
+			if _, err := os.Stat(taskDir); !os.IsNotExist(err) {
+				t.Fatalf("expected %s cleanup after %s stop, got err=%v", taskDir, tc.name, err)
+			}
+			if tc.requireStop {
+				for _, forbidden := range []string{"failed", "interrupted", "canceled", "paused"} {
+					if _, ok := findPatchWithStatus(api.patches, forbidden); ok {
+						t.Fatalf("expected suspended stop not to emit %q, got %#v", forbidden, api.patches)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestWatchEngineProcessFatalOnUnexpectedExit(t *testing.T) {
 	w := NewWithAPI(config.Config{}, nil)
 	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -233,7 +381,7 @@ func TestReconcileEngineSeedsAdoptsUntrackedOrphans(t *testing.T) {
 }
 
 func TestHeartbeatReportsAggregateTransferSpeeds(t *testing.T) {
-	w := NewWithAPI(config.Config{Engine: "auto", MaxConcurrentTasks: 5}, &recordingAPI{})
+	w := NewWithAPI(config.Config{Engine: "auto", MaxConcurrentTasks: 5, DownloadDir: t.TempDir()}, &recordingAPI{})
 
 	if _, ok := w.startTask(context.Background(), "task-1"); !ok {
 		t.Fatal("expected task-1 to start")
@@ -250,6 +398,9 @@ func TestHeartbeatReportsAggregateTransferSpeeds(t *testing.T) {
 	}
 	if heartbeat.DownloadBps != 400 || heartbeat.UploadBps != 60 {
 		t.Fatalf("expected aggregate speeds 400/60, got %d/%d", heartbeat.DownloadBps, heartbeat.UploadBps)
+	}
+	if heartbeat.FreeDiskBytes <= 0 {
+		t.Fatalf("expected heartbeat to report free disk bytes, got %d", heartbeat.FreeDiskBytes)
 	}
 
 	w.finish("task-1")
@@ -445,11 +596,39 @@ func TestCollectDirectoryEntriesSkipsDownloadSidecars(t *testing.T) {
 	}
 }
 
+func TestCleanupDownloadedResultRemovesTaskDirForNestedDirectoryResult(t *testing.T) {
+	downloadDir := t.TempDir()
+	taskDir := filepath.Join(downloadDir, "task-1")
+	resultDir := filepath.Join(taskDir, "payload")
+	if err := os.MkdirAll(resultDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(resultDir, "file.txt"), []byte("payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "payload.torrent"), []byte("sidecar"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := cleanupDownloadedResult(context.Background(), clientTaskWithStatus("task-1", "downloading"), engine.Result{
+		Path:  resultDir,
+		Name:  "payload",
+		IsDir: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(taskDir); !os.IsNotExist(err) {
+		t.Fatalf("expected nested directory result cleanup to remove task dir, stat err=%v", err)
+	}
+}
+
 func TestUploadFailurePersistsDownloadCheckpoint(t *testing.T) {
 	api := &recordingAPI{createFolderErr: errors.New("unauthorized")}
 	w := NewWithAPI(config.Config{}, api)
+	resultPath := t.TempDir()
 	result := engine.Result{
-		Path:  t.TempDir(),
+		Path:  resultPath,
 		Name:  "album",
 		Size:  1234,
 		IsDir: true,
@@ -476,12 +655,15 @@ func TestUploadFailurePersistsDownloadCheckpoint(t *testing.T) {
 	if failed.Progress.Download.TotalBytes == nil || *failed.Progress.Download.TotalBytes != result.Size {
 		t.Fatalf("expected total bytes %d, got %#v", result.Size, failed.Progress.Download.TotalBytes)
 	}
-	if failed.Runtime == nil || failed.Runtime.Phase != "uploading" {
-		t.Fatalf("expected uploading detail phase, got %#v", failed.Runtime)
+	if failed.Runtime == nil || failed.Runtime.Phase != "error" || failed.Runtime.State != localResultRemovedRuntimeState {
+		t.Fatalf("expected local-result-removed runtime, got %#v", failed.Runtime)
+	}
+	if _, err := os.Stat(resultPath); !os.IsNotExist(err) {
+		t.Fatalf("expected upload failure to remove local result path, stat err=%v", err)
 	}
 }
 
-func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
+func TestWorkerLifecycleUploadFailureCleansLocalResult(t *testing.T) {
 	payloadPath := writeTempFile(t, "downloaded payload")
 	payloadSize := int64(len("downloaded payload"))
 	uploadRequests := 0
@@ -515,33 +697,18 @@ func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
 	if failed.Progress == nil || failed.Progress.Download == nil || failed.Progress.Download.Bytes != payloadSize {
 		t.Fatalf("expected failed task to persist downloaded bytes %d, got %#v", payloadSize, failed.Progress)
 	}
-	if failed.Runtime == nil || failed.Runtime.Phase != "uploading" {
-		t.Fatalf("expected failed task to persist uploading phase, got %#v", failed.Runtime)
+	if failed.Runtime == nil || failed.Runtime.State != localResultRemovedRuntimeState {
+		t.Fatalf("expected failed task to mark local result removed, got %#v", failed.Runtime)
 	}
-
-	second := NewWithAPI(config.Config{}, api)
-	second.engine = eng
-	second.process(context.Background(), withRuntime(
-		withDownloadCheckpoint(clientHTTPTask("task-1", "assigned", "https://example.com/payload.bin", "payload.bin"), payloadSize, &payloadSize),
-		&client.DownloadTaskRuntime{Phase: "uploading"},
-	))
-
-	if eng.downloadCalls != 1 {
-		t.Fatalf("expected retry to avoid a second download, got %d download calls", eng.downloadCalls)
+	if uploadRequests != 1 {
+		t.Fatalf("expected one upload attempt, got %d", uploadRequests)
 	}
-	if eng.inspectCalls != 1 {
-		t.Fatalf("expected retry to inspect the runtime task, got %d inspect calls", eng.inspectCalls)
-	}
-	if uploadRequests != 2 {
-		t.Fatalf("expected both attempts to upload the local result, got %d upload requests", uploadRequests)
-	}
-	last := api.patches[len(api.patches)-1]
-	if last.State() != "completed" {
-		t.Fatalf("expected retry to complete task, got last patch %#v", last)
+	if _, err := os.Stat(payloadPath); !os.IsNotExist(err) {
+		t.Fatalf("expected failed upload to remove local payload, stat err=%v", err)
 	}
 }
 
-func TestWorkerLifecycleRetriesHTTPUploadFromCheckpointWithoutRedownloading(t *testing.T) {
+func TestWorkerLifecycleHTTPUploadFailureCleansLocalResult(t *testing.T) {
 	payload := "downloaded payload"
 	downloadRequests := 0
 	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -579,19 +746,26 @@ func TestWorkerLifecycleRetriesHTTPUploadFromCheckpointWithoutRedownloading(t *t
 	if downloadRequests != 1 {
 		t.Fatalf("expected initial attempt to download once, got %d requests", downloadRequests)
 	}
+	if uploadRequests != 1 {
+		t.Fatalf("expected one upload attempt, got %d", uploadRequests)
+	}
+	if _, err := os.Stat(filepath.Join(downloadDir, "task-1")); !os.IsNotExist(err) {
+		t.Fatalf("expected failed upload to remove local task directory, stat err=%v", err)
+	}
 
 	second := NewWithAPI(config.Config{}, api)
 	second.engine = engine.HTTP{Dir: downloadDir}
+	failedRuntime := failed.Runtime
 	second.process(context.Background(), withRuntime(
 		withDownloadCheckpoint(clientHTTPTask("task-1", "assigned", downloadServer.URL+"/payload.bin", "payload.bin"), payloadSize, &payloadSize),
-		&client.DownloadTaskRuntime{Phase: "uploading"},
+		failedRuntime,
 	))
 
-	if downloadRequests != 1 {
-		t.Fatalf("expected retry not to request download source again, got %d requests", downloadRequests)
+	if downloadRequests != 2 {
+		t.Fatalf("expected retry after cleanup to redownload, got %d requests", downloadRequests)
 	}
 	if uploadRequests != 2 {
-		t.Fatalf("expected both attempts to upload the local file, got %d upload requests", uploadRequests)
+		t.Fatalf("expected retry to upload redownloaded file, got %d upload requests", uploadRequests)
 	}
 	last := api.patches[len(api.patches)-1]
 	if last.State() != "completed" {
@@ -707,6 +881,9 @@ func TestDownloadShutdownMarksTaskInterrupted(t *testing.T) {
 	if patch.Runtime == nil || patch.Runtime.Message == "" {
 		t.Fatalf("expected interrupted detail message, got %#v", patch.Runtime)
 	}
+	if eng.resetCalls != 0 {
+		t.Fatalf("expected interrupted shutdown to preserve resumable runtime data, got %d resets", eng.resetCalls)
+	}
 }
 
 func TestUploadShutdownMarksTaskInterrupted(t *testing.T) {
@@ -736,6 +913,129 @@ func TestUploadShutdownMarksTaskInterrupted(t *testing.T) {
 	}
 	if _, ok := findPatchWithStatus(api.patches, "failed"); ok {
 		t.Fatalf("expected upload shutdown not to mark failed, got %#v", api.patches)
+	}
+}
+
+func TestSuspendedUploadCleansLocalResultAndForcesRedownload(t *testing.T) {
+	downloadDir := t.TempDir()
+	taskDir := filepath.Join(downloadDir, "task-1")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	payloadPath := filepath.Join(taskDir, "payload.bin")
+	payload := "downloaded payload"
+	if err := os.WriteFile(payloadPath, []byte(payload), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	payloadSize := int64(len(payload))
+	api := &recordingAPI{
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: &client.ObjectUploadInstructions{SessionID: "session-1", PartSize: payloadSize, URLs: []string{"http://127.0.0.1:1"}}},
+	}
+	w := NewWithAPI(config.Config{}, api)
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cancel(errTaskSuspended)
+	w.uploadAndComplete(
+		ctx,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		clientTaskWithUploadToken("task-1", "downloading"),
+		engine.Result{Path: payloadPath, Name: "payload.bin", Size: payloadSize},
+		&client.DownloadTaskRuntime{Phase: "uploading"},
+	)
+
+	if _, ok := findPatchWithStatus(api.patches, "suspended"); ok {
+		t.Fatalf("expected worker not to overwrite server-owned suspended status, got %#v", api.patches)
+	}
+	patch := api.patches[len(api.patches)-1]
+	if patch.Runtime == nil || patch.Runtime.State != localResultRemovedRuntimeState {
+		t.Fatalf("expected suspended upload cleanup marker, got %#v", patch.Runtime)
+	}
+	if _, err := os.Stat(taskDir); !os.IsNotExist(err) {
+		t.Fatalf("expected suspended upload to remove local task directory, stat err=%v", err)
+	}
+	resumed := withRuntime(
+		withDownloadCheckpoint(clientTaskWithStatus("task-1", "assigned"), payloadSize, &payloadSize),
+		patch.Runtime,
+	)
+	if got := nextTaskWorkStage(resumed); got != taskWorkStageDownload {
+		t.Fatalf("expected resumed cleaned upload to redownload, got stage %v", got)
+	}
+}
+
+func TestPausedAndInterruptedDownloadsPreservePartialFiles(t *testing.T) {
+	cases := []struct {
+		name       string
+		cancelCtx  func(context.CancelCauseFunc, context.CancelFunc)
+		wantStatus string
+	}{
+		{
+			name: "paused",
+			cancelCtx: func(cancelCause context.CancelCauseFunc, _ context.CancelFunc) {
+				cancelCause(errTaskPausing)
+			},
+			wantStatus: "paused",
+		},
+		{
+			name: "interrupted",
+			cancelCtx: func(_ context.CancelCauseFunc, cancel context.CancelFunc) {
+				cancel()
+			},
+			wantStatus: "interrupted",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			api := &recordingAPI{}
+			downloadDir := t.TempDir()
+			path := filepath.Join(downloadDir, "task-1", "payload.bin")
+			ready := make(chan struct{}, 1)
+			eng := &recordingEngine{
+				downloadFunc: func(ctx context.Context, task client.DownloadTask, progress engine.Progress) (engine.Result, error) {
+					if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+						return engine.Result{}, err
+					}
+					if err := os.WriteFile(path, []byte("partial"), 0o644); err != nil {
+						return engine.Result{}, err
+					}
+					ready <- struct{}{}
+					<-ctx.Done()
+					return engine.Result{}, ctx.Err()
+				},
+				resetTaskFn: func(context.Context, client.DownloadTask) error {
+					return os.RemoveAll(filepath.Join(downloadDir, "task-1"))
+				},
+			}
+
+			w := NewWithAPI(config.Config{DownloadDir: downloadDir}, api)
+			w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+			w.engine = eng
+
+			ctx, cancel := context.WithCancel(context.Background())
+			ctxWithCause, cancelCause := context.WithCancelCause(ctx)
+			done := make(chan struct{})
+			go func() {
+				w.downloadThenUpload(ctxWithCause, w.logger, clientHTTPTask("task-1", "downloading", "https://example.com/payload.bin", "payload.bin"), nil)
+				close(done)
+			}()
+
+			select {
+			case <-ready:
+			case <-time.After(5 * time.Second):
+				t.Fatal("timed out waiting for partial download")
+			}
+			tc.cancelCtx(cancelCause, cancel)
+			waitForWorkerTestCompletion(t, done)
+
+			lastPatchWithStatus(t, api.patches, tc.wantStatus)
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatalf("expected resumable file %s to remain, got %v", path, err)
+			}
+			if info.Size() == 0 {
+				t.Fatalf("expected resumable file %s to keep partial content", path)
+			}
+		})
 	}
 }
 
@@ -837,6 +1137,14 @@ func TestNextTaskWorkStage(t *testing.T) {
 			name: "assigned with completed download bytes",
 			task: withDownloadCheckpoint(clientTaskWithStatus("task-1", "assigned"), 100, &total),
 			want: taskWorkStageUploadExistingResult,
+		},
+		{
+			name: "assigned with removed local result marker",
+			task: withRuntime(
+				withDownloadCheckpoint(clientTaskWithStatus("task-1", "assigned"), 100, &total),
+				&client.DownloadTaskRuntime{Phase: "error", State: localResultRemovedRuntimeState},
+			),
+			want: taskWorkStageDownload,
 		},
 		{
 			name: "assigned partial download",
@@ -974,6 +1282,55 @@ func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 	}
 	if len(ledger.Seeds) != 1 || ledger.Seeds[0].TaskID != "task-1" || ledger.Seeds[0].InfoHash != "infohash" {
 		t.Fatalf("expected retained seed ledger entry, got %#v", ledger.Seeds)
+	}
+}
+
+func TestRetainedSeedExpiresWhenLedgerPersistenceFails(t *testing.T) {
+	stateFile := filepath.Join(t.TempDir(), "state-file")
+	if err := os.WriteFile(stateFile, []byte("not a directory"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cleaned := false
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour, StateDir: stateFile}, &recordingAPI{})
+	w.engine = &recordingEngine{}
+
+	retained := w.retainSeed(
+		clientTask("task-1"),
+		engine.Result{
+			Path: filepath.Join(t.TempDir(), "result"),
+			Size: 123,
+			Seed: &engine.Seed{
+				Engine:   "aria2",
+				ID:       "gid",
+				InfoHash: "infohash",
+				Path:     t.TempDir(),
+				Snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+					return engine.SeedSnapshot{}, nil
+				},
+				Cleanup: func(context.Context) error {
+					cleaned = true
+					return nil
+				},
+			},
+		},
+		w.logger,
+	)
+
+	if !retained {
+		t.Fatal("expected seed to remain tracked in memory")
+	}
+	if len(w.retainedSeedSnapshot()) != 1 {
+		t.Fatalf("expected retained seed despite ledger failure, got %d", len(w.retainedSeedSnapshot()))
+	}
+	w.retainedSeeds[0].expiresAt = time.Now().Add(-time.Second)
+
+	w.cleanupRetainedSeeds(context.Background())
+
+	if !cleaned {
+		t.Fatal("expected in-memory retained seed to expire and clean up")
+	}
+	if len(w.retainedSeedSnapshot()) != 0 {
+		t.Fatalf("expected expired seed to be removed from memory, got %d", len(w.retainedSeedSnapshot()))
 	}
 }
 
@@ -1317,6 +1674,15 @@ func writeTempFile(t *testing.T, content string) string {
 	return file.Name()
 }
 
+func waitForWorkerTestCompletion(t *testing.T, done <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for worker completion")
+	}
+}
+
 func clientTask(id string) client.DownloadTask {
 	return client.DownloadTask{
 		ID: id,
@@ -1378,7 +1744,9 @@ func findPatchWithStatus(patches []client.TaskPatch, status string) (client.Task
 type recordingEngine struct {
 	downloadResult engine.Result
 	downloadErr    error
+	downloadFunc   func(context.Context, client.DownloadTask, engine.Progress) (engine.Result, error)
 	resetErr       error
+	resetTaskFn    func(context.Context, client.DownloadTask) error
 	taskSnapshot   engine.TaskSnapshot
 	inspectErr     error
 	inspectPanic   any
@@ -1425,13 +1793,19 @@ func (e *recordingEngine) ListSeeds(context.Context) ([]engine.Seed, error) {
 	return e.listSeeds, nil
 }
 
-func (e *recordingEngine) ResetTask(context.Context, client.DownloadTask) error {
+func (e *recordingEngine) ResetTask(ctx context.Context, task client.DownloadTask) error {
 	e.resetCalls++
+	if e.resetTaskFn != nil {
+		return e.resetTaskFn(ctx, task)
+	}
 	return e.resetErr
 }
 
-func (e *recordingEngine) Download(context.Context, client.DownloadTask, engine.Progress) (engine.Result, error) {
+func (e *recordingEngine) Download(ctx context.Context, task client.DownloadTask, progress engine.Progress) (engine.Result, error) {
 	e.downloadCalls++
+	if e.downloadFunc != nil {
+		return e.downloadFunc(ctx, task, progress)
+	}
 	return e.downloadResult, e.downloadErr
 }
 
