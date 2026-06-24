@@ -92,19 +92,28 @@ beforeEach(() => {
   mockHasFeature.mockReturnValue(true)
 })
 
-describe('AdminDownloadersPage billing drawer', () => {
-  it('saves credit billing through the dedicated wrapper', async () => {
+describe('AdminDownloadersPage settings drawer', () => {
+  it('saves downloader settings and credit billing from one drawer', async () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     vi.mocked(listDownloaders).mockResolvedValue({ items: [downloader], total: 1, page: 1, pageSize: 1 })
+    vi.mocked(updateDownloader).mockResolvedValue(downloader)
     vi.mocked(updateDownloaderCreditBilling).mockResolvedValue(downloader)
 
     renderDownloadersPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'admin.downloaders.configureBilling' }))
-    await screen.findByText('admin.downloaders.billingTitle')
+    fireEvent.click(await screen.findByRole('button', { name: 'admin.downloaders.settingsAction' }))
+    await screen.findByText('admin.downloaders.settingsTitle')
+    expect(screen.getByLabelText('admin.downloaders.enabled')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('admin.downloaders.displayName'), { target: { value: 'Edge renamed' } })
     fireEvent.change(screen.getByLabelText('admin.downloaders.billingCredits'), { target: { value: '5' } })
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
+    await waitFor(() =>
+      expect(updateDownloader).toHaveBeenCalledWith('downloader-1', {
+        name: 'Edge renamed',
+        enabled: true,
+      }),
+    )
     await waitFor(() =>
       expect(updateDownloaderCreditBilling).toHaveBeenCalledWith('downloader-1', {
         enabled: true,
@@ -112,24 +121,29 @@ describe('AdminDownloadersPage billing drawer', () => {
         creditsPerUnit: 5,
       }),
     )
-    expect(updateDownloader).not.toHaveBeenCalled()
   })
 
-  it('shows credit billing as view-only without the quota store entitlement', async () => {
+  it('keeps billing disabled without the quota store entitlement but saves basic settings', async () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     mockHasFeature.mockImplementation((feature) => feature !== 'quota_store')
     vi.mocked(listDownloaders).mockResolvedValue({ items: [downloader], total: 1, page: 1, pageSize: 1 })
+    vi.mocked(updateDownloader).mockResolvedValue(downloader)
 
     renderDownloadersPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'admin.downloaders.configureBilling' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'admin.downloaders.settingsAction' }))
     await screen.findByText('admin.downloaders.billingBusinessOnly')
 
-    expect(screen.queryByRole('button', { name: 'common.save' })).toBeNull()
     expect(screen.getByLabelText('admin.downloaders.billingCredits')).toHaveProperty('disabled', true)
-    expect(screen.getAllByRole('button', { name: 'common.close' })).toHaveLength(2)
+    fireEvent.change(screen.getByLabelText('admin.downloaders.displayName'), { target: { value: 'Edge basic' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
+    await waitFor(() =>
+      expect(updateDownloader).toHaveBeenCalledWith('downloader-1', {
+        name: 'Edge basic',
+        enabled: true,
+      }),
+    )
     expect(updateDownloaderCreditBilling).not.toHaveBeenCalled()
-    expect(updateDownloader).not.toHaveBeenCalled()
   })
 })
