@@ -60,7 +60,7 @@ A code-review-only approval (reading the diff without visiting the preview) is *
 - A dev storage backend is pre-configured, so file upload works out of the box
 - If you need a clean state, coordinate with maintainers
 
-### Staging test account
+### Staging test accounts
 
 A shared test account is available on the staging database for preview verification:
 
@@ -71,7 +71,25 @@ A shared test account is available on the staging database for preview verificat
 
 Use this account for UI regression testing in preview deployments. **Do not change the password** — other contributors depend on it.
 
-For admin feature testing, read admin credentials from the local `.dev.vars` file (`DEV_ADMIN_PASSWORD`). The admin email is `admin@zpan.space`.
+For admin feature testing, use the dedicated non-production preview admin account:
+
+| Field | Value |
+|-------|-------|
+| Email | `admin@zpan.space` |
+| Password | Private maintainer `DEV_ADMIN_PASSWORD` value |
+
+Use this account only in the staging/preview environment. **Do not commit, post, or use the password for production.**
+
+If the staging admin account is missing, demoted, or the password stops working, a maintainer can repair it without touching production:
+
+```sh
+pnpm seed:preview-admin
+```
+
+The command reads `DEV_ADMIN_PASSWORD` from the shell environment or the gitignored local `.dev.vars` file, then targets
+`zpan-db-staging` with `--env staging --remote` and upserts only `admin@zpan.space`.
+To rotate the shared preview password intentionally, run the same command with the new non-production
+`DEV_ADMIN_PASSWORD` value and update the private maintainer credential source in the same change.
 
 ## Database Migrations
 
