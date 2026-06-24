@@ -744,6 +744,8 @@
   "admin.storages.fieldRegion": "区域",
   "admin.storages.fieldAccessKey": "Access Key",
   "admin.storages.fieldSecretKey": "Secret Key",
+  "admin.storages.showSecretKey": "显示 Secret Key",
+  "admin.storages.hideSecretKey": "隐藏 Secret Key",
   "admin.storages.fieldCustomHost": "自定义域名",
   "admin.storages.fieldForcePathStyle": "路径样式",
   "admin.storages.forcePathStyleHint": "使用路径样式寻址 (endpoint/bucket/key)，关闭则使用虚拟主机样式 (bucket.endpoint/key)。",

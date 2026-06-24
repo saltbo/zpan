@@ -744,6 +744,8 @@
   "admin.storages.fieldRegion": "Region",
   "admin.storages.fieldAccessKey": "Access Key",
   "admin.storages.fieldSecretKey": "Secret Key",
+  "admin.storages.showSecretKey": "Show secret key",
+  "admin.storages.hideSecretKey": "Hide secret key",
   "admin.storages.fieldCustomHost": "Custom Host",
   "admin.storages.fieldForcePathStyle": "Path Style",
   "admin.storages.forcePathStyleHint": "Use path-style addressing (endpoint/bucket/key). Turn off for virtual-hosted-style (bucket.endpoint/key).",
