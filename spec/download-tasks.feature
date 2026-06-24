@@ -164,3 +164,9 @@ Feature: Remote download tasks
     Given the downloaders_unlimited entitlement
     When additional downloaders register
     Then they are allowed
+
+  @downloaders/credit-billing @api
+  Scenario: Admins configure downloader credits separately
+    Given an existing downloader
+    When an admin updates downloader credit billing
+    Then the billing fields are persisted through the dedicated route

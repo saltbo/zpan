@@ -1875,4 +1875,55 @@ describe('Downloaders — free plan limit', () => {
     expect((await postDownloader(app, admin, 'first')).status).toBe(201)
     expect((await postDownloader(app, admin, 'second')).status).toBe(201)
   })
+
+  it('updates downloader credit billing through the dedicated route [spec: downloaders/credit-billing]', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await seedBusinessLicense(db)
+    const admin = await adminHeaders(app)
+    const createRes = await postDownloader(app, admin, 'billable')
+    const created = (await createRes.json()) as { downloader: { id: string } }
+
+    const res = await app.request(`/api/downloads/downloaders/${created.downloader.id}/credit-billing`, {
+      method: 'PUT',
+      headers: { ...admin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, unitBytes: 2048, creditsPerUnit: 3 }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Downloader
+    expect(body.remoteDownloadCreditBillingEnabled).toBe(true)
+    expect(body.remoteDownloadCreditUnitBytes).toBe(2048)
+    expect(body.remoteDownloadCreditPerUnit).toBe(3)
+  })
+
+  it('returns 402 when enabling downloader credit billing without quota_store', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const admin = await adminHeaders(app)
+    const createRes = await postDownloader(app, admin, 'blocked-billing')
+    const created = (await createRes.json()) as { downloader: { id: string } }
+
+    const res = await app.request(`/api/downloads/downloaders/${created.downloader.id}/credit-billing`, {
+      method: 'PUT',
+      headers: { ...admin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, unitBytes: 2048, creditsPerUnit: 3 }),
+    })
+    expect(res.status).toBe(402)
+    const body = (await res.json()) as {
+      error: { message: string; details: { reason: string; metadata: Record<string, string> }[] }
+    }
+    expect(body.error.message).toBe('Feature not available')
+    expect(body.error.details[0].reason).toBe('FEATURE_NOT_AVAILABLE')
+    expect(body.error.details[0].metadata.feature).toBe('quota_store')
+  })
+
+  it('returns 404 from downloader credit billing when disabled for a missing downloader', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const admin = await adminHeaders(app)
+
+    const res = await app.request('/api/downloads/downloaders/missing/credit-billing', {
+      method: 'PUT',
+      headers: { ...admin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: false, unitBytes: 2048, creditsPerUnit: 3 }),
+    })
+    expect(res.status).toBe(404)
+  })
 })

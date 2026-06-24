@@ -233,6 +233,12 @@ export const updateDownloaderSchema = z.object({
   remoteDownloadCreditPerUnit: z.number().int().positive().optional(),
 })
 
+export const updateDownloaderCreditBillingSchema = z.object({
+  enabled: z.boolean(),
+  unitBytes: z.number().int().positive(),
+  creditsPerUnit: z.number().int().positive(),
+})
+
 export const createDownloaderSchema = z.object({
   name: z.string().min(1).max(120),
   heartbeat: downloaderHeartbeatSchema,
@@ -341,6 +347,7 @@ export const completeObjectUploadSchema = z.object({
 
 export type DownloaderHeartbeatInput = z.infer<typeof downloaderHeartbeatSchema>
 export type UpdateDownloaderInput = z.infer<typeof updateDownloaderSchema>
+export type UpdateDownloaderCreditBillingInput = z.infer<typeof updateDownloaderCreditBillingSchema>
 export type CreateDownloaderInput = z.infer<typeof createDownloaderSchema>
 export type CreateDownloadTaskInput = z.infer<typeof createDownloadTaskSchema>
 export type UpdateDownloadTaskInput = z.infer<typeof updateDownloadTaskSchema>

@@ -5,7 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ActivityRepo, LicenseBindingRepo, StorageRecord, StorageRepo } from '../ports'
 import { AppError } from '../ports'
 import { loadBindingState } from './licensing'
-import { createStorage, deleteStorage, getStorage, listStorages, type StorageDeps, updateStorage } from './storage'
+import {
+  createStorage,
+  deleteStorage,
+  getStorage,
+  listStorages,
+  type StorageDeps,
+  updateStorage,
+  updateStorageEgressBilling,
+} from './storage'
 
 // loadBindingState derives features from a signed certificate — out of scope for
 // a usecase unit test. Mock it so each case feeds a chosen edition; the real
@@ -181,6 +189,65 @@ describe('storage usecase', () => {
         expect(out.error.meta.metadata).toEqual({ feature: 'quota_store' })
       }
       expect(update).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('updateStorageEgressBilling', () => {
+    it('updates egress billing fields and records activity', async () => {
+      edition(BUSINESS)
+      const update = vi.fn(async () => sampleStorage)
+      const { deps, record } = makeDeps({ update })
+      const out = await updateStorageEgressBilling(deps, {
+        userId: 'u1',
+        orgId: 'o1',
+        id: 'st-1',
+        input: { enabled: true, unitBytes: 1024, creditsPerUnit: 2 },
+      })
+      expect(out).toEqual({ ok: true, storage: sampleStorage })
+      expect(update).toHaveBeenCalledWith('st-1', {
+        egressCreditBillingEnabled: true,
+        egressCreditUnitBytes: 1024,
+        egressCreditPerUnit: 2,
+      })
+      expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'storage_update', targetId: 'st-1' }))
+    })
+
+    it('blocks enabling egress billing without quota_store', async () => {
+      edition(PRO)
+      const update = vi.fn(async () => sampleStorage)
+      const { deps, record } = makeDeps({ update })
+      const out = await updateStorageEgressBilling(deps, {
+        userId: 'u1',
+        orgId: 'o1',
+        id: 'st-1',
+        input: { enabled: true, unitBytes: 1024, creditsPerUnit: 2 },
+      })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error).toBeInstanceOf(AppError)
+        expect(out.error.httpStatus).toBe(402)
+        expect(out.error.meta.reason).toBe('FEATURE_NOT_AVAILABLE')
+        expect(out.error.meta.metadata).toEqual({ feature: 'quota_store' })
+      }
+      expect(update).not.toHaveBeenCalled()
+      expect(record).not.toHaveBeenCalled()
+    })
+
+    it('returns not_found for a missing storage when billing is disabled', async () => {
+      edition(PRO)
+      const { deps, record } = makeDeps({ update: async () => null })
+      const out = await updateStorageEgressBilling(deps, {
+        userId: 'u1',
+        orgId: 'o1',
+        id: 'missing',
+        input: { enabled: false, unitBytes: 1024, creditsPerUnit: 2 },
+      })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error.httpStatus).toBe(404)
+        expect(out.error.message).toBe('Storage not found')
+      }
+      expect(record).not.toHaveBeenCalled()
     })
   })
 

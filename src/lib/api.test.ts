@@ -124,11 +124,13 @@ import {
   transferObject,
   updateAnnouncement,
   updateDownloader,
+  updateDownloaderCreditBilling,
   updateDownloadTask,
   updateIhostConfig,
   updateObject,
   updateOrgEntitlement,
   updateStorage,
+  updateStorageEgressBilling,
   updateUserEntitlement,
   uploadAvatar,
   uploadPartToS3,
@@ -1253,6 +1255,28 @@ describe('api', () => {
       expect(init.body).toBe(JSON.stringify(body))
     })
 
+    it('updates downloader credit billing via dedicated route', async () => {
+      const payload = { id: 'downloader-1', remoteDownloadCreditBillingEnabled: true }
+      const body = { enabled: true, unitBytes: 2048, creditsPerUnit: 3 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await updateDownloaderCreditBilling('downloader-1', body)
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/downloads/downloaders/downloader-1/credit-billing')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBe(JSON.stringify(body))
+    })
+
+    it('throws ApiError on downloader credit billing failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Feature not available' }, false, 402))
+
+      await expect(
+        updateDownloaderCreditBilling('downloader-1', { enabled: true, unitBytes: 1, creditsPerUnit: 1 }),
+      ).rejects.toBeInstanceOf(ApiError)
+    })
+
     it('deletes an admin downloader (resolves on 204)', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
@@ -1510,6 +1534,30 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
       await expect(updateStorage('s1', { title: 'x' })).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('updateStorageEgressBilling', () => {
+    it('puts storage egress billing data and returns updated storage', async () => {
+      const storage = { id: 's1', egressCreditBillingEnabled: true }
+      const body = { enabled: true, unitBytes: 2048, creditsPerUnit: 3 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(storage))
+
+      const result = await updateStorageEgressBilling('s1', body)
+
+      expect(result).toEqual(storage)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/storages/s1/egress-billing')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBe(JSON.stringify(body))
+    })
+
+    it('throws ApiError on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Feature not available' }, false, 402))
+
+      await expect(
+        updateStorageEgressBilling('s1', { enabled: true, unitBytes: 1, creditsPerUnit: 1 }),
+      ).rejects.toBeInstanceOf(ApiError)
     })
   })
 

@@ -83,6 +83,7 @@ export type {
   DownloadTaskSchema,
   ListDownloadTasksQuery,
   PresignObjectUploadPartsInput,
+  UpdateDownloaderCreditBillingInput,
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
 } from './downloads'
@@ -108,6 +109,7 @@ export {
   downloadTaskStatusUpdateSchema,
   listDownloadTasksQuerySchema,
   presignObjectUploadPartsSchema,
+  updateDownloaderCreditBillingSchema,
   updateDownloaderSchema,
   updateDownloadTaskSchema,
 } from './downloads'
@@ -133,8 +135,8 @@ export {
   shareKindSchema,
   shareRecipientSchema,
 } from './share'
-export type { CreateStorageInput, UpdateStorageInput } from './storage'
-export { createStorageSchema, updateStorageSchema } from './storage'
+export type { CreateStorageInput, UpdateStorageEgressBillingInput, UpdateStorageInput } from './storage'
+export { createStorageSchema, updateStorageEgressBillingSchema, updateStorageSchema } from './storage'
 
 export const signInSchema = z.object({
   email: z.string().email(),

@@ -3027,6 +3027,13 @@ type UpdateDownloaderJSONBody struct {
 	RemoteDownloadCreditUnitBytes      *int    `json:"remoteDownloadCreditUnitBytes,omitempty"`
 }
 
+// UpdateDownloaderCreditBillingJSONBody defines parameters for UpdateDownloaderCreditBilling.
+type UpdateDownloaderCreditBillingJSONBody struct {
+	CreditsPerUnit int  `json:"creditsPerUnit"`
+	Enabled        bool `json:"enabled"`
+	UnitBytes      int  `json:"unitBytes"`
+}
+
 // ListDownloadTasksParams defines parameters for ListDownloadTasks.
 type ListDownloadTasksParams struct {
 	Status     *ListDownloadTasksParamsStatus     `form:"status,omitempty" json:"status,omitempty"`
@@ -3536,6 +3543,13 @@ type UpdateStorageJSONBody struct {
 // UpdateStorageJSONBodyStatus defines parameters for UpdateStorage.
 type UpdateStorageJSONBodyStatus string
 
+// UpdateStorageEgressBillingJSONBody defines parameters for UpdateStorageEgressBilling.
+type UpdateStorageEgressBillingJSONBody struct {
+	CreditsPerUnit int  `json:"creditsPerUnit"`
+	Enabled        bool `json:"enabled"`
+	UnitBytes      int  `json:"unitBytes"`
+}
+
 // CreateCheckoutJSONBody defines parameters for CreateCheckout.
 type CreateCheckoutJSONBody struct {
 	PackageId     string  `json:"packageId"`
@@ -3831,6 +3845,9 @@ type RecordDownloaderHeartbeatJSONRequestBody RecordDownloaderHeartbeatJSONBody
 // UpdateDownloaderJSONRequestBody defines body for UpdateDownloader for application/json ContentType.
 type UpdateDownloaderJSONRequestBody UpdateDownloaderJSONBody
 
+// UpdateDownloaderCreditBillingJSONRequestBody defines body for UpdateDownloaderCreditBilling for application/json ContentType.
+type UpdateDownloaderCreditBillingJSONRequestBody UpdateDownloaderCreditBillingJSONBody
+
 // CreateDownloadTaskJSONRequestBody defines body for CreateDownloadTask for application/json ContentType.
 type CreateDownloadTaskJSONRequestBody CreateDownloadTaskJSONBody
 
@@ -3911,6 +3928,9 @@ type CreateStorageJSONRequestBody CreateStorageJSONBody
 
 // UpdateStorageJSONRequestBody defines body for UpdateStorage for application/json ContentType.
 type UpdateStorageJSONRequestBody UpdateStorageJSONBody
+
+// UpdateStorageEgressBillingJSONRequestBody defines body for UpdateStorageEgressBilling for application/json ContentType.
+type UpdateStorageEgressBillingJSONRequestBody UpdateStorageEgressBillingJSONBody
 
 // CreateCheckoutJSONRequestBody defines body for CreateCheckout for application/json ContentType.
 type CreateCheckoutJSONRequestBody CreateCheckoutJSONBody
@@ -4573,6 +4593,11 @@ type ClientInterface interface {
 
 	UpdateDownloader(ctx context.Context, id string, body UpdateDownloaderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UpdateDownloaderCreditBillingWithBody request with any body
+	UpdateDownloaderCreditBillingWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateDownloaderCreditBilling(ctx context.Context, id string, body UpdateDownloaderCreditBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListDownloadTasks request
 	ListDownloadTasks(ctx context.Context, params *ListDownloadTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4863,6 +4888,11 @@ type ClientInterface interface {
 	UpdateStorageWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateStorage(ctx context.Context, id string, body UpdateStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateStorageEgressBillingWithBody request with any body
+	UpdateStorageEgressBillingWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateStorageEgressBilling(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateBillingPortalSession request
 	CreateBillingPortalSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6873,6 +6903,30 @@ func (c *Client) UpdateDownloader(ctx context.Context, id string, body UpdateDow
 	return c.Client.Do(req)
 }
 
+func (c *Client) UpdateDownloaderCreditBillingWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDownloaderCreditBillingRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDownloaderCreditBilling(ctx context.Context, id string, body UpdateDownloaderCreditBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDownloaderCreditBillingRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListDownloadTasks(ctx context.Context, params *ListDownloadTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListDownloadTasksRequest(c.Server, params)
 	if err != nil {
@@ -8135,6 +8189,30 @@ func (c *Client) UpdateStorageWithBody(ctx context.Context, id string, contentTy
 
 func (c *Client) UpdateStorage(ctx context.Context, id string, body UpdateStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateStorageRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateStorageEgressBillingWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateStorageEgressBillingRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateStorageEgressBilling(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateStorageEgressBillingRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -12616,6 +12694,53 @@ func NewUpdateDownloaderRequestWithBody(server string, id string, contentType st
 	return req, nil
 }
 
+// NewUpdateDownloaderCreditBillingRequest calls the generic UpdateDownloaderCreditBilling builder with application/json body
+func NewUpdateDownloaderCreditBillingRequest(server string, id string, body UpdateDownloaderCreditBillingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateDownloaderCreditBillingRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewUpdateDownloaderCreditBillingRequestWithBody generates requests for UpdateDownloaderCreditBilling with any type of body
+func NewUpdateDownloaderCreditBillingRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/downloaders/%s/credit-billing", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListDownloadTasksRequest generates requests for ListDownloadTasks
 func NewListDownloadTasksRequest(server string, params *ListDownloadTasksParams) (*http.Request, error) {
 	var err error
@@ -16189,6 +16314,53 @@ func NewUpdateStorageRequestWithBody(server string, id string, contentType strin
 	return req, nil
 }
 
+// NewUpdateStorageEgressBillingRequest calls the generic UpdateStorageEgressBilling builder with application/json body
+func NewUpdateStorageEgressBillingRequest(server string, id string, body UpdateStorageEgressBillingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateStorageEgressBillingRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewUpdateStorageEgressBillingRequestWithBody generates requests for UpdateStorageEgressBilling with any type of body
+func NewUpdateStorageEgressBillingRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/storages/%s/egress-billing", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewCreateBillingPortalSessionRequest generates requests for CreateBillingPortalSession
 func NewCreateBillingPortalSessionRequest(server string) (*http.Request, error) {
 	var err error
@@ -18119,6 +18291,11 @@ type ClientWithResponsesInterface interface {
 
 	UpdateDownloaderWithResponse(ctx context.Context, id string, body UpdateDownloaderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDownloaderResponse, error)
 
+	// UpdateDownloaderCreditBillingWithBodyWithResponse request with any body
+	UpdateDownloaderCreditBillingWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDownloaderCreditBillingResponse, error)
+
+	UpdateDownloaderCreditBillingWithResponse(ctx context.Context, id string, body UpdateDownloaderCreditBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDownloaderCreditBillingResponse, error)
+
 	// ListDownloadTasksWithResponse request
 	ListDownloadTasksWithResponse(ctx context.Context, params *ListDownloadTasksParams, reqEditors ...RequestEditorFn) (*ListDownloadTasksResponse, error)
 
@@ -18409,6 +18586,11 @@ type ClientWithResponsesInterface interface {
 	UpdateStorageWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateStorageResponse, error)
 
 	UpdateStorageWithResponse(ctx context.Context, id string, body UpdateStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateStorageResponse, error)
+
+	// UpdateStorageEgressBillingWithBodyWithResponse request with any body
+	UpdateStorageEgressBillingWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateStorageEgressBillingResponse, error)
+
+	UpdateStorageEgressBillingWithResponse(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateStorageEgressBillingResponse, error)
 
 	// CreateBillingPortalSessionWithResponse request
 	CreateBillingPortalSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CreateBillingPortalSessionResponse, error)
@@ -23406,6 +23588,38 @@ func (r UpdateDownloaderResponse) ContentType() string {
 	return ""
 }
 
+type UpdateDownloaderCreditBillingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Downloader
+	JSON402      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateDownloaderCreditBillingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateDownloaderCreditBillingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateDownloaderCreditBillingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListDownloadTasksResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -25953,6 +26167,38 @@ func (r UpdateStorageResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r UpdateStorageResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateStorageEgressBillingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Storage
+	JSON402      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateStorageEgressBillingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateStorageEgressBillingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateStorageEgressBillingResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -28523,6 +28769,23 @@ func (c *ClientWithResponses) UpdateDownloaderWithResponse(ctx context.Context, 
 	return ParseUpdateDownloaderResponse(rsp)
 }
 
+// UpdateDownloaderCreditBillingWithBodyWithResponse request with arbitrary body returning *UpdateDownloaderCreditBillingResponse
+func (c *ClientWithResponses) UpdateDownloaderCreditBillingWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDownloaderCreditBillingResponse, error) {
+	rsp, err := c.UpdateDownloaderCreditBillingWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDownloaderCreditBillingResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateDownloaderCreditBillingWithResponse(ctx context.Context, id string, body UpdateDownloaderCreditBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDownloaderCreditBillingResponse, error) {
+	rsp, err := c.UpdateDownloaderCreditBilling(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDownloaderCreditBillingResponse(rsp)
+}
+
 // ListDownloadTasksWithResponse request returning *ListDownloadTasksResponse
 func (c *ClientWithResponses) ListDownloadTasksWithResponse(ctx context.Context, params *ListDownloadTasksParams, reqEditors ...RequestEditorFn) (*ListDownloadTasksResponse, error) {
 	rsp, err := c.ListDownloadTasks(ctx, params, reqEditors...)
@@ -29448,6 +29711,23 @@ func (c *ClientWithResponses) UpdateStorageWithResponse(ctx context.Context, id 
 		return nil, err
 	}
 	return ParseUpdateStorageResponse(rsp)
+}
+
+// UpdateStorageEgressBillingWithBodyWithResponse request with arbitrary body returning *UpdateStorageEgressBillingResponse
+func (c *ClientWithResponses) UpdateStorageEgressBillingWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateStorageEgressBillingResponse, error) {
+	rsp, err := c.UpdateStorageEgressBillingWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateStorageEgressBillingResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateStorageEgressBillingWithResponse(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateStorageEgressBillingResponse, error) {
+	rsp, err := c.UpdateStorageEgressBilling(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateStorageEgressBillingResponse(rsp)
 }
 
 // CreateBillingPortalSessionWithResponse request returning *CreateBillingPortalSessionResponse
@@ -37373,6 +37653,46 @@ func ParseUpdateDownloaderResponse(rsp *http.Response) (*UpdateDownloaderRespons
 	return response, nil
 }
 
+// ParseUpdateDownloaderCreditBillingResponse parses an HTTP response from a UpdateDownloaderCreditBillingWithResponse call
+func ParseUpdateDownloaderCreditBillingResponse(rsp *http.Response) (*UpdateDownloaderCreditBillingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateDownloaderCreditBillingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Downloader
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListDownloadTasksResponse parses an HTTP response from a ListDownloadTasksWithResponse call
 func ParseListDownloadTasksResponse(rsp *http.Response) (*ListDownloadTasksResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -40308,6 +40628,46 @@ func ParseUpdateStorageResponse(rsp *http.Response) (*UpdateStorageResponse, err
 	}
 
 	response := &UpdateStorageResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Storage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateStorageEgressBillingResponse parses an HTTP response from a UpdateStorageEgressBillingWithResponse call
+func ParseUpdateStorageEgressBillingResponse(rsp *http.Response) (*UpdateStorageEgressBillingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateStorageEgressBillingResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

@@ -36,10 +36,6 @@ const storageFormSchema = z.object({
   customHost: z.string().optional(),
   capacityValue: z.coerce.number<number>().min(0),
   capacityUnit: z.enum(['MB', 'GB', 'TB']),
-  egressCreditBillingEnabled: z.boolean(),
-  egressCreditUnitValue: z.coerce.number<number>().min(1),
-  egressCreditUnit: z.enum(['MB', 'GB', 'TB']),
-  egressCreditPerUnit: z.coerce.number<number>().int().min(1),
   forcePathStyle: z.boolean(),
 })
 
@@ -55,10 +51,6 @@ const DEFAULT_VALUES: StorageFormValues = {
   customHost: '',
   capacityValue: 0,
   capacityUnit: 'GB',
-  egressCreditBillingEnabled: false,
-  egressCreditUnitValue: 100,
-  egressCreditUnit: 'MB',
-  egressCreditPerUnit: 1,
   forcePathStyle: true,
 }
 
@@ -66,10 +58,9 @@ interface StorageFormDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   storage: Storage | null
-  hasTrafficBilling: boolean
 }
 
-export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilling }: StorageFormDrawerProps) {
+export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDrawerProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [showSecret, setShowSecret] = useState(false)
@@ -84,7 +75,6 @@ export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilli
     if (!open) return
     if (storage) {
       const { value, unit } = bytesToDisplay(storage.capacity ?? 0)
-      const egressUnit = bytesToDisplay(storage.egressCreditUnitBytes ?? UNITS.MB * 100)
       form.reset({
         title: storage.title,
         bucket: storage.bucket,
@@ -95,33 +85,20 @@ export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilli
         customHost: storage.customHost || '',
         capacityValue: value,
         capacityUnit: unit,
-        egressCreditBillingEnabled: hasTrafficBilling ? (storage.egressCreditBillingEnabled ?? false) : false,
-        egressCreditUnitValue: egressUnit.value,
-        egressCreditUnit: egressUnit.unit,
-        egressCreditPerUnit: storage.egressCreditPerUnit ?? 1,
         forcePathStyle: storage.forcePathStyle ?? true,
       })
     } else {
-      form.reset({ ...DEFAULT_VALUES, egressCreditBillingEnabled: false })
+      form.reset(DEFAULT_VALUES)
     }
     setShowSecret(false)
-  }, [open, storage, form, hasTrafficBilling])
+  }, [open, storage, form])
 
   const mutation = useMutation({
-    mutationFn: ({
-      capacityValue,
-      capacityUnit,
-      egressCreditUnitValue,
-      egressCreditUnit,
-      ...rest
-    }: StorageFormValues) => {
+    mutationFn: ({ capacityValue, capacityUnit, ...rest }: StorageFormValues) => {
       const capacity = capacityValue * UNITS[capacityUnit]
-      const egressCreditUnitBytes = egressCreditUnitValue * UNITS[egressCreditUnit]
       const payload = {
         ...rest,
-        egressCreditBillingEnabled: hasTrafficBilling ? rest.egressCreditBillingEnabled : false,
         capacity,
-        egressCreditUnitBytes,
       }
       return isEditing ? updateStorage(storage.id, payload) : createStorage(payload)
     },
@@ -280,66 +257,6 @@ export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilli
           </div>
         )}
       </AdminFormField>
-
-      <div className="rounded-md border p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <Label htmlFor="egressCreditBillingEnabled">{t('admin.storages.egressBilling')}</Label>
-            <p className="text-xs text-muted-foreground">{t('admin.storages.egressBillingHint')}</p>
-          </div>
-          <Switch
-            id="egressCreditBillingEnabled"
-            disabled={!hasTrafficBilling}
-            checked={form.watch('egressCreditBillingEnabled')}
-            onCheckedChange={(checked) => form.setValue('egressCreditBillingEnabled', hasTrafficBilling && checked)}
-          />
-        </div>
-        {!hasTrafficBilling && (
-          <p className="mt-2 text-xs text-muted-foreground">{t('admin.storages.egressBillingBusinessOnly')}</p>
-        )}
-        {form.watch('egressCreditBillingEnabled') && (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <AdminFormField
-              id="storage-egress-credit-unit-value"
-              label={t('admin.storages.egressBillingUnit')}
-              error={form.formState.errors.egressCreditUnitValue?.message}
-            >
-              {(controlProps) => (
-                <div className="flex items-center gap-2">
-                  <Input
-                    {...form.register('egressCreditUnitValue')}
-                    {...controlProps}
-                    type="number"
-                    min={1}
-                    step={1}
-                    className="w-28"
-                  />
-                  <Select
-                    value={form.watch('egressCreditUnit')}
-                    onValueChange={(v) => form.setValue('egressCreditUnit', v as Unit)}
-                  >
-                    <SelectTrigger className="w-24">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MB">MB</SelectItem>
-                      <SelectItem value="GB">GB</SelectItem>
-                      <SelectItem value="TB">TB</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </AdminFormField>
-            <AdminFormField
-              id="storage-egress-credit-per-unit"
-              label={t('admin.storages.egressBillingCredits')}
-              error={form.formState.errors.egressCreditPerUnit?.message}
-            >
-              <Input type="number" min={1} step={1} {...form.register('egressCreditPerUnit')} />
-            </AdminFormField>
-          </div>
-        )}
-      </div>
     </AdminFormDrawer>
   )
 }

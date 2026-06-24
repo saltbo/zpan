@@ -2,7 +2,7 @@ import { FREE_STORAGE_LIMIT } from '@shared/constants'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createStorageRepo } from '../../adapters/repos/storage.js'
-import { adminHeaders, authedHeaders, createTestApp } from '../../test/setup.js'
+import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense } from '../../test/setup.js'
 
 const validStorage = {
   title: 'Test S3',
@@ -185,6 +185,66 @@ describe('Admin Storages API', () => {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Nope' }),
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('PUT /:id/egress-billing updates storage credits billing [spec: storages/egress-billing]', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await adminHeaders(app)
+
+    const createRes = await app.request('/api/site/storages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(validStorage),
+    })
+    const created = (await createRes.json()) as { id: string }
+
+    const res = await app.request(`/api/site/storages/${created.id}/egress-billing`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, unitBytes: 1024, creditsPerUnit: 2 }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.egressCreditBillingEnabled).toBe(true)
+    expect(body.egressCreditUnitBytes).toBe(1024)
+    expect(body.egressCreditPerUnit).toBe(2)
+  })
+
+  it('PUT /:id/egress-billing returns 402 when quota_store is unavailable', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    const createRes = await app.request('/api/site/storages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(validStorage),
+    })
+    const created = (await createRes.json()) as { id: string }
+
+    const res = await app.request(`/api/site/storages/${created.id}/egress-billing`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, unitBytes: 1024, creditsPerUnit: 2 }),
+    })
+    expect(res.status).toBe(402)
+    const body = (await res.json()) as {
+      error: { message: string; details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(body.error.message).toBe('Feature not available')
+    expect(body.error.details[0].reason).toBe('FEATURE_NOT_AVAILABLE')
+    expect(body.error.details[0].metadata.feature).toBe('quota_store')
+  })
+
+  it('PUT /:id/egress-billing returns 404 for missing storage when disabled', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/site/storages/nonexistent/egress-billing', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: false, unitBytes: 1024, creditsPerUnit: 2 }),
     })
     expect(res.status).toBe(404)
   })

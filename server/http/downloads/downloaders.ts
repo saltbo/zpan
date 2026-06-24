@@ -5,6 +5,7 @@ import {
   downloaderHeartbeatSchema,
   downloaderSchema,
   pageSchema,
+  updateDownloaderCreditBillingSchema,
   updateDownloaderSchema,
 } from '@shared/schemas'
 import { FREE_DOWNLOADER_LIMIT } from '../../../shared/constants'
@@ -17,6 +18,7 @@ import {
   listDownloaders,
   recordDownloaderHeartbeat,
   updateDownloader,
+  updateDownloaderCreditBilling,
 } from '../../usecases/downloads/downloads'
 import { featureBlocked, unauthorized } from '../../usecases/ports'
 import { loadBindingState } from '../../usecases/site/licensing'
@@ -60,6 +62,21 @@ const updateRoute = createRoute({
   path: '/{id}',
   middleware: [requireAdmin] as const,
   request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderSchema) },
+  responses: {
+    200: jsonContent(downloaderSchema, 'Updated downloader'),
+    402: errorResponse('Feature not available'),
+    404: errorResponse('Not found'),
+  },
+})
+
+const updateCreditBillingRoute = createRoute({
+  operationId: 'updateDownloaderCreditBilling',
+  summary: 'Update downloader credit billing',
+  tags: ['Downloaders'],
+  method: 'put',
+  path: '/{id}/credit-billing',
+  middleware: [requireAdmin] as const,
+  request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderCreditBillingSchema) },
   responses: {
     200: jsonContent(downloaderSchema, 'Updated downloader'),
     402: errorResponse('Feature not available'),
@@ -133,6 +150,10 @@ const downloadersRoute = new OpenAPIHono<Env>()
       }
     }
     return c.json(await updateDownloader(c.get('deps'), id, input), 200)
+  })
+  .openapi(updateCreditBillingRoute, async (c) => {
+    const { id } = c.req.valid('param')
+    return c.json(await updateDownloaderCreditBilling(c.get('deps'), id, c.req.valid('json')), 200)
   })
   .openapi(deleteRoute, async (c) => {
     const { id } = c.req.valid('param')

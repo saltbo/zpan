@@ -50,6 +50,12 @@ Feature: Storages
     When an admin updates its fields
     Then the changes are persisted
 
+  @storages/egress-billing @api
+  Scenario: Admins configure storage egress credits separately
+    Given an existing storage
+    When an admin updates egress credits billing
+    Then the billing fields are persisted through the dedicated route
+
   @storages/delete @api
   Scenario: Admins delete an unused storage
     Given an existing storage referenced by no files
