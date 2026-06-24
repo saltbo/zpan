@@ -304,6 +304,73 @@ describe('object usecase', () => {
       }
     })
 
+    it('uses an eligible requested storage for a file draft', async () => {
+      const target = { ...storage, id: 'st-target' } as StorageRecord
+      const select = vi.fn(async () => target)
+      const create = vi.fn(async (input: Parameters<MatterRepo['create']>[0]) => file('d1', input as Partial<Matter>))
+      const createSession = vi.fn(
+        async (input: Parameters<ObjectUploadSessionRepo['create']>[0]) =>
+          ({
+            id: 'sess-1',
+            objectId: input.objectId,
+            uploadId: input.uploadId,
+            partSize: input.partSize,
+            status: 'active',
+            storageKey: input.storageKey,
+            expiresAt: new Date(Date.now() + 3_600_000),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }) as ObjectUploadSessionRecord,
+      )
+      const { deps } = makeDeps({
+        storages: { select },
+        matter: { create },
+        objectUploadSessions: { create: createSession },
+      })
+
+      const out = await createObject(deps, {
+        orgId: 'o1',
+        actor: user,
+        input: {
+          name: 'photo.jpg',
+          type: 'image/jpeg',
+          size: 1,
+          dirtype: DirType.FILE,
+          parent: '',
+          storageId: 'st-target',
+        },
+      })
+
+      expect(out.ok).toBe(true)
+      expect(select).toHaveBeenCalledWith('st-target')
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ storageId: 'st-target' }))
+      expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ storageId: 'st-target' }))
+    })
+
+    it('rejects a requested missing, inactive, or full storage before creating rows', async () => {
+      const create = vi.fn()
+      const createSession = vi.fn()
+      const { deps } = makeDeps({
+        matter: { create },
+        objectUploadSessions: { create: createSession },
+        storages: {
+          select: async () => {
+            throw new Error('No available storage')
+          },
+        },
+      })
+
+      const out = await createObject(deps, {
+        orgId: 'o1',
+        actor: user,
+        input: { name: 'x.txt', type: 'text/plain', dirtype: DirType.FILE, parent: '', storageId: 'missing' },
+      })
+
+      expectError(out, 503, 'Storage is not active or has no available capacity', 'NO_STORAGE_CONFIGURED')
+      expect(create).not.toHaveBeenCalled()
+      expect(createSession).not.toHaveBeenCalled()
+    })
+
     it('creates a large file draft and returns multipart upload instructions', async () => {
       const fiveGiB = 5 * 1024 * 1024 * 1024
       const size = fiveGiB + 1 // just over 5 GiB → two 5 GiB parts
@@ -361,6 +428,26 @@ describe('object usecase', () => {
         input: { name: 'x.txt', type: 'text/plain', dirtype: DirType.FILE, parent: '' },
       })
       expectError(out, 503, 'No storage configured', 'NO_STORAGE_CONFIGURED')
+    })
+
+    it('does not allow download-task uploads to choose a storage', async () => {
+      const create = vi.fn()
+      const select = vi.fn()
+      const { deps } = makeDeps({ matter: { create }, storages: { select } })
+      const out = await createObject(deps, {
+        orgId: 'o1',
+        actor: {
+          kind: 'download-task-upload',
+          downloaderId: 'd1',
+          taskId: 't1',
+          targetFolder: 'Inbox',
+          createdByUserId: 'creator',
+        },
+        input: { name: 'x.txt', type: 'text/plain', dirtype: DirType.FILE, parent: 'Inbox', storageId: 'st-1' },
+      })
+      expectError(out, 403, 'Storage selection is not allowed for task uploads')
+      expect(select).not.toHaveBeenCalled()
+      expect(create).not.toHaveBeenCalled()
     })
 
     it('rejects an agent upload outside its target folder', async () => {
@@ -573,6 +660,31 @@ describe('object usecase', () => {
       expect(deleteObjectFn).toHaveBeenCalledWith(storage, 'key/d1')
       expect(setStatus).toHaveBeenCalledWith('sess-1', 'aborted')
       expect(cancelDraft).toHaveBeenCalledWith('d1', 'o1', 'u1')
+    })
+
+    it('strict single-PUT abort fails when S3 cleanup fails', async () => {
+      const setStatus = vi.fn()
+      const cancelDraft = vi.fn()
+      const deleteObjectFn = vi.fn(async () => {
+        throw new Error('delete denied')
+      })
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft' }), cancelDraft },
+        s3: { deleteObject: deleteObjectFn },
+        objectUploadSessions: { get: async () => session(), setStatus },
+      })
+
+      await expect(
+        abortUpload(deps, {
+          orgId: 'o1',
+          objectId: 'd1',
+          sessionId: 'sess-1',
+          actorId: 'u1',
+          strictStorageCleanup: true,
+        }),
+      ).rejects.toMatchObject({ name: 'ObjectUploadSessionError', code: 'storage_failure' })
+      expect(setStatus).not.toHaveBeenCalled()
+      expect(cancelDraft).not.toHaveBeenCalled()
     })
 
     it('aborts a multipart session via AbortMultipartUpload', async () => {

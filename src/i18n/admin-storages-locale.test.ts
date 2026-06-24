@@ -21,10 +21,21 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.colTitle',
   'admin.storages.colBucket',
   'admin.storages.colEndpoint',
+  'admin.storages.colEgressBilling',
   'admin.storages.colStatus',
+  'admin.storages.colHealth',
   'admin.storages.colActions',
   'admin.storages.statusActive',
   'admin.storages.statusInactive',
+  'admin.storages.healthUntested',
+  'admin.storages.healthTesting',
+  'admin.storages.testAction',
+  'admin.storages.testSuccess',
+  'admin.storages.testNoUploadUrl',
+  'admin.storages.testUploadFailed',
+  'admin.storages.testCleanupFailed',
+  'admin.storages.testCorsFailure',
+  'admin.storages.testCorsCaveat',
   'admin.storages.fieldTitle',
   'admin.storages.fieldBucket',
   'admin.storages.fieldEndpoint',
@@ -32,10 +43,19 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.fieldAccessKey',
   'admin.storages.fieldSecretKey',
   'admin.storages.fieldCustomHost',
+  'admin.storages.fieldForcePathStyle',
+  'admin.storages.forcePathStyleHint',
   'admin.storages.customHostPlaceholder',
   'admin.storages.fieldCapacity',
   'admin.storages.capacityUnlimited',
   'admin.storages.capacityHint',
+  'admin.storages.egressBilling',
+  'admin.storages.egressBillingHint',
+  'admin.storages.egressBillingBusinessOnly',
+  'admin.storages.egressBillingUnit',
+  'admin.storages.egressBillingCredits',
+  'admin.storages.egressBillingRate',
+  'admin.storages.egressBillingOff',
 ]
 
 const ADMIN_NAV_KEYS = ['admin.nav.management', 'admin.nav.storages', 'admin.nav.users']
@@ -47,6 +67,9 @@ const ALL_KEYS = [...ADMIN_STORAGES_KEYS, ...ADMIN_NAV_KEYS, ...SHARED_KEYS]
 // Keys that contain interpolation placeholders and the expected placeholder tokens
 const INTERPOLATED_KEYS: Record<string, string[]> = {
   'admin.storages.deleteConfirm': ['{{title}}'],
+  'admin.storages.testUploadFailed': ['{{detail}}'],
+  'admin.storages.testCleanupFailed': ['{{detail}}'],
+  'admin.storages.egressBillingRate': ['{{credits}}', '{{unit}}'],
 }
 
 describe('admin.storages locale keys — presence', () => {
@@ -130,6 +153,14 @@ describe('admin.storages locale keys — English values contract', () => {
 
   it('admin.storages.statusInactive is "Inactive"', () => {
     expect(enLocale['admin.storages.statusInactive']).toBe('Inactive')
+  })
+
+  it('admin.storages.colHealth is "Connection health"', () => {
+    expect(enLocale['admin.storages.colHealth']).toBe('Connection health')
+  })
+
+  it('admin.storages.testAction is "Test connection"', () => {
+    expect(enLocale['admin.storages.testAction']).toBe('Test connection')
   })
 
   it('admin.storages.deleteHasFiles is "Cannot delete storage that contains files."', () => {

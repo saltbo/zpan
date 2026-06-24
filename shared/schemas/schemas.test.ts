@@ -76,6 +76,14 @@ describe('createMatterSchema', () => {
     }
   })
 
+  it('accepts an optional target storage id', () => {
+    const result = createMatterSchema.safeParse({ name: 'file.txt', type: 'text/plain', storageId: 'st-1' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.storageId).toBe('st-1')
+    }
+  })
+
   it('rejects empty name', () => {
     const result = createMatterSchema.safeParse({ name: '', type: 'text/plain' })
     expect(result.success).toBe(false)

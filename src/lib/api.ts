@@ -219,6 +219,7 @@ export function createObject(data: {
   parent: string
   dirtype: number
   onConflict?: ConflictStrategy
+  storageId?: string
 }) {
   return unwrap<CreateObjectResult>(objects.index.$post({ json: data }))
 }
@@ -236,8 +237,13 @@ export function completeObjectUpload(id: string, uploadSessionId: string, parts:
 }
 
 // Abort an in-progress upload and discard the draft.
-export function abortObjectUpload(id: string, uploadSessionId: string) {
-  return discard(objects[':id'].uploads[':uploadSessionId'].$delete({ param: { id, uploadSessionId } }))
+export function abortObjectUpload(id: string, uploadSessionId: string, opts: { strictStorageCleanup?: boolean } = {}) {
+  return discard(
+    objects[':id'].uploads[':uploadSessionId'].$delete({
+      param: { id, uploadSessionId },
+      query: opts.strictStorageCleanup ? { strictStorageCleanup: '1' } : {},
+    }),
+  )
 }
 
 // Re-presign expired part URLs mid-upload (multipart only); the happy path uses

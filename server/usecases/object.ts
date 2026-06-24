@@ -162,6 +162,9 @@ export async function createObject(
   const size = input.size ?? 0
 
   if (actor.kind === 'download-task-upload') {
+    if (input.storageId) {
+      return { ok: false, error: forbidden('Storage selection is not allowed for task uploads') }
+    }
     if (!isWithinDownloadTarget(parent, actor.targetFolder)) {
       return { ok: false, error: forbidden('Target folder is outside task authorization') }
     }
@@ -175,10 +178,13 @@ export async function createObject(
 
   let storage: StorageRecord
   try {
-    storage = await deps.storages.select()
+    storage = await deps.storages.select(input.storageId)
   } catch (error) {
     if (error instanceof Error && error.message === 'No available storage') {
-      return { ok: false, error: noStorage() }
+      return {
+        ok: false,
+        error: input.storageId ? noStorage('Storage is not active or has no available capacity') : noStorage(),
+      }
     }
     throw error
   }
@@ -383,7 +389,7 @@ export async function completeUpload(
 // already-aborted session; rejects completing one.
 export async function abortUpload(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions'>,
-  params: { orgId: string; objectId: string; sessionId: string; actorId: string },
+  params: { orgId: string; objectId: string; sessionId: string; actorId: string; strictStorageCleanup?: boolean },
 ): Promise<void> {
   const { storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
   const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
@@ -405,8 +411,10 @@ export async function abortUpload(
     // bytes reach S3.
     try {
       await deps.s3.deleteObject(storage, record.storageKey)
-    } catch {
-      // ignore
+    } catch (error) {
+      if (params.strictStorageCleanup) {
+        throw new ObjectUploadSessionError('storage_failure', `Storage cleanup failed: ${(error as Error).message}`)
+      }
     }
   }
   await deps.objectUploadSessions.setStatus(record.id, 'aborted')

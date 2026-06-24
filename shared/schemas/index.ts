@@ -157,6 +157,7 @@ export const createMatterSchema = z.object({
   parent: z.string().default(''),
   dirtype: z.number().int().default(0),
   onConflict: conflictStrategySchema.optional(),
+  storageId: z.string().min(1).optional(),
 })
 
 export type CreateMatterInput = z.infer<typeof createMatterSchema>

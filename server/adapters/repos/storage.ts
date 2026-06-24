@@ -95,11 +95,17 @@ export function createStorageRepo(db: Database): StorageRepo {
       return 'ok'
     },
 
-    async select() {
+    async select(id) {
       const rows = await db
         .select()
         .from(storages)
-        .where(and(eq(storages.status, 'active'), or(eq(storages.capacity, 0), lt(storages.used, storages.capacity))))
+        .where(
+          and(
+            id ? eq(storages.id, id) : undefined,
+            eq(storages.status, 'active'),
+            or(eq(storages.capacity, 0), lt(storages.used, storages.capacity)),
+          ),
+        )
         .orderBy(asc(storages.createdAt))
         .limit(1)
 

@@ -637,7 +637,7 @@ func (c *Client) CompleteObjectUpload(ctx context.Context, token string, id stri
 }
 
 func (c *Client) AbortObjectUploadSession(ctx context.Context, token string, id string, sessionID string) error {
-	res, err := c.api.AbortObjectUploadWithResponse(ctx, id, sessionID, bearer(token))
+	res, err := c.api.AbortObjectUploadWithResponse(ctx, id, sessionID, nil, bearer(token))
 	if err != nil {
 		return err
 	}

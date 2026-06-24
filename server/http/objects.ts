@@ -112,6 +112,9 @@ const listObjectsQuerySchema = pageQuerySchema.extend({
 
 const idParam = z.object({ id: z.string() })
 const sessionParams = z.object({ id: z.string(), uploadSessionId: z.string() })
+const abortUploadQuerySchema = z.object({
+  strictStorageCleanup: z.enum(['1', 'true']).optional(),
+})
 
 // The caller acting on objects: a download-task-upload token acts on behalf of
 // the task creator; otherwise it is the authenticated user.
@@ -225,12 +228,13 @@ const abortUploadRoute = createRoute({
   method: 'delete',
   path: '/{id}/uploads/{uploadSessionId}',
   middleware: [requireObjectWriteAccess] as const,
-  request: { params: sessionParams },
+  request: { params: sessionParams, query: abortUploadQuerySchema },
   responses: {
     204: { description: 'Aborted upload and discarded the draft' },
     400: errorResponse('Invalid upload session'),
     403: errorResponse('Forbidden'),
     404: errorResponse('Not found'),
+    502: errorResponse('Storage cleanup failed'),
   },
 })
 
@@ -361,7 +365,10 @@ const objects = app
     const orgId = c.get('orgId')
     if (!orgId) throw badRequest('No active organization')
 
-    const result = await createObject(c.get('deps'), { orgId, actor: objectActor(c), input: c.req.valid('json') })
+    const input = c.req.valid('json')
+    if (input.storageId && c.get('userRole') !== 'admin') throw forbidden('Forbidden')
+
+    const result = await createObject(c.get('deps'), { orgId, actor: objectActor(c), input })
     if (!result.ok) throw result.error
     if ('upload' in result) return c.json({ ...toMatterDTO(result.matter), upload: result.upload }, 201)
     return c.json(toMatterDTO(result.matter), 201)
@@ -419,6 +426,7 @@ const objects = app
       objectId: c.req.valid('param').id,
       sessionId: c.req.valid('param').uploadSessionId,
       actorId: actorId(c),
+      strictStorageCleanup: c.req.valid('query').strictStorageCleanup !== undefined,
     })
     return c.body(null, 204)
   })
