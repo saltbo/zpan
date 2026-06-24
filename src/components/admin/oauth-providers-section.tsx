@@ -181,24 +181,26 @@ export function OAuthProvidersSection() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">
-          <Table>
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow className="border-b bg-muted/50">
-                <TableHead className="px-4 py-3">{t('admin.auth.provider')}</TableHead>
-                <TableHead className="px-4 py-3">{t('admin.auth.providerType')}</TableHead>
-                <TableHead className="px-4 py-3">{t('admin.auth.clientId')}</TableHead>
-                <TableHead className="px-4 py-3">{t('admin.auth.enabled')}</TableHead>
-                <TableHead className="px-4 py-3 text-right">{t('admin.auth.colActions')}</TableHead>
+                <TableHead className="w-[30%] px-4 py-3">{t('admin.auth.provider')}</TableHead>
+                <TableHead className="w-[44%] px-4 py-3">{t('admin.auth.clientId')}</TableHead>
+                <TableHead className="w-28 px-4 py-3">{t('admin.auth.enabled')}</TableHead>
+                <TableHead className="w-24 px-4 py-3 text-right">{t('admin.auth.colActions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {providers.map((p) => (
                 <TableRow key={p.providerId} className="border-b last:border-0 hover:bg-muted/30">
-                  <TableCell className="px-4 py-3 font-medium">
+                  <TableCell className="min-w-0 px-4 py-3 font-medium">
                     <ProviderLabel providerId={p.providerId} />
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-sm">{p.type}</TableCell>
-                  <TableCell className="px-4 py-3 text-sm font-mono">{p.clientId}</TableCell>
+                  <TableCell className="min-w-0 px-4 py-3">
+                    <div className="truncate font-mono text-muted-foreground text-xs" title={p.clientId}>
+                      {p.clientId}
+                    </div>
+                  </TableCell>
                   <TableCell className="px-4 py-3">
                     <span
                       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${p.enabled ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}
@@ -208,13 +210,16 @@ export function OAuthProvidersSection() {
                   </TableCell>
                   <TableCell className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        {t('common.edit')}
+                      <Button variant="ghost" size="icon-xs" onClick={() => openEdit(p)} aria-label={t('common.edit')}>
+                        <Pencil />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => openDelete(p.providerId)}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        {t('common.delete')}
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => openDelete(p.providerId)}
+                        aria-label={t('common.delete')}
+                      >
+                        <Trash2 className="text-destructive" />
                       </Button>
                     </div>
                   </TableCell>
