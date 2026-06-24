@@ -3,6 +3,7 @@ import { ClipboardCopy, Loader2, MailPlus, RotateCw, ShieldX } from 'lucide-reac
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
 import { useClipboard } from '@/hooks/use-clipboard'
 import {
   type ApiError,
@@ -12,9 +13,7 @@ import {
   revokeSiteInvitation,
 } from '@/lib/api'
 import { Button } from '../ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Input } from '../ui/input'
-import { Label } from '../ui/label'
 
 interface SiteInvitationsDialogProps {
   open: boolean
@@ -113,7 +112,7 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
   }
 
   return (
-    <Dialog
+    <AdminFormDrawer
       open={open}
       onOpenChange={(nextOpen) => {
         onOpenChange(nextOpen)
@@ -122,159 +121,144 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
           setPage(1)
         }
       }}
-    >
-      <DialogContent className="flex max-h-[min(760px,calc(100vh-2rem))] flex-col overflow-hidden p-0 sm:max-w-5xl">
-        <DialogHeader className="border-b px-6 py-4">
-          <DialogTitle>{t('admin.users.inviteDialogTitle')}</DialogTitle>
-          <DialogDescription>{t('admin.users.inviteDialogDescription', { count: pendingCount })}</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-6 overflow-y-auto px-6 py-5">
-          <form
-            onSubmit={handleSubmit}
-            className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_auto] md:items-end"
-          >
-            <div className="space-y-2">
-              <Label htmlFor="invite-email">{t('admin.users.inviteEmail')}</Label>
-              <Input
-                id="invite-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={t('admin.users.inviteEmailPlaceholder')}
-                required
-              />
-            </div>
-            <Button type="submit" disabled={createMutation.isPending || !email.trim()}>
-              {createMutation.isPending ? <Loader2 className="animate-spin" /> : <MailPlus />}
-              {t('admin.users.sendInvite')}
+      width="extra-wide"
+      title={t('admin.users.inviteDialogTitle')}
+      description={t('admin.users.inviteDialogDescription', { count: pendingCount })}
+      bodyClassName="space-y-6"
+      footer={
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-sm text-muted-foreground">
+            {t('admin.users.pageInfo', { page, total: totalPages })}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
+              {t('admin.users.prevPage')}
             </Button>
-          </form>
-
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="px-4 py-3 text-left font-medium">{t('admin.users.inviteColEmail')}</th>
-                  <th className="px-4 py-3 text-left font-medium">{t('admin.users.inviteColStatus')}</th>
-                  <th className="hidden px-4 py-3 text-left font-medium md:table-cell">
-                    {t('admin.users.inviteColInvitedBy')}
-                  </th>
-                  <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">
-                    {t('admin.users.inviteColCreatedAt')}
-                  </th>
-                  <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">
-                    {t('admin.users.inviteColExpiresAt')}
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">{t('admin.users.colActions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invitationsQuery.isLoading && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                      {t('common.loading')}
-                    </td>
-                  </tr>
-                )}
-
-                {!invitationsQuery.isLoading &&
-                  items.map((invitation) => {
-                    const actionsDisabled = isBusy && resendMutation.variables !== invitation.id
-                    return (
-                      <tr key={invitation.id} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-4 py-3 font-medium">{invitation.email}</td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={invitation.status} />
-                        </td>
-                        <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                          {invitation.invitedByName}
-                        </td>
-                        <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
-                          {formatDate(invitation.createdAt)}
-                        </td>
-                        <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
-                          {formatDate(invitation.expiresAt)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              onClick={() => handleCopy(invitation.token)}
-                              title={t('admin.users.copyInviteLink')}
-                            >
-                              <ClipboardCopy />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              disabled={invitation.status !== 'pending' || actionsDisabled}
-                              onClick={() => resendMutation.mutate(invitation.id)}
-                              title={t('admin.users.resendInvite')}
-                            >
-                              <RotateCw
-                                className={
-                                  resendMutation.isPending && resendMutation.variables === invitation.id
-                                    ? 'animate-spin'
-                                    : ''
-                                }
-                              />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              disabled={invitation.status !== 'pending' || actionsDisabled}
-                              onClick={() => revokeMutation.mutate(invitation.id)}
-                              title={t('admin.users.revokeInvite')}
-                            >
-                              <ShieldX className="text-destructive" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-
-                {!invitationsQuery.isLoading && items.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                      {t('admin.users.noInvitations')}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              {t('admin.users.nextPage')}
+            </Button>
           </div>
         </div>
+      }
+    >
+      <form onSubmit={handleSubmit} className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_auto] md:items-end">
+        <AdminFormField id="invite-email" label={t('admin.users.inviteEmail')}>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder={t('admin.users.inviteEmailPlaceholder')}
+            required
+          />
+        </AdminFormField>
+        <Button type="submit" disabled={createMutation.isPending || !email.trim()}>
+          {createMutation.isPending ? <Loader2 className="animate-spin" /> : <MailPlus />}
+          {t('admin.users.sendInvite')}
+        </Button>
+      </form>
 
-        <DialogFooter className="border-t px-6 py-4">
-          <div className="flex w-full items-center justify-between gap-3">
-            <span className="text-sm text-muted-foreground">
-              {t('admin.users.pageInfo', { page, total: totalPages })}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((current) => current - 1)}
-              >
-                {t('admin.users.prevPage')}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                {t('admin.users.nextPage')}
-              </Button>
-            </div>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="px-4 py-3 text-left font-medium">{t('admin.users.inviteColEmail')}</th>
+              <th className="px-4 py-3 text-left font-medium">{t('admin.users.inviteColStatus')}</th>
+              <th className="hidden px-4 py-3 text-left font-medium md:table-cell">
+                {t('admin.users.inviteColInvitedBy')}
+              </th>
+              <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">
+                {t('admin.users.inviteColCreatedAt')}
+              </th>
+              <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">
+                {t('admin.users.inviteColExpiresAt')}
+              </th>
+              <th className="px-4 py-3 text-right font-medium">{t('admin.users.colActions')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invitationsQuery.isLoading && (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                  {t('common.loading')}
+                </td>
+              </tr>
+            )}
+
+            {!invitationsQuery.isLoading &&
+              items.map((invitation) => {
+                const actionsDisabled = isBusy && resendMutation.variables !== invitation.id
+                return (
+                  <tr key={invitation.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium">{invitation.email}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={invitation.status} />
+                    </td>
+                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{invitation.invitedByName}</td>
+                    <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
+                      {formatDate(invitation.createdAt)}
+                    </td>
+                    <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
+                      {formatDate(invitation.expiresAt)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => handleCopy(invitation.token)}
+                          title={t('admin.users.copyInviteLink')}
+                          aria-label={t('admin.users.copyInviteLink')}
+                        >
+                          <ClipboardCopy />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={invitation.status !== 'pending' || actionsDisabled}
+                          onClick={() => resendMutation.mutate(invitation.id)}
+                          title={t('admin.users.resendInvite')}
+                          aria-label={t('admin.users.resendInvite')}
+                        >
+                          <RotateCw
+                            className={
+                              resendMutation.isPending && resendMutation.variables === invitation.id
+                                ? 'animate-spin'
+                                : ''
+                            }
+                          />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={invitation.status !== 'pending' || actionsDisabled}
+                          onClick={() => revokeMutation.mutate(invitation.id)}
+                          title={t('admin.users.revokeInvite')}
+                          aria-label={t('admin.users.revokeInvite')}
+                        >
+                          <ShieldX className="text-destructive" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+
+            {!invitationsQuery.isLoading && items.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                  {t('admin.users.noInvitations')}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </AdminFormDrawer>
   )
 }
 

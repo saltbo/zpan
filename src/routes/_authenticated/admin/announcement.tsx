@@ -10,6 +10,14 @@ import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import type { Announcement, AnnouncementInput } from '@/lib/api'
@@ -36,6 +44,7 @@ function AnnouncementPage() {
   const [status, setStatus] = useState<StatusFilter>('all')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Announcement | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null)
   const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
   const announcementsEnabled = hasFeature('site_announcements')
 
@@ -75,6 +84,7 @@ function AnnouncementPage() {
     mutationFn: deleteAnnouncement,
     onSuccess: () => {
       invalidateAnnouncements()
+      setDeleteTarget(null)
       toast.success(t('admin.announcement.deleted'))
     },
     onError: (err) => toast.error(err.message),
@@ -93,9 +103,7 @@ function AnnouncementPage() {
   }
 
   function handleDelete(announcement: Announcement) {
-    if (window.confirm(t('admin.announcement.deleteConfirm', { title: announcement.title }))) {
-      deleteMutation.mutate(announcement.id)
-    }
+    setDeleteTarget(announcement)
   }
 
   const announcements = announcementsQuery.data?.items ?? []
@@ -112,15 +120,10 @@ function AnnouncementPage() {
             {t('admin.announcement.create')}
           </Button>
         }
-      />
-
-      {!entitlementLoading && !announcementsEnabled && <UpgradeHint feature="site_announcements" />}
-
-      {announcementsEnabled && (
-        <>
-          <div className="w-48">
+        filters={
+          announcementsEnabled ? (
             <Select value={status} onValueChange={(value) => setStatus(value as StatusFilter)}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full sm:w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -130,8 +133,14 @@ function AnnouncementPage() {
                 <SelectItem value="archived">{t('announcement.status.archived')}</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          ) : null
+        }
+      />
 
+      {!entitlementLoading && !announcementsEnabled && <UpgradeHint feature="site_announcements" />}
+
+      {announcementsEnabled && (
+        <>
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm">
               <thead>
@@ -182,6 +191,29 @@ function AnnouncementPage() {
             }}
             onSubmit={handleSave}
           />
+
+          <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t('common.delete')}</DialogTitle>
+                <DialogDescription>
+                  {t('admin.announcement.deleteConfirm', { title: deleteTarget?.title ?? '' })}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? t('common.loading') : t('common.delete')}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>

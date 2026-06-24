@@ -2,17 +2,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { grantOrgEntitlement, grantUserEntitlement, updateOrgEntitlement, updateUserEntitlement } from '@/lib/api'
@@ -151,82 +143,69 @@ export function GrantEntitlementDialog({ open, onOpenChange, target, entitlement
   if (!target) return null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {isEdit
-              ? t('admin.entitlement.editFor', { name: target.name })
-              : t('admin.entitlement.grantFor', { name: target.name })}
-          </DialogTitle>
-          <DialogDescription>
-            {isEdit ? t('admin.entitlement.editDescription') : t('admin.entitlement.grantDescription')}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            mutation.mutate()
-          }}
-        >
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px]">
-            <div className="space-y-2">
-              <Label htmlFor="entitlement-amount">{t('admin.entitlement.amount')}</Label>
-              <Input
-                id="entitlement-amount"
-                type="number"
-                min="0.1"
-                step="0.1"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('admin.entitlement.unit')}</Label>
-              <Select value={unit} onValueChange={(value) => setUnit(value as QuotaUnit)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {QUOTA_UNITS.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="entitlement-expires">{t('admin.entitlement.expires')}</Label>
-            <Input
-              id="entitlement-expires"
-              type="datetime-local"
-              value={expiresAt}
-              onChange={(event) => setExpiresAt(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="entitlement-note">{t('admin.entitlement.note')}</Label>
-            <Textarea id="entitlement-note" value={note} onChange={(event) => setNote(event.target.value)} rows={3} />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending
-                ? t('common.loading')
-                : isEdit
-                  ? t('admin.entitlement.save')
-                  : t('admin.entitlement.grant')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <AdminFormDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        isEdit
+          ? t('admin.entitlement.editFor', { name: target.name })
+          : t('admin.entitlement.grantFor', { name: target.name })
+      }
+      description={isEdit ? t('admin.entitlement.editDescription') : t('admin.entitlement.grantDescription')}
+      bodyClassName="grid gap-4"
+      formProps={{
+        onSubmit: (event) => {
+          event.preventDefault()
+          mutation.mutate()
+        },
+      }}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending
+              ? t('common.loading')
+              : isEdit
+                ? t('admin.entitlement.save')
+                : t('admin.entitlement.grant')}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px]">
+        <AdminFormField id="entitlement-amount" label={t('admin.entitlement.amount')}>
+          <Input
+            type="number"
+            min="0.1"
+            step="0.1"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            required
+          />
+        </AdminFormField>
+        <AdminFormField id="entitlement-unit" label={t('admin.entitlement.unit')}>
+          <Select value={unit} onValueChange={(value) => setUnit(value as QuotaUnit)}>
+            <SelectTrigger id="entitlement-unit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {QUOTA_UNITS.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {item}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </AdminFormField>
+      </div>
+      <AdminFormField id="entitlement-expires" label={t('admin.entitlement.expires')}>
+        <Input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+      </AdminFormField>
+      <AdminFormField id="entitlement-note" label={t('admin.entitlement.note')}>
+        <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} />
+      </AdminFormField>
+    </AdminFormDrawer>
   )
 }
