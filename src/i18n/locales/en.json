@@ -735,6 +735,8 @@
   "admin.storages.fieldAccessKey": "Access Key",
   "admin.storages.fieldSecretKey": "Secret Key",
   "admin.storages.fieldCustomHost": "Custom Host",
+  "admin.storages.fieldForcePathStyle": "Path Style",
+  "admin.storages.forcePathStyleHint": "Use path-style addressing (endpoint/bucket/key). Turn off for virtual-hosted-style (bucket.endpoint/key).",
   "admin.storages.fieldCapacity": "Capacity",
   "admin.storages.capacityUnlimited": "Unlimited",
   "admin.storages.capacityHint": "Maximum storage space. 0 means unlimited.",

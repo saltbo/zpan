@@ -337,6 +337,13 @@
       "when": 1781925137737,
       "tag": "0048_drop-storages-mode",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1782201600733,
+      "tag": "0049_add-force-path-style",
+      "breakpoints": true
     }
   ]
 }

@@ -209,10 +209,12 @@ jobs:
           TRUSTED_ORIGINS=http://localhost:5185 \
           pnpm e2e --project=desktop --grep-invert "Cloud store|Cloud licensing|Archive jobs|Site announcements"
       - name: Install cloudflared
+        if: env.E2E_CLOUD_BUSINESS_EMAIL_NODE != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_NODE != ''
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x cloudflared
       - name: Run cloud E2E
+        if: env.E2E_CLOUD_BUSINESS_EMAIL_NODE != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_NODE != ''
         run: |
           ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
           VITE_ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
@@ -273,10 +275,12 @@ jobs:
           TRUSTED_ORIGINS=http://localhost:5185 \
           pnpm e2e --project=desktop --grep-invert "Cloud store|Cloud licensing|Archive jobs|Site announcements"
       - name: Install cloudflared
+        if: env.E2E_CLOUD_BUSINESS_EMAIL_CF != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_CF != ''
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x cloudflared
       - name: Run cloud E2E
+        if: env.E2E_CLOUD_BUSINESS_EMAIL_CF != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_CF != ''
         run: |
           ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
           VITE_ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \

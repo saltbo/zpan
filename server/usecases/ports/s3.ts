@@ -7,6 +7,7 @@ export interface S3StorageCredentials {
   accessKey: string
   secretKey: string
   customHost: string | null
+  forcePathStyle: boolean
 }
 
 export interface S3Gateway {

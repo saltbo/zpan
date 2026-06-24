@@ -2058,6 +2058,7 @@ type Storage struct {
 	EgressCreditUnitBytes      int     `json:"egressCreditUnitBytes"`
 	Endpoint                   string  `json:"endpoint"`
 	FilePath                   string  `json:"filePath"`
+	ForcePathStyle             bool    `json:"forcePathStyle"`
 	Id                         string  `json:"id"`
 	Region                     string  `json:"region"`
 	SecretKey                  string  `json:"secretKey"`
@@ -3482,6 +3483,7 @@ type CreateStorageJSONBody struct {
 	EgressCreditPerUnit        *int    `json:"egressCreditPerUnit,omitempty"`
 	EgressCreditUnitBytes      *int    `json:"egressCreditUnitBytes,omitempty"`
 	Endpoint                   string  `json:"endpoint"`
+	ForcePathStyle             *bool   `json:"forcePathStyle,omitempty"`
 	Region                     *string `json:"region,omitempty"`
 	SecretKey                  string  `json:"secretKey"`
 	Title                      string  `json:"title"`
@@ -3497,6 +3499,7 @@ type UpdateStorageJSONBody struct {
 	EgressCreditPerUnit        *int                         `json:"egressCreditPerUnit,omitempty"`
 	EgressCreditUnitBytes      *int                         `json:"egressCreditUnitBytes,omitempty"`
 	Endpoint                   *string                      `json:"endpoint,omitempty"`
+	ForcePathStyle             *bool                        `json:"forcePathStyle,omitempty"`
 	Region                     *string                      `json:"region,omitempty"`
 	SecretKey                  *string                      `json:"secretKey,omitempty"`
 	Status                     *UpdateStorageJSONBodyStatus `json:"status,omitempty"`

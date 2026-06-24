@@ -106,6 +106,7 @@ function makeStorage(overrides: Partial<Storage> = {}): Storage {
     egressCreditBillingEnabled: false,
     egressCreditUnitBytes: 104857600,
     egressCreditPerUnit: 1,
+    forcePathStyle: true,
     used: 0,
     status: 'active',
     createdAt: '2026-01-01',
@@ -132,6 +133,14 @@ describe('S3Service', () => {
         endpoint: 'https://s3.example.com',
         requestChecksumCalculation: 'WHEN_REQUIRED',
         forcePathStyle: true,
+      })
+    })
+
+    it('uses forcePathStyle: false when storage has it disabled', () => {
+      const s = makeStorage({ forcePathStyle: false })
+      const client = service.createClient(s)
+      expect(client.config).toMatchObject({
+        forcePathStyle: false,
       })
     })
   })

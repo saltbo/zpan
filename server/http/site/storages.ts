@@ -24,6 +24,7 @@ const storageSchema = z
     egressCreditBillingEnabled: z.boolean(),
     egressCreditUnitBytes: z.number().int(),
     egressCreditPerUnit: z.number().int(),
+    forcePathStyle: z.boolean(),
     used: z.number().int(),
     status: z.string(),
     createdAt: z.string(),

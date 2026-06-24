@@ -1,0 +1,1 @@
+ALTER TABLE `storages` ADD `force_path_style` integer DEFAULT true NOT NULL;

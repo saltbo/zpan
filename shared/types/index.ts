@@ -35,6 +35,7 @@ export interface Storage {
   filePath: string
   customHost: string | null
   capacity: number
+  forcePathStyle: boolean
   egressCreditBillingEnabled: boolean
   egressCreditUnitBytes: number
   egressCreditPerUnit: number

@@ -28,7 +28,7 @@ export class S3Service implements S3Gateway {
         accessKeyId: storage.accessKey,
         secretAccessKey: storage.secretKey,
       },
-      forcePathStyle: true,
+      forcePathStyle: storage.forcePathStyle ?? true,
     })
   }
 

@@ -173,6 +173,7 @@ const APP_SCHEMA_SQL = `
     egress_credit_billing_enabled INTEGER NOT NULL DEFAULT 0,
     egress_credit_unit_bytes INTEGER NOT NULL DEFAULT 104857600,
     egress_credit_per_unit INTEGER NOT NULL DEFAULT 1,
+    force_path_style INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
