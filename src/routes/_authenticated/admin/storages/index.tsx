@@ -17,6 +17,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
+import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { DeleteStorageDialog } from '@/components/admin/delete-storage-dialog'
 import { StorageFormDrawer } from '@/components/admin/storage-form-drawer'
 import { UpgradeHint } from '@/components/UpgradeHint'
@@ -199,13 +200,15 @@ export function StoragesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">{t('admin.storages.title')}</h2>
-        <Button size="sm" onClick={handleAddNew} disabled={storagesLimitReached}>
-          <Plus className="mr-2 h-4 w-4" />
-          {t('admin.storages.add')}
-        </Button>
-      </div>
+      <AdminPageHeader
+        title={t('admin.storages.title')}
+        action={
+          <Button size="sm" onClick={handleAddNew} disabled={storagesLimitReached}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t('admin.storages.add')}
+          </Button>
+        }
+      />
 
       {storagesLimitReached && <UpgradeHint feature="storages_unlimited" />}
 

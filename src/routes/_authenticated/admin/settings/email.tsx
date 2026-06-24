@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { EmailConfigSection } from '@/components/admin/email-config-section'
 
 export const Route = createFileRoute('/_authenticated/admin/settings/email')({
@@ -11,7 +12,7 @@ function EmailSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">{t('admin.nav.email')}</h2>
+      <AdminPageHeader title={t('admin.nav.email')} />
       <div className="max-w-4xl">
         <EmailConfigSection />
       </div>

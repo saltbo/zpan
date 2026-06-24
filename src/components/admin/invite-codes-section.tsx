@@ -2,17 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { deleteInviteCode, generateInviteCodes, type InviteCode, listInviteCodes } from '@/lib/api'
 
@@ -147,38 +139,42 @@ export function InviteCodesSection() {
         </Table>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('admin.auth.generateTitle')}</DialogTitle>
-            <DialogDescription>{t('admin.auth.expiresInDaysHint')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>{t('admin.auth.codeCount')}</Label>
-              <Input type="number" min={1} max={100} value={count} onChange={(e) => setCount(Number(e.target.value))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>{t('admin.auth.expiresInDays')}</Label>
-              <Input
-                type="number"
-                min={1}
-                placeholder={t('admin.auth.expiresInDaysHint')}
-                value={expiresInDays}
-                onChange={(e) => setExpiresInDays(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+      <AdminFormDrawer
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={t('admin.auth.generateTitle')}
+        description={t('admin.auth.expiresInDaysHint')}
+        bodyClassName="grid gap-4"
+        formProps={{
+          onSubmit: (event) => {
+            event.preventDefault()
+            generateMutation.mutate()
+          },
+        }}
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
               {t('common.cancel')}
             </Button>
-            <Button onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>
+            <Button type="submit" disabled={generateMutation.isPending}>
               {generateMutation.isPending ? t('common.loading') : t('common.create')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <AdminFormField id="invite-code-count" label={t('admin.auth.codeCount')}>
+          <Input type="number" min={1} max={100} value={count} onChange={(e) => setCount(Number(e.target.value))} />
+        </AdminFormField>
+        <AdminFormField id="invite-code-expires" label={t('admin.auth.expiresInDays')}>
+          <Input
+            type="number"
+            min={1}
+            placeholder={t('admin.auth.expiresInDaysHint')}
+            value={expiresInDays}
+            onChange={(e) => setExpiresInDays(e.target.value)}
+          />
+        </AdminFormField>
+      </AdminFormDrawer>
     </div>
   )
 }

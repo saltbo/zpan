@@ -284,42 +284,33 @@ function RenameDownloaderDialog({
   const { t } = useTranslation()
   const valid = value.trim().length >= 1 && value.trim().length <= 120
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('admin.downloaders.renameTitle')}</DialogTitle>
-          <DialogDescription>
-            {t('admin.downloaders.renameDescription', { hostname: downloader?.hostname ?? '' })}
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (valid) onConfirm()
-          }}
-        >
-          <div className="space-y-2">
-            <Label htmlFor="downloaderDisplayName">{t('admin.downloaders.displayName')}</Label>
-            <Input
-              id="downloaderDisplayName"
-              maxLength={120}
-              value={value}
-              onChange={(event) => onValueChange(event.target.value)}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={pending || !valid}>
-              {t('common.save')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <AdminFormDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('admin.downloaders.renameTitle')}
+      description={t('admin.downloaders.renameDescription', { hostname: downloader?.hostname ?? '' })}
+      bodyClassName="grid gap-4"
+      formProps={{
+        onSubmit: (event) => {
+          event.preventDefault()
+          if (valid) onConfirm()
+        },
+      }}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" disabled={pending || !valid}>
+            {pending ? t('common.loading') : t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <AdminFormField id="downloaderDisplayName" label={t('admin.downloaders.displayName')}>
+        <Input maxLength={120} value={value} onChange={(event) => onValueChange(event.target.value)} autoFocus />
+      </AdminFormField>
+    </AdminFormDrawer>
   )
 }
 

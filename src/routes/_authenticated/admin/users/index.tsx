@@ -4,11 +4,20 @@ import { Search, ShieldCheck, Trash2, UserCheck, UserPlus, UserX } from 'lucide-
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
 import { SiteInvitationsDialog } from '@/components/admin/site-invitations-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getUserQuotaById } from '@/lib/api'
@@ -33,6 +42,7 @@ function UsersPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   const [deleteDialogUser, setDeleteDialogUser] = useState<{ id: string; name: string } | null>(null)
+  const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
@@ -92,6 +102,7 @@ function UsersPage() {
     mutationFn: (ids: string[]) => Promise.all(ids.map((id) => adminRemoveUser(id))),
     onSuccess: (_result, ids) => {
       setSelectedIds([])
+      setBatchDeleteDialogOpen(false)
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       toast.success(t('admin.users.batchDeleted', { count: ids.length }))
     },
@@ -136,8 +147,7 @@ function UsersPage() {
 
   function handleBatchDelete() {
     if (selectedCount === 0) return
-    if (!window.confirm(t('admin.users.batchDeleteConfirm', { count: selectedCount }))) return
-    batchDeleteMutation.mutate(selectedIds)
+    setBatchDeleteDialogOpen(true)
   }
 
   if (isLoading) {
@@ -150,24 +160,26 @@ function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">{t('admin.users.title')}</h2>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={t('admin.users.searchPlaceholder')}
-              value={search}
-              onChange={handleSearchChange}
-              className="pl-9"
-            />
-          </div>
-          <Button onClick={() => setInviteDialogOpen(true)}>
-            <UserPlus />
-            {t('admin.users.inviteUser')}
-          </Button>
-        </div>
-      </div>
+      <AdminPageHeader
+        title={t('admin.users.title')}
+        actions={
+          <>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={t('admin.users.searchPlaceholder')}
+                value={search}
+                onChange={handleSearchChange}
+                className="pl-9"
+              />
+            </div>
+            <Button onClick={() => setInviteDialogOpen(true)}>
+              <UserPlus />
+              {t('admin.users.inviteUser')}
+            </Button>
+          </>
+        }
+      />
 
       {selectedCount > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
@@ -203,26 +215,26 @@ function UsersPage() {
         <table className="w-full table-fixed text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="w-[4%] px-4 py-3 text-left font-medium">
+              <th className="w-[10%] px-4 py-3 text-left font-medium sm:w-[4%]">
                 <Checkbox
                   aria-label={t('admin.users.selectPage')}
                   checked={allPageSelected}
                   onCheckedChange={(checked) => togglePageSelection(checked === true)}
                 />
               </th>
-              <th className="w-[21%] px-4 py-3 text-left font-medium">{t('admin.users.colName')}</th>
+              <th className="w-[38%] px-4 py-3 text-left font-medium sm:w-[21%]">{t('admin.users.colName')}</th>
               <th className="hidden w-[23%] px-4 py-3 text-left font-medium sm:table-cell">
                 {t('admin.users.colEmail')}
               </th>
-              <th className="w-[9%] px-4 py-3 text-left font-medium">{t('admin.users.colRole')}</th>
-              <th className="w-[10%] px-4 py-3 text-left font-medium">{t('admin.users.colStatus')}</th>
+              <th className="w-[18%] px-4 py-3 text-left font-medium sm:w-[9%]">{t('admin.users.colRole')}</th>
+              <th className="w-[18%] px-4 py-3 text-left font-medium sm:w-[10%]">{t('admin.users.colStatus')}</th>
               <th className="hidden w-[14%] px-4 py-3 text-left font-medium md:table-cell">
                 {t('admin.users.colQuota')}
               </th>
               <th className="hidden w-[11%] truncate px-4 py-3 text-left font-medium lg:table-cell">
                 {t('admin.users.colCreatedAt')}
               </th>
-              <th className="w-[8%] px-4 py-3 text-right font-medium">{t('admin.users.colActions')}</th>
+              <th className="w-[16%] px-4 py-3 text-right font-medium sm:w-[8%]">{t('admin.users.colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -287,6 +299,31 @@ function UsersPage() {
         onOpenChange={(open) => !open && setDeleteDialogUser(null)}
         user={deleteDialogUser}
       />
+
+      <Dialog open={batchDeleteDialogOpen} onOpenChange={setBatchDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('admin.users.batchDelete')}</DialogTitle>
+            <DialogDescription>{t('admin.users.batchDeleteConfirm', { count: selectedCount })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBatchDeleteDialogOpen(false)}
+              disabled={batchDeleteMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => batchDeleteMutation.mutate(selectedIds)}
+              disabled={batchDeleteMutation.isPending || selectedCount === 0}
+            >
+              {batchDeleteMutation.isPending ? t('common.loading') : t('admin.users.batchDelete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SiteInvitationsDialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen} />
     </div>

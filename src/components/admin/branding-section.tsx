@@ -11,11 +11,12 @@ import { Eye, ImageUp, Palette, RotateCcw, Upload } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { AdminFormDrawer } from '@/components/admin/admin-form-drawer'
 import { ThemeColorInput, ThemePreview } from '@/components/admin/branding-theme-preview'
 import { brandingQueryKey } from '@/components/branding/BrandingProvider'
 import { ProBadge } from '@/components/ProBadge'
 import { Button } from '@/components/ui/button'
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -235,6 +236,7 @@ export function BrandingSection() {
 function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const { state, setLogoFile, setFaviconFile, clearLogoPreview, clearFaviconPreview } = useBrandingFormState(initial)
   const [themeMode, setThemeMode] = useState<BrandingThemeMode>(initial.theme.mode)
   const [themePreset, setThemePreset] = useState<BrandingThemePresetId>(initial.theme.preset)
@@ -275,6 +277,19 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
     setCustomTheme(savedCustomValues)
   }, [initial.theme.mode, initial.theme.preset, savedCustomValues])
 
+  function resetDraftFromInitial() {
+    clearLogoPreview(initial.logo_url)
+    clearFaviconPreview(initial.favicon_url)
+    setThemeMode(initial.theme.mode)
+    setThemePreset(initial.theme.preset)
+    setCustomTheme(savedCustomValues)
+  }
+
+  function closeBrandingDrawer() {
+    resetDraftFromInitial()
+    setDrawerOpen(false)
+  }
+
   const saveMutation = useMutation({
     mutationFn: () =>
       saveBranding({
@@ -291,6 +306,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
       setThemePreset(saved.theme.preset)
       setCustomTheme(saved.theme.custom ?? BRANDING_THEME_PRESETS[saved.theme.preset])
       queryClient.invalidateQueries({ queryKey: brandingQueryKey })
+      setDrawerOpen(false)
       toast.success(t('admin.settings.branding.saved'))
     },
     onError: (err) => toast.error(err.message),
@@ -313,39 +329,81 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
   })
 
   return (
-    <Card className="border-border/60">
-      <CardHeader className="gap-3">
-        <div className="flex items-start gap-3">
-          <div className="rounded-lg border border-border/60 bg-primary/10 p-2 text-primary">
-            <Palette className="size-5" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <CardTitle>{t('admin.settings.branding.assetsTitle')}</CardTitle>
-              <ProBadge tooltip={t('admin.settings.proLockedWhiteLabel')} />
+    <>
+      <Card className="border-border/60">
+        <CardHeader className="gap-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg border border-border/60 bg-primary/10 p-2 text-primary">
+                <Palette className="size-5" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <CardTitle>{t('admin.settings.branding.assetsTitle')}</CardTitle>
+                  <ProBadge tooltip={t('admin.settings.proLockedWhiteLabel')} />
+                </div>
+                <CardDescription>{t('admin.settings.branding.assetsDescription')}</CardDescription>
+              </div>
             </div>
-            <CardDescription>{t('admin.settings.branding.assetsDescription')}</CardDescription>
-          </div>
-        </div>
-        <CardAction>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button type="button" variant="outline" size="sm">
-                <Eye className="mr-2 size-4" />
-                {t('admin.settings.branding.preview')}
+            <CardAction className="flex flex-wrap justify-end gap-2">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button type="button" variant="outline" size="sm">
+                    <Eye className="mr-2 size-4" />
+                    {t('admin.settings.branding.preview')}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-3xl">
+                  <DialogHeader>
+                    <DialogTitle>{t('admin.settings.branding.preview')}</DialogTitle>
+                    <DialogDescription>{t('admin.settings.branding.previewHint')}</DialogDescription>
+                  </DialogHeader>
+                  <ThemePreview values={previewTheme} logoUrl={state.previewLogoUrl} />
+                </DialogContent>
+              </Dialog>
+              <Button type="button" size="sm" onClick={() => setDrawerOpen(true)}>
+                {t('common.edit')}
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-3xl">
-              <DialogHeader>
-                <DialogTitle>{t('admin.settings.branding.preview')}</DialogTitle>
-                <DialogDescription>{t('admin.settings.branding.previewHint')}</DialogDescription>
-              </DialogHeader>
-              <ThemePreview values={previewTheme} logoUrl={state.previewLogoUrl} />
-            </DialogContent>
-          </Dialog>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
+            </CardAction>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>{disabled ? t('admin.settings.branding.lockedMessage') : t('admin.settings.branding.themeDescription')}</p>
+          <p>{t(`admin.settings.branding.themePresets.${initial.theme.preset}`)}</p>
+        </CardContent>
+      </Card>
+
+      <AdminFormDrawer
+        open={drawerOpen}
+        onOpenChange={(open) => {
+          if (open) setDrawerOpen(true)
+          else closeBrandingDrawer()
+        }}
+        width="extra-wide"
+        title={t('admin.settings.branding.assetsTitle')}
+        description={t('admin.settings.branding.assetsDescription')}
+        bodyClassName="grid gap-5"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={disabled || resetMutation.isPending}
+              onClick={() => resetMutation.mutate('theme')}
+              className="text-muted-foreground"
+            >
+              <RotateCcw className="mr-2 size-4" />
+              {t('admin.settings.branding.resetTheme')}
+            </Button>
+            <Button type="button" variant="outline" onClick={closeBrandingDrawer} disabled={saveMutation.isPending}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={() => saveMutation.mutate()} disabled={disabled || saveMutation.isPending}>
+              {saveMutation.isPending ? t('admin.settings.branding.saving') : t('admin.settings.branding.save')}
+            </Button>
+          </>
+        }
+      >
         <div className={cn('flex flex-col gap-5', disabled && 'opacity-60')}>
           <div className="grid gap-2 xl:grid-cols-2">
             <FileUploadField
@@ -440,22 +498,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
             />
           </div>
         </div>
-      </CardContent>
-      <CardFooter className="flex-wrap justify-between gap-2 border-t">
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={disabled || resetMutation.isPending}
-          onClick={() => resetMutation.mutate('theme')}
-          className="text-muted-foreground"
-        >
-          <RotateCcw className="mr-2 size-4" />
-          {t('admin.settings.branding.resetTheme')}
-        </Button>
-        <Button onClick={() => saveMutation.mutate()} disabled={disabled || saveMutation.isPending}>
-          {saveMutation.isPending ? t('admin.settings.branding.saving') : t('admin.settings.branding.save')}
-        </Button>
-      </CardFooter>
-    </Card>
+      </AdminFormDrawer>
+    </>
   )
 }

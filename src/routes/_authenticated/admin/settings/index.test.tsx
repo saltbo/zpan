@@ -114,9 +114,16 @@ afterEach(() => {
 })
 
 describe('SettingsPage', () => {
+  function openSection(view: ReturnType<typeof renderSettingsPage>, title: string) {
+    const section = view.getByText(title).closest('[data-slot="card"]')
+    if (!section) throw new Error(`${title} section not found`)
+    fireEvent.click(within(section as HTMLElement).getByRole('button', { name: 'common.edit' }))
+  }
+
   it('saves identity settings from the identity section', async () => {
     const view = renderSettingsPage()
-    await view.findByLabelText('admin.settings.siteName')
+    await view.findByText('admin.settings.identityTitle')
+    openSection(view, 'admin.settings.identityTitle')
 
     fireEvent.change(view.getByLabelText('admin.settings.siteName'), {
       target: { value: 'New ZPan' },
@@ -128,7 +135,7 @@ describe('SettingsPage', () => {
       target: { value: 'https://new.example.com/path' },
     })
 
-    fireEvent.click(view.getAllByRole('button', { name: 'common.save' })[0])
+    fireEvent.click(view.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('site_name', 'New ZPan', true))
     expect(setSystemOption).toHaveBeenCalledWith('site_description', 'Updated file hosting', true)
@@ -136,8 +143,27 @@ describe('SettingsPage', () => {
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
   })
 
+  it('discards identity edits when the drawer is cancelled', async () => {
+    const view = renderSettingsPage()
+    await view.findByText('admin.settings.identityTitle')
+    openSection(view, 'admin.settings.identityTitle')
+
+    fireEvent.change(await view.findByLabelText('admin.settings.siteName'), {
+      target: { value: 'Draft ZPan' },
+    })
+    fireEvent.click(view.getByRole('button', { name: 'common.cancel' }))
+
+    await waitFor(() => expect(view.queryByLabelText('admin.settings.siteName')).toBeNull())
+    openSection(view, 'admin.settings.identityTitle')
+
+    await waitFor(() => expect(view.getByLabelText('admin.settings.siteName')).toHaveProperty('value', 'ZPan'))
+    expect(setSystemOption).not.toHaveBeenCalled()
+  })
+
   it('saves closed registration mode from the registration switch', async () => {
     const view = renderSettingsPage()
+    await view.findByText('admin.settings.registrationTitle')
+    openSection(view, 'admin.settings.registrationTitle')
     const registrationSwitch = await view.findByRole('switch', { name: 'admin.settings.registrationLabel' })
 
     fireEvent.click(registrationSwitch)
@@ -148,14 +174,14 @@ describe('SettingsPage', () => {
 
   it('updates the default storage quota from the storage settings section', async () => {
     const view = renderSettingsPage()
+    await view.findByText('admin.settings.storageSection')
+    openSection(view, 'admin.settings.storageSection')
 
     const quotaInput = await view.findByLabelText('admin.settings.defaultOrgQuota')
     await waitFor(() => expect(quotaInput).toHaveProperty('value', '1'))
     fireEvent.change(quotaInput, { target: { value: '1' } })
 
-    const storageSection = view.getByText('admin.settings.storageSection').closest('[data-slot="card"]')
-    if (!storageSection) throw new Error('storage section not found')
-    fireEvent.click(within(storageSection as HTMLElement).getByRole('button', { name: 'common.save' }))
+    fireEvent.click(view.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('default_org_quota', '1073741824', false))
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
@@ -163,14 +189,14 @@ describe('SettingsPage', () => {
 
   it('saves a newly typed quota value as bytes', async () => {
     const view = renderSettingsPage()
+    await view.findByText('admin.settings.storageSection')
+    openSection(view, 'admin.settings.storageSection')
 
     const quotaInput = await view.findByLabelText('admin.settings.defaultOrgQuota')
     await waitFor(() => expect(quotaInput).toHaveProperty('value', '1'))
     fireEvent.change(quotaInput, { target: { value: '5' } })
 
-    const storageSection = view.getByText('admin.settings.storageSection').closest('[data-slot="card"]')
-    if (!storageSection) throw new Error('storage section not found')
-    fireEvent.click(within(storageSection as HTMLElement).getByRole('button', { name: 'common.save' }))
+    fireEvent.click(view.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('default_org_quota', '5368709120', false))
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
@@ -179,14 +205,14 @@ describe('SettingsPage', () => {
 
   it('saves the default team quota alongside the org quota', async () => {
     const view = renderSettingsPage()
+    await view.findByText('admin.settings.storageSection')
+    openSection(view, 'admin.settings.storageSection')
 
     const teamQuotaInput = await view.findByLabelText('admin.settings.defaultTeamQuota')
     await waitFor(() => expect(teamQuotaInput).toHaveProperty('value', '1'))
     fireEvent.change(teamQuotaInput, { target: { value: '10' } })
 
-    const storageSection = view.getByText('admin.settings.storageSection').closest('[data-slot="card"]')
-    if (!storageSection) throw new Error('storage section not found')
-    fireEvent.click(within(storageSection as HTMLElement).getByRole('button', { name: 'common.save' }))
+    fireEvent.click(view.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('default_team_quota', '10737418240', false))
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
@@ -194,6 +220,8 @@ describe('SettingsPage', () => {
 
   it('saves captcha settings from the authentication protection section', async () => {
     const view = renderSettingsPage()
+    await view.findByText('admin.settings.captchaTitle')
+    openSection(view, 'admin.settings.captchaTitle')
 
     fireEvent.change(await view.findByLabelText('admin.settings.captchaSiteKey'), {
       target: { value: 'site-key' },
@@ -203,8 +231,7 @@ describe('SettingsPage', () => {
     })
     fireEvent.click(view.getByRole('switch', { name: 'admin.settings.captchaEnabled' }))
 
-    const saveButtons = view.getAllByRole('button', { name: 'common.save' })
-    fireEvent.click(saveButtons[1])
+    fireEvent.click(view.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
       expect(setSystemOption).toHaveBeenCalledWith(CAPTCHA_PROVIDER_KEY, 'cloudflare-turnstile', true),

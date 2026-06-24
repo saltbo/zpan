@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { listTeams, type TeamSummary } from '@/lib/api'
 import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
@@ -26,10 +27,12 @@ function TeamsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">{t('admin.teams.title')}</h2>
-        <span className="text-sm text-muted-foreground">{t('admin.teams.count', { count: teams.length })}</span>
-      </div>
+      <AdminPageHeader
+        title={t('admin.teams.title')}
+        action={
+          <span className="text-sm text-muted-foreground">{t('admin.teams.count', { count: teams.length })}</span>
+        }
+      />
 
       <div className="overflow-hidden rounded-md border">
         <table className="w-full table-fixed text-sm">

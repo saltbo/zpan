@@ -1,16 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import type { Announcement, AnnouncementInput } from '@/lib/api'
 
@@ -57,50 +49,47 @@ export function AnnouncementFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl">
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <DialogHeader>
-            <DialogTitle>
-              {announcement ? t('admin.announcement.editTitle') : t('admin.announcement.createTitle')}
-            </DialogTitle>
-            <DialogDescription className="sr-only">{t('admin.announcement.description')}</DialogDescription>
-          </DialogHeader>
+    <AdminFormDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      width="extra-wide"
+      title={announcement ? t('admin.announcement.editTitle') : t('admin.announcement.createTitle')}
+      description={t('admin.announcement.description')}
+      bodyClassName="grid gap-5"
+      formProps={{ onSubmit: handleSubmit }}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? t('common.loading') : t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <AdminFormField id="announcement-title" label={t('admin.announcement.fieldTitle')}>
+        <Input value={title} onChange={(event) => setTitle(event.target.value)} required />
+      </AdminFormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="announcement-title">{t('admin.announcement.fieldTitle')}</Label>
-            <Input id="announcement-title" value={title} onChange={(event) => setTitle(event.target.value)} required />
-          </div>
+      <AdminFormField id="announcement-pinned" label={t('admin.announcement.fieldPinned')}>
+        <div className="flex h-9 items-center">
+          <Switch id="announcement-pinned" checked={pinned} onCheckedChange={setPinned} />
+        </div>
+      </AdminFormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="announcement-pinned">{t('admin.announcement.fieldPinned')}</Label>
-            <div className="flex h-9 items-center">
-              <Switch id="announcement-pinned" checked={pinned} onCheckedChange={setPinned} />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="announcement-body">{t('admin.announcement.fieldBody')}</Label>
-            <Suspense fallback={<div className="h-[360px] rounded-md border bg-muted/20" />}>
-              <AnnouncementMarkdownEditor
-                id="announcement-body"
-                label={t('admin.announcement.fieldBody')}
-                value={body}
-                onChange={setBody}
-              />
-            </Suspense>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {t('common.save')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <AdminFormField id="announcement-body" label={t('admin.announcement.fieldBody')}>
+        <div>
+          <Suspense fallback={<div className="h-[360px] rounded-md border bg-muted/20" />}>
+            <AnnouncementMarkdownEditor
+              id="announcement-body"
+              label={t('admin.announcement.fieldBody')}
+              value={body}
+              onChange={setBody}
+            />
+          </Suspense>
+        </div>
+      </AdminFormField>
+    </AdminFormDrawer>
   )
 }
