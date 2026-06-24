@@ -308,7 +308,7 @@ func (w *Worker) downloadThenUpload(
 			if errors.Is(context.Cause(ctx), errTaskSuspended) {
 				// The server already moved the task to suspended (billing); the
 				// poll told us to stop. Don't touch its status.
-				w.cleanupTerminalTask(context.WithoutCancel(ctx), log, task, "suspended")
+				w.cleanupSuspendedTask(context.WithoutCancel(ctx), log, task)
 				log.Info("task stopped because it was suspended")
 				return
 			}
@@ -484,22 +484,39 @@ func (w *Worker) resetRuntimeTask(ctx context.Context, task client.DownloadTask,
 	return nil
 }
 
-func (w *Worker) cleanupTerminalTask(ctx context.Context, log *slog.Logger, task client.DownloadTask, reason string) {
+func (w *Worker) cleanupTerminalTask(ctx context.Context, log *slog.Logger, task client.DownloadTask, reason string) bool {
 	w.cleanupRetainedSeedForTask(ctx, task.ID, reason)
 	if w.engine == nil {
 		log.Warn("downloader engine is unavailable for terminal cleanup", "reason", reason)
-		return
+		return false
 	}
 	resetter, ok := w.engine.(engine.TaskResetter)
 	if !ok {
 		log.Warn("downloader engine does not support terminal cleanup", "engine", w.engine.Name(), "reason", reason)
-		return
+		return false
 	}
 	if err := resetter.ResetTask(ctx, task); err != nil {
 		log.Warn("failed to clean terminal downloader task", "reason", reason, "error", err)
-		return
+		return false
 	}
 	log.Info("cleaned terminal downloader task", "reason", reason)
+	return true
+}
+
+func (w *Worker) cleanupSuspendedTask(ctx context.Context, log *slog.Logger, task client.DownloadTask) {
+	runtime := task.Runtime()
+	if runtime != nil && runtime.State == localResultRemovedRuntimeState {
+		log.Debug("suspended task cleanup already recorded")
+		return
+	}
+	if !w.cleanupTerminalTask(ctx, log, task, "suspended") {
+		return
+	}
+	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{
+		Runtime: localResultRemovedRuntime(runtime),
+	}); err != nil {
+		log.Error("failed to record suspended task cleanup", "error", err)
+	}
 }
 
 func (w *Worker) uploadAndComplete(
@@ -871,7 +888,7 @@ func (w *Worker) ackStoppedControlTask(ctx context.Context, task client.Download
 		return
 	}
 	if task.State() == "suspended" {
-		w.cleanupTerminalTask(ctx, log, task, "suspended")
+		w.cleanupSuspendedTask(ctx, log, task)
 	}
 }
 

@@ -101,6 +101,86 @@ func TestSuspendedDownloadCleansRuntimeWithoutStatusChange(t *testing.T) {
 	if _, ok := findPatchWithStatus(api.patches, "suspended"); ok {
 		t.Fatalf("expected worker not to overwrite server-owned suspended status, got %#v", api.patches)
 	}
+	patch := api.patches[len(api.patches)-1]
+	if patch.Runtime == nil || patch.Runtime.State != localResultRemovedRuntimeState {
+		t.Fatalf("expected suspended cleanup marker, got %#v", patch.Runtime)
+	}
+}
+
+func TestTickSuspendedControlTaskCleansRuntimeOnlyOnce(t *testing.T) {
+	api := &recordingAPI{
+		controlTasks: []client.DownloadTask{clientTaskWithStatus("task-1", "suspended")},
+	}
+	eng := &recordingEngine{}
+	w := NewWithAPI(config.Config{}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = eng
+
+	if err := w.tick(context.Background()); err != nil {
+		t.Fatalf("first tick: %v", err)
+	}
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected first suspended control poll to clean once, got %d", eng.resetCalls)
+	}
+	if len(api.patches) != 1 {
+		t.Fatalf("expected first suspended control cleanup to record runtime once, got %#v", api.patches)
+	}
+	patch := api.patches[0]
+	if patch.State() != "" {
+		t.Fatalf("expected suspended control cleanup to preserve server-owned status, got %#v", patch)
+	}
+	if patch.Runtime == nil || patch.Runtime.State != localResultRemovedRuntimeState {
+		t.Fatalf("expected suspended control cleanup marker, got %#v", patch.Runtime)
+	}
+
+	if err := w.tick(context.Background()); err != nil {
+		t.Fatalf("second tick: %v", err)
+	}
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected repeated suspended control polls to avoid duplicate cleanup, got %d", eng.resetCalls)
+	}
+	if len(api.patches) != 1 {
+		t.Fatalf("expected repeated suspended control polls not to rewrite cleanup marker, got %#v", api.patches)
+	}
+	if got := api.controlTasks[0].State(); got != "suspended" {
+		t.Fatalf("expected recorded control task status to stay suspended, got %q", got)
+	}
+}
+
+func TestSuspendedControlTaskResumeAfterCleanupRedownloads(t *testing.T) {
+	api := &recordingAPI{
+		controlTasks: []client.DownloadTask{clientTaskWithStatus("task-1", "suspended")},
+	}
+	eng := &recordingEngine{}
+	w := NewWithAPI(config.Config{}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = eng
+
+	if err := w.tick(context.Background()); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	marker := api.controlTasks[0].Runtime()
+	if marker == nil || marker.State != localResultRemovedRuntimeState {
+		t.Fatalf("expected suspended control task to record cleanup marker, got %#v", marker)
+	}
+
+	total := int64(100)
+	eng.downloadErr = errors.New("redownload missing local result")
+	w.process(context.Background(), withRuntime(
+		withDownloadCheckpoint(clientTaskWithStatus("task-1", "assigned"), total, &total),
+		marker,
+	))
+
+	if eng.inspectCalls != 0 {
+		t.Fatalf("expected cleaned suspended result to skip runtime upload inspection, got %d inspect calls", eng.inspectCalls)
+	}
+	if eng.downloadCalls != 1 {
+		t.Fatalf("expected cleaned suspended result to resume via download path, got %d download calls", eng.downloadCalls)
+	}
+	failed := lastPatchWithStatus(t, api.patches, "failed")
+	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "redownload missing local result") {
+		t.Fatalf("expected resumed redownload failure to be reported, got %#v", failed.ErrorMessage)
+	}
 }
 
 func TestFailedDownloadCleansRuntimeAndMarksFailed(t *testing.T) {
@@ -962,6 +1042,31 @@ func TestSuspendedUploadCleansLocalResultAndForcesRedownload(t *testing.T) {
 	}
 }
 
+func TestProcessRedownloadsWhenLocalResultWasCleaned(t *testing.T) {
+	api := &recordingAPI{}
+	eng := &recordingEngine{downloadErr: errors.New("redownload missing local result")}
+	w := NewWithAPI(config.Config{}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = eng
+	total := int64(100)
+
+	w.process(context.Background(), withRuntime(
+		withDownloadCheckpoint(clientTaskWithStatus("task-1", "assigned"), total, &total),
+		&client.DownloadTaskRuntime{Phase: "error", State: localResultRemovedRuntimeState},
+	))
+
+	if eng.inspectCalls != 0 {
+		t.Fatalf("expected cleaned local result to skip runtime upload inspection, got %d inspect calls", eng.inspectCalls)
+	}
+	if eng.downloadCalls != 1 {
+		t.Fatalf("expected cleaned local result to resume via download path, got %d download calls", eng.downloadCalls)
+	}
+	failed := lastPatchWithStatus(t, api.patches, "failed")
+	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "redownload missing local result") {
+		t.Fatalf("expected resumed redownload failure to be reported, got %#v", failed.ErrorMessage)
+	}
+}
+
 func TestPausedAndInterruptedDownloadsPreservePartialFiles(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -1813,6 +1918,7 @@ type recordingAPI struct {
 	patches            []client.TaskPatch
 	patchedIDs         []string
 	seedingTasks       []client.DownloadTask
+	controlTasks       []client.DownloadTask
 	assignedTasks      []client.DownloadTask
 	suspendDownloading bool
 	createFolderErr    error
@@ -1825,7 +1931,7 @@ func (a *recordingAPI) Heartbeat(context.Context, client.Heartbeat) error {
 }
 
 func (a *recordingAPI) AssignedControlTasks(context.Context) ([]client.DownloadTask, error) {
-	return nil, nil
+	return a.controlTasks, nil
 }
 
 func (a *recordingAPI) AssignedTasks(context.Context) ([]client.DownloadTask, error) {
@@ -1843,8 +1949,32 @@ func (a *recordingAPI) UpdateTask(_ context.Context, id string, patch client.Tas
 	if a.suspendDownloading && state == "downloading" {
 		state = "suspended"
 	}
+	recordedPatch := patch
+	if state != patch.State() {
+		recordedPatch.Status = state
+	}
+	applyRecordedTaskPatch(a.controlTasks, id, recordedPatch)
+	applyRecordedTaskPatch(a.assignedTasks, id, recordedPatch)
 	task := clientTaskWithStatus(id, state)
-	task.Status.Runtime = patch.Runtime
+	task = applyTaskPatch(task, recordedPatch)
+	return task, nil
+}
+
+func applyRecordedTaskPatch(tasks []client.DownloadTask, id string, patch client.TaskPatch) {
+	for i := range tasks {
+		if tasks[i].ID == id {
+			tasks[i] = applyTaskPatch(tasks[i], patch)
+		}
+	}
+}
+
+func applyTaskPatch(task client.DownloadTask, patch client.TaskPatch) client.DownloadTask {
+	if patch.State() != "" {
+		task.Status.State = patch.State()
+	}
+	if patch.Runtime != nil {
+		task.Status.Runtime = patch.Runtime
+	}
 	if patch.Progress != nil {
 		if patch.Progress.Download != nil {
 			task.Status.Progress.Download = *patch.Progress.Download
@@ -1853,7 +1983,7 @@ func (a *recordingAPI) UpdateTask(_ context.Context, id string, patch client.Tas
 			task.Status.Progress.Upload = *patch.Progress.Upload
 		}
 	}
-	return task, nil
+	return task
 }
 
 func (a *recordingAPI) CreateFolder(context.Context, string, string, string) (client.ObjectDraft, error) {
