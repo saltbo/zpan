@@ -53,4 +53,17 @@ describe('AdminFormField', () => {
     expect(screen.getByText('Use an HTTPS endpoint')).toBeTruthy()
     expect(screen.getByText('Required')).toBeTruthy()
   })
+
+  it('keeps an existing control id associated with its label and merged descriptions', () => {
+    render(
+      <AdminFormField id="field-id" label="Bucket" description="Choose a bucket" error="Required">
+        <Input id="custom-bucket" aria-describedby="external-help" />
+      </AdminFormField>,
+    )
+
+    const input = screen.getByLabelText('Bucket')
+    expect(input.getAttribute('id')).toBe('custom-bucket')
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(input.getAttribute('aria-describedby')).toBe('external-help field-id-description field-id-error')
+  })
 })

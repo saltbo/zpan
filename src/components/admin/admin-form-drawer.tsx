@@ -102,14 +102,16 @@ export function AdminFormField({ label, description, error, id, className, child
     Children.count(renderedChildren) === 1 && isValidElement<FieldControlProps>(renderedChildren)
       ? renderedChildren
       : null
+  const canDecorateChild = child ? canDecorateControl(child) : false
+  const controlId = child && canDecorateChild ? (child.props.id ?? fieldId) : fieldId
   const control =
-    child && canDecorateControl(child)
+    child && canDecorateChild
       ? cloneElement(child, decorateControlProps(child, fieldId, error, describedBy))
       : renderedChildren
 
   return (
     <div className={cn('space-y-1.5', className)} data-invalid={error ? true : undefined}>
-      <Label htmlFor={fieldId}>{label}</Label>
+      <Label htmlFor={controlId}>{label}</Label>
       {description && (
         <p id={descriptionId} className="text-xs text-muted-foreground">
           {description}
