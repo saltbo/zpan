@@ -12,7 +12,6 @@ const localBaseUrl = process.env.E2E_LOCAL_BASE_URL ?? 'http://localhost:5185'
 const defaultOrgQuota = process.env.E2E_DEFAULT_ORG_QUOTA ?? String(1024 * 1024 * 1024)
 
 const storageConfig = {
-  title: 'E2E Storage',
   bucket: process.env.E2E_STORAGE_BUCKET ?? 'e2e-test',
   endpoint: process.env.E2E_STORAGE_ENDPOINT ?? 'https://localhost:9000',
   region: process.env.E2E_STORAGE_REGION ?? 'auto',
@@ -121,14 +120,13 @@ function ensureNodeStorage() {
     sqlite
       .prepare(
         `
-          UPDATE storages
-          SET title = ?, bucket = ?, endpoint = ?, region = ?, access_key = ?, secret_key = ?,
+        UPDATE storages
+          SET bucket = ?, endpoint = ?, region = ?, access_key = ?, secret_key = ?,
               capacity = ?, status = ?, updated_at = CAST(unixepoch('subsecond') * 1000 AS INTEGER)
           WHERE id = ?
         `,
       )
       .run(
-        storageConfig.title,
         storageConfig.bucket,
         storageConfig.endpoint,
         storageConfig.region,
@@ -146,15 +144,14 @@ function ensureNodeStorage() {
     .prepare(
       `
         INSERT INTO storages (
-          id, title, bucket, endpoint, region, access_key, secret_key,
+          id, bucket, endpoint, region, access_key, secret_key,
           file_path, custom_host, capacity, used, status, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, '', '', ?, 0, ?, CAST(unixepoch('subsecond') * 1000 AS INTEGER), CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+        VALUES (?, ?, ?, ?, ?, ?, '', '', ?, 0, ?, CAST(unixepoch('subsecond') * 1000 AS INTEGER), CAST(unixepoch('subsecond') * 1000 AS INTEGER))
       `,
     )
     .run(
       crypto.randomUUID(),
-      storageConfig.title,
       storageConfig.bucket,
       storageConfig.endpoint,
       storageConfig.region,
