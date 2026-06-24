@@ -26,15 +26,15 @@ type StorageHealth =
 
 const TEST_CONTENT = 'zpan storage connection test\n'
 
-function corsJsonForOrigin(origin: string) {
+export function corsJsonForOrigin(origin: string) {
   return JSON.stringify(
     [
       {
         AllowedOrigins: [origin],
-        AllowedMethods: ['PUT', 'GET', 'HEAD'],
+        AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD'],
         AllowedHeaders: ['*'],
         ExposeHeaders: ['ETag'],
-        MaxAgeSeconds: 3000,
+        MaxAgeSeconds: 3600,
       },
     ],
     null,
@@ -48,7 +48,7 @@ function readableError(error: unknown) {
   return String(error)
 }
 
-function StoragesPage() {
+export function StoragesPage() {
   const { t } = useTranslation()
   const { hasFeature } = useEntitlement()
   const [formOpen, setFormOpen] = useState(false)
