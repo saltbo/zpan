@@ -59,8 +59,27 @@ describe('Admin Storages API', () => {
     expect(body.bucket).toBe('test-bucket')
     expect(body.status).toBe('active')
     expect(body.capacity).toBe(0)
+    expect(body.forcePathStyle).toBe(true)
     expect(body.used).toBe(0)
     expect(body.id).toBeTruthy()
+  })
+
+  it('POST / persists forcePathStyle false [spec: storages/force-path-style]', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/site/storages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...validStorage, forcePathStyle: false }),
+    })
+    expect(res.status).toBe(201)
+    const created = (await res.json()) as { id: string; forcePathStyle: boolean }
+    expect(created.forcePathStyle).toBe(false)
+
+    const getRes = await app.request(`/api/site/storages/${created.id}`, { headers })
+    expect(getRes.status).toBe(200)
+    const body = (await getRes.json()) as { forcePathStyle: boolean }
+    expect(body.forcePathStyle).toBe(false)
   })
 
   it('POST / returns 402 when Community storage limit is reached [spec: storages/community-limit]', async () => {
@@ -108,6 +127,7 @@ describe('Admin Storages API', () => {
     expect(body.total).toBe(1)
     expect(body.items).toHaveLength(1)
     expect(body.items[0].title).toBe('Test S3')
+    expect(body.items[0].forcePathStyle).toBe(true)
   })
 
   it('GET /:id returns storage detail [spec: storages/detail]', async () => {
@@ -149,12 +169,13 @@ describe('Admin Storages API', () => {
     const res = await app.request(`/api/site/storages/${created.id}`, {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Updated S3', status: 'disabled' }),
+      body: JSON.stringify({ title: 'Updated S3', status: 'disabled', forcePathStyle: false }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.title).toBe('Updated S3')
     expect(body.status).toBe('disabled')
+    expect(body.forcePathStyle).toBe(false)
   })
 
   it('PUT /:id returns 404 for missing storage', async () => {

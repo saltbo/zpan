@@ -1393,6 +1393,7 @@ describe('api', () => {
       accessKey: 'key',
       secretKey: 'secret',
       capacity: 1073741824,
+      forcePathStyle: false,
     }
 
     it('posts storage data and returns created storage', async () => {
@@ -1406,7 +1407,7 @@ describe('api', () => {
       expect(url).toContain('/api/site/storages')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ title: 'minio', bucket: 'files' })
+      expect(body).toMatchObject({ title: 'minio', bucket: 'files', forcePathStyle: false })
       const headers =
         init.headers instanceof Headers ? init.headers : new Headers(init.headers as Record<string, string>)
       expect(headers.get('Content-Type')).toContain('application/json')
@@ -1443,14 +1444,14 @@ describe('api', () => {
       const storage = { id: 's1', title: 'updated-minio' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(storage))
 
-      const result = await updateStorage('s1', { title: 'updated-minio' })
+      const result = await updateStorage('s1', { title: 'updated-minio', forcePathStyle: false })
 
       expect(result).toEqual(storage)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/site/storages/s1')
       expect(init.method).toBe('PUT')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ title: 'updated-minio' })
+      expect(body).toMatchObject({ title: 'updated-minio', forcePathStyle: false })
     })
 
     it('throws on error response', async () => {

@@ -26,6 +26,12 @@ Feature: Storages
     When they POST a valid storage config
     Then the storage is created and returned
 
+  @storages/force-path-style @api
+  Scenario: Admins configure S3 addressing style per storage
+    Given an authenticated admin
+    When they create or update a storage with path-style addressing disabled
+    Then the storage preserves forcePathStyle=false in create, detail, and update responses
+
   @storages/community-limit @api
   Scenario: The Community edition caps the number of storages
     Given the Community storage limit is reached and storages_unlimited is not licensed
