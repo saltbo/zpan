@@ -2,17 +2,16 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import type { Storage } from '@shared/types'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff } from 'lucide-react'
-import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { createStorage, updateStorage } from '@/lib/api'
 import { formatSize } from '@/lib/format'
@@ -141,73 +140,183 @@ export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilli
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>{isEditing ? t('admin.storages.editTitle') : t('admin.storages.addTitle')}</SheetTitle>
-        </SheetHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-4">
-            <div className="grid gap-4">
-              <FormField label={t('admin.storages.fieldTitle')} error={form.formState.errors.title?.message}>
-                <Input {...form.register('title')} />
-              </FormField>
+    <AdminFormDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isEditing ? t('admin.storages.editTitle') : t('admin.storages.addTitle')}
+      bodyClassName="grid gap-4"
+      formProps={{ onSubmit: form.handleSubmit(onSubmit) }}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? t('common.loading') : t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <AdminFormField
+        id="storage-title"
+        label={t('admin.storages.fieldTitle')}
+        error={form.formState.errors.title?.message}
+      >
+        <Input {...form.register('title')} />
+      </AdminFormField>
 
-              <FormField label={t('admin.storages.fieldBucket')} error={form.formState.errors.bucket?.message}>
-                <Input {...form.register('bucket')} />
-              </FormField>
+      <AdminFormField
+        id="storage-bucket"
+        label={t('admin.storages.fieldBucket')}
+        error={form.formState.errors.bucket?.message}
+      >
+        <Input {...form.register('bucket')} />
+      </AdminFormField>
 
-              <FormField label={t('admin.storages.fieldEndpoint')} error={form.formState.errors.endpoint?.message}>
-                <Input {...form.register('endpoint')} placeholder="https://s3.amazonaws.com" />
-              </FormField>
+      <AdminFormField
+        id="storage-endpoint"
+        label={t('admin.storages.fieldEndpoint')}
+        error={form.formState.errors.endpoint?.message}
+      >
+        <Input {...form.register('endpoint')} placeholder="https://s3.amazonaws.com" />
+      </AdminFormField>
 
-              <FormField label={t('admin.storages.fieldRegion')} error={form.formState.errors.region?.message}>
-                <Input {...form.register('region')} placeholder="auto" />
-              </FormField>
+      <AdminFormField
+        id="storage-region"
+        label={t('admin.storages.fieldRegion')}
+        error={form.formState.errors.region?.message}
+      >
+        <Input {...form.register('region')} placeholder="auto" />
+      </AdminFormField>
 
-              <FormField label={t('admin.storages.fieldAccessKey')} error={form.formState.errors.accessKey?.message}>
-                <Input {...form.register('accessKey')} />
-              </FormField>
+      <AdminFormField
+        id="storage-access-key"
+        label={t('admin.storages.fieldAccessKey')}
+        error={form.formState.errors.accessKey?.message}
+      >
+        <Input {...form.register('accessKey')} />
+      </AdminFormField>
 
-              <FormField label={t('admin.storages.fieldSecretKey')} error={form.formState.errors.secretKey?.message}>
-                <div className="relative">
-                  <Input {...form.register('secretKey')} type={showSecret ? 'text' : 'password'} className="pr-10" />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="absolute right-2 top-1/2 -translate-y-1/2"
-                    onClick={() => setShowSecret((v) => !v)}
-                  >
-                    {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </FormField>
+      <AdminFormField
+        id="storage-secret-key"
+        label={t('admin.storages.fieldSecretKey')}
+        error={form.formState.errors.secretKey?.message}
+      >
+        {(controlProps) => (
+          <div className="relative">
+            <Input
+              {...form.register('secretKey')}
+              {...controlProps}
+              type={showSecret ? 'text' : 'password'}
+              className="pr-10"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={showSecret ? t('admin.storages.hideSecretKey') : t('admin.storages.showSecretKey')}
+              className="absolute right-2 top-1/2 -translate-y-1/2"
+              onClick={() => setShowSecret((v) => !v)}
+            >
+              {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+          </div>
+        )}
+      </AdminFormField>
 
-              <FormField label={t('admin.storages.fieldCustomHost')} error={form.formState.errors.customHost?.message}>
-                <Input {...form.register('customHost')} placeholder={t('admin.storages.customHostPlaceholder')} />
-              </FormField>
+      <AdminFormField
+        id="storage-custom-host"
+        label={t('admin.storages.fieldCustomHost')}
+        error={form.formState.errors.customHost?.message}
+      >
+        <Input {...form.register('customHost')} placeholder={t('admin.storages.customHostPlaceholder')} />
+      </AdminFormField>
 
-              <div className="rounded-md border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <Label htmlFor="forcePathStyle">{t('admin.storages.fieldForcePathStyle')}</Label>
-                    <p className="text-xs text-muted-foreground">{t('admin.storages.forcePathStyleHint')}</p>
-                  </div>
-                  <Switch
-                    id="forcePathStyle"
-                    checked={form.watch('forcePathStyle')}
-                    onCheckedChange={(checked) => form.setValue('forcePathStyle', checked)}
-                  />
-                </div>
-              </div>
+      <div className="rounded-md border p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label htmlFor="forcePathStyle">{t('admin.storages.fieldForcePathStyle')}</Label>
+            <p className="text-xs text-muted-foreground">{t('admin.storages.forcePathStyleHint')}</p>
+          </div>
+          <Switch
+            id="forcePathStyle"
+            checked={form.watch('forcePathStyle')}
+            onCheckedChange={(checked) => form.setValue('forcePathStyle', checked)}
+          />
+        </div>
+      </div>
 
-              <FormField label={t('admin.storages.fieldCapacity')} error={form.formState.errors.capacityValue?.message}>
+      <AdminFormField
+        id="storage-capacity-value"
+        label={t('admin.storages.fieldCapacity')}
+        description={t('admin.storages.capacityHint')}
+        error={form.formState.errors.capacityValue?.message}
+      >
+        {(controlProps) => (
+          <div className="flex items-center gap-2">
+            <Input
+              {...form.register('capacityValue')}
+              {...controlProps}
+              type="number"
+              min={0}
+              step={1}
+              className="w-32"
+            />
+            <Select value={form.watch('capacityUnit')} onValueChange={(v) => form.setValue('capacityUnit', v as Unit)}>
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MB">MB</SelectItem>
+                <SelectItem value="GB">GB</SelectItem>
+                <SelectItem value="TB">TB</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground">
+              {form.watch('capacityValue') > 0
+                ? `= ${formatSize(form.watch('capacityValue') * UNITS[form.watch('capacityUnit')])}`
+                : t('admin.storages.capacityUnlimited')}
+            </span>
+          </div>
+        )}
+      </AdminFormField>
+
+      <div className="rounded-md border p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label htmlFor="egressCreditBillingEnabled">{t('admin.storages.egressBilling')}</Label>
+            <p className="text-xs text-muted-foreground">{t('admin.storages.egressBillingHint')}</p>
+          </div>
+          <Switch
+            id="egressCreditBillingEnabled"
+            disabled={!hasTrafficBilling}
+            checked={form.watch('egressCreditBillingEnabled')}
+            onCheckedChange={(checked) => form.setValue('egressCreditBillingEnabled', hasTrafficBilling && checked)}
+          />
+        </div>
+        {!hasTrafficBilling && (
+          <p className="mt-2 text-xs text-muted-foreground">{t('admin.storages.egressBillingBusinessOnly')}</p>
+        )}
+        {form.watch('egressCreditBillingEnabled') && (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <AdminFormField
+              id="storage-egress-credit-unit-value"
+              label={t('admin.storages.egressBillingUnit')}
+              error={form.formState.errors.egressCreditUnitValue?.message}
+            >
+              {(controlProps) => (
                 <div className="flex items-center gap-2">
-                  <Input type="number" min={0} step={1} className="w-32" {...form.register('capacityValue')} />
+                  <Input
+                    {...form.register('egressCreditUnitValue')}
+                    {...controlProps}
+                    type="number"
+                    min={1}
+                    step={1}
+                    className="w-28"
+                  />
                   <Select
-                    value={form.watch('capacityUnit')}
-                    onValueChange={(v) => form.setValue('capacityUnit', v as Unit)}
+                    value={form.watch('egressCreditUnit')}
+                    onValueChange={(v) => form.setValue('egressCreditUnit', v as Unit)}
                   >
                     <SelectTrigger className="w-24">
                       <SelectValue />
@@ -218,94 +327,19 @@ export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilli
                       <SelectItem value="TB">TB</SelectItem>
                     </SelectContent>
                   </Select>
-                  <span className="text-sm text-muted-foreground">
-                    {form.watch('capacityValue') > 0
-                      ? `= ${formatSize(form.watch('capacityValue') * UNITS[form.watch('capacityUnit')])}`
-                      : t('admin.storages.capacityUnlimited')}
-                  </span>
                 </div>
-                <p className="text-xs text-muted-foreground">{t('admin.storages.capacityHint')}</p>
-              </FormField>
-
-              <div className="rounded-md border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <Label htmlFor="egressCreditBillingEnabled">{t('admin.storages.egressBilling')}</Label>
-                    <p className="text-xs text-muted-foreground">{t('admin.storages.egressBillingHint')}</p>
-                  </div>
-                  <Switch
-                    id="egressCreditBillingEnabled"
-                    disabled={!hasTrafficBilling}
-                    checked={form.watch('egressCreditBillingEnabled')}
-                    onCheckedChange={(checked) =>
-                      form.setValue('egressCreditBillingEnabled', hasTrafficBilling && checked)
-                    }
-                  />
-                </div>
-                {!hasTrafficBilling && (
-                  <p className="mt-2 text-xs text-muted-foreground">{t('admin.storages.egressBillingBusinessOnly')}</p>
-                )}
-                {form.watch('egressCreditBillingEnabled') && (
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <FormField
-                      label={t('admin.storages.egressBillingUnit')}
-                      error={form.formState.errors.egressCreditUnitValue?.message}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          className="w-28"
-                          {...form.register('egressCreditUnitValue')}
-                        />
-                        <Select
-                          value={form.watch('egressCreditUnit')}
-                          onValueChange={(v) => form.setValue('egressCreditUnit', v as Unit)}
-                        >
-                          <SelectTrigger className="w-24">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="MB">MB</SelectItem>
-                            <SelectItem value="GB">GB</SelectItem>
-                            <SelectItem value="TB">TB</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </FormField>
-                    <FormField
-                      label={t('admin.storages.egressBillingCredits')}
-                      error={form.formState.errors.egressCreditPerUnit?.message}
-                    >
-                      <Input type="number" min={1} step={1} {...form.register('egressCreditPerUnit')} />
-                    </FormField>
-                  </div>
-                )}
-              </div>
-            </div>
+              )}
+            </AdminFormField>
+            <AdminFormField
+              id="storage-egress-credit-per-unit"
+              label={t('admin.storages.egressBillingCredits')}
+              error={form.formState.errors.egressCreditPerUnit?.message}
+            >
+              <Input type="number" min={1} step={1} {...form.register('egressCreditPerUnit')} />
+            </AdminFormField>
           </div>
-
-          <SheetFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? t('common.loading') : t('common.save')}
-            </Button>
-          </SheetFooter>
-        </form>
-      </SheetContent>
-    </Sheet>
-  )
-}
-
-function FormField({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+        )}
+      </div>
+    </AdminFormDrawer>
   )
 }

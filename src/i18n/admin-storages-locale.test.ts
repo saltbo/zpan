@@ -42,6 +42,8 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.fieldRegion',
   'admin.storages.fieldAccessKey',
   'admin.storages.fieldSecretKey',
+  'admin.storages.showSecretKey',
+  'admin.storages.hideSecretKey',
   'admin.storages.fieldCustomHost',
   'admin.storages.fieldForcePathStyle',
   'admin.storages.forcePathStyleHint',
