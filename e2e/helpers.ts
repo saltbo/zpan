@@ -117,7 +117,7 @@ export async function pairAndApprove(page: Page): Promise<PairingPollResult> {
   await expect
     .poll(
       async () => {
-        const result = await getJson<PairingPollResult>(page, `/api/site/licensing/pairings/${pairing.code}`)
+        const result = await getPairingStatusForPoll(page, pairing.code)
         if (result.status === 'approved') approved = result
         return result.status
       },
@@ -136,6 +136,16 @@ export async function pairAndApprove(page: Page): Promise<PairingPollResult> {
 
   if (!approved) throw new Error('Cloud pairing approval did not resolve')
   return approved
+}
+
+async function getPairingStatusForPoll(page: Page, code: string): Promise<PairingPollResult> {
+  const url = `/api/site/licensing/pairings/${code}`
+  try {
+    return await getJson<PairingPollResult>(page, url)
+  } catch (error) {
+    if (isTransientInternalBrowserJsonError(error, 'GET', url)) return { status: 'pending' }
+    throw error
+  }
 }
 
 export async function approvePairingInCloud(pairing: PairingInfo) {
@@ -270,4 +280,9 @@ function isTransientBrowserJsonError(error: unknown) {
     error.message.includes('context canceled') ||
     error.message.includes('Load failed')
   )
+}
+
+function isTransientInternalBrowserJsonError(error: unknown, method: 'GET' | 'POST', url: string) {
+  if (!(error instanceof Error)) return false
+  return error.message.includes(`${method} ${url} failed with 500:`) && error.message.includes('"status":"INTERNAL"')
 }

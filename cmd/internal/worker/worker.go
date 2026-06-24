@@ -23,6 +23,7 @@ import (
 
 const Version = "0.1.0"
 const maxTaskErrorMessageLength = 1000
+const localResultRemovedRuntimeState = "local_result_removed"
 
 var errTaskPausing = errors.New("task pausing")
 var errTaskCanceling = errors.New("task canceling")
@@ -297,6 +298,7 @@ func (w *Worker) downloadThenUpload(
 				return
 			}
 			if errors.Is(context.Cause(ctx), errTaskCanceling) {
+				w.cleanupTerminalTask(context.WithoutCancel(ctx), log, task, "canceled")
 				if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{Status: "canceled"}); updateErr != nil {
 					log.Error("failed to mark task canceled", "error", updateErr)
 				}
@@ -306,6 +308,7 @@ func (w *Worker) downloadThenUpload(
 			if errors.Is(context.Cause(ctx), errTaskSuspended) {
 				// The server already moved the task to suspended (billing); the
 				// poll told us to stop. Don't touch its status.
+				w.cleanupSuspendedTask(context.WithoutCancel(ctx), log, task)
 				log.Info("task stopped because it was suspended")
 				return
 			}
@@ -326,6 +329,7 @@ func (w *Worker) downloadThenUpload(
 		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
 		}
+		w.cleanupTerminalTask(context.WithoutCancel(ctx), log, task, "failed")
 		return
 	}
 
@@ -393,13 +397,16 @@ func nextTaskWorkStage(task client.DownloadTask) taskWorkStage {
 	if task.State() == "uploading" {
 		return taskWorkStageUploadExistingResult
 	}
+	runtime := task.Runtime()
+	if runtime != nil && runtime.State == localResultRemovedRuntimeState {
+		return taskWorkStageDownload
+	}
 	if task.State() != "assigned" && task.State() != "downloading" && task.State() != "interrupted" {
 		return taskWorkStageDownload
 	}
 	if task.Status.Progress.Upload.Bytes > 0 {
 		return taskWorkStageUploadExistingResult
 	}
-	runtime := task.Runtime()
 	if runtime != nil && (runtime.Phase == "uploading" || runtime.Phase == "completed") {
 		return taskWorkStageUploadExistingResult
 	}
@@ -477,6 +484,41 @@ func (w *Worker) resetRuntimeTask(ctx context.Context, task client.DownloadTask,
 	return nil
 }
 
+func (w *Worker) cleanupTerminalTask(ctx context.Context, log *slog.Logger, task client.DownloadTask, reason string) bool {
+	w.cleanupRetainedSeedForTask(ctx, task.ID, reason)
+	if w.engine == nil {
+		log.Warn("downloader engine is unavailable for terminal cleanup", "reason", reason)
+		return false
+	}
+	resetter, ok := w.engine.(engine.TaskResetter)
+	if !ok {
+		log.Warn("downloader engine does not support terminal cleanup", "engine", w.engine.Name(), "reason", reason)
+		return false
+	}
+	if err := resetter.ResetTask(ctx, task); err != nil {
+		log.Warn("failed to clean terminal downloader task", "reason", reason, "error", err)
+		return false
+	}
+	log.Info("cleaned terminal downloader task", "reason", reason)
+	return true
+}
+
+func (w *Worker) cleanupSuspendedTask(ctx context.Context, log *slog.Logger, task client.DownloadTask) {
+	runtime := task.Runtime()
+	if runtime != nil && runtime.State == localResultRemovedRuntimeState {
+		log.Debug("suspended task cleanup already recorded")
+		return
+	}
+	if !w.cleanupTerminalTask(ctx, log, task, "suspended") {
+		return
+	}
+	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{
+		Runtime: localResultRemovedRuntime(runtime),
+	}); err != nil {
+		log.Error("failed to record suspended task cleanup", "error", err)
+	}
+}
+
 func (w *Worker) uploadAndComplete(
 	ctx context.Context,
 	log *slog.Logger,
@@ -498,6 +540,38 @@ func (w *Worker) uploadAndComplete(
 	if err != nil {
 		downloadedBytes := result.Size
 		if errors.Is(err, context.Canceled) {
+			if errors.Is(context.Cause(ctx), errTaskPausing) {
+				if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{Status: "paused"}); updateErr != nil {
+					log.Error("failed to mark task paused during upload", "error", updateErr)
+				}
+				log.Info("task upload paused by control action")
+				return
+			}
+			if errors.Is(context.Cause(ctx), errTaskCanceling) {
+				if cleanupErr := cleanupDownloadedResult(context.WithoutCancel(ctx), task, result); cleanupErr != nil {
+					log.Warn("failed to remove canceled local downloaded result", "path", result.Path, "error", cleanupErr)
+				}
+				if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
+					Status:  "canceled",
+					Runtime: localResultRemovedRuntime(currentDetail),
+				}); updateErr != nil {
+					log.Error("failed to mark task canceled during upload", "error", updateErr)
+				}
+				log.Info("task upload canceled by control action")
+				return
+			}
+			if errors.Is(context.Cause(ctx), errTaskSuspended) {
+				if cleanupErr := cleanupDownloadedResult(context.WithoutCancel(ctx), task, result); cleanupErr != nil {
+					log.Warn("failed to remove suspended local downloaded result", "path", result.Path, "error", cleanupErr)
+				}
+				if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
+					Runtime: localResultRemovedRuntime(currentDetail),
+				}); updateErr != nil {
+					log.Error("failed to record suspended upload cleanup", "error", updateErr)
+				}
+				log.Info("task upload stopped because it was suspended")
+				return
+			}
 			uploadingDetail := currentDetail
 			if uploadingDetail == nil {
 				uploadingDetail = &client.DownloadTaskRuntime{}
@@ -519,12 +593,7 @@ func (w *Worker) uploadAndComplete(
 		}
 		msg := taskErrorMessage(err)
 		log.Error("failed to upload result", "error", err)
-		failedDetail := currentDetail
-		if failedDetail == nil {
-			failedDetail = &client.DownloadTaskRuntime{}
-		}
-		failedDetail.Phase = "uploading"
-		failedDetail.Seeding = nil
+		failedDetail := localResultRemovedRuntime(currentDetail)
 		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{
 			Status:       "failed",
 			ErrorMessage: &msg,
@@ -535,6 +604,9 @@ func (w *Worker) uploadAndComplete(
 			Runtime: failedDetail,
 		}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
+		}
+		if cleanupErr := cleanupDownloadedResult(context.WithoutCancel(ctx), task, result); cleanupErr != nil {
+			log.Warn("failed to remove failed local downloaded result", "path", result.Path, "error", cleanupErr)
 		}
 		return
 	}
@@ -564,7 +636,7 @@ func (w *Worker) uploadAndComplete(
 		w.cleanupRetainedSeeds(ctx)
 		return
 	}
-	if err := cleanupDownloadedResult(ctx, result); err != nil {
+	if err := cleanupDownloadedResult(ctx, task, result); err != nil {
 		log.Warn("failed to remove local downloaded result", "path", result.Path, "error", err)
 	}
 }
@@ -592,6 +664,17 @@ func interruptedRuntime(runtime *client.DownloadTaskRuntime) *client.DownloadTas
 		runtime = &client.DownloadTaskRuntime{}
 	}
 	runtime.Message = "Interrupted because the downloader stopped"
+	return runtime
+}
+
+func localResultRemovedRuntime(runtime *client.DownloadTaskRuntime) *client.DownloadTaskRuntime {
+	if runtime == nil {
+		runtime = &client.DownloadTaskRuntime{}
+	}
+	runtime.State = localResultRemovedRuntimeState
+	runtime.Phase = "error"
+	runtime.Seeding = nil
+	runtime.ETASeconds = nil
 	return runtime
 }
 
@@ -796,11 +879,16 @@ func (w *Worker) ackStoppedControlTask(ctx context.Context, task client.Download
 		return
 	}
 	if task.State() == "canceling" {
+		w.cleanupTerminalTask(ctx, log, task, "canceled")
 		if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "canceled"}); err != nil {
 			log.Error("failed to acknowledge canceled task without local process", "error", err)
 			return
 		}
 		log.Info("acknowledged canceled task without local process")
+		return
+	}
+	if task.State() == "suspended" {
+		w.cleanupSuspendedTask(ctx, log, task)
 	}
 }
 
@@ -812,6 +900,10 @@ func (w *Worker) heartbeat() client.Heartbeat {
 		capabilities = w.engine.Capabilities()
 	}
 	speeds := w.currentTransferSpeeds()
+	freeDiskBytes, err := freeDiskBytes(w.cfg.DownloadDir)
+	if err != nil {
+		w.logger.Warn("failed to inspect downloader free disk space", "download_dir", w.cfg.DownloadDir, "error", err)
+	}
 	return client.Heartbeat{
 		Version:            Version,
 		Hostname:           host.DownloaderHostname(),
@@ -823,7 +915,7 @@ func (w *Worker) heartbeat() client.Heartbeat {
 		CurrentTasks:       w.currentTasks(),
 		DownloadBps:        speeds.downloadBps,
 		UploadBps:          speeds.uploadBps,
-		FreeDiskBytes:      0,
+		FreeDiskBytes:      freeDiskBytes,
 	}
 }
 

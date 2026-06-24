@@ -30,11 +30,21 @@ type retainedSeed struct {
 	cleanup    func(context.Context) error
 }
 
-func cleanupDownloadedResult(ctx context.Context, result engine.Result) error {
+func cleanupDownloadedResult(ctx context.Context, task client.DownloadTask, result engine.Result) error {
 	if result.Seed != nil && result.Seed.Cleanup != nil {
 		return result.Seed.Cleanup(ctx)
 	}
-	return os.RemoveAll(result.Path)
+	parent := filepath.Dir(result.Path)
+	if filepath.Base(parent) == task.ID {
+		return os.RemoveAll(parent)
+	}
+	if result.IsDir {
+		return os.RemoveAll(result.Path)
+	}
+	if err := os.Remove(result.Path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func (w *Worker) retainSeed(task client.DownloadTask, result engine.Result, log *slog.Logger) bool {
