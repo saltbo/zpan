@@ -126,6 +126,8 @@ export async function updateStorageEgressBilling(
   params: { userId: string; orgId: string; id: string; input: UpdateStorageEgressBillingInput },
 ): Promise<UpdateStorageOutcome> {
   const { userId, orgId, id, input } = params
+  const existing = await deps.storages.get(id)
+  if (!existing) return { ok: false, error: storageNotFound() }
   if (input.enabled && !hasFeature('quota_store', await loadBindingState({ licenseBinding: deps.licenseBinding }))) {
     return { ok: false, error: featureBlockError({ feature: 'quota_store' }) }
   }

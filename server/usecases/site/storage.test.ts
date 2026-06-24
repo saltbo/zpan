@@ -196,7 +196,7 @@ describe('storage usecase', () => {
     it('updates egress billing fields and records activity', async () => {
       edition(BUSINESS)
       const update = vi.fn(async () => sampleStorage)
-      const { deps, record } = makeDeps({ update })
+      const { deps, record } = makeDeps({ get: async () => sampleStorage, update })
       const out = await updateStorageEgressBilling(deps, {
         userId: 'u1',
         orgId: 'o1',
@@ -215,7 +215,7 @@ describe('storage usecase', () => {
     it('blocks enabling egress billing without quota_store', async () => {
       edition(PRO)
       const update = vi.fn(async () => sampleStorage)
-      const { deps, record } = makeDeps({ update })
+      const { deps, record } = makeDeps({ get: async () => sampleStorage, update })
       const out = await updateStorageEgressBilling(deps, {
         userId: 'u1',
         orgId: 'o1',
@@ -247,6 +247,25 @@ describe('storage usecase', () => {
         expect(out.error.httpStatus).toBe(404)
         expect(out.error.message).toBe('Storage not found')
       }
+      expect(record).not.toHaveBeenCalled()
+    })
+
+    it('returns not_found before quota_store gating for a missing storage when billing is enabled', async () => {
+      edition(PRO)
+      const update = vi.fn(async () => null)
+      const { deps, record } = makeDeps({ get: async () => null, update })
+      const out = await updateStorageEgressBilling(deps, {
+        userId: 'u1',
+        orgId: 'o1',
+        id: 'missing',
+        input: { enabled: true, unitBytes: 1024, creditsPerUnit: 2 },
+      })
+      expect(out.ok).toBe(false)
+      if (!out.ok) {
+        expect(out.error.httpStatus).toBe(404)
+        expect(out.error.message).toBe('Storage not found')
+      }
+      expect(update).not.toHaveBeenCalled()
       expect(record).not.toHaveBeenCalled()
     })
   })

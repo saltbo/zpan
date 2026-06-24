@@ -2,7 +2,7 @@ import { FREE_STORAGE_LIMIT } from '@shared/constants'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createStorageRepo } from '../../adapters/repos/storage.js'
-import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense } from '../../test/setup.js'
+import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../../test/setup.js'
 
 const validStorage = {
   title: 'Test S3',
@@ -245,6 +245,18 @@ describe('Admin Storages API', () => {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: false, unitBytes: 1024, creditsPerUnit: 2 }),
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('PUT /:id/egress-billing returns 404 for missing storage when enabled without quota_store', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/site/storages/nonexistent/egress-billing', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, unitBytes: 1024, creditsPerUnit: 2 }),
     })
     expect(res.status).toBe(404)
   })

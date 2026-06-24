@@ -1926,4 +1926,17 @@ describe('Downloaders — free plan limit', () => {
     })
     expect(res.status).toBe(404)
   })
+
+  it('returns 404 from downloader credit billing when enabled for a missing downloader without quota_store', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await seedProLicense(db)
+    const admin = await adminHeaders(app)
+
+    const res = await app.request('/api/downloads/downloaders/missing/credit-billing', {
+      method: 'PUT',
+      headers: { ...admin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, unitBytes: 2048, creditsPerUnit: 3 }),
+    })
+    expect(res.status).toBe(404)
+  })
 })

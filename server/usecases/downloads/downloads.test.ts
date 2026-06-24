@@ -134,4 +134,22 @@ describe('updateDownloaderCreditBilling', () => {
     ).rejects.toMatchObject({ name: 'DownloadError', code: 'not_found' })
     expect(update).not.toHaveBeenCalled()
   })
+
+  it('preserves not_found before quota_store gating for a missing downloader when credit billing is enabled', async () => {
+    vi.mocked(loadBindingState).mockResolvedValue(PRO)
+    const { deps, update } = makeDeps({
+      getRecord: async () => {
+        throw new DownloadError('not_found')
+      },
+    })
+
+    await expect(
+      updateDownloaderCreditBilling(deps, 'missing', {
+        enabled: true,
+        unitBytes: 2048,
+        creditsPerUnit: 3,
+      }),
+    ).rejects.toMatchObject({ name: 'DownloadError', code: 'not_found' })
+    expect(update).not.toHaveBeenCalled()
+  })
 })

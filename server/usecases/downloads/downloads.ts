@@ -150,12 +150,12 @@ export async function updateDownloaderCreditBilling(
   id: string,
   input: UpdateDownloaderCreditBillingInput,
 ): Promise<Downloader> {
+  await deps.downloaders.getRecord(id) // throws not_found
   if (input.enabled && !hasFeature('quota_store', await loadBindingState(deps))) {
     throw featureBlocked('Feature not available', {
       metadata: { feature: 'quota_store' },
     })
   }
-  await deps.downloaders.getRecord(id) // throws not_found
   await deps.downloaders.update(
     id,
     {
