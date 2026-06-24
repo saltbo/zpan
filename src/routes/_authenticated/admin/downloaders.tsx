@@ -5,7 +5,7 @@ import { Activity, Pencil, Settings2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminSwitchField } from '@/components/admin/admin-form-drawer'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,7 +18,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -366,18 +365,14 @@ function CreditBillingDrawer({
         )
       }
     >
-      <div className="flex items-center justify-between gap-3 rounded-md border p-3">
-        <div>
-          <Label htmlFor="remoteDownloadCreditBillingEnabled">{t('admin.downloaders.billingEnabled')}</Label>
-          <p className="text-xs text-muted-foreground">{t('admin.downloaders.billingEnabledHint')}</p>
-        </div>
-        <Switch
-          id="remoteDownloadCreditBillingEnabled"
-          disabled={!hasTrafficBilling}
-          checked={form.enabled}
-          onCheckedChange={(enabled) => onFormChange({ ...form, enabled: hasTrafficBilling && enabled })}
-        />
-      </div>
+      <AdminSwitchField
+        id="remoteDownloadCreditBillingEnabled"
+        label={t('admin.downloaders.billingEnabled')}
+        description={t('admin.downloaders.billingEnabledHint')}
+        disabled={!hasTrafficBilling}
+        checked={form.enabled}
+        onCheckedChange={(enabled) => onFormChange({ ...form, enabled: hasTrafficBilling && enabled })}
+      />
       {!hasTrafficBilling && (
         <p className="text-xs text-muted-foreground">{t('admin.downloaders.billingBusinessOnly')}</p>
       )}

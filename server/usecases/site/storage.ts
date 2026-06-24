@@ -91,7 +91,7 @@ export async function createStorage(
     action: 'storage_create',
     targetType: 'storage',
     targetId: storage.id,
-    targetName: storage.title,
+    targetName: storage.bucket,
   })
   return { ok: true, storage }
 }
@@ -116,7 +116,7 @@ export async function updateStorage(
     action: 'storage_update',
     targetType: 'storage',
     targetId: storage.id,
-    targetName: storage.title,
+    targetName: storage.bucket,
   })
   return { ok: true, storage }
 }
@@ -143,7 +143,7 @@ export async function updateStorageEgressBilling(
     action: 'storage_update',
     targetType: 'storage',
     targetId: storage.id,
-    targetName: storage.title,
+    targetName: storage.bucket,
   })
   return { ok: true, storage }
 }
@@ -163,7 +163,7 @@ export async function deleteStorage(
     action: 'storage_delete',
     targetType: 'storage',
     targetId: id,
-    targetName: existing?.title ?? id,
+    targetName: existing?.bucket ?? id,
   })
   return { ok: true }
 }

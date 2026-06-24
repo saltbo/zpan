@@ -89,7 +89,6 @@ afterEach(() => {
 
 const validStorage = {
   id: 'st-1',
-  title: 'Test S3',
   bucket: 'test-bucket',
   endpoint: 'https://s3.amazonaws.com',
   region: 'us-east-1',
@@ -106,12 +105,12 @@ async function insertStorage(
   const id = opts.id ?? validStorage.id
   await db.run(sql`
     INSERT INTO storages (
-      id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
+      id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
       capacity, used, status, egress_credit_billing_enabled, egress_credit_unit_bytes,
       egress_credit_per_unit, created_at, updated_at
     )
     VALUES (
-      ${id}, ${validStorage.title}, ${validStorage.bucket},
+      ${id}, ${validStorage.bucket},
       ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey},
       '', '', ${opts.capacity ?? 0}, ${opts.used ?? 0}, ${opts.status ?? 'active'}, ${metered}, ${100 * 1024 ** 2}, 1, ${now}, ${now}
     )
@@ -906,8 +905,8 @@ describe('Matter service', () => {
     const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
-      INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-      VALUES ('s1', 'S3', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+      INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
     `)
 
     const matter = await createMatter(db, {
@@ -929,8 +928,8 @@ describe('Matter service', () => {
     const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
-      INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-      VALUES ('s1', 'S3', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+      INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
     `)
 
     const matter = await createMatter(db, {
@@ -953,8 +952,8 @@ describe('Matter service', () => {
     const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
-      INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-      VALUES ('s1', 'S3', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+      INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
     `)
 
     await createMatter(db, {
@@ -1004,8 +1003,8 @@ describe('Matter service', () => {
     const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
-      INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-      VALUES ('s1', 'S3', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+      INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
     `)
     const matter = await createMatter(db, {
       orgId: 'org-1',
@@ -1023,8 +1022,8 @@ describe('Matter service', () => {
     const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
-      INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-      VALUES ('s1', 'S3', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+      INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
     `)
     const matter = await createMatter(db, {
       orgId: 'org-1',
@@ -1053,8 +1052,8 @@ describe('Matter service', () => {
     const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
-      INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-      VALUES ('s1', 'S3', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+      INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
     `)
     const source = await createMatter(db, {
       orgId: 'org-1',
@@ -1494,7 +1493,6 @@ describe('POST /api/objects/:id/transfers', () => {
 describe('Objects API — quota enforcement', () => {
   const validStorage = {
     id: 'st-quota',
-    title: 'Quota S3',
     bucket: 'test-bucket',
     endpoint: 'https://s3.amazonaws.com',
     region: 'us-east-1',
@@ -1505,8 +1503,8 @@ describe('Objects API — quota enforcement', () => {
   async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db'], used = 0) {
     const now = Date.now()
     await db.run(sql`
-      INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-      VALUES (${validStorage.id}, ${validStorage.title}, ${validStorage.bucket},
+      INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES (${validStorage.id}, ${validStorage.bucket},
               ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey},
               ${validStorage.secretKey}, '', '', 0, ${used}, 'active', ${now}, ${now})
     `)
@@ -2133,12 +2131,12 @@ describe('object multipart upload API with S3-compatible storage', () => {
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (
-        id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
+        id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
         capacity, used, status, egress_credit_billing_enabled, egress_credit_unit_bytes,
         egress_credit_per_unit, created_at, updated_at
       )
       VALUES (
-        'multipart-live-storage', 'Multipart Live Storage', 'test-bucket',
+        'multipart-live-storage', 'test-bucket',
         ${endpoint}, 'auto', 'test-access-key', 'test-secret-key',
         '$UID/$RAW_NAME', '', 0, 0, 'active', 0, ${100 * 1024 * 1024}, 1, ${now}, ${now}
       )

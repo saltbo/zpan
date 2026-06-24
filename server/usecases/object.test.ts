@@ -50,7 +50,6 @@ vi.mock('./store/traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
 
 const storage = {
   id: 'st-1',
-  title: 'S3',
   egressCreditBillingEnabled: false,
   egressCreditUnitBytes: 0,
   egressCreditPerUnit: 0,

@@ -27,10 +27,9 @@ const BUSINESS: BindingState = { bound: true, active: true, edition: 'business' 
 
 const edition = (state: BindingState) => vi.mocked(loadBindingState).mockResolvedValue(state)
 
-const sampleStorage = { id: 'st-1', title: 'My S3' } as StorageRecord
+const sampleStorage = { id: 'st-1', bucket: 'b' } as StorageRecord
 
 const validInput: CreateStorageInput = {
-  title: 'My S3',
   bucket: 'b',
   endpoint: 'https://s3.example.com',
   region: 'us-east-1',
@@ -152,16 +151,16 @@ describe('storage usecase', () => {
       edition(COMMUNITY)
       const update = vi.fn(async () => sampleStorage)
       const { deps, record } = makeDeps({ update })
-      const out = await updateStorage(deps, { userId: 'u1', orgId: 'o1', id: 'st-1', input: { title: 'New' } })
+      const out = await updateStorage(deps, { userId: 'u1', orgId: 'o1', id: 'st-1', input: { bucket: 'new-b' } })
       expect(out).toEqual({ ok: true, storage: sampleStorage })
-      expect(update).toHaveBeenCalledWith('st-1', { title: 'New' })
+      expect(update).toHaveBeenCalledWith('st-1', { bucket: 'new-b' })
       expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'storage_update', targetId: 'st-1' }))
     })
 
     it('returns not_found for a missing storage', async () => {
       edition(COMMUNITY)
       const { deps, record } = makeDeps({ update: async () => null })
-      const out = await updateStorage(deps, { userId: 'u1', orgId: 'o1', id: 'x', input: { title: 'New' } })
+      const out = await updateStorage(deps, { userId: 'u1', orgId: 'o1', id: 'x', input: { bucket: 'new-b' } })
       expect(out.ok).toBe(false)
       if (!out.ok) {
         expect(out.error).toBeInstanceOf(AppError)
@@ -271,13 +270,13 @@ describe('storage usecase', () => {
   })
 
   describe('deleteStorage', () => {
-    it('deletes and records activity with the storage name', async () => {
+    it('deletes and records activity with the storage bucket', async () => {
       const del = vi.fn(async () => 'ok' as const)
       const { deps, record } = makeDeps({ get: async () => sampleStorage, delete: del })
       const out = await deleteStorage(deps, { userId: 'u1', orgId: 'o1', id: 'st-1' })
       expect(out).toEqual({ ok: true })
       expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'storage_delete', targetId: 'st-1', targetName: 'My S3' }),
+        expect.objectContaining({ action: 'storage_delete', targetId: 'st-1', targetName: 'b' }),
       )
     })
 

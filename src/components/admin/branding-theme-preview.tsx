@@ -1,6 +1,6 @@
 import type { BrandingThemeValues } from '@shared/types'
+import { AdminFormField } from '@/components/admin/admin-form-drawer'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
 const HEX6_RE = /^#[0-9a-fA-F]{6}$/
@@ -67,19 +67,20 @@ export function ThemePreview({ values, logoUrl }: { values: BrandingThemeValues;
 export function ThemeColorInput({
   id,
   label,
+  placeholder,
   value,
   disabled,
   onChange,
 }: {
   id: string
   label: string
+  placeholder: string
   value: string
   disabled: boolean
   onChange: (value: string) => void
 }) {
   return (
-    <div className={cn('flex flex-col gap-2', disabled && 'opacity-60')}>
-      <Label htmlFor={id}>{label}</Label>
+    <AdminFormField id={id} label={label} className={cn(disabled && 'opacity-60')}>
       <div className="flex gap-2">
         <Input
           id={id}
@@ -89,8 +90,13 @@ export function ThemeColorInput({
           onChange={(event) => onChange(event.target.value)}
           className="w-12 shrink-0 px-1 py-1"
         />
-        <Input value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} />
+        <Input
+          value={value}
+          disabled={disabled}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+        />
       </div>
-    </div>
+    </AdminFormField>
   )
 }

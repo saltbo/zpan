@@ -27,7 +27,7 @@ import {
 // Fakes for the ports the image-hosting usecase touches. Each test overrides the
 // handful of methods it exercises; the rest throw so an unexpected call is loud.
 
-const sampleStorage = { id: 'st-1', title: 'S3' } as StorageRecord
+const sampleStorage = { id: 'st-1', bucket: 'bucket' } as StorageRecord
 
 const sampleConfig: ImageHostingConfigRecord = {
   orgId: 'o1',

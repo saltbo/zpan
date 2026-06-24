@@ -26,7 +26,6 @@ export interface StorageObject {
 
 export interface Storage {
   id: string
-  title: string
   bucket: string
   endpoint: string
   region: string

@@ -76,12 +76,12 @@ async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']
   const now = Date.now()
   await db.run(sql`
     INSERT INTO storages (
-      id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
+      id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
       capacity, used, status, egress_credit_billing_enabled, egress_credit_unit_bytes,
       egress_credit_per_unit, created_at, updated_at
     )
     VALUES (
-      'remote-download-storage', 'Remote Download Storage', 'test-bucket',
+      'remote-download-storage', 'test-bucket',
       'https://s3.example.com', 'auto', 'test-access-key', 'test-secret-key',
       '$UID/$RAW_NAME', '', 0, 0, 'active', 0, ${100 * 1024 * 1024}, 1, ${now}, ${now}
     )

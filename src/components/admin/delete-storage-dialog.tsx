@@ -15,7 +15,7 @@ import { deleteStorage } from '@/lib/api'
 interface DeleteStorageDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  storage: { id: string; title: string } | null
+  storage: { id: string; bucket: string } | null
 }
 
 export function DeleteStorageDialog({ open, onOpenChange, storage }: DeleteStorageDialogProps) {
@@ -45,7 +45,7 @@ export function DeleteStorageDialog({ open, onOpenChange, storage }: DeleteStora
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('admin.storages.deleteTitle')}</DialogTitle>
-          <DialogDescription>{t('admin.storages.deleteConfirm', { title: storage.title })}</DialogDescription>
+          <DialogDescription>{t('admin.storages.deleteConfirm', { bucket: storage.bucket })}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

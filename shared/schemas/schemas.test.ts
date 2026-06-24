@@ -45,7 +45,6 @@ describe('signUpSchema', () => {
 
 describe('createStorageSchema', () => {
   const valid = {
-    title: 'My S3',
     bucket: 'my-bucket',
     endpoint: 'https://s3.amazonaws.com',
     accessKey: 'AK',

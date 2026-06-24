@@ -159,7 +159,6 @@ const APP_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS webdav_locks_expires_idx ON webdav_locks(expires_at);
   CREATE TABLE IF NOT EXISTS storages (
     id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
     bucket TEXT NOT NULL,
     endpoint TEXT NOT NULL,
     region TEXT NOT NULL DEFAULT 'auto',

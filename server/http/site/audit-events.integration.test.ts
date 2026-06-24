@@ -17,7 +17,6 @@ type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
 const validStorage = {
   id: 'st-audit-test',
-  title: 'Audit Test S3',
   bucket: 'test-bucket',
   endpoint: 'https://s3.amazonaws.com',
   region: 'us-east-1',
@@ -28,8 +27,8 @@ const validStorage = {
 async function insertStorage(db: TestDb, id = validStorage.id) {
   const now = Date.now()
   await db.run(sql`
-    INSERT OR IGNORE INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${id}, ${validStorage.title}, ${validStorage.bucket}, ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey}, '', '', 0, 0, 'active', ${now}, ${now})
+    INSERT OR IGNORE INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES (${id}, ${validStorage.bucket}, ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey}, '', '', 0, 0, 'active', ${now}, ${now})
   `)
 }
 
@@ -394,7 +393,6 @@ describe('Storage audit events', () => {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: 'New Storage',
         bucket: 'my-bucket',
         endpoint: 'https://s3.amazonaws.com',
         region: 'us-east-1',
@@ -407,7 +405,7 @@ describe('Storage audit events', () => {
     const evt = await getLatestActivity(db, 'storage_create')
     expect(evt).toBeDefined()
     expect(evt?.targetType).toBe('storage')
-    expect(evt?.targetName).toBe('New Storage')
+    expect(evt?.targetName).toBe('my-bucket')
     // Must NOT store secret keys or access keys in metadata
     assertNoSecrets(evt?.metadata ?? null)
   })
@@ -421,7 +419,6 @@ describe('Storage audit events', () => {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: 'Original Storage',
         bucket: 'my-bucket',
         endpoint: 'https://s3.amazonaws.com',
         region: 'us-east-1',
@@ -434,14 +431,14 @@ describe('Storage audit events', () => {
     const updateRes = await app.request(`/api/site/storages/${storageId}`, {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Updated Storage' }),
+      body: JSON.stringify({ bucket: 'updated-bucket' }),
     })
     expect(updateRes.status).toBe(200)
 
     const evt = await getLatestActivity(db, 'storage_update')
     expect(evt).toBeDefined()
     expect(evt?.targetType).toBe('storage')
-    expect(evt?.targetName).toBe('Updated Storage')
+    expect(evt?.targetName).toBe('updated-bucket')
     assertNoSecrets(evt?.metadata ?? null)
   })
 
@@ -454,7 +451,6 @@ describe('Storage audit events', () => {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: 'Deletable Storage',
         bucket: 'del-bucket',
         endpoint: 'https://s3.amazonaws.com',
         region: 'us-east-1',
@@ -473,7 +469,7 @@ describe('Storage audit events', () => {
     const evt = await getLatestActivity(db, 'storage_delete')
     expect(evt).toBeDefined()
     expect(evt?.targetType).toBe('storage')
-    expect(evt?.targetName).toBe('Deletable Storage')
+    expect(evt?.targetName).toBe('del-bucket')
     assertNoSecrets(evt?.metadata ?? null)
   })
 })

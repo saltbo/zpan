@@ -8,6 +8,7 @@ import {
   type CreateObjectResult,
   createObject,
   listStorages,
+  updateStorage,
   updateStorageEgressBilling,
 } from '@/lib/api'
 import { corsJsonForOrigin, StoragesPage } from './index'
@@ -45,12 +46,12 @@ vi.mock('@/lib/api', () => ({
   abortObjectUpload: vi.fn(),
   createObject: vi.fn(),
   listStorages: vi.fn(),
+  updateStorage: vi.fn(),
   updateStorageEgressBilling: vi.fn(),
 }))
 
 const storage: Storage = {
   id: 'storage-1',
-  title: 'Primary storage',
   bucket: 'bucket',
   endpoint: 'https://s3.example.com',
   region: 'auto',
@@ -133,6 +134,14 @@ describe('admin storages CORS guidance', () => {
 })
 
 describe('StoragesPage connection test action', () => {
+  it('shows the storage access key in the list', async () => {
+    vi.mocked(listStorages).mockResolvedValue({ items: [storage], total: 1 })
+
+    const view = renderStoragesPage()
+
+    expect(await view.findByText('access-key')).toBeTruthy()
+  })
+
   it('creates a storage-targeted object, PUTs to S3, renders success, and cleans up strictly', async () => {
     vi.mocked(listStorages).mockResolvedValue({ items: [storage], total: 1 })
     vi.mocked(createObject).mockResolvedValue(uploadDraft)
@@ -143,6 +152,10 @@ describe('StoragesPage connection test action', () => {
     const view = renderStoragesPage()
     fireEvent.click(await view.findByTitle('admin.storages.testAction'))
 
+    await view.findByText('admin.storages.testDialogTitle')
+    expect(screen.getByText('admin.storages.testStepCreate')).toBeTruthy()
+    expect(screen.getByText('admin.storages.testStepUpload')).toBeTruthy()
+    expect(screen.getByText('admin.storages.testStepCleanup')).toBeTruthy()
     await waitFor(() =>
       expect(createObject).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -176,28 +189,34 @@ describe('StoragesPage connection test action', () => {
     fireEvent.click(await view.findByTitle('admin.storages.testAction'))
 
     await view.findByText('admin.storages.testCorsFailure')
-    expect(view.container.textContent).toContain('admin.storages.testCorsCaveat')
-    expect(view.container.textContent).toContain(window.location.origin)
-    expect(view.container.textContent).toContain('"AllowedMethods": [')
-    expect(view.container.textContent).toContain('"GET"')
-    expect(view.container.textContent).toContain('"PUT"')
-    expect(view.container.textContent).toContain('"POST"')
-    expect(view.container.textContent).toContain('"HEAD"')
-    expect(view.container.textContent).toContain('"MaxAgeSeconds": 3600')
+    expect(screen.getByTestId('storage-test-step-creating').dataset.state).toBe('done')
+    expect(screen.getByTestId('storage-test-step-uploading').dataset.state).toBe('failed')
+    expect(screen.getByTestId('storage-test-step-cleanup').dataset.state).toBe('pending')
+    expect(document.body.textContent).toContain('admin.storages.testCorsCaveat')
+    expect(document.body.textContent).toContain(window.location.origin)
+    expect(document.body.textContent).toContain('"AllowedMethods": [')
+    expect(document.body.textContent).toContain('"GET"')
+    expect(document.body.textContent).toContain('"PUT"')
+    expect(document.body.textContent).toContain('"POST"')
+    expect(document.body.textContent).toContain('"HEAD"')
+    expect(document.body.textContent).toContain('"MaxAgeSeconds": 3600')
     expect(abortObjectUpload).toHaveBeenCalledWith('object-1', 'session-1', { strictStorageCleanup: true })
   })
 
   it('opens egress billing from the row action and saves through the dedicated wrapper', async () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     vi.mocked(listStorages).mockResolvedValue({ items: [{ ...storage, egressCreditBillingEnabled: true }], total: 1 })
+    vi.mocked(updateStorage).mockResolvedValue(storage)
     vi.mocked(updateStorageEgressBilling).mockResolvedValue(storage)
 
     const view = renderStoragesPage()
     fireEvent.click(await view.findByTitle('admin.storages.configureEgressBilling'))
-    await view.findByText('admin.storages.egressBillingTitle')
+    await view.findByText('admin.storages.billingTitle')
+    fireEvent.change(screen.getByLabelText('admin.storages.fieldCapacity'), { target: { value: '2' } })
     fireEvent.change(screen.getByLabelText('admin.storages.egressBillingCredits'), { target: { value: '4' } })
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
+    await waitFor(() => expect(updateStorage).toHaveBeenCalledWith('storage-1', { capacity: 2 * 1024 * 1024 * 1024 }))
     await waitFor(() =>
       expect(updateStorageEgressBilling).toHaveBeenCalledWith('storage-1', {
         enabled: true,
@@ -211,15 +230,18 @@ describe('StoragesPage connection test action', () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     mockHasFeature.mockImplementation((feature) => feature !== 'quota_store')
     vi.mocked(listStorages).mockResolvedValue({ items: [{ ...storage, egressCreditBillingEnabled: true }], total: 1 })
+    vi.mocked(updateStorage).mockResolvedValue(storage)
 
     const view = renderStoragesPage()
     fireEvent.click(await view.findByTitle('admin.storages.configureEgressBilling'))
 
     await view.findByText('admin.storages.egressBillingBusinessOnly')
-    expect(screen.queryByRole('button', { name: 'common.save' })).toBeNull()
+    expect(screen.getByLabelText('admin.storages.egressBillingUnit')).toHaveProperty('disabled', true)
     expect(screen.getByLabelText('admin.storages.egressBillingCredits')).toHaveProperty('disabled', true)
-    expect(screen.getAllByRole('button', { name: 'common.close' })).toHaveLength(2)
+    fireEvent.change(screen.getByLabelText('admin.storages.fieldCapacity'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
+    await waitFor(() => expect(updateStorage).toHaveBeenCalledWith('storage-1', { capacity: 3 * 1024 * 1024 * 1024 }))
     expect(updateStorageEgressBilling).not.toHaveBeenCalled()
   })
 })

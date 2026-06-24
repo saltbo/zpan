@@ -344,6 +344,13 @@
       "when": 1782201600733,
       "tag": "0049_add-force-path-style",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1782320738724,
+      "tag": "0050_drop-storage-title",
+      "breakpoints": true
     }
   ]
 }

@@ -5,7 +5,7 @@ import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/admin/admin-form-drawer'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { OAuthProviderIcon } from '@/components/oauth-provider-icon'
 import { Button } from '@/components/ui/button'
@@ -18,10 +18,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useClipboard } from '@/hooks/use-clipboard'
 import { deleteAuthProvider, listAuthProviders, upsertAuthProvider } from '@/lib/api'
 
@@ -231,7 +231,7 @@ export function OAuthProvidersSection() {
         title={editingId ? t('admin.auth.editProviderTitle') : t('admin.auth.addProviderTitle')}
         description={t('admin.auth.providerDrawerDescription')}
         width="wide"
-        bodyClassName="grid gap-4"
+        bodyClassName="grid auto-rows-min content-start gap-4"
         formProps={{
           onSubmit: (event) => {
             event.preventDefault()
@@ -252,30 +252,34 @@ export function OAuthProvidersSection() {
           </>
         }
       >
-        <AdminFormField id="oauth-provider-type" label={t('admin.auth.providerType')}>
-          {(controlProps) => (
-            <Select
-              value={form.type}
-              onValueChange={(v) => update({ type: v as ProviderType, providerId: '' })}
-              disabled={!!editingId}
-            >
-              <SelectTrigger {...controlProps}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="builtin">{t('admin.auth.providerBuiltin')}</SelectItem>
-                <SelectItem value="oidc">{t('admin.auth.providerOidc')}</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-        </AdminFormField>
+        <div className="space-y-1">
+          <AdminFormLabel htmlFor="oauth-provider-type" required>
+            {t('admin.auth.providerType')}
+          </AdminFormLabel>
+          <ToggleGroup
+            id="oauth-provider-type"
+            type="single"
+            value={form.type}
+            variant="outline"
+            disabled={!!editingId}
+            onValueChange={(value) => value && update({ type: value as ProviderType, providerId: '' })}
+            className="w-full"
+          >
+            <ToggleGroupItem value="builtin" className="flex-1">
+              {t('admin.auth.providerBuiltin')}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="oidc" className="flex-1">
+              {t('admin.auth.providerOidc')}
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
 
         {form.type === 'builtin' ? (
-          <AdminFormField id="oauth-provider-id" label={t('admin.auth.provider')}>
+          <AdminFormField id="oauth-provider-id" label={t('admin.auth.provider')} required>
             {(controlProps) => (
               <Select value={form.providerId} onValueChange={(v) => update({ providerId: v })} disabled={!!editingId}>
                 <SelectTrigger {...controlProps}>
-                  <SelectValue />
+                  <SelectValue placeholder={t('admin.auth.providerPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {BUILTIN_PROVIDER_IDS.map((id) => (
@@ -288,21 +292,43 @@ export function OAuthProvidersSection() {
             )}
           </AdminFormField>
         ) : (
-          <AdminFormField id="oauth-provider-id" label={t('admin.auth.providerId')}>
+          <AdminFormField
+            id="oauth-provider-id"
+            label={t('admin.auth.providerId')}
+            help={t('admin.auth.providerIdHint')}
+            required
+          >
             <Input
               value={form.providerId}
               onChange={(e) => update({ providerId: e.target.value })}
-              placeholder={t('admin.auth.providerIdHint')}
+              placeholder={t('admin.auth.providerIdPlaceholder')}
               disabled={!!editingId}
             />
           </AdminFormField>
         )}
 
+        <AdminFormField id="oauth-client-id" label={t('admin.auth.clientId')} required>
+          <Input
+            value={form.clientId}
+            onChange={(e) => update({ clientId: e.target.value })}
+            placeholder={t('admin.auth.clientIdPlaceholder')}
+          />
+        </AdminFormField>
+
+        <AdminFormField id="oauth-client-secret" label={t('admin.auth.clientSecret')} required>
+          <Input
+            type="password"
+            value={form.clientSecret}
+            onChange={(e) => update({ clientSecret: e.target.value })}
+            placeholder={t('admin.auth.clientSecretPlaceholder')}
+          />
+        </AdminFormField>
+
         {callbackUri && (
           <AdminFormField
             id="oauth-callback-uri"
             label={t('admin.auth.callbackUri')}
-            description={t('admin.auth.callbackUriHint')}
+            help={t('admin.auth.callbackUriHint')}
           >
             {(controlProps) => (
               <div className="flex items-center gap-2">
@@ -321,38 +347,32 @@ export function OAuthProvidersSection() {
           </AdminFormField>
         )}
 
-        <AdminFormField id="oauth-client-id" label={t('admin.auth.clientId')}>
-          <Input value={form.clientId} onChange={(e) => update({ clientId: e.target.value })} />
-        </AdminFormField>
-
-        <AdminFormField id="oauth-client-secret" label={t('admin.auth.clientSecret')}>
-          <Input type="password" value={form.clientSecret} onChange={(e) => update({ clientSecret: e.target.value })} />
-        </AdminFormField>
-
         {form.type === 'oidc' && (
           <>
             <AdminFormField id="oauth-discovery-url" label={t('admin.auth.discoveryUrl')}>
-              <Input value={form.discoveryUrl} onChange={(e) => update({ discoveryUrl: e.target.value })} />
+              <Input
+                value={form.discoveryUrl}
+                onChange={(e) => update({ discoveryUrl: e.target.value })}
+                placeholder={t('admin.auth.discoveryUrlPlaceholder')}
+              />
             </AdminFormField>
-            <AdminFormField id="oauth-scopes" label={t('admin.auth.scopes')}>
+            <AdminFormField id="oauth-scopes" label={t('admin.auth.scopes')} help={t('admin.auth.scopesHint')}>
               <Input
                 value={form.scopes}
                 onChange={(e) => update({ scopes: e.target.value })}
-                placeholder={t('admin.auth.scopesHint')}
+                placeholder={t('admin.auth.scopesPlaceholder')}
               />
             </AdminFormField>
           </>
         )}
 
-        <div className="rounded-md border p-3">
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="oauth-provider-enabled">{t('admin.auth.enabled')}</Label>
-            <Switch
-              id="oauth-provider-enabled"
-              checked={form.enabled}
-              onCheckedChange={(checked) => update({ enabled: checked })}
-            />
-          </div>
+        <div className="flex items-center justify-between gap-4">
+          <AdminFormLabel htmlFor="oauth-provider-enabled">{t('admin.auth.enabled')}</AdminFormLabel>
+          <Switch
+            id="oauth-provider-enabled"
+            checked={form.enabled}
+            onCheckedChange={(checked) => update({ enabled: checked })}
+          />
         </div>
 
         <p className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">

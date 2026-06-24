@@ -34,7 +34,6 @@ async function adminHeaders(app: ReturnType<typeof buildApp>) {
 }
 
 const validStorage = {
-  title: 'CF Test S3',
   bucket: 'cf-test-bucket',
   endpoint: 'https://s3.amazonaws.com',
   region: 'us-east-1',
@@ -66,7 +65,6 @@ describe('[CF] Admin Storages API', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...validStorage,
-        title: `CF Test S3 ${Date.now()}`,
         bucket: `cf-test-bucket-${Date.now()}`,
       }),
     })
@@ -96,7 +94,6 @@ describe('[CF] Admin Storages API', () => {
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...validStorage,
-          title: `CF Storage ${Date.now()}-${i}`,
           bucket: `cf-bucket-${Date.now()}-${i}`,
         }),
       })
@@ -138,18 +135,17 @@ describe('[CF] Admin Storages API', () => {
     const platform = createCloudflarePlatform(env)
     const created = await createStorageRepo(platform.db).create({
       ...validStorage,
-      title: `CF Update ${Date.now()}`,
       bucket: `cf-update-${Date.now()}`,
     })
 
     const res = await app.request(`/api/site/storages/${created.id}`, {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Updated CF S3' }),
+      body: JSON.stringify({ bucket: 'updated-cf-bucket' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.title).toBe('Updated CF S3')
+    expect(body.bucket).toBe('updated-cf-bucket')
   })
 
   it('PUT /api/site/storages/:id/egress-billing enforces quota_store for enabling', async () => {

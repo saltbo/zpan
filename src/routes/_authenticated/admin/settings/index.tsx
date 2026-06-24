@@ -11,21 +11,22 @@ import {
 import { SignupMode } from '@shared/constants'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Globe2, ShieldCheck } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { Database, Globe2, ShieldCheck, UserPlus } from 'lucide-react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/admin/admin-form-drawer'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { BrandingSection } from '@/components/admin/branding-section'
 import type { StorageQuotaUnit } from '@/components/admin/cloud-store-settings-section'
+import { EmailConfigSection } from '@/components/admin/email-config-section'
 import { ProBadge } from '@/components/ProBadge'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -65,17 +66,83 @@ const settingsSchema = z.object({
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
 type SettingsDrawer = 'identity' | 'registration' | 'captcha' | 'storage' | null
+type FieldControlProps = {
+  id?: string
+  'aria-invalid'?: boolean
+  'aria-describedby'?: string
+  'aria-required'?: boolean
+}
 
-function ProFeatureHeader({ title, description, tooltip }: { title: string; description: string; tooltip: string }) {
+function SettingsStatusBadge({ enabled, label }: { enabled: boolean; label: string }) {
+  return <Badge variant={enabled ? 'default' : 'secondary'}>{label}</Badge>
+}
+
+function SettingsItemCard({
+  icon,
+  title,
+  description,
+  status,
+  details,
+  proTooltip,
+  editLabel,
+  onEdit,
+}: {
+  icon: ReactNode
+  title: ReactNode
+  description: ReactNode
+  status: ReactNode
+  details?: ReactNode
+  proTooltip?: string
+  editLabel: string
+  onEdit: () => void
+}) {
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        <CardTitle>{title}</CardTitle>
-        <ProBadge tooltip={tooltip} />
-      </div>
-      <CardDescription>{description}</CardDescription>
-    </div>
+    <Card data-settings-row className="rounded-lg border-border/70 py-0 shadow-xs">
+      <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted text-muted-foreground">
+            {icon}
+          </div>
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="text-sm leading-5">{title}</CardTitle>
+              {proTooltip && <ProBadge tooltip={proTooltip} />}
+            </div>
+            <CardDescription className="max-w-2xl leading-5">{description}</CardDescription>
+            {details && <div className="text-sm text-muted-foreground">{details}</div>}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+          {status}
+          <Button size="sm" variant="outline" onClick={onEdit}>
+            {editLabel}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
+}
+
+function SettingsSection({ title, children }: { title: ReactNode; children: ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <h3 className="px-1 text-muted-foreground text-xs font-medium uppercase">{title}</h3>
+      <div className="grid gap-2">{children}</div>
+    </section>
+  )
+}
+
+function CaptchaProviderLabel({ provider }: { provider: CaptchaProvider }) {
+  switch (provider) {
+    case 'google-recaptcha':
+      return 'Google reCAPTCHA'
+    case 'hcaptcha':
+      return 'hCaptcha'
+    case 'captchafox':
+      return 'CaptchaFox'
+    case 'cloudflare-turnstile':
+      return 'Cloudflare Turnstile'
+  }
 }
 
 export function SettingsPage() {
@@ -269,120 +336,101 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader title={t('admin.settings.title')} description={t('admin.settings.subtitle')} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/60">
-          <CardHeader className="gap-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="rounded-lg border border-border/60 bg-primary/10 p-2 text-primary">
-                  <Globe2 className="h-5 w-5" />
-                </div>
-                <ProFeatureHeader
-                  title={t('admin.settings.identityTitle')}
-                  description={t('admin.settings.identityDescription')}
-                  tooltip={t('admin.settings.identityProTooltip')}
-                />
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setSettingsDrawer('identity')}>
-                {t('common.edit')}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p className="font-medium">{siteName}</p>
-            <p className="text-muted-foreground">{siteDescription || t('admin.settings.previewFallback')}</p>
-            <p className="text-xs text-muted-foreground">
-              {sitePublicOrigin || t('admin.settings.sitePublicOriginPlaceholder')}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="space-y-5">
+        <SettingsSection title={t('admin.settings.siteSection')}>
+          <SettingsItemCard
+            icon={<Globe2 className="size-4" />}
+            title={t('admin.settings.identityTitle')}
+            description={t('admin.settings.identityDescription')}
+            details={
+              <span>
+                {siteName} · {sitePublicOrigin || t('admin.settings.sitePublicOriginPlaceholder')}
+              </span>
+            }
+            status={
+              <SettingsStatusBadge
+                enabled={hasWhiteLabel}
+                label={hasWhiteLabel ? t('admin.auth.enabled') : t('common.disabled')}
+              />
+            }
+            proTooltip={t('admin.settings.identityProTooltip')}
+            editLabel={t('common.edit')}
+            onEdit={() => setSettingsDrawer('identity')}
+          />
 
-        <Card className="border-border/60">
-          <CardHeader className="gap-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="rounded-lg border border-border/60 bg-amber-500/10 p-2 text-amber-600">
-                  <Globe2 className="h-5 w-5" />
-                </div>
-                <ProFeatureHeader
-                  title={t('admin.settings.registrationTitle')}
-                  description={t('admin.settings.registrationDescription')}
-                  tooltip={t('admin.settings.registrationUpgradeHint')}
-                />
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setSettingsDrawer('registration')}>
-                {t('common.edit')}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {savedRegistrationsEnabled
-              ? t('admin.settings.registrationHintOpen')
-              : t('admin.settings.registrationHintClosed')}
-          </CardContent>
-        </Card>
+          <BrandingSection />
 
-        <Card className="border-border/60">
-          <CardHeader className="gap-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="rounded-lg border border-border/60 bg-emerald-500/10 p-2 text-emerald-600">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <div className="space-y-1">
-                  <CardTitle>{t('admin.settings.captchaTitle')}</CardTitle>
-                  <CardDescription>{t('admin.settings.captchaDescription')}</CardDescription>
-                </div>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setSettingsDrawer('captcha')}>
-                {t('common.edit')}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {captchaEnabled ? t('admin.settings.captchaProvider') : t('common.disabled')}
-          </CardContent>
-        </Card>
+          <SettingsItemCard
+            icon={<UserPlus className="size-4" />}
+            title={t('admin.settings.registrationTitle')}
+            description={t('admin.settings.registrationDescription')}
+            details={
+              savedRegistrationsEnabled
+                ? t('admin.settings.registrationHintOpen')
+                : t('admin.settings.registrationHintClosed')
+            }
+            status={
+              <SettingsStatusBadge
+                enabled={savedRegistrationsEnabled}
+                label={savedRegistrationsEnabled ? t('admin.auth.enabled') : t('common.disabled')}
+              />
+            }
+            proTooltip={t('admin.settings.registrationUpgradeHint')}
+            editLabel={t('common.edit')}
+            onEdit={() => setSettingsDrawer('registration')}
+          />
 
-        <Card className="border-border/60">
-          <CardHeader className="gap-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="rounded-lg border border-border/60 bg-emerald-500/10 p-2 text-emerald-600">
-                  <Globe2 className="h-5 w-5" />
-                </div>
-                <div className="space-y-1">
-                  <CardTitle>{t('admin.settings.storageSection')}</CardTitle>
-                  <CardDescription>{t('admin.settings.quotaDescription')}</CardDescription>
-                </div>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setSettingsDrawer('storage')}>
-                {t('common.edit')}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm text-muted-foreground">
-            <p>
-              {t('admin.settings.defaultOrgQuota')}: {savedQuota.value} {savedQuota.unit}
-            </p>
-            <p>
-              {t('admin.settings.defaultTeamQuota')}: {savedTeamQuota.value} {savedTeamQuota.unit}
-            </p>
-          </CardContent>
-        </Card>
+          <SettingsItemCard
+            icon={<ShieldCheck className="size-4" />}
+            title={t('admin.settings.captchaTitle')}
+            description={t('admin.settings.captchaDescription')}
+            details={captchaEnabled ? <CaptchaProviderLabel provider={captchaProvider} /> : t('common.disabled')}
+            status={
+              <SettingsStatusBadge
+                enabled={captchaEnabled}
+                label={captchaEnabled ? t('admin.auth.enabled') : t('common.disabled')}
+              />
+            }
+            editLabel={t('common.edit')}
+            onEdit={() => setSettingsDrawer('captcha')}
+          />
+        </SettingsSection>
+
+        <SettingsSection title={t('admin.settings.storageSection')}>
+          <SettingsItemCard
+            icon={<Database className="size-4" />}
+            title={t('admin.settings.storageSection')}
+            description={t('admin.settings.quotaDescription')}
+            details={
+              <span>
+                {t('admin.settings.defaultOrgQuota')}: {savedQuota.value} {savedQuota.unit} ·{' '}
+                {t('admin.settings.defaultTeamQuota')}: {savedTeamQuota.value} {savedTeamQuota.unit}
+              </span>
+            }
+            status={
+              <Badge variant="secondary">
+                {savedQuota.value} {savedQuota.unit}
+              </Badge>
+            }
+            editLabel={t('common.edit')}
+            onEdit={() => setSettingsDrawer('storage')}
+          />
+        </SettingsSection>
+
+        <SettingsSection title={t('admin.auth.emailSection')}>
+          <EmailConfigSection />
+        </SettingsSection>
       </div>
-
-      <BrandingSection />
 
       <AdminFormDrawer
         open={settingsDrawer === 'identity'}
         onOpenChange={(open) => !open && closeSettingsDrawer()}
         title={t('admin.settings.identityTitle')}
         description={t('admin.settings.identityDescription')}
-        bodyClassName="grid gap-5"
+        bodyClassName="grid auto-rows-min content-start gap-4"
         footer={
           <>
             <Button type="button" variant="outline" onClick={() => closeSettingsDrawer()}>
@@ -401,7 +449,8 @@ export function SettingsPage() {
         <AdminFormField
           id="siteName"
           label={t('admin.settings.siteName')}
-          description={t('admin.settings.siteNameHint')}
+          help={t('admin.settings.siteNameHint')}
+          required
           error={form.formState.errors.siteName?.message}
           className={!hasWhiteLabel ? 'opacity-60' : undefined}
         >
@@ -417,7 +466,7 @@ export function SettingsPage() {
         <AdminFormField
           id="siteDescription"
           label={t('admin.settings.siteDescription')}
-          description={t('admin.settings.siteDescriptionHint')}
+          help={t('admin.settings.siteDescriptionHint')}
           error={form.formState.errors.siteDescription?.message}
           className={!hasWhiteLabel ? 'opacity-60' : undefined}
         >
@@ -434,7 +483,7 @@ export function SettingsPage() {
         <AdminFormField
           id="sitePublicOrigin"
           label={t('admin.settings.sitePublicOrigin')}
-          description={t('admin.settings.sitePublicOriginHint')}
+          help={t('admin.settings.sitePublicOriginHint')}
           error={form.formState.errors.sitePublicOrigin?.message}
         >
           <Input placeholder={t('admin.settings.sitePublicOriginPlaceholder')} {...form.register('sitePublicOrigin')} />
@@ -446,21 +495,24 @@ export function SettingsPage() {
         onOpenChange={(open) => !open && closeSettingsDrawer()}
         title={t('admin.settings.registrationTitle')}
         description={t('admin.settings.registrationDescription')}
+        bodyClassName="grid auto-rows-min content-start gap-4"
         footer={
           <Button type="button" variant="outline" onClick={() => closeSettingsDrawer()}>
             {t('common.close')}
           </Button>
         }
       >
-        <div className="flex items-center justify-between gap-4 rounded-md border p-4">
-          <div className="space-y-1">
-            <Label htmlFor="registrationsEnabled">{t('admin.settings.registrationLabel')}</Label>
-            <p className="text-xs leading-5 text-muted-foreground">
-              {registrationsEnabled
+        <div className="flex items-center justify-between gap-4">
+          <AdminFormLabel
+            htmlFor="registrationsEnabled"
+            help={
+              registrationsEnabled
                 ? t('admin.settings.registrationHintOpen')
-                : t('admin.settings.registrationHintClosed')}
-            </p>
-          </div>
+                : t('admin.settings.registrationHintClosed')
+            }
+          >
+            {t('admin.settings.registrationLabel')}
+          </AdminFormLabel>
           <Switch
             id="registrationsEnabled"
             checked={registrationsEnabled}
@@ -471,6 +523,9 @@ export function SettingsPage() {
             }}
           />
         </div>
+        {!hasOpenRegistration && (
+          <p className="text-xs text-muted-foreground">{t('admin.settings.registrationUpgradeHint')}</p>
+        )}
       </AdminFormDrawer>
 
       <AdminFormDrawer
@@ -478,7 +533,7 @@ export function SettingsPage() {
         onOpenChange={(open) => !open && closeSettingsDrawer()}
         title={t('admin.settings.captchaTitle')}
         description={t('admin.settings.captchaDescription')}
-        bodyClassName="grid gap-5"
+        bodyClassName="grid auto-rows-min content-start gap-4"
         footer={
           <>
             <Button type="button" variant="outline" onClick={() => closeSettingsDrawer()}>
@@ -490,11 +545,10 @@ export function SettingsPage() {
           </>
         }
       >
-        <div className="flex items-center justify-between gap-4 rounded-md border p-4">
-          <div className="space-y-1">
-            <Label htmlFor="captchaEnabled">{t('admin.settings.captchaEnabled')}</Label>
-            <p className="text-xs leading-5 text-muted-foreground">{t('admin.settings.captchaEnabledHint')}</p>
-          </div>
+        <div className="flex items-center justify-between gap-4">
+          <AdminFormLabel htmlFor="captchaEnabled" help={t('admin.settings.captchaEnabledHint')}>
+            {t('admin.settings.captchaEnabled')}
+          </AdminFormLabel>
           <Switch
             id="captchaEnabled"
             checked={captchaProtectionEnabled}
@@ -506,7 +560,8 @@ export function SettingsPage() {
         <AdminFormField
           id="captchaProvider"
           label={t('admin.settings.captchaProvider')}
-          description={t('admin.settings.captchaProviderHint')}
+          help={t('admin.settings.captchaProviderHint')}
+          required
         >
           <Select
             value={selectedCaptchaProvider}
@@ -515,7 +570,7 @@ export function SettingsPage() {
             }
           >
             <SelectTrigger id="captchaProvider">
-              <SelectValue />
+              <SelectValue placeholder={t('admin.settings.captchaProviderPlaceholder')} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="cloudflare-turnstile">{t('admin.settings.captchaProviderTurnstile')}</SelectItem>
@@ -526,32 +581,32 @@ export function SettingsPage() {
           </Select>
         </AdminFormField>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <AdminFormField
-            id="captchaSiteKey"
-            label={t('admin.settings.captchaSiteKey')}
-            description={t('admin.settings.captchaSiteKeyHint')}
-          >
-            <Input placeholder={t('admin.settings.captchaSiteKeyPlaceholder')} {...form.register('captchaSiteKey')} />
-          </AdminFormField>
-          <AdminFormField
-            id="captchaSecretKey"
-            label={t('admin.settings.captchaSecretKey')}
-            description={t('admin.settings.captchaSecretKeyHint')}
-          >
-            <Input
-              type="password"
-              placeholder={t('admin.settings.captchaSecretKeyPlaceholder')}
-              {...form.register('captchaSecretKey')}
-            />
-          </AdminFormField>
-        </div>
+        <AdminFormField
+          id="captchaSiteKey"
+          label={t('admin.settings.captchaSiteKey')}
+          help={t('admin.settings.captchaSiteKeyHint')}
+          required={captchaProtectionEnabled}
+        >
+          <Input placeholder={t('admin.settings.captchaSiteKeyPlaceholder')} {...form.register('captchaSiteKey')} />
+        </AdminFormField>
+        <AdminFormField
+          id="captchaSecretKey"
+          label={t('admin.settings.captchaSecretKey')}
+          help={t('admin.settings.captchaSecretKeyHint')}
+          required={captchaProtectionEnabled}
+        >
+          <Input
+            type="password"
+            placeholder={t('admin.settings.captchaSecretKeyPlaceholder')}
+            {...form.register('captchaSecretKey')}
+          />
+        </AdminFormField>
 
         {selectedCaptchaProvider === 'google-recaptcha' && (
           <AdminFormField
             id="captchaMinScore"
             label={t('admin.settings.captchaMinScore')}
-            description={t('admin.settings.captchaMinScoreHint')}
+            help={t('admin.settings.captchaMinScoreHint')}
           >
             <Input
               inputMode="decimal"
@@ -567,7 +622,7 @@ export function SettingsPage() {
         onOpenChange={(open) => !open && closeSettingsDrawer()}
         title={t('admin.settings.storageSection')}
         description={t('admin.settings.quotaDescription')}
-        bodyClassName="grid gap-5"
+        bodyClassName="grid auto-rows-min content-start gap-4"
         footer={
           <>
             <Button type="button" variant="outline" onClick={() => closeSettingsDrawer()}>
@@ -582,64 +637,76 @@ export function SettingsPage() {
         <AdminFormField
           id="quotaValue"
           label={t('admin.settings.defaultOrgQuota')}
-          description={t('admin.settings.defaultOrgQuotaHint')}
+          help={t('admin.settings.defaultOrgQuotaHint')}
+          required
           error={form.formState.errors.quotaValue?.message}
         >
           {(controlProps) => (
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                step={1}
-                className="flex-1"
-                {...controlProps}
-                {...form.register('quotaValue', { valueAsNumber: true })}
-              />
-              <Select value={quotaUnit} onValueChange={(unit) => form.setValue('quotaUnit', unit as StorageQuotaUnit)}>
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MB">MB</SelectItem>
-                  <SelectItem value="GB">GB</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <QuotaAmountInput
+              controlProps={controlProps}
+              inputProps={form.register('quotaValue', { valueAsNumber: true })}
+              placeholder={t('admin.settings.quotaValuePlaceholder')}
+              unit={quotaUnit}
+              onUnitChange={(unit) => form.setValue('quotaUnit', unit)}
+            />
           )}
         </AdminFormField>
 
         <AdminFormField
           id="teamQuotaValue"
           label={t('admin.settings.defaultTeamQuota')}
-          description={t('admin.settings.defaultTeamQuotaHint')}
+          help={t('admin.settings.defaultTeamQuotaHint')}
+          required
           error={form.formState.errors.teamQuotaValue?.message}
         >
           {(controlProps) => (
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                step={1}
-                className="flex-1"
-                {...controlProps}
-                {...form.register('teamQuotaValue', { valueAsNumber: true })}
-              />
-              <Select
-                value={teamQuotaUnit}
-                onValueChange={(unit) => form.setValue('teamQuotaUnit', unit as StorageQuotaUnit)}
-              >
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MB">MB</SelectItem>
-                  <SelectItem value="GB">GB</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <QuotaAmountInput
+              controlProps={controlProps}
+              inputProps={form.register('teamQuotaValue', { valueAsNumber: true })}
+              placeholder={t('admin.settings.quotaValuePlaceholder')}
+              unit={teamQuotaUnit}
+              onUnitChange={(unit) => form.setValue('teamQuotaUnit', unit)}
+            />
           )}
         </AdminFormField>
       </AdminFormDrawer>
+    </div>
+  )
+}
+
+function QuotaAmountInput({
+  controlProps,
+  inputProps,
+  placeholder,
+  unit,
+  onUnitChange,
+}: {
+  controlProps: FieldControlProps
+  inputProps: ComponentProps<typeof Input>
+  placeholder: string
+  unit: StorageQuotaUnit
+  onUnitChange: (unit: StorageQuotaUnit) => void
+}) {
+  return (
+    <div className="flex h-9 w-48 items-center overflow-hidden rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 dark:bg-input/30">
+      <Input
+        {...inputProps}
+        {...controlProps}
+        type="number"
+        min={1}
+        step={1}
+        placeholder={placeholder}
+        className="h-8 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+      />
+      <Select value={unit} onValueChange={(nextUnit) => onUnitChange(nextUnit as StorageQuotaUnit)}>
+        <SelectTrigger className="h-8 w-20 rounded-none border-0 border-l bg-transparent px-2 shadow-none focus-visible:ring-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="MB">MB</SelectItem>
+          <SelectItem value="GB">GB</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   )
 }

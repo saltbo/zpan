@@ -32,7 +32,6 @@ vi.mock('@/lib/api', () => ({
 
 const storage: Storage = {
   id: 'storage-1',
-  title: 'Primary storage',
   bucket: 'bucket',
   endpoint: 'https://s3.example.com',
   region: 'auto',
@@ -79,7 +78,6 @@ describe('StorageFormDrawer', () => {
     const onOpenChange = vi.fn()
     renderStorageFormDrawer({ onOpenChange })
 
-    fireEvent.change(screen.getByLabelText('admin.storages.fieldTitle'), { target: { value: 'New storage' } })
     fireEvent.change(screen.getByLabelText('admin.storages.fieldBucket'), { target: { value: 'new-bucket' } })
     fireEvent.change(screen.getByLabelText('admin.storages.fieldEndpoint'), {
       target: { value: 'https://storage.example.com' },
@@ -87,22 +85,20 @@ describe('StorageFormDrawer', () => {
     fireEvent.change(screen.getByLabelText('admin.storages.fieldRegion'), { target: { value: 'auto' } })
     fireEvent.change(screen.getByLabelText('admin.storages.fieldAccessKey'), { target: { value: 'new-access' } })
     fireEvent.change(screen.getByLabelText('admin.storages.fieldSecretKey'), { target: { value: 'new-secret' } })
-    fireEvent.change(screen.getByLabelText('admin.storages.fieldCapacity'), { target: { value: '2' } })
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
       expect(createStorage).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: 'New storage',
           bucket: 'new-bucket',
           endpoint: 'https://storage.example.com',
           region: 'auto',
           accessKey: 'new-access',
           secretKey: 'new-secret',
-          capacity: 2 * 1024 * 1024 * 1024,
         }),
       ),
     )
+    expect(createStorage).not.toHaveBeenCalledWith(expect.objectContaining({ capacity: expect.any(Number) }))
     expect(createStorage).not.toHaveBeenCalledWith(expect.objectContaining({ egressCreditBillingEnabled: false }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
@@ -117,17 +113,14 @@ describe('StorageFormDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'admin.storages.showSecretKey' }))
     expect(secretInput.getAttribute('type')).toBe('text')
     expect(screen.getByRole('button', { name: 'admin.storages.hideSecretKey' })).toBeTruthy()
-    expect((screen.getByLabelText('admin.storages.fieldCapacity') as HTMLInputElement).value).toBe('2')
+    expect(screen.queryByLabelText('admin.storages.fieldCapacity')).toBeNull()
     expect(screen.queryByLabelText('admin.storages.egressBillingUnit')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
       expect(updateStorage).toHaveBeenCalledWith(
         'storage-1',
-        expect.objectContaining({
-          title: 'Primary storage',
-          capacity: 2 * 1024 * 1024 * 1024,
-        }),
+        expect.not.objectContaining({ capacity: expect.any(Number) }),
       ),
     )
     expect(updateStorage).not.toHaveBeenCalledWith('storage-1', expect.objectContaining({ egressCreditPerUnit: 3 }))

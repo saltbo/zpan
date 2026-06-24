@@ -135,8 +135,7 @@ describe('OAuthProvidersSection', () => {
     const addButton = await screen.findByRole('button', { name: 'admin.auth.addProvider' })
     await waitFor(() => expect((addButton as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(addButton)
-    fireEvent.click(screen.getByRole('combobox', { name: 'admin.auth.providerType' }))
-    fireEvent.click(screen.getByRole('option', { name: 'admin.auth.providerOidc' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'admin.auth.providerOidc' }))
     fireEvent.change(screen.getByLabelText('admin.auth.providerId'), { target: { value: 'new-sso' } })
 
     await waitFor(() => {

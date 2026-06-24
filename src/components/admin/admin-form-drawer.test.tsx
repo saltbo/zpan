@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Input } from '@/components/ui/input'
-import { AdminFormDrawer, AdminFormField } from './admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminSwitchField } from './admin-form-drawer'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -34,7 +34,12 @@ describe('AdminFormDrawer', () => {
     expect(screen.getByText('Configure storage')).toBeTruthy()
     expect(screen.getByRole('form', { name: 'Storage form' })).toBeTruthy()
     expect(screen.getByText('Drawer body')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy()
+    const saveButton = screen.getByRole('button', { name: 'Save' })
+    const footer = saveButton.parentElement
+    expect(saveButton).toBeTruthy()
+    expect(footer?.getAttribute('data-slot')).toBe('sheet-footer')
+    expect(footer?.className).toContain('flex-row')
+    expect(footer?.className).toContain('justify-end')
   })
 })
 
@@ -65,5 +70,41 @@ describe('AdminFormField', () => {
     expect(input.getAttribute('id')).toBe('custom-bucket')
     expect(input.getAttribute('aria-invalid')).toBe('true')
     expect(input.getAttribute('aria-describedby')).toBe('external-help field-id-description field-id-error')
+  })
+
+  it('renders required and help affordances without changing label association', () => {
+    render(
+      <AdminFormField id="bucket" label="Bucket" required help="Use the exact provider bucket name.">
+        <Input />
+      </AdminFormField>,
+    )
+
+    const input = screen.getByLabelText('Bucket')
+    expect(input.getAttribute('aria-required')).toBe('true')
+    expect(screen.getByText('*')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Help' })).toBeTruthy()
+  })
+})
+
+describe('AdminSwitchField', () => {
+  it('renders a labeled switch with description in a consistent form row', () => {
+    render(<AdminSwitchField id="enabled" label="Enabled" description="Allow this feature" checked />)
+
+    const switchControl = screen.getByRole('switch', { name: 'Enabled' })
+    const field = switchControl.parentElement
+
+    expect(switchControl.getAttribute('id')).toBe('enabled')
+    expect(switchControl.getAttribute('aria-describedby')).toBe('enabled-description')
+    expect(screen.getByText('Allow this feature')).toBeTruthy()
+    expect(field?.className).toContain('rounded-md')
+    expect(field?.className).toContain('border')
+  })
+
+  it('marks a switch field as required when requested', () => {
+    render(<AdminSwitchField id="enabled" label="Enabled" required checked />)
+
+    const switchControl = screen.getByRole('switch', { name: 'Enabled' })
+    expect(switchControl.getAttribute('aria-required')).toBe('true')
+    expect(screen.getByText('*')).toBeTruthy()
   })
 })

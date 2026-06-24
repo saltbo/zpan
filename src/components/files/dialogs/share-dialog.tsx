@@ -367,15 +367,15 @@ function RecipientsField({
 function PasswordField({ enabled, onToggle }: { enabled: boolean; onToggle: (v: boolean) => void }) {
   const { t } = useTranslation()
   return (
-    <div className="space-y-1.5 rounded-md border bg-muted/30 p-3">
-      <div className="flex items-center justify-between">
+    <div className="flex min-h-11 items-start justify-between gap-4 rounded-md border bg-background p-3">
+      <div className="min-w-0 space-y-1">
         <div className="flex items-center gap-2">
           <KeyRound className="h-4 w-4 text-muted-foreground" />
           <Label htmlFor="share-pwd">{t('share.password')}</Label>
         </div>
-        <Switch id="share-pwd" checked={enabled} onCheckedChange={onToggle} />
+        <p className="text-xs leading-5 text-muted-foreground">{t('share.passwordHint')}</p>
       </div>
-      <p className="text-xs text-muted-foreground">{t('share.passwordHint')}</p>
+      <Switch id="share-pwd" className="mt-0.5" checked={enabled} onCheckedChange={onToggle} />
     </div>
   )
 }

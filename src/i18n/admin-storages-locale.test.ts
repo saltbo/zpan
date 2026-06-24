@@ -18,8 +18,8 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.updated',
   'admin.storages.deleted',
   'admin.storages.noStorages',
-  'admin.storages.colTitle',
   'admin.storages.colBucket',
+  'admin.storages.colAccessKey',
   'admin.storages.colEndpoint',
   'admin.storages.colEgressBilling',
   'admin.storages.colStatus',
@@ -30,38 +30,55 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.healthUntested',
   'admin.storages.healthTesting',
   'admin.storages.testAction',
+  'admin.storages.testDialogTitle',
+  'admin.storages.testStepCreate',
+  'admin.storages.testStepUpload',
+  'admin.storages.testStepCleanup',
+  'admin.storages.testStepDone',
+  'admin.storages.testStepFailed',
+  'admin.storages.testStepRunning',
+  'admin.storages.testStepPending',
   'admin.storages.testSuccess',
   'admin.storages.testNoUploadUrl',
   'admin.storages.testUploadFailed',
   'admin.storages.testCleanupFailed',
   'admin.storages.testCorsFailure',
+  'admin.storages.testCorsConfig',
   'admin.storages.testCorsCaveat',
-  'admin.storages.fieldTitle',
   'admin.storages.fieldBucket',
+  'admin.storages.bucketPlaceholder',
   'admin.storages.fieldEndpoint',
+  'admin.storages.endpointPlaceholder',
   'admin.storages.fieldRegion',
+  'admin.storages.regionPlaceholder',
   'admin.storages.fieldAccessKey',
+  'admin.storages.accessKeyPlaceholder',
   'admin.storages.fieldSecretKey',
+  'admin.storages.secretKeyPlaceholder',
   'admin.storages.showSecretKey',
   'admin.storages.hideSecretKey',
   'admin.storages.fieldCustomHost',
+  'admin.storages.customHostHint',
   'admin.storages.fieldForcePathStyle',
   'admin.storages.forcePathStyleHint',
   'admin.storages.customHostPlaceholder',
   'admin.storages.fieldCapacity',
+  'admin.storages.capacityPlaceholder',
   'admin.storages.capacityUnlimited',
   'admin.storages.capacityHint',
   'admin.storages.egressBilling',
   'admin.storages.configureEgressBilling',
-  'admin.storages.egressBillingTitle',
-  'admin.storages.egressBillingDescription',
+  'admin.storages.billingTitle',
+  'admin.storages.billingDescription',
   'admin.storages.egressBillingHint',
   'admin.storages.egressBillingBusinessOnly',
   'admin.storages.egressBillingUnit',
+  'admin.storages.egressBillingUnitPlaceholder',
   'admin.storages.egressBillingCredits',
+  'admin.storages.egressBillingCreditsPlaceholder',
   'admin.storages.egressBillingRate',
   'admin.storages.egressBillingOff',
-  'admin.storages.egressBillingSaveSuccess',
+  'admin.storages.billingSaveSuccess',
 ]
 
 const ADMIN_NAV_KEYS = ['admin.nav.management', 'admin.nav.storages', 'admin.nav.users']
@@ -72,10 +89,10 @@ const ALL_KEYS = [...ADMIN_STORAGES_KEYS, ...ADMIN_NAV_KEYS, ...SHARED_KEYS]
 
 // Keys that contain interpolation placeholders and the expected placeholder tokens
 const INTERPOLATED_KEYS: Record<string, string[]> = {
-  'admin.storages.deleteConfirm': ['{{title}}'],
+  'admin.storages.deleteConfirm': ['{{bucket}}'],
   'admin.storages.testUploadFailed': ['{{detail}}'],
   'admin.storages.testCleanupFailed': ['{{detail}}'],
-  'admin.storages.egressBillingDescription': ['{{title}}'],
+  'admin.storages.billingDescription': ['{{bucket}}'],
   'admin.storages.egressBillingRate': ['{{credits}}', '{{unit}}'],
 }
 
@@ -276,18 +293,18 @@ describe('admin.storages locale keys — i18n runtime translation', () => {
     expect(i18n.t('admin.storages.deleteTitle')).toBe('删除存储')
   })
 
-  it('interpolates admin.storages.deleteConfirm with title in English', async () => {
+  it('interpolates admin.storages.deleteConfirm with bucket in English', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('en')
-    const result = i18n.t('admin.storages.deleteConfirm', { title: 'my-bucket' })
+    const result = i18n.t('admin.storages.deleteConfirm', { bucket: 'my-bucket' })
     expect(result).toContain('my-bucket')
     expect(result).toContain('cannot be undone')
   })
 
-  it('interpolates admin.storages.deleteConfirm with title in Chinese', async () => {
+  it('interpolates admin.storages.deleteConfirm with bucket in Chinese', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
-    const result = i18n.t('admin.storages.deleteConfirm', { title: 'my-bucket' })
+    const result = i18n.t('admin.storages.deleteConfirm', { bucket: 'my-bucket' })
     expect(result).toContain('my-bucket')
   })
 

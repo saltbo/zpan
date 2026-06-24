@@ -7,7 +7,6 @@ describe('createStorage', () => {
   it('sets filePath to empty string regardless of input', async () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
-      title: 'My Storage',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -21,7 +20,6 @@ describe('createStorage', () => {
   it('sets customHost to empty string when not provided', async () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
-      title: 'My Storage',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -35,7 +33,6 @@ describe('createStorage', () => {
   it('uses provided customHost when given', async () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
-      title: 'My Storage',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -50,7 +47,6 @@ describe('createStorage', () => {
   it('sets capacity to 0 when not provided', async () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
-      title: 'My Storage',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -64,7 +60,6 @@ describe('createStorage', () => {
   it('uses provided capacity when given', async () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
-      title: 'My Storage',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -78,7 +73,6 @@ describe('createStorage', () => {
   it('initialises used to 0 and status to active', async () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
-      title: 'My Storage',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'auto',
@@ -93,7 +87,6 @@ describe('createStorage', () => {
   it('persists the created row to the database', async () => {
     const { db } = await createTestApp()
     const created = await createStorageRepo(db).create({
-      title: 'Persisted',
       bucket: 'my-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -103,14 +96,13 @@ describe('createStorage', () => {
     })
     const fetched = await createStorageRepo(db).get(created.id)
     expect(fetched?.id).toBe(created.id)
-    expect(fetched?.title).toBe('Persisted')
+    expect(fetched?.bucket).toBe('my-bucket')
   })
 })
 
 describe('updateStorage', () => {
   async function seed(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
     return createStorageRepo(db).create({
-      title: 'Original',
       bucket: 'original-bucket',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -123,14 +115,14 @@ describe('updateStorage', () => {
 
   it('returns null when storage does not exist', async () => {
     const { db } = await createTestApp()
-    const result = await createStorageRepo(db).update('nonexistent', { title: 'New' })
+    const result = await createStorageRepo(db).update('nonexistent', { bucket: 'new-bucket' })
     expect(result).toBeNull()
   })
 
   it('keeps existing values for fields not included in update', async () => {
     const { db } = await createTestApp()
     const created = await seed(db)
-    const updated = await createStorageRepo(db).update(created.id, { title: 'Changed' })
+    const updated = await createStorageRepo(db).update(created.id, {})
     expect(updated?.bucket).toBe('original-bucket')
     expect(updated?.region).toBe('us-east-1')
     expect(updated?.accessKey).toBe('AKID')
@@ -143,7 +135,6 @@ describe('updateStorage', () => {
     const { db } = await createTestApp()
     const created = await seed(db)
     const updated = await createStorageRepo(db).update(created.id, {
-      title: 'Updated',
       bucket: 'new-bucket',
       endpoint: 'https://r2.example.com',
       region: 'auto',
@@ -153,7 +144,6 @@ describe('updateStorage', () => {
       capacity: 1000,
       status: 'disabled',
     })
-    expect(updated?.title).toBe('Updated')
     expect(updated?.bucket).toBe('new-bucket')
     expect(updated?.endpoint).toBe('https://r2.example.com')
     expect(updated?.region).toBe('auto')
@@ -169,7 +159,7 @@ describe('updateStorage', () => {
     const created = await seed(db)
     const updated = await createStorageRepo(db).update(created.id, { status: 'disabled' })
     expect(updated?.status).toBe('disabled')
-    expect(updated?.title).toBe('Original')
+    expect(updated?.bucket).toBe('original-bucket')
   })
 
   it('updates the updatedAt timestamp', async () => {
@@ -177,7 +167,7 @@ describe('updateStorage', () => {
     const created = await seed(db)
     const before = created.updatedAt.getTime()
     await new Promise((r) => setTimeout(r, 10))
-    const updated = await createStorageRepo(db).update(created.id, { title: 'New Title' })
+    const updated = await createStorageRepo(db).update(created.id, { bucket: 'new-bucket' })
     expect(updated?.updatedAt.getTime()).toBeGreaterThanOrEqual(before)
   })
 })
@@ -192,7 +182,6 @@ describe('listStorages', () => {
   it('returns all storages ordered by createdAt ascending', async () => {
     const { db } = await createTestApp()
     await createStorageRepo(db).create({
-      title: 'First',
       bucket: 'b1',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -201,7 +190,6 @@ describe('listStorages', () => {
       capacity: 0,
     })
     await createStorageRepo(db).create({
-      title: 'Second',
       bucket: 'b2',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -225,7 +213,6 @@ describe('getStorage', () => {
   it('returns the storage when it exists', async () => {
     const { db } = await createTestApp()
     const created = await createStorageRepo(db).create({
-      title: 'Findable',
       bucket: 'b',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -241,11 +228,10 @@ describe('getStorage', () => {
 describe('selectStorage', () => {
   async function seedActive(
     db: Awaited<ReturnType<typeof createTestApp>>['db'],
-    opts: { capacity?: number; used?: number; status?: string; title?: string } = {},
+    opts: { capacity?: number; used?: number; status?: string; bucket?: string } = {},
   ) {
     const created = await createStorageRepo(db).create({
-      title: opts.title ?? 'Seed',
-      bucket: 'b',
+      bucket: opts.bucket ?? 'b',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
       accessKey: 'K',
@@ -269,8 +255,8 @@ describe('selectStorage', () => {
 
   it('returns the requested active storage with capacity even when it is not oldest', async () => {
     const { db } = await createTestApp()
-    const first = await seedActive(db, { title: 'First' })
-    const second = await seedActive(db, { title: 'Second' })
+    const first = await seedActive(db, { bucket: 'first' })
+    const second = await seedActive(db, { bucket: 'second' })
 
     const auto = await createStorageRepo(db).select()
     const targeted = await createStorageRepo(db).select(second?.id)
@@ -307,7 +293,6 @@ describe('deleteStorage', () => {
   it('deletes a storage that is not referenced by any matter', async () => {
     const { db } = await createTestApp()
     const created = await createStorageRepo(db).create({
-      title: 'Deletable',
       bucket: 'b',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -323,7 +308,6 @@ describe('deleteStorage', () => {
   it('returns in_use when matters reference the storage', async () => {
     const { db } = await createTestApp()
     const created = await createStorageRepo(db).create({
-      title: 'In Use',
       bucket: 'b',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',

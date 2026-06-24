@@ -1462,7 +1462,6 @@ describe('api', () => {
 
   describe('createStorage', () => {
     const validInput = {
-      title: 'minio',
       bucket: 'files',
       endpoint: 'https://minio.example.com',
       region: 'us-east-1',
@@ -1473,7 +1472,7 @@ describe('api', () => {
     }
 
     it('posts storage data and returns created storage', async () => {
-      const storage = { id: 's1', title: 'minio', bucket: 'files' }
+      const storage = { id: 's1', bucket: 'files' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(storage))
 
       const result = await createStorage(validInput)
@@ -1483,7 +1482,7 @@ describe('api', () => {
       expect(url).toContain('/api/site/storages')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ title: 'minio', bucket: 'files', forcePathStyle: false })
+      expect(body).toMatchObject({ bucket: 'files', forcePathStyle: false })
       const headers =
         init.headers instanceof Headers ? init.headers : new Headers(init.headers as Record<string, string>)
       expect(headers.get('Content-Type')).toContain('application/json')
@@ -1517,23 +1516,23 @@ describe('api', () => {
 
   describe('updateStorage', () => {
     it('puts updated storage data and returns updated storage', async () => {
-      const storage = { id: 's1', title: 'updated-minio' }
+      const storage = { id: 's1', bucket: 'updated-files' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(storage))
 
-      const result = await updateStorage('s1', { title: 'updated-minio', forcePathStyle: false })
+      const result = await updateStorage('s1', { bucket: 'updated-files', forcePathStyle: false })
 
       expect(result).toEqual(storage)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/site/storages/s1')
       expect(init.method).toBe('PUT')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ title: 'updated-minio', forcePathStyle: false })
+      expect(body).toMatchObject({ bucket: 'updated-files', forcePathStyle: false })
     })
 
     it('throws on error response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
-      await expect(updateStorage('s1', { title: 'x' })).rejects.toThrow('forbidden')
+      await expect(updateStorage('s1', { bucket: 'x' })).rejects.toThrow('forbidden')
     })
   })
 

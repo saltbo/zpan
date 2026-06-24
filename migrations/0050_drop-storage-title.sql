@@ -1,0 +1,1 @@
+ALTER TABLE `storages` DROP COLUMN `title`;

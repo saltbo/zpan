@@ -11,12 +11,12 @@ import { Eye, ImageUp, Palette, RotateCcw, Upload } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AdminFormDrawer } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/admin/admin-form-drawer'
 import { ThemeColorInput, ThemePreview } from '@/components/admin/branding-theme-preview'
 import { brandingQueryKey } from '@/components/branding/BrandingProvider'
 import { ProBadge } from '@/components/ProBadge'
 import { Button } from '@/components/ui/button'
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { getBranding, resetBrandingField, saveBranding } from '@/lib/api'
@@ -148,8 +147,10 @@ function FileUploadField({
   const uploadLabel = previewUrl ? replaceLabel : emptyLabel
 
   return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={id}>{label}</Label>
+    <div className="flex flex-col gap-1">
+      <AdminFormLabel htmlFor={id} help={hint}>
+        {label}
+      </AdminFormLabel>
       <input
         ref={inputRef}
         id={id}
@@ -330,46 +331,47 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
 
   return (
     <>
-      <Card className="border-border/60">
-        <CardHeader className="gap-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="rounded-lg border border-border/60 bg-primary/10 p-2 text-primary">
-                <Palette className="size-5" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <CardTitle>{t('admin.settings.branding.assetsTitle')}</CardTitle>
-                  <ProBadge tooltip={t('admin.settings.proLockedWhiteLabel')} />
-                </div>
-                <CardDescription>{t('admin.settings.branding.assetsDescription')}</CardDescription>
-              </div>
+      <Card data-settings-row className="rounded-lg border-border/70 py-0 shadow-xs">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted text-muted-foreground">
+              <Palette className="size-4" />
             </div>
-            <CardAction className="flex flex-wrap justify-end gap-2">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button type="button" variant="outline" size="sm">
-                    <Eye className="mr-2 size-4" />
-                    {t('admin.settings.branding.preview')}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-3xl">
-                  <DialogHeader>
-                    <DialogTitle>{t('admin.settings.branding.preview')}</DialogTitle>
-                    <DialogDescription>{t('admin.settings.branding.previewHint')}</DialogDescription>
-                  </DialogHeader>
-                  <ThemePreview values={previewTheme} logoUrl={state.previewLogoUrl} />
-                </DialogContent>
-              </Dialog>
-              <Button type="button" size="sm" onClick={() => setDrawerOpen(true)}>
-                {t('common.edit')}
-              </Button>
-            </CardAction>
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-sm leading-5">{t('admin.settings.branding.assetsTitle')}</CardTitle>
+                <ProBadge tooltip={t('admin.settings.proLockedWhiteLabel')} />
+              </div>
+              <CardDescription className="max-w-2xl leading-5">
+                {t('admin.settings.branding.assetsDescription')}
+              </CardDescription>
+              <p className="text-muted-foreground text-sm">
+                {disabled
+                  ? t('admin.settings.branding.lockedMessage')
+                  : t(`admin.settings.branding.themePresets.${initial.theme.preset}`)}
+              </p>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>{disabled ? t('admin.settings.branding.lockedMessage') : t('admin.settings.branding.themeDescription')}</p>
-          <p>{t(`admin.settings.branding.themePresets.${initial.theme.preset}`)}</p>
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" size="sm">
+                  <Eye className="mr-2 size-4" />
+                  {t('admin.settings.branding.preview')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>{t('admin.settings.branding.preview')}</DialogTitle>
+                  <DialogDescription>{t('admin.settings.branding.previewHint')}</DialogDescription>
+                </DialogHeader>
+                <ThemePreview values={previewTheme} logoUrl={state.previewLogoUrl} />
+              </DialogContent>
+            </Dialog>
+            <Button type="button" size="sm" variant="outline" onClick={() => setDrawerOpen(true)}>
+              {t('common.edit')}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -382,7 +384,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
         width="extra-wide"
         title={t('admin.settings.branding.assetsTitle')}
         description={t('admin.settings.branding.assetsDescription')}
-        bodyClassName="grid gap-5"
+        bodyClassName="grid auto-rows-min content-start gap-4"
         footer={
           <>
             <Button
@@ -404,8 +406,8 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
           </>
         }
       >
-        <div className={cn('flex flex-col gap-5', disabled && 'opacity-60')}>
-          <div className="grid gap-2 xl:grid-cols-2">
+        <div className={cn('grid auto-rows-min gap-4', disabled && 'opacity-60')}>
+          <div className="grid gap-4 xl:grid-cols-2">
             <FileUploadField
               id="logo-upload"
               label={t('admin.settings.branding.logo')}
@@ -434,8 +436,12 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="theme-mode">{t('admin.settings.branding.themeMode')}</Label>
+            <AdminFormField
+              id="theme-mode"
+              label={t('admin.settings.branding.themeMode')}
+              help={t('admin.settings.branding.themeDescription')}
+              required
+            >
               <Select
                 value={themeSourceValue}
                 disabled={disabled}
@@ -449,7 +455,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
                 }}
               >
                 <SelectTrigger id="theme-mode" className="w-full">
-                  <SelectValue />
+                  <SelectValue placeholder={t('admin.settings.branding.themeModePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {THEME_PRESET_IDS.map((preset) => (
@@ -460,10 +466,11 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
                   <SelectItem value="custom">{t('admin.settings.branding.themeModeCustom')}</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </AdminFormField>
             <ThemeColorInput
               id="theme-primary"
               label={t('admin.settings.branding.themePrimary')}
+              placeholder={t('admin.settings.branding.colorPlaceholder')}
               value={previewTheme.primary_color}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(primary_color) => setCustomTheme({ ...customTheme, primary_color })}
@@ -471,6 +478,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
             <ThemeColorInput
               id="theme-primary-foreground"
               label={t('admin.settings.branding.themePrimaryForeground')}
+              placeholder={t('admin.settings.branding.colorPlaceholder')}
               value={previewTheme.primary_foreground}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(primary_foreground) => setCustomTheme({ ...customTheme, primary_foreground })}
@@ -478,6 +486,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
             <ThemeColorInput
               id="theme-canvas"
               label={t('admin.settings.branding.themeCanvas')}
+              placeholder={t('admin.settings.branding.colorPlaceholder')}
               value={previewTheme.canvas_color}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(canvas_color) => setCustomTheme({ ...customTheme, canvas_color })}
@@ -485,6 +494,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
             <ThemeColorInput
               id="theme-sidebar-accent"
               label={t('admin.settings.branding.themeSidebarAccent')}
+              placeholder={t('admin.settings.branding.colorPlaceholder')}
               value={previewTheme.sidebar_accent_color}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(sidebar_accent_color) => setCustomTheme({ ...customTheme, sidebar_accent_color })}
@@ -492,6 +502,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
             <ThemeColorInput
               id="theme-ring"
               label={t('admin.settings.branding.themeRing')}
+              placeholder={t('admin.settings.branding.colorPlaceholder')}
               value={previewTheme.ring_color}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(ring_color) => setCustomTheme({ ...customTheme, ring_color })}

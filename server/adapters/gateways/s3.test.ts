@@ -94,7 +94,6 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
 function makeStorage(overrides: Partial<Storage> = {}): Storage {
   return {
     id: 's1',
-    title: 'Test',
     bucket: 'my-bucket',
     endpoint: 'https://s3.example.com',
     region: 'us-east-1',

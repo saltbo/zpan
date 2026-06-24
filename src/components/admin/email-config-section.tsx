@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Mail } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/admin/admin-form-drawer'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -165,32 +168,49 @@ export function EmailConfigSection() {
     setForm(savedForm)
   }
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+  if (isLoading) {
+    return (
+      <Card data-settings-row className="rounded-lg border-border/70 py-0 shadow-xs">
+        <CardContent className="p-4 text-muted-foreground text-sm">{t('common.loading')}</CardContent>
+      </Card>
+    )
+  }
 
   return (
-    <div className="space-y-4 rounded-md border p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h3 className="text-sm font-medium text-muted-foreground">{t('admin.auth.emailSection')}</h3>
-          <p className="text-sm">
-            {savedForm.enabled ? t('admin.auth.emailEnabled') : t('common.disabled')} ·{' '}
-            {savedForm.provider === 'cloudflare'
-              ? t('admin.auth.emailCloudflare')
-              : savedForm.provider === 'smtp'
-                ? t('admin.auth.emailSmtp')
-                : t('admin.auth.emailHttp')}
-          </p>
-          <p className="text-xs text-muted-foreground">{savedForm.from || t('admin.auth.emailNotConfigured')}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => setTestDialogOpen(true)} disabled={!savedForm.enabled}>
-            {t('admin.auth.testEmail')}
-          </Button>
-          <Button size="sm" onClick={() => setConfigOpen(true)}>
-            {t('common.edit')}
-          </Button>
-        </div>
-      </div>
+    <>
+      <Card data-settings-row className="rounded-lg border-border/70 py-0 shadow-xs">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted text-muted-foreground">
+              <Mail className="size-4" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="text-sm leading-5">{t('admin.auth.emailSection')}</CardTitle>
+              <CardDescription className="max-w-2xl leading-5">{t('admin.auth.emailEnabledHint')}</CardDescription>
+              <p className="text-muted-foreground text-sm">
+                {savedForm.provider === 'cloudflare'
+                  ? t('admin.auth.emailCloudflare')
+                  : savedForm.provider === 'smtp'
+                    ? t('admin.auth.emailSmtp')
+                    : t('admin.auth.emailHttp')}
+                {' · '}
+                {savedForm.from || t('admin.auth.emailNotConfigured')}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            <Badge variant={savedForm.enabled ? 'default' : 'secondary'}>
+              {savedForm.enabled ? t('admin.auth.enabled') : t('common.disabled')}
+            </Badge>
+            <Button variant="outline" size="sm" onClick={() => setTestDialogOpen(true)} disabled={!savedForm.enabled}>
+              {t('admin.auth.testEmail')}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setConfigOpen(true)}>
+              {t('common.edit')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <AdminFormDrawer
         open={configOpen}
@@ -200,7 +220,7 @@ export function EmailConfigSection() {
         }}
         title={t('admin.auth.emailSection')}
         description={t('admin.auth.emailEnabledHint')}
-        bodyClassName="grid gap-4"
+        bodyClassName="grid auto-rows-min content-start gap-4"
         formProps={{
           onSubmit: (event) => {
             event.preventDefault()
@@ -218,18 +238,17 @@ export function EmailConfigSection() {
           </>
         }
       >
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <div className="space-y-1">
-            <Label htmlFor="emailEnabled">{t('admin.auth.emailEnabled')}</Label>
-            <p className="text-sm text-muted-foreground">{t('admin.auth.emailEnabledHint')}</p>
-          </div>
+        <div className="flex items-center justify-between gap-4">
+          <AdminFormLabel htmlFor="emailEnabled" help={t('admin.auth.emailEnabledHint')}>
+            {t('admin.auth.emailEnabled')}
+          </AdminFormLabel>
           <Switch id="emailEnabled" checked={form.enabled} onCheckedChange={(v) => update({ enabled: !!v })} />
         </div>
 
-        <AdminFormField id="email-provider" label={t('admin.auth.emailProvider')}>
+        <AdminFormField id="email-provider" label={t('admin.auth.emailProvider')} required>
           <Select value={form.provider} onValueChange={(v) => update({ provider: v as ProviderType })}>
             <SelectTrigger id="email-provider">
-              <SelectValue />
+              <SelectValue placeholder={t('admin.auth.emailProviderPlaceholder')} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="cloudflare">{t('admin.auth.emailCloudflare')}</SelectItem>
@@ -239,29 +258,48 @@ export function EmailConfigSection() {
           </Select>
         </AdminFormField>
 
-        <AdminFormField id="email-from" label={t('admin.auth.emailFrom')}>
-          <Input type="email" value={form.from} onChange={(e) => update({ from: e.target.value })} />
+        <AdminFormField id="email-from" label={t('admin.auth.emailFrom')} required>
+          <Input
+            type="email"
+            value={form.from}
+            placeholder={t('admin.auth.emailFromPlaceholder')}
+            onChange={(e) => update({ from: e.target.value })}
+          />
         </AdminFormField>
 
         {form.provider === 'smtp' ? (
           <>
             <div className="grid grid-cols-2 gap-4">
-              <AdminFormField id="smtp-host" label={t('admin.auth.smtpHost')}>
-                <Input value={form.smtpHost} onChange={(e) => update({ smtpHost: e.target.value })} />
+              <AdminFormField id="smtp-host" label={t('admin.auth.smtpHost')} required>
+                <Input
+                  value={form.smtpHost}
+                  placeholder={t('admin.auth.smtpHostPlaceholder')}
+                  onChange={(e) => update({ smtpHost: e.target.value })}
+                />
               </AdminFormField>
-              <AdminFormField id="smtp-port" label={t('admin.auth.smtpPort')}>
+              <AdminFormField id="smtp-port" label={t('admin.auth.smtpPort')} required>
                 <Input
                   type="number"
                   value={form.smtpPort}
+                  placeholder={t('admin.auth.smtpPortPlaceholder')}
                   onChange={(e) => update({ smtpPort: Number(e.target.value) })}
                 />
               </AdminFormField>
             </div>
             <AdminFormField id="smtp-user" label={t('admin.auth.smtpUser')}>
-              <Input value={form.smtpUser} onChange={(e) => update({ smtpUser: e.target.value })} />
+              <Input
+                value={form.smtpUser}
+                placeholder={t('admin.auth.smtpUserPlaceholder')}
+                onChange={(e) => update({ smtpUser: e.target.value })}
+              />
             </AdminFormField>
             <AdminFormField id="smtp-pass" label={t('admin.auth.smtpPass')}>
-              <Input type="password" value={form.smtpPass} onChange={(e) => update({ smtpPass: e.target.value })} />
+              <Input
+                type="password"
+                value={form.smtpPass}
+                placeholder={t('admin.auth.smtpPassPlaceholder')}
+                onChange={(e) => update({ smtpPass: e.target.value })}
+              />
             </AdminFormField>
             <div className="flex items-center gap-2">
               <Checkbox
@@ -274,11 +312,20 @@ export function EmailConfigSection() {
           </>
         ) : form.provider === 'http' ? (
           <>
-            <AdminFormField id="email-http-url" label={t('admin.auth.httpUrl')}>
-              <Input value={form.httpUrl} onChange={(e) => update({ httpUrl: e.target.value })} />
+            <AdminFormField id="email-http-url" label={t('admin.auth.httpUrl')} required>
+              <Input
+                value={form.httpUrl}
+                placeholder={t('admin.auth.httpUrlPlaceholder')}
+                onChange={(e) => update({ httpUrl: e.target.value })}
+              />
             </AdminFormField>
-            <AdminFormField id="email-http-api-key" label={t('admin.auth.httpApiKey')}>
-              <Input type="password" value={form.httpApiKey} onChange={(e) => update({ httpApiKey: e.target.value })} />
+            <AdminFormField id="email-http-api-key" label={t('admin.auth.httpApiKey')} required>
+              <Input
+                type="password"
+                value={form.httpApiKey}
+                placeholder={t('admin.auth.httpApiKeyPlaceholder')}
+                onChange={(e) => update({ httpApiKey: e.target.value })}
+              />
             </AdminFormField>
           </>
         ) : null}
@@ -289,6 +336,7 @@ export function EmailConfigSection() {
         onOpenChange={setTestDialogOpen}
         title={t('admin.auth.testEmail')}
         description={t('admin.auth.testEmailTo')}
+        bodyClassName="grid auto-rows-min content-start gap-4"
         formProps={{
           onSubmit: (event) => {
             event.preventDefault()
@@ -306,7 +354,7 @@ export function EmailConfigSection() {
           </>
         }
       >
-        <AdminFormField id="test-email-address" label={t('admin.auth.testEmailTo')}>
+        <AdminFormField id="test-email-address" label={t('admin.auth.testEmailTo')} required>
           <Input
             type="email"
             value={testEmailAddr}
@@ -315,6 +363,6 @@ export function EmailConfigSection() {
           />
         </AdminFormField>
       </AdminFormDrawer>
-    </div>
+    </>
   )
 }

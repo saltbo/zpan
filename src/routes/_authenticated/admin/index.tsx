@@ -122,7 +122,7 @@ function OverviewPage() {
               {storages.slice(0, 4).map((storage) => (
                 <div key={storage.id} className="rounded-md border px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="truncate text-sm font-medium">{storage.title}</span>
+                    <span className="truncate text-sm font-medium">{storage.bucket}</span>
                     <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                       {storage.status}
                     </span>

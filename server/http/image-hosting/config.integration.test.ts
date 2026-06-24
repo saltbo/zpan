@@ -998,7 +998,6 @@ describe('DELETE /api/image-hosting/config', () => {
     const storageId = nanoid()
     await db.insert(schema.storages).values({
       id: storageId,
-      title: 'Test Storage',
       bucket: 'test',
       endpoint: 'https://s3.example.com',
       region: 'auto',

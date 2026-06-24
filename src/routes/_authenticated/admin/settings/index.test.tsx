@@ -52,6 +52,10 @@ vi.mock('@/components/admin/branding-section', () => ({
   BrandingSection: () => <section>branding</section>,
 }))
 
+vi.mock('@/components/admin/email-config-section', () => ({
+  EmailConfigSection: () => <section>email-config</section>,
+}))
+
 vi.mock('@/hooks/use-site-options', () => ({
   siteOptionsQueryKey: ['system', 'options'],
   useSiteOptions: () => siteOptionsState.current,
@@ -115,7 +119,10 @@ afterEach(() => {
 
 describe('SettingsPage', () => {
   function openSection(view: ReturnType<typeof renderSettingsPage>, title: string) {
-    const section = view.getByText(title).closest('[data-slot="card"]')
+    const section = view
+      .getAllByText(title)
+      .map((element) => element.closest('[data-settings-row]'))
+      .find(Boolean)
     if (!section) throw new Error(`${title} section not found`)
     fireEvent.click(within(section as HTMLElement).getByRole('button', { name: 'common.edit' }))
   }
@@ -141,6 +148,12 @@ describe('SettingsPage', () => {
     expect(setSystemOption).toHaveBeenCalledWith('site_description', 'Updated file hosting', true)
     expect(setSystemOption).toHaveBeenCalledWith('site_public_origin', 'https://new.example.com/path', false)
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
+  })
+
+  it('shows email configuration on the settings page', async () => {
+    const view = renderSettingsPage()
+
+    expect(await view.findByText('email-config')).toBeTruthy()
   })
 
   it('discards identity edits when the drawer is cancelled', async () => {
@@ -174,7 +187,7 @@ describe('SettingsPage', () => {
 
   it('updates the default storage quota from the storage settings section', async () => {
     const view = renderSettingsPage()
-    await view.findByText('admin.settings.storageSection')
+    await view.findAllByText('admin.settings.storageSection')
     openSection(view, 'admin.settings.storageSection')
 
     const quotaInput = await view.findByLabelText('admin.settings.defaultOrgQuota')
@@ -189,7 +202,7 @@ describe('SettingsPage', () => {
 
   it('saves a newly typed quota value as bytes', async () => {
     const view = renderSettingsPage()
-    await view.findByText('admin.settings.storageSection')
+    await view.findAllByText('admin.settings.storageSection')
     openSection(view, 'admin.settings.storageSection')
 
     const quotaInput = await view.findByLabelText('admin.settings.defaultOrgQuota')
@@ -205,7 +218,7 @@ describe('SettingsPage', () => {
 
   it('saves the default team quota alongside the org quota', async () => {
     const view = renderSettingsPage()
-    await view.findByText('admin.settings.storageSection')
+    await view.findAllByText('admin.settings.storageSection')
     openSection(view, 'admin.settings.storageSection')
 
     const teamQuotaInput = await view.findByLabelText('admin.settings.defaultTeamQuota')
@@ -220,7 +233,7 @@ describe('SettingsPage', () => {
 
   it('saves captcha settings from the authentication protection section', async () => {
     const view = renderSettingsPage()
-    await view.findByText('admin.settings.captchaTitle')
+    await view.findAllByText('admin.settings.captchaTitle')
     openSection(view, 'admin.settings.captchaTitle')
 
     fireEvent.change(await view.findByLabelText('admin.settings.captchaSiteKey'), {

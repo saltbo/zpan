@@ -1,9 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminSwitchField } from '@/components/admin/admin-form-drawer'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import type { Announcement, AnnouncementInput } from '@/lib/api'
 
 const AnnouncementMarkdownEditor = lazy(() =>
@@ -72,11 +71,12 @@ export function AnnouncementFormDialog({
         <Input value={title} onChange={(event) => setTitle(event.target.value)} required />
       </AdminFormField>
 
-      <AdminFormField id="announcement-pinned" label={t('admin.announcement.fieldPinned')}>
-        <div className="flex h-9 items-center">
-          <Switch id="announcement-pinned" checked={pinned} onCheckedChange={setPinned} />
-        </div>
-      </AdminFormField>
+      <AdminSwitchField
+        id="announcement-pinned"
+        label={t('admin.announcement.fieldPinned')}
+        checked={pinned}
+        onCheckedChange={setPinned}
+      />
 
       <AdminFormField id="announcement-body" label={t('admin.announcement.fieldBody')}>
         <div>

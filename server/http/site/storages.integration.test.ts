@@ -5,7 +5,6 @@ import { createStorageRepo } from '../../adapters/repos/storage.js'
 import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../../test/setup.js'
 
 const validStorage = {
-  title: 'Test S3',
   bucket: 'test-bucket',
   endpoint: 'https://s3.amazonaws.com',
   region: 'us-east-1',
@@ -55,7 +54,6 @@ describe('Admin Storages API', () => {
     })
     expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.title).toBe('Test S3')
     expect(body.bucket).toBe('test-bucket')
     expect(body.status).toBe('active')
     expect(body.capacity).toBe(0)
@@ -90,7 +88,7 @@ describe('Admin Storages API', () => {
       const res = await app.request('/api/site/storages', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...validStorage, title: `Storage ${i}`, bucket: `bucket-${i}` }),
+        body: JSON.stringify({ ...validStorage, bucket: `bucket-${i}` }),
       })
       expect(res.status).toBe(201)
     }
@@ -98,7 +96,7 @@ describe('Admin Storages API', () => {
     const res = await app.request('/api/site/storages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...validStorage, title: 'Storage overflow', bucket: 'bucket-overflow' }),
+      body: JSON.stringify({ ...validStorage, bucket: 'bucket-overflow' }),
     })
 
     expect(res.status).toBe(402)
@@ -126,7 +124,7 @@ describe('Admin Storages API', () => {
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.total).toBe(1)
     expect(body.items).toHaveLength(1)
-    expect(body.items[0].title).toBe('Test S3')
+    expect(body.items[0].bucket).toBe('test-bucket')
     expect(body.items[0].forcePathStyle).toBe(true)
   })
 
@@ -145,7 +143,7 @@ describe('Admin Storages API', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.id).toBe(created.id)
-    expect(body.title).toBe('Test S3')
+    expect(body.bucket).toBe('test-bucket')
   })
 
   it('GET /:id returns 404 for missing storage', async () => {
@@ -169,11 +167,11 @@ describe('Admin Storages API', () => {
     const res = await app.request(`/api/site/storages/${created.id}`, {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Updated S3', status: 'disabled', forcePathStyle: false }),
+      body: JSON.stringify({ bucket: 'updated-bucket', status: 'disabled', forcePathStyle: false }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.title).toBe('Updated S3')
+    expect(body.bucket).toBe('updated-bucket')
     expect(body.status).toBe('disabled')
     expect(body.forcePathStyle).toBe(false)
   })
@@ -184,7 +182,7 @@ describe('Admin Storages API', () => {
     const res = await app.request('/api/site/storages/nonexistent', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Nope' }),
+      body: JSON.stringify({ bucket: 'nope' }),
     })
     expect(res.status).toBe(404)
   })
@@ -329,10 +327,9 @@ async function insertStorage(
   const capacity = opts.capacity ?? 0
   const used = opts.used ?? 0
   const status = opts.status ?? 'active'
-  const title = `Storage ${opts.id}`
   await db.run(sql`
-    INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${opts.id}, ${title}, 'bucket', 'https://s3.example.com', 'us-east-1', 'key', 'secret', '$UID/$RAW_NAME', '', ${capacity}, ${used}, ${status}, ${now}, ${now})
+    INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES (${opts.id}, 'bucket', 'https://s3.example.com', 'us-east-1', 'key', 'secret', '$UID/$RAW_NAME', '', ${capacity}, ${used}, ${status}, ${now}, ${now})
   `)
 }
 

@@ -44,8 +44,8 @@ async function insertStorage(db: TestDb, opts: { id?: string; used?: number } = 
   const id = opts.id ?? 'st-1'
   const now = Date.now()
   await db.run(sql`
-    INSERT INTO storages (id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${id}, 'Test S3', 'test-bucket', 'https://s3.example.com', 'us-east-1',
+    INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES (${id}, 'test-bucket', 'https://s3.example.com', 'us-east-1',
             'AKID', 'SECRET', '$UID/$RAW_NAME', '', 0, ${opts.used ?? 0}, 'active', ${now}, ${now})
   `)
   return id
