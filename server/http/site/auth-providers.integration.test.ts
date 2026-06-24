@@ -22,8 +22,10 @@ async function putProvider(
   headers: Record<string, string>,
   providerId: string,
   body: Record<string, unknown>,
+  origin?: string,
 ) {
-  return app.request(`/api/site/auth-providers/${providerId}`, {
+  const url = origin ? `${origin}/api/site/auth-providers/${providerId}` : `/api/site/auth-providers/${providerId}`
+  return app.request(url, {
     method: 'PUT',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -49,7 +51,7 @@ describe('Auth Providers — public list', () => {
 
     const res = await app.request('/api/site/auth-providers')
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; callbackBaseUri: string }
     expect(body.items).toHaveLength(1)
     expect(body.items[0].providerId).toBe('github')
   })
@@ -61,7 +63,7 @@ describe('Auth Providers — public list', () => {
     await putProvider(app, admin, 'github', githubConfig)
 
     const res = await app.request('/api/site/auth-providers')
-    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; callbackBaseUri: string }
     expect(body.items[0].clientSecret).toBeNull()
   })
 
@@ -72,9 +74,43 @@ describe('Auth Providers — public list', () => {
     await putProvider(app, admin, 'github', githubConfig)
 
     const res = await app.request('/api/site/auth-providers')
-    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
+    const body = (await res.json()) as {
+      items: Array<Record<string, unknown>>
+      callbackBaseUri: string
+    }
     expect(body.items[0].name).toBe('GitHub')
     expect(body.items[0].icon).toBe('github')
+  })
+
+  it('returns a built-in provider callback URI from request origin', async () => {
+    const { app } = await createTestApp()
+    const admin = await adminHeaders(app)
+    const origin = 'https://auth.example'
+
+    await putProvider(app, admin, 'github', githubConfig, origin)
+
+    const res = await app.request(`${origin}/api/site/auth-providers`)
+    const body = (await res.json()) as {
+      items: Array<Record<string, unknown>>
+      callbackBaseUri: string
+    }
+    expect(body.callbackBaseUri).toBe('https://auth.example')
+    expect(body.items[0].callbackUri).toBe('https://auth.example/api/auth/callback/github')
+  })
+
+  it('prefers BETTER_AUTH_URL over request origin for callback URIs', async () => {
+    const { app } = await createTestApp({ BETTER_AUTH_URL: 'https://auth.configured.example' })
+    const admin = await adminHeaders(app)
+
+    await putProvider(app, admin, 'github', githubConfig, 'https://admin.example')
+
+    const res = await app.request('https://admin.example/api/site/auth-providers')
+    const body = (await res.json()) as {
+      items: Array<Record<string, unknown>>
+      callbackBaseUri: string
+    }
+    expect(body.callbackBaseUri).toBe('https://auth.configured.example')
+    expect(body.items[0].callbackUri).toBe('https://auth.configured.example/api/auth/callback/github')
   })
 
   it('uses providerId as fallback name and icon for unknown OIDC provider [spec: auth-providers/oidc-fallback]', async () => {
@@ -89,6 +125,18 @@ describe('Auth Providers — public list', () => {
     // No entry in OAuthProviderMeta for 'my-custom-oidc', so falls back to providerId
     expect(body.items[0].name).toBe('my-custom-oidc')
     expect(body.items[0].icon).toBe('my-custom-oidc')
+  })
+
+  it('returns a custom OIDC callback URI from request origin', async () => {
+    const { app } = await createTestApp()
+    const admin = await adminHeaders(app)
+    const origin = 'https://auth.example'
+
+    await putProvider(app, admin, 'my-custom-oidc', oidcConfig, origin)
+
+    const res = await app.request(`${origin}/api/site/auth-providers`)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
+    expect(body.items[0].callbackUri).toBe('https://auth.example/api/auth/oauth2/callback/my-custom-oidc')
   })
 
   it('disabled provider does not appear in public list', async () => {
@@ -205,6 +253,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect(body.type).toBe('builtin')
     expect(body.clientId).toBe(githubConfig.clientId)
     expect(body.enabled).toBe(true)
+    expect(body.callbackUri).toBe('http://localhost/api/auth/callback/github')
   })
 
   it('blocks the second provider on the free plan with 402 [spec: auth-providers/free-limit]', async () => {
@@ -281,6 +330,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect(body.type).toBe('oidc')
     expect(body.discoveryUrl).toBe(oidcConfig.discoveryUrl)
     expect(body.scopes).toEqual(oidcConfig.scopes)
+    expect(body.callbackUri).toBe('http://localhost/api/auth/oauth2/callback/my-oidc')
   })
 
   it('returns 400 for unknown builtin provider ID [spec: auth-providers/unknown-builtin]', async () => {

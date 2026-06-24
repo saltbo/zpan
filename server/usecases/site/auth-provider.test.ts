@@ -19,8 +19,11 @@ vi.mock('./licensing', () => ({ loadBindingState: vi.fn() }))
 
 const COMMUNITY: BindingState = { bound: false } // lacks social_login_unlimited
 const PRO: BindingState = { bound: true, active: true, edition: 'pro' } // has social_login_unlimited
+const AUTH_ORIGIN = 'https://files.example'
 
 const edition = (state: BindingState) => vi.mocked(loadBindingState).mockResolvedValue(state)
+const listOptions = (isAdmin: boolean) => ({ isAdmin, authOrigin: AUTH_ORIGIN })
+const upsertOptions = { authOrigin: AUTH_ORIGIN }
 
 const githubInput: UpsertProviderInput = {
   type: 'builtin',
@@ -73,7 +76,7 @@ describe('auth-provider usecase', () => {
           row({ providerId: 'google', type: 'builtin', clientId: 'b', clientSecret: 's', enabled: false }),
         ],
       })
-      const out = await listAuthProviders(deps, { isAdmin: false })
+      const out = await listAuthProviders(deps, listOptions(false))
       expect(out.items).toEqual([
         {
           providerId: 'github',
@@ -84,6 +87,7 @@ describe('auth-provider usecase', () => {
           clientId: 'a',
           discoveryUrl: null,
           scopes: null,
+          callbackUri: 'https://files.example/api/auth/callback/github',
           clientSecret: null,
         },
       ])
@@ -103,7 +107,7 @@ describe('auth-provider usecase', () => {
           }),
         ],
       })
-      const out = await listAuthProviders(deps, { isAdmin: false })
+      const out = await listAuthProviders(deps, listOptions(false))
       expect(out.items).toEqual([
         {
           providerId: 'my-custom-oidc',
@@ -114,6 +118,7 @@ describe('auth-provider usecase', () => {
           clientId: 'a',
           discoveryUrl: 'https://accounts.example.com/.well-known/openid-configuration',
           scopes: ['openid'],
+          callbackUri: 'https://files.example/api/auth/oauth2/callback/my-custom-oidc',
           clientSecret: null,
         },
       ])
@@ -123,12 +128,12 @@ describe('auth-provider usecase', () => {
       const { deps } = makeDeps({
         listByKeyLike: async () => [{ key: 'oauth_provider_bad', value: 'not-json' }],
       })
-      expect(await listAuthProviders(deps, { isAdmin: false })).toEqual({ items: [] })
+      expect(await listAuthProviders(deps, listOptions(false))).toEqual({ items: [] })
     })
 
     it('returns empty when nothing is configured', async () => {
       const { deps } = makeDeps()
-      expect(await listAuthProviders(deps, { isAdmin: false })).toEqual({ items: [] })
+      expect(await listAuthProviders(deps, listOptions(false))).toEqual({ items: [] })
     })
   })
 
@@ -146,7 +151,7 @@ describe('auth-provider usecase', () => {
           row({ providerId: 'google', type: 'builtin', clientId: 'b', clientSecret: 's', enabled: false }),
         ],
       })
-      const out = await listAuthProviders(deps, { isAdmin: true })
+      const out = await listAuthProviders(deps, listOptions(true))
       expect(out.items).toHaveLength(2)
       expect(out.items[0].clientSecret).toMatch(/^\*+alue$/)
       expect(out.items[0].clientSecret).not.toBe('super-secret-value')
@@ -158,7 +163,7 @@ describe('auth-provider usecase', () => {
           row({ providerId: 'github', type: 'builtin', clientId: 'a', clientSecret: 'abc', enabled: true }),
         ],
       })
-      const out = await listAuthProviders(deps, { isAdmin: true })
+      const out = await listAuthProviders(deps, listOptions(true))
       expect(out.items[0].clientSecret).toBe('****')
     })
 
@@ -166,7 +171,7 @@ describe('auth-provider usecase', () => {
       const { deps } = makeDeps({
         listByKeyLike: async () => [{ key: 'oauth_provider_bad', value: '{' }],
       })
-      expect(await listAuthProviders(deps, { isAdmin: true })).toEqual({ items: [] })
+      expect(await listAuthProviders(deps, listOptions(true))).toEqual({ items: [] })
     })
   })
 
@@ -174,11 +179,12 @@ describe('auth-provider usecase', () => {
     it('creates a new builtin provider under the free limit and stores it', async () => {
       edition(COMMUNITY)
       const { deps, set } = makeDeps({ get: async () => null, listByKeyLike: async () => [] })
-      const out = await upsertAuthProvider(deps, 'github', githubInput)
+      const out = await upsertAuthProvider(deps, 'github', githubInput, upsertOptions)
       expect(out.ok).toBe(true)
       if (out.ok) {
         expect(out.config.providerId).toBe('github')
         expect(out.config.type).toBe('builtin')
+        expect(out.config.callbackUri).toBe('https://files.example/api/auth/callback/github')
         expect(out.config.clientSecret).toMatch(/^\*+alue$/)
       }
       expect(set).toHaveBeenCalledWith(
@@ -191,12 +197,13 @@ describe('auth-provider usecase', () => {
     it('creates a new OIDC provider with a discoveryUrl', async () => {
       edition(COMMUNITY)
       const { deps, set } = makeDeps({ get: async () => null, listByKeyLike: async () => [] })
-      const out = await upsertAuthProvider(deps, 'my-oidc', oidcInput)
+      const out = await upsertAuthProvider(deps, 'my-oidc', oidcInput, upsertOptions)
       expect(out.ok).toBe(true)
       if (out.ok) {
         expect(out.config.type).toBe('oidc')
         expect(out.config.discoveryUrl).toBe(oidcInput.discoveryUrl)
         expect(out.config.scopes).toEqual(oidcInput.scopes)
+        expect(out.config.callbackUri).toBe('https://files.example/api/auth/oauth2/callback/my-oidc')
       }
       expect(set).toHaveBeenCalledOnce()
     })
@@ -208,7 +215,7 @@ describe('auth-provider usecase', () => {
         public: false,
       }
       const { deps, set } = makeDeps({ get: async () => existing })
-      const out = await upsertAuthProvider(deps, 'github', { ...githubInput, clientId: 'new-client-id' })
+      const out = await upsertAuthProvider(deps, 'github', { ...githubInput, clientId: 'new-client-id' }, upsertOptions)
       expect(out.ok).toBe(true)
       if (out.ok) expect(out.config.clientId).toBe('new-client-id')
       expect(set).toHaveBeenCalledOnce()
@@ -217,7 +224,7 @@ describe('auth-provider usecase', () => {
 
     it('returns a 400 invalid-id error for a malformed provider id and never writes', async () => {
       const { deps, set } = makeDeps()
-      const out = await upsertAuthProvider(deps, 'Not_Valid', githubInput)
+      const out = await upsertAuthProvider(deps, 'Not_Valid', githubInput, upsertOptions)
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(400)
@@ -227,7 +234,7 @@ describe('auth-provider usecase', () => {
 
     it('returns a 400 unknown-builtin error for a builtin id not in the registry', async () => {
       const { deps, set } = makeDeps()
-      const out = await upsertAuthProvider(deps, 'not-a-real-provider', githubInput)
+      const out = await upsertAuthProvider(deps, 'not-a-real-provider', githubInput, upsertOptions)
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(400)
@@ -238,7 +245,7 @@ describe('auth-provider usecase', () => {
     it('returns a 400 missing-discovery error for an OIDC provider with no discoveryUrl', async () => {
       const { deps, set } = makeDeps()
       const { discoveryUrl: _omit, ...withoutDiscovery } = oidcInput
-      const out = await upsertAuthProvider(deps, 'my-oidc', withoutDiscovery)
+      const out = await upsertAuthProvider(deps, 'my-oidc', withoutDiscovery, upsertOptions)
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(400)
@@ -252,7 +259,7 @@ describe('auth-provider usecase', () => {
         get: async () => null,
         listByKeyLike: async () => [row({ providerId: 'github', enabled: true })],
       })
-      const out = await upsertAuthProvider(deps, 'google', { ...githubInput })
+      const out = await upsertAuthProvider(deps, 'google', { ...githubInput }, upsertOptions)
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(402)
@@ -272,7 +279,7 @@ describe('auth-provider usecase', () => {
         get: async () => null,
         listByKeyLike: async () => [row({ providerId: 'github', enabled: true })],
       })
-      const out = await upsertAuthProvider(deps, 'google', { ...githubInput })
+      const out = await upsertAuthProvider(deps, 'google', { ...githubInput }, upsertOptions)
       expect(out.ok).toBe(true)
       expect(set).toHaveBeenCalledOnce()
     })

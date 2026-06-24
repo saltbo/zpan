@@ -43,10 +43,15 @@ const ADMIN_AUTH_KEYS = [
   'admin.auth.addProvider',
   'admin.auth.addProviderTitle',
   'admin.auth.editProviderTitle',
+  'admin.auth.providerDrawerDescription',
   'admin.auth.providerType',
   'admin.auth.providerBuiltin',
   'admin.auth.providerOidc',
   'admin.auth.provider',
+  'admin.auth.callbackUri',
+  'admin.auth.callbackUriHint',
+  'admin.auth.copyCallbackUri',
+  'admin.auth.callbackUriCopied',
   'admin.auth.clientId',
   'admin.auth.clientSecret',
   'admin.auth.enabled',
@@ -58,6 +63,7 @@ const ADMIN_AUTH_KEYS = [
   'admin.auth.providerSaved',
   'admin.auth.providerDeleted',
   'admin.auth.noProviders',
+  'admin.auth.runtimeRestartNote',
   'admin.auth.deleteProviderTitle',
   'admin.auth.deleteProviderConfirm',
   'admin.auth.emailSection',
@@ -190,6 +196,14 @@ describe('admin.auth locale keys — English values contract', () => {
 
   it('admin.auth.providerOidc is "Custom OIDC"', () => {
     expect(enLocale['admin.auth.providerOidc']).toBe('Custom OIDC')
+  })
+
+  it('admin.auth.callbackUri is "Callback URI"', () => {
+    expect(enLocale['admin.auth.callbackUri']).toBe('Callback URI')
+  })
+
+  it('admin.auth.callbackUriCopied is "Callback URI copied"', () => {
+    expect(enLocale['admin.auth.callbackUriCopied']).toBe('Callback URI copied')
   })
 
   it('admin.auth.emailSection is "Email Configuration"', () => {

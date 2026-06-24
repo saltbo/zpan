@@ -30,6 +30,7 @@ function makeProvider(providerId: string, name: string): AuthProvider {
     clientId: '',
     discoveryUrl: null,
     scopes: null,
+    callbackUri: `https://files.example/api/auth/callback/${providerId}`,
     clientSecret: null,
   }
 }

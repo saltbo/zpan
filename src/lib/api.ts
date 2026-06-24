@@ -25,6 +25,7 @@ import type {
   AdminAuditEvent,
   Announcement,
   AuthProvider,
+  AuthProviderList,
   BackgroundJob,
   BackgroundJobStatus,
   BindingState,
@@ -645,7 +646,7 @@ export function setSystemOption(key: string, value: string, isPublic?: boolean) 
 export type { AuthProvider }
 
 export function listAuthProviders() {
-  return unwrap<{ items: AuthProvider[] }>(authProviders.index.$get())
+  return unwrap<AuthProviderList>(authProviders.index.$get())
 }
 
 export function upsertAuthProvider(providerId: string, data: Omit<OAuthProviderConfig, 'providerId'>) {

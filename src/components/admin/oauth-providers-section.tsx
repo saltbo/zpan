@@ -1,12 +1,14 @@
 import { BUILTIN_PROVIDER_IDS, OAuthProviderMeta } from '@shared/oauth-providers'
 import type { AuthProvider } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
+import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { OAuthProviderIcon } from '@/components/oauth-provider-icon'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -18,7 +20,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useClipboard } from '@/hooks/use-clipboard'
 import { deleteAuthProvider, listAuthProviders, upsertAuthProvider } from '@/lib/api'
 
 const providersQueryKey = ['admin', 'auth-providers'] as const
@@ -64,11 +68,19 @@ function ProviderLabel({ providerId }: { providerId: string }) {
   )
 }
 
+function draftCallbackUri(type: ProviderType, providerId: string, callbackBaseUri: string): string {
+  if (!providerId) return ''
+  const path = type === 'oidc' ? '/api/auth/oauth2/callback' : '/api/auth/callback'
+  return `${callbackBaseUri.replace(/\/$/, '')}${path}/${providerId}`
+}
+
 export function OAuthProvidersSection() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const { copy } = useClipboard()
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingCallbackUri, setEditingCallbackUri] = useState<string | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
@@ -99,7 +111,7 @@ export function OAuthProvidersSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: providersQueryKey })
       toast.success(t('admin.auth.providerSaved'))
-      setDialogOpen(false)
+      setDrawerOpen(false)
     },
     onError: (err) => toast.error(err.message),
   })
@@ -117,7 +129,8 @@ export function OAuthProvidersSection() {
   const openAdd = () => {
     setForm(emptyForm)
     setEditingId(null)
-    setDialogOpen(true)
+    setEditingCallbackUri(null)
+    setDrawerOpen(true)
   }
 
   const openEdit = (p: AuthProvider) => {
@@ -131,7 +144,8 @@ export function OAuthProvidersSection() {
       scopes: p.scopes?.join(', ') ?? '',
     })
     setEditingId(p.providerId)
-    setDialogOpen(true)
+    setEditingCallbackUri(p.callbackUri)
+    setDrawerOpen(true)
   }
 
   const openDelete = (providerId: string) => {
@@ -141,15 +155,23 @@ export function OAuthProvidersSection() {
 
   const providers = data?.items ?? []
   const update = (patch: Partial<FormState>) => setForm((prev) => ({ ...prev, ...patch }))
+  const callbackBaseUri = data?.callbackBaseUri
+  const callbackUri = form.providerId
+    ? (editingCallbackUri ?? (callbackBaseUri ? draftCallbackUri(form.type, form.providerId, callbackBaseUri) : ''))
+    : ''
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">{t('admin.auth.title')}</h2>
-        <Button size="sm" onClick={openAdd}>
-          {t('admin.auth.addProvider')}
-        </Button>
-      </div>
+      <AdminPageHeader
+        title={t('admin.auth.title')}
+        description={t('admin.auth.description')}
+        action={
+          <Button size="sm" onClick={openAdd} disabled={isLoading}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t('admin.auth.addProvider')}
+          </Button>
+        }
+      />
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
@@ -187,9 +209,11 @@ export function OAuthProvidersSection() {
                   <TableCell className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
+                        <Pencil className="mr-2 h-4 w-4" />
                         {t('common.edit')}
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => openDelete(p.providerId)}>
+                        <Trash2 className="mr-2 h-4 w-4" />
                         {t('common.delete')}
                       </Button>
                     </div>
@@ -201,107 +225,140 @@ export function OAuthProvidersSection() {
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingId ? t('admin.auth.editProviderTitle') : t('admin.auth.addProviderTitle')}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>{t('admin.auth.providerType')}</Label>
-              <Select
-                value={form.type}
-                onValueChange={(v) => update({ type: v as ProviderType, providerId: '' })}
-                disabled={!!editingId}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="builtin">{t('admin.auth.providerBuiltin')}</SelectItem>
-                  <SelectItem value="oidc">{t('admin.auth.providerOidc')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {form.type === 'builtin' ? (
-              <div className="space-y-1.5">
-                <Label>{t('admin.auth.provider')}</Label>
-                <Select value={form.providerId} onValueChange={(v) => update({ providerId: v })} disabled={!!editingId}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BUILTIN_PROVIDER_IDS.map((id) => (
-                      <SelectItem key={id} value={id}>
-                        <ProviderLabel providerId={id} />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label>{t('admin.auth.providerId')}</Label>
-                <Input
-                  value={form.providerId}
-                  onChange={(e) => update({ providerId: e.target.value })}
-                  placeholder={t('admin.auth.providerIdHint')}
-                  disabled={!!editingId}
-                />
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <Label>{t('admin.auth.clientId')}</Label>
-              <Input value={form.clientId} onChange={(e) => update({ clientId: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>{t('admin.auth.clientSecret')}</Label>
-              <Input
-                type="password"
-                value={form.clientSecret}
-                onChange={(e) => update({ clientSecret: e.target.value })}
-              />
-            </div>
-
-            {form.type === 'oidc' && (
-              <>
-                <div className="space-y-1.5">
-                  <Label>{t('admin.auth.discoveryUrl')}</Label>
-                  <Input value={form.discoveryUrl} onChange={(e) => update({ discoveryUrl: e.target.value })} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>{t('admin.auth.scopes')}</Label>
-                  <Input
-                    value={form.scopes}
-                    onChange={(e) => update({ scopes: e.target.value })}
-                    placeholder={t('admin.auth.scopesHint')}
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="flex items-center gap-2">
-              <Checkbox id="providerEnabled" checked={form.enabled} onCheckedChange={(v) => update({ enabled: !!v })} />
-              <Label htmlFor="providerEnabled">{t('admin.auth.enabled')}</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+      <AdminFormDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        title={editingId ? t('admin.auth.editProviderTitle') : t('admin.auth.addProviderTitle')}
+        description={t('admin.auth.providerDrawerDescription')}
+        width="wide"
+        bodyClassName="grid gap-4"
+        formProps={{
+          onSubmit: (event) => {
+            event.preventDefault()
+            upsertMutation.mutate()
+          },
+        }}
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => setDrawerOpen(false)}>
               {t('common.cancel')}
             </Button>
             <Button
-              onClick={() => upsertMutation.mutate()}
+              type="submit"
               disabled={upsertMutation.isPending || !form.providerId || !form.clientId || !form.clientSecret}
             >
               {upsertMutation.isPending ? t('common.loading') : t('common.save')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <AdminFormField id="oauth-provider-type" label={t('admin.auth.providerType')}>
+          {(controlProps) => (
+            <Select
+              value={form.type}
+              onValueChange={(v) => update({ type: v as ProviderType, providerId: '' })}
+              disabled={!!editingId}
+            >
+              <SelectTrigger {...controlProps}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="builtin">{t('admin.auth.providerBuiltin')}</SelectItem>
+                <SelectItem value="oidc">{t('admin.auth.providerOidc')}</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </AdminFormField>
+
+        {form.type === 'builtin' ? (
+          <AdminFormField id="oauth-provider-id" label={t('admin.auth.provider')}>
+            {(controlProps) => (
+              <Select value={form.providerId} onValueChange={(v) => update({ providerId: v })} disabled={!!editingId}>
+                <SelectTrigger {...controlProps}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BUILTIN_PROVIDER_IDS.map((id) => (
+                    <SelectItem key={id} value={id}>
+                      <ProviderLabel providerId={id} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </AdminFormField>
+        ) : (
+          <AdminFormField id="oauth-provider-id" label={t('admin.auth.providerId')}>
+            <Input
+              value={form.providerId}
+              onChange={(e) => update({ providerId: e.target.value })}
+              placeholder={t('admin.auth.providerIdHint')}
+              disabled={!!editingId}
+            />
+          </AdminFormField>
+        )}
+
+        {callbackUri && (
+          <AdminFormField
+            id="oauth-callback-uri"
+            label={t('admin.auth.callbackUri')}
+            description={t('admin.auth.callbackUriHint')}
+          >
+            {(controlProps) => (
+              <div className="flex items-center gap-2">
+                <Input {...controlProps} value={callbackUri} readOnly className="font-mono text-xs" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={t('admin.auth.copyCallbackUri')}
+                  onClick={() => copy(callbackUri, 'admin.auth.callbackUriCopied')}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </AdminFormField>
+        )}
+
+        <AdminFormField id="oauth-client-id" label={t('admin.auth.clientId')}>
+          <Input value={form.clientId} onChange={(e) => update({ clientId: e.target.value })} />
+        </AdminFormField>
+
+        <AdminFormField id="oauth-client-secret" label={t('admin.auth.clientSecret')}>
+          <Input type="password" value={form.clientSecret} onChange={(e) => update({ clientSecret: e.target.value })} />
+        </AdminFormField>
+
+        {form.type === 'oidc' && (
+          <>
+            <AdminFormField id="oauth-discovery-url" label={t('admin.auth.discoveryUrl')}>
+              <Input value={form.discoveryUrl} onChange={(e) => update({ discoveryUrl: e.target.value })} />
+            </AdminFormField>
+            <AdminFormField id="oauth-scopes" label={t('admin.auth.scopes')}>
+              <Input
+                value={form.scopes}
+                onChange={(e) => update({ scopes: e.target.value })}
+                placeholder={t('admin.auth.scopesHint')}
+              />
+            </AdminFormField>
+          </>
+        )}
+
+        <div className="rounded-md border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="oauth-provider-enabled">{t('admin.auth.enabled')}</Label>
+            <Switch
+              id="oauth-provider-enabled"
+              checked={form.enabled}
+              onCheckedChange={(checked) => update({ enabled: checked })}
+            />
+          </div>
+        </div>
+
+        <p className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+          {t('admin.auth.runtimeRestartNote')}
+        </p>
+      </AdminFormDrawer>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>

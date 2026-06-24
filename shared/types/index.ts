@@ -193,7 +193,13 @@ export interface AuthProvider {
   clientId: string
   discoveryUrl: string | null
   scopes: string[] | null
+  callbackUri: string
   clientSecret: string | null
+}
+
+export interface AuthProviderList {
+  items: AuthProvider[]
+  callbackBaseUri: string
 }
 
 export interface PaginatedResponse<T> {
