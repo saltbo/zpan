@@ -31,5 +31,12 @@ export const updateStorageSchema = z.object({
   status: z.enum(['active', 'disabled']).optional(),
 })
 
+export const updateStorageEgressBillingSchema = z.object({
+  enabled: z.boolean(),
+  unitBytes: z.number().int().positive(),
+  creditsPerUnit: z.number().int().positive(),
+})
+
 export type CreateStorageInput = z.input<typeof createStorageSchema>
 export type UpdateStorageInput = z.input<typeof updateStorageSchema>
+export type UpdateStorageEgressBillingInput = z.input<typeof updateStorageEgressBillingSchema>

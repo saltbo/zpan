@@ -52,12 +52,16 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.capacityUnlimited',
   'admin.storages.capacityHint',
   'admin.storages.egressBilling',
+  'admin.storages.configureEgressBilling',
+  'admin.storages.egressBillingTitle',
+  'admin.storages.egressBillingDescription',
   'admin.storages.egressBillingHint',
   'admin.storages.egressBillingBusinessOnly',
   'admin.storages.egressBillingUnit',
   'admin.storages.egressBillingCredits',
   'admin.storages.egressBillingRate',
   'admin.storages.egressBillingOff',
+  'admin.storages.egressBillingSaveSuccess',
 ]
 
 const ADMIN_NAV_KEYS = ['admin.nav.management', 'admin.nav.storages', 'admin.nav.users']
@@ -71,6 +75,7 @@ const INTERPOLATED_KEYS: Record<string, string[]> = {
   'admin.storages.deleteConfirm': ['{{title}}'],
   'admin.storages.testUploadFailed': ['{{detail}}'],
   'admin.storages.testCleanupFailed': ['{{detail}}'],
+  'admin.storages.egressBillingDescription': ['{{title}}'],
   'admin.storages.egressBillingRate': ['{{credits}}', '{{unit}}'],
 }
 

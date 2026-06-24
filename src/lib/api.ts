@@ -16,8 +16,10 @@ import type {
   DownloadTaskActionInput,
   PresignObjectUploadPartsInput,
   RedeemGiftCardResponse,
+  UpdateDownloaderCreditBillingInput,
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
+  UpdateStorageEgressBillingInput,
   UpdateStorageInput,
 } from '@shared/schemas'
 import type {
@@ -368,6 +370,10 @@ export function updateDownloader(id: string, data: UpdateDownloaderInput) {
   return unwrap<Downloader>(adminDownloadersApi[':id'].$patch({ param: { id }, json: data }))
 }
 
+export function updateDownloaderCreditBilling(id: string, data: UpdateDownloaderCreditBillingInput) {
+  return unwrap<Downloader>(adminDownloadersApi[':id']['credit-billing'].$put({ param: { id }, json: data }))
+}
+
 export function deleteDownloader(id: string) {
   return discard(adminDownloadersApi[':id'].$delete({ param: { id } }))
 }
@@ -430,6 +436,10 @@ export function getStorage(id: string) {
 
 export function updateStorage(id: string, data: UpdateStorageInput) {
   return unwrap<Storage>(storages[':id'].$put({ param: { id }, json: data }))
+}
+
+export function updateStorageEgressBilling(id: string, data: UpdateStorageEgressBillingInput) {
+  return unwrap<Storage>(storages[':id']['egress-billing'].$put({ param: { id }, json: data }))
 }
 
 export function deleteStorage(id: string) {

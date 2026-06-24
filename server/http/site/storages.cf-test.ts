@@ -152,6 +152,29 @@ describe('[CF] Admin Storages API', () => {
     expect(body.title).toBe('Updated CF S3')
   })
 
+  it('PUT /api/site/storages/:id/egress-billing enforces quota_store for enabling', async () => {
+    const app = await buildApp()
+    const headers = await adminHeaders(app)
+    const platform = createCloudflarePlatform(env)
+    const created = await createStorageRepo(platform.db).create({
+      ...validStorage,
+      title: `CF Egress Billing ${Date.now()}`,
+      bucket: `cf-egress-billing-${Date.now()}`,
+    })
+
+    const res = await app.request(`/api/site/storages/${created.id}/egress-billing`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, unitBytes: 1024, creditsPerUnit: 2 }),
+    })
+    expect(res.status).toBe(402)
+    const body = (await res.json()) as {
+      error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(body.error.details[0].reason).toBe('FEATURE_NOT_AVAILABLE')
+    expect(body.error.details[0].metadata.feature).toBe('quota_store')
+  })
+
   it('DELETE /api/site/storages/:id deletes a storage', async () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)

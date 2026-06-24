@@ -1,9 +1,16 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { createStorageSchema, pageSchema, updateStorageSchema } from '@shared/schemas'
+import { createStorageSchema, pageSchema, updateStorageEgressBillingSchema, updateStorageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { type StorageRecord, storageNotFound } from '../../usecases/ports'
-import { createStorage, deleteStorage, getStorage, listStorages, updateStorage } from '../../usecases/site/storage'
+import {
+  createStorage,
+  deleteStorage,
+  getStorage,
+  listStorages,
+  updateStorage,
+  updateStorageEgressBilling,
+} from '../../usecases/site/storage'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
 // Admin storage config. The response intentionally includes the S3 credentials
@@ -93,6 +100,21 @@ const updateStorageRoute = createRoute({
   },
 })
 
+const updateStorageEgressBillingRoute = createRoute({
+  operationId: 'updateStorageEgressBilling',
+  summary: 'Update storage egress billing',
+  tags: ['Storages'],
+  method: 'put',
+  path: '/{id}/egress-billing',
+  middleware: [requireAdmin] as const,
+  request: { params: z.object({ id: z.string() }), ...jsonBody(updateStorageEgressBillingSchema) },
+  responses: {
+    200: jsonContent(storageSchema, 'Updated storage'),
+    402: errorResponse('Feature not available'),
+    404: errorResponse('Storage not found'),
+  },
+})
+
 const deleteStorageRoute = createRoute({
   operationId: 'deleteStorage',
   summary: 'Delete storage',
@@ -130,6 +152,16 @@ const storages = new OpenAPIHono<Env>()
   })
   .openapi(updateStorageRoute, async (c) => {
     const result = await updateStorage(c.get('deps'), {
+      userId: c.get('userId')!,
+      orgId: c.get('orgId')!,
+      id: c.req.valid('param').id,
+      input: c.req.valid('json'),
+    })
+    if (!result.ok) throw result.error
+    return c.json(toStorageDTO(result.storage), 200)
+  })
+  .openapi(updateStorageEgressBillingRoute, async (c) => {
+    const result = await updateStorageEgressBilling(c.get('deps'), {
       userId: c.get('userId')!,
       orgId: c.get('orgId')!,
       id: c.req.valid('param').id,

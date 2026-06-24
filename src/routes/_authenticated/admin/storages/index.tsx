@@ -1,16 +1,32 @@
 import { FREE_STORAGE_LIMIT, StorageStatus } from '@shared/constants'
 import type { Storage } from '@shared/types'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { AlertTriangle, CheckCircle2, Database, Loader2, Pencil, Plus, TestTube2, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Database,
+  Loader2,
+  Pencil,
+  Plus,
+  Settings2,
+  TestTube2,
+  Trash2,
+} from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
 import { DeleteStorageDialog } from '@/components/admin/delete-storage-dialog'
 import { StorageFormDrawer } from '@/components/admin/storage-form-drawer'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { ApiError, abortObjectUpload, createObject, listStorages } from '@/lib/api'
+import { ApiError, abortObjectUpload, createObject, listStorages, updateStorageEgressBilling } from '@/lib/api'
 import { formatSize } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/storages/')({
@@ -25,6 +41,15 @@ type StorageHealth =
   | { status: 'cors'; message: string; corsJson: string }
 
 const TEST_CONTENT = 'zpan storage connection test\n'
+const CREDIT_UNITS = { MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 } as const
+
+type CreditUnit = keyof typeof CREDIT_UNITS
+type EgressBillingForm = {
+  enabled: boolean
+  unitValue: string
+  unit: CreditUnit
+  credits: string
+}
 
 export function corsJsonForOrigin(origin: string) {
   return JSON.stringify(
@@ -50,9 +75,12 @@ function readableError(error: unknown) {
 
 export function StoragesPage() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { hasFeature } = useEntitlement()
   const [formOpen, setFormOpen] = useState(false)
   const [editingStorage, setEditingStorage] = useState<Storage | null>(null)
+  const [billingTarget, setBillingTarget] = useState<Storage | null>(null)
+  const [billingForm, setBillingForm] = useState<EgressBillingForm>(emptyEgressBillingForm())
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
   const [healthByStorage, setHealthByStorage] = useState<Record<string, StorageHealth>>({})
 
@@ -65,6 +93,20 @@ export function StoragesPage() {
   const storagesLimitReached = !hasFeature('storages_unlimited') && storages.length >= FREE_STORAGE_LIMIT
   const hasTrafficBilling = hasFeature('quota_store')
 
+  const billingMutation = useMutation({
+    mutationFn: ({ storage, form }: { storage: Storage; form: EgressBillingForm }) =>
+      updateStorageEgressBilling(
+        storage.id,
+        egressBillingPayload(hasTrafficBilling ? form : { ...form, enabled: false }),
+      ),
+    onSuccess: () => {
+      setBillingTarget(null)
+      queryClient.invalidateQueries({ queryKey: ['admin', 'storages'] })
+      toast.success(t('admin.storages.egressBillingSaveSuccess'))
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
   function handleEdit(storage: Storage) {
     setEditingStorage(storage)
     setFormOpen(true)
@@ -74,6 +116,11 @@ export function StoragesPage() {
     if (storagesLimitReached) return
     setEditingStorage(null)
     setFormOpen(true)
+  }
+
+  function handleConfigureBilling(storage: Storage) {
+    setBillingTarget(storage)
+    setBillingForm(egressBillingFormFromStorage(storage))
   }
 
   function handleFormOpenChange(open: boolean) {
@@ -188,6 +235,7 @@ export function StoragesPage() {
                 health={healthByStorage[storage.id] ?? { status: 'idle' }}
                 onTest={() => handleTest(storage)}
                 onEdit={() => handleEdit(storage)}
+                onConfigureBilling={() => handleConfigureBilling(storage)}
                 onDelete={() => setDeleteTarget({ id: storage.id, title: storage.title })}
               />
             ))}
@@ -205,11 +253,17 @@ export function StoragesPage() {
         </table>
       </div>
 
-      <StorageFormDrawer
-        open={formOpen}
-        onOpenChange={handleFormOpenChange}
-        storage={editingStorage}
+      <StorageFormDrawer open={formOpen} onOpenChange={handleFormOpenChange} storage={editingStorage} />
+
+      <StorageEgressBillingDrawer
+        storage={billingTarget}
+        form={billingForm}
+        open={billingTarget !== null}
+        pending={billingMutation.isPending}
         hasTrafficBilling={hasTrafficBilling}
+        onFormChange={setBillingForm}
+        onOpenChange={(open) => !open && setBillingTarget(null)}
+        onConfirm={() => billingTarget && billingMutation.mutate({ storage: billingTarget, form: billingForm })}
       />
 
       <DeleteStorageDialog
@@ -227,6 +281,7 @@ function StorageTableRow({
   health,
   onTest,
   onEdit,
+  onConfigureBilling,
   onDelete,
 }: {
   storage: Storage
@@ -234,6 +289,7 @@ function StorageTableRow({
   health: StorageHealth
   onTest: () => void
   onEdit: () => void
+  onConfigureBilling: () => void
   onDelete: () => void
 }) {
   const { t } = useTranslation()
@@ -277,6 +333,14 @@ function StorageTableRow({
           <Button variant="ghost" size="icon-xs" onClick={onEdit} title={t('common.edit')}>
             <Pencil />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={onConfigureBilling}
+            title={t('admin.storages.configureEgressBilling')}
+          >
+            <Settings2 />
+          </Button>
           <Button variant="ghost" size="icon-xs" onClick={onDelete} title={t('common.delete')}>
             <Trash2 className="text-destructive" />
           </Button>
@@ -284,6 +348,146 @@ function StorageTableRow({
       </td>
     </tr>
   )
+}
+
+function StorageEgressBillingDrawer({
+  storage,
+  form,
+  open,
+  pending,
+  hasTrafficBilling,
+  onFormChange,
+  onOpenChange,
+  onConfirm,
+}: {
+  storage: Storage | null
+  form: EgressBillingForm
+  open: boolean
+  pending: boolean
+  hasTrafficBilling: boolean
+  onFormChange: (form: EgressBillingForm) => void
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  const { t } = useTranslation()
+  const valid = Number(form.unitValue) >= 1 && Number(form.credits) >= 1
+  const canSave = hasTrafficBilling && valid
+
+  return (
+    <AdminFormDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('admin.storages.egressBillingTitle')}
+      description={t('admin.storages.egressBillingDescription', { title: storage?.title ?? '' })}
+      bodyClassName="grid gap-4"
+      formProps={{
+        onSubmit: (event) => {
+          event.preventDefault()
+          if (canSave) onConfirm()
+        },
+      }}
+      footer={
+        hasTrafficBilling ? (
+          <>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" disabled={pending || !canSave}>
+              {pending ? t('common.loading') : t('common.save')}
+            </Button>
+          </>
+        ) : (
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            {t('common.close')}
+          </Button>
+        )
+      }
+    >
+      <div className="rounded-md border p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label htmlFor="egressCreditBillingEnabled">{t('admin.storages.egressBilling')}</Label>
+            <p className="text-xs text-muted-foreground">{t('admin.storages.egressBillingHint')}</p>
+          </div>
+          <Switch
+            id="egressCreditBillingEnabled"
+            disabled={!hasTrafficBilling}
+            checked={form.enabled}
+            onCheckedChange={(enabled) => onFormChange({ ...form, enabled: hasTrafficBilling && enabled })}
+          />
+        </div>
+        {!hasTrafficBilling && (
+          <p className="mt-2 text-xs text-muted-foreground">{t('admin.storages.egressBillingBusinessOnly')}</p>
+        )}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <AdminFormField id="storage-egress-credit-unit-value" label={t('admin.storages.egressBillingUnit')}>
+          {(controlProps) => (
+            <div className="flex items-center gap-2">
+              <Input
+                {...controlProps}
+                type="number"
+                min={1}
+                step={1}
+                value={form.unitValue}
+                disabled={!hasTrafficBilling}
+                onChange={(event) => onFormChange({ ...form, unitValue: event.target.value })}
+              />
+              <Select value={form.unit} onValueChange={(unit) => onFormChange({ ...form, unit: unit as CreditUnit })}>
+                <SelectTrigger className="w-24" disabled={!hasTrafficBilling}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MB">MB</SelectItem>
+                  <SelectItem value="GB">GB</SelectItem>
+                  <SelectItem value="TB">TB</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </AdminFormField>
+        <AdminFormField id="storage-egress-credit-per-unit" label={t('admin.storages.egressBillingCredits')}>
+          <Input
+            type="number"
+            min={1}
+            step={1}
+            value={form.credits}
+            disabled={!hasTrafficBilling}
+            onChange={(event) => onFormChange({ ...form, credits: event.target.value })}
+          />
+        </AdminFormField>
+      </div>
+    </AdminFormDrawer>
+  )
+}
+
+function emptyEgressBillingForm(): EgressBillingForm {
+  return { enabled: false, unitValue: '100', unit: 'MB', credits: '1' }
+}
+
+function egressBillingFormFromStorage(storage: Storage): EgressBillingForm {
+  const unit = bytesToCreditUnit(storage.egressCreditUnitBytes)
+  return {
+    enabled: storage.egressCreditBillingEnabled,
+    unitValue: String(Math.max(1, storage.egressCreditUnitBytes / CREDIT_UNITS[unit])),
+    unit,
+    credits: String(storage.egressCreditPerUnit),
+  }
+}
+
+function egressBillingPayload(form: EgressBillingForm) {
+  return {
+    enabled: form.enabled,
+    unitBytes: Math.max(1, Math.floor(Number(form.unitValue))) * CREDIT_UNITS[form.unit],
+    creditsPerUnit: Math.max(1, Math.floor(Number(form.credits))),
+  }
+}
+
+function bytesToCreditUnit(bytes: number): CreditUnit {
+  if (bytes >= CREDIT_UNITS.TB && bytes % CREDIT_UNITS.TB === 0) return 'TB'
+  if (bytes >= CREDIT_UNITS.GB && bytes % CREDIT_UNITS.GB === 0) return 'GB'
+  return 'MB'
 }
 
 function StorageHealthView({ health }: { health: StorageHealth }) {

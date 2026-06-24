@@ -3,6 +3,7 @@ import type {
   CreateDownloadTaskInput,
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
+  UpdateDownloaderCreditBillingInput,
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
 } from '@shared/schemas'
@@ -10,6 +11,7 @@ import { downloadTaskRuntimeSchema } from '@shared/schemas'
 import type { Downloader, DownloadTask, DownloadTaskRuntime } from '@shared/types'
 import { nanoid } from 'nanoid'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
+import { hasFeature } from '../../domain/licensing'
 import type { Platform } from '../../platform/interface'
 import type {
   DownloaderRecord,
@@ -22,7 +24,8 @@ import type {
   ListDownloadTasksFilters,
   RemoteDownloadUsageRepo,
 } from '../ports'
-import { DownloadError } from '../ports'
+import { DownloadError, featureBlocked } from '../ports'
+import { loadBindingState } from '../site/licensing'
 import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './remote-download-usage'
 
 // Pure orchestration over the downloader / download-task repos: registration,
@@ -139,6 +142,29 @@ export async function updateDownloader(
 ): Promise<Downloader> {
   await deps.downloaders.getRecord(id) // throws not_found
   await deps.downloaders.update(id, input, new Date())
+  return deps.downloaders.get(id)
+}
+
+export async function updateDownloaderCreditBilling(
+  deps: DownloadsDeps,
+  id: string,
+  input: UpdateDownloaderCreditBillingInput,
+): Promise<Downloader> {
+  await deps.downloaders.getRecord(id) // throws not_found
+  if (input.enabled && !hasFeature('quota_store', await loadBindingState(deps))) {
+    throw featureBlocked('Feature not available', {
+      metadata: { feature: 'quota_store' },
+    })
+  }
+  await deps.downloaders.update(
+    id,
+    {
+      remoteDownloadCreditBillingEnabled: input.enabled,
+      remoteDownloadCreditUnitBytes: input.unitBytes,
+      remoteDownloadCreditPerUnit: input.creditsPerUnit,
+    },
+    new Date(),
+  )
   return deps.downloaders.get(id)
 }
 

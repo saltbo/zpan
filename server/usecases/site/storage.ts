@@ -9,7 +9,7 @@
 // the CRUD resource; that one is a cross-resource operation.
 
 import { FREE_STORAGE_LIMIT } from '@shared/constants'
-import type { CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
+import type { CreateStorageInput, UpdateStorageEgressBillingInput, UpdateStorageInput } from '@shared/schemas'
 import { hasFeature } from '../../domain/licensing'
 import {
   type ActivityRepo,
@@ -109,6 +109,33 @@ export async function updateStorage(
     return { ok: false, error: featureBlockError({ feature: 'quota_store' }) }
   }
   const storage = await deps.storages.update(id, input)
+  if (!storage) return { ok: false, error: storageNotFound() }
+  await deps.activity.record({
+    orgId,
+    userId,
+    action: 'storage_update',
+    targetType: 'storage',
+    targetId: storage.id,
+    targetName: storage.title,
+  })
+  return { ok: true, storage }
+}
+
+export async function updateStorageEgressBilling(
+  deps: StorageDeps,
+  params: { userId: string; orgId: string; id: string; input: UpdateStorageEgressBillingInput },
+): Promise<UpdateStorageOutcome> {
+  const { userId, orgId, id, input } = params
+  const existing = await deps.storages.get(id)
+  if (!existing) return { ok: false, error: storageNotFound() }
+  if (input.enabled && !hasFeature('quota_store', await loadBindingState({ licenseBinding: deps.licenseBinding }))) {
+    return { ok: false, error: featureBlockError({ feature: 'quota_store' }) }
+  }
+  const storage = await deps.storages.update(id, {
+    egressCreditBillingEnabled: input.enabled,
+    egressCreditUnitBytes: input.unitBytes,
+    egressCreditPerUnit: input.creditsPerUnit,
+  })
   if (!storage) return { ok: false, error: storageNotFound() }
   await deps.activity.record({
     orgId,

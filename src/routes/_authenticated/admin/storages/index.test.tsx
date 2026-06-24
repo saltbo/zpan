@@ -1,10 +1,18 @@
 import { ObjectStatus, StorageStatus } from '@shared/constants'
 import type { Storage } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { abortObjectUpload, type CreateObjectResult, createObject, listStorages } from '@/lib/api'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  abortObjectUpload,
+  type CreateObjectResult,
+  createObject,
+  listStorages,
+  updateStorageEgressBilling,
+} from '@/lib/api'
 import { corsJsonForOrigin, StoragesPage } from './index'
+
+const mockHasFeature = vi.hoisted(() => vi.fn((_feature: string) => true))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -29,7 +37,7 @@ vi.mock('@/components/admin/storage-form-drawer', () => ({
 
 vi.mock('@/hooks/useEntitlement', () => ({
   useEntitlement: () => ({
-    hasFeature: () => true,
+    hasFeature: mockHasFeature,
   }),
 }))
 
@@ -37,6 +45,7 @@ vi.mock('@/lib/api', () => ({
   abortObjectUpload: vi.fn(),
   createObject: vi.fn(),
   listStorages: vi.fn(),
+  updateStorageEgressBilling: vi.fn(),
 }))
 
 const storage: Storage = {
@@ -58,6 +67,12 @@ const storage: Storage = {
   status: StorageStatus.ACTIVE,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+class TestResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
 }
 
 const uploadDraft: CreateObjectResult = {
@@ -97,6 +112,10 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
+})
+
+beforeEach(() => {
+  mockHasFeature.mockReturnValue(true)
 })
 
 describe('admin storages CORS guidance', () => {
@@ -166,5 +185,41 @@ describe('StoragesPage connection test action', () => {
     expect(view.container.textContent).toContain('"HEAD"')
     expect(view.container.textContent).toContain('"MaxAgeSeconds": 3600')
     expect(abortObjectUpload).toHaveBeenCalledWith('object-1', 'session-1', { strictStorageCleanup: true })
+  })
+
+  it('opens egress billing from the row action and saves through the dedicated wrapper', async () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    vi.mocked(listStorages).mockResolvedValue({ items: [{ ...storage, egressCreditBillingEnabled: true }], total: 1 })
+    vi.mocked(updateStorageEgressBilling).mockResolvedValue(storage)
+
+    const view = renderStoragesPage()
+    fireEvent.click(await view.findByTitle('admin.storages.configureEgressBilling'))
+    await view.findByText('admin.storages.egressBillingTitle')
+    fireEvent.change(screen.getByLabelText('admin.storages.egressBillingCredits'), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() =>
+      expect(updateStorageEgressBilling).toHaveBeenCalledWith('storage-1', {
+        enabled: true,
+        unitBytes: 1024 * 1024 * 1024,
+        creditsPerUnit: 4,
+      }),
+    )
+  })
+
+  it('shows egress billing as view-only without the quota store entitlement', async () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    mockHasFeature.mockImplementation((feature) => feature !== 'quota_store')
+    vi.mocked(listStorages).mockResolvedValue({ items: [{ ...storage, egressCreditBillingEnabled: true }], total: 1 })
+
+    const view = renderStoragesPage()
+    fireEvent.click(await view.findByTitle('admin.storages.configureEgressBilling'))
+
+    await view.findByText('admin.storages.egressBillingBusinessOnly')
+    expect(screen.queryByRole('button', { name: 'common.save' })).toBeNull()
+    expect(screen.getByLabelText('admin.storages.egressBillingCredits')).toHaveProperty('disabled', true)
+    expect(screen.getAllByRole('button', { name: 'common.close' })).toHaveLength(2)
+
+    expect(updateStorageEgressBilling).not.toHaveBeenCalled()
   })
 })

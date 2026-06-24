@@ -61,7 +61,7 @@ function renderStorageFormDrawer(props: Partial<Parameters<typeof StorageFormDra
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <StorageFormDrawer open onOpenChange={() => undefined} storage={null} hasTrafficBilling={false} {...props} />
+      <StorageFormDrawer open onOpenChange={() => undefined} storage={null} {...props} />
     </QueryClientProvider>,
   )
 }
@@ -100,18 +100,17 @@ describe('StorageFormDrawer', () => {
           accessKey: 'new-access',
           secretKey: 'new-secret',
           capacity: 2 * 1024 * 1024 * 1024,
-          egressCreditBillingEnabled: false,
-          egressCreditUnitBytes: 100 * 1024 * 1024,
         }),
       ),
     )
+    expect(createStorage).not.toHaveBeenCalledWith(expect.objectContaining({ egressCreditBillingEnabled: false }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('resets edit values, submits update payload, and toggles secret visibility', async () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     vi.mocked(updateStorage).mockResolvedValue(storage)
-    renderStorageFormDrawer({ storage, hasTrafficBilling: true })
+    renderStorageFormDrawer({ storage })
 
     const secretInput = screen.getByLabelText('admin.storages.fieldSecretKey') as HTMLInputElement
     expect(secretInput.getAttribute('type')).toBe('password')
@@ -119,7 +118,7 @@ describe('StorageFormDrawer', () => {
     expect(secretInput.getAttribute('type')).toBe('text')
     expect(screen.getByRole('button', { name: 'admin.storages.hideSecretKey' })).toBeTruthy()
     expect((screen.getByLabelText('admin.storages.fieldCapacity') as HTMLInputElement).value).toBe('2')
-    expect((screen.getByLabelText('admin.storages.egressBillingUnit') as HTMLInputElement).value).toBe('100')
+    expect(screen.queryByLabelText('admin.storages.egressBillingUnit')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
@@ -128,11 +127,9 @@ describe('StorageFormDrawer', () => {
         expect.objectContaining({
           title: 'Primary storage',
           capacity: 2 * 1024 * 1024 * 1024,
-          egressCreditBillingEnabled: true,
-          egressCreditUnitBytes: 100 * 1024 * 1024,
-          egressCreditPerUnit: 3,
         }),
       ),
     )
+    expect(updateStorage).not.toHaveBeenCalledWith('storage-1', expect.objectContaining({ egressCreditPerUnit: 3 }))
   })
 })
