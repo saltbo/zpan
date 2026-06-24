@@ -2083,7 +2083,6 @@ type Storage struct {
 	Region                     string  `json:"region"`
 	SecretKey                  string  `json:"secretKey"`
 	Status                     string  `json:"status"`
-	Title                      string  `json:"title"`
 	UpdatedAt                  string  `json:"updatedAt"`
 	Used                       int     `json:"used"`
 }
@@ -3522,7 +3521,6 @@ type CreateStorageJSONBody struct {
 	ForcePathStyle             *bool   `json:"forcePathStyle,omitempty"`
 	Region                     *string `json:"region,omitempty"`
 	SecretKey                  string  `json:"secretKey"`
-	Title                      string  `json:"title"`
 }
 
 // UpdateStorageJSONBody defines parameters for UpdateStorage.
@@ -3539,7 +3537,6 @@ type UpdateStorageJSONBody struct {
 	Region                     *string                      `json:"region,omitempty"`
 	SecretKey                  *string                      `json:"secretKey,omitempty"`
 	Status                     *UpdateStorageJSONBodyStatus `json:"status,omitempty"`
-	Title                      *string                      `json:"title,omitempty"`
 }
 
 // UpdateStorageJSONBodyStatus defines parameters for UpdateStorage.
