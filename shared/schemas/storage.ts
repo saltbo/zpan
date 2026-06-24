@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const createStorageSchema = z.object({
+  provider: z.string().default(''),
   bucket: z.string().min(1),
   endpoint: z.string().url(),
   region: z.string().default('auto'),
@@ -15,6 +16,7 @@ export const createStorageSchema = z.object({
 })
 
 export const updateStorageSchema = z.object({
+  provider: z.string().optional(),
   bucket: z.string().min(1).optional(),
   endpoint: z.string().url().optional(),
   region: z.string().optional(),

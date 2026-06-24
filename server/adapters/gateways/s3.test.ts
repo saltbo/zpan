@@ -92,8 +92,9 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
 }))
 
 function makeStorage(overrides: Partial<Storage> = {}): Storage {
-  return {
+  const storage: Storage = {
     id: 's1',
+    provider: 'aws-s3',
     bucket: 'my-bucket',
     endpoint: 'https://s3.example.com',
     region: 'us-east-1',
@@ -110,8 +111,8 @@ function makeStorage(overrides: Partial<Storage> = {}): Storage {
     status: 'active',
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
-    ...overrides,
   }
+  return { ...storage, ...overrides, provider: overrides.provider ?? storage.provider }
 }
 
 describe('S3Service', () => {

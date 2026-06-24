@@ -1,0 +1,1 @@
+ALTER TABLE `storages` ADD `provider` text DEFAULT '' NOT NULL;

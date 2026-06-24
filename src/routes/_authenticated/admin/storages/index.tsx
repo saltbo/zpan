@@ -43,6 +43,7 @@ import {
   updateStorage,
   updateStorageEgressBilling,
 } from '@/lib/api'
+import { type EplistProvider, eplistProviderLabel, listEplistProviders } from '@/lib/eplist'
 import { formatSize } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/storages/')({
@@ -112,8 +113,14 @@ export function StoragesPage() {
     queryKey: ['admin', 'storages'],
     queryFn: listStorages,
   })
+  const providersQuery = useQuery({
+    queryKey: ['eplist', 'providers'],
+    queryFn: listEplistProviders,
+    staleTime: 24 * 60 * 60 * 1000,
+  })
 
   const storages = storagesQuery.data?.items ?? []
+  const providers = providersQuery.data ?? []
   const storagesLimitReached = !hasFeature('storages_unlimited') && storages.length >= FREE_STORAGE_LIMIT
   const hasTrafficBilling = hasFeature('quota_store')
 
@@ -261,6 +268,9 @@ export function StoragesPage() {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colBucket')}</th>
+              <th className="hidden px-4 py-3 text-left font-medium md:table-cell">
+                {t('admin.storages.colProvider')}
+              </th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colAccessKey')}</th>
               <th className="hidden max-w-48 px-4 py-3 text-left font-medium lg:table-cell">
                 {t('admin.storages.colEndpoint')}
@@ -277,6 +287,7 @@ export function StoragesPage() {
               <StorageTableRow
                 key={storage.id}
                 storage={storage}
+                providers={providers}
                 hasTrafficBilling={hasTrafficBilling}
                 testing={testTarget?.id === storage.id && testHealth.status === 'testing'}
                 onTest={() => handleTest(storage)}
@@ -287,7 +298,7 @@ export function StoragesPage() {
             ))}
             {storages.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                   <div className="flex flex-col items-center gap-3">
                     <Database className="h-10 w-10" />
                     <p>{t('admin.storages.noStorages')}</p>
@@ -334,6 +345,7 @@ export function StoragesPage() {
 
 function StorageTableRow({
   storage,
+  providers,
   hasTrafficBilling,
   testing,
   onTest,
@@ -342,6 +354,7 @@ function StorageTableRow({
   onDelete,
 }: {
   storage: Storage
+  providers: EplistProvider[]
   hasTrafficBilling: boolean
   testing: boolean
   onTest: () => void
@@ -358,6 +371,9 @@ function StorageTableRow({
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
       <td className="px-4 py-3 font-medium">{storage.bucket}</td>
+      <td className="hidden max-w-44 truncate px-4 py-3 text-muted-foreground md:table-cell" title={storage.provider}>
+        {storage.provider ? eplistProviderLabel(providers, storage.provider) : t('admin.storages.providerCustom')}
+      </td>
       <td className="max-w-44 truncate px-4 py-3 font-mono text-muted-foreground text-xs" title={storage.accessKey}>
         {storage.accessKey}
       </td>

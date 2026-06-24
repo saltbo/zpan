@@ -31,6 +31,7 @@ export function createStorageRepo(db: Database): StorageRepo {
       const now = new Date()
       const row: StorageRow = {
         id: nanoid(),
+        provider: input.provider ?? '',
         bucket: input.bucket,
         endpoint: input.endpoint,
         region: input.region ?? 'auto',
@@ -63,6 +64,7 @@ export function createStorageRepo(db: Database): StorageRepo {
 
       const now = new Date()
       const updated = {
+        provider: input.provider ?? existing.provider,
         bucket: input.bucket ?? existing.bucket,
         endpoint: input.endpoint ?? existing.endpoint,
         region: input.region ?? existing.region,

@@ -57,6 +57,7 @@ export const webdavLocks = sqliteTable(
 
 export const storages = sqliteTable('storages', {
   id: text('id').primaryKey(),
+  provider: text('provider').notNull().default(''),
   bucket: text('bucket').notNull(),
   endpoint: text('endpoint').notNull(),
   region: text('region').notNull().default('auto'),

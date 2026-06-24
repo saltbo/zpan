@@ -19,6 +19,7 @@ import { errorResponse, jsonBody, jsonContent } from '../openapi'
 const storageSchema = z
   .object({
     id: z.string(),
+    provider: z.string(),
     bucket: z.string(),
     endpoint: z.string(),
     region: z.string(),

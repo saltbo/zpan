@@ -50,8 +50,15 @@ vi.mock('@/lib/api', () => ({
   updateStorageEgressBilling: vi.fn(),
 }))
 
+vi.mock('@/lib/eplist', () => ({
+  eplistProviderLabel: (providers: Array<{ slug: string; displayName: string }>, provider: string) =>
+    providers.find((item) => item.slug === provider)?.displayName ?? provider,
+  listEplistProviders: vi.fn(async () => [{ slug: 'aws-s3', displayName: 'Amazon S3', file: 's3.yml' }]),
+}))
+
 const storage: Storage = {
   id: 'storage-1',
+  provider: 'aws-s3',
   bucket: 'bucket',
   endpoint: 'https://s3.example.com',
   region: 'auto',
@@ -140,6 +147,7 @@ describe('StoragesPage connection test action', () => {
     const view = renderStoragesPage()
 
     expect(await view.findByText('access-key')).toBeTruthy()
+    expect(await view.findByText('Amazon S3')).toBeTruthy()
   })
 
   it('creates a storage-targeted object, PUTs to S3, renders success, and cleans up strictly', async () => {

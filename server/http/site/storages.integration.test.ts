@@ -5,6 +5,7 @@ import { createStorageRepo } from '../../adapters/repos/storage.js'
 import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../../test/setup.js'
 
 const validStorage = {
+  provider: 'aws-s3',
   bucket: 'test-bucket',
   endpoint: 'https://s3.amazonaws.com',
   region: 'us-east-1',
@@ -54,6 +55,7 @@ describe('Admin Storages API', () => {
     })
     expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
+    expect(body.provider).toBe('aws-s3')
     expect(body.bucket).toBe('test-bucket')
     expect(body.status).toBe('active')
     expect(body.capacity).toBe(0)

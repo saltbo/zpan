@@ -1462,6 +1462,7 @@ describe('api', () => {
 
   describe('createStorage', () => {
     const validInput = {
+      provider: 'aws-s3',
       bucket: 'files',
       endpoint: 'https://minio.example.com',
       region: 'us-east-1',
@@ -1482,7 +1483,7 @@ describe('api', () => {
       expect(url).toContain('/api/site/storages')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ bucket: 'files', forcePathStyle: false })
+      expect(body).toMatchObject({ provider: 'aws-s3', bucket: 'files', forcePathStyle: false })
       const headers =
         init.headers instanceof Headers ? init.headers : new Headers(init.headers as Record<string, string>)
       expect(headers.get('Content-Type')).toContain('application/json')
@@ -1519,14 +1520,18 @@ describe('api', () => {
       const storage = { id: 's1', bucket: 'updated-files' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(storage))
 
-      const result = await updateStorage('s1', { bucket: 'updated-files', forcePathStyle: false })
+      const result = await updateStorage('s1', {
+        provider: 'custom-s3',
+        bucket: 'updated-files',
+        forcePathStyle: false,
+      })
 
       expect(result).toEqual(storage)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/site/storages/s1')
       expect(init.method).toBe('PUT')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ bucket: 'updated-files', forcePathStyle: false })
+      expect(body).toMatchObject({ provider: 'custom-s3', bucket: 'updated-files', forcePathStyle: false })
     })
 
     it('throws on error response', async () => {
