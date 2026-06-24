@@ -876,6 +876,24 @@ func (e TransferObjectJSONBodyMode) Valid() bool {
 	}
 }
 
+// Defines values for AbortObjectUploadParamsStrictStorageCleanup.
+const (
+	AbortObjectUploadParamsStrictStorageCleanupN1   AbortObjectUploadParamsStrictStorageCleanup = "1"
+	AbortObjectUploadParamsStrictStorageCleanupTrue AbortObjectUploadParamsStrictStorageCleanup = "true"
+)
+
+// Valid indicates whether the value is a known member of the AbortObjectUploadParamsStrictStorageCleanup enum.
+func (e AbortObjectUploadParamsStrictStorageCleanup) Valid() bool {
+	switch e {
+	case AbortObjectUploadParamsStrictStorageCleanupN1:
+		return true
+	case AbortObjectUploadParamsStrictStorageCleanupTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListSharesParamsStatus.
 const (
 	ListSharesParamsStatusActive  ListSharesParamsStatus = "active"
@@ -1172,13 +1190,13 @@ func (e CreateTeamInviteLinkJSONBodyRole) Valid() bool {
 
 // Defines values for JoinTeam200JSONResponseBodyOk.
 const (
-	JoinTeam200JSONResponseBodyOkTrue JoinTeam200JSONResponseBodyOk = true
+	True JoinTeam200JSONResponseBodyOk = true
 )
 
 // Valid indicates whether the value is a known member of the JoinTeam200JSONResponseBodyOk enum.
 func (e JoinTeam200JSONResponseBodyOk) Valid() bool {
 	switch e {
-	case JoinTeam200JSONResponseBodyOkTrue:
+	case True:
 		return true
 	default:
 		return false
@@ -3216,6 +3234,7 @@ type CreateObjectJSONBody struct {
 	OnConflict *CreateObjectJSONBodyOnConflict `json:"onConflict,omitempty"`
 	Parent     *string                         `json:"parent,omitempty"`
 	Size       *int                            `json:"size,omitempty"`
+	StorageId  *string                         `json:"storageId,omitempty"`
 	Type       string                          `json:"type"`
 }
 
@@ -3250,6 +3269,14 @@ type TransferObjectJSONBody struct {
 
 // TransferObjectJSONBodyMode defines parameters for TransferObject.
 type TransferObjectJSONBodyMode string
+
+// AbortObjectUploadParams defines parameters for AbortObjectUpload.
+type AbortObjectUploadParams struct {
+	StrictStorageCleanup *AbortObjectUploadParamsStrictStorageCleanup `form:"strictStorageCleanup,omitempty" json:"strictStorageCleanup,omitempty"`
+}
+
+// AbortObjectUploadParamsStrictStorageCleanup defines parameters for AbortObjectUpload.
+type AbortObjectUploadParamsStrictStorageCleanup string
 
 // CompleteObjectUploadJSONBody defines parameters for CompleteObjectUpload.
 type CompleteObjectUploadJSONBody struct {
@@ -4648,7 +4675,7 @@ type ClientInterface interface {
 	TransferObject(ctx context.Context, id string, body TransferObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// AbortObjectUpload request
-	AbortObjectUpload(ctx context.Context, id string, uploadSessionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	AbortObjectUpload(ctx context.Context, id string, uploadSessionId string, params *AbortObjectUploadParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CompleteObjectUploadWithBody request with any body
 	CompleteObjectUploadWithBody(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7290,8 +7317,8 @@ func (c *Client) TransferObject(ctx context.Context, id string, body TransferObj
 	return c.Client.Do(req)
 }
 
-func (c *Client) AbortObjectUpload(ctx context.Context, id string, uploadSessionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAbortObjectUploadRequest(c.Server, id, uploadSessionId)
+func (c *Client) AbortObjectUpload(ctx context.Context, id string, uploadSessionId string, params *AbortObjectUploadParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAbortObjectUploadRequest(c.Server, id, uploadSessionId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -13946,7 +13973,7 @@ func NewTransferObjectRequestWithBody(server string, id string, contentType stri
 }
 
 // NewAbortObjectUploadRequest generates requests for AbortObjectUpload
-func NewAbortObjectUploadRequest(server string, id string, uploadSessionId string) (*http.Request, error) {
+func NewAbortObjectUploadRequest(server string, id string, uploadSessionId string, params *AbortObjectUploadParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -13976,6 +14003,33 @@ func NewAbortObjectUploadRequest(server string, id string, uploadSessionId strin
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.StrictStorageCleanup != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "strictStorageCleanup", *params.StrictStorageCleanup, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
@@ -18167,7 +18221,7 @@ type ClientWithResponsesInterface interface {
 	TransferObjectWithResponse(ctx context.Context, id string, body TransferObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*TransferObjectResponse, error)
 
 	// AbortObjectUploadWithResponse request
-	AbortObjectUploadWithResponse(ctx context.Context, id string, uploadSessionId string, reqEditors ...RequestEditorFn) (*AbortObjectUploadResponse, error)
+	AbortObjectUploadWithResponse(ctx context.Context, id string, uploadSessionId string, params *AbortObjectUploadParams, reqEditors ...RequestEditorFn) (*AbortObjectUploadResponse, error)
 
 	// CompleteObjectUploadWithBodyWithResponse request with any body
 	CompleteObjectUploadWithBodyWithResponse(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteObjectUploadResponse, error)
@@ -24270,6 +24324,7 @@ type AbortObjectUploadResponse struct {
 	JSON400      *Error
 	JSON403      *Error
 	JSON404      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -28792,8 +28847,8 @@ func (c *ClientWithResponses) TransferObjectWithResponse(ctx context.Context, id
 }
 
 // AbortObjectUploadWithResponse request returning *AbortObjectUploadResponse
-func (c *ClientWithResponses) AbortObjectUploadWithResponse(ctx context.Context, id string, uploadSessionId string, reqEditors ...RequestEditorFn) (*AbortObjectUploadResponse, error) {
-	rsp, err := c.AbortObjectUpload(ctx, id, uploadSessionId, reqEditors...)
+func (c *ClientWithResponses) AbortObjectUploadWithResponse(ctx context.Context, id string, uploadSessionId string, params *AbortObjectUploadParams, reqEditors ...RequestEditorFn) (*AbortObjectUploadResponse, error) {
+	rsp, err := c.AbortObjectUpload(ctx, id, uploadSessionId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -38528,6 +38583,13 @@ func ParseAbortObjectUploadResponse(rsp *http.Response) (*AbortObjectUploadRespo
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 

@@ -241,10 +241,10 @@ describe('getStorage', () => {
 describe('selectStorage', () => {
   async function seedActive(
     db: Awaited<ReturnType<typeof createTestApp>>['db'],
-    opts: { capacity?: number; used?: number; status?: string } = {},
+    opts: { capacity?: number; used?: number; status?: string; title?: string } = {},
   ) {
-    return createStorageRepo(db).create({
-      title: 'Seed',
+    const created = await createStorageRepo(db).create({
+      title: opts.title ?? 'Seed',
       bucket: 'b',
       endpoint: 'https://s3.example.com',
       region: 'us-east-1',
@@ -252,13 +252,43 @@ describe('selectStorage', () => {
       secretKey: 'S',
       capacity: opts.capacity ?? 0,
     })
+    if (opts.used !== undefined || opts.status !== undefined) {
+      await db.run(
+        sql`UPDATE storages SET used = ${opts.used ?? created.used}, status = ${opts.status ?? created.status} WHERE id = ${created.id}`,
+      )
+    }
+    return createStorageRepo(db).get(created.id)
   }
 
   it('returns an active storage with unlimited capacity', async () => {
     const { db } = await createTestApp()
     const created = await seedActive(db)
     const found = await createStorageRepo(db).select()
-    expect(found.id).toBe(created.id)
+    expect(found.id).toBe(created?.id)
+  })
+
+  it('returns the requested active storage with capacity even when it is not oldest', async () => {
+    const { db } = await createTestApp()
+    const first = await seedActive(db, { title: 'First' })
+    const second = await seedActive(db, { title: 'Second' })
+
+    const auto = await createStorageRepo(db).select()
+    const targeted = await createStorageRepo(db).select(second?.id)
+
+    expect(auto.id).toBe(first?.id)
+    expect(targeted.id).toBe(second?.id)
+  })
+
+  it('rejects a requested inactive storage', async () => {
+    const { db } = await createTestApp()
+    const created = await seedActive(db, { status: 'disabled' })
+    await expect(createStorageRepo(db).select(created?.id)).rejects.toThrow('No available storage')
+  })
+
+  it('rejects a requested full storage', async () => {
+    const { db } = await createTestApp()
+    const created = await seedActive(db, { capacity: 10, used: 10 })
+    await expect(createStorageRepo(db).select(created?.id)).rejects.toThrow('No available storage')
   })
 
   it('throws when no active storage exists', async () => {

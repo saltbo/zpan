@@ -17,7 +17,8 @@ export interface StorageRepo {
   count(): Promise<number>
   update(id: string, input: UpdateStorageInput): Promise<StorageRecord | null>
   delete(id: string): Promise<DeleteStorageResult>
-  // Picks the oldest active storage with available capacity (uploads land here).
+  // Picks the oldest active storage with available capacity (uploads land here),
+  // or validates and returns the requested storage against the same eligibility.
   // Throws 'No available storage' when none qualifies.
-  select(): Promise<StorageRecord>
+  select(id?: string): Promise<StorageRecord>
 }

@@ -97,9 +97,13 @@ const validStorage = {
   secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
 }
 
-async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db'], opts: { metered?: boolean } = {}) {
+async function insertStorage(
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  opts: { id?: string; metered?: boolean; capacity?: number; used?: number; status?: string } = {},
+) {
   const now = Date.now()
   const metered = opts.metered ? 1 : 0
+  const id = opts.id ?? validStorage.id
   await db.run(sql`
     INSERT INTO storages (
       id, title, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
@@ -107,9 +111,9 @@ async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']
       egress_credit_per_unit, created_at, updated_at
     )
     VALUES (
-      ${validStorage.id}, ${validStorage.title}, ${validStorage.bucket},
+      ${id}, ${validStorage.title}, ${validStorage.bucket},
       ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey},
-      '', '', 0, 0, 'active', ${metered}, ${100 * 1024 ** 2}, 1, ${now}, ${now}
+      '', '', ${opts.capacity ?? 0}, ${opts.used ?? 0}, ${opts.status ?? 'active'}, ${metered}, ${100 * 1024 ** 2}, 1, ${now}, ${now}
     )
   `)
 }
@@ -673,6 +677,70 @@ describe('Objects API', () => {
     expect(body.upload.sessionId).toBeTruthy()
     expect(body.upload.partSize).toBe(2048)
     expect(body.upload.urls).toEqual(['https://presigned-upload.example.com'])
+  })
+
+  it('POST /api/objects with storageId uses that exact eligible storage', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await insertStorage(db, { id: 'st-oldest' })
+    await insertStorage(db, { id: 'st-target' })
+
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'target.txt', type: 'text/plain', size: 1, storageId: 'st-target' }),
+    })
+
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { id: string; storageId: string }
+    expect(body.storageId).toBe('st-target')
+    const rows = await db.all<{ storageId: string }>(
+      sql`SELECT storage_id as storageId FROM matters WHERE id = ${body.id}`,
+    )
+    expect(rows[0].storageId).toBe('st-target')
+  })
+
+  it('POST /api/objects with ineligible storageId fails before draft/session creation', async () => {
+    for (const storage of [
+      { id: 'missing' },
+      { id: 'inactive', status: 'disabled' },
+      { id: 'full', capacity: 1, used: 1 },
+    ]) {
+      const { app, db } = await createTestApp()
+      const headers = await adminHeaders(app)
+      if (storage.id !== 'missing') await insertStorage(db, storage)
+
+      const res = await app.request('/api/objects', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `${storage.id}.txt`, type: 'text/plain', size: 1, storageId: storage.id }),
+      })
+
+      expect(res.status).toBe(503)
+      const matters = await db.all<{ count: number }>(sql`SELECT COUNT(*) as count FROM matters`)
+      const sessions = await db.all<{ count: number }>(sql`SELECT COUNT(*) as count FROM object_upload_sessions`)
+      expect(matters[0].count).toBe(0)
+      expect(sessions[0].count).toBe(0)
+    }
+  })
+
+  it('POST /api/objects with storageId is admin-only and fails before draft/session creation', async () => {
+    const { app, db } = await createTestApp()
+    await adminHeaders(app)
+    const headers = await authedHeaders(app, 'editor@example.com')
+    await insertStorage(db, { id: 'st-target' })
+
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'target.txt', type: 'text/plain', size: 1, storageId: 'st-target' }),
+    })
+
+    expect(res.status).toBe(403)
+    const matters = await db.all<{ count: number }>(sql`SELECT COUNT(*) as count FROM matters`)
+    const sessions = await db.all<{ count: number }>(sql`SELECT COUNT(*) as count FROM object_upload_sessions`)
+    expect(matters[0].count).toBe(0)
+    expect(sessions[0].count).toBe(0)
   })
 
   it('POST /api/objects rejects a file larger than 5 TiB [spec: objects/create-file-too-large]', async () => {

@@ -506,6 +506,22 @@ describe('api', () => {
       expect(headers.get('Content-Type')).toContain('application/json')
     })
 
+    it('includes storageId when creating a targeted object draft', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'new1', name: 'doc.pdf' }))
+
+      await createObject({
+        name: 'doc.pdf',
+        type: 'application/pdf',
+        size: 1024,
+        parent: 'root',
+        dirtype: 0,
+        storageId: 'st-1',
+      })
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(JSON.parse(init.body as string)).toMatchObject({ storageId: 'st-1' })
+    })
+
     it('returns a folder without upload instructions', async () => {
       const created = { id: 'folder1', name: 'photos', type: 'folder' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(created))
@@ -520,6 +536,32 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'quota exceeded' }, false, 422))
 
       await expect(createObject({ name: 'f', type: 't', parent: 'p', dirtype: 0 })).rejects.toThrow('quota exceeded')
+    })
+
+    it('throws ApiError with structured targeted-storage failures', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse(
+          {
+            error: {
+              code: 503,
+              message: 'Storage is not active or has no available capacity',
+              status: 'UNAVAILABLE',
+              details: [{ reason: 'NO_STORAGE_CONFIGURED', domain: 'zpan.dev' }],
+            },
+          },
+          false,
+          503,
+        ),
+      )
+
+      await expect(
+        createObject({ name: 'f', type: 't', parent: 'p', dirtype: 0, storageId: 'st-full' }),
+      ).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 503,
+        message: 'Storage is not active or has no available capacity',
+        reason: 'NO_STORAGE_CONFIGURED',
+      })
     })
   })
 
@@ -555,7 +597,17 @@ describe('api', () => {
       await expect(abortObjectUpload('obj-1', 'sess-1')).resolves.toBeUndefined()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/obj-1/uploads/sess-1')
+      expect(url).toBe('/api/objects/obj-1/uploads/sess-1?')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('passes strict cleanup query when requested', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
+
+      await abortObjectUpload('obj-1', 'sess-1', { strictStorageCleanup: true })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/objects/obj-1/uploads/sess-1?strictStorageCleanup=1')
       expect(init.method).toBe('DELETE')
     })
 
