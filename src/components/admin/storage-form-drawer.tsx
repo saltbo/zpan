@@ -365,7 +365,7 @@ function buildStoragePreview({ bucket, endpoint, region, customHost, forcePathSt
     const requestUrl = url.toString()
     return {
       requestUrl,
-      publicUrl: buildPublicPreviewUrl(requestUrl, customHost),
+      publicUrl: buildPublicPreviewUrl(requestUrl, customHost, normalizedBucket),
       addressingMode: 'path' as const,
       signingRegion: region.trim() || 'auto',
     }
@@ -376,13 +376,13 @@ function buildStoragePreview({ bucket, endpoint, region, customHost, forcePathSt
   const requestUrl = url.toString()
   return {
     requestUrl,
-    publicUrl: buildPublicPreviewUrl(requestUrl, customHost),
+    publicUrl: buildPublicPreviewUrl(requestUrl, customHost, normalizedBucket),
     addressingMode: 'virtual-hosted' as const,
     signingRegion: region.trim() || 'auto',
   }
 }
 
-function buildPublicPreviewUrl(requestUrl: string, customHost: string | undefined) {
+function buildPublicPreviewUrl(requestUrl: string, customHost: string | undefined, bucket: string) {
   const normalizedCustomHost = customHost?.trim()
   if (!normalizedCustomHost) return requestUrl
 
@@ -391,6 +391,14 @@ function buildPublicPreviewUrl(requestUrl: string, customHost: string | undefine
   const hostUrl = new URL(host)
   url.protocol = hostUrl.protocol
   url.host = hostUrl.host
+
+  const bucketPrefix = `/${bucket}/`
+  if (url.pathname.startsWith(bucketPrefix)) {
+    url.pathname = `/${url.pathname.slice(bucketPrefix.length)}`
+  } else if (url.pathname === `/${bucket}`) {
+    url.pathname = '/'
+  }
+
   return url.toString()
 }
 

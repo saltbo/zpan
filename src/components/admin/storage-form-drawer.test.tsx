@@ -231,6 +231,6 @@ describe('StorageFormDrawer', () => {
     expect(screen.getByText('admin.storages.previewRequestUrl')).toBeTruthy()
     expect(screen.getByText('https://storage.example.com/new-bucket/example-object')).toBeTruthy()
     expect(screen.getByText('admin.storages.previewPublicUrl')).toBeTruthy()
-    expect(screen.getByText('https://cdn.example.com/new-bucket/example-object')).toBeTruthy()
+    expect(screen.getByText('https://cdn.example.com/example-object')).toBeTruthy()
   })
 })
