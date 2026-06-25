@@ -150,6 +150,15 @@ describe('StoragesPage connection test action', () => {
     expect(await view.findByText('Amazon S3')).toBeTruthy()
   })
 
+  it('leaves the provider cell empty when storage has no provider value', async () => {
+    vi.mocked(listStorages).mockResolvedValue({ items: [{ ...storage, provider: '' }], total: 1 })
+
+    const view = renderStoragesPage()
+
+    expect(await view.findByText('access-key')).toBeTruthy()
+    expect(screen.queryByText('admin.storages.providerCustom')).toBeNull()
+  })
+
   it('creates a storage-targeted object, PUTs to S3, renders success, and cleans up strictly', async () => {
     vi.mocked(listStorages).mockResolvedValue({ items: [storage], total: 1 })
     vi.mocked(createObject).mockResolvedValue(uploadDraft)

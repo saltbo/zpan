@@ -66,7 +66,7 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
     if (!open) return
     if (storage) {
       form.reset({
-        provider: storage.provider,
+        provider: storage.provider ?? '',
         bucket: storage.bucket,
         endpoint: storage.endpoint,
         region: storage.region,
@@ -125,7 +125,11 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
     return Array.from(regions).map((region) => ({ value: region }))
   }, [endpointOptions])
 
-  function handleProviderChange(value: string) {
+  function handleProviderInputChange(value: string) {
+    form.setValue('provider', value, { shouldDirty: true })
+  }
+
+  function handleProviderSelect(value: string) {
     form.setValue('provider', value, { shouldDirty: true })
     form.setValue('endpoint', '', { shouldDirty: true, shouldValidate: true })
     form.setValue('region', '', { shouldDirty: true, shouldValidate: true })
@@ -182,8 +186,8 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
             value={provider}
             placeholder={t('admin.storages.providerPlaceholder')}
             options={providers.map((item) => ({ value: item.slug, label: item.displayName }))}
-            disabled={isEditing}
-            onValueChange={handleProviderChange}
+            onValueChange={handleProviderInputChange}
+            onOptionSelect={handleProviderSelect}
           />
         )}
       </AdminFormField>
@@ -412,10 +416,11 @@ interface FreeInputDropdownProps extends Omit<ComponentProps<typeof Input>, 'val
   value: string
   options: FreeInputDropdownOption[]
   onValueChange: (value: string) => void
+  onOptionSelect?: (value: string) => void
 }
 
 const FreeInputDropdown = forwardRef<HTMLInputElement, FreeInputDropdownProps>(function FreeInputDropdown(
-  { value, options, onValueChange, onFocus, onBlur, onKeyDown, ...inputProps },
+  { value, options, onValueChange, onOptionSelect, onFocus, onBlur, onKeyDown, ...inputProps },
   ref,
 ) {
   const [open, setOpen] = useState(false)
@@ -473,7 +478,11 @@ const FreeInputDropdown = forwardRef<HTMLInputElement, FreeInputDropdownProps>(f
               className="flex w-full min-w-0 items-center justify-between gap-3 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
-                onValueChange(option.value)
+                if (onOptionSelect) {
+                  onOptionSelect(option.value)
+                } else {
+                  onValueChange(option.value)
+                }
                 setOpen(false)
               }}
             >

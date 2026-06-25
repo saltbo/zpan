@@ -117,14 +117,20 @@ describe('StorageFormDrawer', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('resets edit values, submits update payload, and toggles secret visibility', async () => {
+  it('resets edit values, allows provider editing, submits update payload, and toggles secret visibility', async () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     vi.mocked(updateStorage).mockResolvedValue(storage)
     renderStorageFormDrawer({ storage })
 
     const providerInput = screen.getByLabelText('admin.storages.fieldProvider') as HTMLInputElement
     expect(providerInput.value).toBe('aws-s3')
-    expect(providerInput.disabled).toBe(true)
+    expect(providerInput.disabled).toBe(false)
+    fireEvent.change(providerInput, { target: { value: 'custom-s3' } })
+    expect(providerInput.value).toBe('custom-s3')
+    expect((screen.getByLabelText('admin.storages.fieldEndpoint') as HTMLInputElement).value).toBe(
+      'https://s3.example.com',
+    )
+    expect((screen.getByLabelText('admin.storages.fieldRegion') as HTMLInputElement).value).toBe('auto')
     const secretInput = screen.getByLabelText('admin.storages.fieldSecretKey') as HTMLInputElement
     expect(secretInput.getAttribute('type')).toBe('password')
     fireEvent.click(screen.getByRole('button', { name: 'admin.storages.showSecretKey' }))
@@ -143,14 +149,20 @@ describe('StorageFormDrawer', () => {
     expect(updateStorage).not.toHaveBeenCalledWith('storage-1', expect.objectContaining({ egressCreditPerUnit: 3 }))
   })
 
+  it('keeps the provider input empty when editing storage without a provider value', () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    renderStorageFormDrawer({ storage: { ...storage, provider: '' } })
+
+    expect(screen.getByLabelText('admin.storages.fieldProvider')).toHaveProperty('value', '')
+  })
+
   it('loads provider options without selecting an endpoint until endpoint or region is chosen', async () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     vi.mocked(createStorage).mockResolvedValue(storage)
     renderStorageFormDrawer()
 
-    fireEvent.change(screen.getByLabelText('admin.storages.fieldProvider'), { target: { value: 'tigris' } })
-
-    await screen.findByRole('option', { name: 'Tigris' })
+    fireEvent.focus(screen.getByLabelText('admin.storages.fieldProvider'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Tigris' }))
     expect((screen.getByLabelText('admin.storages.fieldEndpoint') as HTMLInputElement).value).toBe('')
     expect((screen.getByLabelText('admin.storages.fieldRegion') as HTMLInputElement).value).toBe('')
 
@@ -161,6 +173,27 @@ describe('StorageFormDrawer', () => {
     expect((screen.getByLabelText('admin.storages.fieldEndpoint') as HTMLInputElement).value).toBe(
       'https://fly.storage.tigris.dev',
     )
+  })
+
+  it('keeps endpoint and region while typing provider, then clears them when selecting a provider option', async () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    renderStorageFormDrawer()
+
+    const providerInput = screen.getByLabelText('admin.storages.fieldProvider')
+    const endpointInput = screen.getByLabelText('admin.storages.fieldEndpoint') as HTMLInputElement
+    const regionInput = screen.getByLabelText('admin.storages.fieldRegion') as HTMLInputElement
+
+    fireEvent.change(endpointInput, { target: { value: 'https://storage.example.com' } })
+    fireEvent.change(regionInput, { target: { value: 'us-east-1' } })
+    fireEvent.change(providerInput, { target: { value: 't' } })
+
+    expect(endpointInput.value).toBe('https://storage.example.com')
+    expect(regionInput.value).toBe('us-east-1')
+
+    fireEvent.click(await screen.findByRole('option', { name: 'Tigris' }))
+
+    expect(endpointInput.value).toBe('')
+    expect(regionInput.value).toBe('')
   })
 
   it('previews the request URL from the current bucket, endpoint, and path-style setting', () => {

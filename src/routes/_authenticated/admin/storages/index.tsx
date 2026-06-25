@@ -365,14 +365,15 @@ function StorageTableRow({
   const { t } = useTranslation()
 
   const isActive = storage.status === StorageStatus.ACTIVE
+  const provider = storage.provider?.trim() ?? ''
 
   const statusBadge = isActive ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground'
 
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
       <td className="px-4 py-3 font-medium">{storage.bucket}</td>
-      <td className="hidden max-w-44 truncate px-4 py-3 text-muted-foreground md:table-cell" title={storage.provider}>
-        {storage.provider ? eplistProviderLabel(providers, storage.provider) : t('admin.storages.providerCustom')}
+      <td className="hidden max-w-44 truncate px-4 py-3 text-muted-foreground md:table-cell" title={provider}>
+        {provider ? eplistProviderLabel(providers, provider) : ''}
       </td>
       <td className="max-w-44 truncate px-4 py-3 font-mono text-muted-foreground text-xs" title={storage.accessKey}>
         {storage.accessKey}
