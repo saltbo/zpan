@@ -2355,9 +2355,9 @@ const downloaderHeartbeat = {
   freeDiskBytes: 1024 * 1024 * 1024,
 }
 
-// Registers a downloader, creates and self-assigns a download task to it, and
-// returns the upload token plus the task's target folder. The token authenticates
-// as a `download-task-upload` principal scoped to that task/folder.
+// Registers a downloader, creates a task, lets heartbeat claim it, and returns
+// the upload token plus the task's target folder. The token authenticates as a
+// `download-task-upload` principal scoped to that task/folder.
 async function mintTaskUploadContext(
   app: TestApp,
   db: TestDb,
@@ -2411,13 +2411,15 @@ async function mintTaskUploadContext(
   })
   expect(createTaskRes.status).toBe(201)
 
-  const assignedRes = await app.request('/api/downloads/tasks?assignedTo=me', {
-    headers: { Authorization: `Bearer ${downloader.token}` },
+  const assignedRes = await app.request('/api/downloads/downloaders/me/heartbeats', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${downloader.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...downloaderHeartbeat, currentTasks: 0 }),
   })
   const assigned = (await assignedRes.json()) as {
-    items: Array<{ status: { assignment?: { uploadToken?: string } } }>
+    assignments: Array<{ status: { assignment?: { uploadToken?: string } } }>
   }
-  const uploadToken = assigned.items[0]?.status.assignment?.uploadToken
+  const uploadToken = assigned.assignments[0]?.status.assignment?.uploadToken
   if (!uploadToken) throw new Error('upload_token_missing')
   const orgRows = await db.all<{ orgId: string }>(sql`SELECT org_id AS orgId FROM download_tasks LIMIT 1`)
   return { uploadToken, targetFolder: opts.targetFolder, orgId: orgRows[0].orgId }
