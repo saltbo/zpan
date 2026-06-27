@@ -9,6 +9,12 @@ Feature: Remote download tasks
     When a downloader registers
     Then it is registered through BetterAuth device login
 
+  @download-tasks/list-status-multi @api
+  Scenario: Task listing accepts multiple status values
+    Given tasks in several statuses
+    When they are listed with a comma-separated status query
+    Then matching statuses are returned and invalid statuses are rejected
+
   @download-tasks/ssrf-guard @api
   Scenario: Internal-host source URLs are rejected
     Given a source URL targeting an internal host
