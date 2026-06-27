@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ type retainedSeed struct {
 	uploadBase int64
 	retainedAt time.Time
 	expiresAt  time.Time
+	reportKey  string
 	snapshot   func(context.Context) (engine.SeedSnapshot, error)
 	cleanup    func(context.Context) error
 }
@@ -197,6 +199,10 @@ func (w *Worker) reportRetainedSeeds(ctx context.Context) {
 		}
 		active := true
 		snapshot.Runtime.Seeding.Active = &active
+		reportKey := retainedSeedReportKey(seed, snapshot, true)
+		if reportKey == seed.reportKey {
+			continue
+		}
 		snapshot.Runtime.Progress = &client.DownloadTaskProgress{
 			Download: *transferProgress(snapshot.Downloaded, snapshot.Total, 0),
 			Upload:   *transferProgress(seed.size, &seed.size, 0),
@@ -212,6 +218,7 @@ func (w *Worker) reportRetainedSeeds(ctx context.Context) {
 			log.Warn("failed to report retained bt seed", "error", err)
 			continue
 		}
+		w.markRetainedSeedReported(seed.taskID, reportKey)
 		log.Debug("reported retained bt seed", "downloaded_bytes", snapshot.Downloaded, "bps", snapshot.Bps)
 	}
 }
@@ -369,6 +376,35 @@ func (w *Worker) retainedSeedSnapshot() []retainedSeed {
 	return append([]retainedSeed(nil), w.retainedSeeds...)
 }
 
+func (w *Worker) markRetainedSeedReported(taskID string, reportKey string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for i := range w.retainedSeeds {
+		if w.retainedSeeds[i].taskID == taskID {
+			w.retainedSeeds[i].reportKey = reportKey
+			return
+		}
+	}
+}
+
+func retainedSeedReportKey(seed retainedSeed, snapshot engine.SeedSnapshot, active bool) string {
+	total := int64(-1)
+	if snapshot.Total != nil {
+		total = *snapshot.Total
+	}
+	uploaded := int64(-1)
+	if snapshot.Runtime != nil && snapshot.Runtime.Seeding != nil && snapshot.Runtime.Seeding.UploadedBytes != nil {
+		uploaded = *snapshot.Runtime.Seeding.UploadedBytes
+	}
+	return strings.Join([]string{
+		strconv.FormatInt(snapshot.Downloaded, 10),
+		strconv.FormatInt(total, 10),
+		strconv.FormatInt(seed.size, 10),
+		strconv.FormatInt(uploaded, 10),
+		strconv.FormatBool(active),
+	}, ":")
+}
+
 func (w *Worker) runningTaskIDs() map[string]struct{} {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -413,6 +449,9 @@ func (w *Worker) reconcileEngineSeeds(ctx context.Context) {
 		w.logger.Warn("failed to list engine seeds for reconciliation", "error", err)
 		return
 	}
+	if len(seeds) == 0 {
+		return
+	}
 	tracked := map[string]struct{}{}
 	for _, seed := range w.retainedSeedSnapshot() {
 		tracked[seed.taskID] = struct{}{}
@@ -423,9 +462,8 @@ func (w *Worker) reconcileEngineSeeds(ctx context.Context) {
 	// startup before the loop marks them running, so without this an
 	// auto-seeding-but-not-yet-uploaded torrent gets adopted as a done seed and
 	// its upload is skipped (file lost when the seed expires).
-	assigned := w.assignedSeedTaskIDs(ctx)
 	now := time.Now()
-	var adopted []retainedSeed
+	candidates := make([]engine.Seed, 0, len(seeds))
 	for _, seed := range seeds {
 		taskID := filepath.Base(seed.Path)
 		if taskID == "" || taskID == "." || taskID == string(filepath.Separator) {
@@ -437,6 +475,15 @@ func (w *Worker) reconcileEngineSeeds(ctx context.Context) {
 		if _, ok := running[taskID]; ok {
 			continue
 		}
+		candidates = append(candidates, seed)
+	}
+	if len(candidates) == 0 {
+		return
+	}
+	assigned := w.assignedSeedTaskIDs(ctx)
+	var adopted []retainedSeed
+	for _, seed := range candidates {
+		taskID := filepath.Base(seed.Path)
 		if _, ok := assigned[taskID]; ok {
 			continue
 		}

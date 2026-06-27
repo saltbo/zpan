@@ -141,6 +141,20 @@ func TestTickSuspendedControlTaskPreservesRuntime(t *testing.T) {
 	}
 }
 
+func TestTickUsesHeartbeatNextPollInterval(t *testing.T) {
+	api := &recordingAPI{nextPollAfterSeconds: 17}
+	w := NewWithAPI(config.Config{PollInterval: time.Second}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	nextPoll, err := w.tickAndNextPoll(context.Background())
+	if err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if nextPoll != 17*time.Second {
+		t.Fatalf("expected server-directed poll interval, got %s", nextPoll)
+	}
+}
+
 func TestDeleteRequestedControlTaskCleansRuntimeAndAcksCanceled(t *testing.T) {
 	api := &recordingAPI{
 		controlTasks: []client.DownloadTask{
@@ -391,6 +405,19 @@ func TestCleanupRetainedSeedReportsStopped(t *testing.T) {
 	if patch := api.patches[0]; patch.Runtime == nil || patch.Runtime.Seeding == nil ||
 		patch.Runtime.Seeding.Active == nil || *patch.Runtime.Seeding.Active {
 		t.Fatalf("expected seeding cleared in cleanup report, got %#v", patch.Runtime)
+	}
+}
+
+func TestReconcileEngineSeedsDoesNotFetchAssignedTasksWithoutLocalSeeds(t *testing.T) {
+	api := &recordingAPI{}
+	w := NewWithAPI(config.Config{SeedEnabled: true}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = &recordingEngine{}
+
+	w.reconcileEngineSeeds(context.Background())
+
+	if api.assignedTasksCalls != 0 {
+		t.Fatalf("expected no assigned-task fetch without local seeds, got %d", api.assignedTasksCalls)
 	}
 }
 
@@ -1505,6 +1532,44 @@ func TestReportRetainedSeedsSendsCompleteSeedingSnapshot(t *testing.T) {
 	}
 }
 
+func TestReportRetainedSeedsSkipsUnchangedSnapshot(t *testing.T) {
+	api := &recordingAPI{}
+	w := NewWithAPI(config.Config{SeedEnabled: true}, api)
+	total := int64(100)
+	uploaded := int64(12)
+	w.retainedSeeds = []retainedSeed{{
+		taskID:     "task-1",
+		engine:     "aria2",
+		seedID:     "gid",
+		size:       total,
+		downloaded: total,
+		snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+			return engine.SeedSnapshot{
+				Downloaded: total,
+				Total:      &total,
+				Runtime: &client.DownloadTaskRuntime{
+					Engine:  "aria2",
+					Phase:   "seeding",
+					Seeding: &client.DownloadTaskSeedingRuntime{UploadedBytes: &uploaded},
+				},
+			}, nil
+		},
+		cleanup: func(context.Context) error { return nil },
+	}}
+
+	w.reportRetainedSeeds(context.Background())
+	w.reportRetainedSeeds(context.Background())
+	if len(api.patches) != 1 {
+		t.Fatalf("expected unchanged seed snapshot to be reported once, got %d patches", len(api.patches))
+	}
+
+	uploaded = 24
+	w.reportRetainedSeeds(context.Background())
+	if len(api.patches) != 2 {
+		t.Fatalf("expected changed seed snapshot to be reported again, got %d patches", len(api.patches))
+	}
+}
+
 func TestReportRetainedSeedsStoppedClearsSeedingPhase(t *testing.T) {
 	api := &recordingAPI{}
 	w := NewWithAPI(config.Config{SeedEnabled: true}, api)
@@ -1911,26 +1976,29 @@ func (e *recordingEngine) Download(ctx context.Context, task client.DownloadTask
 }
 
 type recordingAPI struct {
-	patches            []client.TaskPatch
-	patchedIDs         []string
-	seedingTasks       []client.DownloadTask
-	controlTasks       []client.DownloadTask
-	assignedTasks      []client.DownloadTask
-	suspendDownloading bool
-	createFolderErr    error
-	createObjectDraft  client.ObjectDraft
-	completeErrs       []error
+	patches              []client.TaskPatch
+	patchedIDs           []string
+	seedingTasks         []client.DownloadTask
+	controlTasks         []client.DownloadTask
+	assignedTasks        []client.DownloadTask
+	assignedTasksCalls   int
+	nextPollAfterSeconds int
+	suspendDownloading   bool
+	createFolderErr      error
+	createObjectDraft    client.ObjectDraft
+	completeErrs         []error
 }
 
-func (a *recordingAPI) Heartbeat(context.Context, client.Heartbeat) error {
-	return nil
-}
-
-func (a *recordingAPI) AssignedControlTasks(context.Context) ([]client.DownloadTask, error) {
-	return a.controlTasks, nil
+func (a *recordingAPI) Heartbeat(context.Context, client.Heartbeat) (client.HeartbeatResult, error) {
+	nextPoll := a.nextPollAfterSeconds
+	if nextPoll == 0 {
+		nextPoll = 5
+	}
+	return client.HeartbeatResult{Assignments: a.assignedTasks, Controls: a.controlTasks, NextPollAfterSeconds: nextPoll}, nil
 }
 
 func (a *recordingAPI) AssignedTasks(context.Context) ([]client.DownloadTask, error) {
+	a.assignedTasksCalls++
 	return a.assignedTasks, nil
 }
 

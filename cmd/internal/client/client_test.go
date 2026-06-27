@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"sort"
 	"testing"
 )
 
@@ -58,16 +57,17 @@ func TestCreateObjectUsesRenameConflictStrategy(t *testing.T) {
 }
 
 func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
-	var statuses []string
+	var status string
+	var requests int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/downloads/tasks" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
+		requests++
 		w.Header().Set("Content-Type", "application/json")
-		status := r.URL.Query().Get("status")
-		statuses = append(statuses, status)
+		status = r.URL.Query().Get("status")
 		_ = json.NewEncoder(w).Encode(Page[DownloadTask]{
-			Items: []DownloadTask{downloadTaskFixture("task-"+status, status)},
+			Items: []DownloadTask{downloadTaskFixture("task-assigned", "assigned")},
 		})
 	}))
 	defer server.Close()
@@ -76,21 +76,25 @@ func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sort.Strings(statuses)
-	expected := []string{"assigned", "downloading", "interrupted", "uploading"}
-	if !reflect.DeepEqual(statuses, expected) {
-		t.Fatalf("expected runnable statuses %v, got %v", expected, statuses)
+	if requests != 1 {
+		t.Fatalf("expected one request, got %d", requests)
 	}
-	if len(tasks) != 4 {
-		t.Fatalf("expected four tasks, got %d", len(tasks))
+	expected := "assigned,downloading,interrupted,uploading"
+	if status != expected {
+		t.Fatalf("expected status query %q, got %q", expected, status)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected one task, got %d", len(tasks))
 	}
 }
 
 func TestAssignedControlTasksFetchesControlStatuses(t *testing.T) {
-	var statuses []string
+	var status string
+	var requests int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
 		w.Header().Set("Content-Type", "application/json")
-		statuses = append(statuses, r.URL.Query().Get("status"))
+		status = r.URL.Query().Get("status")
 		_ = json.NewEncoder(w).Encode(Page[DownloadTask]{Items: []DownloadTask{}})
 	}))
 	defer server.Close()
@@ -98,10 +102,12 @@ func TestAssignedControlTasksFetchesControlStatuses(t *testing.T) {
 	if _, err := mustClient(t, server.URL, "token").AssignedControlTasks(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	sort.Strings(statuses)
-	expected := []string{"canceling", "pausing", "suspended"}
-	if !reflect.DeepEqual(statuses, expected) {
-		t.Fatalf("expected control statuses %v, got %v", expected, statuses)
+	if requests != 1 {
+		t.Fatalf("expected one request, got %d", requests)
+	}
+	expected := "pausing,canceling,suspended"
+	if status != expected {
+		t.Fatalf("expected status query %q, got %q", expected, status)
 	}
 }
 

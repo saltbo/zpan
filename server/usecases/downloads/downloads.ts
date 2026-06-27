@@ -2,6 +2,7 @@ import type {
   CreateDownloaderInput,
   CreateDownloadTaskInput,
   DownloaderHeartbeatInput,
+  DownloaderHeartbeatResult,
   DownloadTaskActionInput,
   UpdateDownloaderCreditBillingInput,
   UpdateDownloaderInput,
@@ -14,7 +15,6 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import { hasFeature } from '../../domain/licensing'
 import type { Platform } from '../../platform/interface'
 import type {
-  DownloaderRecord,
   DownloaderRepo,
   DownloadTaskRecord,
   DownloadTaskRepo,
@@ -45,8 +45,11 @@ export type DownloadsDeps = {
 
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
 const UPLOAD_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
-const DOWNLOADER_HEARTBEAT_LEASE_MS = 30_000
+const DOWNLOADER_HEARTBEAT_LEASE_MS = 90_000
 const QUEUE_ASSIGN_BATCH = 20
+const CONTROL_TASK_PAGE_SIZE = 100
+const DOWNLOADER_ACTIVE_NEXT_POLL_SECONDS = 5
+const DOWNLOADER_IDLE_NEXT_POLL_SECONDS = 60
 
 const PAUSABLE_TASK_STATUSES = ['queued', 'assigned', 'downloading'] as const
 const CANCELABLE_TASK_STATUSES = [
@@ -179,13 +182,48 @@ export async function deleteDownloader(deps: DownloadsDeps, id: string): Promise
 
 export async function recordDownloaderHeartbeat(
   deps: DownloadsDeps,
+  platform: Platform,
   downloaderId: string,
   heartbeat: DownloaderHeartbeatInput,
-): Promise<Downloader> {
+): Promise<DownloaderHeartbeatResult> {
   const downloader = await deps.downloaders.getRecord(downloaderId) // throws not_found
-  await deps.downloaders.recordHeartbeat(downloaderId, heartbeat, downloader.enabled, new Date())
-  await assignQueuedTasks(deps)
-  return deps.downloaders.get(downloaderId)
+  const now = new Date()
+  await deps.downloaders.recordHeartbeat(downloaderId, heartbeat, downloader.enabled, now)
+  await recoverStaleDownloaderAssignments(deps)
+  if (downloader.enabled) {
+    await claimQueuedTasksForDownloader(deps, {
+      id: downloaderId,
+      capabilities: heartbeat.capabilities,
+      freeSlots: Math.max(0, heartbeat.maxConcurrentTasks - heartbeat.currentTasks),
+      now,
+    })
+  }
+  const [updated, assignments, controls] = await Promise.all([
+    deps.downloaders.get(downloaderId),
+    listDownloadTasks(deps, platform, {
+      downloaderId,
+      statuses: ['assigned', 'downloading', 'interrupted', 'uploading'],
+      page: 1,
+      pageSize: Math.max(heartbeat.maxConcurrentTasks, heartbeat.currentTasks, 1),
+      includeUploadToken: true,
+    }),
+    listDownloadTasks(deps, platform, {
+      downloaderId,
+      statuses: ['pausing', 'canceling', 'suspended'],
+      page: 1,
+      pageSize: CONTROL_TASK_PAGE_SIZE,
+      includeUploadToken: true,
+    }),
+  ])
+  return {
+    ...updated,
+    assignments: assignments.items,
+    controls: controls.items,
+    nextPollAfterSeconds:
+      assignments.items.length > 0 || controls.items.length > 0 || heartbeat.currentTasks > 0
+        ? DOWNLOADER_ACTIVE_NEXT_POLL_SECONDS
+        : DOWNLOADER_IDLE_NEXT_POLL_SECONDS,
+  }
 }
 
 // ─── Download task CRUD ──────────────────────────────────────────────────────
@@ -198,8 +236,6 @@ export async function createDownloadTask(
 ): Promise<DownloadTask> {
   const now = new Date()
   const id = nanoid()
-  await recoverStaleDownloaderAssignments(deps)
-  const assigned = await selectDownloader(deps, input.source.type)
   await deps.downloadTasks.insert({
     id,
     orgId,
@@ -210,9 +246,9 @@ export async function createDownloadTask(
     targetFolder: input.targetFolder,
     category: input.category ?? null,
     tags: input.tags ?? [],
-    assignedDownloaderId: assigned?.id ?? null,
-    status: assigned ? 'assigned' : 'queued',
-    assignedAt: assigned ? now : null,
+    assignedDownloaderId: null,
+    status: 'queued',
+    assignedAt: null,
     now,
   })
   return deps.downloadTasks.get(orgId, id)
@@ -437,7 +473,6 @@ export async function performDownloadTaskAction(
       runtime: clearTaskRuntimeMessageJson(task.runtime),
       updatedAt: now,
     })
-    await assignQueuedTasks(deps)
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -476,7 +511,6 @@ export async function performDownloadTaskAction(
       finishedAt: null,
       updatedAt: now,
     })
-    await assignQueuedTasks(deps)
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -501,7 +535,6 @@ export async function performDownloadTaskAction(
       finishedAt: null,
       updatedAt: now,
     })
-    await assignQueuedTasks(deps)
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -520,27 +553,23 @@ export async function assertTaskUploadAllowed(
 
 // ─── Assignment / recovery ───────────────────────────────────────────────────
 
-async function assignQueuedTasks(deps: DownloadsDeps): Promise<void> {
-  await recoverStaleDownloaderAssignments(deps)
+async function claimQueuedTasksForDownloader(
+  deps: DownloadsDeps,
+  params: { id: string; capabilities: string[]; freeSlots: number; now: Date },
+): Promise<void> {
+  if (params.freeSlots <= 0) return
   const tasks = await deps.downloadTasks.listQueued(QUEUE_ASSIGN_BATCH)
+  let remaining = params.freeSlots
   for (const task of tasks) {
-    const downloader = await selectDownloader(deps, task.sourceType)
-    if (!downloader) continue
-    const now = new Date()
-    await deps.downloadTasks.setFields(task.id, {
-      status: 'assigned',
-      assignedDownloaderId: downloader.id,
-      assignedAt: now,
-      updatedAt: now,
-    })
+    if (remaining <= 0) break
+    if (!canDownloaderRunSource(params.capabilities, task.sourceType)) continue
+    if (await deps.downloadTasks.claimQueued(task.id, params.id, params.now)) remaining -= 1
   }
 }
 
-async function selectDownloader(deps: DownloadsDeps, sourceType: string): Promise<DownloaderRecord | null> {
+function canDownloaderRunSource(capabilities: string[], sourceType: string): boolean {
   const needed = sourceType === 'http' ? ['http'] : ['magnet', 'torrent']
-  const leaseCutoff = new Date(Date.now() - DOWNLOADER_HEARTBEAT_LEASE_MS)
-  const candidates = await deps.downloaders.listAssignmentCandidates(leaseCutoff)
-  return candidates.find((c) => needed.some((capability) => c.capabilities.includes(capability))) ?? null
+  return needed.some((capability) => capabilities.includes(capability))
 }
 
 async function recoverStaleDownloaderAssignments(deps: DownloadsDeps): Promise<void> {

@@ -201,6 +201,48 @@ func (e DownloaderStatus) Valid() bool {
 	}
 }
 
+// Defines values for DownloaderHeartbeatResultEngine.
+const (
+	DownloaderHeartbeatResultEngineAria2       DownloaderHeartbeatResultEngine = "aria2"
+	DownloaderHeartbeatResultEngineBuiltin     DownloaderHeartbeatResultEngine = "builtin"
+	DownloaderHeartbeatResultEngineQbittorrent DownloaderHeartbeatResultEngine = "qbittorrent"
+)
+
+// Valid indicates whether the value is a known member of the DownloaderHeartbeatResultEngine enum.
+func (e DownloaderHeartbeatResultEngine) Valid() bool {
+	switch e {
+	case DownloaderHeartbeatResultEngineAria2:
+		return true
+	case DownloaderHeartbeatResultEngineBuiltin:
+		return true
+	case DownloaderHeartbeatResultEngineQbittorrent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DownloaderHeartbeatResultStatus.
+const (
+	DownloaderHeartbeatResultStatusDisabled DownloaderHeartbeatResultStatus = "disabled"
+	DownloaderHeartbeatResultStatusOffline  DownloaderHeartbeatResultStatus = "offline"
+	DownloaderHeartbeatResultStatusOnline   DownloaderHeartbeatResultStatus = "online"
+)
+
+// Valid indicates whether the value is a known member of the DownloaderHeartbeatResultStatus enum.
+func (e DownloaderHeartbeatResultStatus) Valid() bool {
+	switch e {
+	case DownloaderHeartbeatResultStatusDisabled:
+		return true
+	case DownloaderHeartbeatResultStatusOffline:
+		return true
+	case DownloaderHeartbeatResultStatusOnline:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorInfoType.
 const (
 	TypeGoogleapisComgoogleRpcErrorInfo ErrorInfoType = "type.googleapis.com/google.rpc.ErrorInfo"
@@ -495,54 +537,6 @@ func (e RecordDownloaderHeartbeatJSONBodyEngine) Valid() bool {
 	case RecordDownloaderHeartbeatJSONBodyEngineBuiltin:
 		return true
 	case RecordDownloaderHeartbeatJSONBodyEngineQbittorrent:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListDownloadTasksParamsStatus.
-const (
-	ListDownloadTasksParamsStatusAssigned    ListDownloadTasksParamsStatus = "assigned"
-	ListDownloadTasksParamsStatusCanceled    ListDownloadTasksParamsStatus = "canceled"
-	ListDownloadTasksParamsStatusCanceling   ListDownloadTasksParamsStatus = "canceling"
-	ListDownloadTasksParamsStatusCompleted   ListDownloadTasksParamsStatus = "completed"
-	ListDownloadTasksParamsStatusDownloading ListDownloadTasksParamsStatus = "downloading"
-	ListDownloadTasksParamsStatusFailed      ListDownloadTasksParamsStatus = "failed"
-	ListDownloadTasksParamsStatusInterrupted ListDownloadTasksParamsStatus = "interrupted"
-	ListDownloadTasksParamsStatusPaused      ListDownloadTasksParamsStatus = "paused"
-	ListDownloadTasksParamsStatusPausing     ListDownloadTasksParamsStatus = "pausing"
-	ListDownloadTasksParamsStatusQueued      ListDownloadTasksParamsStatus = "queued"
-	ListDownloadTasksParamsStatusSuspended   ListDownloadTasksParamsStatus = "suspended"
-	ListDownloadTasksParamsStatusUploading   ListDownloadTasksParamsStatus = "uploading"
-)
-
-// Valid indicates whether the value is a known member of the ListDownloadTasksParamsStatus enum.
-func (e ListDownloadTasksParamsStatus) Valid() bool {
-	switch e {
-	case ListDownloadTasksParamsStatusAssigned:
-		return true
-	case ListDownloadTasksParamsStatusCanceled:
-		return true
-	case ListDownloadTasksParamsStatusCanceling:
-		return true
-	case ListDownloadTasksParamsStatusCompleted:
-		return true
-	case ListDownloadTasksParamsStatusDownloading:
-		return true
-	case ListDownloadTasksParamsStatusFailed:
-		return true
-	case ListDownloadTasksParamsStatusInterrupted:
-		return true
-	case ListDownloadTasksParamsStatusPaused:
-		return true
-	case ListDownloadTasksParamsStatusPausing:
-		return true
-	case ListDownloadTasksParamsStatusQueued:
-		return true
-	case ListDownloadTasksParamsStatusSuspended:
-		return true
-	case ListDownloadTasksParamsStatusUploading:
 		return true
 	default:
 		return false
@@ -980,16 +974,16 @@ func (e RevokeShareJSONBodyStatus) Valid() bool {
 
 // Defines values for ListAnnouncementsParamsScope.
 const (
-	Active ListAnnouncementsParamsScope = "active"
-	All    ListAnnouncementsParamsScope = "all"
+	ListAnnouncementsParamsScopeActive ListAnnouncementsParamsScope = "active"
+	ListAnnouncementsParamsScopeAll    ListAnnouncementsParamsScope = "all"
 )
 
 // Valid indicates whether the value is a known member of the ListAnnouncementsParamsScope enum.
 func (e ListAnnouncementsParamsScope) Valid() bool {
 	switch e {
-	case Active:
+	case ListAnnouncementsParamsScopeActive:
 		return true
-	case All:
+	case ListAnnouncementsParamsScopeAll:
 		return true
 	default:
 		return false
@@ -1061,16 +1055,16 @@ func (e UpdateAnnouncementJSONBodyStatus) Valid() bool {
 
 // Defines values for UpsertAuthProviderJSONBodyType.
 const (
-	UpsertAuthProviderJSONBodyTypeBuiltin UpsertAuthProviderJSONBodyType = "builtin"
-	UpsertAuthProviderJSONBodyTypeOidc    UpsertAuthProviderJSONBodyType = "oidc"
+	Builtin UpsertAuthProviderJSONBodyType = "builtin"
+	Oidc    UpsertAuthProviderJSONBodyType = "oidc"
 )
 
 // Valid indicates whether the value is a known member of the UpsertAuthProviderJSONBodyType enum.
 func (e UpsertAuthProviderJSONBodyType) Valid() bool {
 	switch e {
-	case UpsertAuthProviderJSONBodyTypeBuiltin:
+	case Builtin:
 		return true
-	case UpsertAuthProviderJSONBodyTypeOidc:
+	case Oidc:
 		return true
 	default:
 		return false
@@ -1142,13 +1136,13 @@ func (e UpdateStorageJSONBodyStatus) Valid() bool {
 
 // Defines values for CancelOrderJSONBodyStatus.
 const (
-	Canceled CancelOrderJSONBodyStatus = "canceled"
+	CancelOrderJSONBodyStatusCanceled CancelOrderJSONBodyStatus = "canceled"
 )
 
 // Valid indicates whether the value is a known member of the CancelOrderJSONBodyStatus enum.
 func (e CancelOrderJSONBodyStatus) Valid() bool {
 	switch e {
-	case Canceled:
+	case CancelOrderJSONBodyStatusCanceled:
 		return true
 	default:
 		return false
@@ -1596,6 +1590,41 @@ type DownloaderEngine string
 
 // DownloaderStatus defines model for Downloader.Status.
 type DownloaderStatus string
+
+// DownloaderHeartbeatResult defines model for DownloaderHeartbeatResult.
+type DownloaderHeartbeatResult struct {
+	Arch                               string                          `json:"arch"`
+	Assignments                        []DownloadTask                  `json:"assignments"`
+	Capabilities                       []string                        `json:"capabilities"`
+	Controls                           []DownloadTask                  `json:"controls"`
+	CreatedAt                          string                          `json:"createdAt"`
+	CreatedBy                          string                          `json:"createdBy"`
+	CurrentTasks                       int                             `json:"currentTasks"`
+	DownloadBps                        int64                           `json:"downloadBps"`
+	Enabled                            bool                            `json:"enabled"`
+	Engine                             DownloaderHeartbeatResultEngine `json:"engine"`
+	FreeDiskBytes                      int64                           `json:"freeDiskBytes"`
+	Hostname                           string                          `json:"hostname"`
+	Id                                 string                          `json:"id"`
+	LastHeartbeatAt                    *string                         `json:"lastHeartbeatAt"`
+	MaxConcurrentTasks                 int                             `json:"maxConcurrentTasks"`
+	Name                               string                          `json:"name"`
+	NextPollAfterSeconds               int                             `json:"nextPollAfterSeconds"`
+	Platform                           string                          `json:"platform"`
+	RemoteDownloadCreditBillingEnabled bool                            `json:"remoteDownloadCreditBillingEnabled"`
+	RemoteDownloadCreditPerUnit        int                             `json:"remoteDownloadCreditPerUnit"`
+	RemoteDownloadCreditUnitBytes      int                             `json:"remoteDownloadCreditUnitBytes"`
+	Status                             DownloaderHeartbeatResultStatus `json:"status"`
+	UpdatedAt                          string                          `json:"updatedAt"`
+	UploadBps                          int64                           `json:"uploadBps"`
+	Version                            string                          `json:"version"`
+}
+
+// DownloaderHeartbeatResultEngine defines model for DownloaderHeartbeatResult.Engine.
+type DownloaderHeartbeatResultEngine string
+
+// DownloaderHeartbeatResultStatus defines model for DownloaderHeartbeatResult.Status.
+type DownloaderHeartbeatResultStatus string
 
 // DownloaderList defines model for DownloaderList.
 type DownloaderList struct {
@@ -3038,7 +3067,7 @@ type UpdateDownloaderCreditBillingJSONBody struct {
 
 // ListDownloadTasksParams defines parameters for ListDownloadTasks.
 type ListDownloadTasksParams struct {
-	Status     *ListDownloadTasksParamsStatus     `form:"status,omitempty" json:"status,omitempty"`
+	Status     *string                            `form:"status,omitempty" json:"status,omitempty"`
 	AssignedTo *ListDownloadTasksParamsAssignedTo `form:"assignedTo,omitempty" json:"assignedTo,omitempty"`
 	Category   *string                            `form:"category,omitempty" json:"category,omitempty"`
 	Tag        *string                            `form:"tag,omitempty" json:"tag,omitempty"`
@@ -3047,9 +3076,6 @@ type ListDownloadTasksParams struct {
 	Page       *int                               `form:"page,omitempty" json:"page,omitempty"`
 	PageSize   *int                               `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
-
-// ListDownloadTasksParamsStatus defines parameters for ListDownloadTasks.
-type ListDownloadTasksParamsStatus string
 
 // ListDownloadTasksParamsAssignedTo defines parameters for ListDownloadTasks.
 type ListDownloadTasksParamsAssignedTo string
@@ -23499,7 +23525,7 @@ func (r CreateDownloaderResponse) ContentType() string {
 type RecordDownloaderHeartbeatResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *Downloader
+	JSON200      *DownloaderHeartbeatResult
 	JSON401      *Error
 	JSON404      *Error
 }
@@ -23626,6 +23652,7 @@ type ListDownloadTasksResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DownloadTaskPage
+	JSON400      *Error
 	JSON401      *Error
 }
 
@@ -37564,7 +37591,7 @@ func ParseRecordDownloaderHeartbeatResponse(rsp *http.Response) (*RecordDownload
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Downloader
+		var dest DownloaderHeartbeatResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -37715,6 +37742,13 @@ func ParseListDownloadTasksResponse(rsp *http.Response) (*ListDownloadTasksRespo
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error

@@ -215,6 +215,16 @@ export const downloaderSchema = downloaderHeartbeatResponseSchema
 
 export type Downloader = z.infer<typeof downloaderSchema>
 
+export const downloaderHeartbeatResultSchema = downloaderSchema
+  .extend({
+    assignments: z.array(downloadTaskSchema),
+    controls: z.array(downloadTaskSchema),
+    nextPollAfterSeconds: z.number().int().min(1),
+  })
+  .openapi('DownloaderHeartbeatResult')
+
+export type DownloaderHeartbeatResult = z.infer<typeof downloaderHeartbeatResultSchema>
+
 export const downloaderListSchema = z.object({
   items: z.array(downloaderSchema),
   total: z.number().int(),
@@ -315,7 +325,7 @@ export const downloadTaskAttemptSchema = z.object({
 export const downloadTaskSortBySchema = z.enum(['createdAt', 'source', 'category', 'tags', 'status', 'progress', 'eta'])
 
 export const listDownloadTasksQuerySchema = z.object({
-  status: downloadTaskStatusSchema.optional(),
+  status: z.string().optional(),
   assignedTo: z.enum(['me']).optional(),
   category: z.string().trim().min(1).max(120).optional(),
   tag: z.string().trim().min(1).max(80).optional(),

@@ -61,8 +61,7 @@ type transferSpeeds struct {
 }
 
 type apiClient interface {
-	Heartbeat(context.Context, client.Heartbeat) error
-	AssignedControlTasks(context.Context) ([]client.DownloadTask, error)
+	Heartbeat(context.Context, client.Heartbeat) (client.HeartbeatResult, error)
 	AssignedTasks(context.Context) ([]client.DownloadTask, error)
 	SeedingTasks(context.Context) ([]client.DownloadTask, error)
 	UpdateTask(context.Context, string, client.TaskPatch) (client.DownloadTask, error)
@@ -145,16 +144,13 @@ func (w *Worker) Run(ctx context.Context) error {
 	w.restoreRetainedSeeds(runCtx)
 	w.reconcileEngineSeeds(runCtx)
 	w.clearStaleSeedingReports(runCtx)
-	ticker := time.NewTicker(w.cfg.PollInterval)
-	defer ticker.Stop()
+	pollTimer := time.NewTimer(0)
+	defer pollTimer.Stop()
 	seedCleanupTicker := time.NewTicker(time.Minute)
 	defer seedCleanupTicker.Stop()
 	seedReportTicker := time.NewTicker(retainedSeedReportInterval)
 	defer seedReportTicker.Stop()
 
-	if err := w.tick(runCtx); err != nil {
-		w.logger.Error("downloader tick failed", "error", err)
-	}
 	for {
 		select {
 		case <-runCtx.Done():
@@ -167,10 +163,13 @@ func (w *Worker) Run(ctx context.Context) error {
 			}
 			w.logger.Info("downloader stopped", "reason", cause)
 			return nil
-		case <-ticker.C:
-			if err := w.tick(runCtx); err != nil {
+		case <-pollTimer.C:
+			nextPoll, err := w.tickAndNextPoll(runCtx)
+			if err != nil {
 				w.logger.Error("downloader tick failed", "error", err)
+				nextPoll = w.localPollInterval()
 			}
+			pollTimer.Reset(nextPoll)
 		case <-seedCleanupTicker.C:
 			w.cleanupRetainedSeeds(runCtx)
 		case <-seedReportTicker.C:
@@ -182,37 +181,27 @@ func (w *Worker) Run(ctx context.Context) error {
 }
 
 func (w *Worker) tick(ctx context.Context) error {
+	_, err := w.tickAndNextPoll(ctx)
+	return err
+}
+
+func (w *Worker) tickAndNextPoll(ctx context.Context) (time.Duration, error) {
+	var heartbeat client.HeartbeatResult
 	if err := w.callAPI(ctx, "heartbeat", func(ctx context.Context) error {
-		return w.api.Heartbeat(ctx, w.heartbeat())
-	}); err != nil {
-		return err
-	}
-	var controlTasks []client.DownloadTask
-	err := w.callAPI(ctx, "assigned control tasks", func(ctx context.Context) error {
 		var err error
-		controlTasks, err = w.api.AssignedControlTasks(ctx)
+		heartbeat, err = w.api.Heartbeat(ctx, w.heartbeat())
 		return err
-	})
-	if err != nil {
-		return err
+	}); err != nil {
+		return 0, err
 	}
-	for _, task := range controlTasks {
+	for _, task := range heartbeat.Controls {
 		if w.cancelRunning(task) {
 			continue
 		}
 		w.ackStoppedControlTask(ctx, task)
 	}
-	var tasks []client.DownloadTask
-	err = w.callAPI(ctx, "assigned tasks", func(ctx context.Context) error {
-		var err error
-		tasks, err = w.api.AssignedTasks(ctx)
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	w.logger.Debug("poll completed", "assigned_tasks", len(tasks), "running", w.currentTasks())
-	for _, task := range tasks {
+	w.logger.Debug("poll completed", "assigned_tasks", len(heartbeat.Assignments), "control_tasks", len(heartbeat.Controls), "running", w.currentTasks())
+	for _, task := range heartbeat.Assignments {
 		taskLogger := w.taskLogger(task)
 		if task.UploadToken() == "" {
 			taskLogger.Warn("assigned task skipped because upload token is missing")
@@ -225,7 +214,21 @@ func (w *Worker) tick(ctx context.Context) error {
 		}
 		go w.process(taskCtx, task)
 	}
-	return nil
+	return w.remotePollInterval(heartbeat), nil
+}
+
+func (w *Worker) remotePollInterval(heartbeat client.HeartbeatResult) time.Duration {
+	if heartbeat.NextPollAfterSeconds <= 0 {
+		return w.localPollInterval()
+	}
+	return time.Duration(heartbeat.NextPollAfterSeconds) * time.Second
+}
+
+func (w *Worker) localPollInterval() time.Duration {
+	if w.cfg.PollInterval > 0 {
+		return w.cfg.PollInterval
+	}
+	return 5 * time.Second
 }
 
 func (w *Worker) process(ctx context.Context, task client.DownloadTask) {

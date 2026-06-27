@@ -17,8 +17,35 @@ import {
   performDownloadTaskAction,
   updateDownloadTask,
 } from '../../usecases/downloads/downloads'
-import { unauthorized } from '../../usecases/ports'
+import { badRequest, unauthorized } from '../../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
+
+const downloadTaskStatuses = new Set([
+  'queued',
+  'assigned',
+  'downloading',
+  'suspended',
+  'pausing',
+  'paused',
+  'interrupted',
+  'uploading',
+  'canceling',
+  'completed',
+  'failed',
+  'canceled',
+])
+
+function parseStatuses(value: string | undefined): string[] | undefined {
+  if (!value) return undefined
+  const requested = value
+    .split(',')
+    .map((status) => status.trim())
+    .filter(Boolean)
+  if (requested.length === 0) return undefined
+  const invalid = requested.filter((status) => !downloadTaskStatuses.has(status))
+  if (invalid.length > 0) throw badRequest('Invalid task status', 'INVALID_STATUS')
+  return requested
+}
 
 // Every task operation surfaces the same DownloadError-based failure model. The
 // usecases throw it; the global onError converts it (not_found→404, forbidden→403,
@@ -41,6 +68,7 @@ const listRoute = createRoute({
   request: { query: listDownloadTasksQuerySchema },
   responses: {
     200: jsonContent(downloadTaskPageSchema, 'Download tasks'),
+    400: errorResponse('Invalid query'),
     401: errorResponse('Unauthorized'),
   },
 })
@@ -133,11 +161,13 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
     const principal = c.get('principal')
     const query = c.req.valid('query')
+    const statuses = parseStatuses(query.status)
     if (query.assignedTo === 'me') {
       if (principal?.kind !== 'downloader') throw unauthorized()
       const result = await listDownloadTasks(c.get('deps'), c.get('platform'), {
         downloaderId: principal.downloaderId,
-        status: query.status,
+        status: statuses?.length === 1 ? statuses[0] : undefined,
+        statuses,
         category: query.category,
         tag: query.tag,
         sortBy: query.sortBy,
@@ -153,7 +183,8 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     if (!orgId) throw unauthorized()
     const result = await listDownloadTasks(c.get('deps'), c.get('platform'), {
       orgId,
-      status: query.status,
+      status: statuses?.length === 1 ? statuses[0] : undefined,
+      statuses,
       category: query.category,
       tag: query.tag,
       sortBy: query.sortBy,

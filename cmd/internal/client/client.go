@@ -12,9 +12,8 @@ import (
 )
 
 type Client struct {
-	baseURL string
-	token   string
-	api     *openapi.ClientWithResponses
+	token string
+	api   *openapi.ClientWithResponses
 }
 
 type Page[T any] struct {
@@ -209,6 +208,12 @@ type Heartbeat struct {
 	FreeDiskBytes      int64    `json:"freeDiskBytes"`
 }
 
+type HeartbeatResult struct {
+	Assignments          []DownloadTask
+	Controls             []DownloadTask
+	NextPollAfterSeconds int
+}
+
 type TaskPatch struct {
 	Status         string                     `json:"status,omitempty"`
 	Progress       *DownloadTaskProgressPatch `json:"progress,omitempty"`
@@ -287,65 +292,77 @@ func New(baseURL, token string) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		baseURL: baseURL,
-		token:   token,
-		api:     api,
+		token: token,
+		api:   api,
 	}, nil
 }
 
-func (c *Client) Heartbeat(ctx context.Context, heartbeat Heartbeat) error {
+func (c *Client) Heartbeat(ctx context.Context, heartbeat Heartbeat) (HeartbeatResult, error) {
 	res, err := c.api.RecordDownloaderHeartbeatWithResponse(ctx, heartbeatRequestBody(heartbeat), bearer(c.token))
 	if err != nil {
-		return err
+		return HeartbeatResult{}, err
 	}
-	return expectStatus("POST", "/api/downloads/downloaders/me/heartbeats", res.StatusCode(), res.Body, http.StatusOK)
+	if err := expectStatus("POST", "/api/downloads/downloaders/me/heartbeats", res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		return HeartbeatResult{}, err
+	}
+	if res.JSON200 == nil {
+		return HeartbeatResult{}, fmt.Errorf("POST /api/downloads/downloaders/me/heartbeats failed: empty response")
+	}
+	assignments, err := downloadTasksFromOpenAPI(res.JSON200.Assignments)
+	if err != nil {
+		return HeartbeatResult{}, fmt.Errorf("POST /api/downloads/downloaders/me/heartbeats failed: %w", err)
+	}
+	controls, err := downloadTasksFromOpenAPI(res.JSON200.Controls)
+	if err != nil {
+		return HeartbeatResult{}, fmt.Errorf("POST /api/downloads/downloaders/me/heartbeats failed: %w", err)
+	}
+	return HeartbeatResult{
+		Assignments:          assignments,
+		Controls:             controls,
+		NextPollAfterSeconds: res.JSON200.NextPollAfterSeconds,
+	}, nil
 }
 
 func (c *Client) AssignedTasks(ctx context.Context) ([]DownloadTask, error) {
-	return c.assignedTasks(ctx, []openapi.ListDownloadTasksParamsStatus{
-		openapi.ListDownloadTasksParamsStatusAssigned,
-		openapi.ListDownloadTasksParamsStatusDownloading,
-		openapi.ListDownloadTasksParamsStatusInterrupted,
-		openapi.ListDownloadTasksParamsStatusUploading,
+	return c.assignedTasksByStatuses(ctx, []string{
+		"assigned",
+		"downloading",
+		"interrupted",
+		"uploading",
 	})
 }
 
 func (c *Client) AssignedControlTasks(ctx context.Context) ([]DownloadTask, error) {
-	return c.assignedTasks(ctx, []openapi.ListDownloadTasksParamsStatus{
-		openapi.ListDownloadTasksParamsStatusPausing,
-		openapi.ListDownloadTasksParamsStatusCanceling,
-		openapi.ListDownloadTasksParamsStatusSuspended,
+	return c.assignedTasksByStatuses(ctx, []string{
+		"pausing",
+		"canceling",
+		"suspended",
 	})
 }
 
-func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.ListDownloadTasksParamsStatus) ([]DownloadTask, error) {
-	tasks := make([]DownloadTask, 0)
-	for _, status := range statuses {
-		page := 1
-		pageSize := 20
-		assignedTo := openapi.Me
-		res, err := c.api.ListDownloadTasksWithResponse(ctx, &openapi.ListDownloadTasksParams{
-			AssignedTo: &assignedTo,
-			Status:     &status,
-			Page:       &page,
-			PageSize:   &pageSize,
-		}, bearer(c.token))
-		if err != nil {
-			return nil, err
-		}
-		if err := expectStatus("GET", "/api/downloads/tasks", res.StatusCode(), res.Body, http.StatusOK); err != nil {
-			return nil, err
-		}
-		if res.JSON200 == nil {
-			return nil, fmt.Errorf("GET /api/downloads/tasks failed: empty response")
-		}
-		for _, item := range res.JSON200.Items {
-			task, err := downloadTaskFromOpenAPI(item)
-			if err != nil {
-				return nil, fmt.Errorf("GET /api/downloads/tasks failed: %w", err)
-			}
-			tasks = append(tasks, task)
-		}
+func (c *Client) assignedTasksByStatuses(ctx context.Context, statuses []string) ([]DownloadTask, error) {
+	page := 1
+	pageSize := 100
+	assignedTo := openapi.Me
+	status := strings.Join(statuses, ",")
+	res, err := c.api.ListDownloadTasksWithResponse(ctx, &openapi.ListDownloadTasksParams{
+		AssignedTo: &assignedTo,
+		Status:     &status,
+		Page:       &page,
+		PageSize:   &pageSize,
+	}, bearer(c.token))
+	if err != nil {
+		return nil, err
+	}
+	if err := expectStatus("GET", "/api/downloads/tasks", res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, fmt.Errorf("GET /api/downloads/tasks failed: empty response")
+	}
+	tasks, err := downloadTasksFromOpenAPI(res.JSON200.Items)
+	if err != nil {
+		return nil, fmt.Errorf("GET /api/downloads/tasks failed: %w", err)
 	}
 	return tasks, nil
 }
@@ -356,7 +373,7 @@ func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.ListDownl
 func (c *Client) SeedingTasks(ctx context.Context) ([]DownloadTask, error) {
 	seeding := make([]DownloadTask, 0)
 	assignedTo := openapi.Me
-	status := openapi.ListDownloadTasksParamsStatusCompleted
+	status := "completed"
 	pageSize := 100
 	for page := 1; page <= 20; page++ {
 		pageNum := page
@@ -524,6 +541,18 @@ func downloadTaskFromOpenAPI(value any) (DownloadTask, error) {
 		return DownloadTask{}, err
 	}
 	return task, nil
+}
+
+func downloadTasksFromOpenAPI(values any) ([]DownloadTask, error) {
+	data, err := json.Marshal(values)
+	if err != nil {
+		return nil, err
+	}
+	var tasks []DownloadTask
+	if err := json.Unmarshal(data, &tasks); err != nil {
+		return nil, err
+	}
+	return tasks, nil
 }
 
 func (c *Client) UpdateTask(ctx context.Context, id string, patch TaskPatch) (DownloadTask, error) {

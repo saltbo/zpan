@@ -164,7 +164,8 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
       const conditions: SQL[] = []
       if (filters.orgId) conditions.push(eq(downloadTasks.orgId, filters.orgId))
       if (filters.downloaderId) conditions.push(eq(downloadTasks.assignedDownloaderId, filters.downloaderId))
-      if (filters.status) conditions.push(eq(downloadTasks.status, filters.status))
+      if (filters.statuses?.length) conditions.push(inArray(downloadTasks.status, filters.statuses))
+      else if (filters.status) conditions.push(eq(downloadTasks.status, filters.status))
       if (filters.category) conditions.push(eq(downloadTasks.category, filters.category))
       if (filters.tag) conditions.push(like(downloadTasks.tags, `%${JSON.stringify(filters.tag)}%`))
       const where = conditions.length ? and(...conditions) : undefined
@@ -208,6 +209,17 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
 
     async setFields(id, fields: UpdateDownloadTaskFields) {
       await db.update(downloadTasks).set(fields).where(eq(downloadTasks.id, id))
+    },
+
+    async claimQueued(id, downloaderId, now) {
+      const rows = await db
+        .update(downloadTasks)
+        .set({ status: 'assigned', assignedDownloaderId: downloaderId, assignedAt: now, updatedAt: now })
+        .where(
+          and(eq(downloadTasks.id, id), eq(downloadTasks.status, 'queued'), isNull(downloadTasks.assignedDownloaderId)),
+        )
+        .returning({ id: downloadTasks.id })
+      return rows.length > 0
     },
 
     async delete(id) {

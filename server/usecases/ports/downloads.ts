@@ -122,6 +122,7 @@ export interface ListDownloadTasksFilters {
   orgId?: string
   downloaderId?: string
   status?: string
+  statuses?: string[]
   category?: string
   tag?: string
   sortBy?: 'createdAt' | 'source' | 'category' | 'tags' | 'status' | 'progress' | 'eta'
@@ -181,6 +182,7 @@ export interface DownloadTaskRepo {
   getRecord(orgId: string, id: string): Promise<DownloadTaskRecord>
   findRecord(id: string): Promise<DownloadTaskRecord | null>
   setFields(id: string, fields: UpdateDownloadTaskFields): Promise<void>
+  claimQueued(id: string, downloaderId: string, now: Date): Promise<boolean>
   delete(id: string): Promise<void>
   /** Oldest queued tasks awaiting assignment. */
   listQueued(limit: number): Promise<DownloadTaskRecord[]>

@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   createDownloaderResponseSchema,
   createDownloaderSchema,
+  downloaderHeartbeatResultSchema,
   downloaderHeartbeatSchema,
   downloaderSchema,
   pageSchema,
@@ -107,7 +108,7 @@ const heartbeatRoute = createRoute({
   middleware: [requireDownloader] as const,
   request: jsonBody(downloaderHeartbeatSchema),
   responses: {
-    200: jsonContent(downloaderSchema, 'Updated downloader'),
+    200: jsonContent(downloaderHeartbeatResultSchema, 'Updated downloader and task commands'),
     401: errorResponse('Unauthorized'),
     404: errorResponse('Not found'),
   },
@@ -164,7 +165,10 @@ const downloadersRoute = new OpenAPIHono<Env>()
 export const downloaderSelfRoute = new OpenAPIHono<Env>().openapi(heartbeatRoute, async (c) => {
   const principal = c.get('principal')
   if (principal?.kind !== 'downloader') throw unauthorized()
-  return c.json(await recordDownloaderHeartbeat(c.get('deps'), principal.downloaderId, c.req.valid('json')), 200)
+  return c.json(
+    await recordDownloaderHeartbeat(c.get('deps'), c.get('platform'), principal.downloaderId, c.req.valid('json')),
+    200,
+  )
 })
 
 export default downloadersRoute
