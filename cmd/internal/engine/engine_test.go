@@ -132,15 +132,17 @@ func TestAria2DelegatesHTTPToBuiltin(t *testing.T) {
 	}
 }
 
-func TestAria2StartArgsForceSaveCompletedSeeds(t *testing.T) {
+func TestAria2StartArgsSaveSessionWithoutAutoRestore(t *testing.T) {
 	stateDir := t.TempDir()
 	args, err := (Aria2{Dir: t.TempDir(), StateDir: stateDir, ListenPort: 51413}).startArgs("6800")
 	if err != nil {
 		t.Fatal(err)
 	}
 	joined := strings.Join(args, "\n")
+	if strings.Contains(joined, "--input-file=") {
+		t.Fatalf("aria2 must not auto-restore old session tasks, got %v", args)
+	}
 	for _, expected := range []string{
-		"--input-file=" + filepath.Join(stateDir, "aria2.session"),
 		"--save-session=" + filepath.Join(stateDir, "aria2.session"),
 		"--save-session-interval=30",
 		"--force-save=true",
@@ -239,8 +241,8 @@ func TestIsAria2RPCDisconnectedNilSafe(t *testing.T) {
 }
 
 func TestShouldAttachExistingAria2Task(t *testing.T) {
-	// 'interrupted' (how restart resumes a task) must attach to the session-
-	// restored download rather than re-add (which duplicates + orphans it).
+	// 'interrupted' (how restart resumes a task) must attach to an existing
+	// engine task when one is still present rather than re-add it.
 	for _, state := range []string{"downloading", "uploading", "interrupted"} {
 		if !shouldAttachExistingAria2Task(client.DownloadTask{Status: client.DownloadTaskStatus{State: state}}) {
 			t.Fatalf("expected to attach for state %q", state)

@@ -190,7 +190,6 @@ func (a Aria2) startArgs(rpcPort string) ([]string, error) {
 		}
 		_ = file.Close()
 		args = append(args,
-			"--input-file="+sessionPath,
 			"--save-session="+sessionPath,
 			"--save-session-interval=30",
 			"--force-save=true",
