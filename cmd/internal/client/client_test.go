@@ -105,30 +105,30 @@ func TestHeartbeatUsesGeneratedRequestShape(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"id":                                "downloader-1",
-			"name":                              "node-a",
-			"engine":                            "http",
-			"status":                            "online",
-			"enabled":                           true,
-			"version":                           "v1",
-			"hostname":                          "host-a",
-			"platform":                          "darwin",
-			"arch":                              "arm64",
-			"capabilities":                      []string{"http"},
-			"maxConcurrentTasks":                2,
-			"currentTasks":                      1,
-			"downloadBps":                       100,
-			"uploadBps":                         20,
-			"freeDiskBytes":                     4096,
+			"id":                                 "downloader-1",
+			"name":                               "node-a",
+			"engine":                             "http",
+			"status":                             "online",
+			"enabled":                            true,
+			"version":                            "v1",
+			"hostname":                           "host-a",
+			"platform":                           "darwin",
+			"arch":                               "arm64",
+			"capabilities":                       []string{"http"},
+			"maxConcurrentTasks":                 2,
+			"currentTasks":                       1,
+			"downloadBps":                        100,
+			"uploadBps":                          20,
+			"freeDiskBytes":                      4096,
 			"remoteDownloadCreditBillingEnabled": false,
 			"remoteDownloadCreditPerUnit":        0,
 			"remoteDownloadCreditUnitBytes":      0,
-			"createdAt":                         "2026-01-01T00:00:00Z",
-			"createdBy":                         "user-1",
-			"updatedAt":                         "2026-01-01T00:00:00Z",
-			"nextPollAfterSeconds":              7,
-			"assignments":                       []DownloadTask{downloadTaskFixture("task-assigned", "assigned")},
-			"controls":                          []DownloadTask{downloadTaskFixture("task-pausing", "pausing")},
+			"createdAt":                          "2026-01-01T00:00:00Z",
+			"createdBy":                          "user-1",
+			"updatedAt":                          "2026-01-01T00:00:00Z",
+			"nextPollAfterSeconds":               7,
+			"assignments":                        []DownloadTask{downloadTaskFixture("task-assigned", "assigned")},
+			"controls":                           []DownloadTask{downloadTaskFixture("task-pausing", "pausing")},
 		})
 	}))
 	defer server.Close()
@@ -279,12 +279,12 @@ func TestDeviceAuthClientMethods(t *testing.T) {
 				t.Fatal(err)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"device_code":              "device-1",
-				"user_code":                "ABCD-EFGH",
-				"verification_uri":         "https://zpan.test/device",
+				"device_code":               "device-1",
+				"user_code":                 "ABCD-EFGH",
+				"verification_uri":          "https://zpan.test/device",
 				"verification_uri_complete": "https://zpan.test/device?user_code=ABCD-EFGH",
-				"expires_in":               600,
-				"interval":                 5,
+				"expires_in":                600,
+				"interval":                  5,
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/auth/device/token":
 			if err := json.NewDecoder(r.Body).Decode(&tokenBody); err != nil {
