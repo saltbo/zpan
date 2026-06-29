@@ -332,6 +332,19 @@ func (c *Client) AssignedTasks(ctx context.Context) ([]DownloadTask, error) {
 	})
 }
 
+func (c *Client) LocalResultTasks(ctx context.Context) ([]DownloadTask, error) {
+	return c.assignedTasksByStatuses(ctx, []string{
+		"assigned",
+		"downloading",
+		"interrupted",
+		"uploading",
+		"pausing",
+		"paused",
+		"suspended",
+		"failed",
+	})
+}
+
 func (c *Client) AssignedControlTasks(ctx context.Context) ([]DownloadTask, error) {
 	return c.assignedTasksByStatuses(ctx, []string{
 		"pausing",

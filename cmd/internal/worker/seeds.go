@@ -361,9 +361,22 @@ func (w *Worker) cleanupRetainedSeeds(ctx context.Context) {
 		}
 	}
 
+	var protected map[string]struct{}
+	var protectedOK bool
 	for _, seed := range seeds {
 		reason := reasons[seed.taskID]
 		if reason == "" {
+			continue
+		}
+		if protected == nil {
+			protected, protectedOK = w.localResultTaskIDs(ctx)
+		}
+		if !protectedOK {
+			w.logger.Debug("skipping retained seed cleanup because task state is unavailable", "task_id", seed.taskID, "reason", reason)
+			continue
+		}
+		if _, ok := protected[seed.taskID]; ok {
+			w.logger.Debug("skipping retained seed cleanup for incomplete task", "task_id", seed.taskID, "reason", reason)
 			continue
 		}
 		w.cleanupRetainedSeed(ctx, seed, reason)
@@ -415,20 +428,20 @@ func (w *Worker) runningTaskIDs() map[string]struct{} {
 	return ids
 }
 
-// assignedSeedTaskIDs lists tasks the server still considers assigned to us and
-// unfinished, so the seed reconciler won't adopt a download the task loop hasn't
-// uploaded yet. A fetch error returns an empty set (reconcile as before).
-func (w *Worker) assignedSeedTaskIDs(ctx context.Context) map[string]struct{} {
+// localResultTaskIDs lists tasks whose local completed download may still be
+// needed by this downloader, so seed cleanup cannot delete it before retrying
+// an upload failure or resuming a paused/suspended upload.
+func (w *Worker) localResultTaskIDs(ctx context.Context) (map[string]struct{}, bool) {
 	ids := map[string]struct{}{}
-	tasks, err := w.api.AssignedTasks(ctx)
+	tasks, err := w.api.LocalResultTasks(ctx)
 	if err != nil {
-		w.logger.Warn("failed to list assigned tasks for seed reconciliation", "error", err)
-		return ids
+		w.logger.Warn("failed to list local-result tasks for seed reconciliation", "error", err)
+		return ids, false
 	}
 	for _, task := range tasks {
 		ids[task.ID] = struct{}{}
 	}
-	return ids
+	return ids, true
 }
 
 // reconcileEngineSeeds adopts torrents the engine is still seeding but the
@@ -480,11 +493,14 @@ func (w *Worker) reconcileEngineSeeds(ctx context.Context) {
 	if len(candidates) == 0 {
 		return
 	}
-	assigned := w.assignedSeedTaskIDs(ctx)
+	protected, ok := w.localResultTaskIDs(ctx)
+	if !ok {
+		return
+	}
 	var adopted []retainedSeed
 	for _, seed := range candidates {
 		taskID := filepath.Base(seed.Path)
-		if _, ok := assigned[taskID]; ok {
+		if _, ok := protected[taskID]; ok {
 			continue
 		}
 		size, err := directorySize(seed.Path)

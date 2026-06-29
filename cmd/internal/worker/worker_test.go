@@ -408,7 +408,38 @@ func TestCleanupRetainedSeedReportsStopped(t *testing.T) {
 	}
 }
 
-func TestReconcileEngineSeedsDoesNotFetchAssignedTasksWithoutLocalSeeds(t *testing.T) {
+func TestCleanupRetainedSeedsKeepsFailedUploadLocalResult(t *testing.T) {
+	api := &recordingAPI{localResultTasks: []client.DownloadTask{clientTaskWithStatus("task-1", "failed")}}
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedCacheLimit: 1}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.engine = &recordingEngine{}
+	cleaned := false
+	seedDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(seedDir, "payload.bin"), []byte("downloaded payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w.retainedSeeds = []retainedSeed{{
+		taskID:     "task-1",
+		engine:     "aria2",
+		path:       seedDir,
+		retainedAt: time.Now().Add(-time.Hour),
+		cleanup:    func(context.Context) error { cleaned = true; return nil },
+	}}
+
+	w.cleanupRetainedSeeds(context.Background())
+
+	if cleaned {
+		t.Fatal("expected failed upload local result to be kept for retry")
+	}
+	if len(w.retainedSeedSnapshot()) != 1 {
+		t.Fatalf("expected retained seed to remain tracked, got %d", len(w.retainedSeedSnapshot()))
+	}
+	if api.localResultTasksCalls != 1 {
+		t.Fatalf("expected local-result task lookup, got %d", api.localResultTasksCalls)
+	}
+}
+
+func TestReconcileEngineSeedsDoesNotFetchLocalResultTasksWithoutLocalSeeds(t *testing.T) {
 	api := &recordingAPI{}
 	w := NewWithAPI(config.Config{SeedEnabled: true}, api)
 	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -416,8 +447,8 @@ func TestReconcileEngineSeedsDoesNotFetchAssignedTasksWithoutLocalSeeds(t *testi
 
 	w.reconcileEngineSeeds(context.Background())
 
-	if api.assignedTasksCalls != 0 {
-		t.Fatalf("expected no assigned-task fetch without local seeds, got %d", api.assignedTasksCalls)
+	if api.localResultTasksCalls != 0 {
+		t.Fatalf("expected no local-result task fetch without local seeds, got %d", api.localResultTasksCalls)
 	}
 }
 
@@ -433,7 +464,8 @@ func TestReconcileEngineSeedsAdoptsUntrackedOrphans(t *testing.T) {
 	trackedDir := filepath.Join(root, "tracked-task")
 	runningDir := filepath.Join(root, "running-task")
 	assignedDir := filepath.Join(root, "assigned-task")
-	for _, dir := range []string{trackedDir, runningDir, assignedDir} {
+	failedDir := filepath.Join(root, "failed-task")
+	for _, dir := range []string{trackedDir, runningDir, assignedDir, failedDir} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -444,11 +476,15 @@ func TestReconcileEngineSeedsAdoptsUntrackedOrphans(t *testing.T) {
 		{Engine: "aria2", ID: "g2", InfoHash: "BBBB", Path: trackedDir},
 		{Engine: "aria2", ID: "g3", InfoHash: "CCCC", Path: runningDir},
 		{Engine: "aria2", ID: "g4", InfoHash: "DDDD", Path: assignedDir},
+		{Engine: "aria2", ID: "g5", InfoHash: "EEEE", Path: failedDir},
 	}}
 	// 'assigned-task' is still assigned/unfinished — it auto-seeds but hasn't been
 	// uploaded yet, so the reconciler must NOT adopt it as a done seed.
 	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour}, &recordingAPI{
-		assignedTasks: []client.DownloadTask{{ID: "assigned-task"}},
+		localResultTasks: []client.DownloadTask{
+			clientTaskWithStatus("assigned-task", "assigned"),
+			clientTaskWithStatus("failed-task", "failed"),
+		},
 	})
 	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	w.engine = eng
@@ -460,6 +496,9 @@ func TestReconcileEngineSeedsAdoptsUntrackedOrphans(t *testing.T) {
 	for _, seed := range w.retainedSeedSnapshot() {
 		if seed.taskID == "assigned-task" {
 			t.Fatal("expected an assigned (not-yet-uploaded) task's seed to be skipped, not adopted")
+		}
+		if seed.taskID == "failed-task" {
+			t.Fatal("expected a failed upload task's seed to be skipped, not adopted")
 		}
 	}
 
@@ -1976,17 +2015,19 @@ func (e *recordingEngine) Download(ctx context.Context, task client.DownloadTask
 }
 
 type recordingAPI struct {
-	patches              []client.TaskPatch
-	patchedIDs           []string
-	seedingTasks         []client.DownloadTask
-	controlTasks         []client.DownloadTask
-	assignedTasks        []client.DownloadTask
-	assignedTasksCalls   int
-	nextPollAfterSeconds int
-	suspendDownloading   bool
-	createFolderErr      error
-	createObjectDraft    client.ObjectDraft
-	completeErrs         []error
+	patches               []client.TaskPatch
+	patchedIDs            []string
+	seedingTasks          []client.DownloadTask
+	controlTasks          []client.DownloadTask
+	assignedTasks         []client.DownloadTask
+	localResultTasks      []client.DownloadTask
+	assignedTasksCalls    int
+	localResultTasksCalls int
+	nextPollAfterSeconds  int
+	suspendDownloading    bool
+	createFolderErr       error
+	createObjectDraft     client.ObjectDraft
+	completeErrs          []error
 }
 
 func (a *recordingAPI) Heartbeat(context.Context, client.Heartbeat) (client.HeartbeatResult, error) {
@@ -2000,6 +2041,11 @@ func (a *recordingAPI) Heartbeat(context.Context, client.Heartbeat) (client.Hear
 func (a *recordingAPI) AssignedTasks(context.Context) ([]client.DownloadTask, error) {
 	a.assignedTasksCalls++
 	return a.assignedTasks, nil
+}
+
+func (a *recordingAPI) LocalResultTasks(context.Context) ([]client.DownloadTask, error) {
+	a.localResultTasksCalls++
+	return a.localResultTasks, nil
 }
 
 func (a *recordingAPI) SeedingTasks(context.Context) ([]client.DownloadTask, error) {

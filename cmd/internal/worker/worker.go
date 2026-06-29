@@ -63,6 +63,7 @@ type transferSpeeds struct {
 type apiClient interface {
 	Heartbeat(context.Context, client.Heartbeat) (client.HeartbeatResult, error)
 	AssignedTasks(context.Context) ([]client.DownloadTask, error)
+	LocalResultTasks(context.Context) ([]client.DownloadTask, error)
 	SeedingTasks(context.Context) ([]client.DownloadTask, error)
 	UpdateTask(context.Context, string, client.TaskPatch) (client.DownloadTask, error)
 	CreateFolder(context.Context, string, string, string) (client.ObjectDraft, error)
