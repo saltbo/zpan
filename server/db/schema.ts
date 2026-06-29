@@ -300,7 +300,7 @@ export const downloaders = sqliteTable(
     hostname: text('hostname').notNull().default('unknown'),
     platform: text('platform').notNull().default('unknown'),
     arch: text('arch').notNull().default('unknown'),
-    engine: text('engine').notNull().default('builtin'),
+    engine: text('engine').notNull().default('http'),
     capabilities: text('capabilities').notNull().default('[]'),
     maxConcurrentTasks: integer('max_concurrent_tasks').notNull().default(1),
     currentTasks: integer('current_tasks').notNull().default(0),

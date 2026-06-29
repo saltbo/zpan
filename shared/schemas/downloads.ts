@@ -2,7 +2,7 @@ import { z } from '@hono/zod-openapi'
 import { isSafeHttpUrl } from '../url-safety'
 
 export const downloaderStatusSchema = z.enum(['online', 'offline', 'disabled'])
-export const downloaderEngineSchema = z.enum(['builtin', 'aria2', 'qbittorrent'])
+export const downloaderEngineSchema = z.enum(['http', 'aria2', 'qbittorrent'])
 export const downloadTaskStatusSchema = z.enum([
   'queued',
   'assigned',

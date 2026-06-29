@@ -35,12 +35,13 @@ jobs:
             echo "$files"
             exit 1
           fi
-      - run: go test ./...
+      - name: Test with coverage threshold
+        run: bash scripts/test-coverage.sh
       - name: Install live downloader engines
         run: sudo apt-get update && sudo apt-get install -y aria2 qbittorrent-nox
         working-directory: .
       - name: Verify live downloads
-        run: LIVE_DOWNLOAD_VERIFY=1 go test ./internal/engine -run 'TestLive(DownloadThreeSourceTypes|QBittorrentDownloadTorrentURL)' -count=1 -v
+        run: LIVE_DOWNLOAD_VERIFY=1 go test ./pkg/downloaders -run 'TestLive(DownloadThreeSourceTypes|QBittorrentDownloadTorrentURL)' -count=1 -v
 
   check:
     name: Typecheck & Test

@@ -13,8 +13,11 @@ import (
 
 	"github.com/saltbo/zpan/internal/client"
 	"github.com/saltbo/zpan/internal/config"
-	"github.com/saltbo/zpan/internal/host"
-	"github.com/saltbo/zpan/internal/worker"
+	"github.com/saltbo/zpan/internal/downloader"
+	_ "github.com/saltbo/zpan/pkg/downloaders/aria2"
+	_ "github.com/saltbo/zpan/pkg/downloaders/httpdl"
+	_ "github.com/saltbo/zpan/pkg/downloaders/qbittorrent"
+	"github.com/saltbo/zpan/pkg/system"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -107,11 +110,11 @@ func upCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 				}
 				cfg.Token = registered.Token
 			}
-			downloader, err := worker.New(cfg)
+			runner, err := downloader.NewTaskRunner(cfg)
 			if err != nil {
 				return err
 			}
-			return downloader.Run(ctx)
+			return runner.Run(ctx)
 		},
 	}
 }
@@ -180,7 +183,7 @@ func saveRegisteredDownloaderConfig(cfg config.Config, cfgFile string, token str
 }
 
 func downloaderName() string {
-	if hostname := host.DownloaderHostname(); hostname != "" {
+	if hostname := system.DownloaderHostname(); hostname != "" {
 		return hostname
 	}
 	return "zpan"
@@ -219,8 +222,8 @@ func isPendingDeviceAuthError(err error) bool {
 func registrationHeartbeat(cfg config.Config) client.Heartbeat {
 	engine := normalizeRegistrationEngine(cfg)
 	return client.Heartbeat{
-		Version:            worker.Version,
-		Hostname:           host.DownloaderHostname(),
+		Version:            downloader.Version,
+		Hostname:           system.DownloaderHostname(),
 		Platform:           runtime.GOOS,
 		Arch:               runtime.GOARCH,
 		Engine:             engine,
@@ -235,7 +238,7 @@ func registrationHeartbeat(cfg config.Config) client.Heartbeat {
 
 func normalizeRegistrationEngine(cfg config.Config) string {
 	switch strings.ToLower(strings.TrimSpace(cfg.Engine)) {
-	case "aria2", "qbittorrent", "builtin":
+	case "aria2", "qbittorrent", "http":
 		return strings.ToLower(strings.TrimSpace(cfg.Engine))
 	}
 	if cfg.Aria2Configured {
@@ -244,22 +247,22 @@ func normalizeRegistrationEngine(cfg config.Config) string {
 	if cfg.QBittorrentConfigured {
 		return "qbittorrent"
 	}
-	return "builtin"
+	return "aria2"
 }
 
 func validateConfiguredEngine(engine string) error {
 	switch strings.ToLower(strings.TrimSpace(engine)) {
-	case "", "auto", "builtin", "aria2", "qbittorrent":
+	case "", "auto", "http", "aria2", "qbittorrent":
 		return nil
 	default:
-		return fmt.Errorf("unsupported downloader engine %q; expected auto, builtin, aria2, or qbittorrent", engine)
+		return fmt.Errorf("unsupported downloader engine %q; expected auto, http, aria2, or qbittorrent", engine)
 	}
 }
 
 func runtimeCapabilities(name string) []string {
 	switch name {
 	case "aria2", "qbittorrent":
-		return []string{"http", "magnet", "torrent"}
+		return []string{"http", "magnet", "torrent", "torrent_url"}
 	default:
 		return []string{"http"}
 	}

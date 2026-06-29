@@ -686,6 +686,14 @@ func (c *Client) AbortObjectUploadSession(ctx context.Context, token string, id 
 	return expectStatus("DELETE", "/api/objects/"+id+"/uploads/"+sessionID, res.StatusCode(), res.Body, http.StatusNoContent)
 }
 
+func (c *Client) DeleteObject(ctx context.Context, token string, id string) error {
+	res, err := c.api.DeleteObjectWithResponse(ctx, id, bearer(token))
+	if err != nil {
+		return err
+	}
+	return expectStatus("DELETE", "/api/objects/"+id, res.StatusCode(), res.Body, http.StatusNoContent)
+}
+
 func derefString(value *string) string {
 	if value == nil {
 		return ""

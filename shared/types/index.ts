@@ -210,7 +210,7 @@ export interface PaginatedResponse<T> {
 }
 
 export type DownloaderStatus = 'online' | 'offline' | 'disabled'
-export type DownloaderEngine = 'builtin' | 'aria2' | 'qbittorrent'
+export type DownloaderEngine = 'http' | 'aria2' | 'qbittorrent'
 
 // `Downloader` is inferred from `downloaderSchema` (the wire contract) in
 // shared/schemas/downloads.ts — one source of truth for the OpenAPI document,

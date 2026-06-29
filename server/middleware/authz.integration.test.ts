@@ -91,7 +91,7 @@ async function registerDownloader(app: TestApp, name: string): Promise<string> {
         hostname: 'host',
         platform: 'linux',
         arch: 'x64',
-        engine: 'builtin',
+        engine: 'http',
         capabilities: [],
         maxConcurrentTasks: 1,
         currentTasks: 0,

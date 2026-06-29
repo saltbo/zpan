@@ -401,7 +401,7 @@ const APP_SCHEMA_SQL = `
     hostname TEXT NOT NULL DEFAULT 'unknown',
     platform TEXT NOT NULL DEFAULT 'unknown',
     arch TEXT NOT NULL DEFAULT 'unknown',
-    engine TEXT NOT NULL DEFAULT 'builtin',
+    engine TEXT NOT NULL DEFAULT 'http',
     capabilities TEXT NOT NULL DEFAULT '[]',
     max_concurrent_tasks INTEGER NOT NULL DEFAULT 1,
     current_tasks INTEGER NOT NULL DEFAULT 0,

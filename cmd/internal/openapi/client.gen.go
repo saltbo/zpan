@@ -63,7 +63,7 @@ func (e DownloadTaskStatusBillingState) Valid() bool {
 // Defines values for DownloadTaskStatusRuntimeEngine.
 const (
 	DownloadTaskStatusRuntimeEngineAria2       DownloadTaskStatusRuntimeEngine = "aria2"
-	DownloadTaskStatusRuntimeEngineBuiltin     DownloadTaskStatusRuntimeEngine = "builtin"
+	DownloadTaskStatusRuntimeEngineHttp        DownloadTaskStatusRuntimeEngine = "http"
 	DownloadTaskStatusRuntimeEngineQbittorrent DownloadTaskStatusRuntimeEngine = "qbittorrent"
 )
 
@@ -72,7 +72,7 @@ func (e DownloadTaskStatusRuntimeEngine) Valid() bool {
 	switch e {
 	case DownloadTaskStatusRuntimeEngineAria2:
 		return true
-	case DownloadTaskStatusRuntimeEngineBuiltin:
+	case DownloadTaskStatusRuntimeEngineHttp:
 		return true
 	case DownloadTaskStatusRuntimeEngineQbittorrent:
 		return true
@@ -162,7 +162,7 @@ func (e DownloadTaskStatusState) Valid() bool {
 // Defines values for DownloaderEngine.
 const (
 	DownloaderEngineAria2       DownloaderEngine = "aria2"
-	DownloaderEngineBuiltin     DownloaderEngine = "builtin"
+	DownloaderEngineHttp        DownloaderEngine = "http"
 	DownloaderEngineQbittorrent DownloaderEngine = "qbittorrent"
 )
 
@@ -171,7 +171,7 @@ func (e DownloaderEngine) Valid() bool {
 	switch e {
 	case DownloaderEngineAria2:
 		return true
-	case DownloaderEngineBuiltin:
+	case DownloaderEngineHttp:
 		return true
 	case DownloaderEngineQbittorrent:
 		return true
@@ -204,7 +204,7 @@ func (e DownloaderStatus) Valid() bool {
 // Defines values for DownloaderHeartbeatResultEngine.
 const (
 	DownloaderHeartbeatResultEngineAria2       DownloaderHeartbeatResultEngine = "aria2"
-	DownloaderHeartbeatResultEngineBuiltin     DownloaderHeartbeatResultEngine = "builtin"
+	DownloaderHeartbeatResultEngineHttp        DownloaderHeartbeatResultEngine = "http"
 	DownloaderHeartbeatResultEngineQbittorrent DownloaderHeartbeatResultEngine = "qbittorrent"
 )
 
@@ -213,7 +213,7 @@ func (e DownloaderHeartbeatResultEngine) Valid() bool {
 	switch e {
 	case DownloaderHeartbeatResultEngineAria2:
 		return true
-	case DownloaderHeartbeatResultEngineBuiltin:
+	case DownloaderHeartbeatResultEngineHttp:
 		return true
 	case DownloaderHeartbeatResultEngineQbittorrent:
 		return true
@@ -504,7 +504,7 @@ func (e CancelBackgroundJobJSONBodyStatus) Valid() bool {
 // Defines values for CreateDownloaderJSONBodyHeartbeatEngine.
 const (
 	CreateDownloaderJSONBodyHeartbeatEngineAria2       CreateDownloaderJSONBodyHeartbeatEngine = "aria2"
-	CreateDownloaderJSONBodyHeartbeatEngineBuiltin     CreateDownloaderJSONBodyHeartbeatEngine = "builtin"
+	CreateDownloaderJSONBodyHeartbeatEngineHttp        CreateDownloaderJSONBodyHeartbeatEngine = "http"
 	CreateDownloaderJSONBodyHeartbeatEngineQbittorrent CreateDownloaderJSONBodyHeartbeatEngine = "qbittorrent"
 )
 
@@ -513,7 +513,7 @@ func (e CreateDownloaderJSONBodyHeartbeatEngine) Valid() bool {
 	switch e {
 	case CreateDownloaderJSONBodyHeartbeatEngineAria2:
 		return true
-	case CreateDownloaderJSONBodyHeartbeatEngineBuiltin:
+	case CreateDownloaderJSONBodyHeartbeatEngineHttp:
 		return true
 	case CreateDownloaderJSONBodyHeartbeatEngineQbittorrent:
 		return true
@@ -525,7 +525,7 @@ func (e CreateDownloaderJSONBodyHeartbeatEngine) Valid() bool {
 // Defines values for RecordDownloaderHeartbeatJSONBodyEngine.
 const (
 	RecordDownloaderHeartbeatJSONBodyEngineAria2       RecordDownloaderHeartbeatJSONBodyEngine = "aria2"
-	RecordDownloaderHeartbeatJSONBodyEngineBuiltin     RecordDownloaderHeartbeatJSONBodyEngine = "builtin"
+	RecordDownloaderHeartbeatJSONBodyEngineHttp        RecordDownloaderHeartbeatJSONBodyEngine = "http"
 	RecordDownloaderHeartbeatJSONBodyEngineQbittorrent RecordDownloaderHeartbeatJSONBodyEngine = "qbittorrent"
 )
 
@@ -534,7 +534,7 @@ func (e RecordDownloaderHeartbeatJSONBodyEngine) Valid() bool {
 	switch e {
 	case RecordDownloaderHeartbeatJSONBodyEngineAria2:
 		return true
-	case RecordDownloaderHeartbeatJSONBodyEngineBuiltin:
+	case RecordDownloaderHeartbeatJSONBodyEngineHttp:
 		return true
 	case RecordDownloaderHeartbeatJSONBodyEngineQbittorrent:
 		return true
@@ -633,7 +633,7 @@ func (e CreateDownloadTaskJSONBodySourceType) Valid() bool {
 // Defines values for UpdateDownloadTaskJSONBodyRuntimeEngine.
 const (
 	UpdateDownloadTaskJSONBodyRuntimeEngineAria2       UpdateDownloadTaskJSONBodyRuntimeEngine = "aria2"
-	UpdateDownloadTaskJSONBodyRuntimeEngineBuiltin     UpdateDownloadTaskJSONBodyRuntimeEngine = "builtin"
+	UpdateDownloadTaskJSONBodyRuntimeEngineHttp        UpdateDownloadTaskJSONBodyRuntimeEngine = "http"
 	UpdateDownloadTaskJSONBodyRuntimeEngineQbittorrent UpdateDownloadTaskJSONBodyRuntimeEngine = "qbittorrent"
 )
 
@@ -642,7 +642,7 @@ func (e UpdateDownloadTaskJSONBodyRuntimeEngine) Valid() bool {
 	switch e {
 	case UpdateDownloadTaskJSONBodyRuntimeEngineAria2:
 		return true
-	case UpdateDownloadTaskJSONBodyRuntimeEngineBuiltin:
+	case UpdateDownloadTaskJSONBodyRuntimeEngineHttp:
 		return true
 	case UpdateDownloadTaskJSONBodyRuntimeEngineQbittorrent:
 		return true
