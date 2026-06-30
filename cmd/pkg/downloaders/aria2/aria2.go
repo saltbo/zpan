@@ -566,7 +566,7 @@ func addAria2Task(ctx context.Context, aria *arigo.Client, task downloader.Downl
 func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task downloader.DownloadTask, taskDir string, gid string, progress downloader.ProgressReporter) (downloader.Result, error) {
 	initialProgress := progress
 	if task.SourceType() != "http" {
-		initialProgress = func(downloader.ProgressUpdate) error { return nil }
+		initialProgress = reportMetadataProgress(progress)
 	}
 	primaryGID := gid
 	status, err := a.waitAria2(ctx, aria, task, primaryGID, initialProgress)
@@ -970,6 +970,19 @@ func (a Aria2) waitAria2(ctx context.Context, aria **arigo.Client, task download
 	}
 }
 
+func reportMetadataProgress(progress downloader.ProgressReporter) downloader.ProgressReporter {
+	return func(update downloader.ProgressUpdate) error {
+		update.Downloaded = 0
+		update.Total = nil
+		update.Bps = 0
+		if update.Runtime != nil {
+			update.Runtime.Phase = "metadata"
+			update.Runtime.ETASeconds = nil
+		}
+		return progress(update)
+	}
+}
+
 func (a Aria2) getAria2Peers(ctx context.Context, aria **arigo.Client, gid string) []arigo.Peer {
 	peers, err := (*aria).GetPeers(gid)
 	if err == nil {
@@ -1028,7 +1041,7 @@ func aria2Detail(status arigo.Status, peers []arigo.Peer, geoIP geoip.Resolver) 
 	uploadBps := int64(status.UploadSpeed)
 	detail := &downloader.TaskRuntime{
 		Engine:      "aria2",
-		Phase:       aria2Phase(string(status.Status), status.FollowedBy),
+		Phase:       aria2Phase(status),
 		State:       string(status.Status),
 		ETASeconds:  aria2ETA(status),
 		Connections: &connections,
@@ -1065,14 +1078,17 @@ func aria2ETA(status arigo.Status) *int64 {
 	return &eta
 }
 
-func aria2Phase(state string, followedBy []string) string {
-	switch state {
+func aria2Phase(status arigo.Status) string {
+	switch string(status.Status) {
 	case string(arigo.StatusWaiting):
-		if len(followedBy) > 0 {
+		if len(status.FollowedBy) > 0 {
 			return "metadata"
 		}
 		return "downloading"
 	case string(arigo.StatusActive):
+		if !hasAria2LocalFile(status.Files) && system.IsAria2MetadataPath(firstAria2FilePath(status.Files)) {
+			return "metadata"
+		}
 		return "downloading"
 	case "complete", string(arigo.StatusCompleted):
 		return "completed"
@@ -1081,6 +1097,13 @@ func aria2Phase(state string, followedBy []string) string {
 	default:
 		return "downloading"
 	}
+}
+
+func firstAria2FilePath(files []arigo.File) string {
+	if len(files) == 0 {
+		return ""
+	}
+	return files[0].Path
 }
 
 func aria2Trackers(announceList [][]string) []downloader.Tracker {

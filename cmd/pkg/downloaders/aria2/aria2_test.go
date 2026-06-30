@@ -342,16 +342,19 @@ func TestAria2StatusMatchingHelpers(t *testing.T) {
 }
 
 func TestAria2RuntimeConversionHelpers(t *testing.T) {
-	if got := aria2Phase(string(arigo.StatusWaiting), []string{"child"}); got != "metadata" {
+	if got := aria2Phase(arigo.Status{Status: arigo.StatusWaiting, FollowedBy: []string{"child"}}); got != "metadata" {
 		t.Fatalf("expected metadata phase, got %s", got)
 	}
-	if got := aria2Phase(string(arigo.StatusWaiting), nil); got != "downloading" {
+	if got := aria2Phase(arigo.Status{Status: arigo.StatusActive, Files: []arigo.File{{Path: "[METADATA]fixture"}}}); got != "metadata" {
+		t.Fatalf("expected active metadata phase, got %s", got)
+	}
+	if got := aria2Phase(arigo.Status{Status: arigo.StatusWaiting}); got != "downloading" {
 		t.Fatalf("expected waiting download phase, got %s", got)
 	}
-	if got := aria2Phase(string(arigo.StatusCompleted), nil); got != "completed" {
+	if got := aria2Phase(arigo.Status{Status: arigo.StatusCompleted}); got != "completed" {
 		t.Fatalf("expected completed phase, got %s", got)
 	}
-	if got := aria2Phase(string(arigo.StatusRemoved), nil); got != "error" {
+	if got := aria2Phase(arigo.Status{Status: arigo.StatusRemoved}); got != "error" {
 		t.Fatalf("expected removed phase error, got %s", got)
 	}
 	if aria2PeerProgress(arigo.Peer{}) != nil {
@@ -382,6 +385,36 @@ func TestAria2RuntimeConversionHelpers(t *testing.T) {
 	}, nil)
 	if len(peers) != 1 || peers[0].Address != "203.0.113.10:6881" || *peers[0].DownloadBps != 10 || *peers[0].UploadBps != 2 {
 		t.Fatalf("unexpected peers: %#v", peers)
+	}
+}
+
+func TestReportMetadataProgressKeepsRuntimeButHidesMetadataBytes(t *testing.T) {
+	total := int64(14151)
+	var got downloader.ProgressUpdate
+	reporter := reportMetadataProgress(func(update downloader.ProgressUpdate) error {
+		got = update
+		return nil
+	})
+
+	err := reporter(downloader.ProgressUpdate{
+		Downloaded: 1024,
+		Total:      &total,
+		Bps:        512,
+		Runtime: &downloader.TaskRuntime{
+			Engine:     "aria2",
+			Phase:      "downloading",
+			ETASeconds: &total,
+			Trackers:   []downloader.Tracker{{URL: "udp://tracker.example:1337/announce"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Downloaded != 0 || got.Total != nil || got.Bps != 0 {
+		t.Fatalf("metadata progress must not expose metadata bytes, got %#v", got)
+	}
+	if got.Runtime == nil || got.Runtime.Phase != "metadata" || got.Runtime.ETASeconds != nil || len(got.Runtime.Trackers) != 1 {
+		t.Fatalf("expected metadata runtime with trackers, got %#v", got.Runtime)
 	}
 }
 
