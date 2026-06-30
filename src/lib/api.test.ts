@@ -75,6 +75,7 @@ import {
   listCloudProducts,
   listCloudStoreTargets,
   listDownloaders,
+  listDownloadTaskEvents,
   listDownloadTasks,
   listIhostApiKeys,
   listIhostImages,
@@ -1144,6 +1145,24 @@ describe('api', () => {
       expect(url).toContain('/api/downloads/tasks/task-1')
       expect(init.method).toBe('PATCH')
       expect(init.body).toBe(JSON.stringify(body))
+    })
+
+    it('lists download task events', async () => {
+      const payload = { items: [{ id: 'event-1', action: 'download_task_created' }] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listDownloadTaskEvents('task-1')
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/downloads/tasks/task-1/events')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws when listing download task events fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(listDownloadTaskEvents('missing')).rejects.toThrow('not found')
     })
 
     it('pauses a download task via PUT /status', async () => {

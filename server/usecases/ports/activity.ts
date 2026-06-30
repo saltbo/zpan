@@ -41,6 +41,14 @@ export interface ListAdminAuditOpts {
   targetType?: string
 }
 
+export interface ListActivityByTargetOpts {
+  orgId: string
+  targetType: string
+  targetId: string
+  page?: number
+  pageSize?: number
+}
+
 export interface ActivityRepo {
   record(event: RecordActivityInput): Promise<void>
   list(
@@ -50,4 +58,7 @@ export interface ActivityRepo {
   listAdminAudit(
     opts: ListAdminAuditOpts,
   ): Promise<{ items: AdminAuditEventWithOrg[]; total: number; page: number; pageSize: number }>
+  listByTarget(
+    opts: ListActivityByTargetOpts,
+  ): Promise<{ items: ActivityEvent[]; total: number; page: number; pageSize: number }>
 }

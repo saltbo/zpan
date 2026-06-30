@@ -5,6 +5,7 @@ import {
   downloadTaskPageSchema,
   downloadTaskSchema,
   downloadTaskStatusUpdateSchema,
+  downloadTaskTimelineSchema,
   listDownloadTasksQuerySchema,
   updateDownloadTaskSchema,
 } from '@shared/schemas'
@@ -13,6 +14,7 @@ import type { Env } from '../../middleware/platform'
 import {
   createDownloadTask,
   getDownloadTask,
+  getDownloadTaskTimeline,
   listDownloadTasks,
   performDownloadTaskAction,
   updateDownloadTask,
@@ -97,6 +99,20 @@ const getRoute = createRoute({
   request: { params: z.object({ id: z.string() }) },
   responses: {
     200: jsonContent(downloadTaskSchema, 'Download task'),
+    ...taskErrorResponses,
+  },
+})
+
+const eventsRoute = createRoute({
+  operationId: 'listDownloadTaskEvents',
+  summary: 'List download task timeline events',
+  tags: ['Download Tasks'],
+  method: 'get',
+  path: '/{id}/events',
+  middleware: [requirePermission('remoteDownload', 'read')] as const,
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    200: jsonContent(downloadTaskTimelineSchema, 'Download task timeline'),
     ...taskErrorResponses,
   },
 })
@@ -205,6 +221,11 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized()
     return c.json(await getDownloadTask(c.get('deps'), orgId, c.req.valid('param').id), 200)
+  })
+  .openapi(eventsRoute, async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) throw unauthorized()
+    return c.json(await getDownloadTaskTimeline(c.get('deps'), orgId, c.req.valid('param').id), 200)
   })
   .openapi(statusRoute, async (c) => {
     const orgId = c.get('orgId')

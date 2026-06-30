@@ -109,6 +109,7 @@ export {
   downloadTaskSchema,
   downloadTaskStatusSchema,
   downloadTaskStatusUpdateSchema,
+  downloadTaskTimelineSchema,
   listDownloadTasksQuerySchema,
   presignObjectUploadPartsSchema,
   updateDownloaderCreditBillingSchema,

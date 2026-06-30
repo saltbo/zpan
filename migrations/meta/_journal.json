@@ -365,6 +365,13 @@
       "when": 1782761700959,
       "tag": "0052_rename-downloader-http-engine",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "6",
+      "when": 1782781065387,
+      "tag": "0053_striped_pride",
+      "breakpoints": true
     }
   ]
 }

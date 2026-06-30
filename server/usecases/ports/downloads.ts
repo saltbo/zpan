@@ -68,6 +68,13 @@ export interface DownloadTaskRecord {
   errorMessage: string | null
   resultObjectId: string | null
   runtime: string | null
+  resolveStartedAt: Date | null
+  resolveCompletedAt: Date | null
+  downloadCompletedAt: Date | null
+  ingestStartedAt: Date | null
+  ingestCompletedAt: Date | null
+  seedingStartedAt: Date | null
+  seedingStoppedAt: Date | null
   createdAt: Date
   updatedAt: Date
   assignedAt: Date | null
@@ -208,6 +215,13 @@ export interface UpdateDownloadTaskFields {
   errorMessage?: string | null
   resultObjectId?: string | null
   runtime?: string | null
+  resolveStartedAt?: Date | null
+  resolveCompletedAt?: Date | null
+  downloadCompletedAt?: Date | null
+  ingestStartedAt?: Date | null
+  ingestCompletedAt?: Date | null
+  seedingStartedAt?: Date | null
+  seedingStoppedAt?: Date | null
   assignedAt?: Date | null
   startedAt?: Date | null
   finishedAt?: Date | null

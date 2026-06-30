@@ -145,6 +145,13 @@ export const downloadTaskSchema = z
           message: z.string().max(1000).nullable(),
         })
         .nullable(),
+      resolveStartedAt: z.string().nullable(),
+      resolveCompletedAt: z.string().nullable(),
+      downloadCompletedAt: z.string().nullable(),
+      ingestStartedAt: z.string().nullable(),
+      ingestCompletedAt: z.string().nullable(),
+      seedingStartedAt: z.string().nullable(),
+      seedingStoppedAt: z.string().nullable(),
       startedAt: z.string().nullable(),
       finishedAt: z.string().nullable(),
       updatedAt: z.string(),
@@ -154,6 +161,30 @@ export const downloadTaskSchema = z
   .openapi('DownloadTask')
 
 export type DownloadTask = z.infer<typeof downloadTaskSchema>
+
+export const downloadTaskTimelineItemSchema = z
+  .object({
+    id: z.string(),
+    taskId: z.string(),
+    time: z.string(),
+    source: z.enum(['task', 'activity']),
+    action: z.string(),
+    title: z.string(),
+    detail: z.string().nullable(),
+    severity: z.enum(['info', 'success', 'warning', 'error']),
+    metadata: z.record(z.string(), z.unknown()).nullable(),
+  })
+  .openapi('DownloadTaskTimelineItem')
+
+export type DownloadTaskTimelineItem = z.infer<typeof downloadTaskTimelineItemSchema>
+
+export const downloadTaskTimelineSchema = z
+  .object({
+    items: z.array(downloadTaskTimelineItemSchema),
+  })
+  .openapi('DownloadTaskTimeline')
+
+export type DownloadTaskTimeline = z.infer<typeof downloadTaskTimelineSchema>
 
 export const downloadTaskPageSchema = z
   .object({

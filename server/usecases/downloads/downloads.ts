@@ -9,12 +9,14 @@ import type {
   UpdateDownloadTaskInput,
 } from '@shared/schemas'
 import { downloadTaskRuntimeSchema } from '@shared/schemas'
-import type { Downloader, DownloadTask, DownloadTaskRuntime } from '@shared/types'
+import type { Downloader, DownloadTask, DownloadTaskRuntime, DownloadTaskTimelineItem } from '@shared/types'
 import { nanoid } from 'nanoid'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import { hasFeature } from '../../domain/licensing'
 import type { Platform } from '../../platform/interface'
 import type {
+  ActivityEvent,
+  ActivityRepo,
   DownloaderRepo,
   DownloadTaskRecord,
   DownloadTaskRepo,
@@ -23,6 +25,7 @@ import type {
   LicensingCloudGateway,
   ListDownloadTasksFilters,
   RemoteDownloadUsageRepo,
+  UpdateDownloadTaskFields,
 } from '../ports'
 import { DownloadError, featureBlocked } from '../ports'
 import { loadBindingState } from '../site/licensing'
@@ -41,6 +44,7 @@ export type DownloadsDeps = {
   licenseBinding: LicenseBindingRepo
   licensingCloud: LicensingCloudGateway
   remoteDownloadUsage: RemoteDownloadUsageRepo
+  activity: ActivityRepo
 }
 
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
@@ -50,6 +54,8 @@ const QUEUE_ASSIGN_BATCH = 20
 const CONTROL_TASK_PAGE_SIZE = 100
 const DOWNLOADER_ACTIVE_NEXT_POLL_SECONDS = 5
 const DOWNLOADER_IDLE_NEXT_POLL_SECONDS = 60
+const DOWNLOAD_TASK_TARGET_TYPE = 'download_task'
+const TASK_EVENT_PAGE_SIZE = 100
 
 const PAUSABLE_TASK_STATUSES = ['queued', 'assigned', 'downloading'] as const
 const CANCELABLE_TASK_STATUSES = [
@@ -88,6 +94,18 @@ const DELETE_DOWNLOADER_REQUEUE_STATUSES = [
   'canceling',
 ]
 const STALE_REQUEUE_STATUSES = ['assigned', 'downloading', 'uploading', 'interrupted']
+const LIFECYCLE_FIELDS = [
+  'resolveStartedAt',
+  'resolveCompletedAt',
+  'downloadCompletedAt',
+  'ingestStartedAt',
+  'ingestCompletedAt',
+  'seedingStartedAt',
+  'seedingStoppedAt',
+] as const
+
+type LifecycleField = (typeof LIFECYCLE_FIELDS)[number]
+type TaskLifecycleFields = Partial<Pick<UpdateDownloadTaskFields, LifecycleField>>
 
 // ─── Downloader registration / admin CRUD ───────────────────────────────────
 
@@ -251,6 +269,17 @@ export async function createDownloadTask(
     assignedAt: null,
     now,
   })
+  await recordTaskActivity(deps, {
+    task: {
+      id,
+      orgId,
+      createdByUserId: userId,
+      displayName: input.name ?? null,
+      sourceUri: input.source.uri,
+    },
+    action: 'download_task_created',
+    metadata: { sourceType: input.source.type, targetFolder: input.targetFolder },
+  })
   return deps.downloadTasks.get(orgId, id)
 }
 
@@ -269,6 +298,25 @@ export async function listDownloadTasks(
 
 export function getDownloadTask(deps: DownloadsDeps, orgId: string, id: string): Promise<DownloadTask> {
   return deps.downloadTasks.get(orgId, id)
+}
+
+export async function getDownloadTaskTimeline(
+  deps: DownloadsDeps,
+  orgId: string,
+  id: string,
+): Promise<{ items: DownloadTaskTimelineItem[] }> {
+  const task = await deps.downloadTasks.getRecord(orgId, id)
+  const activity = await deps.activity.listByTarget({
+    orgId,
+    targetType: DOWNLOAD_TASK_TARGET_TYPE,
+    targetId: id,
+    page: 1,
+    pageSize: TASK_EVENT_PAGE_SIZE,
+  })
+  const activityItems = activity.items.map((event) => activityTimelineItem(task.id, event))
+  const activityActions = new Set(activityItems.map((item) => item.action))
+  const taskItems = taskLifecycleTimelineItems(task).filter((item) => !activityActions.has(item.action))
+  return { items: [...activityItems, ...taskItems].sort((a, b) => Date.parse(b.time) - Date.parse(a.time)) }
 }
 
 export async function updateDownloadTask(
@@ -386,7 +434,8 @@ export async function updateDownloadTask(
   const nextFinishedAt =
     task.finishedAt ?? (input.status !== undefined && ['completed', 'failed', 'canceled'].includes(status) ? now : null)
 
-  await deps.downloadTasks.setFields(id, {
+  const lifecycleFields = taskLifecycleFields(task, currentRuntime, nextRuntime, status, now)
+  const fields = {
     status,
     billingAuthorizedBytes,
     billingChargedBytes,
@@ -398,6 +447,17 @@ export async function updateDownloadTask(
     startedAt: task.startedAt ?? (status === 'downloading' ? now : null),
     finishedAt: nextFinishedAt,
     updatedAt: now,
+    ...lifecycleFields,
+  }
+
+  await deps.downloadTasks.setFields(id, fields)
+  await recordUpdateActivity(deps, task, {
+    input,
+    status,
+    previousStatus: task.status,
+    runtime: nextRuntime,
+    lifecycleFields,
+    billingStatus,
   })
 
   return deps.downloadTasks.get(task.orgId, id)
@@ -442,8 +502,10 @@ export async function performDownloadTaskAction(
         }),
         updatedAt: now,
       })
+      await recordTaskActivity(deps, { task, action: 'download_task_deleted' })
       return { id, deleted: true }
     }
+    await recordTaskActivity(deps, { task, action: 'download_task_deleted' })
     await deps.downloadTasks.delete(id)
     return { id, deleted: true }
   }
@@ -459,6 +521,10 @@ export async function performDownloadTaskAction(
       runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
       updatedAt: now,
     })
+    await recordTaskActivity(deps, {
+      task,
+      action: status === 'pausing' ? 'download_task_pause_requested' : 'download_task_paused',
+    })
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -473,6 +539,7 @@ export async function performDownloadTaskAction(
       runtime: clearTaskRuntimeMessageJson(task.runtime),
       updatedAt: now,
     })
+    await recordTaskActivity(deps, { task, action: 'download_task_resume_requested' })
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -491,6 +558,10 @@ export async function performDownloadTaskAction(
       runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
       finishedAt: status === 'canceled' ? (task.finishedAt ?? now) : task.finishedAt,
       updatedAt: now,
+    })
+    await recordTaskActivity(deps, {
+      task,
+      action: status === 'canceling' ? 'download_task_cancel_requested' : 'download_task_canceled',
     })
     return deps.downloadTasks.get(orgId, id)
   }
@@ -511,6 +582,7 @@ export async function performDownloadTaskAction(
       finishedAt: null,
       updatedAt: now,
     })
+    await recordTaskActivity(deps, { task, action: 'download_task_retry_requested' })
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -535,6 +607,7 @@ export async function performDownloadTaskAction(
       finishedAt: null,
       updatedAt: now,
     })
+    await recordTaskActivity(deps, { task, action: 'download_task_restart_requested' })
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -563,7 +636,14 @@ async function claimQueuedTasksForDownloader(
   for (const task of tasks) {
     if (remaining <= 0) break
     if (!canDownloaderRunSource(params.capabilities, task.sourceType)) continue
-    if (await deps.downloadTasks.claimQueued(task.id, params.id, params.now)) remaining -= 1
+    if (await deps.downloadTasks.claimQueued(task.id, params.id, params.now)) {
+      remaining -= 1
+      await recordTaskActivity(deps, {
+        task,
+        action: 'download_task_assigned',
+        metadata: { downloaderId: params.id },
+      })
+    }
   }
 }
 
@@ -584,14 +664,47 @@ async function recoverStaleDownloaderAssignments(deps: DownloadsDeps): Promise<v
   await deps.downloadTasks.clearStaleSeedingRuntime(leaseCutoff, now)
   const unreachableIds = await deps.downloaders.listUnreachableIds(leaseCutoff)
   if (unreachableIds.length > 0) {
+    const controls = await listTasksForDownloaders(deps, unreachableIds, ['canceling', 'pausing'])
     await deps.downloadTasks.resolveControlAssignedToMany(unreachableIds, now)
+    await Promise.all(
+      controls.map((task) =>
+        recordTaskActivity(deps, {
+          task,
+          action: 'download_stale_control_resolved',
+          metadata: { previousStatus: task.status, downloaderId: task.assignedDownloaderId },
+        }),
+      ),
+    )
   }
   // Requeue in-flight work and flip status to offline only on the online→offline
   // transition, so already-handled tasks are not re-queued repeatedly.
   const staleIds = await deps.downloaders.listStaleIds(leaseCutoff)
   if (staleIds.length === 0) return
+  const requeued = await listTasksForDownloaders(deps, staleIds, STALE_REQUEUE_STATUSES)
   await deps.downloadTasks.requeueAssignedToMany(staleIds, STALE_REQUEUE_STATUSES, now)
   await deps.downloaders.markStaleOffline(staleIds, now)
+  await Promise.all(
+    requeued.map((task) =>
+      recordTaskActivity(deps, {
+        task,
+        action: 'download_stale_requeued',
+        metadata: { previousStatus: task.status, downloaderId: task.assignedDownloaderId },
+      }),
+    ),
+  )
+}
+
+async function listTasksForDownloaders(
+  deps: DownloadsDeps,
+  downloaderIds: string[],
+  statuses: readonly string[],
+): Promise<DownloadTaskRecord[]> {
+  const pages = await Promise.all(
+    downloaderIds.map((downloaderId) =>
+      deps.downloadTasks.list({ downloaderId, statuses: [...statuses], page: 1, pageSize: CONTROL_TASK_PAGE_SIZE }),
+    ),
+  )
+  return pages.flatMap((page) => page.rows)
 }
 
 // ─── Upload-token minting ────────────────────────────────────────────────────
@@ -728,6 +841,256 @@ function clearTaskRuntimeMessage(runtime: DownloadTaskRuntime | null): DownloadT
   return Object.keys(rest).length > 0 ? rest : null
 }
 
+function taskLifecycleFields(
+  task: DownloadTaskRecord,
+  current: DownloadTaskRuntime | null,
+  next: DownloadTaskRuntime | null,
+  status: string,
+  now: Date,
+): TaskLifecycleFields {
+  const fields: TaskLifecycleFields = {}
+  const currentPhase = current?.phase
+  const nextPhase = next?.phase
+
+  if (!task.resolveStartedAt && nextPhase === 'metadata') fields.resolveStartedAt = now
+  if (!task.resolveCompletedAt && currentPhase === 'metadata' && nextPhase && nextPhase !== 'metadata') {
+    fields.resolveCompletedAt = now
+  }
+  if (!task.downloadCompletedAt && (status === 'uploading' || status === 'completed' || nextPhase === 'uploading')) {
+    fields.downloadCompletedAt = now
+  }
+  if (!task.ingestStartedAt && (status === 'uploading' || nextPhase === 'uploading')) fields.ingestStartedAt = now
+  if (!task.ingestCompletedAt && status === 'completed') fields.ingestCompletedAt = now
+  if (!task.seedingStartedAt && nextPhase === 'seeding') fields.seedingStartedAt = now
+  if (!task.seedingStoppedAt && currentPhase === 'seeding' && nextPhase && nextPhase !== 'seeding') {
+    fields.seedingStoppedAt = now
+  }
+  return fields
+}
+
+async function recordUpdateActivity(
+  deps: DownloadsDeps,
+  task: DownloadTaskRecord,
+  params: {
+    input: UpdateDownloadTaskInput
+    status: string
+    previousStatus: string
+    runtime: DownloadTaskRuntime | null
+    lifecycleFields: TaskLifecycleFields
+    billingStatus: string
+  },
+): Promise<void> {
+  for (const field of LIFECYCLE_FIELDS) {
+    if (!params.lifecycleFields[field]) continue
+    await recordTaskActivity(deps, {
+      task,
+      action: lifecycleAction(field),
+      metadata: runtimeMetadata(params.runtime),
+    })
+  }
+
+  if (params.previousStatus !== params.status) {
+    await recordTaskActivity(deps, {
+      task,
+      action: statusAction(params.status),
+      metadata: {
+        from: params.previousStatus,
+        to: params.status,
+        ...runtimeMetadata(params.runtime),
+      },
+    })
+  }
+
+  if (params.input.errorMessage) {
+    await recordTaskActivity(deps, {
+      task,
+      action: 'download_task_error',
+      metadata: { message: params.input.errorMessage },
+    })
+  }
+
+  if (params.billingStatus === 'insufficient_credits' && task.billingStatus !== 'insufficient_credits') {
+    await recordTaskActivity(deps, {
+      task,
+      action: 'download_task_billing_suspended',
+      metadata: { reason: 'insufficient_credits' },
+    })
+  }
+}
+
+function lifecycleAction(field: LifecycleField): string {
+  if (field === 'resolveStartedAt') return 'download_resolve_started'
+  if (field === 'resolveCompletedAt') return 'download_resolve_completed'
+  if (field === 'downloadCompletedAt') return 'download_completed'
+  if (field === 'ingestStartedAt') return 'download_ingest_started'
+  if (field === 'ingestCompletedAt') return 'download_ingest_completed'
+  if (field === 'seedingStartedAt') return 'download_seeding_started'
+  return 'download_seeding_stopped'
+}
+
+function statusAction(status: string): string {
+  if (status === 'downloading') return 'download_task_started'
+  if (status === 'uploading') return 'download_task_ingesting'
+  if (status === 'completed') return 'download_task_completed'
+  if (status === 'failed') return 'download_task_failed'
+  if (status === 'canceled') return 'download_task_canceled'
+  if (status === 'suspended') return 'download_task_suspended'
+  if (status === 'paused') return 'download_task_paused'
+  if (status === 'pausing') return 'download_task_pause_requested'
+  if (status === 'canceling') return 'download_task_cancel_requested'
+  if (status === 'queued') return 'download_task_queued'
+  if (status === 'assigned') return 'download_task_assigned'
+  return `download_task_${status}`
+}
+
+async function recordTaskActivity(
+  deps: DownloadsDeps,
+  input: {
+    task: Pick<DownloadTaskRecord, 'id' | 'orgId' | 'createdByUserId' | 'displayName' | 'sourceUri'>
+    action: string
+    metadata?: Record<string, unknown>
+  },
+): Promise<void> {
+  await deps.activity.record({
+    orgId: input.task.orgId,
+    userId: input.task.createdByUserId,
+    action: input.action,
+    targetType: DOWNLOAD_TASK_TARGET_TYPE,
+    targetId: input.task.id,
+    targetName: taskTargetName(input.task),
+    metadata: input.metadata,
+  })
+}
+
+function taskTargetName(task: Pick<DownloadTaskRecord, 'displayName' | 'sourceUri'>): string {
+  return task.displayName || task.sourceUri
+}
+
+function runtimeMetadata(runtime: DownloadTaskRuntime | null): Record<string, unknown> {
+  return {
+    ...(runtime?.engine ? { engine: runtime.engine } : {}),
+    ...(runtime?.phase ? { phase: runtime.phase } : {}),
+    ...(runtime?.state ? { engineState: runtime.state } : {}),
+    ...(runtime?.torrent?.infoHash ? { infoHash: runtime.torrent.infoHash } : {}),
+    ...(runtime?.trackers ? { trackerCount: runtime.trackers.length } : {}),
+    ...(runtime?.torrent?.seeders !== undefined ? { seeders: runtime.torrent.seeders } : {}),
+    ...(runtime?.torrent?.peers !== undefined ? { peers: runtime.torrent.peers } : {}),
+  }
+}
+
+function taskLifecycleTimelineItems(task: DownloadTaskRecord): DownloadTaskTimelineItem[] {
+  const items = [
+    lifecycleTimelineItem(task, 'download_task_created', task.createdAt),
+    task.assignedAt && lifecycleTimelineItem(task, 'download_task_assigned', task.assignedAt),
+    task.startedAt && lifecycleTimelineItem(task, 'download_task_started', task.startedAt),
+    task.resolveStartedAt && lifecycleTimelineItem(task, 'download_resolve_started', task.resolveStartedAt),
+    task.resolveCompletedAt && lifecycleTimelineItem(task, 'download_resolve_completed', task.resolveCompletedAt),
+    task.downloadCompletedAt && lifecycleTimelineItem(task, 'download_completed', task.downloadCompletedAt),
+    task.ingestStartedAt && lifecycleTimelineItem(task, 'download_ingest_started', task.ingestStartedAt),
+    task.ingestCompletedAt && lifecycleTimelineItem(task, 'download_ingest_completed', task.ingestCompletedAt),
+    task.seedingStartedAt && lifecycleTimelineItem(task, 'download_seeding_started', task.seedingStartedAt),
+    task.seedingStoppedAt && lifecycleTimelineItem(task, 'download_seeding_stopped', task.seedingStoppedAt),
+    task.finishedAt && lifecycleTimelineItem(task, statusAction(task.status), task.finishedAt),
+  ].filter(Boolean) as DownloadTaskTimelineItem[]
+  return items
+}
+
+function lifecycleTimelineItem(task: DownloadTaskRecord, action: string, time: Date): DownloadTaskTimelineItem {
+  return {
+    id: `task:${action}:${time.getTime()}`,
+    taskId: task.id,
+    time: time.toISOString(),
+    source: 'task',
+    action,
+    title: actionTitle(action),
+    detail: null,
+    severity: actionSeverity(action),
+    metadata: null,
+  }
+}
+
+function activityTimelineItem(taskId: string, event: ActivityEvent): DownloadTaskTimelineItem {
+  const metadata = parseActivityMetadata(event.metadata)
+  return {
+    id: event.id,
+    taskId,
+    time: event.createdAt.toISOString(),
+    source: 'activity',
+    action: event.action,
+    title: actionTitle(event.action),
+    detail: actionDetail(metadata),
+    severity: actionSeverity(event.action),
+    metadata,
+  }
+}
+
+function parseActivityMetadata(value: string | null): Record<string, unknown> | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+function actionTitle(action: string): string {
+  const titles: Record<string, string> = {
+    download_task_created: 'Task created',
+    download_task_assigned: 'Assigned to downloader',
+    download_task_queued: 'Queued',
+    download_task_started: 'Download started',
+    download_task_ingesting: 'Ingesting',
+    download_task_completed: 'Task completed',
+    download_task_failed: 'Task failed',
+    download_task_canceled: 'Task canceled',
+    download_task_suspended: 'Task suspended',
+    download_task_paused: 'Task paused',
+    download_task_pause_requested: 'Pause requested',
+    download_task_resume_requested: 'Resume requested',
+    download_task_cancel_requested: 'Cancel requested',
+    download_task_retry_requested: 'Retry requested',
+    download_task_restart_requested: 'Restart requested',
+    download_task_deleted: 'Task deleted',
+    download_task_error: 'Error reported',
+    download_task_billing_suspended: 'Billing suspended',
+    download_resolve_started: 'Resolving source',
+    download_resolve_completed: 'Source resolved',
+    download_completed: 'Download completed',
+    download_ingest_started: 'Ingest started',
+    download_ingest_completed: 'Ingest completed',
+    download_seeding_started: 'Seeding started',
+    download_seeding_stopped: 'Seeding stopped',
+    download_stale_requeued: 'Requeued after downloader went offline',
+    download_stale_control_resolved: 'Resolved after downloader went offline',
+  }
+  return titles[action] ?? action.replace(/_/g, ' ')
+}
+
+function actionDetail(metadata: Record<string, unknown> | null): string | null {
+  if (!metadata) return null
+  if (typeof metadata.message === 'string') return metadata.message
+  if (typeof metadata.reason === 'string') return metadata.reason
+  const parts = [
+    typeof metadata.engine === 'string' ? metadata.engine : null,
+    typeof metadata.phase === 'string' ? metadata.phase : null,
+    typeof metadata.infoHash === 'string' ? `infoHash ${metadata.infoHash}` : null,
+    typeof metadata.trackerCount === 'number' ? `${metadata.trackerCount} trackers` : null,
+    typeof metadata.seeders === 'number' ? `${metadata.seeders} seeders` : null,
+    typeof metadata.peers === 'number' ? `${metadata.peers} peers` : null,
+  ].filter(Boolean)
+  if (parts.length > 0) return parts.join(' · ')
+  if (typeof metadata.from === 'string' && typeof metadata.to === 'string') return `${metadata.from} -> ${metadata.to}`
+  return null
+}
+
+function actionSeverity(action: string): DownloadTaskTimelineItem['severity'] {
+  if (action.includes('failed') || action.includes('error')) return 'error'
+  if (action.includes('suspended') || action.includes('offline')) return 'warning'
+  if (action.includes('completed')) return 'success'
+  return 'info'
+}
+
 function downloadTaskFromRecord(row: DownloadTaskRecord): DownloadTask {
   const runtime = parseTaskRuntime(row.runtime)
   return {
@@ -767,6 +1130,13 @@ function downloadTaskFromRecord(row: DownloadTaskRecord): DownloadTask {
       output: row.resultObjectId ? { objectId: row.resultObjectId } : null,
       runtime,
       error: row.errorMessage ? { code: row.errorCode, message: row.errorMessage } : null,
+      resolveStartedAt: row.resolveStartedAt?.toISOString() ?? null,
+      resolveCompletedAt: row.resolveCompletedAt?.toISOString() ?? null,
+      downloadCompletedAt: row.downloadCompletedAt?.toISOString() ?? null,
+      ingestStartedAt: row.ingestStartedAt?.toISOString() ?? null,
+      ingestCompletedAt: row.ingestCompletedAt?.toISOString() ?? null,
+      seedingStartedAt: row.seedingStartedAt?.toISOString() ?? null,
+      seedingStoppedAt: row.seedingStoppedAt?.toISOString() ?? null,
       startedAt: row.startedAt?.toISOString() ?? null,
       finishedAt: row.finishedAt?.toISOString() ?? null,
       updatedAt: row.updatedAt.toISOString(),

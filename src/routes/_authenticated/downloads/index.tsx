@@ -1,5 +1,11 @@
 import { DirType } from '@shared/constants'
-import type { DownloadTask, DownloadTaskAction, DownloadTaskStatus, StorageObject } from '@shared/types'
+import type {
+  DownloadTask,
+  DownloadTaskAction,
+  DownloadTaskStatus,
+  DownloadTaskTimelineItem,
+  StorageObject,
+} from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
@@ -28,6 +34,7 @@ import {
   FolderInput,
   Gauge,
   GripVertical,
+  History,
   Home,
   LinkIcon,
   Magnet,
@@ -84,7 +91,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
-import { createDownloadTask, listDownloadTasks, runDownloadTaskAction } from '@/lib/api'
+import { createDownloadTask, listDownloadTaskEvents, listDownloadTasks, runDownloadTaskAction } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/downloads/')({
@@ -110,7 +117,7 @@ const STATUS_FILTERS: Array<{ value: DownloadTaskStatus | 'all'; labelKey: strin
 ]
 type DownloadTaskDisplayStatus = DownloadTaskStatus | 'seeding'
 type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['status']['runtime']>['phase']>
-type DetailTab = 'overview' | 'trackers' | 'peers' | 'files' | 'log'
+type DetailTab = 'overview' | 'trackers' | 'peers' | 'files' | 'events'
 type PanelDragState = { startY: number; startDetailHeight: number; containerHeight: number }
 type PendingTaskAction = { tasks: DownloadTask[]; action: DownloadTaskAction }
 type DetailTableColumn<T> = {
@@ -145,7 +152,7 @@ const DETAIL_TABS: Array<{ id: DetailTab; labelKey: string; icon: ReactNode }> =
   { id: 'trackers', labelKey: 'downloads.detail.tabs.trackers', icon: <RadioTower className="size-4" /> },
   { id: 'peers', labelKey: 'downloads.detail.tabs.peers', icon: <Users className="size-4" /> },
   { id: 'files', labelKey: 'downloads.detail.tabs.files', icon: <FileDown className="size-4" /> },
-  { id: 'log', labelKey: 'downloads.detail.tabs.log', icon: <AlertCircle className="size-4" /> },
+  { id: 'events', labelKey: 'downloads.detail.tabs.events', icon: <History className="size-4" /> },
 ]
 
 function DownloadsPage() {
@@ -1430,7 +1437,7 @@ function DownloadInspector({
         {tab === 'trackers' && <TrackersPanel task={task} />}
         {tab === 'peers' && <PeersPanel task={task} />}
         {tab === 'files' && <FilesPanel task={task} />}
-        {tab === 'log' && <LogPanel task={task} />}
+        {tab === 'events' && <EventsPanel task={task} />}
       </div>
     </div>
   )
@@ -1862,83 +1869,57 @@ function countryCodeToFlag(countryCode: string) {
   return String.fromCodePoint(...[...countryCode].map((char) => char.charCodeAt(0) + regionalIndicatorOffset))
 }
 
-function LogPanel({ task }: { task: DownloadTask }) {
+function EventsPanel({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
-  const detail = task.status.runtime
-  const events = [
-    {
-      id: 'created',
-      tone: 'neutral',
-      time: formatDate(task.createdAt),
-      title: t('downloads.detail.createdAt'),
-      detail: sourceUri(task),
-    },
-    task.status.startedAt && {
-      id: 'started',
-      tone: 'active',
-      time: formatDate(task.status.startedAt),
-      title: t('downloads.detail.startedAt'),
-      detail: [detail?.engine, formatPhase(detail?.phase, t)].filter(Boolean).join(' · '),
-    },
-    detail?.message && {
-      id: 'runtime-message',
-      tone: 'warning',
-      time: formatDate(detail.updatedAt),
-      title: t('downloads.detail.statusMessage'),
-      detail: detail.message,
-    },
-    task.status.error?.message && {
-      id: 'error',
-      tone: 'error',
-      time: formatDate(task.status.updatedAt),
-      title: t('downloads.detail.errorMessage'),
-      detail: task.status.error.message,
-    },
-    task.status.finishedAt && {
-      id: 'finished',
-      tone: task.status.state === 'completed' ? 'success' : 'neutral',
-      time: formatDate(task.status.finishedAt),
-      title: t('downloads.detail.finishedAt'),
-      detail: t(`downloads.status.${task.status.state}`),
-    },
-  ].filter(Boolean) as Array<{
-    id: string
-    tone: 'active' | 'error' | 'neutral' | 'success' | 'warning'
-    time: string
-    title: string
-    detail: string
-  }>
-
-  const timelineEvents = [...events].reverse()
+  const eventsQuery = useQuery({
+    queryKey: ['download-task-events', task.id],
+    queryFn: () => listDownloadTaskEvents(task.id),
+  })
+  const events = eventsQuery.data?.items ?? []
 
   return (
     <div className="space-y-0 text-xs">
-      {timelineEvents.map((event, index) => (
+      {events.map((event, index) => (
         <div key={event.id} className="grid grid-cols-[1.25rem_1fr] gap-2">
           <div className="relative flex justify-center">
-            <span className={cn('mt-1.5 size-2 rounded-full', logEventDotClass(event.tone))} />
-            {index < timelineEvents.length - 1 && <span className="absolute top-4 bottom-0 w-px bg-border" />}
+            <span className={cn('mt-1.5 size-2 rounded-full', eventDotClass(event.severity))} />
+            {index < events.length - 1 && <span className="absolute top-4 bottom-0 w-px bg-border" />}
           </div>
           <div className="min-w-0 pb-3">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="font-mono text-[11px] text-muted-foreground">{event.time}</span>
-              <span className="font-medium">{event.title}</span>
+              <span className="font-mono text-[11px] text-muted-foreground">{formatDate(event.time)}</span>
+              <span className="font-medium">{timelineTitle(event, t)}</span>
             </div>
-            {event.detail && <div className="mt-0.5 break-words text-muted-foreground">{event.detail}</div>}
+            {timelineDetail(event, t) && (
+              <div className="mt-0.5 break-words text-muted-foreground">{timelineDetail(event, t)}</div>
+            )}
           </div>
         </div>
       ))}
-      {events.length === 0 && <EmptyPanel text={t('downloads.detail.noLog')} />}
+      {eventsQuery.isLoading && <EmptyPanel text={t('downloads.detail.eventsLoading')} />}
+      {!eventsQuery.isLoading && events.length === 0 && <EmptyPanel text={t('downloads.detail.noEvents')} />}
     </div>
   )
 }
 
-function logEventDotClass(tone: 'active' | 'error' | 'neutral' | 'success' | 'warning') {
-  if (tone === 'active') return 'bg-sky-500'
-  if (tone === 'error') return 'bg-destructive'
-  if (tone === 'success') return 'bg-emerald-500'
-  if (tone === 'warning') return 'bg-amber-500'
+function eventDotClass(severity: DownloadTaskTimelineItem['severity']) {
+  if (severity === 'error') return 'bg-destructive'
+  if (severity === 'success') return 'bg-emerald-500'
+  if (severity === 'warning') return 'bg-amber-500'
   return 'bg-muted-foreground/50'
+}
+
+function timelineTitle(event: DownloadTaskTimelineItem, t: ReturnType<typeof useTranslation>['t']) {
+  const key = `downloads.events.${event.action}`
+  const translated = t(key)
+  return translated === key ? event.title : translated
+}
+
+function timelineDetail(event: DownloadTaskTimelineItem, t: ReturnType<typeof useTranslation>['t']) {
+  if (event.action === 'download_task_started' && typeof event.metadata?.phase === 'string') {
+    return formatPhase(event.metadata.phase as DownloadTaskPhase, t)
+  }
+  return event.detail
 }
 
 function SourceIcon({ type }: { type: DownloadTask['spec']['source']['type'] }) {

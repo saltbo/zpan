@@ -159,6 +159,48 @@ func (e DownloadTaskStatusState) Valid() bool {
 	}
 }
 
+// Defines values for DownloadTaskTimelineItemSeverity.
+const (
+	DownloadTaskTimelineItemSeverityError   DownloadTaskTimelineItemSeverity = "error"
+	DownloadTaskTimelineItemSeverityInfo    DownloadTaskTimelineItemSeverity = "info"
+	DownloadTaskTimelineItemSeveritySuccess DownloadTaskTimelineItemSeverity = "success"
+	DownloadTaskTimelineItemSeverityWarning DownloadTaskTimelineItemSeverity = "warning"
+)
+
+// Valid indicates whether the value is a known member of the DownloadTaskTimelineItemSeverity enum.
+func (e DownloadTaskTimelineItemSeverity) Valid() bool {
+	switch e {
+	case DownloadTaskTimelineItemSeverityError:
+		return true
+	case DownloadTaskTimelineItemSeverityInfo:
+		return true
+	case DownloadTaskTimelineItemSeveritySuccess:
+		return true
+	case DownloadTaskTimelineItemSeverityWarning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DownloadTaskTimelineItemSource.
+const (
+	Activity DownloadTaskTimelineItemSource = "activity"
+	Task     DownloadTaskTimelineItemSource = "task"
+)
+
+// Valid indicates whether the value is a known member of the DownloadTaskTimelineItemSource enum.
+func (e DownloadTaskTimelineItemSource) Valid() bool {
+	switch e {
+	case Activity:
+		return true
+	case Task:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DownloaderEngine.
 const (
 	DownloaderEngineAria2       DownloaderEngine = "aria2"
@@ -1136,13 +1178,13 @@ func (e UpdateStorageJSONBodyStatus) Valid() bool {
 
 // Defines values for CancelOrderJSONBodyStatus.
 const (
-	CancelOrderJSONBodyStatusCanceled CancelOrderJSONBodyStatus = "canceled"
+	Canceled CancelOrderJSONBodyStatus = "canceled"
 )
 
 // Valid indicates whether the value is a known member of the CancelOrderJSONBodyStatus enum.
 func (e CancelOrderJSONBodyStatus) Valid() bool {
 	switch e {
-	case CancelOrderJSONBodyStatusCanceled:
+	case Canceled:
 		return true
 	default:
 		return false
@@ -1450,12 +1492,15 @@ type DownloadTask struct {
 			ChargedCredits  int64                          `json:"chargedCredits"`
 			State           DownloadTaskStatusBillingState `json:"state"`
 		} `json:"billing"`
-		Error *struct {
+		DownloadCompletedAt *string `json:"downloadCompletedAt"`
+		Error               *struct {
 			Code    *string `json:"code,omitempty"`
 			Message *string `json:"message"`
 		} `json:"error"`
-		FinishedAt *string `json:"finishedAt"`
-		Output     *struct {
+		FinishedAt        *string `json:"finishedAt"`
+		IngestCompletedAt *string `json:"ingestCompletedAt"`
+		IngestStartedAt   *string `json:"ingestStartedAt"`
+		Output            *struct {
 			ObjectId string `json:"objectId"`
 		} `json:"output"`
 		Progress struct {
@@ -1470,7 +1515,9 @@ type DownloadTask struct {
 				TotalBytes     *int64 `json:"totalBytes,omitempty"`
 			} `json:"upload"`
 		} `json:"progress"`
-		Runtime *struct {
+		ResolveCompletedAt *string `json:"resolveCompletedAt"`
+		ResolveStartedAt   *string `json:"resolveStartedAt"`
+		Runtime            *struct {
 			Connections *int                             `json:"connections,omitempty"`
 			Engine      *DownloadTaskStatusRuntimeEngine `json:"engine,omitempty"`
 			EtaSeconds  *int                             `json:"etaSeconds,omitempty"`
@@ -1530,9 +1577,11 @@ type DownloadTask struct {
 			} `json:"trackers,omitempty"`
 			UpdatedAt *string `json:"updatedAt,omitempty"`
 		} `json:"runtime"`
-		StartedAt *string                 `json:"startedAt"`
-		State     DownloadTaskStatusState `json:"state"`
-		UpdatedAt string                  `json:"updatedAt"`
+		SeedingStartedAt *string                 `json:"seedingStartedAt"`
+		SeedingStoppedAt *string                 `json:"seedingStoppedAt"`
+		StartedAt        *string                 `json:"startedAt"`
+		State            DownloadTaskStatusState `json:"state"`
+		UpdatedAt        string                  `json:"updatedAt"`
 	} `json:"status"`
 }
 
@@ -1558,6 +1607,30 @@ type DownloadTaskPage struct {
 	PageSize int            `json:"pageSize"`
 	Total    int            `json:"total"`
 }
+
+// DownloadTaskTimeline defines model for DownloadTaskTimeline.
+type DownloadTaskTimeline struct {
+	Items []DownloadTaskTimelineItem `json:"items"`
+}
+
+// DownloadTaskTimelineItem defines model for DownloadTaskTimelineItem.
+type DownloadTaskTimelineItem struct {
+	Action   string                           `json:"action"`
+	Detail   *string                          `json:"detail"`
+	Id       string                           `json:"id"`
+	Metadata *map[string]*interface{}         `json:"metadata"`
+	Severity DownloadTaskTimelineItemSeverity `json:"severity"`
+	Source   DownloadTaskTimelineItemSource   `json:"source"`
+	TaskId   string                           `json:"taskId"`
+	Time     string                           `json:"time"`
+	Title    string                           `json:"title"`
+}
+
+// DownloadTaskTimelineItemSeverity defines model for DownloadTaskTimelineItem.Severity.
+type DownloadTaskTimelineItemSeverity string
+
+// DownloadTaskTimelineItemSource defines model for DownloadTaskTimelineItem.Source.
+type DownloadTaskTimelineItemSource string
 
 // Downloader defines model for Downloader.
 type Downloader struct {
@@ -4650,6 +4723,9 @@ type ClientInterface interface {
 
 	RetryDownloadTask(ctx context.Context, id string, body RetryDownloadTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListDownloadTaskEvents request
+	ListDownloadTaskEvents(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SetDownloadTaskStatusWithBody request with any body
 	SetDownloadTaskStatusWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -7053,6 +7129,18 @@ func (c *Client) RetryDownloadTaskWithBody(ctx context.Context, id string, conte
 
 func (c *Client) RetryDownloadTask(ctx context.Context, id string, body RetryDownloadTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRetryDownloadTaskRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListDownloadTaskEvents(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDownloadTaskEventsRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -13109,6 +13197,40 @@ func NewRetryDownloadTaskRequestWithBody(server string, id string, contentType s
 	return req, nil
 }
 
+// NewListDownloadTaskEventsRequest generates requests for ListDownloadTaskEvents
+func NewListDownloadTaskEventsRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewSetDownloadTaskStatusRequest calls the generic SetDownloadTaskStatus builder with application/json body
 func NewSetDownloadTaskStatusRequest(server string, id string, body SetDownloadTaskStatusJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -18347,6 +18469,9 @@ type ClientWithResponsesInterface interface {
 	RetryDownloadTaskWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RetryDownloadTaskResponse, error)
 
 	RetryDownloadTaskWithResponse(ctx context.Context, id string, body RetryDownloadTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*RetryDownloadTaskResponse, error)
+
+	// ListDownloadTaskEventsWithResponse request
+	ListDownloadTaskEventsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*ListDownloadTaskEventsResponse, error)
 
 	// SetDownloadTaskStatusWithBodyWithResponse request with any body
 	SetDownloadTaskStatusWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetDownloadTaskStatusResponse, error)
@@ -23849,6 +23974,40 @@ func (r RetryDownloadTaskResponse) ContentType() string {
 	return ""
 }
 
+type ListDownloadTaskEventsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DownloadTaskTimeline
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDownloadTaskEventsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDownloadTaskEventsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListDownloadTaskEventsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type SetDownloadTaskStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28891,6 +29050,15 @@ func (c *ClientWithResponses) RetryDownloadTaskWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseRetryDownloadTaskResponse(rsp)
+}
+
+// ListDownloadTaskEventsWithResponse request returning *ListDownloadTaskEventsResponse
+func (c *ClientWithResponses) ListDownloadTaskEventsWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*ListDownloadTaskEventsResponse, error) {
+	rsp, err := c.ListDownloadTaskEvents(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDownloadTaskEventsResponse(rsp)
 }
 
 // SetDownloadTaskStatusWithBodyWithResponse request with arbitrary body returning *SetDownloadTaskStatusResponse
@@ -37991,6 +38159,60 @@ func ParseRetryDownloadTaskResponse(rsp *http.Response) (*RetryDownloadTaskRespo
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDownloadTaskEventsResponse parses an HTTP response from a ListDownloadTaskEventsWithResponse call
+func ParseListDownloadTaskEventsResponse(rsp *http.Response) (*ListDownloadTaskEventsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDownloadTaskEventsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DownloadTaskTimeline
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error

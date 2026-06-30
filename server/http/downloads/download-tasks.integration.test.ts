@@ -1,4 +1,4 @@
-import type { Downloader, DownloadTask } from '@shared/types'
+import type { Downloader, DownloadTask, DownloadTaskTimelineItem } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../../adapters/gateways/s3.js'
@@ -1194,6 +1194,95 @@ describe('Download tasks API integration', () => {
       seeding: { active: true, uploadedBytes: 1024, uploadBytesPerSecond: 128 },
     })
     expect(seedingTask.status.runtime).not.toHaveProperty('etaSeconds')
+  })
+
+  it('returns a task timeline from lifecycle fields and activity events [spec: download-tasks/events]', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'timeline-downloader')
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    await recordDownloaderHeartbeat(app, createdDownloader.token, { ...heartbeat, currentTasks: 0 })
+
+    const user = await authedHeaders(app, 'timeline-user@example.com')
+    const createTaskRes = await app.request('/api/downloads/tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'magnet', uri: 'magnet:?xt=urn:btih:timeline' },
+        targetFolder: 'Remote Downloads',
+        name: 'timeline.torrent',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const task = (await createTaskRes.json()) as DownloadTask
+    await claimTaskForDownloader(app, createdDownloader.token, task.id)
+
+    const resolvingRes = await app.request(`/api/downloads/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        status: 'downloading',
+        runtime: {
+          engine: 'aria2',
+          phase: 'metadata',
+          torrent: { infoHash: 'timeline-info-hash', peers: 0, seeders: 0 },
+          trackers: [{ url: 'udp://tracker.example/announce', status: 'announce' }],
+        },
+      }),
+    })
+    expect(resolvingRes.status).toBe(200)
+    const resolvingTask = (await resolvingRes.json()) as DownloadTask
+    expect(resolvingTask.status.resolveStartedAt).toBeTruthy()
+
+    const totalBytes = 1024 * 1024
+    const ingestingRes = await app.request(`/api/downloads/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        status: 'uploading',
+        ...transferProgress({ downloadBytes: totalBytes, uploadBytes: 512, totalBytes }),
+        runtime: {
+          engine: 'aria2',
+          phase: 'uploading',
+          progress: {
+            download: { bytes: totalBytes, totalBytes, bytesPerSecond: 0 },
+            upload: { bytes: 512, totalBytes, bytesPerSecond: 128 },
+          },
+          torrent: { infoHash: 'timeline-info-hash', peers: 2, seeders: 1 },
+        },
+      }),
+    })
+    expect(ingestingRes.status).toBe(200)
+    const ingestingTask = (await ingestingRes.json()) as DownloadTask
+    expect(ingestingTask.status.resolveCompletedAt).toBeTruthy()
+    expect(ingestingTask.status.downloadCompletedAt).toBeTruthy()
+    expect(ingestingTask.status.ingestStartedAt).toBeTruthy()
+
+    const eventsRes = await app.request(`/api/downloads/tasks/${task.id}/events`, { headers: user })
+    expect(eventsRes.status).toBe(200)
+    const body = (await eventsRes.json()) as { items: DownloadTaskTimelineItem[] }
+    const actions = body.items.map((item) => item.action)
+    expect(actions).toEqual(
+      expect.arrayContaining([
+        'download_task_created',
+        'download_task_assigned',
+        'download_resolve_started',
+        'download_resolve_completed',
+        'download_completed',
+        'download_ingest_started',
+        'download_task_ingesting',
+      ]),
+    )
+    expect(body.items[0]?.time).toBeTruthy()
+    expect(body.items.find((item) => item.action === 'download_resolve_started')?.metadata).toMatchObject({
+      engine: 'aria2',
+      phase: 'metadata',
+      trackerCount: 1,
+    })
   })
 
   it('returns storage failure details when multipart upload session creation fails [spec: download-tasks/upload-session-failure]', async () => {

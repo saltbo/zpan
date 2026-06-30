@@ -122,5 +122,34 @@ export function createActivityRepo(db: Database): ActivityRepo {
 
       return { items, total, page, pageSize }
     },
+
+    async listByTarget(opts) {
+      const page = opts.page ?? 1
+      const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 50))
+      const offset = (page - 1) * pageSize
+      const whereClause = and(
+        eq(activityEvents.orgId, opts.orgId),
+        eq(activityEvents.targetType, opts.targetType),
+        eq(activityEvents.targetId, opts.targetId),
+      )
+
+      const [countRows, rows] = await Promise.all([
+        db.select({ count: count() }).from(activityEvents).where(whereClause),
+        db
+          .select()
+          .from(activityEvents)
+          .where(whereClause)
+          .orderBy(desc(activityEvents.createdAt))
+          .limit(pageSize)
+          .offset(offset),
+      ])
+
+      return {
+        items: rows,
+        total: countRows[0]?.count ?? 0,
+        page,
+        pageSize,
+      }
+    },
   }
 }

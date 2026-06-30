@@ -42,6 +42,7 @@ import type {
   CloudStoreTarget,
   Downloader,
   DownloadTask,
+  DownloadTaskTimeline,
   IhostConfigResponse,
   ImageHosting,
   InstanceInfo,
@@ -337,6 +338,10 @@ export function createDownloadTask(data: CreateDownloadTaskInput) {
 
 export function updateDownloadTask(id: string, data: UpdateDownloadTaskInput) {
   return unwrap<DownloadTask>(downloadTasksApi[':id'].$patch({ param: { id }, json: data }))
+}
+
+export function listDownloadTaskEvents(id: string) {
+  return unwrap<DownloadTaskTimeline>(downloadTasksApi[':id'].events.$get({ param: { id } }))
 }
 
 export function runDownloadTaskAction(id: string, action: DownloadTaskActionInput['action']) {

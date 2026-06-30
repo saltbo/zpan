@@ -240,7 +240,7 @@ export type DownloadTaskBillingState = 'none' | 'ok' | 'insufficient_credits'
 // shared/schemas/downloads.ts — one source of truth for the OpenAPI document,
 // the generated SDKs, the backend, and the frontend. The sub-interfaces below
 // stay as named building blocks the schema mirrors field-for-field.
-export type { DownloadTask } from '../schemas/downloads'
+export type { DownloadTask, DownloadTaskTimeline, DownloadTaskTimelineItem } from '../schemas/downloads'
 
 export interface DownloadTaskSpec {
   source: {
@@ -266,6 +266,13 @@ export interface DownloadTaskExecutionStatus {
   output: DownloadTaskOutput | null
   runtime: DownloadTaskRuntime | null
   error: DownloadTaskError | null
+  resolveStartedAt: string | null
+  resolveCompletedAt: string | null
+  downloadCompletedAt: string | null
+  ingestStartedAt: string | null
+  ingestCompletedAt: string | null
+  seedingStartedAt: string | null
+  seedingStoppedAt: string | null
   startedAt: string | null
   finishedAt: string | null
   updatedAt: string
