@@ -99,6 +99,12 @@ Feature: Remote download tasks
     When it reports runtime state
     Then reports are stored as snapshots and progress remains patchable
 
+  @download-tasks/events @api
+  Scenario: Task events expose lifecycle and audit history
+    Given a task with lifecycle timestamps and audit events
+    When its events are requested
+    Then the API returns a sorted task timeline
+
   @download-tasks/upload-session-failure @api
   Scenario: Upload session creation failures are surfaced
     Given multipart upload session creation fails
