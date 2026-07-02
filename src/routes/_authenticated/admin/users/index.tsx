@@ -49,7 +49,6 @@ export function UsersPage() {
   const usersQuery = useQuery({
     queryKey: ['admin', 'users', page, pageSize, search],
     queryFn: () => adminListUsers({ limit: pageSize, offset: (page - 1) * pageSize, search }),
-    placeholderData: (previousData) => previousData,
   })
 
   const baseUsers = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data])
@@ -114,8 +113,7 @@ export function UsersPage() {
 
   const total = usersQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const isInitialLoading = usersQuery.isLoading && !usersQuery.data
-  const isRefreshing = usersQuery.isFetching && !isInitialLoading
+  const isUsersLoading = usersQuery.isLoading
   const selectedCount = selectedIds.length
   const allPageSelected = pageUserIds.length > 0 && pageUserIds.every((id) => selectedIds.includes(id))
   const batchPending = batchStatusMutation.isPending || batchDeleteMutation.isPending
@@ -152,14 +150,6 @@ export function UsersPage() {
     setBatchDeleteDialogOpen(true)
   }
 
-  if (isInitialLoading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        <p>{t('common.loading')}</p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-4">
       <AdminPageHeader
@@ -182,12 +172,6 @@ export function UsersPage() {
           </>
         }
       />
-
-      {isRefreshing && (
-        <div className="text-sm text-muted-foreground" role="status" aria-live="polite">
-          {t('common.loading')}
-        </div>
-      )}
 
       {selectedCount > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
@@ -259,13 +243,21 @@ export function UsersPage() {
                 onDelete={() => setDeleteDialogUser({ id: user.id, name: user.name || user.username })}
               />
             ))}
-            {users.length === 0 && (
+            {isUsersLoading ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <div role="status" aria-live="polite">
+                    {t('common.loading')}
+                  </div>
+                </td>
+              </tr>
+            ) : users.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                   {t('admin.users.noUsers')}
                 </td>
               </tr>
-            )}
+            ) : null}
           </tbody>
         </table>
       </div>
