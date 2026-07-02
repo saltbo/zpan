@@ -204,4 +204,4 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         # Keep post-deploy hooks inside the repository deploy command so
         # GitHub Actions and Cloudflare Workers Builds can share the same path.
-        run: pnpm deploy
+        run: pnpm run deploy
