@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createClient } from 'webdav'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { storages } from '../db/schema.js'
+import { currentTrafficPeriod } from '../domain/quota.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
@@ -55,7 +56,7 @@ async function seedTrafficPlan(db: TestApp['db'], orgId: string, bytes: number, 
   const now = Date.now()
   await db.run(sql`
     UPDATE org_quotas
-    SET traffic_used = ${used}, traffic_period = '2026-06'
+    SET traffic_used = ${used}, traffic_period = ${currentTrafficPeriod()}
     WHERE org_id = ${orgId}
   `)
   await db.run(sql`
