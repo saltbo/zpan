@@ -33,7 +33,7 @@ type UserRow = AdminUser & { quotaUsed: number; quotaTotal: number }
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
 
-function UsersPage() {
+export function UsersPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -49,6 +49,7 @@ function UsersPage() {
   const usersQuery = useQuery({
     queryKey: ['admin', 'users', page, pageSize, search],
     queryFn: () => adminListUsers({ limit: pageSize, offset: (page - 1) * pageSize, search }),
+    placeholderData: (previousData) => previousData,
   })
 
   const baseUsers = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data])
@@ -113,7 +114,8 @@ function UsersPage() {
 
   const total = usersQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const isLoading = usersQuery.isLoading
+  const isInitialLoading = usersQuery.isLoading && !usersQuery.data
+  const isRefreshing = usersQuery.isFetching && !isInitialLoading
   const selectedCount = selectedIds.length
   const allPageSelected = pageUserIds.length > 0 && pageUserIds.every((id) => selectedIds.includes(id))
   const batchPending = batchStatusMutation.isPending || batchDeleteMutation.isPending
@@ -150,7 +152,7 @@ function UsersPage() {
     setBatchDeleteDialogOpen(true)
   }
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center py-20 text-muted-foreground">
         <p>{t('common.loading')}</p>
@@ -180,6 +182,12 @@ function UsersPage() {
           </>
         }
       />
+
+      {isRefreshing && (
+        <div role="status" className="text-sm text-muted-foreground">
+          {t('common.loading')}
+        </div>
+      )}
 
       {selectedCount > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
