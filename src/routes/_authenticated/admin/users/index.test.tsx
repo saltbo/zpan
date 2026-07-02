@@ -97,7 +97,7 @@ afterEach(() => {
 })
 
 describe('UsersPage search refresh', () => {
-  it('keeps the focused search input mounted while typing multiple characters and refreshing the filtered list', async () => {
+  it('keeps the focused search input mounted while loading filtered results without retaining stale rows', async () => {
     const firstPageUser = user({ id: 'user-1', name: 'Morgan One', email: 'morgan.one@example.com' })
     const secondPageUser = user({ id: 'user-2', name: 'Riley Two', email: 'riley.two@example.com' })
     const filteredUser = user({ id: 'user-3', name: 'Alice Filtered', email: 'alice@example.com' })
@@ -136,6 +136,7 @@ describe('UsersPage search refresh', () => {
     expect(screen.getByPlaceholderText('admin.users.searchPlaceholder')).toBe(searchInput)
     expect(screen.getByText('admin.users.title')).toBeTruthy()
     expect(screen.getByRole('status').textContent).toBe('common.loading')
+    expect(screen.queryByText('Riley Two')).toBeNull()
     expect(screen.queryByText('1 selected')).toBeNull()
 
     await waitFor(() => expect(adminListUsers).toHaveBeenCalledWith({ limit: 20, offset: 0, search: 'ali' }))
