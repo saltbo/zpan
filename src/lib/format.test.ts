@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatCurrency, formatDate, formatSize } from './format'
+import { formatCurrency, formatDate, formatMoney, formatSize, formatStorageUsage, getInitials } from './format'
 
 describe('formatCurrency', () => {
   it('formats minor-unit cents as locale currency', () => {
@@ -81,5 +81,29 @@ describe('formatDate', () => {
     const result = formatDate('2000-06-15')
     expect(result).toBeTruthy()
     expect(result).not.toBe('—')
+  })
+})
+
+describe('getInitials', () => {
+  it('returns up to two uppercase initials from a display name', () => {
+    expect(getInitials('Ada Lovelace Byron')).toBe('AL')
+  })
+
+  it('ignores extra whitespace and handles empty names', () => {
+    expect(getInitials('  Grace   Hopper  ')).toBe('GH')
+    expect(getInitials('')).toBe('')
+  })
+})
+
+describe('formatStorageUsage', () => {
+  it('formats bounded and unlimited storage totals', () => {
+    expect(formatStorageUsage(1024, 2048)).toBe('1.0 KB / 2.0 KB')
+    expect(formatStorageUsage(1024, 0)).toBe('1.0 KB / ∞')
+  })
+})
+
+describe('formatMoney', () => {
+  it('formats cents with uppercase currency code', () => {
+    expect(formatMoney(1299, 'usd')).toBe('12.99 USD')
   })
 })
