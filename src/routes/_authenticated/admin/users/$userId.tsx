@@ -1,11 +1,13 @@
-import type { OrgQuotaEntitlement } from '@shared/types'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { AdminAuditEvent, OrgQuotaEntitlement } from '@shared/types'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { ArrowLeft, BadgeCent, CalendarDays, Mail } from 'lucide-react'
+import { Activity, ArrowLeft, BadgeCent, CalendarDays, Mail } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { GrantEntitlementDialog } from '@/components/admin/grant-entitlement-dialog'
+import { ProBadge } from '@/components/ProBadge'
+import { UpgradeHint } from '@/components/UpgradeHint'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,7 +21,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { getUserQuotaById, listUserEntitlements, revokeUserEntitlement } from '@/lib/api'
+import { useEntitlement } from '@/hooks/useEntitlement'
+import { getUserQuotaById, listAdminAuditLogs, listUserEntitlements, revokeUserEntitlement } from '@/lib/api'
 import { adminGetUser } from '@/lib/auth-client'
 import { formatDate, formatSize, formatStorageUsage, getInitials } from '@/lib/format'
 
@@ -27,13 +30,17 @@ export const Route = createFileRoute('/_authenticated/admin/users/$userId')({
   component: AdminUserDetailPage,
 })
 
-function AdminUserDetailPage() {
+const ACTIVITY_PAGE_SIZE = 20
+
+export function AdminUserDetailPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { userId } = Route.useParams()
   const [grantOpen, setGrantOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<OrgQuotaEntitlement | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<OrgQuotaEntitlement | null>(null)
+  const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
+  const auditEnabled = hasFeature('audit_log')
 
   const userQuery = useQuery({
     queryKey: ['admin', 'users', userId],
@@ -64,6 +71,20 @@ function AdminUserDetailPage() {
     queryFn: () => listUserEntitlements(userId),
   })
 
+  const activityQuery = useInfiniteQuery({
+    queryKey: ['admin', 'users', userId, 'activity'],
+    queryFn: ({ pageParam = 1 }) =>
+      listAdminAuditLogs(pageParam as number, ACTIVITY_PAGE_SIZE, {
+        userId,
+      }),
+    initialPageParam: 1,
+    enabled: auditEnabled,
+    getNextPageParam: (lastPage) => {
+      const loaded = (lastPage.page - 1) * lastPage.pageSize + lastPage.items.length
+      return loaded < lastPage.total ? lastPage.page + 1 : undefined
+    },
+  })
+
   const user = userQuery.data
   const items = useMemo(
     () => (entitlementsQuery.data?.items ?? []).filter((item) => item.resourceType === 'storage'),
@@ -77,6 +98,7 @@ function AdminUserDetailPage() {
   const quotaLabel = quota?.hasPersonalOrg ? formatStorageUsage(quota.used, quota.total) : '—'
 
   const activeItems = useMemo(() => items.filter((item) => item.status === 'active'), [items])
+  const activityItems = activityQuery.data?.pages.flatMap((page) => page.items) ?? []
 
   if (userQuery.isLoading) {
     return (
@@ -215,6 +237,39 @@ function AdminUserDetailPage() {
         </CardContent>
       </Card>
 
+      <Card className="rounded-md">
+        <CardHeader>
+          <CardTitle className="inline-flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            {t('activity.title')}
+          </CardTitle>
+          <CardAction>
+            <ProBadge tooltip={t('admin.audit.proTooltip')} />
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {entitlementLoading ? (
+            <div className="py-6 text-sm text-muted-foreground">{t('common.loading')}</div>
+          ) : !auditEnabled ? (
+            <UpgradeHint
+              feature="audit_log"
+              title={t('admin.audit.upgradeTitle')}
+              description={t('admin.audit.upgradeDescription')}
+              actionLabel={t('admin.audit.upgradeButton')}
+            />
+          ) : (
+            <UserActivityFeed
+              events={activityItems}
+              isLoading={activityQuery.isPending}
+              isError={activityQuery.isError}
+              hasNextPage={activityQuery.hasNextPage}
+              isFetchingNextPage={activityQuery.isFetchingNextPage}
+              onLoadMore={() => activityQuery.fetchNextPage()}
+            />
+          )}
+        </CardContent>
+      </Card>
+
       <GrantEntitlementDialog
         open={grantOpen}
         onOpenChange={setGrantOpen}
@@ -250,6 +305,141 @@ function AdminUserDetailPage() {
       </Dialog>
     </div>
   )
+}
+
+function UserActivityFeed({
+  events,
+  isLoading,
+  isError,
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
+}: {
+  events: AdminAuditEvent[]
+  isLoading: boolean
+  isError: boolean
+  hasNextPage: boolean
+  isFetchingNextPage: boolean
+  onLoadMore: () => void
+}) {
+  const { t } = useTranslation()
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3" role="status">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-start gap-3 py-3">
+            <div className="h-8 w-8 flex-shrink-0 animate-pulse rounded-full bg-muted" />
+            <div className="flex-1 space-y-1.5">
+              <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+              <div className="h-3 w-1/4 animate-pulse rounded bg-muted" />
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+        {t('activity.loadError')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {events.length === 0 ? (
+        <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
+          {t('activity.empty')}
+        </div>
+      ) : (
+        <div className="divide-y rounded-md border px-4">
+          {events.map((event) => (
+            <UserActivityItem key={event.id} event={event} />
+          ))}
+        </div>
+      )}
+
+      {hasNextPage && (
+        <div className="pt-2 text-center">
+          <Button variant="outline" size="sm" onClick={onLoadMore} disabled={isFetchingNextPage}>
+            {isFetchingNextPage ? '...' : t('activity.loadMore')}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UserActivityItem({ event }: { event: AdminAuditEvent }) {
+  const { t } = useTranslation()
+  const metadata = parseActivityMetadata(event.metadata)
+  const status = metadata?.status ?? metadata?.result
+  const metadataDetails = metadata
+    ? Object.entries(metadata)
+        .filter(([key, value]) => !['status', 'result', 'from', 'to'].includes(key) && value)
+        .slice(0, 3)
+    : []
+
+  return (
+    <div className="flex items-start gap-3 py-3">
+      <Avatar className="h-8 w-8 flex-shrink-0">
+        {event.user.image && <AvatarImage src={event.user.image} alt={event.user.name} />}
+        <AvatarFallback className="text-xs">{getInitials(event.user.name || event.userId)}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">{t(`activity.action.${event.action}`, { defaultValue: event.action })}</Badge>
+          {status && <Badge variant="outline">{status}</Badge>}
+          <span className="min-w-0 truncate text-sm font-medium" title={event.targetName}>
+            {t(`activity.target.${event.targetType}`, { defaultValue: event.targetType })}: {event.targetName}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>{formatTimestamp(event.createdAt)}</span>
+          {event.orgName && <span>{event.orgName}</span>}
+          {event.targetId && <span>{event.targetId}</span>}
+        </div>
+        {metadata && (metadata.from || metadata.to || metadataDetails.length > 0) && (
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            {metadata.from && (
+              <span>
+                {t('activity.meta.from')}: {metadata.from}
+              </span>
+            )}
+            {metadata.to && (
+              <span>
+                {t('activity.meta.to')}: {metadata.to}
+              </span>
+            )}
+            {metadataDetails.map(([key, value]) => (
+              <span key={key}>
+                {key}: {value}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function parseActivityMetadata(metadata: string | null): Record<string, string> | null {
+  if (!metadata) return null
+
+  try {
+    const parsed = JSON.parse(metadata) as Record<string, unknown>
+    return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, String(value)]))
+  } catch {
+    return null
+  }
+}
+
+function formatTimestamp(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 
 function isEditable(item: OrgQuotaEntitlement): boolean {
