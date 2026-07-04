@@ -50,6 +50,18 @@ Feature: Audit log
     When an admin filters by action
     Then only events of that action are returned
 
+  @audit/filter-action-created-range @api
+  Scenario: Events can be filtered by action and creation time range
+    Given recorded events of several action types across several creation times
+    When an admin filters by action and created-at range
+    Then only matching events within that range are returned
+
+  @audit/filter-created-range-validation @api
+  Scenario: Inverted audit creation time ranges are rejected
+    Given an admin audit log request with createdFrom after createdTo
+    When the admin reads the audit log
+    Then the API responds 400 invalid_time_range
+
   @audit/filter-target-type @api
   Scenario: Events can be filtered by target type
     Given recorded events on several target types
