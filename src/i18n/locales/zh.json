@@ -1865,6 +1865,7 @@
   "admin.teams.revokeEntitlementTitle": "撤销配额授予",
   "admin.teams.revokeEntitlementConfirm": "确定撤销 {{name}} 的这条配额授予吗？团队内文件保留，但会失去这部分容量。",
   "admin.teams.entitlementRevoked": "配额授予已撤销",
+  "admin.teams.tabEntitlement": "授予",
   "admin.teams.active": "生效中",
   "admin.teams.revoked": "已撤销",
   "admin.entitlement.grantFor": "为 {{name}} 授予配额",

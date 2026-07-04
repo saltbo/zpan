@@ -1,11 +1,23 @@
 import type { OrgQuotaEntitlement } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { ArrowLeft, BadgeCent, CalendarDays, UsersRound } from 'lucide-react'
+import { Activity, ArrowLeft, BadgeCent, CalendarDays, UsersRound } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { AdminAuditActivityFeed } from '@/components/admin/audit-activity-feed'
+import {
+  AUDIT_DEFAULT_PAGE_SIZE,
+  AUDIT_FILTER_ALL,
+  AuditLogFilters,
+  AuditPagination,
+  type AuditTimeRange,
+  auditActionToFilter,
+  auditTimeRangeToFilter,
+} from '@/components/admin/audit-log-controls'
 import { GrantEntitlementDialog } from '@/components/admin/grant-entitlement-dialog'
+import { ProBadge } from '@/components/ProBadge'
+import { UpgradeHint } from '@/components/UpgradeHint'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,7 +30,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { getTeam, listOrgEntitlements, revokeOrgEntitlement } from '@/lib/api'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useEntitlement } from '@/hooks/useEntitlement'
+import {
+  type AdminAuditFilter,
+  getTeam,
+  listAdminAuditLogs,
+  listOrgEntitlements,
+  revokeOrgEntitlement,
+} from '@/lib/api'
 import { formatDate, formatSize, formatStorageUsage, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/teams/$orgId')({
@@ -32,6 +52,12 @@ function AdminTeamDetailPage() {
   const [grantOpen, setGrantOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<OrgQuotaEntitlement | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<OrgQuotaEntitlement | null>(null)
+  const [activityPage, setActivityPage] = useState(1)
+  const [activityPageSize, setActivityPageSize] = useState(AUDIT_DEFAULT_PAGE_SIZE)
+  const [activityAction, setActivityAction] = useState(AUDIT_FILTER_ALL)
+  const [activityTimeRange, setActivityTimeRange] = useState<AuditTimeRange>('all')
+  const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
+  const auditEnabled = hasFeature('audit_log')
 
   const teamQuery = useQuery({
     queryKey: ['admin', 'teams', orgId],
@@ -48,6 +74,7 @@ function AdminTeamDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'teams', orgId, 'entitlements'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'teams', orgId, 'activity'] })
       toast.success(t('admin.teams.entitlementRevoked'))
       setRevokeTarget(null)
     },
@@ -62,6 +89,37 @@ function AdminTeamDetailPage() {
     [entitlementsQuery.data?.items],
   )
   const activeItems = useMemo(() => items.filter((item) => item.status === 'active'), [items])
+  const activityFilter = useMemo<AdminAuditFilter>(() => {
+    const action = auditActionToFilter(activityAction)
+    return {
+      orgId,
+      ...(action ? { action } : {}),
+      ...auditTimeRangeToFilter(activityTimeRange),
+    }
+  }, [orgId, activityAction, activityTimeRange])
+
+  const activityQuery = useQuery({
+    queryKey: ['admin', 'teams', orgId, 'activity', activityPage, activityPageSize, activityAction, activityTimeRange],
+    queryFn: () => listAdminAuditLogs(activityPage, activityPageSize, activityFilter),
+    enabled: auditEnabled && teamQuery.isSuccess,
+  })
+  const activityItems = activityQuery.data?.items ?? []
+  const activityTotal = activityQuery.data?.total ?? 0
+
+  function handleActivityActionChange(value: string) {
+    setActivityAction(value)
+    setActivityPage(1)
+  }
+
+  function handleActivityTimeRangeChange(value: AuditTimeRange) {
+    setActivityTimeRange(value)
+    setActivityPage(1)
+  }
+
+  function handleActivityPageSizeChange(value: number) {
+    setActivityPageSize(value)
+    setActivityPage(1)
+  }
 
   if (teamQuery.isLoading) {
     return (
@@ -130,70 +188,130 @@ function AdminTeamDetailPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-md">
-        <CardHeader>
-          <CardTitle>{t('admin.teams.entitlements')}</CardTitle>
-          <CardAction>
-            <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)}>
-              <BadgeCent />
-              {t('admin.teams.addEntitlement')}
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('admin.teams.entitlementType')}</TableHead>
-                <TableHead>{t('admin.teams.entitlementAmount')}</TableHead>
-                <TableHead>{t('admin.teams.entitlementSource')}</TableHead>
-                <TableHead>{t('admin.teams.entitlementExpires')}</TableHead>
-                <TableHead>{t('admin.teams.entitlementStatus')}</TableHead>
-                <TableHead className="text-right">{t('admin.teams.entitlementActions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{formatEntitlementType(item.entitlementType, t)}</TableCell>
-                  <TableCell className="font-medium tabular-nums">{formatSize(item.bytes)}</TableCell>
-                  <TableCell className="max-w-[220px] truncate text-muted-foreground" title={item.sourceId}>
-                    {formatSource(item.source, t)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {item.expiresAt ? formatDate(item.expiresAt) : t('admin.teams.noExpiry')}
-                  </TableCell>
-                  <TableCell>{formatStatus(item.status, t)}</TableCell>
-                  <TableCell className="text-right">
-                    {isEditable(item) && (
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setEditTarget(item)}>
-                          {t('admin.teams.editEntitlement')}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setRevokeTarget(item)}
-                        >
-                          {t('admin.teams.revokeEntitlement')}
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {items.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                    {entitlementsQuery.isLoading ? t('common.loading') : t('admin.teams.noEntitlements')}
-                  </TableCell>
-                </TableRow>
+      <Tabs defaultValue="activity" className="gap-4">
+        <TabsList>
+          <TabsTrigger value="activity">{t('activity.title')}</TabsTrigger>
+          <TabsTrigger value="entitlement">{t('admin.teams.tabEntitlement')}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="activity">
+          <Card className="rounded-md">
+            <CardHeader>
+              <CardTitle className="inline-flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                {t('activity.title')}
+              </CardTitle>
+              <CardAction>
+                <ProBadge tooltip={t('admin.audit.proTooltip')} />
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              {entitlementLoading ? (
+                <div className="py-6 text-sm text-muted-foreground">{t('common.loading')}</div>
+              ) : !auditEnabled ? (
+                <UpgradeHint
+                  feature="audit_log"
+                  title={t('admin.audit.upgradeTitle')}
+                  description={t('admin.audit.upgradeDescription')}
+                  actionLabel={t('admin.audit.upgradeButton')}
+                />
+              ) : (
+                <div className="space-y-4">
+                  <AuditLogFilters
+                    action={activityAction}
+                    timeRange={activityTimeRange}
+                    disabled={activityQuery.isFetching}
+                    onActionChange={handleActivityActionChange}
+                    onTimeRangeChange={handleActivityTimeRangeChange}
+                  />
+                  <AdminAuditActivityFeed
+                    events={activityItems}
+                    isLoading={activityQuery.isPending}
+                    isError={activityQuery.isError}
+                  />
+                  {!activityQuery.isPending && !activityQuery.isError && (
+                    <AuditPagination
+                      page={activityPage}
+                      pageSize={activityPageSize}
+                      total={activityTotal}
+                      disabled={activityQuery.isFetching}
+                      onPageChange={setActivityPage}
+                      onPageSizeChange={handleActivityPageSizeChange}
+                    />
+                  )}
+                </div>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="entitlement">
+          <Card className="rounded-md">
+            <CardHeader>
+              <CardTitle>{t('admin.teams.entitlements')}</CardTitle>
+              <CardAction>
+                <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)}>
+                  <BadgeCent />
+                  {t('admin.teams.addEntitlement')}
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('admin.teams.entitlementType')}</TableHead>
+                    <TableHead>{t('admin.teams.entitlementAmount')}</TableHead>
+                    <TableHead>{t('admin.teams.entitlementSource')}</TableHead>
+                    <TableHead>{t('admin.teams.entitlementExpires')}</TableHead>
+                    <TableHead>{t('admin.teams.entitlementStatus')}</TableHead>
+                    <TableHead className="text-right">{t('admin.teams.entitlementActions')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{formatEntitlementType(item.entitlementType, t)}</TableCell>
+                      <TableCell className="font-medium tabular-nums">{formatSize(item.bytes)}</TableCell>
+                      <TableCell className="max-w-[220px] truncate text-muted-foreground" title={item.sourceId}>
+                        {formatSource(item.source, t)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {item.expiresAt ? formatDate(item.expiresAt) : t('admin.teams.noExpiry')}
+                      </TableCell>
+                      <TableCell>{formatStatus(item.status, t)}</TableCell>
+                      <TableCell className="text-right">
+                        {isEditable(item) && (
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => setEditTarget(item)}>
+                              {t('admin.teams.editEntitlement')}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setRevokeTarget(item)}
+                            >
+                              {t('admin.teams.revokeEntitlement')}
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {items.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                        {entitlementsQuery.isLoading ? t('common.loading') : t('admin.teams.noEntitlements')}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <GrantEntitlementDialog
         open={grantOpen}

@@ -1865,6 +1865,7 @@
   "admin.teams.revokeEntitlementTitle": "Revoke entitlement",
   "admin.teams.revokeEntitlementConfirm": "Revoke this quota entitlement from {{name}}? The team keeps its files but loses the granted capacity.",
   "admin.teams.entitlementRevoked": "Entitlement revoked",
+  "admin.teams.tabEntitlement": "Entitlement",
   "admin.teams.active": "Active",
   "admin.teams.revoked": "Revoked",
   "admin.entitlement.grantFor": "Grant quota to {{name}}",
