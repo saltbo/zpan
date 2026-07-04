@@ -1,4 +1,4 @@
-import { and, count, desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq, gte, lte } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { organization, user } from '../../db/auth-schema'
 import { activityEvents } from '../../db/schema'
@@ -76,6 +76,8 @@ export function createActivityRepo(db: Database): ActivityRepo {
         opts.userId ? eq(activityEvents.userId, opts.userId) : undefined,
         opts.action ? eq(activityEvents.action, opts.action) : undefined,
         opts.targetType ? eq(activityEvents.targetType, opts.targetType) : undefined,
+        opts.createdFrom ? gte(activityEvents.createdAt, opts.createdFrom) : undefined,
+        opts.createdTo ? lte(activityEvents.createdAt, opts.createdTo) : undefined,
       ].filter(Boolean) as Parameters<typeof and>
 
       const whereClause = filters.length > 0 ? and(...filters) : undefined

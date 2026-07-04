@@ -39,6 +39,8 @@ export interface ListAdminAuditOpts {
   userId?: string
   action?: string
   targetType?: string
+  createdFrom?: Date
+  createdTo?: Date
 }
 
 export interface ListActivityByTargetOpts {

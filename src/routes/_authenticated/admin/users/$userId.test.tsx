@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as React from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { getUserQuotaById, listAdminAuditLogs, listUserEntitlements, revokeUserEntitlement } from '@/lib/api'
@@ -26,6 +26,20 @@ vi.mock('react-i18next', () => ({
       if (key === 'activity.title') return 'Activity'
       if (key === 'activity.empty') return 'No activity yet'
       if (key === 'activity.loadMore') return 'Load more'
+      if (key === 'admin.users.tabEntitlement') return 'Entitlement'
+      if (key === 'admin.users.prevPage') return 'Previous'
+      if (key === 'admin.users.nextPage') return 'Next'
+      if (key === 'admin.users.pageInfo') return `Page ${values?.page} of ${values?.total}`
+      if (key === 'admin.users.pageSize') return 'Rows per page'
+      if (key === 'admin.users.pageSizeOption') return `${values?.count} / page`
+      if (key === 'admin.audit.eventType') return 'Event type'
+      if (key === 'admin.audit.timeRange') return 'Time range'
+      if (key === 'admin.audit.allEvents') return 'All events'
+      if (key === 'admin.audit.allTime') return 'All time'
+      if (key === 'admin.audit.last24Hours') return 'Last 24 hours'
+      if (key === 'admin.audit.last7Days') return 'Last 7 days'
+      if (key === 'admin.audit.last30Days') return 'Last 30 days'
+      if (key === 'admin.audit.last90Days') return 'Last 90 days'
       if (key === 'admin.audit.upgradeTitle') return 'Unlock Audit Logs'
       if (key === 'admin.audit.upgradeDescription') {
         return 'Audit Logs are a Pro feature. Upgrade to gain full visibility into instance-wide activity.'
@@ -33,6 +47,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'admin.audit.upgradeButton') return 'Upgrade to Pro'
       if (key === 'activity.action.upload') return 'uploaded'
       if (key === 'activity.action.rename') return 'renamed'
+      if (key === 'activity.action.delete') return 'deleted'
       if (key === 'activity.target.file') return 'file'
       if (key === 'activity.meta.from') return 'from'
       if (key === 'activity.meta.to') return 'to'
@@ -210,6 +225,13 @@ function mockBaseQueries(entitlements: OrgQuotaEntitlement[] = []) {
   vi.mocked(listUserEntitlements).mockResolvedValue({ orgId: 'org-1', items: entitlements })
 }
 
+beforeEach(() => {
+  Element.prototype.scrollIntoView = vi.fn()
+  HTMLElement.prototype.hasPointerCapture = vi.fn(() => false)
+  HTMLElement.prototype.setPointerCapture = vi.fn()
+  HTMLElement.prototype.releasePointerCapture = vi.fn()
+})
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -235,11 +257,11 @@ describe('Admin user detail activity', () => {
 
     renderUserDetailPage()
 
-    expect(await screen.findByText('Activity')).toBeTruthy()
+    expect(await screen.findByRole('tab', { name: 'Activity' })).toBeTruthy()
     expect(await screen.findByText('No activity yet')).toBeTruthy()
   })
 
-  it('loads page 2 with the same route user id filter and renders the second page', async () => {
+  it('renders Activity and Entitlement tabs in order and pages activity results', async () => {
     allowAuditLogs()
     mockBaseQueries()
     vi.mocked(listAdminAuditLogs)
@@ -262,10 +284,50 @@ describe('Admin user detail activity', () => {
     renderUserDetailPage()
 
     expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
-    await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Activity', 'Entitlement'])
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }))
 
     expect(await screen.findByText(/renamed-contract\.pdf/)).toBeTruthy()
     await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(2, 20, { userId: 'route-user-1' }))
+  })
+
+  it('filters activity by event type and time range while preserving the route user id', async () => {
+    allowAuditLogs()
+    mockBaseQueries()
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage(1, [auditEvent()]))
+
+    const user = userEvent.setup()
+    renderUserDetailPage()
+
+    expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
+    await user.click(screen.getByRole('combobox', { name: 'Event type' }))
+    await user.click(await screen.findByRole('option', { name: 'renamed' }))
+
+    await waitFor(() =>
+      expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, {
+        userId: 'route-user-1',
+        action: 'rename',
+      }),
+    )
+
+    await user.click(screen.getByRole('combobox', { name: 'Time range' }))
+    await user.click(await screen.findByRole('option', { name: 'Last 7 days' }))
+
+    await waitFor(() =>
+      expect(listAdminAuditLogs).toHaveBeenCalledWith(
+        1,
+        20,
+        expect.objectContaining({
+          userId: 'route-user-1',
+          action: 'rename',
+          createdFrom: expect.any(String),
+          createdTo: expect.any(String),
+        }),
+      ),
+    )
   })
 
   it('renders status/result and all useful activity metadata fields', async () => {
@@ -339,6 +401,7 @@ describe('Admin user detail activity', () => {
 
     expect(await screen.findByText(/before-revoke\.pdf/)).toBeTruthy()
     const initialActivityCalls = vi.mocked(listAdminAuditLogs).mock.calls.length
+    await user.click(screen.getByRole('tab', { name: 'Entitlement' }))
     await user.click(screen.getByRole('button', { name: 'admin.users.revokeEntitlement' }))
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'admin.users.revokeEntitlement' }))
@@ -348,6 +411,7 @@ describe('Admin user detail activity', () => {
       const postRevokeActivityCalls = vi.mocked(listAdminAuditLogs).mock.calls.slice(initialActivityCalls)
       expect(postRevokeActivityCalls).toContainEqual([1, 20, { userId: 'route-user-1' }])
     })
+    await user.click(screen.getByRole('tab', { name: 'Activity' }))
     expect(await screen.findByText(/after-revoke\.pdf/)).toBeTruthy()
   })
 

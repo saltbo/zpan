@@ -1,10 +1,19 @@
 import type { AdminAuditEvent, OrgQuotaEntitlement } from '@shared/types'
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Activity, ArrowLeft, BadgeCent, CalendarDays, Mail } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import {
+  AUDIT_DEFAULT_PAGE_SIZE,
+  AUDIT_FILTER_ALL,
+  AuditLogFilters,
+  AuditPagination,
+  type AuditTimeRange,
+  auditActionToFilter,
+  auditTimeRangeToFilter,
+} from '@/components/admin/audit-log-controls'
 import { GrantEntitlementDialog } from '@/components/admin/grant-entitlement-dialog'
 import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
@@ -21,16 +30,21 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { getUserQuotaById, listAdminAuditLogs, listUserEntitlements, revokeUserEntitlement } from '@/lib/api'
+import {
+  type AdminAuditFilter,
+  getUserQuotaById,
+  listAdminAuditLogs,
+  listUserEntitlements,
+  revokeUserEntitlement,
+} from '@/lib/api'
 import { adminGetUser } from '@/lib/auth-client'
 import { formatDate, formatSize, formatStorageUsage, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/users/$userId')({
   component: AdminUserDetailPage,
 })
-
-const ACTIVITY_PAGE_SIZE = 20
 
 export function AdminUserDetailPage() {
   const { t } = useTranslation()
@@ -39,6 +53,10 @@ export function AdminUserDetailPage() {
   const [grantOpen, setGrantOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<OrgQuotaEntitlement | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<OrgQuotaEntitlement | null>(null)
+  const [activityPage, setActivityPage] = useState(1)
+  const [activityPageSize, setActivityPageSize] = useState(AUDIT_DEFAULT_PAGE_SIZE)
+  const [activityAction, setActivityAction] = useState(AUDIT_FILTER_ALL)
+  const [activityTimeRange, setActivityTimeRange] = useState<AuditTimeRange>('all')
   const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
   const auditEnabled = hasFeature('audit_log')
 
@@ -72,15 +90,19 @@ export function AdminUserDetailPage() {
     queryFn: () => listUserEntitlements(userId),
   })
 
-  const activityQuery = useInfiniteQuery({
-    queryKey: ['admin', 'users', userId, 'activity'],
-    queryFn: ({ pageParam = 1 }) => listAdminAuditLogs(pageParam as number, ACTIVITY_PAGE_SIZE, { userId }),
-    initialPageParam: 1,
+  const activityFilter = useMemo<AdminAuditFilter>(() => {
+    const action = auditActionToFilter(activityAction)
+    return {
+      userId,
+      ...(action ? { action } : {}),
+      ...auditTimeRangeToFilter(activityTimeRange),
+    }
+  }, [userId, activityAction, activityTimeRange])
+
+  const activityQuery = useQuery({
+    queryKey: ['admin', 'users', userId, 'activity', activityPage, activityPageSize, activityAction, activityTimeRange],
+    queryFn: () => listAdminAuditLogs(activityPage, activityPageSize, activityFilter),
     enabled: auditEnabled && userQuery.isSuccess,
-    getNextPageParam: (lastPage) => {
-      const loaded = (lastPage.page - 1) * lastPage.pageSize + lastPage.items.length
-      return loaded < lastPage.total ? lastPage.page + 1 : undefined
-    },
   })
 
   const user = userQuery.data
@@ -96,7 +118,23 @@ export function AdminUserDetailPage() {
   const quotaLabel = quota?.hasPersonalOrg ? formatStorageUsage(quota.used, quota.total) : '—'
 
   const activeItems = useMemo(() => items.filter((item) => item.status === 'active'), [items])
-  const activityItems = activityQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const activityItems = activityQuery.data?.items ?? []
+  const activityTotal = activityQuery.data?.total ?? 0
+
+  function handleActivityActionChange(value: string) {
+    setActivityAction(value)
+    setActivityPage(1)
+  }
+
+  function handleActivityTimeRangeChange(value: AuditTimeRange) {
+    setActivityTimeRange(value)
+    setActivityPage(1)
+  }
+
+  function handleActivityPageSizeChange(value: number) {
+    setActivityPageSize(value)
+    setActivityPage(1)
+  }
 
   if (userQuery.isLoading) {
     return (
@@ -170,103 +208,130 @@ export function AdminUserDetailPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-md">
-        <CardHeader>
-          <CardTitle>{t('admin.users.entitlements')}</CardTitle>
-          <CardAction>
-            <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)} disabled={!hasPersonalOrg}>
-              <BadgeCent />
-              {t('admin.users.addEntitlement')}
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('admin.users.entitlementType')}</TableHead>
-                <TableHead>{t('admin.users.entitlementAmount')}</TableHead>
-                <TableHead>{t('admin.users.entitlementSource')}</TableHead>
-                <TableHead>{t('admin.users.entitlementExpires')}</TableHead>
-                <TableHead>{t('admin.users.entitlementStatus')}</TableHead>
-                <TableHead className="text-right">{t('admin.users.entitlementActions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{formatEntitlementType(item.entitlementType, t)}</TableCell>
-                  <TableCell className="font-medium tabular-nums">{formatSize(item.bytes)}</TableCell>
-                  <TableCell className="max-w-[220px] truncate text-muted-foreground" title={item.sourceId}>
-                    {formatSource(item.source, t)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {item.expiresAt ? formatDate(item.expiresAt) : t('admin.users.noExpiry')}
-                  </TableCell>
-                  <TableCell>{formatStatus(item.status, t)}</TableCell>
-                  <TableCell className="text-right">
-                    {isEditable(item) && (
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setEditTarget(item)}>
-                          {t('admin.users.editEntitlement')}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setRevokeTarget(item)}
-                        >
-                          {t('admin.users.revokeEntitlement')}
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {items.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                    {entitlementsQuery.isLoading ? t('common.loading') : t('admin.users.noEntitlements')}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="activity" className="gap-4">
+        <TabsList>
+          <TabsTrigger value="activity">{t('activity.title')}</TabsTrigger>
+          <TabsTrigger value="entitlement">{t('admin.users.tabEntitlement')}</TabsTrigger>
+        </TabsList>
 
-      <Card className="rounded-md">
-        <CardHeader>
-          <CardTitle className="inline-flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            {t('activity.title')}
-          </CardTitle>
-          <CardAction>
-            <ProBadge tooltip={t('admin.audit.proTooltip')} />
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {entitlementLoading ? (
-            <div className="py-6 text-sm text-muted-foreground">{t('common.loading')}</div>
-          ) : !auditEnabled ? (
-            <UpgradeHint
-              feature="audit_log"
-              title={t('admin.audit.upgradeTitle')}
-              description={t('admin.audit.upgradeDescription')}
-              actionLabel={t('admin.audit.upgradeButton')}
-            />
-          ) : (
-            <UserActivityFeed
-              events={activityItems}
-              isLoading={activityQuery.isPending}
-              isError={activityQuery.isError}
-              hasNextPage={activityQuery.hasNextPage}
-              isFetchingNextPage={activityQuery.isFetchingNextPage}
-              onLoadMore={() => activityQuery.fetchNextPage()}
-            />
-          )}
-        </CardContent>
-      </Card>
+        <TabsContent value="activity">
+          <Card className="rounded-md">
+            <CardHeader>
+              <CardTitle className="inline-flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                {t('activity.title')}
+              </CardTitle>
+              <CardAction>
+                <ProBadge tooltip={t('admin.audit.proTooltip')} />
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              {entitlementLoading ? (
+                <div className="py-6 text-sm text-muted-foreground">{t('common.loading')}</div>
+              ) : !auditEnabled ? (
+                <UpgradeHint
+                  feature="audit_log"
+                  title={t('admin.audit.upgradeTitle')}
+                  description={t('admin.audit.upgradeDescription')}
+                  actionLabel={t('admin.audit.upgradeButton')}
+                />
+              ) : (
+                <div className="space-y-4">
+                  <AuditLogFilters
+                    action={activityAction}
+                    timeRange={activityTimeRange}
+                    disabled={activityQuery.isFetching}
+                    onActionChange={handleActivityActionChange}
+                    onTimeRangeChange={handleActivityTimeRangeChange}
+                  />
+                  <UserActivityFeed
+                    events={activityItems}
+                    isLoading={activityQuery.isPending}
+                    isError={activityQuery.isError}
+                  />
+                  {!activityQuery.isPending && !activityQuery.isError && (
+                    <AuditPagination
+                      page={activityPage}
+                      pageSize={activityPageSize}
+                      total={activityTotal}
+                      disabled={activityQuery.isFetching}
+                      onPageChange={setActivityPage}
+                      onPageSizeChange={handleActivityPageSizeChange}
+                    />
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="entitlement">
+          <Card className="rounded-md">
+            <CardHeader>
+              <CardTitle>{t('admin.users.entitlements')}</CardTitle>
+              <CardAction>
+                <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)} disabled={!hasPersonalOrg}>
+                  <BadgeCent />
+                  {t('admin.users.addEntitlement')}
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('admin.users.entitlementType')}</TableHead>
+                    <TableHead>{t('admin.users.entitlementAmount')}</TableHead>
+                    <TableHead>{t('admin.users.entitlementSource')}</TableHead>
+                    <TableHead>{t('admin.users.entitlementExpires')}</TableHead>
+                    <TableHead>{t('admin.users.entitlementStatus')}</TableHead>
+                    <TableHead className="text-right">{t('admin.users.entitlementActions')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{formatEntitlementType(item.entitlementType, t)}</TableCell>
+                      <TableCell className="font-medium tabular-nums">{formatSize(item.bytes)}</TableCell>
+                      <TableCell className="max-w-[220px] truncate text-muted-foreground" title={item.sourceId}>
+                        {formatSource(item.source, t)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {item.expiresAt ? formatDate(item.expiresAt) : t('admin.users.noExpiry')}
+                      </TableCell>
+                      <TableCell>{formatStatus(item.status, t)}</TableCell>
+                      <TableCell className="text-right">
+                        {isEditable(item) && (
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => setEditTarget(item)}>
+                              {t('admin.users.editEntitlement')}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setRevokeTarget(item)}
+                            >
+                              {t('admin.users.revokeEntitlement')}
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {items.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                        {entitlementsQuery.isLoading ? t('common.loading') : t('admin.users.noEntitlements')}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <GrantEntitlementDialog
         open={grantOpen}
@@ -309,16 +374,10 @@ function UserActivityFeed({
   events,
   isLoading,
   isError,
-  hasNextPage,
-  isFetchingNextPage,
-  onLoadMore,
 }: {
   events: AdminAuditEvent[]
   isLoading: boolean
   isError: boolean
-  hasNextPage: boolean
-  isFetchingNextPage: boolean
-  onLoadMore: () => void
 }) {
   const { t } = useTranslation()
 
@@ -357,14 +416,6 @@ function UserActivityFeed({
           {events.map((event) => (
             <UserActivityItem key={event.id} event={event} />
           ))}
-        </div>
-      )}
-
-      {hasNextPage && (
-        <div className="pt-2 text-center">
-          <Button variant="outline" size="sm" onClick={onLoadMore} disabled={isFetchingNextPage}>
-            {isFetchingNextPage ? '...' : t('activity.loadMore')}
-          </Button>
         </div>
       )}
     </div>

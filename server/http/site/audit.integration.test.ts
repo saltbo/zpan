@@ -198,6 +198,85 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     expect(body.items[0].action).toBe('upload')
   })
 
+  it('filters by action and created-at range [spec: audit/filter-action-created-range]', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+
+    const { activityEvents } = await import('../../db/schema.js')
+    await db.insert(activityEvents).values([
+      {
+        id: 'evt-range-match',
+        orgId: 'org-1',
+        userId: 'u1',
+        action: 'upload',
+        targetType: 'file',
+        targetId: null,
+        targetName: 'match.pdf',
+        metadata: null,
+        createdAt: new Date('2026-02-15T12:00:00.000Z'),
+      },
+      {
+        id: 'evt-range-wrong-action',
+        orgId: 'org-1',
+        userId: 'u1',
+        action: 'delete',
+        targetType: 'file',
+        targetId: null,
+        targetName: 'wrong-action.pdf',
+        metadata: null,
+        createdAt: new Date('2026-02-15T12:00:00.000Z'),
+      },
+      {
+        id: 'evt-range-too-old',
+        orgId: 'org-1',
+        userId: 'u1',
+        action: 'upload',
+        targetType: 'file',
+        targetId: null,
+        targetName: 'too-old.pdf',
+        metadata: null,
+        createdAt: new Date('2026-01-31T23:59:59.000Z'),
+      },
+      {
+        id: 'evt-range-too-new',
+        orgId: 'org-1',
+        userId: 'u1',
+        action: 'upload',
+        targetType: 'file',
+        targetId: null,
+        targetName: 'too-new.pdf',
+        metadata: null,
+        createdAt: new Date('2026-03-01T00:00:01.000Z'),
+      },
+    ])
+
+    const query = new URLSearchParams({
+      action: 'upload',
+      createdFrom: '2026-02-01T00:00:00.000Z',
+      createdTo: '2026-03-01T00:00:00.000Z',
+    })
+    const res = await app.request(`/api/site/audit-events?${query}`, { headers })
+    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
+    expect(body.total).toBe(1)
+    expect(body.items.map((item) => item.id)).toEqual(['evt-range-match'])
+  })
+
+  it('rejects an inverted created-at range [spec: audit/filter-created-range-validation]', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+
+    const query = new URLSearchParams({
+      createdFrom: '2026-03-01T00:00:00.000Z',
+      createdTo: '2026-02-01T00:00:00.000Z',
+    })
+    const res = await app.request(`/api/site/audit-events?${query}`, { headers })
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(res.status).toBe(400)
+    expect(body.error.details[0]?.reason).toBe('INVALID_TIME_RANGE')
+  })
+
   it('filters by targetType [spec: audit/filter-target-type]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)

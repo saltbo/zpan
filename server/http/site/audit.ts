@@ -4,8 +4,9 @@ import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import type { AdminAuditEventWithOrg } from '../../usecases/ports'
+import { badRequest } from '../../usecases/ports'
 import { listAuditEvents } from '../../usecases/site/audit'
-import { jsonContent } from '../openapi'
+import { errorResponse, jsonContent } from '../openapi'
 
 const auditEventSchema = z
   .object({
@@ -36,6 +37,8 @@ const listAuditQuerySchema = pageQuerySchema.extend({
   userId: z.string().optional(),
   action: z.string().optional(),
   targetType: z.string().optional(),
+  createdFrom: z.string().datetime().optional(),
+  createdTo: z.string().datetime().optional(),
 })
 
 const listRoute = createRoute({
@@ -46,11 +49,17 @@ const listRoute = createRoute({
   path: '/',
   middleware: [requireAdmin, requireFeature('audit_log')] as const,
   request: { query: listAuditQuerySchema },
-  responses: { 200: jsonContent(auditPageSchema, 'Audit events') },
+  responses: { 200: jsonContent(auditPageSchema, 'Audit events'), 400: errorResponse('Invalid query') },
 })
 
 export const adminAudit = new OpenAPIHono<Env>().openapi(listRoute, async (c) => {
-  const { page, pageSize, orgId, userId, action, targetType } = c.req.valid('query')
+  const { page, pageSize, orgId, userId, action, targetType, createdFrom, createdTo } = c.req.valid('query')
+  const createdFromDate = createdFrom ? new Date(createdFrom) : undefined
+  const createdToDate = createdTo ? new Date(createdTo) : undefined
+  if (createdFromDate && createdToDate && createdFromDate > createdToDate) {
+    throw badRequest('createdFrom must be before createdTo', 'INVALID_TIME_RANGE')
+  }
+
   const result = await listAuditEvents(c.get('deps'), {
     page,
     pageSize,
@@ -58,6 +67,8 @@ export const adminAudit = new OpenAPIHono<Env>().openapi(listRoute, async (c) =>
     userId,
     action,
     targetType,
+    createdFrom: createdFromDate,
+    createdTo: createdToDate,
   })
   return c.json({ ...result, items: result.items.map(toAuditEventDTO) }, 200)
 })
