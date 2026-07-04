@@ -1455,6 +1455,8 @@ export interface AdminAuditFilter {
   userId?: string
   action?: string
   targetType?: string
+  createdFrom?: string
+  createdTo?: string
 }
 
 export function listAdminAuditLogs(page = 1, pageSize = 20, filter: AdminAuditFilter = {}) {
@@ -1466,5 +1468,7 @@ export function listAdminAuditLogs(page = 1, pageSize = 20, filter: AdminAuditFi
   if (filter.userId) query.userId = filter.userId
   if (filter.action) query.action = filter.action
   if (filter.targetType) query.targetType = filter.targetType
+  if (filter.createdFrom) query.createdFrom = filter.createdFrom
+  if (filter.createdTo) query.createdTo = filter.createdTo
   return unwrap<PaginatedResponse<AdminAuditEvent>>(adminAuditApi.index.$get({ query }))
 }

@@ -3838,7 +3838,14 @@ describe('api', () => {
     it('includes optional filters in query', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 20 }))
 
-      await listAdminAuditLogs(2, 10, { orgId: 'org-1', userId: 'user-1', action: 'upload', targetType: 'file' })
+      await listAdminAuditLogs(2, 10, {
+        orgId: 'org-1',
+        userId: 'user-1',
+        action: 'upload',
+        targetType: 'file',
+        createdFrom: '2026-01-01T00:00:00.000Z',
+        createdTo: '2026-02-01T00:00:00.000Z',
+      })
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
       expect(url).toContain('page=2')
@@ -3847,6 +3854,8 @@ describe('api', () => {
       expect(url).toContain('userId=user-1')
       expect(url).toContain('action=upload')
       expect(url).toContain('targetType=file')
+      expect(url).toContain('createdFrom=2026-01-01T00%3A00%3A00.000Z')
+      expect(url).toContain('createdTo=2026-02-01T00%3A00%3A00.000Z')
     })
 
     it('returns parsed paginated response', async () => {
