@@ -3497,12 +3497,14 @@ type UpdateAnnouncementJSONBodyStatus string
 
 // ListAuditEventsParams defines parameters for ListAuditEvents.
 type ListAuditEventsParams struct {
-	Page       *int    `form:"page,omitempty" json:"page,omitempty"`
-	PageSize   *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-	OrgId      *string `form:"orgId,omitempty" json:"orgId,omitempty"`
-	UserId     *string `form:"userId,omitempty" json:"userId,omitempty"`
-	Action     *string `form:"action,omitempty" json:"action,omitempty"`
-	TargetType *string `form:"targetType,omitempty" json:"targetType,omitempty"`
+	Page        *int       `form:"page,omitempty" json:"page,omitempty"`
+	PageSize    *int       `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	OrgId       *string    `form:"orgId,omitempty" json:"orgId,omitempty"`
+	UserId      *string    `form:"userId,omitempty" json:"userId,omitempty"`
+	Action      *string    `form:"action,omitempty" json:"action,omitempty"`
+	TargetType  *string    `form:"targetType,omitempty" json:"targetType,omitempty"`
+	CreatedFrom *time.Time `form:"createdFrom,omitempty" json:"createdFrom,omitempty"`
+	CreatedTo   *time.Time `form:"createdTo,omitempty" json:"createdTo,omitempty"`
 }
 
 // UpsertAuthProviderJSONBody defines parameters for UpsertAuthProvider.
@@ -15212,6 +15214,30 @@ func NewListAuditEventsRequest(server string, params *ListAuditEventsParams) (*h
 
 		}
 
+		if params.CreatedFrom != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "createdFrom", *params.CreatedFrom, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.CreatedTo != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "createdTo", *params.CreatedTo, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -25277,6 +25303,7 @@ type ListAuditEventsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AuditEventPage
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -39836,6 +39863,13 @@ func ParseListAuditEventsResponse(rsp *http.Response) (*ListAuditEventsResponse,
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 
