@@ -1,0 +1,7 @@
+{
+  "servers": {
+    "gopls": {
+      "rootMarkers": ["go.mod", "cmd/go.mod"]
+    }
+  }
+}
