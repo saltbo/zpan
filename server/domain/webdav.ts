@@ -47,11 +47,11 @@ export function joinMatterPath(parent: string, name: string): string {
 
 export function matterHref(workspace: WebDavWorkspace, matter: Pick<WebDavMatter, 'parent' | 'name'>): string {
   const path = joinMatterPath(matter.parent, matter.name)
-  return `/dav/${encodeURIComponent(workspace.slug)}/${path.split('/').map(encodeURIComponent).join('/')}`
+  return `${workspace.href}${path.split('/').map(encodeURIComponent).join('/')}`
 }
 
 export function workspaceHref(workspace: WebDavWorkspace): string {
-  return `/dav/${encodeURIComponent(workspace.slug)}/`
+  return workspace.href
 }
 
 export function davEtag(id: string, size: number, updatedAt: Date): string {

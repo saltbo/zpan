@@ -32,6 +32,14 @@ describe('[CF] Worker fetch handler', () => {
     const res = await worker.fetch(request, envWithOrigins)
     expect(res.status).toBe(200)
   })
+
+  it('routes the WebDAV mount root with and without trailing slash', async () => {
+    for (const path of ['/dav', '/dav/']) {
+      const res = await worker.fetch(new Request(`http://localhost${path}`, { method: 'PROPFIND' }), testEnv)
+      expect(res.status).toBe(401)
+      expect(res.headers.get('WWW-Authenticate')).toBe('Basic realm="ZPan WebDAV"')
+    }
+  })
 })
 
 describe('[CF] SSR share OG meta injection', () => {

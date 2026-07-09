@@ -443,9 +443,9 @@ function resourcePath(target: WebDavTarget): string {
 function targetHref(target: WebDavTarget): string {
   if (target.mountRoot) return '/dav/'
   const workspace = requireWorkspace(target)
-  if (!target.matter) return `/dav/${encodeURIComponent(workspace.slug)}/`
+  if (!target.matter) return workspace.href
   const path = joinMatterPath(target.matter.parent, target.matter.name)
-  const href = `/dav/${encodeURIComponent(workspace.slug)}/${path.split('/').map(encodeURIComponent).join('/')}`
+  const href = `${workspace.href}${path.split('/').map(encodeURIComponent).join('/')}`
   return target.matter.dirtype === DirType.FILE ? href : `${href}/`
 }
 

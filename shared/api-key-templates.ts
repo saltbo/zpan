@@ -8,6 +8,10 @@ export type ApiKeyTemplate = (typeof ApiKeyTemplate)[keyof typeof ApiKeyTemplate
 
 export type ApiKeyPermissions = Record<string, string[]>
 
+export const WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS = 60_000
+export const WEBDAV_API_KEY_LEGACY_RATE_LIMIT_MAX_REQUESTS = 120
+export const WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS = 3600
+
 export const IHOST_API_KEY_PERMISSIONS = { ihost: ['upload'] } satisfies ApiKeyPermissions
 export const WEBDAV_API_KEY_PERMISSIONS = { webdav: ['read', 'write'] } satisfies ApiKeyPermissions
 export const REMOTE_DOWNLOAD_API_KEY_PERMISSIONS = {

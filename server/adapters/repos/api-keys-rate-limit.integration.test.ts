@@ -1,5 +1,10 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import {
+  WEBDAV_API_KEY_LEGACY_RATE_LIMIT_MAX_REQUESTS,
+  WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
+  WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,
+} from '../../../shared/api-key-templates.js'
 import { authedHeaders, createTestApp } from '../../test/setup.js'
 import { ApiKeyRateLimitError } from '../../usecases/ports'
 import { createApiKeyGateway } from './api-keys'
@@ -75,8 +80,8 @@ describe('API key rate limits', () => {
     expect(await getApiKeyRow(db, webdav.id)).toMatchObject({
       config_id: 'webdav',
       rate_limit_enabled: 1,
-      rate_limit_time_window: 60_000,
-      rate_limit_max: 120,
+      rate_limit_time_window: WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,
+      rate_limit_max: WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
       request_count: 0,
     })
     expect(await getApiKeyRow(db, remoteDownload.id)).toMatchObject({
@@ -118,7 +123,37 @@ describe('API key rate limits', () => {
     expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
   })
 
-  it('WebDAV surfaces a rate-limited API key as too many requests', async () => {
+  it('upgrades legacy WebDAV default rate limits before verification', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    const { userId } = await getUserAndOrg(db)
+    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
+    const apiKey = (await (auth.api as any).createApiKey({
+      body: {
+        configId: 'webdav',
+        userId,
+        permissions: { webdav: ['read'] },
+      },
+    })) as { key: string; id: string }
+
+    await db.run(sql`
+      UPDATE apikey
+      SET rate_limit_max = ${WEBDAV_API_KEY_LEGACY_RATE_LIMIT_MAX_REQUESTS},
+          request_count = ${WEBDAV_API_KEY_LEGACY_RATE_LIMIT_MAX_REQUESTS},
+          last_request = ${Date.now()}
+      WHERE id = ${apiKey.id}
+    `)
+
+    await expect(
+      apiKeys.verifyApiKeyForPermission(auth, db, apiKey.key, 'webdav', 'read', 'webdav'),
+    ).resolves.toMatchObject({ id: apiKey.id })
+    expect(await getApiKeyRow(db, apiKey.id)).toMatchObject({
+      rate_limit_max: WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
+      request_count: WEBDAV_API_KEY_LEGACY_RATE_LIMIT_MAX_REQUESTS + 1,
+    })
+  })
+
+  it('WebDAV surfaces a custom rate-limited API key as too many requests', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     const { userId } = await getUserAndOrg(db)

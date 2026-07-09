@@ -163,7 +163,6 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   // resources live here; better-auth serves its own reference at /api/auth/reference.
   app.get('/api/docs', Scalar({ url: '/api/openapi.json', title: 'ZPan API' }))
 
-  app.all('/dav', (c) => c.redirect('/dav/', 308))
   app.route('/dav', webdav)
 
   // Resolve the caller's principal for every /api/* route. authMiddleware is

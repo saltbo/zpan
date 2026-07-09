@@ -11,16 +11,19 @@ import {
   type WebDavWorkspace,
 } from '../../usecases/ports'
 
+type WorkspaceRow = Pick<WebDavWorkspace, 'id' | 'name' | 'slug'>
+
 export function createWebDavPathRepo(db: Database): WebDavPathRepo {
-  async function getUserWorkspace(userId: string, slugOrId: string): Promise<WebDavWorkspace | null> {
-    const rows = await db
-      .select({ id: organization.id, name: organization.name, slug: organization.slug })
-      .from(member)
-      .innerJoin(organization, eq(organization.id, member.organizationId))
-      .where(and(eq(member.userId, userId), eq(organization.slug, slugOrId)))
-      .limit(1)
-    const row = rows[0] ?? (await getUserWorkspaceById(db, userId, slugOrId))
-    return row ? { ...row, href: `/dav/${encodeURIComponent(row.slug)}/` } : null
+  async function getUserWorkspace(userId: string, pathSegment: string): Promise<WebDavWorkspace | null> {
+    const workspaces = toWebDavWorkspaces(await userWorkspaceRows(db, userId))
+    return (
+      workspaces.find(
+        (workspace) =>
+          workspace.slug === pathSegment ||
+          workspace.id === pathSegment ||
+          workspace.href === `/dav/${encodeURIComponent(pathSegment)}/`,
+      ) ?? null
+    )
   }
 
   async function resolveWebDavPath(userId: string, rawPath: string): Promise<WebDavTarget> {
@@ -40,13 +43,7 @@ export function createWebDavPathRepo(db: Database): WebDavPathRepo {
 
   return {
     async listUserWorkspaces(userId) {
-      const rows = await db
-        .select({ id: organization.id, name: organization.name, slug: organization.slug })
-        .from(member)
-        .innerJoin(organization, eq(organization.id, member.organizationId))
-        .where(eq(member.userId, userId))
-        .orderBy(asc(organization.name), asc(organization.slug))
-      return rows.map((row) => ({ ...row, href: `/dav/${encodeURIComponent(row.slug)}/` }))
+      return toWebDavWorkspaces(await userWorkspaceRows(db, userId))
     },
 
     async listChildren(orgId, parent) {
@@ -72,6 +69,39 @@ export function createWebDavPathRepo(db: Database): WebDavPathRepo {
       return target
     },
   }
+}
+
+async function userWorkspaceRows(db: Database, userId: string): Promise<WorkspaceRow[]> {
+  return db
+    .select({ id: organization.id, name: organization.name, slug: organization.slug })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(eq(member.userId, userId))
+    .orderBy(asc(organization.name), asc(organization.slug))
+}
+
+function toWebDavWorkspaces(rows: WorkspaceRow[]): WebDavWorkspace[] {
+  const preferredSegments = new Map<string, number>()
+  for (const row of rows) {
+    const segment = preferredWorkspaceSegment(row)
+    preferredSegments.set(segment, (preferredSegments.get(segment) ?? 0) + 1)
+  }
+
+  return rows.map((row) => {
+    const preferredSegment = preferredWorkspaceSegment(row)
+    const conflictsWithOtherWorkspace = rows.some(
+      (other) => other.id !== row.id && (other.slug === preferredSegment || other.id === preferredSegment),
+    )
+    const segment =
+      preferredSegments.get(preferredSegment) === 1 && !conflictsWithOtherWorkspace ? preferredSegment : row.slug
+    return { ...row, href: `/dav/${encodeURIComponent(segment)}/` }
+  })
+}
+
+function preferredWorkspaceSegment(row: WorkspaceRow): string {
+  const name = row.name.trim()
+  if (isSafeDavPathSegment(name)) return name
+  return row.slug
 }
 
 function decodeDavPath(rawPath: string): string[] {
@@ -102,6 +132,10 @@ function decodeSegment(segment: string): string {
   return decoded
 }
 
+function isSafeDavPathSegment(segment: string): boolean {
+  return Boolean(segment) && segment !== '.' && segment !== '..' && !segment.includes('/') && !segment.includes('\\')
+}
+
 async function findMatterByPath(db: Database, orgId: string, parent: string, name: string): Promise<Matter | null> {
   const rows = await db
     .select()
@@ -115,16 +149,6 @@ async function findMatterByPath(db: Database, orgId: string, parent: string, nam
         isNull(matters.trashedAt),
       ),
     )
-    .limit(1)
-  return rows[0] ?? null
-}
-
-async function getUserWorkspaceById(db: Database, userId: string, orgId: string) {
-  const rows = await db
-    .select({ id: organization.id, name: organization.name, slug: organization.slug })
-    .from(member)
-    .innerJoin(organization, eq(organization.id, member.organizationId))
-    .where(and(eq(member.userId, userId), eq(organization.id, orgId)))
     .limit(1)
   return rows[0] ?? null
 }

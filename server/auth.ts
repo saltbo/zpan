@@ -13,6 +13,8 @@ import {
   IHOST_API_KEY_PERMISSIONS,
   REMOTE_DOWNLOAD_API_KEY_PERMISSIONS,
   WEBDAV_API_KEY_PERMISSIONS,
+  WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
+  WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,
 } from '../shared/api-key-templates'
 import { DEFAULT_ORG_QUOTA, DEFAULT_ORG_TRAFFIC_QUOTA, SignupMode } from '../shared/constants'
 import {
@@ -436,8 +438,10 @@ export async function createAuth(
           references: 'user',
           rateLimit: {
             enabled: true,
-            timeWindow: 60_000,
-            maxRequests: 120,
+            // Filesystem clients such as macOS Finder issue bursts of PROPFIND
+            // and stat requests while browsing mounted folders.
+            timeWindow: WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,
+            maxRequests: WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
           },
           permissions: {
             defaultPermissions: WEBDAV_API_KEY_PERMISSIONS,

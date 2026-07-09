@@ -76,8 +76,8 @@ async function seedTrafficPlan(db: TestApp['db'], orgId: string, bytes: number, 
 }
 
 async function org(db: TestApp['db']) {
-  const rows = await db.all<{ id: string; slug: string }>(sql`
-    SELECT id, slug FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1
+  const rows = await db.all<{ id: string; name: string; slug: string }>(sql`
+    SELECT id, name, slug FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1
   `)
   if (!rows[0]) throw new Error('No personal org found')
   return rows[0]
@@ -86,11 +86,12 @@ async function org(db: TestApp['db']) {
 async function teamWorkspace(
   db: TestApp['db'],
   opts: { id: string; slug: string; userId?: string; name?: string },
-): Promise<{ id: string; slug: string }> {
+): Promise<{ id: string; name: string; slug: string }> {
   const now = Date.now()
+  const name = opts.name ?? opts.slug
   await db.run(sql`
     INSERT INTO organization (id, name, slug, metadata, created_at, updated_at)
-    VALUES (${opts.id}, ${opts.name ?? opts.slug}, ${opts.slug}, '{}', ${now}, ${now})
+    VALUES (${opts.id}, ${name}, ${opts.slug}, '{}', ${now}, ${now})
   `)
   if (opts.userId) {
     await db.run(sql`
@@ -98,7 +99,7 @@ async function teamWorkspace(
       VALUES (${`mem-${opts.id}`}, ${opts.id}, ${opts.userId}, 'member', ${now})
     `)
   }
-  return { id: opts.id, slug: opts.slug }
+  return { id: opts.id, name, slug: opts.slug }
 }
 
 async function userAccount(db: TestApp['db']) {
@@ -111,6 +112,14 @@ async function userAccount(db: TestApp['db']) {
 
 function basicHeaders(username: string, password: string, extra?: Record<string, string>) {
   return { Authorization: `Basic ${btoa(`${username}:${password}`)}`, ...extra }
+}
+
+function escapedDavHref(name: string, path = '') {
+  return `/dav/${encodeURIComponent(name).replaceAll("'", '&apos;')}/${path}`
+}
+
+function davPathForName(name: string, path = '') {
+  return `/dav/${encodeURIComponent(name)}/${path}`
 }
 
 async function apiKey(auth: TestApp['auth'], userId: string, permissions: Record<string, string[]>) {
@@ -204,14 +213,14 @@ describe('WebDAV API', () => {
 
     const root = await app.request('/dav/', { method: 'PROPFIND', headers: basicHeaders(account.email, key) })
     expect(root.status).toBe(207)
-    expect(await root.text()).toContain(`/dav/${workspace.slug}/`)
+    expect(await root.text()).toContain(escapedDavHref(workspace.name))
 
     const rootWithoutSlash = await app.request('/dav', {
       method: 'PROPFIND',
       headers: basicHeaders(account.email, key),
     })
-    expect(rootWithoutSlash.status).toBe(308)
-    expect(rootWithoutSlash.headers.get('Location')).toBe('/dav/')
+    expect(rootWithoutSlash.status).toBe(207)
+    expect(await rootWithoutSlash.text()).toContain(escapedDavHref(workspace.name))
 
     const docs = await app.request(`/dav/${workspace.slug}/Docs`, {
       method: 'PROPFIND',
@@ -219,9 +228,9 @@ describe('WebDAV API', () => {
     })
     expect(docs.status).toBe(207)
     const xml = await docs.text()
-    expect(xml).toContain(`/dav/${workspace.slug}/Docs/`)
-    expect(xml).toContain(`/dav/${workspace.slug}/Docs/readme.txt`)
-    expect(xml).toContain(`/dav/${workspace.slug}/Docs/Miss%20Americana%20%26%20The%20Heartbreak%20Prince.txt`)
+    expect(xml).toContain(escapedDavHref(workspace.name, 'Docs/'))
+    expect(xml).toContain(escapedDavHref(workspace.name, 'Docs/readme.txt'))
+    expect(xml).toContain(escapedDavHref(workspace.name, 'Docs/Miss%20Americana%20%26%20The%20Heartbreak%20Prince.txt'))
     expect(xml).toContain('<D:displayname>Miss Americana &amp; The Heartbreak Prince.txt</D:displayname>')
 
     const doubledMountSlash = await app.request(`/dav//${workspace.slug}/Docs`, {
@@ -229,6 +238,12 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key),
     })
     expect(doubledMountSlash.status).toBe(207)
+
+    const docsByDisplayName = await app.request(davPathForName(workspace.name, 'Docs'), {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(docsByDisplayName.status).toBe(207)
     for (const property of [
       'displayname',
       'creationdate',
@@ -262,8 +277,8 @@ describe('WebDAV API', () => {
     const root = await app.request('/dav/', { method: 'PROPFIND', headers: basicHeaders(account.email, key) })
     expect(root.status).toBe(207)
     const xml = await root.text()
-    expect(xml).toContain(`/dav/${workspace.slug}/`)
-    expect(xml).toContain(`/dav/${team.slug}/`)
+    expect(xml).toContain(escapedDavHref(workspace.name))
+    expect(xml).toContain(escapedDavHref(team.name))
     expect(xml).not.toContain(`/dav/${hidden.slug}/`)
 
     const hiddenRes = await app.request(`/dav/${hidden.slug}/`, {
@@ -305,7 +320,7 @@ describe('WebDAV API', () => {
     expect(propname.status).toBe(207)
     const propnameXml = await propname.text()
     expect(propnameXml).toContain('<D:displayname/>')
-    expect(propnameXml).toContain(`/dav/${workspace.slug}/Docs/readme.txt`)
+    expect(propnameXml).toContain(escapedDavHref(workspace.name, 'Docs/readme.txt'))
 
     const defaultNamespace = await app.request(`/dav/${workspace.slug}/Docs`, {
       method: 'PROPFIND',
@@ -2063,6 +2078,7 @@ describe('WebDAV over real HTTP (npm client)', () => {
   let auth: TestApp['auth']
   let server: ReturnType<typeof serve>
   let baseUrl: string
+  let workspaceName: string
   let workspaceSlug: string
   let username: string
   let apiKey: string
@@ -2079,12 +2095,13 @@ describe('WebDAV over real HTTP (npm client)', () => {
     const [user] = await db.all<{ id: string; email: string }>(
       sql`SELECT id, email FROM user WHERE email = 'webdav-e2e@example.com'`,
     )
-    const [workspace] = await db.all<{ id: string; slug: string }>(
-      sql`SELECT id, slug FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    const [workspace] = await db.all<{ id: string; name: string; slug: string }>(
+      sql`SELECT id, name, slug FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
     )
     if (!user || !workspace) throw new Error('Failed to seed WebDAV e2e user')
 
     username = user.email
+    workspaceName = workspace.name
     workspaceSlug = workspace.slug
     apiKey = (
       await (auth.api as { createApiKey(input: unknown): Promise<{ key: string }> }).createApiKey({
@@ -2120,7 +2137,7 @@ describe('WebDAV over real HTTP (npm client)', () => {
       body: allpropXml(),
     })
     expect(root.status).toBe(207)
-    expect(await root.text()).toContain(`/dav/${workspaceSlug}/`)
+    expect(await root.text()).toContain(escapedDavHref(workspaceName))
 
     const mkcol = await dav('MKCOL', ws('/Albums'))
     expect(mkcol.status).toBe(201)
@@ -2261,7 +2278,7 @@ describe('WebDAV over real HTTP (npm client)', () => {
     const client = createClient(`${baseUrl}/dav`, { username, password: apiKey })
     const root = await client.getDirectoryContents('/')
     expect(root).toEqual(
-      expect.arrayContaining([expect.objectContaining({ filename: `/${workspaceSlug}`, type: 'directory' })]),
+      expect.arrayContaining([expect.objectContaining({ filename: `/${workspaceName}`, type: 'directory' })]),
     )
 
     const dir = `/${workspaceSlug}/Library Client`
