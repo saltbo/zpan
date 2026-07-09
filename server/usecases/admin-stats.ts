@@ -114,10 +114,16 @@ export interface AdminStatsRangeInput {
   to?: Date
 }
 
+const MAX_DASHBOARD_RANGE_DAYS = 366
+const DAY_MS = 86_400_000
+
 export function normalizeStatsRange(input: AdminStatsRangeInput, now = new Date()): AdminStatsDateRange {
-  const to = input.to ?? now
-  const from = input.from ?? daysAgo(to, 29)
+  const to = endOfDay(input.to ?? now)
+  const from = startOfDay(input.from ?? daysAgo(to, 29))
   if (from > to) throw badRequest('from must be before to', 'INVALID_TIME_RANGE')
+  if (inclusiveDayCount(from, to) > MAX_DASHBOARD_RANGE_DAYS) {
+    throw badRequest(`time range cannot exceed ${MAX_DASHBOARD_RANGE_DAYS} days`, 'TIME_RANGE_TOO_LARGE')
+  }
   return { from, to }
 }
 
@@ -179,4 +185,18 @@ function daysAgo(now: Date, days: number): Date {
   const date = new Date(now)
   date.setUTCDate(date.getUTCDate() - days)
   return date
+}
+
+function startOfDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+}
+
+function endOfDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999))
+}
+
+function inclusiveDayCount(from: Date, to: Date): number {
+  const fromDay = startOfDay(from).getTime()
+  const toDay = startOfDay(to).getTime()
+  return Math.floor((toDay - fromDay) / DAY_MS) + 1
 }

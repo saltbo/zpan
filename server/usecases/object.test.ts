@@ -797,6 +797,25 @@ describe('object usecase', () => {
       })
     })
 
+    it('returns the presigned URL when download audit recording fails', async () => {
+      vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: true })
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const record = vi.fn(async () => {
+        throw new Error('audit unavailable')
+      })
+      const { deps } = makeDeps({
+        matter: { get: async () => file('m1', { size: 100 }) },
+        s3: { presignDownload: async () => 'https://signed' },
+        activity: { record },
+      })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
+
+      expect(out).toMatchObject({ ok: true, downloadUrl: 'https://signed' })
+      expect(record).toHaveBeenCalledOnce()
+      expect(consoleError).toHaveBeenCalledWith('[objects] recordActivity failed:', expect.any(Error))
+      consoleError.mockRestore()
+    })
+
     it('maps a quota_exceeded metering outcome and never presigns', async () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: false, reason: 'quota_exceeded' })
       const presignDownload = vi.fn()
