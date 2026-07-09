@@ -76,6 +76,8 @@ function auditEvent(overrides: Partial<AdminAuditEvent> = {}): AdminAuditEvent {
     orgId: 'org-1',
     orgName: 'Personal',
     userId: 'user-1',
+    actorType: 'user',
+    actorRef: null,
     action: 'upload',
     targetType: 'file',
     targetId: 'file-1',

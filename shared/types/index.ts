@@ -213,10 +213,18 @@ export type {
   AdminBackgroundJobFailure,
   AdminCoreStats,
   AdminCountByStatus,
+  AdminDashboardGrowthStats,
+  AdminDashboardOverviewStats,
+  AdminDashboardRankingStats,
+  AdminDashboardSharingStats,
+  AdminDashboardStorageStats,
+  AdminDashboardTrafficStats,
   AdminDetailedStats,
   AdminDownloaderHealth,
   AdminDownloadFailureReason,
+  AdminStatsDelta,
   AdminStatsPoint,
+  AdminStatsRange,
   AdminStorageByType,
   AdminTopShare,
   AdminUsageBySpace,
@@ -532,10 +540,14 @@ export interface Announcement {
   updatedAt: string
 }
 
+export type ActivityActorType = 'user' | 'anonymous' | 'system' | 'downloader'
+
 export interface ActivityEvent {
   id: string
   orgId: string
-  userId: string
+  userId: string | null
+  actorType: ActivityActorType
+  actorRef: string | null
   action: string
   targetType: string
   targetId: string | null
@@ -543,7 +555,7 @@ export interface ActivityEvent {
   metadata: string | null
   createdAt: string
   user: {
-    id: string
+    id: string | null
     name: string
     image: string | null
   }

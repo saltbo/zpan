@@ -64,12 +64,13 @@ function AdminAuditActivityItem({ event }: { event: AdminAuditEvent }) {
     ? Object.entries(metadata).filter(([key, value]) => !['status', 'result', 'from', 'to'].includes(key) && value)
     : []
   const targetName = event.targetName || event.targetId || event.targetType
+  const actorLabel = event.user.name || formatActor(event)
 
   return (
     <div className="flex items-start gap-3 py-3">
       <Avatar className="h-8 w-8 flex-shrink-0">
         {event.user.image && <AvatarImage src={event.user.image} alt={event.user.name} />}
-        <AvatarFallback className="text-xs">{getInitials(event.user.name || event.userId)}</AvatarFallback>
+        <AvatarFallback className="text-xs">{getInitials(actorLabel)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -106,6 +107,14 @@ function AdminAuditActivityItem({ event }: { event: AdminAuditEvent }) {
       </div>
     </div>
   )
+}
+
+function formatActor(event: AdminAuditEvent): string {
+  if (event.userId) return event.userId
+  if (event.actorType === 'anonymous') return 'Anonymous'
+  if (event.actorType === 'system') return event.actorRef ? `System:${event.actorRef}` : 'System'
+  if (event.actorType === 'downloader') return event.actorRef ? `Downloader:${event.actorRef}` : 'Downloader'
+  return 'Unknown'
 }
 
 function parseActivityMetadata(metadata: string | null): Record<string, string> | null {

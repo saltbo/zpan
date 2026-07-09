@@ -95,7 +95,9 @@ function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEv
   return {
     id: nanoid(),
     orgId: event.targetOrgId,
-    userId: event.customerId ?? 'cloud-store',
+    userId: null,
+    actorType: 'system',
+    actorRef: 'cloud-store',
     action: `quota_order_${event.direction}`,
     targetType: 'quota',
     targetId: event.targetOrgId,
@@ -103,6 +105,7 @@ function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEv
     metadata: JSON.stringify({
       eventId: event.eventId,
       eventType: event.eventType,
+      customerId: event.customerId ?? null,
       direction: event.direction,
       storageBytes: event.storageBytes,
       trafficBytes: event.trafficBytes,

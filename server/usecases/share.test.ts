@@ -563,18 +563,25 @@ describe('downloadShareObject', () => {
       expect.objectContaining({
         orgId: 'o-1',
         userId: 'viewer-9',
+        actorType: 'user',
         action: 'share_download',
         targetId: 's-1',
         targetName: 'file.bin',
-        metadata: { anonymous: false },
+        metadata: expect.objectContaining({ anonymous: false, source: 'landing_share', status: 'issued', bytes: 1024 }),
       }),
     )
   })
 
-  it('attributes anonymous downloads to the creator', async () => {
+  it('records anonymous downloads without attributing them to the creator', async () => {
     const { deps, record } = makeDeps()
     await downloadShareObject(deps, { ...baseParams, viewerId: null })
-    expect(record).toHaveBeenCalledWith(expect.objectContaining({ userId: 'creator-1', metadata: { anonymous: true } }))
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: null,
+        actorType: 'anonymous',
+        metadata: expect.objectContaining({ anonymous: true, creatorId: 'creator-1', source: 'landing_share' }),
+      }),
+    )
   })
 
   it('still succeeds when the activity record throws', async () => {

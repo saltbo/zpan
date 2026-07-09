@@ -74,14 +74,16 @@ const activityEventSchema = z
   .object({
     id: z.string(),
     orgId: z.string(),
-    userId: z.string(),
+    userId: z.string().nullable(),
+    actorType: z.enum(['user', 'anonymous', 'system', 'downloader']),
+    actorRef: z.string().nullable(),
     action: z.string(),
     targetType: z.string(),
     targetId: z.string().nullable(),
     targetName: z.string(),
     metadata: z.string().nullable(),
     createdAt: z.string(),
-    user: z.object({ id: z.string(), name: z.string(), image: z.string().nullable() }),
+    user: z.object({ id: z.string().nullable(), name: z.string(), image: z.string().nullable() }),
   })
   .openapi('ActivityEvent')
 

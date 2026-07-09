@@ -40,6 +40,12 @@ import {
   enableIhostFeature,
   generateInviteCodes,
   getAdminCoreStats,
+  getAdminDashboardGrowthStats,
+  getAdminDashboardOverviewStats,
+  getAdminDashboardRankingStats,
+  getAdminDashboardSharingStats,
+  getAdminDashboardStorageStats,
+  getAdminDashboardTrafficStats,
   getAdminDetailedStats,
   getAnnouncement,
   getBackgroundJob,
@@ -3934,6 +3940,42 @@ describe('api', () => {
 
       await expect(getAdminDetailedStats()).rejects.toMatchObject({ status: 402 })
     })
+
+    const dashboardPayload = {
+      generatedAt: '2026-07-09T00:00:00.000Z',
+      from: '2026-07-01T00:00:00.000Z',
+      to: '2026-07-09T00:00:00.000Z',
+    }
+    const range = { from: '2026-07-01T00:00:00.000Z', to: '2026-07-09T00:00:00.000Z' }
+    const dashboardEndpoints = [
+      { name: 'getAdminDashboardOverviewStats', path: '/api/admin/stats/overview', fn: getAdminDashboardOverviewStats },
+      { name: 'getAdminDashboardGrowthStats', path: '/api/admin/stats/growth', fn: getAdminDashboardGrowthStats },
+      { name: 'getAdminDashboardStorageStats', path: '/api/admin/stats/storage', fn: getAdminDashboardStorageStats },
+      { name: 'getAdminDashboardTrafficStats', path: '/api/admin/stats/traffic', fn: getAdminDashboardTrafficStats },
+      { name: 'getAdminDashboardSharingStats', path: '/api/admin/stats/sharing', fn: getAdminDashboardSharingStats },
+      { name: 'getAdminDashboardRankingStats', path: '/api/admin/stats/ranking', fn: getAdminDashboardRankingStats },
+    ] as const
+
+    for (const endpoint of dashboardEndpoints) {
+      it(`${endpoint.name} fetches dashboard stats with from/to`, async () => {
+        vi.mocked(fetch).mockResolvedValueOnce(makeResponse(dashboardPayload))
+
+        const result = await endpoint.fn(range)
+
+        expect(result).toEqual(dashboardPayload)
+        const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+        expect(url).toContain(endpoint.path)
+        expect(decodeURIComponent(url)).toContain(`from=${range.from}`)
+        expect(decodeURIComponent(url)).toContain(`to=${range.to}`)
+        expect(init.method).toBe('GET')
+      })
+
+      it(`${endpoint.name} throws ApiError on failure`, async () => {
+        vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Feature not available' }, false, 402))
+
+        await expect(endpoint.fn(range)).rejects.toMatchObject({ status: 402 })
+      })
+    }
   })
 
   describe('listAdminAuditLogs', () => {

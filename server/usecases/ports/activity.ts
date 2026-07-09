@@ -2,9 +2,13 @@
 // No drizzle here — the port is what usecases and http see; the adapter maps rows
 // into these shapes.
 
+export type ActivityActorType = 'user' | 'anonymous' | 'system' | 'downloader'
+
 export interface RecordActivityInput {
   orgId: string
-  userId: string
+  userId?: string | null
+  actorType?: ActivityActorType
+  actorRef?: string | null
   action: string
   targetType: string
   targetId?: string
@@ -15,7 +19,9 @@ export interface RecordActivityInput {
 export interface ActivityEvent {
   id: string
   orgId: string
-  userId: string
+  userId: string | null
+  actorType: ActivityActorType
+  actorRef: string | null
   action: string
   targetType: string
   targetId: string | null
@@ -25,7 +31,7 @@ export interface ActivityEvent {
 }
 
 export interface ActivityEventWithUser extends ActivityEvent {
-  user: { id: string; name: string; image: string | null }
+  user: { id: string | null; name: string; image: string | null }
 }
 
 export interface AdminAuditEventWithOrg extends ActivityEventWithUser {
