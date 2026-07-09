@@ -69,18 +69,43 @@ describe('admin stats routes', () => {
     expect(body.trends.some((point) => point.remoteTasks > 0 || point.failedJobs > 0)).toBe(true)
   })
 
+  it('normalizes date-only dashboard ranges to exact daily buckets', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    const res = await app.request('/api/admin/stats/overview?from=2026-01-01&to=2026-01-07', { headers })
+    const body = (await res.json()) as { from: string; to: string; trends: Array<{ date: string }> }
+
+    expect(res.status).toBe(200)
+    expect(body.from).toBe('2026-01-01T00:00:00.000Z')
+    expect(body.to).toBe('2026-01-07T23:59:59.999Z')
+    expect(body.trends.map((point) => point.date)).toEqual([
+      '2026-01-01',
+      '2026-01-02',
+      '2026-01-03',
+      '2026-01-04',
+      '2026-01-05',
+      '2026-01-06',
+      '2026-01-07',
+    ])
+  })
+
+  it('rejects dashboard ranges longer than one year', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    const res = await app.request('/api/admin/stats/overview?from=2025-01-01&to=2026-01-02', { headers })
+
+    expect(res.status).toBe(400)
+  })
+
   it('returns traffic dashboard stats from audit-backed download events for Pro admins', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
     await seedStatsFixture(db)
 
-    const res = await app.request(
-      '/api/admin/stats/traffic?from=2020-01-01T00:00:00.000Z&to=2100-01-01T00:00:00.000Z',
-      {
-        headers,
-      },
-    )
+    const res = await app.request('/api/admin/stats/traffic', { headers })
     const body = (await res.json()) as {
       summary: {
         totalBytes: { value: number }
@@ -109,6 +134,62 @@ describe('admin stats routes', () => {
       body.successTrend.some((point) => point.uploadSuccessRate === 100 && point.downloadSuccessRate === 100),
     ).toBe(true)
     expect(body.failureReasons).toEqual([])
+  })
+
+  it('applies dashboard ranges to sharing and ranking drill-down data', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedStatsFixture(db)
+
+    const currentSharingRes = await app.request('/api/admin/stats/sharing', { headers })
+    const currentSharing = (await currentSharingRes.json()) as {
+      summary: { views: { value: number }; downloads: { value: number } }
+      topShares: Array<{
+        token: string
+        views: number
+        downloads: number
+        viewPercent: number
+        downloadPercent: number
+      }>
+    }
+    const oldSharingRes = await app.request('/api/admin/stats/sharing?from=2000-01-01&to=2000-01-02', { headers })
+    const oldSharing = (await oldSharingRes.json()) as {
+      summary: { views: { value: number }; downloads: { value: number } }
+      topShares: unknown[]
+    }
+    const currentRankingRes = await app.request('/api/admin/stats/ranking', { headers })
+    const currentRanking = (await currentRankingRes.json()) as {
+      topSpaces: unknown[]
+      storageByType: unknown[]
+      topShares: unknown[]
+    }
+    const oldRankingRes = await app.request('/api/admin/stats/ranking?from=2000-01-01&to=2000-01-02', { headers })
+    const oldRanking = (await oldRankingRes.json()) as {
+      topSpaces: unknown[]
+      storageByType: unknown[]
+      topShares: unknown[]
+    }
+
+    expect(currentSharingRes.status).toBe(200)
+    expect(currentSharing.summary.views.value).toBe(1)
+    expect(currentSharing.summary.downloads.value).toBe(1)
+    expect(currentSharing.topShares[0]).toMatchObject({
+      token: 'share-token-1',
+      views: 1,
+      downloads: 1,
+      viewPercent: 100,
+      downloadPercent: 100,
+    })
+    expect(oldSharing.summary.views.value).toBe(0)
+    expect(oldSharing.summary.downloads.value).toBe(0)
+    expect(oldSharing.topShares).toEqual([])
+    expect(currentRanking.topSpaces.length).toBeGreaterThan(0)
+    expect(currentRanking.storageByType.length).toBeGreaterThan(0)
+    expect(currentRanking.topShares.length).toBeGreaterThan(0)
+    expect(oldRanking.topSpaces).toEqual([])
+    expect(oldRanking.storageByType).toEqual([])
+    expect(oldRanking.topShares).toEqual([])
   })
 })
 
@@ -152,6 +233,8 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
     INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
     VALUES
       ('activity-upload-confirm', ${orgId}, ${userId}, 'user', 'upload_confirm', 'file', 'stats-file', 'report.pdf', '{"bytes":128,"source":"upload"}', ${nowSec}),
+      ('activity-share-view', ${orgId}, NULL, 'anonymous', 'share_view', 'share', 'share-1', 'report.pdf', '{"source":"landing_share","anonymous":true}', ${nowSec}),
+      ('activity-share-password', ${orgId}, NULL, 'anonymous', 'share_password_passed', 'share', 'share-1', 'report.pdf', '{"source":"landing_share","anonymous":true}', ${nowSec}),
       ('activity-share-download', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-1', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec}),
       ('activity-object-download', ${orgId}, ${userId}, 'user', 'object_download', 'file', 'stats-file', 'report.pdf', '{"bytes":256,"source":"object_download"}', ${nowSec})
   `)

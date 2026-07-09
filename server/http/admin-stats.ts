@@ -148,18 +148,209 @@ const detailsQuerySchema = z.object({
   periodDays: z.coerce.number().int().min(7).max(90).default(30),
 })
 
-const rangeQuerySchema = z.object({
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+const dashboardDateSchema = z.string().refine((value) => isValidDashboardDate(value), {
+  message: 'Expected yyyy-MM-dd or ISO datetime',
 })
 
-const dashboardStatsSchema = z.any().openapi('AdminDashboardStats')
+const rangeQuerySchema = z.object({
+  from: dashboardDateSchema.optional(),
+  to: dashboardDateSchema.optional(),
+})
+
+const statsRangeFields = {
+  generatedAt: z.string(),
+  from: z.string(),
+  to: z.string(),
+}
+
+const deltaSchema = z.object({
+  value: z.number(),
+  previousValue: z.number(),
+  changePercent: z.number(),
+})
+
+const topShareWithPercentSchema = z.object({
+  id: z.string(),
+  token: z.string(),
+  name: z.string(),
+  creatorId: z.string(),
+  creatorName: z.string(),
+  views: z.number(),
+  downloads: z.number(),
+  status: z.string(),
+  viewPercent: z.number(),
+  downloadPercent: z.number(),
+})
+
+const usageBySpaceSchema = z.object({
+  orgId: z.string(),
+  orgName: z.string(),
+  orgType: z.string(),
+  usedBytes: z.number(),
+  quotaBytes: z.number(),
+  utilization: z.number(),
+})
+
+const storageByTypeSchema = z.object({
+  type: z.string(),
+  bytes: z.number(),
+  files: z.number(),
+})
+
+const namedPercentValueSchema = z.object({
+  name: z.string(),
+  value: z.number(),
+  percent: z.number(),
+})
+
+const namedBytesBreakdownSchema = z.object({
+  name: z.string(),
+  bytes: z.number(),
+  files: z.number(),
+  percent: z.number(),
+})
+
+const dashboardOverviewStatsSchema = z
+  .object({
+    ...statsRangeFields,
+    totals: z.object({
+      users: z.number(),
+      newUsers: deltaSchema,
+      activeUsers: deltaSchema,
+      storageUsedBytes: z.number(),
+      storageQuotaBytes: z.number(),
+      trafficBytes: deltaSchema,
+      uploadBytes: deltaSchema,
+      downloadBytes: deltaSchema,
+      activeShares: z.number(),
+      shareViews: deltaSchema,
+      shareDownloads: deltaSchema,
+    }),
+    trends: z.array(
+      z.object({
+        date: z.string(),
+        newUsers: z.number(),
+        activeUsers: z.number(),
+        storageUsedBytes: z.number(),
+        uploadBytes: z.number(),
+        downloadBytes: z.number(),
+      }),
+    ),
+  })
+  .openapi('AdminDashboardOverviewStats')
+
+const dashboardGrowthStatsSchema = z
+  .object({
+    ...statsRangeFields,
+    summary: z.object({
+      totalUsers: z.number(),
+      newUsers: deltaSchema,
+      activeUsers: deltaSchema,
+      verifiedUsers: z.number(),
+      bannedUsers: z.number(),
+      silentUsers: z.number(),
+    }),
+    userScaleTrend: z.array(z.object({ date: z.string(), newUsers: z.number(), totalUsers: z.number() })),
+    activeUserTrend: z.array(z.object({ date: z.string(), dau: z.number(), wau: z.number(), mau: z.number() })),
+    userStatus: z.array(namedPercentValueSchema),
+    registrationSources: z.array(namedPercentValueSchema),
+  })
+  .openapi('AdminDashboardGrowthStats')
+
+const dashboardStorageStatsSchema = z
+  .object({
+    ...statsRangeFields,
+    summary: z.object({
+      storageUsedBytes: z.number(),
+      quotaBytes: z.number(),
+      fileCount: z.number(),
+      newFiles: deltaSchema,
+      newBytes: deltaSchema,
+      coldFileBytes: z.number(),
+    }),
+    storageTrend: z.array(
+      z.object({ date: z.string(), usedBytes: z.number(), newBytes: z.number(), newFiles: z.number() }),
+    ),
+    typeBreakdown: z.array(storageByTypeSchema.extend({ percent: z.number() })),
+    sizeBreakdown: z.array(namedBytesBreakdownSchema),
+    ageBreakdown: z.array(namedBytesBreakdownSchema),
+  })
+  .openapi('AdminDashboardStorageStats')
+
+const dashboardTrafficStatsSchema = z
+  .object({
+    ...statsRangeFields,
+    summary: z.object({
+      totalBytes: deltaSchema,
+      requestCount: deltaSchema,
+      issuedDownloads: z.number(),
+      blockedDownloads: z.number(),
+      issueRate: z.number(),
+      peakDailyBytes: z.number(),
+    }),
+    trafficTrend: z.array(
+      z.object({ date: z.string(), uploadBytes: z.number(), downloadBytes: z.number(), requests: z.number() }),
+    ),
+    sourceBreakdown: z.array(
+      z.object({ name: z.string(), bytes: z.number(), requests: z.number(), percent: z.number() }),
+    ),
+    issueStatus: z.array(z.object({ status: z.string(), count: z.number(), percent: z.number() })),
+    bandwidthTrend: z.array(z.object({ date: z.string(), bytes: z.number() })),
+    successTrend: z.array(
+      z.object({ date: z.string(), uploadSuccessRate: z.number(), downloadSuccessRate: z.number() }),
+    ),
+    failureReasons: z.array(namedPercentValueSchema),
+  })
+  .openapi('AdminDashboardTrafficStats')
+
+const dashboardSharingStatsSchema = z
+  .object({
+    ...statsRangeFields,
+    summary: z.object({
+      activeShares: z.number(),
+      createdShares: deltaSchema,
+      views: deltaSchema,
+      downloads: deltaSchema,
+      saves: deltaSchema,
+      downloadConversionRate: z.number(),
+    }),
+    funnel: z.array(namedPercentValueSchema),
+    trend: z.array(z.object({ date: z.string(), views: z.number(), downloads: z.number(), saves: z.number() })),
+    typeBreakdown: z.array(namedPercentValueSchema),
+    sourceBreakdown: z.array(namedPercentValueSchema),
+    topShares: z.array(topShareWithPercentSchema),
+  })
+  .openapi('AdminDashboardSharingStats')
+
+const dashboardRankingStatsSchema = z
+  .object({
+    ...statsRangeFields,
+    topShares: z.array(topShareWithPercentSchema),
+    topSpaces: z.array(usageBySpaceSchema),
+    storageByType: z.array(storageByTypeSchema),
+  })
+  .openapi('AdminDashboardRankingStats')
 
 function parseRange(query: z.infer<typeof rangeQuerySchema>): { from?: Date; to?: Date } {
   return {
-    from: query.from ? new Date(query.from) : undefined,
-    to: query.to ? new Date(query.to) : undefined,
+    from: query.from ? parseDashboardDate(query.from, 'start') : undefined,
+    to: query.to ? parseDashboardDate(query.to, 'end') : undefined,
   }
+}
+
+function isValidDashboardDate(value: string): boolean {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const date = new Date(`${value}T00:00:00.000Z`)
+    return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
+  }
+  return !Number.isNaN(Date.parse(value))
+}
+
+function parseDashboardDate(value: string, boundary: 'start' | 'end'): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T${boundary === 'start' ? '00:00:00.000' : '23:59:59.999'}Z`)
+  }
+  return new Date(value)
 }
 
 const coreRoute = createRoute({
@@ -198,7 +389,7 @@ const overviewRoute = createRoute({
   middleware: [requireAdmin] as const,
   request: { query: rangeQuerySchema },
   responses: {
-    200: jsonContent(dashboardStatsSchema, 'Admin dashboard overview stats'),
+    200: jsonContent(dashboardOverviewStatsSchema, 'Admin dashboard overview stats'),
     400: errorResponse('Invalid query'),
     401: errorResponse('Unauthorized'),
   },
@@ -213,7 +404,8 @@ const growthRoute = createRoute({
   middleware: [requireAdmin, requireFeature('analytics')] as const,
   request: { query: rangeQuerySchema },
   responses: {
-    200: jsonContent(dashboardStatsSchema, 'Admin dashboard growth stats'),
+    200: jsonContent(dashboardGrowthStatsSchema, 'Admin dashboard growth stats'),
+    400: errorResponse('Invalid query'),
     402: errorResponse('Feature not available'),
   },
 })
@@ -227,7 +419,8 @@ const storageRoute = createRoute({
   middleware: [requireAdmin, requireFeature('analytics')] as const,
   request: { query: rangeQuerySchema },
   responses: {
-    200: jsonContent(dashboardStatsSchema, 'Admin dashboard storage stats'),
+    200: jsonContent(dashboardStorageStatsSchema, 'Admin dashboard storage stats'),
+    400: errorResponse('Invalid query'),
     402: errorResponse('Feature not available'),
   },
 })
@@ -241,7 +434,8 @@ const trafficRoute = createRoute({
   middleware: [requireAdmin, requireFeature('analytics')] as const,
   request: { query: rangeQuerySchema },
   responses: {
-    200: jsonContent(dashboardStatsSchema, 'Admin dashboard traffic stats'),
+    200: jsonContent(dashboardTrafficStatsSchema, 'Admin dashboard traffic stats'),
+    400: errorResponse('Invalid query'),
     402: errorResponse('Feature not available'),
   },
 })
@@ -255,7 +449,8 @@ const sharingRoute = createRoute({
   middleware: [requireAdmin, requireFeature('analytics')] as const,
   request: { query: rangeQuerySchema },
   responses: {
-    200: jsonContent(dashboardStatsSchema, 'Admin dashboard sharing stats'),
+    200: jsonContent(dashboardSharingStatsSchema, 'Admin dashboard sharing stats'),
+    400: errorResponse('Invalid query'),
     402: errorResponse('Feature not available'),
   },
 })
@@ -269,7 +464,8 @@ const rankingRoute = createRoute({
   middleware: [requireAdmin, requireFeature('analytics')] as const,
   request: { query: rangeQuerySchema },
   responses: {
-    200: jsonContent(dashboardStatsSchema, 'Admin dashboard ranking stats'),
+    200: jsonContent(dashboardRankingStatsSchema, 'Admin dashboard ranking stats'),
+    400: errorResponse('Invalid query'),
     402: errorResponse('Feature not available'),
   },
 })

@@ -1397,8 +1397,302 @@ type AdminCoreStats struct {
 	} `json:"users"`
 }
 
-// AdminDashboardStats defines model for AdminDashboardStats.
-type AdminDashboardStats = interface{}
+// AdminDashboardGrowthStats defines model for AdminDashboardGrowthStats.
+type AdminDashboardGrowthStats struct {
+	ActiveUserTrend []struct {
+		Date string  `json:"date"`
+		Dau  float32 `json:"dau"`
+		Mau  float32 `json:"mau"`
+		Wau  float32 `json:"wau"`
+	} `json:"activeUserTrend"`
+	From                string `json:"from"`
+	GeneratedAt         string `json:"generatedAt"`
+	RegistrationSources []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"registrationSources"`
+	Summary struct {
+		ActiveUsers struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"activeUsers"`
+		BannedUsers float32 `json:"bannedUsers"`
+		NewUsers    struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"newUsers"`
+		SilentUsers   float32 `json:"silentUsers"`
+		TotalUsers    float32 `json:"totalUsers"`
+		VerifiedUsers float32 `json:"verifiedUsers"`
+	} `json:"summary"`
+	To             string `json:"to"`
+	UserScaleTrend []struct {
+		Date       string  `json:"date"`
+		NewUsers   float32 `json:"newUsers"`
+		TotalUsers float32 `json:"totalUsers"`
+	} `json:"userScaleTrend"`
+	UserStatus []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"userStatus"`
+}
+
+// AdminDashboardOverviewStats defines model for AdminDashboardOverviewStats.
+type AdminDashboardOverviewStats struct {
+	From        string `json:"from"`
+	GeneratedAt string `json:"generatedAt"`
+	To          string `json:"to"`
+	Totals      struct {
+		ActiveShares float32 `json:"activeShares"`
+		ActiveUsers  struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"activeUsers"`
+		DownloadBytes struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"downloadBytes"`
+		NewUsers struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"newUsers"`
+		ShareDownloads struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"shareDownloads"`
+		ShareViews struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"shareViews"`
+		StorageQuotaBytes float32 `json:"storageQuotaBytes"`
+		StorageUsedBytes  float32 `json:"storageUsedBytes"`
+		TrafficBytes      struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"trafficBytes"`
+		UploadBytes struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"uploadBytes"`
+		Users float32 `json:"users"`
+	} `json:"totals"`
+	Trends []struct {
+		ActiveUsers      float32 `json:"activeUsers"`
+		Date             string  `json:"date"`
+		DownloadBytes    float32 `json:"downloadBytes"`
+		NewUsers         float32 `json:"newUsers"`
+		StorageUsedBytes float32 `json:"storageUsedBytes"`
+		UploadBytes      float32 `json:"uploadBytes"`
+	} `json:"trends"`
+}
+
+// AdminDashboardRankingStats defines model for AdminDashboardRankingStats.
+type AdminDashboardRankingStats struct {
+	From          string `json:"from"`
+	GeneratedAt   string `json:"generatedAt"`
+	StorageByType []struct {
+		Bytes float32 `json:"bytes"`
+		Files float32 `json:"files"`
+		Type  string  `json:"type"`
+	} `json:"storageByType"`
+	To        string `json:"to"`
+	TopShares []struct {
+		CreatorId       string  `json:"creatorId"`
+		CreatorName     string  `json:"creatorName"`
+		DownloadPercent float32 `json:"downloadPercent"`
+		Downloads       float32 `json:"downloads"`
+		Id              string  `json:"id"`
+		Name            string  `json:"name"`
+		Status          string  `json:"status"`
+		Token           string  `json:"token"`
+		ViewPercent     float32 `json:"viewPercent"`
+		Views           float32 `json:"views"`
+	} `json:"topShares"`
+	TopSpaces []struct {
+		OrgId       string  `json:"orgId"`
+		OrgName     string  `json:"orgName"`
+		OrgType     string  `json:"orgType"`
+		QuotaBytes  float32 `json:"quotaBytes"`
+		UsedBytes   float32 `json:"usedBytes"`
+		Utilization float32 `json:"utilization"`
+	} `json:"topSpaces"`
+}
+
+// AdminDashboardSharingStats defines model for AdminDashboardSharingStats.
+type AdminDashboardSharingStats struct {
+	From   string `json:"from"`
+	Funnel []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"funnel"`
+	GeneratedAt     string `json:"generatedAt"`
+	SourceBreakdown []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"sourceBreakdown"`
+	Summary struct {
+		ActiveShares  float32 `json:"activeShares"`
+		CreatedShares struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"createdShares"`
+		DownloadConversionRate float32 `json:"downloadConversionRate"`
+		Downloads              struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"downloads"`
+		Saves struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"saves"`
+		Views struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"views"`
+	} `json:"summary"`
+	To        string `json:"to"`
+	TopShares []struct {
+		CreatorId       string  `json:"creatorId"`
+		CreatorName     string  `json:"creatorName"`
+		DownloadPercent float32 `json:"downloadPercent"`
+		Downloads       float32 `json:"downloads"`
+		Id              string  `json:"id"`
+		Name            string  `json:"name"`
+		Status          string  `json:"status"`
+		Token           string  `json:"token"`
+		ViewPercent     float32 `json:"viewPercent"`
+		Views           float32 `json:"views"`
+	} `json:"topShares"`
+	Trend []struct {
+		Date      string  `json:"date"`
+		Downloads float32 `json:"downloads"`
+		Saves     float32 `json:"saves"`
+		Views     float32 `json:"views"`
+	} `json:"trend"`
+	TypeBreakdown []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"typeBreakdown"`
+}
+
+// AdminDashboardStorageStats defines model for AdminDashboardStorageStats.
+type AdminDashboardStorageStats struct {
+	AgeBreakdown []struct {
+		Bytes   float32 `json:"bytes"`
+		Files   float32 `json:"files"`
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+	} `json:"ageBreakdown"`
+	From          string `json:"from"`
+	GeneratedAt   string `json:"generatedAt"`
+	SizeBreakdown []struct {
+		Bytes   float32 `json:"bytes"`
+		Files   float32 `json:"files"`
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+	} `json:"sizeBreakdown"`
+	StorageTrend []struct {
+		Date      string  `json:"date"`
+		NewBytes  float32 `json:"newBytes"`
+		NewFiles  float32 `json:"newFiles"`
+		UsedBytes float32 `json:"usedBytes"`
+	} `json:"storageTrend"`
+	Summary struct {
+		ColdFileBytes float32 `json:"coldFileBytes"`
+		FileCount     float32 `json:"fileCount"`
+		NewBytes      struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"newBytes"`
+		NewFiles struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"newFiles"`
+		QuotaBytes       float32 `json:"quotaBytes"`
+		StorageUsedBytes float32 `json:"storageUsedBytes"`
+	} `json:"summary"`
+	To            string `json:"to"`
+	TypeBreakdown []struct {
+		Bytes   float32 `json:"bytes"`
+		Files   float32 `json:"files"`
+		Percent float32 `json:"percent"`
+		Type    string  `json:"type"`
+	} `json:"typeBreakdown"`
+}
+
+// AdminDashboardTrafficStats defines model for AdminDashboardTrafficStats.
+type AdminDashboardTrafficStats struct {
+	BandwidthTrend []struct {
+		Bytes float32 `json:"bytes"`
+		Date  string  `json:"date"`
+	} `json:"bandwidthTrend"`
+	FailureReasons []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"failureReasons"`
+	From        string `json:"from"`
+	GeneratedAt string `json:"generatedAt"`
+	IssueStatus []struct {
+		Count   float32 `json:"count"`
+		Percent float32 `json:"percent"`
+		Status  string  `json:"status"`
+	} `json:"issueStatus"`
+	SourceBreakdown []struct {
+		Bytes    float32 `json:"bytes"`
+		Name     string  `json:"name"`
+		Percent  float32 `json:"percent"`
+		Requests float32 `json:"requests"`
+	} `json:"sourceBreakdown"`
+	SuccessTrend []struct {
+		Date                string  `json:"date"`
+		DownloadSuccessRate float32 `json:"downloadSuccessRate"`
+		UploadSuccessRate   float32 `json:"uploadSuccessRate"`
+	} `json:"successTrend"`
+	Summary struct {
+		BlockedDownloads float32 `json:"blockedDownloads"`
+		IssueRate        float32 `json:"issueRate"`
+		IssuedDownloads  float32 `json:"issuedDownloads"`
+		PeakDailyBytes   float32 `json:"peakDailyBytes"`
+		RequestCount     struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"requestCount"`
+		TotalBytes struct {
+			ChangePercent float32 `json:"changePercent"`
+			PreviousValue float32 `json:"previousValue"`
+			Value         float32 `json:"value"`
+		} `json:"totalBytes"`
+	} `json:"summary"`
+	To           string `json:"to"`
+	TrafficTrend []struct {
+		Date          string  `json:"date"`
+		DownloadBytes float32 `json:"downloadBytes"`
+		Requests      float32 `json:"requests"`
+		UploadBytes   float32 `json:"uploadBytes"`
+	} `json:"trafficTrend"`
+}
 
 // AdminDetailedStats defines model for AdminDetailedStats.
 type AdminDetailedStats struct {
@@ -2514,38 +2808,38 @@ type GetAdminDetailedStatsParams struct {
 
 // GetAdminDashboardGrowthStatsParams defines parameters for GetAdminDashboardGrowthStats.
 type GetAdminDashboardGrowthStatsParams struct {
-	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
-	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+	From *string `form:"from,omitempty" json:"from,omitempty"`
+	To   *string `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // GetAdminDashboardOverviewStatsParams defines parameters for GetAdminDashboardOverviewStats.
 type GetAdminDashboardOverviewStatsParams struct {
-	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
-	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+	From *string `form:"from,omitempty" json:"from,omitempty"`
+	To   *string `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // GetAdminDashboardRankingStatsParams defines parameters for GetAdminDashboardRankingStats.
 type GetAdminDashboardRankingStatsParams struct {
-	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
-	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+	From *string `form:"from,omitempty" json:"from,omitempty"`
+	To   *string `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // GetAdminDashboardSharingStatsParams defines parameters for GetAdminDashboardSharingStats.
 type GetAdminDashboardSharingStatsParams struct {
-	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
-	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+	From *string `form:"from,omitempty" json:"from,omitempty"`
+	To   *string `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // GetAdminDashboardStorageStatsParams defines parameters for GetAdminDashboardStorageStats.
 type GetAdminDashboardStorageStatsParams struct {
-	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
-	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+	From *string `form:"from,omitempty" json:"from,omitempty"`
+	To   *string `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // GetAdminDashboardTrafficStatsParams defines parameters for GetAdminDashboardTrafficStats.
 type GetAdminDashboardTrafficStatsParams struct {
-	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
-	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+	From *string `form:"from,omitempty" json:"from,omitempty"`
+	To   *string `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // BanUserJSONBody defines parameters for BanUser.
@@ -9399,7 +9693,7 @@ func NewGetAdminDashboardGrowthStatsRequest(server string, params *GetAdminDashb
 
 		if params.From != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9411,7 +9705,7 @@ func NewGetAdminDashboardGrowthStatsRequest(server string, params *GetAdminDashb
 
 		if params.To != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9465,7 +9759,7 @@ func NewGetAdminDashboardOverviewStatsRequest(server string, params *GetAdminDas
 
 		if params.From != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9477,7 +9771,7 @@ func NewGetAdminDashboardOverviewStatsRequest(server string, params *GetAdminDas
 
 		if params.To != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9531,7 +9825,7 @@ func NewGetAdminDashboardRankingStatsRequest(server string, params *GetAdminDash
 
 		if params.From != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9543,7 +9837,7 @@ func NewGetAdminDashboardRankingStatsRequest(server string, params *GetAdminDash
 
 		if params.To != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9597,7 +9891,7 @@ func NewGetAdminDashboardSharingStatsRequest(server string, params *GetAdminDash
 
 		if params.From != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9609,7 +9903,7 @@ func NewGetAdminDashboardSharingStatsRequest(server string, params *GetAdminDash
 
 		if params.To != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9663,7 +9957,7 @@ func NewGetAdminDashboardStorageStatsRequest(server string, params *GetAdminDash
 
 		if params.From != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9675,7 +9969,7 @@ func NewGetAdminDashboardStorageStatsRequest(server string, params *GetAdminDash
 
 		if params.To != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9729,7 +10023,7 @@ func NewGetAdminDashboardTrafficStatsRequest(server string, params *GetAdminDash
 
 		if params.From != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -9741,7 +10035,7 @@ func NewGetAdminDashboardTrafficStatsRequest(server string, params *GetAdminDash
 
 		if params.To != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -19833,7 +20127,8 @@ func (r GetAdminDetailedStatsResponse) ContentType() string {
 type GetAdminDashboardGrowthStatsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AdminDashboardStats
+	JSON200      *AdminDashboardGrowthStats
+	JSON400      *Error
 	JSON402      *Error
 }
 
@@ -19864,7 +20159,7 @@ func (r GetAdminDashboardGrowthStatsResponse) ContentType() string {
 type GetAdminDashboardOverviewStatsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AdminDashboardStats
+	JSON200      *AdminDashboardOverviewStats
 	JSON400      *Error
 	JSON401      *Error
 }
@@ -19896,7 +20191,8 @@ func (r GetAdminDashboardOverviewStatsResponse) ContentType() string {
 type GetAdminDashboardRankingStatsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AdminDashboardStats
+	JSON200      *AdminDashboardRankingStats
+	JSON400      *Error
 	JSON402      *Error
 }
 
@@ -19927,7 +20223,8 @@ func (r GetAdminDashboardRankingStatsResponse) ContentType() string {
 type GetAdminDashboardSharingStatsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AdminDashboardStats
+	JSON200      *AdminDashboardSharingStats
+	JSON400      *Error
 	JSON402      *Error
 }
 
@@ -19958,7 +20255,8 @@ func (r GetAdminDashboardSharingStatsResponse) ContentType() string {
 type GetAdminDashboardStorageStatsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AdminDashboardStats
+	JSON200      *AdminDashboardStorageStats
+	JSON400      *Error
 	JSON402      *Error
 }
 
@@ -19989,7 +20287,8 @@ func (r GetAdminDashboardStorageStatsResponse) ContentType() string {
 type GetAdminDashboardTrafficStatsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AdminDashboardStats
+	JSON200      *AdminDashboardTrafficStats
+	JSON400      *Error
 	JSON402      *Error
 }
 
@@ -31646,11 +31945,18 @@ func ParseGetAdminDashboardGrowthStatsResponse(rsp *http.Response) (*GetAdminDas
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AdminDashboardStats
+		var dest AdminDashboardGrowthStats
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
 		var dest Error
@@ -31679,7 +31985,7 @@ func ParseGetAdminDashboardOverviewStatsResponse(rsp *http.Response) (*GetAdminD
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AdminDashboardStats
+		var dest AdminDashboardOverviewStats
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -31719,11 +32025,18 @@ func ParseGetAdminDashboardRankingStatsResponse(rsp *http.Response) (*GetAdminDa
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AdminDashboardStats
+		var dest AdminDashboardRankingStats
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
 		var dest Error
@@ -31752,11 +32065,18 @@ func ParseGetAdminDashboardSharingStatsResponse(rsp *http.Response) (*GetAdminDa
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AdminDashboardStats
+		var dest AdminDashboardSharingStats
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
 		var dest Error
@@ -31785,11 +32105,18 @@ func ParseGetAdminDashboardStorageStatsResponse(rsp *http.Response) (*GetAdminDa
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AdminDashboardStats
+		var dest AdminDashboardStorageStats
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
 		var dest Error
@@ -31818,11 +32145,18 @@ func ParseGetAdminDashboardTrafficStatsResponse(rsp *http.Response) (*GetAdminDa
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AdminDashboardStats
+		var dest AdminDashboardTrafficStats
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
 		var dest Error

@@ -472,22 +472,26 @@ export async function getObject(
     await deps.quota.refundTraffic(params.orgId, bytes)
     throw error
   }
-  await deps.activity.record({
-    orgId: params.orgId,
-    userId: params.actorId,
-    action: 'object_download',
-    targetType: 'file',
-    targetId: matter.id,
-    targetName: matter.name,
-    metadata: {
-      status: 'issued',
-      source: 'object_download',
-      matterId: matter.id,
-      storageId: matter.storageId,
-      bytes,
-      matterType: matter.type,
-    },
-  })
+  try {
+    await deps.activity.record({
+      orgId: params.orgId,
+      userId: params.actorId,
+      action: 'object_download',
+      targetType: 'file',
+      targetId: matter.id,
+      targetName: matter.name,
+      metadata: {
+        status: 'issued',
+        source: 'object_download',
+        matterId: matter.id,
+        storageId: matter.storageId,
+        bytes,
+        matterType: matter.type,
+      },
+    })
+  } catch (error) {
+    console.error('[objects] recordActivity failed:', error)
+  }
   return { ok: true, matter, downloadUrl }
 }
 

@@ -1183,8 +1183,8 @@ function RankingSection({ stats }: { stats: AdminDashboardRankingStats }) {
   return (
     <div className="grid gap-4 xl:grid-cols-3">
       <TopRankingCard
-        title="容量 Top 空间"
-        description="每项显示空间配额使用率。"
+        title="新增容量 Top 空间"
+        description="每项显示统计周期内新增容量。"
         items={stats.topSpaces.map((space) => ({
           name: space.orgName,
           detail: space.orgType,
@@ -1206,7 +1206,7 @@ function RankingSection({ stats }: { stats: AdminDashboardRankingStats }) {
       />
       <TopRankingCard
         title="文件类型排行"
-        description="每项占主要文件类型容量百分比。"
+        description="每项占统计周期内新增文件容量百分比。"
         items={stats.storageByType.map((row) => ({
           name: labelize(row.type),
           detail: `${formatNumber(row.files)} files`,
@@ -1489,7 +1489,7 @@ function FunnelStageList({ data }: { data: Array<{ name: string; value: number; 
     <div className="flex min-w-0 flex-col gap-2 lg:justify-center">
       {data.map((item, index) => {
         const previous = data[index - 1]
-        const stepRate = previous ? (item.value / previous.value) * 100 : 100
+        const stepRate = previous && previous.value > 0 ? (item.value / previous.value) * 100 : index === 0 ? 100 : 0
 
         return (
           <div key={item.name} className="rounded-lg border border-border/70 bg-canvas/55 px-3 py-1.5">
@@ -1663,8 +1663,8 @@ function dateRangePresets(): Array<{ label: string; range: DateRange }> {
 
 function toRangeFilter(range: DateRange): AdminStatsRangeFilter {
   return {
-    ...(range.from ? { from: startOfDay(range.from).toISOString() } : {}),
-    ...(range.to ? { to: endOfDay(range.to).toISOString() } : {}),
+    ...(range.from ? { from: format(startOfDay(range.from), 'yyyy-MM-dd') } : {}),
+    ...(range.to ? { to: format(endOfDay(range.to), 'yyyy-MM-dd') } : {}),
   }
 }
 
