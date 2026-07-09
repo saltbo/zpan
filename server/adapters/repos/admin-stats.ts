@@ -755,12 +755,39 @@ async function getDashboardTrafficStats(
     sourceRows.set(row.source, item)
   }
   const statusRows = countBy(cloudRows, (row) => row.status)
+  const downloadSuccessByDay = new Map<string, number>()
+  const downloadFailuresByDay = new Map<string, number>()
+  const failureReasonRows = new Map<string, { name: string; value: number }>()
+  for (const row of downloadRows) incrementMap(downloadSuccessByDay, dayKey(row.createdAt), 1)
+  for (const row of cloudRows) {
+    const date = dayKey(row.createdAt)
+    if (row.status === 'blocked') {
+      incrementMap(downloadFailuresByDay, date, 1)
+      const name = row.source || 'blocked'
+      const item = failureReasonRows.get(name) ?? { name, value: 0 }
+      item.value += 1
+      failureReasonRows.set(name, item)
+      continue
+    }
+    if (isAuditedDownloadSource(row.source)) continue
+    incrementMap(downloadSuccessByDay, date, 1)
+  }
   const trafficTrend = createDateBuckets(range).map((date) => ({
     date,
     uploadBytes: uploadByDay.get(date) ?? 0,
     downloadBytes: downloadByDay.get(date) ?? 0,
     requests: (uploadRequestsByDay.get(date) ?? 0) + (downloadRequestsByDay.get(date) ?? 0),
   }))
+  const successTrend = createDateBuckets(range).map((date) => {
+    const downloadSuccesses = downloadSuccessByDay.get(date) ?? 0
+    const downloadFailures = downloadFailuresByDay.get(date) ?? 0
+    const downloadRequests = downloadSuccesses + downloadFailures
+    return {
+      date,
+      uploadSuccessRate: 100,
+      downloadSuccessRate: downloadRequests > 0 ? percent(downloadSuccesses, downloadRequests) : 100,
+    }
+  })
   const totalRequests = traffic.uploadRequests + traffic.downloadRequests
   const blockedDownloads = cloudRows.filter((row) => row.status === 'blocked').length
   const issuedDownloads = Math.max(0, traffic.downloadRequests - blockedDownloads)
@@ -784,6 +811,8 @@ async function getDashboardTrafficStats(
       [...statusRows.entries()].map(([status, countValue]) => ({ status, name: status, value: countValue })),
     ).map(({ name, value, percent: pct }) => ({ status: name, count: value, percent: pct })),
     bandwidthTrend: trafficTrend.map((row) => ({ date: row.date, bytes: row.uploadBytes + row.downloadBytes })),
+    successTrend,
+    failureReasons: percentRows([...failureReasonRows.values()]),
   }
 }
 

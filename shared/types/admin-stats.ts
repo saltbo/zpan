@@ -225,6 +225,8 @@ export interface AdminDashboardTrafficStats extends AdminStatsRange {
   sourceBreakdown: Array<{ name: string; bytes: number; requests: number; percent: number }>
   issueStatus: Array<{ status: string; count: number; percent: number }>
   bandwidthTrend: Array<{ date: string; bytes: number }>
+  successTrend: Array<{ date: string; uploadSuccessRate: number; downloadSuccessRate: number }>
+  failureReasons: Array<{ name: string; value: number; percent: number }>
 }
 
 export interface AdminDashboardSharingStats extends AdminStatsRange {
