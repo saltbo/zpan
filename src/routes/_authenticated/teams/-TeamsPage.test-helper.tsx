@@ -6,6 +6,7 @@
 // set up, avoiding circular module-init ordering issues with createFileRoute.
 
 import { FREE_TEAM_LIMIT } from '@shared/constants'
+import { isTeamOrgLike } from '@shared/org-slugs'
 import { useQueries } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
 import { useState } from 'react'
@@ -21,6 +22,7 @@ import { getFullOrganization, useListOrganizations, useSession } from '@/lib/aut
 type ListOrganization = {
   id: string
   slug: string
+  metadata?: Record<string, unknown> | string | null
 }
 
 function UpgradeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -42,7 +44,7 @@ export function TeamsPage() {
   const [upgradeOpen, setUpgradeOpen] = useState(false)
 
   const _userId = session?.user?.id ?? ''
-  const teamOrgs = (orgs ?? []).filter((o: ListOrganization) => !o.slug.startsWith('personal-'))
+  const teamOrgs = (orgs ?? []).filter((o: ListOrganization) => isTeamOrgLike(o))
 
   const totalOrgCount = (orgs ?? []).length
   const isAtLimit = !hasFeature('teams_unlimited') && totalOrgCount >= FREE_TEAM_LIMIT

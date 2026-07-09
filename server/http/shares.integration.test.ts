@@ -696,9 +696,14 @@ describe('POST /api/shares/:token/objects', () => {
     await insertFile(db, orgId, { id: 'sv-victim', name: 'victim.txt' })
 
     const victims = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'victim@example.com'`)
-    const victimOrgs = await db.all<{ id: string }>(
-      sql`SELECT id FROM organization WHERE slug = ${`personal-${victims[0].id}`}`,
-    )
+    const victimOrgs = await db.all<{ id: string }>(sql`
+      SELECT o.id
+      FROM organization o
+      INNER JOIN member m ON m.organization_id = o.id
+      WHERE m.user_id = ${victims[0].id}
+        AND (o.slug LIKE 'personal-%' OR COALESCE(o.metadata, '') LIKE '%"type":"personal"%')
+      LIMIT 1
+    `)
 
     const createRes = await createShare(app, headers, { matterId: 'sv-victim', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string

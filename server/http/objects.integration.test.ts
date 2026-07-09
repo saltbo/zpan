@@ -1448,9 +1448,14 @@ describe('POST /api/objects/:id/transfers', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const victimId = await getUserIdByEmail(db, 'victim@example.com')
-    const victimOrgs = await db.all<{ id: string }>(
-      sql`SELECT id FROM organization WHERE slug = ${`personal-${victimId}`}`,
-    )
+    const victimOrgs = await db.all<{ id: string }>(sql`
+      SELECT o.id
+      FROM organization o
+      INNER JOIN member m ON m.organization_id = o.id
+      WHERE m.user_id = ${victimId}
+        AND (o.slug LIKE 'personal-%' OR COALESCE(o.metadata, '') LIKE '%"type":"personal"%')
+      LIMIT 1
+    `)
     await insertFile(db, orgId, { id: 'src-victim', name: 'doc.txt' })
 
     const res = await transferRequest(app, headers, 'src-victim', { targetOrgId: victimOrgs[0].id, mode: 'copy' })

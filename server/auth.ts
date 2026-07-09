@@ -24,6 +24,7 @@ import {
   type OAuthProviderConfig,
   parseProviderConfig,
 } from '../shared/oauth-providers'
+import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
 import { createEmailGateway } from './adapters/gateways/email'
 import { createActivityRepo } from './adapters/repos/activity'
 import { createInviteRepo } from './adapters/repos/invite'
@@ -331,7 +332,7 @@ export async function createAuth(
             }
           },
           afterCreateOrganization: async ({ organization }) => {
-            const isTeam = !organization.slug.startsWith('personal-')
+            const isTeam = !isPersonalOrgLike(organization)
             await createOrgQuota(db, organization.id, new Date(), isTeam)
           },
           afterAcceptInvitation: async ({ member, user, organization }) => {
@@ -561,13 +562,14 @@ export async function createAuth(
             // is inserted but before the session row and cookie cache are
             // written, so activeOrganizationId is correct from the start.
             if (!orgId) {
-              // Only create if the org row doesn't already exist. The org
-              // could exist without membership (e.g. admin revoked access).
-              const slug = `personal-${session.userId}`
+              // Legacy personal orgs used a deterministic slug. Preserve the
+              // old no-duplicate behavior for rows that still exist without
+              // membership (e.g. admin revoked access).
+              const legacySlug = `personal-${session.userId}`
               const [existing] = await db
                 .select({ id: authSchema.organization.id })
                 .from(authSchema.organization)
-                .where(eq(authSchema.organization.slug, slug))
+                .where(eq(authSchema.organization.slug, legacySlug))
                 .limit(1)
 
               if (!existing) {
@@ -650,6 +652,7 @@ async function createPersonalOrg(
   const now = new Date()
   const displayName = user.name || user.username
   const orgName = displayName ? `${displayName}'s Space` : 'Personal Space'
+  const orgSlug = await generateUniqueOrgSlug(db, generateUserOrgSlug)
   const quotaValues = await createOrgQuotaValues(db, orgId, now)
   const entitlementValues = await createFreePlanEntitlementValues(db, orgId, now, false)
 
@@ -657,7 +660,7 @@ async function createPersonalOrg(
     db.insert(authSchema.organization).values({
       id: orgId,
       name: orgName,
-      slug: `personal-${user.id}`,
+      slug: orgSlug,
       metadata: JSON.stringify({ type: 'personal' }),
       createdAt: now,
     }),
@@ -711,6 +714,19 @@ async function createFreePlanEntitlementValues(
     freePlanEntitlementValue(orgId, 'storage', defaultQuota, now, storageSettingKey),
     freePlanEntitlementValue(orgId, 'traffic', defaultTrafficQuota, now, 'default_org_monthly_traffic_quota'),
   ]
+}
+
+async function generateUniqueOrgSlug(db: Database, generate: () => string): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const slug = generate()
+    const rows = await db
+      .select({ id: authSchema.organization.id })
+      .from(authSchema.organization)
+      .where(eq(authSchema.organization.slug, slug))
+      .limit(1)
+    if (!rows[0]) return slug
+  }
+  throw new Error('Failed to generate a unique organization slug')
 }
 
 function freePlanEntitlementValue(

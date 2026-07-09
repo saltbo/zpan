@@ -554,7 +554,12 @@ describe('POST /api/shares/:token/objects', () => {
     const userId: string = sessionData?.user?.id ?? ''
 
     const orgRows = await db.all<{ id: string }>(sql`
-      SELECT id FROM organization WHERE slug LIKE ${`personal-${userId}`} LIMIT 1
+      SELECT o.id
+      FROM organization o
+      INNER JOIN member m ON m.organization_id = o.id
+      WHERE m.user_id = ${userId}
+        AND (o.slug LIKE 'personal-%' OR COALESCE(o.metadata, '') LIKE '%"type":"personal"%')
+      LIMIT 1
     `)
     const personalOrgId = orgRows[0]?.id ?? ''
 

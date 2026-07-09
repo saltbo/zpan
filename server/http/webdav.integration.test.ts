@@ -8,6 +8,7 @@ import { createClient } from 'webdav'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { storages } from '../db/schema.js'
 import { currentTrafficPeriod } from '../domain/quota.js'
+import { encodeDavPathSegment } from '../domain/webdav.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
@@ -115,11 +116,11 @@ function basicHeaders(username: string, password: string, extra?: Record<string,
 }
 
 function escapedDavHref(name: string, path = '') {
-  return `/dav/${encodeURIComponent(name).replaceAll("'", '&apos;')}/${path}`
+  return `/dav/${encodeDavPathSegment(name)}/${path}`
 }
 
 function davPathForName(name: string, path = '') {
-  return `/dav/${encodeURIComponent(name)}/${path}`
+  return `/dav/${encodeDavPathSegment(name)}/${path}`
 }
 
 async function apiKey(auth: TestApp['auth'], userId: string, permissions: Record<string, string[]>) {
@@ -213,7 +214,9 @@ describe('WebDAV API', () => {
 
     const root = await app.request('/dav/', { method: 'PROPFIND', headers: basicHeaders(account.email, key) })
     expect(root.status).toBe(207)
-    expect(await root.text()).toContain(escapedDavHref(workspace.name))
+    const rootXml = await root.text()
+    expect(rootXml).toContain(escapedDavHref(workspace.name))
+    expect(rootXml).not.toContain(`/dav/${encodeURIComponent(workspace.name).replaceAll("'", '&apos;')}/`)
 
     const rootWithoutSlash = await app.request('/dav', {
       method: 'PROPFIND',

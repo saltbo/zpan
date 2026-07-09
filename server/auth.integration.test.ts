@@ -1,3 +1,4 @@
+import { isPersonalOrgLike } from '@shared/org-slugs'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
@@ -32,6 +33,21 @@ async function expectPlanEntitlement(ctx: TestCtx, resourceType: 'storage' | 'tr
       }),
     ]),
   )
+}
+
+async function personalOrgForUser(ctx: TestCtx, userId: string): Promise<string> {
+  const rows = await ctx.db
+    .select({
+      id: authSchema.organization.id,
+      slug: authSchema.organization.slug,
+      metadata: authSchema.organization.metadata,
+    })
+    .from(authSchema.member)
+    .innerJoin(authSchema.organization, eq(authSchema.organization.id, authSchema.member.organizationId))
+    .where(eq(authSchema.member.userId, userId))
+  const org = rows.find(isPersonalOrgLike)
+  if (!org) throw new Error(`No personal org found for user ${userId}`)
+  return org.id
 }
 
 describe('registration gate — first user always allowed', () => {
@@ -580,8 +596,7 @@ describe('sendInvitationEmail — buildInvitationEmailHtml via invite-member wit
     const signUpRes = await signUp(ctx, email)
     const cookie = signUpRes.headers.getSetCookie().join('; ')
     const body = (await signUpRes.json()) as { user: { id: string } }
-    const orgs = await ctx.db.select().from(authSchema.organization)
-    const orgId = orgs.find((o) => o.slug === `personal-${body.user.id}`)?.id ?? ''
+    const orgId = await personalOrgForUser(ctx, body.user.id)
     return { cookie, orgId }
   }
 

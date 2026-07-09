@@ -1,3 +1,4 @@
+import { isPersonalOrgLike } from '@shared/org-slugs'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
-import { setActive, useActiveOrganization, useListOrganizations, useSession } from '@/lib/auth-client'
+import { setActive, useActiveOrganization, useListOrganizations } from '@/lib/auth-client'
 import { getInitials } from '@/lib/format'
 
 type Organization = {
@@ -25,17 +26,17 @@ type Organization = {
 
 export function OrgSwitcher() {
   const { t } = useTranslation()
-  const { data: session } = useSession()
   const { data: activeOrg } = useActiveOrganization()
   const { data: orgs } = useListOrganizations()
   const queryClient = useQueryClient()
 
   const allOrgs = (orgs ?? []) as Organization[]
-  const personalOrg = allOrgs.find((o) => o.slug.startsWith('personal-'))
-  const teams = allOrgs.filter((o) => !o.slug.startsWith('personal-'))
+  const personalOrg = allOrgs.find(isPersonalOrgLike)
+  const teams = allOrgs.filter((o) => !isPersonalOrgLike(o))
 
   const isPersonal = !activeOrg || activeOrg.id === personalOrg?.id
-  const displayName = isPersonal ? session?.user?.name : activeOrg?.name
+  const personalName = personalOrg?.name || t('org.mySpace')
+  const displayName = isPersonal ? personalName : activeOrg?.name
 
   async function handleSwitch(orgId: string) {
     const { error } = await setActive({ organizationId: orgId })
@@ -55,7 +56,7 @@ export function OrgSwitcher() {
               <Avatar size="sm">
                 {!isPersonal && activeOrg?.logo ? <AvatarImage src={activeOrg.logo} alt={activeOrg.name} /> : null}
                 <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
-                  {isPersonal ? getInitials(session?.user?.name || '?') : getInitials(activeOrg?.name || '?')}
+                  {isPersonal ? getInitials(personalName) : getInitials(activeOrg?.name || '?')}
                 </AvatarFallback>
               </Avatar>
               <span className="flex-1 truncate text-left font-medium">{displayName || t('org.mySpace')}</span>
@@ -71,10 +72,10 @@ export function OrgSwitcher() {
               <DropdownMenuItem onClick={() => handleSwitch(personalOrg.id)} className="gap-2">
                 <Avatar size="sm">
                   <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
-                    {getInitials(session?.user?.name || '?')}
+                    {getInitials(personalName)}
                   </AvatarFallback>
                 </Avatar>
-                <span className="flex-1 truncate">{session?.user?.name || t('org.mySpace')}</span>
+                <span className="flex-1 truncate">{personalName}</span>
                 {isPersonal && <Check className="h-4 w-4 shrink-0" />}
               </DropdownMenuItem>
             )}

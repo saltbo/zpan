@@ -1,13 +1,9 @@
-import { and, count, eq, inArray, like, not } from 'drizzle-orm'
+import { isTeamOrgLike } from '@shared/org-slugs'
+import { and, count, eq, inArray } from 'drizzle-orm'
 import { member, organization, user } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
 import type { TeamRepo, TeamSummary } from '../../usecases/ports'
 import { createQuotaRepo } from './quota'
-
-// Personal orgs use the deterministic `personal-${userId}` slug; everything else
-// is a team. Production teams may have null metadata, so the slug prefix is the
-// reliable discriminator (not metadata.type).
-const isTeamSlug = not(like(organization.slug, 'personal-%'))
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
@@ -53,16 +49,17 @@ export function createTeamRepo(db: Database): TeamRepo {
           id: organization.id,
           name: organization.name,
           slug: organization.slug,
+          metadata: organization.metadata,
           logo: organization.logo,
           createdAt: organization.createdAt,
         })
         .from(organization)
-        .where(isTeamSlug)
         .orderBy(organization.name)
+      const teamRows = rows.filter(isTeamOrgLike)
 
-      if (rows.length === 0) return []
+      if (teamRows.length === 0) return []
 
-      const orgIds = rows.map((r) => r.id)
+      const orgIds = teamRows.map((r) => r.id)
       const quotas = await quota.getEffectiveQuotasByOrg(orgIds)
 
       // D1 caps a query at 100 bound params; chunk the IN lists below the cap.
@@ -78,7 +75,7 @@ export function createTeamRepo(db: Database): TeamRepo {
       const memberByOrg = new Map(memberChunks.flat().map((r) => [r.orgId, r.total]))
       const owners = await listOwnerNames(db, orgIds)
 
-      return rows.map((r) => {
+      return teamRows.map((r) => {
         const q = quotas.get(r.id)
         return {
           id: r.id,
@@ -100,14 +97,15 @@ export function createTeamRepo(db: Database): TeamRepo {
           id: organization.id,
           name: organization.name,
           slug: organization.slug,
+          metadata: organization.metadata,
           logo: organization.logo,
           createdAt: organization.createdAt,
         })
         .from(organization)
-        .where(and(eq(organization.id, orgId), isTeamSlug))
+        .where(eq(organization.id, orgId))
         .limit(1)
       const org = rows[0]
-      if (!org) return null
+      if (!org || !isTeamOrgLike(org)) return null
 
       const q = await quota.getEffectiveQuota(orgId)
       const [memberRow] = await db.select({ total: count() }).from(member).where(eq(member.organizationId, orgId))

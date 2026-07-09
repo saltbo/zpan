@@ -1,3 +1,4 @@
+import { isPersonalOrgLike } from '@shared/org-slugs'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '../../../shared/captcha.js'
@@ -27,6 +28,21 @@ async function expectPlanEntitlement(
       }),
     ]),
   )
+}
+
+async function personalOrgForUser(db: Awaited<ReturnType<typeof createTestApp>>['db'], userId: string) {
+  const rows = await db
+    .select({
+      id: authSchema.organization.id,
+      slug: authSchema.organization.slug,
+      metadata: authSchema.organization.metadata,
+    })
+    .from(authSchema.member)
+    .innerJoin(authSchema.organization, eq(authSchema.organization.id, authSchema.member.organizationId))
+    .where(eq(authSchema.member.userId, userId))
+  const org = rows.find(isPersonalOrgLike)
+  if (!org) throw new Error(`No personal org found for user ${userId}`)
+  return org
 }
 
 describe('Auth API', () => {
@@ -204,12 +220,9 @@ describe('Auth API', () => {
     const body = (await signUpRes.json()) as { user: { id: string } }
     const userId = body.user.id
 
-    const orgs = await db
-      .select()
-      .from(authSchema.organization)
-      .where(eq(authSchema.organization.slug, `personal-${userId}`))
-    expect(orgs).toHaveLength(1)
-    expect(JSON.parse(orgs[0].metadata!)).toEqual({ type: 'personal' })
+    const org = await personalOrgForUser(db, userId)
+    expect(org.slug).toMatch(/^u[a-z0-9]{16}$/)
+    expect(JSON.parse(org.metadata!)).toEqual({ type: 'personal' })
   })
 
   it('second user does NOT get admin role', async () => {
@@ -247,12 +260,9 @@ describe('Auth API', () => {
     const body = (await signUpRes.json()) as { user: { id: string } }
     const userId = body.user.id
 
-    const orgs = await db
-      .select()
-      .from(authSchema.organization)
-      .where(eq(authSchema.organization.slug, `personal-${userId}`))
-    expect(orgs).toHaveLength(1)
-    expect(JSON.parse(orgs[0].metadata!)).toEqual({ type: 'personal' })
+    const org = await personalOrgForUser(db, userId)
+    expect(org.slug).toMatch(/^u[a-z0-9]{16}$/)
+    expect(JSON.parse(org.metadata!)).toEqual({ type: 'personal' })
   })
 
   it('second user gets a member record with owner role in their personal org', async () => {
@@ -272,11 +282,7 @@ describe('Auth API', () => {
     const body = (await signUpRes.json()) as { user: { id: string } }
     const userId = body.user.id
 
-    const orgs = await db
-      .select()
-      .from(authSchema.organization)
-      .where(eq(authSchema.organization.slug, `personal-${userId}`))
-    const orgId = orgs[0].id
+    const orgId = (await personalOrgForUser(db, userId)).id
 
     const members = await db.select().from(authSchema.member).where(eq(authSchema.member.organizationId, orgId))
     expect(members).toHaveLength(1)
@@ -294,11 +300,7 @@ describe('Auth API', () => {
     const body = (await signUpRes.json()) as { user: { id: string } }
     const userId = body.user.id
 
-    const orgs = await db
-      .select()
-      .from(authSchema.organization)
-      .where(eq(authSchema.organization.slug, `personal-${userId}`))
-    const orgId = orgs[0].id
+    const orgId = (await personalOrgForUser(db, userId)).id
 
     const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, orgId))
     expect(rows).toHaveLength(1)
@@ -323,11 +325,7 @@ describe('Auth API', () => {
     const body = (await signUpRes.json()) as { user: { id: string } }
     const userId = body.user.id
 
-    const orgs = await db
-      .select()
-      .from(authSchema.organization)
-      .where(eq(authSchema.organization.slug, `personal-${userId}`))
-    const orgId = orgs[0].id
+    const orgId = (await personalOrgForUser(db, userId)).id
 
     const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, orgId))
     expect(rows).toHaveLength(1)
@@ -392,14 +390,11 @@ describe('Auth API', () => {
       body: JSON.stringify({ name: 'Test', email: 'quota-zero@example.com', password: 'password123456' }),
     })
     const body = (await signUpRes.json()) as { user: { id: string } }
-    const orgs = await db
-      .select()
-      .from(authSchema.organization)
-      .where(eq(authSchema.organization.slug, `personal-${body.user.id}`))
-    const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, orgs[0].id))
+    const org = await personalOrgForUser(db, body.user.id)
+    const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, org.id))
     expect(rows).toHaveLength(1)
     expect(rows[0].quota).toBe(0)
-    await expectPlanEntitlement(db, orgs[0].id, 'storage', 10485760)
+    await expectPlanEntitlement(db, org.id, 'storage', 10485760)
   })
 
   it('sign-in with a malformed stored password hash returns a non-200 error response', async () => {

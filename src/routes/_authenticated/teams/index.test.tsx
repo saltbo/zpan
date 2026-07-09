@@ -85,49 +85,6 @@ describe('handleNewTeamClick branching', () => {
 })
 
 // ---------------------------------------------------------------------------
-// slugify helper — extracted inline for contract testing
-// ---------------------------------------------------------------------------
-
-describe('slugify helper', () => {
-  function slugify(value: string): string {
-    return value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 60)
-  }
-
-  it('converts spaces to hyphens', () => {
-    expect(slugify('My Team Name')).toBe('my-team-name')
-  })
-
-  it('strips leading and trailing hyphens', () => {
-    expect(slugify('  Team  ')).toBe('team')
-  })
-
-  it('collapses consecutive special chars to a single hyphen', () => {
-    expect(slugify('Team!!Name')).toBe('team-name')
-  })
-
-  it('truncates to 60 characters', () => {
-    const long = 'a'.repeat(70)
-    expect(slugify(long).length).toBe(60)
-  })
-
-  it('lowercases input', () => {
-    expect(slugify('UPPERCASE')).toBe('uppercase')
-  })
-
-  it('handles empty string', () => {
-    expect(slugify('')).toBe('')
-  })
-
-  it('preserves digits', () => {
-    expect(slugify('Team123')).toBe('team123')
-  })
-})
-
-// ---------------------------------------------------------------------------
 // Component render tests — UpgradeDialog wrapping UpgradeHint
 // ---------------------------------------------------------------------------
 
@@ -279,7 +236,8 @@ function makeOrgs(count: number) {
   const orgs = Array.from({ length: count }, (_, i) => ({
     id: `org-${i}`,
     name: `Org ${i}`,
-    slug: i === 0 ? `personal-user-1` : `team-${i}`,
+    slug: i === 0 ? 'u1234567890abcdef' : `team-${i}`,
+    metadata: i === 0 ? { type: 'personal' } : { type: 'team' },
   }))
   vi.mocked(useListOrganizations).mockReturnValue({
     data: orgs,

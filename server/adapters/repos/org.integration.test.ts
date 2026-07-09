@@ -42,7 +42,17 @@ async function insertMember(db: TestDb, organizationId: string, userId: string) 
 }
 
 describe('findPersonalOrg', () => {
-  it('returns the org id when a personal org exists for the user', async () => {
+  it('returns the org id when a metadata-marked personal org exists for the user', async () => {
+    const { db } = await createTestApp()
+    const userId = await insertUser(db)
+    const orgId = await insertOrg(db, { slug: 'u1234567890abcdef', metadata: '{"type":"personal"}' })
+    await insertMember(db, orgId, userId)
+
+    const result = await createOrgRepo(db).findPersonalOrg(userId)
+    expect(result).toBe(orgId)
+  })
+
+  it('returns the org id when a legacy personal org exists for the user', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
     const orgId = await insertOrg(db, { slug: `personal-${userId}` })

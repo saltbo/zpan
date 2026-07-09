@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { FREE_TEAM_LIMIT } from '@shared/constants'
+import { generateTeamOrgSlug, isTeamOrgLike } from '@shared/org-slugs'
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Plus, Users } from 'lucide-react'
@@ -24,23 +25,10 @@ export const Route = createFileRoute('/_authenticated/teams/')({
 
 const createTeamSchema = z.object({
   name: z.string().min(1).max(100),
-  slug: z
-    .string()
-    .min(1)
-    .max(60)
-    .regex(/^[a-z0-9-]+$/, 'slug_invalid'),
   logo: z.string().url().optional().or(z.literal('')),
 })
 
 type CreateTeamValues = z.infer<typeof createTeamSchema>
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
-}
 
 function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation()
@@ -49,14 +37,14 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 
   const form = useForm<CreateTeamValues>({
     resolver: zodResolver(createTeamSchema),
-    defaultValues: { name: '', slug: '', logo: '' },
+    defaultValues: { name: '', logo: '' },
   })
 
   const mutation = useMutation({
     mutationFn: async (values: CreateTeamValues) => {
       const { error, data } = await authClient.organization.create({
         name: values.name,
-        slug: values.slug,
+        slug: generateTeamOrgSlug(),
         logo: values.logo || undefined,
       })
       if (error) throw error
@@ -75,13 +63,6 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     onError: (err: { message?: string }) => toast.error(err.message ?? String(err)),
   })
 
-  function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
-    form.setValue('name', e.target.value)
-    if (!form.getFieldState('slug').isDirty) {
-      form.setValue('slug', slugify(e.target.value), { shouldValidate: false })
-    }
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -91,16 +72,10 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="team-name">{t('teams.teamName')}</Label>
-            <Input id="team-name" {...form.register('name')} onChange={handleNameChange} />
+            <Input id="team-name" {...form.register('name')} />
             {form.formState.errors.name && (
               <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
             )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="team-slug">{t('teams.slug')}</Label>
-            <Input id="team-slug" {...form.register('slug')} />
-            {form.formState.errors.slug && <p className="text-xs text-destructive">{t('teams.slugInvalid')}</p>}
           </div>
 
           <div className="space-y-1.5">
@@ -181,6 +156,7 @@ function TeamCard({ org, userId }: { org: TeamCardOrg; userId: string }) {
 type ListOrganization = {
   id: string
   slug: string
+  metadata?: Record<string, unknown> | string | null
 }
 
 function TeamsPage() {
@@ -192,7 +168,7 @@ function TeamsPage() {
   const [upgradeOpen, setUpgradeOpen] = useState(false)
 
   const userId = session?.user?.id ?? ''
-  const teamOrgs = (orgs ?? []).filter((o: ListOrganization) => !o.slug.startsWith('personal-'))
+  const teamOrgs = (orgs ?? []).filter((o: ListOrganization) => isTeamOrgLike(o))
 
   // Total org count includes personal workspace — counts toward the community team limit.
   // Guard with !orgsLoading to avoid a brief false state while orgs are being fetched.

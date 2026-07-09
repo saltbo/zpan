@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ApiKeyTemplate } from '../../shared/api-key-templates'
 import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { joinMatterPath } from '../domain/webdav'
+import { encodeDavPathSegment, joinMatterPath } from '../domain/webdav'
 import {
   type DavEntry,
   davEtag,
@@ -445,7 +445,7 @@ function targetHref(target: WebDavTarget): string {
   const workspace = requireWorkspace(target)
   if (!target.matter) return workspace.href
   const path = joinMatterPath(target.matter.parent, target.matter.name)
-  const href = `${workspace.href}${path.split('/').map(encodeURIComponent).join('/')}`
+  const href = `${workspace.href}${path.split('/').map(encodeDavPathSegment).join('/')}`
   return target.matter.dirtype === DirType.FILE ? href : `${href}/`
 }
 
@@ -1101,7 +1101,7 @@ async function unlockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 
 function matterLocation(requestUrl: string, slug: string, path: string): string {
   const url = new URL(requestUrl)
-  url.pathname = `/dav/${encodeURIComponent(slug)}/${path.split('/').map(encodeURIComponent).join('/')}`
+  url.pathname = `/dav/${encodeDavPathSegment(slug)}/${path.split('/').map(encodeDavPathSegment).join('/')}`
   url.search = ''
   return url.toString()
 }

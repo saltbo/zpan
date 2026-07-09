@@ -1,4 +1,5 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { isPersonalOrgLike } from '@shared/org-slugs'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../../db/auth-schema'
 import { orgQuotaEntitlements } from '../../db/schema'
@@ -81,15 +82,12 @@ async function findUserPersonalOrg(db: Database, userId: string): Promise<{ orgI
   const existingIds = await requireUsers(db, [userId])
   if ('error' in existingIds) return existingIds
   const rows = await db
-    .select({ orgId: organization.id })
+    .select({ orgId: organization.id, slug: organization.slug, metadata: organization.metadata })
     .from(user)
     .innerJoin(member, eq(member.userId, user.id))
-    .innerJoin(
-      organization,
-      and(eq(organization.id, member.organizationId), eq(organization.slug, sql`'personal-' || ${user.id}`)),
-    )
+    .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(user.id, userId))
-  const orgId = rows[0]?.orgId
+  const orgId = rows.find(isPersonalOrgLike)?.orgId
   if (!orgId) return { error: `Personal organization not found for user: ${userId}`, status: 404 }
   return { orgId }
 }

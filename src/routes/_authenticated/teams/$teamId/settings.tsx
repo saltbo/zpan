@@ -32,16 +32,8 @@ export const Route = createFileRoute('/_authenticated/teams/$teamId/settings')({
 const nameSchema = z.object({
   name: z.string().min(1).max(100),
 })
-const slugSchema = z.object({
-  slug: z
-    .string()
-    .min(1)
-    .max(60)
-    .regex(/^[a-z0-9-]+$/, 'slug_invalid'),
-})
 
 type NameValues = z.infer<typeof nameSchema>
-type SlugValues = z.infer<typeof slugSchema>
 
 type FullOrganization = {
   id: string
@@ -197,58 +189,6 @@ function TeamNameCard({ org }: { org: FullOrganization }) {
   )
 }
 
-function SlugCard({ org }: { org: FullOrganization }) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-
-  const form = useForm<SlugValues>({
-    resolver: zodResolver(slugSchema),
-    defaultValues: { slug: '' },
-  })
-
-  useEffect(() => {
-    form.reset({ slug: org.slug })
-  }, [org.slug, form])
-
-  const mutation = useMutation({
-    mutationFn: async (values: SlugValues) => {
-      const { error } = await authClient.organization.update({
-        organizationId: org.id,
-        data: { slug: values.slug },
-      })
-      if (error) throw error
-    },
-    onSuccess: () => {
-      toast.success(t('teams.saved'))
-      form.reset(form.getValues())
-      queryClient.invalidateQueries({ queryKey: ['organizations'] })
-      queryClient.invalidateQueries({ queryKey: ['organization', org.id] })
-    },
-    onError: (err: { message?: string }) => toast.error(err.message ?? String(err)),
-  })
-
-  return (
-    <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))}>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('teams.slug')}</CardTitle>
-          <CardDescription>{t('teams.slug.description')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Input {...form.register('slug')} maxLength={60} />
-          {form.formState.errors.slug && <p className="mt-1.5 text-xs text-destructive">{t('teams.slugInvalid')}</p>}
-        </CardContent>
-        <CardFooter className="justify-between border-t bg-muted/30">
-          <p className="text-sm text-muted-foreground">{t('teams.slug.hint')}</p>
-          <Button type="submit" size="sm" disabled={!form.formState.isDirty || mutation.isPending}>
-            {mutation.isPending ? t('common.loading') : t('common.save')}
-          </Button>
-        </CardFooter>
-      </Card>
-    </form>
-  )
-}
-
 function DangerZoneCard({ org }: { org: FullOrganization }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -357,7 +297,6 @@ function TeamSettingsPage() {
     <div className="max-w-2xl space-y-6">
       <LogoCard org={org} />
       <TeamNameCard org={org} />
-      <SlugCard org={org} />
       <DangerZoneCard org={org} />
     </div>
   )

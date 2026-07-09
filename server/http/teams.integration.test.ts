@@ -329,9 +329,14 @@ describe('GET /api/teams/:teamId/activity — access control', () => {
     const userId1 = await getUserId(db, 'user1@example.com')
 
     // Get user1's personal org
-    const rows = await db.all<{ id: string }>(
-      sql`SELECT id FROM organization WHERE slug = ${`personal-${userId1}`} LIMIT 1`,
-    )
+    const rows = await db.all<{ id: string }>(sql`
+      SELECT o.id
+      FROM organization o
+      INNER JOIN member m ON m.organization_id = o.id
+      WHERE m.user_id = ${userId1}
+        AND (o.slug LIKE 'personal-%' OR COALESCE(o.metadata, '') LIKE '%"type":"personal"%')
+      LIMIT 1
+    `)
     const orgId1 = rows[0].id
 
     // Sign up user2 and access user1's personal org
@@ -934,8 +939,15 @@ describe('Admin Teams API', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
 
-    // admin's personal org must not appear
-    expect(body.items.every((t) => !String(t.slug).startsWith('personal-'))).toBe(true)
+    const personalRows = await db.all<{ id: string }>(sql`
+      SELECT o.id
+      FROM organization o
+      INNER JOIN member m ON m.organization_id = o.id
+      WHERE m.user_id = ${adminId}
+        AND (o.slug LIKE 'personal-%' OR COALESCE(o.metadata, '') LIKE '%"type":"personal"%')
+      LIMIT 1
+    `)
+    expect(body.items.map((t) => t.id)).not.toContain(personalRows[0].id)
     expect(body.total).toBe(2)
 
     const alpha = body.items.find((t) => t.id === 'team-a')!
@@ -969,9 +981,11 @@ describe('Admin Teams API', () => {
     const missing = await app.request('/api/teams/nope', { headers })
     expect(missing.status).toBe(404)
 
-    const personalOrg = await db.all<{ id: string }>(
-      sql`SELECT id FROM organization WHERE slug LIKE 'personal-%' LIMIT 1`,
-    )
+    const personalOrg = await db.all<{ id: string }>(sql`
+      SELECT id FROM organization
+      WHERE slug LIKE 'personal-%' OR COALESCE(metadata, '') LIKE '%"type":"personal"%'
+      LIMIT 1
+    `)
     const personal = await app.request(`/api/teams/${personalOrg[0].id}`, { headers })
     expect(personal.status).toBe(404)
   })

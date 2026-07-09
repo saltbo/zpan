@@ -24,6 +24,19 @@ async function signUpUser(app: ReturnType<typeof import('../app')['createApp']>,
   return res.json()
 }
 
+async function personalOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db'], userId: string): Promise<string> {
+  const rows = await db.all<{ id: string }>(sql`
+    SELECT o.id
+    FROM organization o
+    INNER JOIN member m ON m.organization_id = o.id
+    WHERE m.user_id = ${userId}
+      AND (o.slug LIKE 'personal-%' OR COALESCE(o.metadata, '') LIKE '%"type":"personal"%')
+    LIMIT 1
+  `)
+  if (!rows[0]) throw new Error(`No personal org found for user ${userId}`)
+  return rows[0].id
+}
+
 describe('User entitlements API (admin)', () => {
   it('GET /api/users/:id/quota returns the user storage used/total [spec: users/quota-personal-org]', async () => {
     const { app, db } = await createTestApp()
@@ -31,8 +44,8 @@ describe('User entitlements API (admin)', () => {
     await signUpUser(app, 'quota-sub@example.com')
     const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'quota-sub@example.com'`)
     const userId = rows[0].id
-    const org = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
-    await db.run(sql`UPDATE org_quotas SET used = 4242 WHERE org_id = ${org[0].id}`)
+    const orgId = await personalOrgId(db, userId)
+    await db.run(sql`UPDATE org_quotas SET used = 4242 WHERE org_id = ${orgId}`)
 
     const res = await app.request(`/api/users/${userId}/quota`, { headers })
     expect(res.status).toBe(200)
@@ -90,7 +103,7 @@ describe('User entitlements API (admin)', () => {
     await signUpUser(app, 'grant-storage@example.com')
     const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'grant-storage@example.com'`)
     const userId = users[0].id
-    const orgs = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
+    const orgId = await personalOrgId(db, userId)
 
     const res = await app.request(`/api/users/${userId}/entitlements`, {
       method: 'POST',
@@ -100,9 +113,9 @@ describe('User entitlements API (admin)', () => {
 
     expect(res.status).toBe(201)
     const body = (await res.json()) as { orgId: string; entitlement: Record<string, unknown> }
-    expect(body.orgId).toBe(orgs[0].id)
+    expect(body.orgId).toBe(orgId)
     expect(body.entitlement).toMatchObject({
-      orgId: orgs[0].id,
+      orgId,
       resourceType: 'storage',
       entitlementType: 'grant',
       source: 'admin_grant',
@@ -110,7 +123,7 @@ describe('User entitlements API (admin)', () => {
       status: 'active',
     })
     const entitlements = await db.all<{ bytes: number; entitlementType: string; source: string }>(
-      sql`SELECT bytes, entitlement_type AS entitlementType, source FROM org_quota_entitlements WHERE org_id = ${orgs[0].id} AND source = 'admin_grant'`,
+      sql`SELECT bytes, entitlement_type AS entitlementType, source FROM org_quota_entitlements WHERE org_id = ${orgId} AND source = 'admin_grant'`,
     )
     expect(entitlements).toEqual([{ bytes: 123456, entitlementType: 'grant', source: 'admin_grant' }])
   })
@@ -214,13 +227,13 @@ describe('User entitlements API (admin)', () => {
     await signUpUser(app, 'no-metadata-grant@example.com')
     const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'no-metadata-grant@example.com'`)
     const userId = users[0].id
-    const orgs = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
+    const orgId = await personalOrgId(db, userId)
     const now = Date.now()
     await db.run(sql`
       INSERT INTO org_quota_entitlements
         (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
       VALUES
-        ('ent-no-meta', ${orgs[0].id}, 'storage', 'grant', 'admin_grant', 'admin_grant:no-meta', 1000, ${now}, NULL, 'active', NULL, ${now}, ${now})
+        ('ent-no-meta', ${orgId}, 'storage', 'grant', 'admin_grant', 'admin_grant:no-meta', 1000, ${now}, NULL, 'active', NULL, ${now}, ${now})
     `)
 
     const res = await app.request(`/api/users/${userId}/entitlements/ent-no-meta`, {
@@ -284,9 +297,9 @@ describe('User entitlements API (admin)', () => {
     await signUpUser(app, 'free-plan-revoke@example.com')
     const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'free-plan-revoke@example.com'`)
     const userId = users[0].id
-    const orgs = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
+    const orgId = await personalOrgId(db, userId)
     const free = await db.all<{ id: string }>(
-      sql`SELECT id FROM org_quota_entitlements WHERE org_id = ${orgs[0].id} AND source = 'free_plan' LIMIT 1`,
+      sql`SELECT id FROM org_quota_entitlements WHERE org_id = ${orgId} AND source = 'free_plan' LIMIT 1`,
     )
 
     const res = await app.request(`/api/users/${userId}/entitlements/${free[0].id}`, {
@@ -305,8 +318,7 @@ describe('User entitlements API (admin)', () => {
     await signUpUser(app, 'free-plan-edit@example.com')
     const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'free-plan-edit@example.com'`)
     const userId = users[0].id
-    const orgs = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
-    const orgId = orgs[0].id
+    const orgId = await personalOrgId(db, userId)
 
     const free = await db.all<{ id: string }>(
       sql`SELECT id FROM org_quota_entitlements WHERE org_id = ${orgId} AND source = 'free_plan' LIMIT 1`,

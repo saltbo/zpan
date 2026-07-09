@@ -45,9 +45,13 @@ export function joinMatterPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
 }
 
+export function encodeDavPathSegment(segment: string): string {
+  return encodeURIComponent(segment).replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
+}
+
 export function matterHref(workspace: WebDavWorkspace, matter: Pick<WebDavMatter, 'parent' | 'name'>): string {
   const path = joinMatterPath(matter.parent, matter.name)
-  return `${workspace.href}${path.split('/').map(encodeURIComponent).join('/')}`
+  return `${workspace.href}${path.split('/').map(encodeDavPathSegment).join('/')}`
 }
 
 export function workspaceHref(workspace: WebDavWorkspace): string {

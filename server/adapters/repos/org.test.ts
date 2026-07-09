@@ -19,12 +19,13 @@ async function insertUser(db: TestDb, overrides: Partial<{ id: string; email: st
   return id
 }
 
-async function insertOrg(db: TestDb, overrides: Partial<{ id: string; slug: string }> = {}) {
+async function insertOrg(db: TestDb, overrides: Partial<{ id: string; slug: string; metadata: string | null }> = {}) {
   const id = overrides.id ?? nanoid()
   await db.insert(authSchema.organization).values({
     id,
     name: 'Test Org',
     slug: overrides.slug ?? nanoid(),
+    metadata: overrides.metadata !== undefined ? overrides.metadata : null,
     createdAt: new Date(),
   })
   return id
@@ -110,6 +111,14 @@ describe('getMemberRole', () => {
 })
 
 describe('isPersonalOrg', () => {
+  it('returns true when metadata marks the org as personal', async () => {
+    const { db } = await createTestApp()
+    const orgId = await insertOrg(db, { slug: 'u1234567890abcdef', metadata: '{"type":"personal"}' })
+
+    const result = await createOrgRepo(db).isPersonalOrg(orgId)
+    expect(result).toBe(true)
+  })
+
   it('returns true when the org slug starts with personal-', async () => {
     const { db } = await createTestApp()
     const userId = nanoid()
