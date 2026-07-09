@@ -209,6 +209,19 @@ export interface PaginatedResponse<T> {
   pageSize: number
 }
 
+export type {
+  AdminBackgroundJobFailure,
+  AdminCoreStats,
+  AdminCountByStatus,
+  AdminDetailedStats,
+  AdminDownloaderHealth,
+  AdminDownloadFailureReason,
+  AdminStatsPoint,
+  AdminStorageByType,
+  AdminTopShare,
+  AdminUsageBySpace,
+} from './admin-stats'
+
 export type DownloaderStatus = 'online' | 'offline' | 'disabled'
 export type DownloaderEngine = 'http' | 'aria2' | 'qbittorrent'
 

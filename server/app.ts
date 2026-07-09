@@ -5,6 +5,7 @@ import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
 import { createDeps } from './composition'
+import { adminStats } from './http/admin-stats'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
 import downloadTasks from './http/downloads/download-tasks'
@@ -222,6 +223,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/site/licensing', licensingAdmin)
   app.route('/api/site/branding', brandingAdmin)
   app.route('/api/site/audit-events', adminAudit)
+  app.route('/api/admin/stats', adminStats)
   app.route('/api/downloads/downloaders', downloaders)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
@@ -332,3 +334,4 @@ export type LicensingAdminRoute = typeof licensingAdmin
 export type PublicBrandingRoute = typeof publicBranding
 export type BrandingAdminRoute = typeof brandingAdmin
 export type AdminAuditRoute = typeof adminAudit
+export type AdminStatsRoute = typeof adminStats

@@ -562,6 +562,7 @@ export async function createAuth(
             // is inserted but before the session row and cookie cache are
             // written, so activeOrganizationId is correct from the start.
             if (!orgId) {
+              const revokedPersonalOrgId = await findPersonalOrgFromExistingSession(db, session.userId)
               // Legacy personal orgs used a deterministic slug. Preserve the
               // old no-duplicate behavior for rows that still exist without
               // membership (e.g. admin revoked access).
@@ -572,7 +573,7 @@ export async function createAuth(
                 .where(eq(authSchema.organization.slug, legacySlug))
                 .limit(1)
 
-              if (!existing) {
+              if (!revokedPersonalOrgId && !existing) {
                 const [user] = await db
                   .select({ id: authSchema.user.id, name: authSchema.user.name, username: authSchema.user.username })
                   .from(authSchema.user)
@@ -676,6 +677,20 @@ async function createPersonalOrg(
   ])
 
   return orgId
+}
+
+async function findPersonalOrgFromExistingSession(db: Database, userId: string): Promise<string | null> {
+  const rows = await db
+    .select({
+      orgId: authSchema.organization.id,
+      slug: authSchema.organization.slug,
+      metadata: authSchema.organization.metadata,
+    })
+    .from(authSchema.session)
+    .innerJoin(authSchema.organization, eq(authSchema.organization.id, authSchema.session.activeOrganizationId))
+    .where(eq(authSchema.session.userId, userId))
+
+  return rows.find(isPersonalOrgLike)?.orgId ?? null
 }
 
 async function createOrgQuotaValues(_db: Database, orgId: string, now: Date): Promise<typeof orgQuotas.$inferInsert> {

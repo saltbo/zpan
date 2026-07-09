@@ -25,6 +25,8 @@ import type {
 import type {
   ActivityEvent,
   AdminAuditEvent,
+  AdminCoreStats,
+  AdminDetailedStats,
   Announcement,
   AuthProvider,
   AuthProviderList,
@@ -62,6 +64,7 @@ import {
   adminDownloadersApi,
   adminQuotas,
   adminSiteInvitations,
+  adminStatsApi,
   adminTeams,
   announcementsApi,
   authedSharesApi,
@@ -423,6 +426,16 @@ export function cancelBackgroundJob(id: string) {
 
 export function retryBackgroundJob(id: string) {
   return unwrap<BackgroundJob>(backgroundJobsApi[':id'].retries.$post({ param: { id } }))
+}
+
+// Admin dashboard stats
+
+export function getAdminCoreStats() {
+  return unwrap<AdminCoreStats>(adminStatsApi.core.$get())
+}
+
+export function getAdminDetailedStats(periodDays = 30) {
+  return unwrap<AdminDetailedStats>(adminStatsApi.details.$get({ query: { periodDays: String(periodDays) } }))
 }
 
 // Admin Storages API

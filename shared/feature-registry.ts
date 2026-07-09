@@ -183,9 +183,9 @@ export const FEATURE_REGISTRY = [
     i18nKey: 'features.analytics',
     category: 'advanced',
     community: false,
-    pro: false,
+    pro: true,
     business: true,
-    comingSoon: true,
+    gateKey: 'analytics',
   },
 ] as const satisfies readonly FeatureDefinition[]
 
