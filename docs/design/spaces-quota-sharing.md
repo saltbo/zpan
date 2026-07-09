@@ -180,14 +180,14 @@ Current state (verified, complete):
 | Send to a specific registered user | Directed share (`shareRecipients`) → in-app notification (`share_received`, deep-links to `/s/:token`) + email when configured | ✅ closed loop (`server/services/share-notification.ts`, `notification-item.tsx`) |
 | Keep a copy of something shared to me | Save-to-drive (physical copy, target space pays) | ✅ shipped |
 | Ongoing sharing with fixed people | Shared space + cross-space copy/move | space ✅ / transfer = §3 |
-| Folder-level permissions inside a team | Advanced RBAC, **team spaces only** | 📋 v2.8 |
+| Folder-level permissions inside a team | Advanced RBAC, **team spaces only** | Future / demand-driven |
 | Grant others access inside a personal space | **Will not do** — guide to creating a shared space | decision |
 
 Decisions:
 
 1. **No per-item ACL, ever, in personal spaces.** A personal space has exactly one human.
    The moment a second person needs standing access, that's a shared space.
-2. **v2.8 RBAC stays scoped to team spaces** (folder-level restrictions among members).
+2. **Future RBAC stays scoped to team spaces** (folder-level restrictions among members).
    It adds a directory dimension to the existing space-role system; it does not introduce
    a second permission system.
 3. Traffic for share downloads continues to be charged to the share creator's org
@@ -210,4 +210,4 @@ Not built / deferred:
 
 - **Quota allocation** (§2.2) — built then removed; no valid input (only subscriptions are
   sold) and redundant with team purchase + admin grant. Revisit only with a one-time pack SKU.
-- (Later) same-storage copy dedup via refcounting (§3); v2.8 team RBAC per roadmap.
+- (Later) same-storage copy dedup via refcounting (§3); team RBAC remains future / demand-driven.
