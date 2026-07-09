@@ -749,7 +749,7 @@ describe('object usecase', () => {
     it('returns a folder without metering or presigning', async () => {
       const presignDownload = vi.fn()
       const { deps } = makeDeps({ matter: { get: async () => folder('f1') }, s3: { presignDownload } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'f1', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'f1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
       expect(out).toEqual({ ok: true, matter: folder('f1') })
       expect(meterDownloadTraffic).not.toHaveBeenCalled()
       expect(presignDownload).not.toHaveBeenCalled()
@@ -757,21 +757,24 @@ describe('object usecase', () => {
 
     it('returns not_found for a missing object', async () => {
       const { deps } = makeDeps({ matter: { get: async () => null } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'x', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'x', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
       expectError(out, 404, 'Not found')
     })
 
     it('returns storage_not_found when a file has no storage row', async () => {
       const { deps } = makeDeps({ matter: { get: async () => file('m1') }, storages: { get: async () => null } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
       expectError(out, 404, 'Storage not found')
     })
 
     it('meters egress then presigns the download URL for a file', async () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: true })
       const presignDownload = vi.fn(async () => 'https://signed')
-      const { deps } = makeDeps({ matter: { get: async () => file('m1', { size: 100 }) }, s3: { presignDownload } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
+      const { deps, record } = makeDeps({
+        matter: { get: async () => file('m1', { size: 100 }) },
+        s3: { presignDownload },
+      })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
       expect(out).toMatchObject({ ok: true, downloadUrl: 'https://signed' })
       expect(meterDownloadTraffic).toHaveBeenCalledWith(
         deps,
@@ -783,13 +786,22 @@ describe('object usecase', () => {
           sourceId: 'm1',
         }),
       )
+      expect(record).toHaveBeenCalledWith({
+        orgId: 'o1',
+        userId: 'u1',
+        action: 'object_download',
+        targetType: 'file',
+        targetId: 'm1',
+        targetName: 'm1.txt',
+        metadata: expect.objectContaining({ bytes: 100, source: 'object_download', status: 'issued' }),
+      })
     })
 
     it('maps a quota_exceeded metering outcome and never presigns', async () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: false, reason: 'quota_exceeded' })
       const presignDownload = vi.fn()
       const { deps } = makeDeps({ matter: { get: async () => file('m1') }, s3: { presignDownload } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
       expectError(out, 422, 'Traffic quota exceeded', 'QUOTA_EXCEEDED')
       expect(presignDownload).not.toHaveBeenCalled()
     })
@@ -797,7 +809,7 @@ describe('object usecase', () => {
     it('maps an insufficient_credits metering outcome', async () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: false, reason: 'insufficient_credits' })
       const { deps } = makeDeps({ matter: { get: async () => file('m1') } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
       expectError(out, 402, 'Insufficient credits', 'INSUFFICIENT_CREDITS')
       expect((out as { ok: false; error: AppError }).error.meta.metadata).toEqual({ resource: 'storage_egress' })
     })
@@ -814,9 +826,9 @@ describe('object usecase', () => {
           },
         },
       })
-      await expect(getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })).rejects.toThrow(
-        'sign failed',
-      )
+      await expect(
+        getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' }),
+      ).rejects.toThrow('sign failed')
       expect(refundTraffic).toHaveBeenCalledWith('o1', 250)
     })
   })

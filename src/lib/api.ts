@@ -26,6 +26,12 @@ import type {
   ActivityEvent,
   AdminAuditEvent,
   AdminCoreStats,
+  AdminDashboardGrowthStats,
+  AdminDashboardOverviewStats,
+  AdminDashboardRankingStats,
+  AdminDashboardSharingStats,
+  AdminDashboardStorageStats,
+  AdminDashboardTrafficStats,
   AdminDetailedStats,
   Announcement,
   AuthProvider,
@@ -436,6 +442,42 @@ export function getAdminCoreStats() {
 
 export function getAdminDetailedStats(periodDays = 30) {
   return unwrap<AdminDetailedStats>(adminStatsApi.details.$get({ query: { periodDays: String(periodDays) } }))
+}
+
+export interface AdminStatsRangeFilter {
+  from?: string
+  to?: string
+}
+
+function statsRangeQuery(filter: AdminStatsRangeFilter = {}): Record<string, string> {
+  const query: Record<string, string> = {}
+  if (filter.from) query.from = filter.from
+  if (filter.to) query.to = filter.to
+  return query
+}
+
+export function getAdminDashboardOverviewStats(filter: AdminStatsRangeFilter = {}) {
+  return unwrap<AdminDashboardOverviewStats>(adminStatsApi.overview.$get({ query: statsRangeQuery(filter) }))
+}
+
+export function getAdminDashboardGrowthStats(filter: AdminStatsRangeFilter = {}) {
+  return unwrap<AdminDashboardGrowthStats>(adminStatsApi.growth.$get({ query: statsRangeQuery(filter) }))
+}
+
+export function getAdminDashboardStorageStats(filter: AdminStatsRangeFilter = {}) {
+  return unwrap<AdminDashboardStorageStats>(adminStatsApi.storage.$get({ query: statsRangeQuery(filter) }))
+}
+
+export function getAdminDashboardTrafficStats(filter: AdminStatsRangeFilter = {}) {
+  return unwrap<AdminDashboardTrafficStats>(adminStatsApi.traffic.$get({ query: statsRangeQuery(filter) }))
+}
+
+export function getAdminDashboardSharingStats(filter: AdminStatsRangeFilter = {}) {
+  return unwrap<AdminDashboardSharingStats>(adminStatsApi.sharing.$get({ query: statsRangeQuery(filter) }))
+}
+
+export function getAdminDashboardRankingStats(filter: AdminStatsRangeFilter = {}) {
+  return unwrap<AdminDashboardRankingStats>(adminStatsApi.ranking.$get({ query: statsRangeQuery(filter) }))
 }
 
 // Admin Storages API

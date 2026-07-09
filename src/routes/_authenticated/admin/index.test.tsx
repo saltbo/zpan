@@ -1,10 +1,17 @@
-import type { AdminCoreStats } from '@shared/types'
+import type { AdminDashboardOverviewStats } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { getAdminCoreStats, getAdminDetailedStats } from '@/lib/api'
+import {
+  getAdminDashboardGrowthStats,
+  getAdminDashboardOverviewStats,
+  getAdminDashboardRankingStats,
+  getAdminDashboardSharingStats,
+  getAdminDashboardStorageStats,
+  getAdminDashboardTrafficStats,
+} from '@/lib/api'
 import { OverviewPage } from './index'
 
 vi.mock('@tanstack/react-router', () => ({
@@ -16,18 +23,6 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, values?: Record<string, string | number>) => {
-      if (!values) return key
-      return Object.entries(values).reduce(
-        (message, [name, value]) => message.replace(`{{${name}}}`, String(value)),
-        key,
-      )
-    },
-  }),
-}))
-
 vi.mock('@/components/UpgradeHint', () => ({
   UpgradeHint: ({ title }: { title: string }) => <div data-testid="upgrade-hint">{title}</div>,
 }))
@@ -37,25 +32,41 @@ vi.mock('@/hooks/useEntitlement', () => ({
 }))
 
 vi.mock('@/lib/api', () => ({
-  getAdminCoreStats: vi.fn(),
-  getAdminDetailedStats: vi.fn(),
+  getAdminDashboardOverviewStats: vi.fn(),
+  getAdminDashboardGrowthStats: vi.fn(),
+  getAdminDashboardStorageStats: vi.fn(),
+  getAdminDashboardTrafficStats: vi.fn(),
+  getAdminDashboardSharingStats: vi.fn(),
+  getAdminDashboardRankingStats: vi.fn(),
 }))
 
-const coreStats: AdminCoreStats = {
+const overviewStats: AdminDashboardOverviewStats = {
   generatedAt: '2026-07-09T00:00:00.000Z',
-  users: { total: 42, admins: 2, activeLast30Days: 18, newLast7Days: 5 },
-  spaces: { total: 10, personal: 8, team: 2, newLast30Days: 1 },
-  storage: {
-    usedBytes: 1024,
-    quotaBytes: 4096,
-    quotaUtilization: 25,
-    capacityBytes: 8192,
-    backendCount: 1,
-    activeBackendCount: 1,
+  from: '2026-07-01T00:00:00.000Z',
+  to: '2026-07-09T00:00:00.000Z',
+  totals: {
+    users: 42,
+    newUsers: { value: 5, previousValue: 3, changePercent: 66.7 },
+    activeUsers: { value: 18, previousValue: 12, changePercent: 50 },
+    storageUsedBytes: 1024,
+    storageQuotaBytes: 4096,
+    trafficBytes: { value: 512, previousValue: 256, changePercent: 100 },
+    uploadBytes: { value: 128, previousValue: 64, changePercent: 100 },
+    downloadBytes: { value: 384, previousValue: 192, changePercent: 100 },
+    activeShares: 4,
+    shareViews: { value: 120, previousValue: 60, changePercent: 100 },
+    shareDownloads: { value: 30, previousValue: 15, changePercent: 100 },
   },
-  traffic: { usedBytes: 512, quotaBytes: 2048, utilization: 25, period: '2026-07' },
-  sharing: { totalShares: 7, activeShares: 4, views: 120, downloads: 30 },
-  operations: { pendingInvitations: 0, failedBackgroundJobs: 0, offlineDownloaders: 0, runningDownloadTasks: 1 },
+  trends: [
+    {
+      date: '2026-07-09',
+      newUsers: 5,
+      activeUsers: 18,
+      storageUsedBytes: 1024,
+      uploadBytes: 128,
+      downloadBytes: 384,
+    },
+  ],
 }
 
 function renderOverviewPage() {
@@ -79,7 +90,7 @@ afterEach(() => {
 })
 
 describe('Admin overview dashboard', () => {
-  it('renders core stats without calling detailed stats when analytics is locked', async () => {
+  it('renders overview stats without querying Pro sections when analytics is locked', async () => {
     vi.mocked(useEntitlement).mockReturnValue({
       bound: false,
       active: false,
@@ -90,14 +101,16 @@ describe('Admin overview dashboard', () => {
       isLoading: false,
       isError: false,
     })
-    vi.mocked(getAdminCoreStats).mockResolvedValue(coreStats)
+    vi.mocked(getAdminDashboardOverviewStats).mockResolvedValue(overviewStats)
 
     renderOverviewPage()
 
     expect(await screen.findByText('42')).toBeTruthy()
-    expect(screen.getByTestId('upgrade-hint').textContent).toBe('admin.overview.analyticsLockedTitle')
-    expect(screen.queryByText('admin.overview.pendingTitle')).toBeNull()
-    expect(screen.queryByText('admin.overview.actionsTitle')).toBeNull()
-    expect(getAdminDetailedStats).not.toHaveBeenCalled()
+    expect(screen.getByText('用户与增长')).toBeTruthy()
+    expect(getAdminDashboardGrowthStats).not.toHaveBeenCalled()
+    expect(getAdminDashboardStorageStats).not.toHaveBeenCalled()
+    expect(getAdminDashboardTrafficStats).not.toHaveBeenCalled()
+    expect(getAdminDashboardSharingStats).not.toHaveBeenCalled()
+    expect(getAdminDashboardRankingStats).not.toHaveBeenCalled()
   })
 })

@@ -173,7 +173,31 @@ export async function viewShare(deps: ShareDeps, params: ViewShareParams): Promi
   // View-dedup increment: non-creators whose view cookie isn't yet 'seen'. The
   // handler sets the cookie when setViewCookie is true.
   const setViewCookie = !isCreator && viewCookie !== 'seen'
-  if (setViewCookie) await deps.share.incrementViews(share.id)
+  if (setViewCookie) {
+    await deps.share.incrementViews(share.id)
+    try {
+      await deps.activity.record({
+        orgId: share.orgId,
+        userId: viewerId,
+        actorType: viewerId ? 'user' : 'anonymous',
+        action: 'share_view',
+        targetType: 'share',
+        targetId: share.id,
+        targetName: matter.name,
+        metadata: {
+          shareId: share.id,
+          matterId: matter.id,
+          creatorId: share.creatorId,
+          kind: share.kind,
+          requiresPassword: !!share.passwordHash,
+          matterType: matter.type,
+          bytes: matter.size ?? 0,
+        },
+      })
+    } catch (error) {
+      console.error('[shares] recordActivity failed:', error)
+    }
+  }
 
   const dto = await composeShareView(deps, { share, matter, recipients }, { viewerId, accessCookie, now })
   return { ok: true, setViewCookie, dto }
@@ -181,7 +205,7 @@ export async function viewShare(deps: ShareDeps, params: ViewShareParams): Promi
 
 // ─── POST /:token/sessions — verify password → access-cookie decision ────────
 
-export type VerifySharePasswordParams = { token: string; password: string; now?: Date }
+export type VerifySharePasswordParams = { token: string; password: string; viewerId?: string | null; now?: Date }
 
 export type VerifySharePasswordOutcome = { ok: true; setAccessCookieExpiry: Date } | { ok: false; error: AppError }
 
@@ -189,12 +213,12 @@ export async function verifySharePassword(
   deps: ShareDeps,
   params: VerifySharePasswordParams,
 ): Promise<VerifySharePasswordOutcome> {
-  const { token, password, now = new Date() } = params
+  const { token, password, viewerId = null, now = new Date() } = params
 
   const resolved = await deps.share.resolveByToken(token)
   if (resolved.status !== 'ok') return { ok: false, error: notFound('Share not found or revoked') }
 
-  const { share } = resolved
+  const { share, matter } = resolved
   if (share.kind !== 'landing') return { ok: false, error: notFound('Share not found or revoked') }
 
   if (!share.passwordHash || !verifyPasswordHash(share.passwordHash, password))
@@ -205,6 +229,26 @@ export async function verifySharePassword(
   const setAccessCookieExpiry = share.expiresAt
     ? new Date(Math.min(share.expiresAt.getTime(), now.getTime() + oneDayMs))
     : new Date(now.getTime() + oneDayMs)
+
+  try {
+    await deps.activity.record({
+      orgId: share.orgId,
+      userId: viewerId,
+      actorType: viewerId ? 'user' : 'anonymous',
+      action: 'share_password_passed',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: matter.name,
+      metadata: {
+        shareId: share.id,
+        matterId: matter.id,
+        creatorId: share.creatorId,
+        kind: share.kind,
+      },
+    })
+  } catch (error) {
+    console.error('[shares] recordActivity failed:', error)
+  }
 
   return { ok: true, setAccessCookieExpiry }
 }
@@ -364,19 +408,29 @@ export async function downloadShareObject(
     throw e
   }
 
-  // Record download audit event. Use the authenticated viewer if available;
-  // fall back to the share creator as the org-attributed actor for anonymous
-  // downloads. The presigned URL is never stored in metadata.
-  const actorId = viewerId ?? share.creatorId
+  // Record the real actor. Anonymous downloads belong to the share target, not
+  // to the share creator as a fake user action. The presigned URL is never stored.
   try {
     await deps.activity.record({
       orgId: share.orgId,
-      userId: actorId,
+      userId: viewerId,
+      actorType: viewerId ? 'user' : 'anonymous',
       action: 'share_download',
       targetType: 'share',
       targetId: share.id,
       targetName: targetMatter.name,
-      metadata: { anonymous: !viewerId },
+      metadata: {
+        anonymous: !viewerId,
+        status: 'issued',
+        source: 'landing_share',
+        shareId: share.id,
+        matterId: targetMatter.id,
+        rootMatterId: matter.id,
+        creatorId: share.creatorId,
+        storageId: targetMatter.storageId,
+        bytes,
+        kind: share.kind,
+      },
     })
   } catch (error) {
     console.error('[shares] recordActivity failed:', error)

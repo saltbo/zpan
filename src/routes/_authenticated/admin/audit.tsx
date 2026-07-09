@@ -70,15 +70,16 @@ function metaDetail(event: AdminAuditEvent, t: (key: string, opts?: Record<strin
 function AuditRow({ event }: { event: AdminAuditEvent }) {
   const { t } = useTranslation()
   const createdAt = new Date(event.createdAt as unknown as string | number)
+  const actorLabel = event.user.name || formatActor(event)
   return (
     <div className="flex items-start gap-3 py-3">
       <Avatar className="h-8 w-8 flex-shrink-0">
         {event.user.image && <AvatarImage src={event.user.image} alt={event.user.name} />}
-        <AvatarFallback className="text-xs">{userInitials(event.user.name || '?')}</AvatarFallback>
+        <AvatarFallback className="text-xs">{userInitials(actorLabel)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <p className="text-sm">
-          <span className="font-medium">{event.user.name || event.userId}</span>{' '}
+          <span className="font-medium">{actorLabel}</span>{' '}
           <span className="text-muted-foreground">{metaDetail(event, t)}</span>
         </p>
         <p className="text-xs text-muted-foreground">
@@ -88,6 +89,14 @@ function AuditRow({ event }: { event: AdminAuditEvent }) {
       </div>
     </div>
   )
+}
+
+function formatActor(event: AdminAuditEvent): string {
+  if (event.userId) return event.userId
+  if (event.actorType === 'anonymous') return 'Anonymous'
+  if (event.actorType === 'system') return event.actorRef ? `System:${event.actorRef}` : 'System'
+  if (event.actorType === 'downloader') return event.actorRef ? `Downloader:${event.actorRef}` : 'Downloader'
+  return 'Unknown'
 }
 
 function AuditLogsPage() {

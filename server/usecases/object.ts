@@ -435,9 +435,9 @@ export type GetObjectOutcome =
 export async function getObject(
   deps: Pick<
     Deps,
-    'matter' | 'storages' | 's3' | 'quota' | 'licenseBinding' | 'licensingCloud' | 'cloudTrafficReports'
+    'matter' | 'storages' | 's3' | 'quota' | 'licenseBinding' | 'licensingCloud' | 'cloudTrafficReports' | 'activity'
   >,
-  params: { orgId: string; objectId: string; cloudBaseUrl: string },
+  params: { orgId: string; objectId: string; actorId: string; cloudBaseUrl: string },
 ): Promise<GetObjectOutcome> {
   const matter = await deps.matter.get(params.objectId, params.orgId)
   // Live objects only — a trashed object is fetched via GET /trash/objects/{id}.
@@ -472,6 +472,22 @@ export async function getObject(
     await deps.quota.refundTraffic(params.orgId, bytes)
     throw error
   }
+  await deps.activity.record({
+    orgId: params.orgId,
+    userId: params.actorId,
+    action: 'object_download',
+    targetType: 'file',
+    targetId: matter.id,
+    targetName: matter.name,
+    metadata: {
+      status: 'issued',
+      source: 'object_download',
+      matterId: matter.id,
+      storageId: matter.storageId,
+      bytes,
+      matterType: matter.type,
+    },
+  })
   return { ok: true, matter, downloadUrl }
 }
 
@@ -788,6 +804,13 @@ export async function confirmUpload(
             targetType: 'file',
             targetId: confirmed.id,
             targetName: confirmed.name,
+            metadata: {
+              bytes,
+              storageId: confirmed.storageId,
+              matterId: confirmed.id,
+              matterType: confirmed.type,
+              onConflict: opts.onConflict ?? 'fail',
+            },
           })
         }
 
@@ -900,7 +923,7 @@ export type SaveToDriveDeps = {
 }
 
 export interface SaveShareInput {
-  share: { id: string }
+  share: { id: string; creatorId: string }
   matter: Matter
   currentUserId: string
   targetOrgId: string
@@ -1110,6 +1133,14 @@ export async function saveShareToDrive(deps: SaveToDriveDeps, input: SaveShareIn
   return copyMatterToOrg(deps, {
     ...rest,
     sourceMatter,
-    activity: { action: 'save_from_share', metadata: { sourceShareId: share.id } },
+    activity: {
+      action: 'save_from_share',
+      metadata: {
+        sourceShareId: share.id,
+        sourceMatterId: sourceMatter.id,
+        creatorId: share.creatorId,
+        bytes: sourceMatter.size ?? 0,
+      },
+    },
   })
 }

@@ -162,6 +162,8 @@ function auditEvent(overrides: Partial<AdminAuditEvent> = {}): AdminAuditEvent {
     orgId: 'route-org-1',
     orgName: 'Acme Team',
     userId: 'user-1',
+    actorType: 'user',
+    actorRef: null,
     action: 'upload',
     targetType: 'file',
     targetId: 'file-1',

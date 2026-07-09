@@ -3,7 +3,19 @@ import { nanoid } from 'nanoid'
 import { organization, user } from '../../db/auth-schema'
 import { activityEvents } from '../../db/schema'
 import type { Database } from '../../platform/interface'
-import type { ActivityRepo } from '../../usecases/ports'
+import type { ActivityActorType, ActivityRepo } from '../../usecases/ports'
+
+function normalizeActorType(value: string): ActivityActorType {
+  if (value === 'anonymous' || value === 'system' || value === 'downloader') return value
+  return 'user'
+}
+
+function actorDisplayName(actorType: string, actorRef: string | null): string {
+  if (actorType === 'anonymous') return 'Anonymous'
+  if (actorType === 'system') return actorRef ? `System:${actorRef}` : 'System'
+  if (actorType === 'downloader') return actorRef ? `Downloader:${actorRef}` : 'Downloader'
+  return ''
+}
 
 export function createActivityRepo(db: Database): ActivityRepo {
   return {
@@ -11,7 +23,9 @@ export function createActivityRepo(db: Database): ActivityRepo {
       await db.insert(activityEvents).values({
         id: nanoid(),
         orgId: event.orgId,
-        userId: event.userId,
+        userId: event.userId ?? null,
+        actorType: event.actorType ?? (event.userId ? 'user' : 'anonymous'),
+        actorRef: event.actorRef ?? null,
         action: event.action,
         targetType: event.targetType,
         targetId: event.targetId ?? null,
@@ -34,6 +48,8 @@ export function createActivityRepo(db: Database): ActivityRepo {
           id: activityEvents.id,
           orgId: activityEvents.orgId,
           userId: activityEvents.userId,
+          actorType: activityEvents.actorType,
+          actorRef: activityEvents.actorRef,
           action: activityEvents.action,
           targetType: activityEvents.targetType,
           targetId: activityEvents.targetId,
@@ -54,13 +70,19 @@ export function createActivityRepo(db: Database): ActivityRepo {
         id: row.id,
         orgId: row.orgId,
         userId: row.userId,
+        actorType: normalizeActorType(row.actorType),
+        actorRef: row.actorRef,
         action: row.action,
         targetType: row.targetType,
         targetId: row.targetId,
         targetName: row.targetName,
         metadata: row.metadata,
         createdAt: row.createdAt,
-        user: { id: row.userId, name: row.userName ?? '', image: row.userImage ?? null },
+        user: {
+          id: row.userId,
+          name: row.userName ?? actorDisplayName(row.actorType, row.actorRef),
+          image: row.userImage ?? null,
+        },
       }))
 
       return { items, total }
@@ -90,6 +112,8 @@ export function createActivityRepo(db: Database): ActivityRepo {
           id: activityEvents.id,
           orgId: activityEvents.orgId,
           userId: activityEvents.userId,
+          actorType: activityEvents.actorType,
+          actorRef: activityEvents.actorRef,
           action: activityEvents.action,
           targetType: activityEvents.targetType,
           targetId: activityEvents.targetId,
@@ -112,13 +136,19 @@ export function createActivityRepo(db: Database): ActivityRepo {
         id: row.id,
         orgId: row.orgId,
         userId: row.userId,
+        actorType: normalizeActorType(row.actorType),
+        actorRef: row.actorRef,
         action: row.action,
         targetType: row.targetType,
         targetId: row.targetId,
         targetName: row.targetName,
         metadata: row.metadata,
         createdAt: row.createdAt,
-        user: { id: row.userId, name: row.userName ?? '', image: row.userImage ?? null },
+        user: {
+          id: row.userId,
+          name: row.userName ?? actorDisplayName(row.actorType, row.actorRef),
+          image: row.userImage ?? null,
+        },
         orgName: row.orgName ?? null,
       }))
 
@@ -147,7 +177,10 @@ export function createActivityRepo(db: Database): ActivityRepo {
       ])
 
       return {
-        items: rows,
+        items: rows.map((row) => ({
+          ...row,
+          actorType: normalizeActorType(row.actorType),
+        })),
         total: countRows[0]?.count ?? 0,
         page,
         pageSize,

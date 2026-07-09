@@ -579,7 +579,7 @@ describe('Share download audit events', () => {
     assertNoSecrets(metaStr)
   })
 
-  it('records share_download using creator as actor for anonymous download', async () => {
+  it('records share_download as anonymous without attributing it to the creator', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app) // seeds user and personal org
     await insertStorage(db)
@@ -599,9 +599,11 @@ describe('Share download audit events', () => {
 
     const evt = await getLatestActivity(db, 'share_download')
     expect(evt).toBeDefined()
-    expect(evt?.userId).toBe(creatorId) // creator used as proxy for anonymous
+    expect(evt?.userId).toBeNull()
+    expect(evt?.actorType).toBe('anonymous')
     const md = JSON.parse(evt?.metadata ?? '{}') as Record<string, unknown>
     expect(md.anonymous).toBe(true)
+    expect(md.creatorId).toBe(creatorId)
     assertNoSecrets(evt?.metadata ?? null)
   })
 })

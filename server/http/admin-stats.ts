@@ -2,7 +2,16 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
-import { getAdminCoreStats, getAdminDetailedStats } from '../usecases/admin-stats'
+import {
+  getAdminCoreStats,
+  getAdminDashboardGrowthStats,
+  getAdminDashboardOverviewStats,
+  getAdminDashboardRankingStats,
+  getAdminDashboardSharingStats,
+  getAdminDashboardStorageStats,
+  getAdminDashboardTrafficStats,
+  getAdminDetailedStats,
+} from '../usecases/admin-stats'
 import { errorResponse, jsonContent } from './openapi'
 
 const coreStatsSchema = z
@@ -139,6 +148,20 @@ const detailsQuerySchema = z.object({
   periodDays: z.coerce.number().int().min(7).max(90).default(30),
 })
 
+const rangeQuerySchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+})
+
+const dashboardStatsSchema = z.any().openapi('AdminDashboardStats')
+
+function parseRange(query: z.infer<typeof rangeQuerySchema>): { from?: Date; to?: Date } {
+  return {
+    from: query.from ? new Date(query.from) : undefined,
+    to: query.to ? new Date(query.to) : undefined,
+  }
+}
+
 const coreRoute = createRoute({
   operationId: 'getAdminCoreStats',
   summary: 'Get admin dashboard core stats',
@@ -166,9 +189,112 @@ const detailsRoute = createRoute({
   },
 })
 
+const overviewRoute = createRoute({
+  operationId: 'getAdminDashboardOverviewStats',
+  summary: 'Get admin dashboard overview stats',
+  tags: ['Admin Stats'],
+  method: 'get',
+  path: '/overview',
+  middleware: [requireAdmin] as const,
+  request: { query: rangeQuerySchema },
+  responses: {
+    200: jsonContent(dashboardStatsSchema, 'Admin dashboard overview stats'),
+    400: errorResponse('Invalid query'),
+    401: errorResponse('Unauthorized'),
+  },
+})
+
+const growthRoute = createRoute({
+  operationId: 'getAdminDashboardGrowthStats',
+  summary: 'Get admin dashboard growth stats',
+  tags: ['Admin Stats'],
+  method: 'get',
+  path: '/growth',
+  middleware: [requireAdmin, requireFeature('analytics')] as const,
+  request: { query: rangeQuerySchema },
+  responses: {
+    200: jsonContent(dashboardStatsSchema, 'Admin dashboard growth stats'),
+    402: errorResponse('Feature not available'),
+  },
+})
+
+const storageRoute = createRoute({
+  operationId: 'getAdminDashboardStorageStats',
+  summary: 'Get admin dashboard storage stats',
+  tags: ['Admin Stats'],
+  method: 'get',
+  path: '/storage',
+  middleware: [requireAdmin, requireFeature('analytics')] as const,
+  request: { query: rangeQuerySchema },
+  responses: {
+    200: jsonContent(dashboardStatsSchema, 'Admin dashboard storage stats'),
+    402: errorResponse('Feature not available'),
+  },
+})
+
+const trafficRoute = createRoute({
+  operationId: 'getAdminDashboardTrafficStats',
+  summary: 'Get admin dashboard traffic stats',
+  tags: ['Admin Stats'],
+  method: 'get',
+  path: '/traffic',
+  middleware: [requireAdmin, requireFeature('analytics')] as const,
+  request: { query: rangeQuerySchema },
+  responses: {
+    200: jsonContent(dashboardStatsSchema, 'Admin dashboard traffic stats'),
+    402: errorResponse('Feature not available'),
+  },
+})
+
+const sharingRoute = createRoute({
+  operationId: 'getAdminDashboardSharingStats',
+  summary: 'Get admin dashboard sharing stats',
+  tags: ['Admin Stats'],
+  method: 'get',
+  path: '/sharing',
+  middleware: [requireAdmin, requireFeature('analytics')] as const,
+  request: { query: rangeQuerySchema },
+  responses: {
+    200: jsonContent(dashboardStatsSchema, 'Admin dashboard sharing stats'),
+    402: errorResponse('Feature not available'),
+  },
+})
+
+const rankingRoute = createRoute({
+  operationId: 'getAdminDashboardRankingStats',
+  summary: 'Get admin dashboard ranking stats',
+  tags: ['Admin Stats'],
+  method: 'get',
+  path: '/ranking',
+  middleware: [requireAdmin, requireFeature('analytics')] as const,
+  request: { query: rangeQuerySchema },
+  responses: {
+    200: jsonContent(dashboardStatsSchema, 'Admin dashboard ranking stats'),
+    402: errorResponse('Feature not available'),
+  },
+})
+
 export const adminStats = new OpenAPIHono<Env>()
   .openapi(coreRoute, async (c) => c.json(await getAdminCoreStats(c.get('deps')), 200))
   .openapi(detailsRoute, async (c) => {
     const { periodDays } = c.req.valid('query')
     return c.json(await getAdminDetailedStats(c.get('deps'), { periodDays }), 200)
   })
+  .openapi(overviewRoute, async (c) =>
+    c.json(await getAdminDashboardOverviewStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
+  )
+  .openapi(growthRoute, async (c) =>
+    c.json(await getAdminDashboardGrowthStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
+  )
+  .openapi(storageRoute, async (c) =>
+    c.json(await getAdminDashboardStorageStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
+  )
+  .openapi(trafficRoute, async (c) =>
+    c.json(await getAdminDashboardTrafficStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
+  )
+  .openapi(sharingRoute, async (c) =>
+    c.json(await getAdminDashboardSharingStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
+  )
+  .openapi(rankingRoute, async (c) =>
+    c.json(await getAdminDashboardRankingStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
+  )

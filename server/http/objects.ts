@@ -437,6 +437,7 @@ const objects = app
     const result = await getObject(c.get('deps'), {
       orgId,
       objectId: c.req.valid('param').id,
+      actorId: actorId(c),
       cloudBaseUrl: cloudBaseUrl(c),
     })
     if (result.ok) {

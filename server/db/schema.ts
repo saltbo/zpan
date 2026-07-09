@@ -437,16 +437,88 @@ export const announcements = sqliteTable(
   ],
 )
 
-export const activityEvents = sqliteTable('activity_events', {
-  id: text('id').primaryKey(),
-  orgId: text('org_id').notNull(),
-  userId: text('user_id').notNull(),
-  action: text('action').notNull(), // 'upload', 'create', 'delete', 'rename', 'move', 'restore'
-  targetType: text('target_type').notNull(), // 'file', 'folder'
-  targetId: text('target_id'),
-  targetName: text('target_name').notNull(),
-  metadata: text('metadata'), // JSON
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+export const activityEvents = sqliteTable(
+  'activity_events',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    userId: text('user_id'),
+    actorType: text('actor_type').notNull().default('user'),
+    actorRef: text('actor_ref'),
+    action: text('action').notNull(), // 'upload', 'create', 'delete', 'rename', 'move', 'restore'
+    targetType: text('target_type').notNull(), // 'file', 'folder'
+    targetId: text('target_id'),
+    targetName: text('target_name').notNull(),
+    metadata: text('metadata'), // JSON
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [
+    index('activity_events_org_created_idx').on(t.orgId, t.createdAt),
+    index('activity_events_user_created_idx').on(t.userId, t.createdAt),
+    index('activity_events_action_created_idx').on(t.action, t.createdAt),
+    index('activity_events_target_created_idx').on(t.targetType, t.targetId, t.createdAt),
+  ],
+)
+
+export const statsRollupsHourly = sqliteTable(
+  'stats_rollups_hourly',
+  {
+    id: text('id').primaryKey(),
+    bucketStart: integer('bucket_start', { mode: 'timestamp_ms' }).notNull(),
+    orgId: text('org_id').notNull().default(''),
+    metricKey: text('metric_key').notNull(),
+    dimensionKey: text('dimension_key').notNull().default(''),
+    dimensionValue: text('dimension_value').notNull().default(''),
+    count: integer('count').notNull().default(0),
+    bytes: integer('bytes').notNull().default(0),
+    uniqueCount: integer('unique_count').notNull().default(0),
+    metadata: text('metadata'),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('stats_rollups_hourly_bucket_metric_dim_uniq').on(
+      t.bucketStart,
+      t.orgId,
+      t.metricKey,
+      t.dimensionKey,
+      t.dimensionValue,
+    ),
+    index('stats_rollups_hourly_metric_bucket_idx').on(t.metricKey, t.bucketStart),
+  ],
+)
+
+export const statsRollupsDaily = sqliteTable(
+  'stats_rollups_daily',
+  {
+    id: text('id').primaryKey(),
+    bucketStart: integer('bucket_start', { mode: 'timestamp_ms' }).notNull(),
+    orgId: text('org_id').notNull().default(''),
+    metricKey: text('metric_key').notNull(),
+    dimensionKey: text('dimension_key').notNull().default(''),
+    dimensionValue: text('dimension_value').notNull().default(''),
+    count: integer('count').notNull().default(0),
+    bytes: integer('bytes').notNull().default(0),
+    uniqueCount: integer('unique_count').notNull().default(0),
+    metadata: text('metadata'),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('stats_rollups_daily_bucket_metric_dim_uniq').on(
+      t.bucketStart,
+      t.orgId,
+      t.metricKey,
+      t.dimensionKey,
+      t.dimensionValue,
+    ),
+    index('stats_rollups_daily_metric_bucket_idx').on(t.metricKey, t.bucketStart),
+  ],
+)
+
+export const statsRollupState = sqliteTable('stats_rollup_state', {
+  jobName: text('job_name').primaryKey(),
+  cursorCreatedAt: integer('cursor_created_at', { mode: 'timestamp_ms' }),
+  cursorId: text('cursor_id'),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
 export const shares = sqliteTable(

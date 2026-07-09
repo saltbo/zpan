@@ -278,7 +278,8 @@ export const publicShares = pub
   .openapi(verifyShareRoute, async (c) => {
     const token = c.req.valid('param').token
     const { password } = c.req.valid('json')
-    const out = await verifySharePassword(c.get('deps'), { token, password })
+    const viewerId = await readUserId(c)
+    const out = await verifySharePassword(c.get('deps'), { token, password, viewerId })
     if (out.ok) {
       setCookie(c, cookieName(token), 'ok', {
         httpOnly: true,

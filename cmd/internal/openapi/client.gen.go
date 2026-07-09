@@ -18,6 +18,54 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for ActivityEventActorType.
+const (
+	ActivityEventActorTypeAnonymous  ActivityEventActorType = "anonymous"
+	ActivityEventActorTypeDownloader ActivityEventActorType = "downloader"
+	ActivityEventActorTypeSystem     ActivityEventActorType = "system"
+	ActivityEventActorTypeUser       ActivityEventActorType = "user"
+)
+
+// Valid indicates whether the value is a known member of the ActivityEventActorType enum.
+func (e ActivityEventActorType) Valid() bool {
+	switch e {
+	case ActivityEventActorTypeAnonymous:
+		return true
+	case ActivityEventActorTypeDownloader:
+		return true
+	case ActivityEventActorTypeSystem:
+		return true
+	case ActivityEventActorTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditEventActorType.
+const (
+	AuditEventActorTypeAnonymous  AuditEventActorType = "anonymous"
+	AuditEventActorTypeDownloader AuditEventActorType = "downloader"
+	AuditEventActorTypeSystem     AuditEventActorType = "system"
+	AuditEventActorTypeUser       AuditEventActorType = "user"
+)
+
+// Valid indicates whether the value is a known member of the AuditEventActorType enum.
+func (e AuditEventActorType) Valid() bool {
+	switch e {
+	case AuditEventActorTypeAnonymous:
+		return true
+	case AuditEventActorTypeDownloader:
+		return true
+	case AuditEventActorTypeSystem:
+		return true
+	case AuditEventActorTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DownloadTaskSpecSourceType.
 const (
 	DownloadTaskSpecSourceTypeHttp       DownloadTaskSpecSourceType = "http"
@@ -1277,21 +1325,26 @@ func (e GrantUserEntitlementJSONBodyResourceType) Valid() bool {
 
 // ActivityEvent defines model for ActivityEvent.
 type ActivityEvent struct {
-	Action     string  `json:"action"`
-	CreatedAt  string  `json:"createdAt"`
-	Id         string  `json:"id"`
-	Metadata   *string `json:"metadata"`
-	OrgId      string  `json:"orgId"`
-	TargetId   *string `json:"targetId"`
-	TargetName string  `json:"targetName"`
-	TargetType string  `json:"targetType"`
+	Action     string                 `json:"action"`
+	ActorRef   *string                `json:"actorRef"`
+	ActorType  ActivityEventActorType `json:"actorType"`
+	CreatedAt  string                 `json:"createdAt"`
+	Id         string                 `json:"id"`
+	Metadata   *string                `json:"metadata"`
+	OrgId      string                 `json:"orgId"`
+	TargetId   *string                `json:"targetId"`
+	TargetName string                 `json:"targetName"`
+	TargetType string                 `json:"targetType"`
 	User       struct {
-		Id    string  `json:"id"`
+		Id    *string `json:"id"`
 		Image *string `json:"image"`
 		Name  string  `json:"name"`
 	} `json:"user"`
-	UserId string `json:"userId"`
+	UserId *string `json:"userId"`
 }
+
+// ActivityEventActorType defines model for ActivityEvent.ActorType.
+type ActivityEventActorType string
 
 // ActivityPage defines model for ActivityPage.
 type ActivityPage struct {
@@ -1343,6 +1396,9 @@ type AdminCoreStats struct {
 		Total            int `json:"total"`
 	} `json:"users"`
 }
+
+// AdminDashboardStats defines model for AdminDashboardStats.
+type AdminDashboardStats = interface{}
 
 // AdminDetailedStats defines model for AdminDetailedStats.
 type AdminDetailedStats struct {
@@ -1469,22 +1525,27 @@ type AnnouncementList struct {
 
 // AuditEvent defines model for AuditEvent.
 type AuditEvent struct {
-	Action     string  `json:"action"`
-	CreatedAt  string  `json:"createdAt"`
-	Id         string  `json:"id"`
-	Metadata   *string `json:"metadata"`
-	OrgId      string  `json:"orgId"`
-	OrgName    *string `json:"orgName"`
-	TargetId   *string `json:"targetId"`
-	TargetName string  `json:"targetName"`
-	TargetType string  `json:"targetType"`
+	Action     string              `json:"action"`
+	ActorRef   *string             `json:"actorRef"`
+	ActorType  AuditEventActorType `json:"actorType"`
+	CreatedAt  string              `json:"createdAt"`
+	Id         string              `json:"id"`
+	Metadata   *string             `json:"metadata"`
+	OrgId      string              `json:"orgId"`
+	OrgName    *string             `json:"orgName"`
+	TargetId   *string             `json:"targetId"`
+	TargetName string              `json:"targetName"`
+	TargetType string              `json:"targetType"`
 	User       struct {
-		Id    string  `json:"id"`
+		Id    *string `json:"id"`
 		Image *string `json:"image"`
 		Name  string  `json:"name"`
 	} `json:"user"`
-	UserId string `json:"userId"`
+	UserId *string `json:"userId"`
 }
+
+// AuditEventActorType defines model for AuditEvent.ActorType.
+type AuditEventActorType string
 
 // AuditEventPage defines model for AuditEventPage.
 type AuditEventPage struct {
@@ -2449,6 +2510,42 @@ type User struct {
 // GetAdminDetailedStatsParams defines parameters for GetAdminDetailedStats.
 type GetAdminDetailedStatsParams struct {
 	PeriodDays *int `form:"periodDays,omitempty" json:"periodDays,omitempty"`
+}
+
+// GetAdminDashboardGrowthStatsParams defines parameters for GetAdminDashboardGrowthStats.
+type GetAdminDashboardGrowthStatsParams struct {
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// GetAdminDashboardOverviewStatsParams defines parameters for GetAdminDashboardOverviewStats.
+type GetAdminDashboardOverviewStatsParams struct {
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// GetAdminDashboardRankingStatsParams defines parameters for GetAdminDashboardRankingStats.
+type GetAdminDashboardRankingStatsParams struct {
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// GetAdminDashboardSharingStatsParams defines parameters for GetAdminDashboardSharingStats.
+type GetAdminDashboardSharingStatsParams struct {
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// GetAdminDashboardStorageStatsParams defines parameters for GetAdminDashboardStorageStats.
+type GetAdminDashboardStorageStatsParams struct {
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// GetAdminDashboardTrafficStatsParams defines parameters for GetAdminDashboardTrafficStats.
+type GetAdminDashboardTrafficStatsParams struct {
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+	To   *time.Time `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // BanUserJSONBody defines parameters for BanUser.
@@ -4439,6 +4536,24 @@ type ClientInterface interface {
 	// GetAdminDetailedStats request
 	GetAdminDetailedStats(ctx context.Context, params *GetAdminDetailedStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAdminDashboardGrowthStats request
+	GetAdminDashboardGrowthStats(ctx context.Context, params *GetAdminDashboardGrowthStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminDashboardOverviewStats request
+	GetAdminDashboardOverviewStats(ctx context.Context, params *GetAdminDashboardOverviewStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminDashboardRankingStats request
+	GetAdminDashboardRankingStats(ctx context.Context, params *GetAdminDashboardRankingStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminDashboardSharingStats request
+	GetAdminDashboardSharingStats(ctx context.Context, params *GetAdminDashboardSharingStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminDashboardStorageStats request
+	GetAdminDashboardStorageStats(ctx context.Context, params *GetAdminDashboardStorageStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminDashboardTrafficStats request
+	GetAdminDashboardTrafficStats(ctx context.Context, params *GetAdminDashboardTrafficStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetApiAuthAccountInfo request
 	GetApiAuthAccountInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5299,6 +5414,78 @@ func (c *Client) GetAdminCoreStats(ctx context.Context, reqEditors ...RequestEdi
 
 func (c *Client) GetAdminDetailedStats(ctx context.Context, params *GetAdminDetailedStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAdminDetailedStatsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminDashboardGrowthStats(ctx context.Context, params *GetAdminDashboardGrowthStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminDashboardGrowthStatsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminDashboardOverviewStats(ctx context.Context, params *GetAdminDashboardOverviewStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminDashboardOverviewStatsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminDashboardRankingStats(ctx context.Context, params *GetAdminDashboardRankingStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminDashboardRankingStatsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminDashboardSharingStats(ctx context.Context, params *GetAdminDashboardSharingStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminDashboardSharingStatsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminDashboardStorageStats(ctx context.Context, params *GetAdminDashboardStorageStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminDashboardStorageStatsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminDashboardTrafficStats(ctx context.Context, params *GetAdminDashboardTrafficStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminDashboardTrafficStatsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -9159,6 +9346,402 @@ func NewGetAdminDetailedStatsRequest(server string, params *GetAdminDetailedStat
 		if params.PeriodDays != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "periodDays", *params.PeriodDays, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminDashboardGrowthStatsRequest generates requests for GetAdminDashboardGrowthStats
+func NewGetAdminDashboardGrowthStatsRequest(server string, params *GetAdminDashboardGrowthStatsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/stats/growth")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminDashboardOverviewStatsRequest generates requests for GetAdminDashboardOverviewStats
+func NewGetAdminDashboardOverviewStatsRequest(server string, params *GetAdminDashboardOverviewStatsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/stats/overview")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminDashboardRankingStatsRequest generates requests for GetAdminDashboardRankingStats
+func NewGetAdminDashboardRankingStatsRequest(server string, params *GetAdminDashboardRankingStatsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/stats/ranking")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminDashboardSharingStatsRequest generates requests for GetAdminDashboardSharingStats
+func NewGetAdminDashboardSharingStatsRequest(server string, params *GetAdminDashboardSharingStatsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/stats/sharing")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminDashboardStorageStatsRequest generates requests for GetAdminDashboardStorageStats
+func NewGetAdminDashboardStorageStatsRequest(server string, params *GetAdminDashboardStorageStatsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/stats/storage")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminDashboardTrafficStatsRequest generates requests for GetAdminDashboardTrafficStats
+func NewGetAdminDashboardTrafficStatsRequest(server string, params *GetAdminDashboardTrafficStatsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/stats/traffic")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -18321,6 +18904,24 @@ type ClientWithResponsesInterface interface {
 	// GetAdminDetailedStatsWithResponse request
 	GetAdminDetailedStatsWithResponse(ctx context.Context, params *GetAdminDetailedStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDetailedStatsResponse, error)
 
+	// GetAdminDashboardGrowthStatsWithResponse request
+	GetAdminDashboardGrowthStatsWithResponse(ctx context.Context, params *GetAdminDashboardGrowthStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardGrowthStatsResponse, error)
+
+	// GetAdminDashboardOverviewStatsWithResponse request
+	GetAdminDashboardOverviewStatsWithResponse(ctx context.Context, params *GetAdminDashboardOverviewStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardOverviewStatsResponse, error)
+
+	// GetAdminDashboardRankingStatsWithResponse request
+	GetAdminDashboardRankingStatsWithResponse(ctx context.Context, params *GetAdminDashboardRankingStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardRankingStatsResponse, error)
+
+	// GetAdminDashboardSharingStatsWithResponse request
+	GetAdminDashboardSharingStatsWithResponse(ctx context.Context, params *GetAdminDashboardSharingStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardSharingStatsResponse, error)
+
+	// GetAdminDashboardStorageStatsWithResponse request
+	GetAdminDashboardStorageStatsWithResponse(ctx context.Context, params *GetAdminDashboardStorageStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardStorageStatsResponse, error)
+
+	// GetAdminDashboardTrafficStatsWithResponse request
+	GetAdminDashboardTrafficStatsWithResponse(ctx context.Context, params *GetAdminDashboardTrafficStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardTrafficStatsResponse, error)
+
 	// GetApiAuthAccountInfoWithResponse request
 	GetApiAuthAccountInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAuthAccountInfoResponse, error)
 
@@ -19223,6 +19824,193 @@ func (r GetAdminDetailedStatsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAdminDetailedStatsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminDashboardGrowthStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminDashboardStats
+	JSON402      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminDashboardGrowthStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminDashboardGrowthStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminDashboardGrowthStatsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminDashboardOverviewStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminDashboardStats
+	JSON400      *Error
+	JSON401      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminDashboardOverviewStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminDashboardOverviewStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminDashboardOverviewStatsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminDashboardRankingStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminDashboardStats
+	JSON402      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminDashboardRankingStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminDashboardRankingStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminDashboardRankingStatsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminDashboardSharingStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminDashboardStats
+	JSON402      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminDashboardSharingStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminDashboardSharingStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminDashboardSharingStatsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminDashboardStorageStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminDashboardStats
+	JSON402      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminDashboardStorageStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminDashboardStorageStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminDashboardStorageStatsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminDashboardTrafficStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminDashboardStats
+	JSON402      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminDashboardTrafficStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminDashboardTrafficStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminDashboardTrafficStatsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -27982,6 +28770,60 @@ func (c *ClientWithResponses) GetAdminDetailedStatsWithResponse(ctx context.Cont
 	return ParseGetAdminDetailedStatsResponse(rsp)
 }
 
+// GetAdminDashboardGrowthStatsWithResponse request returning *GetAdminDashboardGrowthStatsResponse
+func (c *ClientWithResponses) GetAdminDashboardGrowthStatsWithResponse(ctx context.Context, params *GetAdminDashboardGrowthStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardGrowthStatsResponse, error) {
+	rsp, err := c.GetAdminDashboardGrowthStats(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminDashboardGrowthStatsResponse(rsp)
+}
+
+// GetAdminDashboardOverviewStatsWithResponse request returning *GetAdminDashboardOverviewStatsResponse
+func (c *ClientWithResponses) GetAdminDashboardOverviewStatsWithResponse(ctx context.Context, params *GetAdminDashboardOverviewStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardOverviewStatsResponse, error) {
+	rsp, err := c.GetAdminDashboardOverviewStats(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminDashboardOverviewStatsResponse(rsp)
+}
+
+// GetAdminDashboardRankingStatsWithResponse request returning *GetAdminDashboardRankingStatsResponse
+func (c *ClientWithResponses) GetAdminDashboardRankingStatsWithResponse(ctx context.Context, params *GetAdminDashboardRankingStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardRankingStatsResponse, error) {
+	rsp, err := c.GetAdminDashboardRankingStats(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminDashboardRankingStatsResponse(rsp)
+}
+
+// GetAdminDashboardSharingStatsWithResponse request returning *GetAdminDashboardSharingStatsResponse
+func (c *ClientWithResponses) GetAdminDashboardSharingStatsWithResponse(ctx context.Context, params *GetAdminDashboardSharingStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardSharingStatsResponse, error) {
+	rsp, err := c.GetAdminDashboardSharingStats(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminDashboardSharingStatsResponse(rsp)
+}
+
+// GetAdminDashboardStorageStatsWithResponse request returning *GetAdminDashboardStorageStatsResponse
+func (c *ClientWithResponses) GetAdminDashboardStorageStatsWithResponse(ctx context.Context, params *GetAdminDashboardStorageStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardStorageStatsResponse, error) {
+	rsp, err := c.GetAdminDashboardStorageStats(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminDashboardStorageStatsResponse(rsp)
+}
+
+// GetAdminDashboardTrafficStatsWithResponse request returning *GetAdminDashboardTrafficStatsResponse
+func (c *ClientWithResponses) GetAdminDashboardTrafficStatsWithResponse(ctx context.Context, params *GetAdminDashboardTrafficStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDashboardTrafficStatsResponse, error) {
+	rsp, err := c.GetAdminDashboardTrafficStats(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminDashboardTrafficStatsResponse(rsp)
+}
+
 // GetApiAuthAccountInfoWithResponse request returning *GetApiAuthAccountInfoResponse
 func (c *ClientWithResponses) GetApiAuthAccountInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAuthAccountInfoResponse, error) {
 	rsp, err := c.GetApiAuthAccountInfo(ctx, reqEditors...)
@@ -30772,6 +31614,211 @@ func ParseGetAdminDetailedStatsResponse(rsp *http.Response) (*GetAdminDetailedSt
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest AdminDetailedStats
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminDashboardGrowthStatsResponse parses an HTTP response from a GetAdminDashboardGrowthStatsWithResponse call
+func ParseGetAdminDashboardGrowthStatsResponse(rsp *http.Response) (*GetAdminDashboardGrowthStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminDashboardGrowthStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminDashboardStats
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminDashboardOverviewStatsResponse parses an HTTP response from a GetAdminDashboardOverviewStatsWithResponse call
+func ParseGetAdminDashboardOverviewStatsResponse(rsp *http.Response) (*GetAdminDashboardOverviewStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminDashboardOverviewStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminDashboardStats
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminDashboardRankingStatsResponse parses an HTTP response from a GetAdminDashboardRankingStatsWithResponse call
+func ParseGetAdminDashboardRankingStatsResponse(rsp *http.Response) (*GetAdminDashboardRankingStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminDashboardRankingStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminDashboardStats
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminDashboardSharingStatsResponse parses an HTTP response from a GetAdminDashboardSharingStatsWithResponse call
+func ParseGetAdminDashboardSharingStatsResponse(rsp *http.Response) (*GetAdminDashboardSharingStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminDashboardSharingStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminDashboardStats
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminDashboardStorageStatsResponse parses an HTTP response from a GetAdminDashboardStorageStatsWithResponse call
+func ParseGetAdminDashboardStorageStatsResponse(rsp *http.Response) (*GetAdminDashboardStorageStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminDashboardStorageStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminDashboardStats
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminDashboardTrafficStatsResponse parses an HTTP response from a GetAdminDashboardTrafficStatsWithResponse call
+func ParseGetAdminDashboardTrafficStatsResponse(rsp *http.Response) (*GetAdminDashboardTrafficStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminDashboardTrafficStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminDashboardStats
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

@@ -1,7 +1,23 @@
-import type { AdminCoreStats, AdminDetailedStats, AdminUsageBySpace } from '@shared/types'
+import type {
+  AdminCoreStats,
+  AdminDashboardGrowthStats,
+  AdminDashboardOverviewStats,
+  AdminDashboardRankingStats,
+  AdminDashboardSharingStats,
+  AdminDashboardStorageStats,
+  AdminDashboardTrafficStats,
+  AdminDetailedStats,
+  AdminUsageBySpace,
+} from '@shared/types'
 import { currentTrafficPeriod } from '../domain/quota'
 import { percent } from './admin-stats-utils'
-import type { AdminStatsRepo, LicenseBindingRepo, QuotaRepo } from './ports'
+import {
+  type AdminStatsDateRange,
+  type AdminStatsRepo,
+  badRequest,
+  type LicenseBindingRepo,
+  type QuotaRepo,
+} from './ports'
 import { listQuotaOverview } from './quota'
 import { loadBindingState } from './site/licensing'
 
@@ -93,8 +109,74 @@ export async function getAdminDetailedStats(
   }
 }
 
+export interface AdminStatsRangeInput {
+  from?: Date
+  to?: Date
+}
+
+export function normalizeStatsRange(input: AdminStatsRangeInput, now = new Date()): AdminStatsDateRange {
+  const to = input.to ?? now
+  const from = input.from ?? daysAgo(to, 29)
+  if (from > to) throw badRequest('from must be before to', 'INVALID_TIME_RANGE')
+  return { from, to }
+}
+
+export function getAdminDashboardOverviewStats(
+  deps: AdminStatsDeps,
+  input: AdminStatsRangeInput,
+  now = new Date(),
+): Promise<AdminDashboardOverviewStats> {
+  return deps.adminStats.getDashboardOverviewStats(now, normalizeStatsRange(input, now))
+}
+
+export function getAdminDashboardGrowthStats(
+  deps: AdminStatsDeps,
+  input: AdminStatsRangeInput,
+  now = new Date(),
+): Promise<AdminDashboardGrowthStats> {
+  return deps.adminStats.getDashboardGrowthStats(now, normalizeStatsRange(input, now))
+}
+
+export function getAdminDashboardStorageStats(
+  deps: AdminStatsDeps,
+  input: AdminStatsRangeInput,
+  now = new Date(),
+): Promise<AdminDashboardStorageStats> {
+  return deps.adminStats.getDashboardStorageStats(now, normalizeStatsRange(input, now))
+}
+
+export function getAdminDashboardTrafficStats(
+  deps: AdminStatsDeps,
+  input: AdminStatsRangeInput,
+  now = new Date(),
+): Promise<AdminDashboardTrafficStats> {
+  return deps.adminStats.getDashboardTrafficStats(now, normalizeStatsRange(input, now))
+}
+
+export function getAdminDashboardSharingStats(
+  deps: AdminStatsDeps,
+  input: AdminStatsRangeInput,
+  now = new Date(),
+): Promise<AdminDashboardSharingStats> {
+  return deps.adminStats.getDashboardSharingStats(now, normalizeStatsRange(input, now))
+}
+
+export function getAdminDashboardRankingStats(
+  deps: AdminStatsDeps,
+  input: AdminStatsRangeInput,
+  now = new Date(),
+): Promise<AdminDashboardRankingStats> {
+  return deps.adminStats.getDashboardRankingStats(now, normalizeStatsRange(input, now))
+}
+
 function normalizePeriodDays(value: number): number {
   if (value <= 7) return 7
   if (value <= 30) return 30
   return 90
+}
+
+function daysAgo(now: Date, days: number): Date {
+  const date = new Date(now)
+  date.setUTCDate(date.getUTCDate() - days)
+  return date
 }

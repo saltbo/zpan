@@ -284,18 +284,59 @@ const APP_SCHEMA_SQL = `
     created_at INTEGER NOT NULL
   );
   CREATE UNIQUE INDEX IF NOT EXISTS team_invite_links_token_unique ON team_invite_links(token);
-  CREATE TABLE IF NOT EXISTS activity_events (
-    id TEXT PRIMARY KEY,
-    org_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    action TEXT NOT NULL,
-    target_type TEXT NOT NULL,
-    target_id TEXT,
-    target_name TEXT NOT NULL,
-    metadata TEXT,
-    created_at INTEGER NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS activity_events_org_id_idx ON activity_events(org_id);
+	  CREATE TABLE IF NOT EXISTS activity_events (
+	    id TEXT PRIMARY KEY,
+	    org_id TEXT NOT NULL,
+	    user_id TEXT,
+	    actor_type TEXT NOT NULL DEFAULT 'user',
+	    actor_ref TEXT,
+	    action TEXT NOT NULL,
+	    target_type TEXT NOT NULL,
+	    target_id TEXT,
+	    target_name TEXT NOT NULL,
+	    metadata TEXT,
+	    created_at INTEGER NOT NULL
+	  );
+	  CREATE INDEX IF NOT EXISTS activity_events_org_created_idx ON activity_events(org_id, created_at);
+	  CREATE INDEX IF NOT EXISTS activity_events_user_created_idx ON activity_events(user_id, created_at);
+	  CREATE INDEX IF NOT EXISTS activity_events_action_created_idx ON activity_events(action, created_at);
+	  CREATE INDEX IF NOT EXISTS activity_events_target_created_idx ON activity_events(target_type, target_id, created_at);
+	  CREATE TABLE IF NOT EXISTS stats_rollup_state (
+	    job_name TEXT PRIMARY KEY NOT NULL,
+	    cursor_created_at INTEGER,
+	    cursor_id TEXT,
+	    updated_at INTEGER NOT NULL
+	  );
+	  CREATE TABLE IF NOT EXISTS stats_rollups_daily (
+	    id TEXT PRIMARY KEY NOT NULL,
+	    bucket_start INTEGER NOT NULL,
+	    org_id TEXT NOT NULL DEFAULT '',
+	    metric_key TEXT NOT NULL,
+	    dimension_key TEXT NOT NULL DEFAULT '',
+	    dimension_value TEXT NOT NULL DEFAULT '',
+	    count INTEGER NOT NULL DEFAULT 0,
+	    bytes INTEGER NOT NULL DEFAULT 0,
+	    unique_count INTEGER NOT NULL DEFAULT 0,
+	    metadata TEXT,
+	    updated_at INTEGER NOT NULL
+	  );
+	  CREATE UNIQUE INDEX IF NOT EXISTS stats_rollups_daily_bucket_metric_dim_uniq ON stats_rollups_daily(bucket_start, org_id, metric_key, dimension_key, dimension_value);
+	  CREATE INDEX IF NOT EXISTS stats_rollups_daily_metric_bucket_idx ON stats_rollups_daily(metric_key, bucket_start);
+	  CREATE TABLE IF NOT EXISTS stats_rollups_hourly (
+	    id TEXT PRIMARY KEY NOT NULL,
+	    bucket_start INTEGER NOT NULL,
+	    org_id TEXT NOT NULL DEFAULT '',
+	    metric_key TEXT NOT NULL,
+	    dimension_key TEXT NOT NULL DEFAULT '',
+	    dimension_value TEXT NOT NULL DEFAULT '',
+	    count INTEGER NOT NULL DEFAULT 0,
+	    bytes INTEGER NOT NULL DEFAULT 0,
+	    unique_count INTEGER NOT NULL DEFAULT 0,
+	    metadata TEXT,
+	    updated_at INTEGER NOT NULL
+	  );
+	  CREATE UNIQUE INDEX IF NOT EXISTS stats_rollups_hourly_bucket_metric_dim_uniq ON stats_rollups_hourly(bucket_start, org_id, metric_key, dimension_key, dimension_value);
+	  CREATE INDEX IF NOT EXISTS stats_rollups_hourly_metric_bucket_idx ON stats_rollups_hourly(metric_key, bucket_start);
   CREATE TABLE IF NOT EXISTS shares (
     id TEXT PRIMARY KEY,
     token TEXT NOT NULL UNIQUE,

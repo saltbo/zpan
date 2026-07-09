@@ -68,6 +68,42 @@ describe('admin stats routes', () => {
     expect(body.reliability.license.lastRefreshAt).toMatch(/^20\d{2}-/)
     expect(body.trends.some((point) => point.remoteTasks > 0 || point.failedJobs > 0)).toBe(true)
   })
+
+  it('returns traffic dashboard stats from audit-backed download events for Pro admins', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedStatsFixture(db)
+
+    const res = await app.request(
+      '/api/admin/stats/traffic?from=2020-01-01T00:00:00.000Z&to=2100-01-01T00:00:00.000Z',
+      {
+        headers,
+      },
+    )
+    const body = (await res.json()) as {
+      summary: {
+        totalBytes: { value: number }
+        requestCount: { value: number }
+        issuedDownloads: number
+        blockedDownloads: number
+      }
+      sourceBreakdown: Array<{ name: string; bytes: number; requests: number }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.summary.totalBytes.value).toBe(896)
+    expect(body.summary.requestCount.value).toBe(3)
+    expect(body.summary.issuedDownloads).toBe(2)
+    expect(body.summary.blockedDownloads).toBe(0)
+    expect(body.sourceBreakdown).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'upload', bytes: 128, requests: 1 }),
+        expect.objectContaining({ name: 'landing_share', bytes: 512, requests: 1 }),
+        expect.objectContaining({ name: 'object_download', bytes: 256, requests: 1 }),
+      ]),
+    )
+  })
 })
 
 async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
@@ -105,6 +141,13 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
   await db.run(sql`
     INSERT INTO activity_events (id, org_id, user_id, action, target_type, target_id, target_name, metadata, created_at)
     VALUES ('activity-1', ${orgId}, ${userId}, 'upload', 'file', 'stats-file', 'report.pdf', NULL, ${nowSec})
+  `)
+  await db.run(sql`
+    INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
+    VALUES
+      ('activity-upload-confirm', ${orgId}, ${userId}, 'user', 'upload_confirm', 'file', 'stats-file', 'report.pdf', '{"bytes":128,"source":"upload"}', ${nowSec}),
+      ('activity-share-download', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-1', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec}),
+      ('activity-object-download', ${orgId}, ${userId}, 'user', 'object_download', 'file', 'stats-file', 'report.pdf', '{"bytes":256,"source":"object_download"}', ${nowSec})
   `)
   await db.run(sql`
     INSERT INTO downloaders (id, name, token_hash, token_jti, status, enabled, version, hostname, platform, arch, engine, capabilities, max_concurrent_tasks, current_tasks, download_bps, upload_bps, free_disk_bytes, created_by, last_heartbeat_at, created_at, updated_at)
