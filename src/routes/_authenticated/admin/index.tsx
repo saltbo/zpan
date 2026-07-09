@@ -52,7 +52,6 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useEntitlement } from '@/hooks/useEntitlement'
@@ -78,6 +77,8 @@ type SectionId = 'overview' | 'growth' | 'storage' | 'traffic' | 'sharing' | 'ra
 
 const SECTION_ORDER: SectionId[] = ['overview', 'growth', 'storage', 'traffic', 'sharing', 'ranking']
 const CHART_COLORS = ['#0f766e', '#0369a1', '#b45309', '#7c3aed', '#be123c', '#64748b', '#0284c7', '#15803d']
+const DASHBOARD_SURFACE =
+  'gap-0 rounded-lg border-border/60 bg-card py-0 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_24px_rgba(15,23,42,0.035)]'
 
 export function OverviewPage() {
   const today = useMemo(() => new Date(), [])
@@ -142,7 +143,7 @@ export function OverviewPage() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3.5">
       <DashboardSection
         id="overview"
         title="站点概览"
@@ -227,26 +228,31 @@ function DashboardSection({
   onRangeChange: (range: DateRange) => void
 }) {
   return (
-    <section className="rounded-md border bg-card">
-      <div className="flex flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-        <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={onToggle}>
+    <section className="overflow-hidden rounded-lg border border-border/60 bg-card/95 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div
+        className={cn(
+          'flex flex-col gap-2.5 px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between',
+          open && 'border-b bg-muted/15',
+        )}
+      >
+        <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 text-left" onClick={onToggle}>
           <ChevronDown
             className={cn(
-              'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+              'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150',
               open ? 'rotate-0' : '-rotate-90',
             )}
           />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+              <h2 className="text-[15px] font-semibold leading-5 tracking-normal">{title}</h2>
               {locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
             </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+            <p className="mt-0.5 text-xs leading-4 text-muted-foreground">{description}</p>
           </div>
         </button>
         {open && !locked && <DateRangePicker value={range} onChange={onRangeChange} />}
       </div>
-      {open && <div className="p-4">{children}</div>}
+      {open && <div className="p-3 lg:p-4">{children}</div>}
     </section>
   )
 }
@@ -256,7 +262,12 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (ran
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="h-8 justify-start gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 justify-start gap-2 rounded-md bg-background px-2.5 text-xs font-medium shadow-[0_1px_1px_rgba(15,23,42,0.03)]"
+        >
           <CalendarDays className="h-4 w-4" />
           <span>{formatRange(value)}</span>
         </Button>
@@ -820,13 +831,13 @@ function RankingSection({ stats }: { stats: AdminDashboardRankingStats }) {
       <ChartCard title="空间容量排行">
         <div className="grid gap-3">
           {stats.topSpaces.map((space) => (
-            <div key={space.orgId} className="grid gap-2 rounded-md border px-3 py-2">
+            <div key={space.orgId} className="grid gap-2 rounded-lg border border-border/50 bg-muted/15 px-3 py-2.5">
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="truncate font-medium">{space.orgName}</span>
                 <span className="shrink-0 tabular-nums">{formatSize(space.usedBytes)}</span>
               </div>
-              <Progress value={clampPercent(space.utilization)} />
-              <p className="text-xs text-muted-foreground">
+              <PercentBar value={space.utilization} color={CHART_COLORS[0]} />
+              <p className="text-xs leading-4 text-muted-foreground">
                 {space.orgType} · {formatPercent(space.utilization)}
               </p>
             </div>
@@ -860,28 +871,36 @@ function StatCard({
   metrics?: Array<{ label: string; value: string }>
 }) {
   return (
-    <Card className="shadow-none">
-      <CardContent className="p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-muted-foreground">{label}</p>
-            <p className="mt-1 truncate text-2xl font-semibold tabular-nums">{value}</p>
+    <Card className={cn(DASHBOARD_SURFACE, 'min-h-[108px] overflow-hidden')}>
+      <CardContent className="flex h-full flex-col p-0">
+        <div className="flex items-start justify-between gap-2 px-3 pb-2 pt-2.5">
+          <div className="min-w-0 space-y-1">
+            <p className="truncate text-[11px] font-medium uppercase leading-4 tracking-[0.04em] text-muted-foreground">
+              {label}
+            </p>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <p className="truncate text-[25px] font-semibold leading-8 tabular-nums tracking-normal">{value}</p>
+              {delta && (
+                <span
+                  className="max-w-full truncate rounded-full border border-border/60 bg-muted/35 px-1.5 py-0.5 text-[11px] font-medium leading-4 text-muted-foreground tabular-nums"
+                  title={delta}
+                >
+                  {delta}
+                </span>
+              )}
+            </div>
           </div>
-          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="mt-0.5 rounded-md border border-border/60 bg-muted/25 p-1.5">
+            <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </span>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-2">
+        <div className="mt-auto grid grid-cols-2 border-t bg-muted/10">
           {metrics.slice(0, 2).map((metric) => (
-            <div key={metric.label} className="min-w-0">
-              <p className="truncate text-[11px] text-muted-foreground">{metric.label}</p>
-              <p className="truncate text-sm font-medium tabular-nums">{metric.value}</p>
+            <div key={metric.label} className="min-w-0 px-3 py-2 first:border-r">
+              <p className="truncate text-[11px] leading-4 text-muted-foreground">{metric.label}</p>
+              <p className="truncate text-sm font-medium leading-5 tabular-nums">{metric.value}</p>
             </div>
           ))}
-          {delta && (
-            <div className="min-w-0">
-              <p className="truncate text-[11px] text-muted-foreground">环比</p>
-              <p className="truncate text-sm font-medium tabular-nums">{delta}</p>
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>
@@ -890,12 +909,12 @@ function StatCard({
 
 function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <Card className="shadow-none">
-      <CardHeader className="px-4 pb-2 pt-3">
-        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+    <Card className={cn(DASHBOARD_SURFACE, 'overflow-hidden')}>
+      <CardHeader className="gap-1 border-b bg-muted/10 px-3 py-2.5 sm:px-4">
+        <CardTitle className="text-[13px] font-semibold leading-5 tracking-normal">{title}</CardTitle>
+        {subtitle && <p className="text-xs leading-4 text-muted-foreground">{subtitle}</p>}
       </CardHeader>
-      <CardContent className="px-4 pb-4">{children}</CardContent>
+      <CardContent className="px-3 py-3 sm:px-4 sm:py-4">{children}</CardContent>
     </Card>
   )
 }
@@ -932,8 +951,8 @@ function BreakdownChart({
 }) {
   return (
     <ChartCard title={title}>
-      <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-        <div className="h-56">
+      <div className="grid gap-4 lg:grid-cols-[minmax(190px,220px)_1fr]">
+        <div className="h-52">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={rows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={84} paddingAngle={2}>
@@ -978,7 +997,7 @@ function BreakdownRows({
   return (
     <div className="grid content-start gap-2">
       {rows.map((row, index) => (
-        <div key={row.name} className="grid gap-1 rounded-md border px-3 py-2">
+        <div key={row.name} className="grid gap-1.5 rounded-lg border border-border/50 bg-muted/15 px-3 py-2">
           <div className="flex items-center justify-between gap-3 text-sm">
             <div className="flex min-w-0 items-center gap-2">
               <span
@@ -989,8 +1008,10 @@ function BreakdownRows({
             </div>
             <span className="shrink-0 tabular-nums">{valueFormatter(row.value)}</span>
           </div>
-          {row.percent !== undefined && <Progress value={clampPercent(row.percent)} />}
-          <p className="text-xs text-muted-foreground">
+          {row.percent !== undefined && (
+            <PercentBar value={row.percent} color={CHART_COLORS[index % CHART_COLORS.length]} />
+          )}
+          <p className="text-xs leading-4 text-muted-foreground">
             {row.detail ?? (row.percent !== undefined ? `${formatPercent(row.percent)} of total` : '')}
           </p>
         </div>
@@ -1021,6 +1042,10 @@ function FunnelChart({ data }: { data: Array<{ name: string; value: number; perc
           sort: 'none',
           gap: 4,
           label: {
+            position: 'inside',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 600,
             formatter: ({ name, value }: { name: string; value: number }) =>
               `${labelize(name)}  ${formatNumber(value)}`,
           },
@@ -1040,7 +1065,7 @@ function FunnelChart({ data }: { data: Array<{ name: string; value: number; perc
       chart.dispose()
     }
   }, [data])
-  return <div ref={ref} className="h-72 w-full" />
+  return <div ref={ref} className="h-72 w-full overflow-hidden" />
 }
 
 function TopSharesTable({ rows }: { rows: AdminDashboardSharingStats['topShares'] }) {
@@ -1049,34 +1074,47 @@ function TopSharesTable({ rows }: { rows: AdminDashboardSharingStats['topShares'
       {rows.length === 0 ? (
         <EmptyState />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>分享</TableHead>
-              <TableHead>创建者</TableHead>
-              <TableHead className="text-right">访问</TableHead>
-              <TableHead className="text-right">下载</TableHead>
-              <TableHead className="text-right">占比</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="max-w-60 truncate font-medium" title={row.name}>
-                  {row.name}
-                </TableCell>
-                <TableCell className="max-w-40 truncate text-muted-foreground" title={row.creatorName}>
-                  {row.creatorName}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{formatNumber(row.views)}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatNumber(row.downloads)}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatPercent(row.viewPercent)}</TableCell>
+        <div className="overflow-hidden rounded-lg border border-border/50">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>分享</TableHead>
+                <TableHead>创建者</TableHead>
+                <TableHead className="text-right">访问</TableHead>
+                <TableHead className="text-right">下载</TableHead>
+                <TableHead className="text-right">占比</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="max-w-60 truncate font-medium" title={row.name}>
+                    {row.name}
+                  </TableCell>
+                  <TableCell className="max-w-40 truncate text-muted-foreground" title={row.creatorName}>
+                    {row.creatorName}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{formatNumber(row.views)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatNumber(row.downloads)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatPercent(row.viewPercent)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </ChartCard>
+  )
+}
+
+function PercentBar({ value, color }: { value: number; color: string }) {
+  return (
+    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+      <div
+        className="h-full rounded-full transition-all"
+        style={{ width: `${clampPercent(value)}%`, backgroundColor: color }}
+      />
+    </div>
   )
 }
 
@@ -1103,17 +1141,19 @@ function SectionSkeleton() {
     <div className="grid gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[1, 2, 3, 4].map((item) => (
-          <Skeleton key={item} className="h-28 rounded-md" />
+          <Skeleton key={item} className="h-28 rounded-lg" />
         ))}
       </div>
-      <Skeleton className="h-80 rounded-md" />
+      <Skeleton className="h-80 rounded-lg" />
     </div>
   )
 }
 
 function EmptyState() {
   return (
-    <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">暂无统计数据</div>
+    <div className="rounded-lg border border-dashed border-border/70 bg-muted/10 p-8 text-center text-sm text-muted-foreground">
+      暂无统计数据
+    </div>
   )
 }
 
