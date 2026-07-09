@@ -13,6 +13,7 @@ import { createZipGateway } from './adapters/gateways/zip'
 import { createCfClient } from './adapters/providers/cf-custom-hostnames'
 import { createChangelogProvider } from './adapters/providers/changelog'
 import { createActivityRepo } from './adapters/repos/activity'
+import { createAdminStatsRepo } from './adapters/repos/admin-stats'
 import { createAnnouncementRepo } from './adapters/repos/announcement'
 import { createApiKeyGateway } from './adapters/repos/api-keys'
 import { createArchiveTargetFolderRepo } from './adapters/repos/archive-target-folder'
@@ -60,6 +61,7 @@ export function createDeps(platform: Platform): Deps {
   const licensingCloud = createLicensingCloudGateway()
   return {
     activity: createActivityRepo(db),
+    adminStats: createAdminStatsRepo(db),
     announcements: createAnnouncementRepo(db),
     apiKeys: createApiKeyGateway(),
     archiveJobs: createArchiveJobsGateway(platform),

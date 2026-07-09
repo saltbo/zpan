@@ -1301,6 +1301,143 @@ type ActivityPage struct {
 	Total    int             `json:"total"`
 }
 
+// AdminCoreStats defines model for AdminCoreStats.
+type AdminCoreStats struct {
+	GeneratedAt string `json:"generatedAt"`
+	Operations  struct {
+		FailedBackgroundJobs int `json:"failedBackgroundJobs"`
+		OfflineDownloaders   int `json:"offlineDownloaders"`
+		PendingInvitations   int `json:"pendingInvitations"`
+		RunningDownloadTasks int `json:"runningDownloadTasks"`
+	} `json:"operations"`
+	Sharing struct {
+		ActiveShares int `json:"activeShares"`
+		Downloads    int `json:"downloads"`
+		TotalShares  int `json:"totalShares"`
+		Views        int `json:"views"`
+	} `json:"sharing"`
+	Spaces struct {
+		NewLast30Days int `json:"newLast30Days"`
+		Personal      int `json:"personal"`
+		Team          int `json:"team"`
+		Total         int `json:"total"`
+	} `json:"spaces"`
+	Storage struct {
+		ActiveBackendCount int     `json:"activeBackendCount"`
+		BackendCount       int     `json:"backendCount"`
+		CapacityBytes      int     `json:"capacityBytes"`
+		QuotaBytes         int     `json:"quotaBytes"`
+		QuotaUtilization   float32 `json:"quotaUtilization"`
+		UsedBytes          int     `json:"usedBytes"`
+	} `json:"storage"`
+	Traffic struct {
+		Period      string  `json:"period"`
+		QuotaBytes  int     `json:"quotaBytes"`
+		UsedBytes   int     `json:"usedBytes"`
+		Utilization float32 `json:"utilization"`
+	} `json:"traffic"`
+	Users struct {
+		ActiveLast30Days int `json:"activeLast30Days"`
+		Admins           int `json:"admins"`
+		NewLast7Days     int `json:"newLast7Days"`
+		Total            int `json:"total"`
+	} `json:"users"`
+}
+
+// AdminDetailedStats defines model for AdminDetailedStats.
+type AdminDetailedStats struct {
+	GeneratedAt string `json:"generatedAt"`
+	PeriodDays  int    `json:"periodDays"`
+	Reliability struct {
+		BackgroundJobs struct {
+			ByStatus []struct {
+				Count  int    `json:"count"`
+				Status string `json:"status"`
+			} `json:"byStatus"`
+			Failed      int     `json:"failed"`
+			FailureRate float32 `json:"failureRate"`
+			Failures    []struct {
+				CreatedAt    string  `json:"createdAt"`
+				ErrorMessage *string `json:"errorMessage"`
+				Id           string  `json:"id"`
+				Type         string  `json:"type"`
+			} `json:"failures"`
+			Total int `json:"total"`
+		} `json:"backgroundJobs"`
+		CloudTrafficReports struct {
+			Failed  int `json:"failed"`
+			Pending int `json:"pending"`
+		} `json:"cloudTrafficReports"`
+		License struct {
+			Active           bool    `json:"active"`
+			Edition          *string `json:"edition"`
+			LastRefreshAt    *string `json:"lastRefreshAt"`
+			LastRefreshError *string `json:"lastRefreshError"`
+		} `json:"license"`
+	} `json:"reliability"`
+	RemoteDownloads struct {
+		ByDownloader []struct {
+			DownloaderId    string  `json:"downloaderId"`
+			FailedTasks     int     `json:"failedTasks"`
+			LastHeartbeatAt *string `json:"lastHeartbeatAt"`
+			Name            string  `json:"name"`
+			Status          string  `json:"status"`
+			Tasks           int     `json:"tasks"`
+		} `json:"byDownloader"`
+		ByStatus []struct {
+			Count  int    `json:"count"`
+			Status string `json:"status"`
+		} `json:"byStatus"`
+		Completed      int `json:"completed"`
+		Failed         int `json:"failed"`
+		FailureReasons []struct {
+			Count  int    `json:"count"`
+			Reason string `json:"reason"`
+		} `json:"failureReasons"`
+		Running     int     `json:"running"`
+		SuccessRate float32 `json:"successRate"`
+		Total       int     `json:"total"`
+	} `json:"remoteDownloads"`
+	Sharing struct {
+		ConversionRate         float32 `json:"conversionRate"`
+		DownloadLimitHitShares int     `json:"downloadLimitHitShares"`
+		ExpiredShares          int     `json:"expiredShares"`
+		RevokedShares          int     `json:"revokedShares"`
+	} `json:"sharing"`
+	StorageByType []struct {
+		Bytes int    `json:"bytes"`
+		Files int    `json:"files"`
+		Type  string `json:"type"`
+	} `json:"storageByType"`
+	TopShares []struct {
+		CreatorId   string `json:"creatorId"`
+		CreatorName string `json:"creatorName"`
+		Downloads   int    `json:"downloads"`
+		Id          string `json:"id"`
+		Name        string `json:"name"`
+		Status      string `json:"status"`
+		Token       string `json:"token"`
+		Views       int    `json:"views"`
+	} `json:"topShares"`
+	Trends []struct {
+		ActiveUsers    int    `json:"activeUsers"`
+		Date           string `json:"date"`
+		FailedJobs     int    `json:"failedJobs"`
+		RemoteTasks    int    `json:"remoteTasks"`
+		ShareDownloads int    `json:"shareDownloads"`
+		ShareViews     int    `json:"shareViews"`
+		Signups        int    `json:"signups"`
+	} `json:"trends"`
+	UsageBySpace []struct {
+		OrgId       string  `json:"orgId"`
+		OrgName     string  `json:"orgName"`
+		OrgType     string  `json:"orgType"`
+		QuotaBytes  int     `json:"quotaBytes"`
+		UsedBytes   int     `json:"usedBytes"`
+		Utilization float32 `json:"utilization"`
+	} `json:"usageBySpace"`
+}
+
 // AdminUserQuota defines model for AdminUserQuota.
 type AdminUserQuota struct {
 	HasPersonalOrg bool `json:"hasPersonalOrg"`
@@ -2307,6 +2444,11 @@ type User struct {
 	Role            *string    `json:"role,omitempty"`
 	UpdatedAt       time.Time  `json:"updatedAt"`
 	Username        *string    `json:"username,omitempty"`
+}
+
+// GetAdminDetailedStatsParams defines parameters for GetAdminDetailedStats.
+type GetAdminDetailedStatsParams struct {
+	PeriodDays *int `form:"periodDays,omitempty" json:"periodDays,omitempty"`
 }
 
 // BanUserJSONBody defines parameters for BanUser.
@@ -4291,6 +4433,12 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// GetAdminCoreStats request
+	GetAdminCoreStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminDetailedStats request
+	GetAdminDetailedStats(ctx context.Context, params *GetAdminDetailedStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetApiAuthAccountInfo request
 	GetApiAuthAccountInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5135,6 +5283,30 @@ type ClientInterface interface {
 
 	// ListUserObjects request
 	ListUserObjects(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) GetAdminCoreStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminCoreStatsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminDetailedStats(ctx context.Context, params *GetAdminDetailedStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminDetailedStatsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) GetApiAuthAccountInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -8927,6 +9099,87 @@ func (c *Client) ListUserObjects(ctx context.Context, username string, reqEditor
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetAdminCoreStatsRequest generates requests for GetAdminCoreStats
+func NewGetAdminCoreStatsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/stats/core")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminDetailedStatsRequest generates requests for GetAdminDetailedStats
+func NewGetAdminDetailedStatsRequest(server string, params *GetAdminDetailedStatsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/stats/details")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.PeriodDays != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "periodDays", *params.PeriodDays, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewGetApiAuthAccountInfoRequest generates requests for GetApiAuthAccountInfo
@@ -18062,6 +18315,12 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// GetAdminCoreStatsWithResponse request
+	GetAdminCoreStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAdminCoreStatsResponse, error)
+
+	// GetAdminDetailedStatsWithResponse request
+	GetAdminDetailedStatsWithResponse(ctx context.Context, params *GetAdminDetailedStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDetailedStatsResponse, error)
+
 	// GetApiAuthAccountInfoWithResponse request
 	GetApiAuthAccountInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAuthAccountInfoResponse, error)
 
@@ -18906,6 +19165,68 @@ type ClientWithResponsesInterface interface {
 
 	// ListUserObjectsWithResponse request
 	ListUserObjectsWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*ListUserObjectsResponse, error)
+}
+
+type GetAdminCoreStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminCoreStats
+	JSON401      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminCoreStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminCoreStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminCoreStatsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminDetailedStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminDetailedStats
+	JSON402      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminDetailedStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminDetailedStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminDetailedStatsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
 }
 
 type GetApiAuthAccountInfoResponse struct {
@@ -27643,6 +27964,24 @@ func (r ListUserObjectsResponse) ContentType() string {
 	return ""
 }
 
+// GetAdminCoreStatsWithResponse request returning *GetAdminCoreStatsResponse
+func (c *ClientWithResponses) GetAdminCoreStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAdminCoreStatsResponse, error) {
+	rsp, err := c.GetAdminCoreStats(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminCoreStatsResponse(rsp)
+}
+
+// GetAdminDetailedStatsWithResponse request returning *GetAdminDetailedStatsResponse
+func (c *ClientWithResponses) GetAdminDetailedStatsWithResponse(ctx context.Context, params *GetAdminDetailedStatsParams, reqEditors ...RequestEditorFn) (*GetAdminDetailedStatsResponse, error) {
+	rsp, err := c.GetAdminDetailedStats(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminDetailedStatsResponse(rsp)
+}
+
 // GetApiAuthAccountInfoWithResponse request returning *GetApiAuthAccountInfoResponse
 func (c *ClientWithResponses) GetApiAuthAccountInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAuthAccountInfoResponse, error) {
 	rsp, err := c.GetApiAuthAccountInfo(ctx, reqEditors...)
@@ -30382,6 +30721,72 @@ func (c *ClientWithResponses) ListUserObjectsWithResponse(ctx context.Context, u
 		return nil, err
 	}
 	return ParseListUserObjectsResponse(rsp)
+}
+
+// ParseGetAdminCoreStatsResponse parses an HTTP response from a GetAdminCoreStatsWithResponse call
+func ParseGetAdminCoreStatsResponse(rsp *http.Response) (*GetAdminCoreStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminCoreStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminCoreStats
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminDetailedStatsResponse parses an HTTP response from a GetAdminDetailedStatsWithResponse call
+func ParseGetAdminDetailedStatsResponse(rsp *http.Response) (*GetAdminDetailedStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminDetailedStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminDetailedStats
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseGetApiAuthAccountInfoResponse parses an HTTP response from a GetApiAuthAccountInfoWithResponse call

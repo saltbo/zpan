@@ -11,6 +11,7 @@ const FEATURE_LABELS: Record<ProFeature, string> = {
   audit_log: 'audit logs',
   quota_store: 'storage quota store',
   site_announcements: 'site announcements',
+  analytics: 'analytics',
 }
 
 export interface UpgradeHintProps {
