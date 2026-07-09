@@ -15,6 +15,7 @@ import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import {
   Activity,
+  BarChart3,
   CalendarDays,
   ChevronDown,
   Database,
@@ -27,17 +28,20 @@ import {
   Share2,
   TrendingUp,
   Upload,
+  UploadCloud,
   Users,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import type { DateRange } from 'react-day-picker'
 import {
   Area,
   AreaChart,
   Bar,
+  BarChart,
   CartesianGrid,
   Cell,
   ComposedChart,
+  LabelList,
   Legend,
   Line,
   Pie,
@@ -48,10 +52,12 @@ import {
   YAxis,
 } from 'recharts'
 import { UpgradeHint } from '@/components/UpgradeHint'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useEntitlement } from '@/hooks/useEntitlement'
@@ -64,7 +70,7 @@ import {
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
 } from '@/lib/api'
-import { formatDate, formatSize } from '@/lib/format'
+import { formatSize } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 echarts.use([EChartsFunnelChart, TooltipComponent, CanvasRenderer])
@@ -75,10 +81,88 @@ export const Route = createFileRoute('/_authenticated/admin/')({
 
 type SectionId = 'overview' | 'growth' | 'storage' | 'traffic' | 'sharing' | 'ranking'
 
-const SECTION_ORDER: SectionId[] = ['overview', 'growth', 'storage', 'traffic', 'sharing', 'ranking']
-const CHART_COLORS = ['#0f766e', '#0369a1', '#b45309', '#7c3aed', '#be123c', '#64748b', '#0284c7', '#15803d']
-const DASHBOARD_SURFACE =
-  'gap-0 rounded-lg border-border/60 bg-card py-0 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_24px_rgba(15,23,42,0.035)]'
+const COLORS = {
+  blue: '#0369a1',
+  teal: '#0f766e',
+  amber: '#b45309',
+  violet: '#7c3aed',
+  rose: '#be123c',
+  slate: '#64748b',
+  sky: '#0284c7',
+  green: '#15803d',
+}
+const CHART_COLORS = [
+  COLORS.blue,
+  COLORS.teal,
+  COLORS.amber,
+  COLORS.violet,
+  COLORS.rose,
+  COLORS.slate,
+  COLORS.sky,
+  COLORS.green,
+]
+const CHART_GRID_COLOR = 'var(--color-border)'
+const tooltipContentStyle: CSSProperties = {
+  border: '1px solid var(--color-border)',
+  borderRadius: 10,
+  background: 'var(--color-popover)',
+  boxShadow: '0 18px 42px -30px rgba(15, 23, 42, 0.65)',
+  color: 'var(--color-popover-foreground)',
+}
+const tooltipLabelStyle: CSSProperties = {
+  color: 'var(--color-muted-foreground)',
+  fontSize: 12,
+}
+const SECTION_META: Array<{
+  id: SectionId
+  title: string
+  description: string
+  badges: string[]
+  icon: typeof BarChart3
+}> = [
+  {
+    id: 'overview',
+    title: '站点概览',
+    description: '判断站点规模、活跃、存储占用和传输流量是否健康。',
+    badges: [],
+    icon: BarChart3,
+  },
+  {
+    id: 'growth',
+    title: '用户与增长',
+    description: '观察用户规模、活跃度、账号状态和注册方式结构。',
+    badges: ['Pro+'],
+    icon: Users,
+  },
+  {
+    id: 'storage',
+    title: '存储与文件',
+    description: '观察容量增长、文件结构、冷文件和大对象占用。',
+    badges: ['Pro+'],
+    icon: HardDrive,
+  },
+  {
+    id: 'traffic',
+    title: '流量与传输',
+    description: '观察上传下载流量、请求量、成功率和带宽压力。',
+    badges: ['Pro+'],
+    icon: UploadCloud,
+  },
+  {
+    id: 'sharing',
+    title: '分享与访问',
+    description: '观察分享创建、访问打开、下载完成和转存转化。',
+    badges: ['Pro+'],
+    icon: Share2,
+  },
+  {
+    id: 'ranking',
+    title: '用户与空间排行',
+    description: '看资源消耗集中在哪些用户、空间和文件。',
+    badges: ['Pro+'],
+    icon: Network,
+  },
+]
 
 export function OverviewPage() {
   const today = useMemo(() => new Date(), [])
@@ -143,51 +227,43 @@ export function OverviewPage() {
   }
 
   return (
-    <div className="flex flex-col gap-3.5">
-      <DashboardSection
-        id="overview"
-        title="站点概览"
-        description="站长每天最先看的核心经营数据。"
-        open={openSections.has('overview')}
-        range={ranges.overview}
-        onRangeChange={(range) => updateRange('overview', range)}
-        onToggle={() => toggleSection('overview')}
-      >
-        <QueryState query={overviewQuery}>{(data) => <OverviewSection stats={data} />}</QueryState>
-      </DashboardSection>
-
-      {SECTION_ORDER.filter((section) => section !== 'overview').map((section) => (
-        <DashboardSection
-          key={section}
-          id={section}
-          title={sectionTitle(section)}
-          description={sectionDescription(section)}
-          open={openSections.has(section)}
-          locked={!hasAnalytics && !entitlementLoading}
-          range={ranges[section]}
-          onRangeChange={(range) => updateRange(section, range)}
-          onToggle={() => toggleSection(section)}
-        >
-          {!hasAnalytics ? (
-            <UpgradeHint
-              feature="analytics"
-              title="解锁高级统计"
-              description="这些下钻看板需要 ZPan Pro 或 Business。核心概览数据会继续展示。"
-              actionLabel="打开授权"
-            />
-          ) : section === 'growth' ? (
-            <QueryState query={growthQuery}>{(data) => <GrowthSection stats={data} />}</QueryState>
-          ) : section === 'storage' ? (
-            <QueryState query={storageQuery}>{(data) => <StorageSection stats={data} />}</QueryState>
-          ) : section === 'traffic' ? (
-            <QueryState query={trafficQuery}>{(data) => <TrafficSection stats={data} />}</QueryState>
-          ) : section === 'sharing' ? (
-            <QueryState query={sharingQuery}>{(data) => <SharingSection stats={data} />}</QueryState>
-          ) : (
-            <QueryState query={rankingQuery}>{(data) => <RankingSection stats={data} />}</QueryState>
-          )}
-        </DashboardSection>
-      ))}
+    <div className="-m-4 min-h-[calc(100svh-3.5rem)] bg-canvas p-4">
+      <div className="mx-auto flex max-w-[1180px] flex-col gap-5">
+        <div className="flex flex-col gap-4">
+          {SECTION_META.map((section) => (
+            <DashboardSection
+              key={section.id}
+              section={section}
+              open={openSections.has(section.id)}
+              locked={section.id !== 'overview' && !hasAnalytics && !entitlementLoading}
+              range={ranges[section.id]}
+              onRangeChange={(range) => updateRange(section.id, range)}
+              onToggle={() => toggleSection(section.id)}
+            >
+              {section.id === 'overview' ? (
+                <QueryState query={overviewQuery}>{(data) => <OverviewSection stats={data} />}</QueryState>
+              ) : !hasAnalytics ? (
+                <UpgradeHint
+                  feature="analytics"
+                  title="解锁高级统计"
+                  description="这些下钻看板需要 ZPan Pro 或 Business。核心概览数据会继续展示。"
+                  actionLabel="打开授权"
+                />
+              ) : section.id === 'growth' ? (
+                <QueryState query={growthQuery}>{(data) => <GrowthSection stats={data} />}</QueryState>
+              ) : section.id === 'storage' ? (
+                <QueryState query={storageQuery}>{(data) => <StorageSection stats={data} />}</QueryState>
+              ) : section.id === 'traffic' ? (
+                <QueryState query={trafficQuery}>{(data) => <TrafficSection stats={data} />}</QueryState>
+              ) : section.id === 'sharing' ? (
+                <QueryState query={sharingQuery}>{(data) => <SharingSection stats={data} />}</QueryState>
+              ) : (
+                <QueryState query={rankingQuery}>{(data) => <RankingSection stats={data} />}</QueryState>
+              )}
+            </DashboardSection>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -208,8 +284,7 @@ function useDashboardSectionQuery<T>(
 }
 
 function DashboardSection({
-  title,
-  description,
+  section,
   open,
   locked,
   range,
@@ -217,9 +292,7 @@ function DashboardSection({
   onToggle,
   onRangeChange,
 }: {
-  id: SectionId
-  title: string
-  description: string
+  section: (typeof SECTION_META)[number]
   open: boolean
   locked?: boolean
   range: DateRange
@@ -227,68 +300,121 @@ function DashboardSection({
   onToggle: () => void
   onRangeChange: (range: DateRange) => void
 }) {
+  const Icon = section.icon
+
   return (
-    <section className="overflow-hidden rounded-lg border border-border/60 bg-card/95 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div
-        className={cn(
-          'flex flex-col gap-2.5 px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between',
-          open && 'border-b bg-muted/15',
-        )}
-      >
-        <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 text-left" onClick={onToggle}>
-          <ChevronDown
-            className={cn(
-              'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150',
-              open ? 'rotate-0' : '-rotate-90',
-            )}
-          />
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-[15px] font-semibold leading-5 tracking-normal">{title}</h2>
-              {locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
-            </div>
-            <p className="mt-0.5 text-xs leading-4 text-muted-foreground">{description}</p>
-          </div>
+    <section className="overflow-hidden rounded-xl border border-border/70 bg-background/95 text-card-foreground shadow-[0_18px_50px_-38px_rgba(15,23,42,0.55)]">
+      <div className="flex min-h-16 flex-col gap-3 bg-background/90 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-start gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-canvas text-primary shadow-inner">
+            <Icon className="size-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-[15px] font-semibold tracking-tight">{section.title}</span>
+              {section.badges.map((badge) => (
+                <Badge key={badge} variant={badge === 'Pro+' ? 'default' : 'secondary'} className="rounded-full">
+                  {badge}
+                </Badge>
+              ))}
+              {locked && <Lock className="size-3.5 text-muted-foreground" />}
+            </span>
+            <span className="mt-1 block text-[13px] leading-5 text-muted-foreground">{section.description}</span>
+          </span>
         </button>
-        {open && !locked && <DateRangePicker value={range} onChange={onRangeChange} />}
+        <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
+          {open && !locked && <DateRangePicker value={range} onChange={onRangeChange} />}
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={open ? `折叠${section.title}` : `展开${section.title}`}
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} />
+          </button>
+        </div>
       </div>
-      {open && <div className="p-3 lg:p-4">{children}</div>}
+      {open && <div className="border-t border-border/70 bg-card p-4 sm:p-5">{children}</div>}
     </section>
   )
 }
 
 function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (range: DateRange) => void }) {
   const presets = dateRangePresets()
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState<DateRange>(value)
+
+  function applyRange(nextRange: DateRange) {
+    if (!nextRange.from || !nextRange.to) return
+    onChange(normalizeDateRange(nextRange))
+    setOpen(false)
+  }
+
   return (
-    <Popover>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (nextOpen) setDraft(value)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 justify-start gap-2 rounded-md bg-background px-2.5 text-xs font-medium shadow-[0_1px_1px_rgba(15,23,42,0.03)]"
+          className="min-w-[15.5rem] justify-start bg-background shadow-xs"
         >
-          <CalendarDays className="h-4 w-4" />
-          <span>{formatRange(value)}</span>
+          <CalendarDays className="size-4 text-muted-foreground" />
+          <span className="truncate font-normal">{formatRange(value)}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto p-3">
-        <div className="grid gap-3 lg:grid-cols-[140px_auto]">
-          <div className="grid content-start gap-1">
-            {presets.map((preset) => (
-              <Button
-                key={preset.label}
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="justify-start"
-                onClick={() => onChange(preset.range)}
-              >
-                {preset.label}
-              </Button>
-            ))}
+      <PopoverContent align="end" className="w-[min(44rem,calc(100vw-2rem))] p-0">
+        <div className="grid gap-0 md:grid-cols-[9.5rem_minmax(0,1fr)]">
+          <div className="border-b p-3 md:border-r md:border-b-0">
+            <div className="flex flex-wrap gap-2 md:flex-col">
+              {presets.map((preset) => (
+                <Button
+                  key={preset.label}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() => applyRange(preset.range)}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
           </div>
-          <Calendar mode="range" selected={value} onSelect={(range) => range && onChange(range)} numberOfMonths={2} />
+          <div className="p-3">
+            <Calendar
+              mode="range"
+              selected={draft}
+              onSelect={(range) => {
+                if (range) setDraft(range)
+              }}
+              defaultMonth={draft.from}
+              numberOfMonths={2}
+              disabled={{ after: new Date() }}
+            />
+            <div className="mt-3 flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-xs text-muted-foreground">{formatRange(draft)}</div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                  取消
+                </Button>
+                <Button type="button" size="sm" disabled={!draft.from || !draft.to} onClick={() => applyRange(draft)}>
+                  应用
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </PopoverContent>
     </Popover>
@@ -346,11 +472,21 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
           <StatCard key={card.label} {...card} />
         ))}
       </div>
-      <ChartCard title="核心趋势" subtitle={`数据范围 ${formatDate(stats.from)} - ${formatDate(stats.to)}`}>
-        <ResponsiveContainer width="100%" height={300}>
+      <ChartCard
+        title="用户增长与活跃趋势"
+        subtitle="新增用户和活跃用户分开编码，避免把小量级新增淹没在活跃用户曲线里。"
+      >
+        <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={stats.trends} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} minTickGap={18} />
+            <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              fontSize={12}
+              minTickGap={18}
+              tickFormatter={formatChartDate}
+            />
             <YAxis
               yAxisId="count"
               tickLine={false}
@@ -359,17 +495,12 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
               width={42}
               tickFormatter={formatCompactNumber}
             />
-            <YAxis
-              yAxisId="bytes"
-              orientation="right"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              width={56}
-              tickFormatter={formatCompactSize}
+            <RechartsTooltip
+              contentStyle={tooltipContentStyle}
+              labelStyle={tooltipLabelStyle}
+              formatter={chartTooltipFormatter}
             />
-            <RechartsTooltip formatter={chartTooltipFormatter} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
             <Bar yAxisId="count" dataKey="newUsers" name="新增用户" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
             <Line
               yAxisId="count"
@@ -380,21 +511,43 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
               strokeWidth={2}
               dot={false}
             />
-            <Line
-              yAxisId="bytes"
-              type="monotone"
-              dataKey="uploadBytes"
-              name="上传流量"
-              stroke={CHART_COLORS[2]}
-              strokeWidth={2}
-              dot={false}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </ChartCard>
+      <ChartCard title="资源消耗趋势" subtitle="存储总量、上传量和下载流量使用双轴，保留容量水位与每日传输之间的关系。">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={stats.trends} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              fontSize={12}
+              minTickGap={18}
+              tickFormatter={formatChartDate}
             />
+            <YAxis
+              yAxisId="bytes"
+              tickLine={false}
+              axisLine={false}
+              fontSize={12}
+              width={56}
+              tickFormatter={formatCompactSize}
+            />
+            <RechartsTooltip
+              contentStyle={tooltipContentStyle}
+              labelStyle={tooltipLabelStyle}
+              formatter={chartTooltipFormatter}
+            />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+            <Bar yAxisId="bytes" dataKey="uploadBytes" name="上传量" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+            <Bar yAxisId="bytes" dataKey="downloadBytes" name="下载流量" fill={CHART_COLORS[2]} radius={[4, 4, 0, 0]} />
             <Line
               yAxisId="bytes"
               type="monotone"
-              dataKey="downloadBytes"
-              name="下载流量"
-              stroke={CHART_COLORS[3]}
+              dataKey="storageUsedBytes"
+              name="存储总量"
+              stroke={CHART_COLORS[0]}
               strokeWidth={2}
               dot={false}
             />
@@ -407,7 +560,7 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
 
 function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
   return (
-    <div className="grid gap-4">
+    <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="总用户数"
@@ -449,74 +602,82 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
           ]}
         />
       </div>
-      <ChartCard title="用户规模趋势">
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={stats.userScaleTrend}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} />
-            <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
-            <RechartsTooltip formatter={chartTooltipFormatter} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="newUsers" name="新增用户" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
-            <Line
-              type="monotone"
-              dataKey="totalUsers"
-              name="累计用户"
-              stroke={CHART_COLORS[0]}
-              strokeWidth={2}
-              dot={false}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
-      <ChartCard title="活跃用户趋势">
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={stats.activeUserTrend}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} />
-            <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
-            <RechartsTooltip formatter={chartTooltipFormatter} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Area
-              type="monotone"
-              dataKey="mau"
-              name="MAU"
-              stroke={CHART_COLORS[5]}
-              fill={CHART_COLORS[5]}
-              fillOpacity={0.08}
-            />
-            <Area
-              type="monotone"
-              dataKey="wau"
-              name="WAU"
-              stroke={CHART_COLORS[3]}
-              fill={CHART_COLORS[3]}
-              fillOpacity={0.12}
-            />
-            <Area
-              type="monotone"
-              dataKey="dau"
-              name="DAU"
-              stroke={CHART_COLORS[0]}
-              fill={CHART_COLORS[0]}
-              fillOpacity={0.16}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </ChartCard>
-      <BreakdownGrid
-        leftTitle="用户状态分布"
-        leftData={stats.userStatus}
-        rightTitle="注册来源分布"
-        rightData={stats.registrationSources}
-      />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChartCard title="用户规模趋势" subtitle="柱形看每日新增用户，折线看累计用户规模。">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={stats.userScaleTrend}>
+              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+              <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
+              <RechartsTooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                formatter={chartTooltipFormatter}
+              />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="newUsers" name="新增用户" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+              <Line
+                type="monotone"
+                dataKey="totalUsers"
+                name="累计用户"
+                stroke={CHART_COLORS[0]}
+                strokeWidth={2}
+                dot={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title="活跃用户趋势" subtitle="DAU、WAU、MAU 同时展示，用于判断用户活跃基本盘。">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={stats.activeUserTrend}>
+              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+              <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
+              <RechartsTooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                formatter={chartTooltipFormatter}
+              />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+              <Area
+                type="monotone"
+                dataKey="mau"
+                name="MAU"
+                stroke={CHART_COLORS[5]}
+                fill={CHART_COLORS[5]}
+                fillOpacity={0.08}
+              />
+              <Area
+                type="monotone"
+                dataKey="wau"
+                name="WAU"
+                stroke={CHART_COLORS[3]}
+                fill={CHART_COLORS[3]}
+                fillOpacity={0.12}
+              />
+              <Area
+                type="monotone"
+                dataKey="dau"
+                name="DAU"
+                stroke={CHART_COLORS[0]}
+                fill={CHART_COLORS[0]}
+                fillOpacity={0.16}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <BreakdownChart title="用户状态分布" rows={stats.userStatus} valueFormatter={formatNumber} />
+        <BarBreakdownChart title="注册方式分布" rows={stats.registrationSources} valueFormatter={formatNumber} />
+      </div>
     </div>
   )
 }
 
 function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
   return (
-    <div className="grid gap-4">
+    <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="存储占用"
@@ -563,76 +724,142 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
           ]}
         />
       </div>
-      <ChartCard title="存储增长趋势">
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={stats.storageTrend}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} />
-            <YAxis
-              yAxisId="bytes"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              width={58}
-              tickFormatter={formatCompactSize}
-            />
-            <YAxis
-              yAxisId="files"
-              orientation="right"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              width={48}
-              tickFormatter={formatCompactNumber}
-            />
-            <RechartsTooltip formatter={chartTooltipFormatter} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="files" dataKey="newFiles" name="新增文件" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
-            <Line
-              yAxisId="bytes"
-              type="monotone"
-              dataKey="usedBytes"
-              name="存储占用"
-              stroke={CHART_COLORS[0]}
-              strokeWidth={2}
-              dot={false}
-            />
-            <Line
-              yAxisId="bytes"
-              type="monotone"
-              dataKey="newBytes"
-              name="新增容量"
-              stroke={CHART_COLORS[2]}
-              strokeWidth={2}
-              dot={false}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
-      <BreakdownGrid
-        leftTitle="文件类型容量占比"
-        leftData={stats.typeBreakdown.map((row) => ({ name: row.type, value: row.bytes, percent: row.percent }))}
-        rightTitle="文件大小结构"
-        rightData={stats.sizeBreakdown.map((row) => ({ name: row.name, value: row.bytes, percent: row.percent }))}
-        valueFormatter={formatSize}
-      />
-      <BreakdownTable
-        title="文件年龄分布"
-        rows={stats.ageBreakdown.map((row) => ({
-          name: row.name,
-          value: row.bytes,
-          percent: row.percent,
-          detail: `${formatNumber(row.files)} files`,
-        }))}
-        valueFormatter={formatSize}
-      />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChartCard title="存储增长趋势" subtitle="柱形看新增文件，折线看总容量水位和新增容量。">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={stats.storageTrend}>
+              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+              <YAxis
+                yAxisId="bytes"
+                tickLine={false}
+                axisLine={false}
+                fontSize={12}
+                width={58}
+                tickFormatter={formatCompactSize}
+              />
+              <YAxis
+                yAxisId="files"
+                orientation="right"
+                tickLine={false}
+                axisLine={false}
+                fontSize={12}
+                width={48}
+                tickFormatter={formatCompactNumber}
+              />
+              <RechartsTooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                formatter={chartTooltipFormatter}
+              />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+              <Bar yAxisId="files" dataKey="newFiles" name="新增文件" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+              <Line
+                yAxisId="bytes"
+                type="monotone"
+                dataKey="usedBytes"
+                name="存储占用"
+                stroke={CHART_COLORS[0]}
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                yAxisId="bytes"
+                type="monotone"
+                dataKey="newBytes"
+                name="新增容量"
+                stroke={CHART_COLORS[2]}
+                strokeWidth={2}
+                dot={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <BreakdownChart
+          title="文件类型容量占比"
+          rows={stats.typeBreakdown.map((row) => ({ name: row.type, value: row.bytes, percent: row.percent }))}
+          valueFormatter={formatSize}
+        />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChartCard title="文件大小结构" subtitle="柱形看文件数量，折线看容量贡献，定位大对象压力。">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={stats.sizeBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tickFormatter={labelize} />
+              <YAxis
+                yAxisId="files"
+                tickLine={false}
+                axisLine={false}
+                fontSize={12}
+                width={46}
+                tickFormatter={formatCompactNumber}
+              />
+              <YAxis
+                yAxisId="bytes"
+                orientation="right"
+                tickLine={false}
+                axisLine={false}
+                fontSize={12}
+                width={58}
+                tickFormatter={formatCompactSize}
+              />
+              <RechartsTooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                formatter={chartTooltipFormatter}
+                labelFormatter={(value) => labelize(String(value))}
+              />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+              <Bar
+                yAxisId="files"
+                dataKey="files"
+                name="文件数"
+                fill={CHART_COLORS[5]}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive={false}
+              />
+              <Line
+                yAxisId="bytes"
+                type="monotone"
+                dataKey="bytes"
+                name="容量贡献"
+                stroke={CHART_COLORS[4]}
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title="文件年龄分布" subtitle="区分近期文件和冷文件容量，判断清理与归档空间。">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={stats.ageBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tickFormatter={labelize} />
+              <YAxis tickLine={false} axisLine={false} fontSize={12} width={58} tickFormatter={formatCompactSize} />
+              <RechartsTooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                formatter={(value, name) =>
+                  name === '容量' ? [formatSize(Number(value)), name] : [formatNumber(Number(value)), name]
+                }
+                labelFormatter={(value) => labelize(String(value))}
+              />
+              <Bar dataKey="bytes" name="容量" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                <LabelList dataKey="percent" position="top" formatter={formatPercentLabel} fontSize={11} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
     </div>
   )
 }
 
 function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
   return (
-    <div className="grid gap-4">
+    <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="总流量"
@@ -673,66 +900,184 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
           ]}
         />
       </div>
-      <ChartCard title="流量与请求趋势">
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={stats.trafficTrend}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} />
-            <YAxis
-              yAxisId="bytes"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              width={58}
-              tickFormatter={formatCompactSize}
-            />
-            <YAxis
-              yAxisId="count"
-              orientation="right"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              width={46}
-              tickFormatter={formatCompactNumber}
-            />
-            <RechartsTooltip formatter={chartTooltipFormatter} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="count" dataKey="requests" name="请求量" fill={CHART_COLORS[5]} radius={[4, 4, 0, 0]} />
-            <Line
-              yAxisId="bytes"
-              type="monotone"
-              dataKey="uploadBytes"
-              name="上传流量"
-              stroke={CHART_COLORS[0]}
-              strokeWidth={2}
-              dot={false}
-            />
-            <Line
-              yAxisId="bytes"
-              type="monotone"
-              dataKey="downloadBytes"
-              name="下载流量"
-              stroke={CHART_COLORS[2]}
-              strokeWidth={2}
-              dot={false}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
-      <BreakdownGrid
-        leftTitle="流量来源占比"
-        leftData={stats.sourceBreakdown.map((row) => ({ name: row.name, value: row.bytes, percent: row.percent }))}
-        rightTitle="签发状态分布"
-        rightData={stats.issueStatus.map((row) => ({ name: row.status, value: row.count, percent: row.percent }))}
-        valueFormatter={formatSize}
-      />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChartCard title="流量与请求趋势" subtitle="柱形看请求量，折线看上传下载流量。">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={stats.trafficTrend}>
+              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+              <YAxis
+                yAxisId="bytes"
+                tickLine={false}
+                axisLine={false}
+                fontSize={12}
+                width={58}
+                tickFormatter={formatCompactSize}
+              />
+              <YAxis
+                yAxisId="count"
+                orientation="right"
+                tickLine={false}
+                axisLine={false}
+                fontSize={12}
+                width={46}
+                tickFormatter={formatCompactNumber}
+              />
+              <RechartsTooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                formatter={chartTooltipFormatter}
+              />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+              <Bar yAxisId="count" dataKey="requests" name="请求量" fill={CHART_COLORS[5]} radius={[4, 4, 0, 0]} />
+              <Line
+                yAxisId="bytes"
+                type="monotone"
+                dataKey="uploadBytes"
+                name="上传流量"
+                stroke={CHART_COLORS[0]}
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                yAxisId="bytes"
+                type="monotone"
+                dataKey="downloadBytes"
+                name="下载流量"
+                stroke={CHART_COLORS[2]}
+                strokeWidth={2}
+                dot={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title="带宽压力趋势" subtitle="按日流量水位观察带宽和成本压力。">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={stats.bandwidthTrend}>
+              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+              <YAxis tickLine={false} axisLine={false} fontSize={12} width={58} tickFormatter={formatCompactSize} />
+              <RechartsTooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                formatter={chartTooltipFormatter}
+              />
+              <Area
+                type="monotone"
+                dataKey="bytes"
+                name="日流量"
+                stroke={CHART_COLORS[0]}
+                fill={CHART_COLORS[0]}
+                fillOpacity={0.1}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChartCard title="传输成功率" subtitle="成功率适合趋势图，而不是排行或占比图。">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={stats.successTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={false}
+                fontSize={12}
+                minTickGap={16}
+                tickFormatter={formatChartDate}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tickFormatter={(value) => `${value}%`}
+                tickLine={false}
+                axisLine={false}
+                fontSize={12}
+                width={46}
+              />
+              <RechartsTooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                formatter={(value, name) => [`${Number(value).toFixed(1)}%`, name]}
+              />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+              <Area
+                type="monotone"
+                dataKey="uploadSuccessRate"
+                name="上传成功率"
+                stroke={CHART_COLORS[1]}
+                fill={CHART_COLORS[1]}
+                fillOpacity={0.08}
+                strokeWidth={2}
+                isAnimationActive={false}
+              />
+              <Area
+                type="monotone"
+                dataKey="downloadSuccessRate"
+                name="下载成功率"
+                stroke={CHART_COLORS[0]}
+                fill={CHART_COLORS[0]}
+                fillOpacity={0.08}
+                strokeWidth={2}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title="失败原因分布" subtitle="分类比较用横向条形图，并标出每类占比。">
+          {stats.failureReasons.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={stats.failureReasons}
+                layout="vertical"
+                margin={{ top: 8, right: 40, left: 12, bottom: 0 }}
+              >
+                <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" horizontal={false} />
+                <XAxis
+                  type="number"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  tickFormatter={formatCompactNumber}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tickLine={false}
+                  axisLine={false}
+                  width={86}
+                  fontSize={12}
+                  tickFormatter={labelize}
+                />
+                <RechartsTooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  formatter={(value) => formatNumber(Number(value))}
+                  labelFormatter={(value) => labelize(String(value))}
+                />
+                <Bar
+                  dataKey="value"
+                  name="失败次数"
+                  fill={CHART_COLORS[4]}
+                  radius={[0, 4, 4, 0]}
+                  isAnimationActive={false}
+                >
+                  <LabelList dataKey="percent" position="right" formatter={formatPercentLabel} fontSize={11} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+      </div>
     </div>
   )
 }
 
 function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
   return (
-    <div className="grid gap-4">
+    <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="分享链接"
@@ -775,83 +1120,100 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           ]}
         />
       </div>
-      <ChartCard title="分享转化漏斗">
-        <FunnelChart data={stats.funnel} />
-      </ChartCard>
-      <ChartCard title="访问行为趋势">
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={stats.trend}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} />
-            <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
-            <RechartsTooltip formatter={chartTooltipFormatter} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Area
-              type="monotone"
-              dataKey="views"
-              name="访问"
-              stroke={CHART_COLORS[0]}
-              fill={CHART_COLORS[0]}
-              fillOpacity={0.12}
-            />
-            <Area
-              type="monotone"
-              dataKey="downloads"
-              name="下载签发"
-              stroke={CHART_COLORS[2]}
-              fill={CHART_COLORS[2]}
-              fillOpacity={0.1}
-            />
-            <Area
-              type="monotone"
-              dataKey="saves"
-              name="转存"
-              stroke={CHART_COLORS[3]}
-              fill={CHART_COLORS[3]}
-              fillOpacity={0.08}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </ChartCard>
-      <BreakdownGrid
-        leftTitle="分享类型分布"
-        leftData={stats.typeBreakdown}
-        rightTitle="访问来源分布"
-        rightData={stats.sourceBreakdown}
-      />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChartCard
+          title="分享转化漏斗"
+          subtitle="按创建、打开、下载、转存展示分享链路留存。"
+          contentClassName="h-auto min-h-[22rem]"
+        >
+          <FunnelChart data={stats.funnel} />
+        </ChartCard>
+        <ChartCard title="访问行为趋势" subtitle="访问、下载和转存放在同一时间轴看转化变化。">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={stats.trend}>
+              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+              <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
+              <RechartsTooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                formatter={chartTooltipFormatter}
+              />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+              <Area
+                type="monotone"
+                dataKey="views"
+                name="访问"
+                stroke={CHART_COLORS[0]}
+                fill={CHART_COLORS[0]}
+                fillOpacity={0.12}
+              />
+              <Area
+                type="monotone"
+                dataKey="downloads"
+                name="下载签发"
+                stroke={CHART_COLORS[2]}
+                fill={CHART_COLORS[2]}
+                fillOpacity={0.1}
+              />
+              <Area
+                type="monotone"
+                dataKey="saves"
+                name="转存"
+                stroke={CHART_COLORS[3]}
+                fill={CHART_COLORS[3]}
+                fillOpacity={0.08}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <BarBreakdownChart title="分享类型分布" rows={stats.typeBreakdown} valueFormatter={formatNumber} />
+        <BreakdownChart title="访问来源分布" rows={stats.sourceBreakdown} valueFormatter={formatNumber} />
+      </div>
       <TopSharesTable rows={stats.topShares} />
     </div>
   )
 }
 
 function RankingSection({ stats }: { stats: AdminDashboardRankingStats }) {
+  const totalTypeBytes = stats.storageByType.reduce((sum, row) => sum + row.bytes, 0)
+
   return (
-    <div className="grid gap-4">
-      <TopSharesTable rows={stats.topShares} />
-      <ChartCard title="空间容量排行">
-        <div className="grid gap-3">
-          {stats.topSpaces.map((space) => (
-            <div key={space.orgId} className="grid gap-2 rounded-lg border border-border/50 bg-muted/15 px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="truncate font-medium">{space.orgName}</span>
-                <span className="shrink-0 tabular-nums">{formatSize(space.usedBytes)}</span>
-              </div>
-              <PercentBar value={space.utilization} color={CHART_COLORS[0]} />
-              <p className="text-xs leading-4 text-muted-foreground">
-                {space.orgType} · {formatPercent(space.utilization)}
-              </p>
-            </div>
-          ))}
-        </div>
-      </ChartCard>
-      <BreakdownTable
-        title="文件类型排行"
-        rows={stats.storageByType.map((row) => ({
-          name: row.type,
-          value: row.bytes,
-          detail: `${formatNumber(row.files)} files`,
+    <div className="grid gap-4 xl:grid-cols-3">
+      <TopRankingCard
+        title="容量 Top 空间"
+        description="每项显示空间配额使用率。"
+        items={stats.topSpaces.map((space) => ({
+          name: space.orgName,
+          detail: space.orgType,
+          value: formatSize(space.usedBytes),
+          percent: space.utilization,
         }))}
-        valueFormatter={formatSize}
+        totalLabel={`Top ${Math.min(4, stats.topSpaces.length)} 空间`}
+      />
+      <TopRankingCard
+        title="访问 Top 分享"
+        description="每项占统计周期内分享访问百分比。"
+        items={stats.topShares.map((share) => ({
+          name: share.name,
+          detail: share.creatorName,
+          value: formatNumber(share.views),
+          percent: share.viewPercent,
+        }))}
+        totalLabel={`Top ${Math.min(4, stats.topShares.length)} 分享`}
+      />
+      <TopRankingCard
+        title="文件类型排行"
+        description="每项占主要文件类型容量百分比。"
+        items={stats.storageByType.map((row) => ({
+          name: labelize(row.type),
+          detail: `${formatNumber(row.files)} files`,
+          value: formatSize(row.bytes),
+          percent: ratio(row.bytes, totalTypeBytes),
+        }))}
+        totalLabel={`Top ${Math.min(4, stats.storageByType.length)} 类型`}
       />
     </div>
   )
@@ -861,44 +1223,42 @@ function StatCard({
   label,
   value,
   delta,
+  deltaLabel = '环比',
   icon: Icon,
   metrics = [],
 }: {
   label: string
   value: string
   delta?: string
+  deltaLabel?: string
   icon: typeof Users
   metrics?: Array<{ label: string; value: string }>
 }) {
   return (
-    <Card className={cn(DASHBOARD_SURFACE, 'min-h-[108px] overflow-hidden')}>
-      <CardContent className="flex h-full flex-col p-0">
-        <div className="flex items-start justify-between gap-2 px-3 pb-2 pt-2.5">
-          <div className="min-w-0 space-y-1">
-            <p className="truncate text-[11px] font-medium uppercase leading-4 tracking-[0.04em] text-muted-foreground">
-              {label}
-            </p>
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <p className="truncate text-[25px] font-semibold leading-8 tabular-nums tracking-normal">{value}</p>
-              {delta && (
-                <span
-                  className="max-w-full truncate rounded-full border border-border/60 bg-muted/35 px-1.5 py-0.5 text-[11px] font-medium leading-4 text-muted-foreground tabular-nums"
-                  title={delta}
-                >
-                  {delta}
-                </span>
-              )}
-            </div>
-          </div>
-          <span className="mt-0.5 rounded-md border border-border/60 bg-muted/25 p-1.5">
-            <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+    <Card className="gap-0 rounded-lg border-border/70 bg-background py-0 shadow-[0_10px_26px_-26px_rgba(15,23,42,0.65)]">
+      <CardContent className="p-3">
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
+          <span className="flex size-6 items-center justify-center rounded-md bg-muted/65 text-muted-foreground">
+            <Icon className="size-3.5" />
           </span>
         </div>
-        <div className="mt-auto grid grid-cols-2 border-t bg-muted/10">
+
+        <div className="mt-2 flex items-baseline justify-between gap-3">
+          <div className="text-[26px] font-semibold leading-none tracking-tight tabular-nums">{value}</div>
+          {delta && (
+            <div className="flex shrink-0 items-baseline gap-1.5">
+              <span className="text-xs font-semibold text-primary tabular-nums">{delta}</span>
+              <span className="text-[10px] text-muted-foreground">{deltaLabel}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-dashed border-border/70 pt-2">
           {metrics.slice(0, 2).map((metric) => (
-            <div key={metric.label} className="min-w-0 px-3 py-2 first:border-r">
-              <p className="truncate text-[11px] leading-4 text-muted-foreground">{metric.label}</p>
-              <p className="truncate text-sm font-medium leading-5 tabular-nums">{metric.value}</p>
+            <div key={metric.label} className="min-w-0 rounded-md bg-canvas/50 px-2 py-1.5">
+              <div className="truncate text-[11px] leading-none text-muted-foreground">{metric.label}</div>
+              <div className="mt-1 truncate text-sm font-semibold leading-none tabular-nums">{metric.value}</div>
             </div>
           ))}
         </div>
@@ -907,35 +1267,24 @@ function StatCard({
   )
 }
 
-function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return (
-    <Card className={cn(DASHBOARD_SURFACE, 'overflow-hidden')}>
-      <CardHeader className="gap-1 border-b bg-muted/10 px-3 py-2.5 sm:px-4">
-        <CardTitle className="text-[13px] font-semibold leading-5 tracking-normal">{title}</CardTitle>
-        {subtitle && <p className="text-xs leading-4 text-muted-foreground">{subtitle}</p>}
-      </CardHeader>
-      <CardContent className="px-3 py-3 sm:px-4 sm:py-4">{children}</CardContent>
-    </Card>
-  )
-}
-
-function BreakdownGrid({
-  leftTitle,
-  leftData,
-  rightTitle,
-  rightData,
-  valueFormatter = formatNumber,
+function ChartCard({
+  title,
+  subtitle,
+  children,
+  contentClassName,
 }: {
-  leftTitle: string
-  leftData: Array<{ name: string; value: number; percent: number }>
-  rightTitle: string
-  rightData: Array<{ name: string; value: number; percent: number }>
-  valueFormatter?: (value: number) => string
+  title: string
+  subtitle?: string
+  children: ReactNode
+  contentClassName?: string
 }) {
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      <BreakdownChart title={leftTitle} rows={leftData} valueFormatter={valueFormatter} />
-      <BreakdownChart title={rightTitle} rows={rightData} valueFormatter={valueFormatter} />
+    <div className="min-w-0 rounded-xl border border-border/70 bg-background/95 p-4 shadow-[0_14px_36px_-34px_rgba(15,23,42,0.6)] sm:p-5">
+      <div className="mb-4 flex flex-col gap-1">
+        <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
+        {subtitle && <p className="text-[13px] leading-5 text-muted-foreground">{subtitle}</p>}
+      </div>
+      <div className={cn('h-72 min-w-0', contentClassName)}>{children}</div>
     </div>
   )
 }
@@ -951,69 +1300,98 @@ function BreakdownChart({
 }) {
   return (
     <ChartCard title={title}>
-      <div className="grid gap-4 lg:grid-cols-[minmax(190px,220px)_1fr]">
-        <div className="h-52">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={rows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={84} paddingAngle={2}>
-                {rows.map((row, index) => (
-                  <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                ))}
-              </Pie>
-              <RechartsTooltip formatter={(value) => valueFormatter(Number(value))} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <BreakdownRows rows={rows} valueFormatter={valueFormatter} />
+      <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1fr)_230px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={rows}
+              dataKey="value"
+              nameKey="name"
+              innerRadius="56%"
+              outerRadius="78%"
+              paddingAngle={2}
+              isAnimationActive={false}
+            >
+              {rows.map((row, index) => (
+                <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+              ))}
+            </Pie>
+            <RechartsTooltip
+              contentStyle={tooltipContentStyle}
+              labelStyle={tooltipLabelStyle}
+              formatter={(value) => valueFormatter(Number(value))}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <PercentList
+          items={rows.map((row, index) => ({
+            name: labelize(row.name),
+            percent: row.percent,
+            valueLabel: valueFormatter(row.value),
+            fill: CHART_COLORS[index % CHART_COLORS.length],
+          }))}
+        />
       </div>
     </ChartCard>
   )
 }
 
-function BreakdownTable({
+function BarBreakdownChart({
   title,
   rows,
   valueFormatter,
 }: {
   title: string
-  rows: Array<{ name: string; value: number; percent?: number; detail?: string }>
+  rows: Array<{ name: string; value: number; percent: number }>
   valueFormatter: (value: number) => string
 }) {
   return (
     <ChartCard title={title}>
-      <BreakdownRows rows={rows} valueFormatter={valueFormatter} />
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={rows} layout="vertical" margin={{ top: 8, right: 44, left: 8, bottom: 0 }}>
+          <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" horizontal={false} />
+          <XAxis type="number" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatCompactNumber} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={86}
+            tickLine={false}
+            axisLine={false}
+            fontSize={12}
+            tickFormatter={labelize}
+          />
+          <RechartsTooltip
+            contentStyle={tooltipContentStyle}
+            labelStyle={tooltipLabelStyle}
+            formatter={(value) => valueFormatter(Number(value))}
+            labelFormatter={(value) => labelize(String(value))}
+          />
+          <Bar dataKey="value" name="数量" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+            {rows.map((row, index) => (
+              <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+            ))}
+            <LabelList dataKey="percent" position="right" formatter={formatPercentLabel} fontSize={11} />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </ChartCard>
   )
 }
 
-function BreakdownRows({
-  rows,
-  valueFormatter,
-}: {
-  rows: Array<{ name: string; value: number; percent?: number; detail?: string }>
-  valueFormatter: (value: number) => string
-}) {
-  if (rows.length === 0) return <EmptyState />
+function PercentList({ items }: { items: Array<{ name: string; percent: number; valueLabel: string; fill: string }> }) {
   return (
-    <div className="grid content-start gap-2">
-      {rows.map((row, index) => (
-        <div key={row.name} className="grid gap-1.5 rounded-lg border border-border/50 bg-muted/15 px-3 py-2">
+    <div className="flex flex-col justify-center gap-3">
+      {items.map((item) => (
+        <div key={item.name} className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-3 text-sm">
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
-              />
-              <span className="truncate font-medium">{labelize(row.name)}</span>
-            </div>
-            <span className="shrink-0 tabular-nums">{valueFormatter(row.value)}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.fill }} />
+              <span className="truncate font-medium">{item.name}</span>
+            </span>
+            <span className="shrink-0 tabular-nums text-muted-foreground">{item.valueLabel}</span>
           </div>
-          {row.percent !== undefined && (
-            <PercentBar value={row.percent} color={CHART_COLORS[index % CHART_COLORS.length]} />
-          )}
-          <p className="text-xs leading-4 text-muted-foreground">
-            {row.detail ?? (row.percent !== undefined ? `${formatPercent(row.percent)} of total` : '')}
-          </p>
+          <Progress value={clampPercent(item.percent)} className="h-1.5 bg-muted" />
+          <p className="text-right text-xs text-muted-foreground">{formatPercent(item.percent)}</p>
         </div>
       ))}
     </div>
@@ -1021,56 +1399,123 @@ function BreakdownRows({
 }
 
 function FunnelChart({ data }: { data: Array<{ name: string; value: number; percent: number }> }) {
+  return (
+    <div className="grid min-h-[22rem] min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+      <EChartsFunnel data={data} />
+      <FunnelStageList data={data} />
+    </div>
+  )
+}
+
+function EChartsFunnel({ data }: { data: Array<{ name: string; value: number; percent: number }> }) {
   const ref = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     if (!ref.current) return
-    const chart = echarts.init(ref.current)
+    const chart = echarts.init(ref.current, null, { renderer: 'canvas' })
     chart.setOption({
+      backgroundColor: 'transparent',
+      color: data.map((_, index) => CHART_COLORS[index % CHART_COLORS.length]),
       tooltip: {
         trigger: 'item',
-        formatter: ({ name, value }: { name: string; value: number }) => `${labelize(name)}: ${formatNumber(value)}`,
+        confine: true,
+        backgroundColor: 'var(--color-popover)',
+        borderColor: 'var(--color-border)',
+        borderWidth: 1,
+        padding: [8, 10],
+        textStyle: {
+          color: '#0f172a',
+          fontSize: 12,
+        },
+        formatter: ({ data: item }: { data: { name: string; value: number; percent: number } }) =>
+          `${labelize(item.name)}<br/>${formatCompactNumber(item.value)} · ${formatPercent(item.percent)}`,
       },
       series: [
         {
           type: 'funnel',
-          left: '4%',
-          top: 12,
-          bottom: 12,
-          width: '92%',
-          minSize: '24%',
-          maxSize: '96%',
           sort: 'none',
-          gap: 4,
+          left: '8%',
+          top: 10,
+          bottom: 10,
+          width: '82%',
+          minSize: '26%',
+          maxSize: '100%',
+          gap: 3,
           label: {
+            show: true,
             position: 'inside',
-            color: '#fff',
+            color: '#ffffff',
             fontSize: 12,
-            fontWeight: 600,
-            formatter: ({ name, value }: { name: string; value: number }) =>
-              `${labelize(name)}  ${formatNumber(value)}`,
+            fontWeight: 700,
+            formatter: ({ data: item }: { data: { name: string } }) => labelize(item.name),
           },
-          itemStyle: { borderColor: 'var(--color-card)', borderWidth: 1 },
+          labelLine: {
+            show: false,
+          },
+          itemStyle: {
+            borderColor: '#ffffff',
+            borderWidth: 1.5,
+            borderRadius: 4,
+          },
+          emphasis: {
+            focus: 'self',
+            label: {
+              fontSize: 13,
+            },
+          },
           data: data.map((item, index) => ({
             name: item.name,
             value: item.value,
+            percent: item.percent,
             itemStyle: { color: CHART_COLORS[index % CHART_COLORS.length] },
           })),
         },
       ],
     })
-    const onResize = () => chart.resize()
-    window.addEventListener('resize', onResize)
+
+    const resizeObserver = new ResizeObserver(() => chart.resize())
+    resizeObserver.observe(ref.current)
+
     return () => {
-      window.removeEventListener('resize', onResize)
+      resizeObserver.disconnect()
       chart.dispose()
     }
   }, [data])
-  return <div ref={ref} className="h-72 w-full overflow-hidden" />
+
+  return <div ref={ref} className="h-56 min-w-0 lg:h-auto lg:min-h-0" />
+}
+
+function FunnelStageList({ data }: { data: Array<{ name: string; value: number; percent: number }> }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2 lg:justify-center">
+      {data.map((item, index) => {
+        const previous = data[index - 1]
+        const stepRate = previous ? (item.value / previous.value) * 100 : 100
+
+        return (
+          <div key={item.name} className="rounded-lg border border-border/70 bg-canvas/55 px-3 py-1.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{labelize(item.name)}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {index === 0 ? '入口基准' : `上一步 ${formatPercent(stepRate)}`}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-sm font-semibold tabular-nums">{formatCompactNumber(item.value)}</p>
+                <p className="text-xs text-muted-foreground">{formatPercent(item.percent)}</p>
+              </div>
+            </div>
+            <Progress value={clampPercent(item.percent)} className="mt-2 h-1.5 bg-muted" />
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function TopSharesTable({ rows }: { rows: AdminDashboardSharingStats['topShares'] }) {
   return (
-    <ChartCard title="Top 分享">
+    <ChartCard title="Top 分享" contentClassName="h-auto">
       {rows.length === 0 ? (
         <EmptyState />
       ) : (
@@ -1107,13 +1552,48 @@ function TopSharesTable({ rows }: { rows: AdminDashboardSharingStats['topShares'
   )
 }
 
-function PercentBar({ value, color }: { value: number; color: string }) {
+function TopRankingCard({
+  title,
+  description,
+  items,
+  totalLabel,
+}: {
+  title: string
+  description: string
+  totalLabel: string
+  items: Array<{ name: string; detail: string; value: string; percent: number }>
+}) {
   return (
-    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-      <div
-        className="h-full rounded-full transition-all"
-        style={{ width: `${clampPercent(value)}%`, backgroundColor: color }}
-      />
+    <div className="rounded-xl border border-border/70 bg-background/95 p-4 shadow-[0_14px_36px_-34px_rgba(15,23,42,0.6)] sm:p-5">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
+          <p className="mt-1 text-[13px] leading-5 text-muted-foreground">{description}</p>
+        </div>
+        <Badge variant="outline" className="shrink-0">
+          {totalLabel}
+        </Badge>
+      </div>
+      <div className="flex flex-col gap-4">
+        {items.map((item, index) => (
+          <div key={item.name} className="flex flex-col gap-2">
+            <div className="flex items-start justify-between gap-3 text-sm">
+              <div className="min-w-0">
+                <p className="truncate font-medium">
+                  <span className="mr-2 text-muted-foreground">#{index + 1}</span>
+                  {item.name}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.detail}</p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="font-semibold tabular-nums">{item.value}</p>
+                <p className="text-xs text-muted-foreground">{formatPercent(item.percent)}</p>
+              </div>
+            </div>
+            <Progress value={clampPercent(item.percent)} className="h-1.5 bg-muted" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -1198,28 +1678,29 @@ function formatRange(range: DateRange): string {
   return `${format(range.from, 'yyyy-MM-dd')} - ${format(range.to, 'yyyy-MM-dd')}`
 }
 
-function sectionTitle(section: SectionId): string {
-  if (section === 'growth') return '用户与增长'
-  if (section === 'storage') return '存储与文件'
-  if (section === 'traffic') return '流量统计'
-  if (section === 'sharing') return '分享与访问'
-  return '排行与明细'
-}
-
-function sectionDescription(section: SectionId): string {
-  if (section === 'growth') return '注册、活跃、沉默用户和增长来源。'
-  if (section === 'storage') return '容量增长、文件结构、冷文件和空间压力。'
-  if (section === 'traffic') return '上传确认、下载签发、计费流量和请求放行情况。'
-  if (section === 'sharing') return '分享访问、下载签发、转存和 Top 分享。'
-  return '用于站长定位高占用空间、高访问分享和主要文件类型。'
+function normalizeDateRange(range: DateRange): DateRange {
+  if (!range.from || !range.to) return range
+  if (range.from <= range.to) return range
+  return { from: range.to, to: range.from }
 }
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value)
 }
 
+function formatChartDate(value: unknown): string {
+  const text = String(value)
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text)
+  if (!match) return text
+  return `${Number(match[2])}/${Number(match[3])}`
+}
+
 function formatPercent(value: number): string {
   return `${Math.round(value * 10) / 10}%`
+}
+
+function formatPercentLabel(value: unknown): string {
+  return `${value}%`
 }
 
 function ratio(part: number, total: number): number {

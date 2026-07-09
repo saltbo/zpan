@@ -89,6 +89,8 @@ describe('admin stats routes', () => {
         blockedDownloads: number
       }
       sourceBreakdown: Array<{ name: string; bytes: number; requests: number }>
+      successTrend: Array<{ uploadSuccessRate: number; downloadSuccessRate: number }>
+      failureReasons: Array<{ name: string; value: number; percent: number }>
     }
 
     expect(res.status).toBe(200)
@@ -103,6 +105,10 @@ describe('admin stats routes', () => {
         expect.objectContaining({ name: 'object_download', bytes: 256, requests: 1 }),
       ]),
     )
+    expect(
+      body.successTrend.some((point) => point.uploadSuccessRate === 100 && point.downloadSuccessRate === 100),
+    ).toBe(true)
+    expect(body.failureReasons).toEqual([])
   })
 })
 
