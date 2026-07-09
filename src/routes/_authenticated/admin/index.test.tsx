@@ -96,6 +96,8 @@ describe('Admin overview dashboard', () => {
 
     expect(await screen.findByText('42')).toBeTruthy()
     expect(screen.getByTestId('upgrade-hint').textContent).toBe('admin.overview.analyticsLockedTitle')
+    expect(screen.queryByText('admin.overview.pendingTitle')).toBeNull()
+    expect(screen.queryByText('admin.overview.actionsTitle')).toBeNull()
     expect(getAdminDetailedStats).not.toHaveBeenCalled()
   })
 })
