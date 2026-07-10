@@ -26,8 +26,8 @@ import type {
   ActivityEvent,
   AdminAuditEvent,
   AdminDashboardGrowthStats,
+  AdminDashboardOperationsStats,
   AdminDashboardOverviewStats,
-  AdminDashboardRankingStats,
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
@@ -452,6 +452,10 @@ export function getAdminDashboardOverviewStats(filter: AdminStatsRangeFilter = {
   return unwrap<AdminDashboardOverviewStats>(siteStatsApi.overview.$get({ query: statsRangeQuery(filter) }))
 }
 
+export function getAdminDashboardOperationsStats(filter: AdminStatsRangeFilter = {}) {
+  return unwrap<AdminDashboardOperationsStats>(siteStatsApi.operations.$get({ query: statsRangeQuery(filter) }))
+}
+
 export function getAdminDashboardGrowthStats(filter: AdminStatsRangeFilter = {}) {
   return unwrap<AdminDashboardGrowthStats>(siteStatsApi.growth.$get({ query: statsRangeQuery(filter) }))
 }
@@ -466,10 +470,6 @@ export function getAdminDashboardTrafficStats(filter: AdminStatsRangeFilter = {}
 
 export function getAdminDashboardSharingStats(filter: AdminStatsRangeFilter = {}) {
   return unwrap<AdminDashboardSharingStats>(siteStatsApi.sharing.$get({ query: statsRangeQuery(filter) }))
-}
-
-export function getAdminDashboardRankingStats(filter: AdminStatsRangeFilter = {}) {
-  return unwrap<AdminDashboardRankingStats>(siteStatsApi.ranking.$get({ query: statsRangeQuery(filter) }))
 }
 
 // Admin Storages API

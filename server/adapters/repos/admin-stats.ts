@@ -1,71 +1,63 @@
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import type {
   AdminDashboardGrowthStats,
+  AdminDashboardOperationsStats,
   AdminDashboardOverviewStats,
-  AdminDashboardRankingStats,
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
   AdminStatsDelta,
-  AdminStorageByType,
   AdminTopShare,
   AdminTransferDataQuality,
 } from '@shared/types'
 import type { SQL } from 'drizzle-orm'
-import { and, count, desc, eq, gt, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gt, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { account, organization, session, user } from '../../db/auth-schema'
-import { activityEvents, cloudTrafficReports, matters, orgQuotas, shares, statsRollupsDaily } from '../../db/schema'
+import {
+  activityEvents,
+  backgroundJobs,
+  cloudTrafficReports,
+  downloaders,
+  downloadTasks,
+  matters,
+  orgQuotas,
+  shares,
+  statsRollupsHourly,
+  webhookEvents,
+} from '../../db/schema'
+import { ADMIN_STATS_METRICS } from '../../domain/admin-stats-metrics'
+import { addCalendarDays, statsDayKey as dayKey, localDateStart } from '../../domain/admin-stats-time'
 import type { Database } from '../../platform/interface'
 import type { AdminStatsDateRange, AdminStatsRepo } from '../../usecases/ports'
+import { AdminStatsHourlyReader, type StatsInterval } from './admin-stats-hourly'
+import { rebuildAdminStatsHour } from './admin-stats-rollup'
 
 const DOWNLOAD_ACTIVITY_ACTIONS = ['share_download', 'object_download', 'image_hosting_download', 'webdav_download']
 const DOWNLOAD_FAILURE_ACTION = 'download_failed'
-const STORAGE_USED_ROLLUP_METRIC = 'storage.used.bytes'
-const GLOBAL_ROLLUP_ORG_ID = ''
+const STORAGE_USED_ROLLUP_METRIC = ADMIN_STATS_METRICS.storageUsed
 const GLOBAL_ROLLUP_DIMENSION_KEY = ''
 const GLOBAL_ROLLUP_DIMENSION_VALUE = ''
 
 export function createAdminStatsRepo(db: Database): AdminStatsRepo {
   return {
-    writeStorageUsedRollup: (now) => writeStorageUsedRollup(db, now),
+    refreshHourlyRollups: (now) => refreshHourlyRollups(db, now),
     getDashboardOverviewStats: (now, range) => getDashboardOverviewStats(db, now, range),
+    getDashboardOperationsStats: (now, range) => getDashboardOperationsStats(db, now, range),
     getDashboardGrowthStats: (now, range) => getDashboardGrowthStats(db, now, range),
     getDashboardStorageStats: (now, range) => getDashboardStorageStats(db, now, range),
     getDashboardTrafficStats: (now, range) => getDashboardTrafficStats(db, now, range),
     getDashboardSharingStats: (now, range) => getDashboardSharingStats(db, now, range),
-    getDashboardRankingStats: (now, range) => getDashboardRankingStats(db, now, range),
   }
 }
 
-async function writeStorageUsedRollup(db: Database, now: Date): Promise<{ bucketStart: Date; bytes: number }> {
-  const bucketStart = startOfDay(now)
-  const { usedBytes } = await getQuotaTotals(db)
-  const metadata = JSON.stringify({ source: 'org_quotas.used', quality: 'exact_snapshot' })
-  await db
-    .insert(statsRollupsDaily)
-    .values({
-      id: `storage-used-${dayKey(bucketStart)}`,
-      bucketStart,
-      orgId: GLOBAL_ROLLUP_ORG_ID,
-      metricKey: STORAGE_USED_ROLLUP_METRIC,
-      dimensionKey: GLOBAL_ROLLUP_DIMENSION_KEY,
-      dimensionValue: GLOBAL_ROLLUP_DIMENSION_VALUE,
-      bytes: usedBytes,
-      metadata,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        statsRollupsDaily.bucketStart,
-        statsRollupsDaily.orgId,
-        statsRollupsDaily.metricKey,
-        statsRollupsDaily.dimensionKey,
-        statsRollupsDaily.dimensionValue,
-      ],
-      set: { bytes: usedBytes, metadata, updatedAt: now },
-    })
-  return { bucketStart, bytes: usedBytes }
+async function refreshHourlyRollups(db: Database, now: Date) {
+  const currentHour = startOfHour(now)
+  const previousHour = new Date(currentHour.getTime() - 3_600_000)
+  const finalizePreviousSnapshot = now.getUTCMinutes() < 10
+  const previous = await rebuildAdminStatsHour(db, previousHour, now, finalizePreviousSnapshot)
+  const current = await rebuildAdminStatsHour(db, currentHour, now, true)
+  return [previous, current]
 }
 
 async function countRows(db: Database, table: typeof user): Promise<number> {
@@ -78,7 +70,7 @@ async function countRowsWhere(db: Database, table: SQLiteTable, where: SQL | und
   return toNumber(rows[0]?.value)
 }
 
-async function getStorageByType(db: Database, range?: AdminStatsDateRange): Promise<AdminStorageByType[]> {
+async function getStorageByType(db: Database): Promise<Array<{ type: string; bytes: number; files: number }>> {
   const rows = await db
     .select({
       type: matters.type,
@@ -86,14 +78,7 @@ async function getStorageByType(db: Database, range?: AdminStatsDateRange): Prom
       bytes: sql<number>`COALESCE(SUM(${matters.size}), 0)`,
     })
     .from(matters)
-    .where(
-      and(
-        eq(matters.status, 'active'),
-        eq(matters.dirtype, 0),
-        range ? gte(matters.createdAt, range.from) : undefined,
-        range ? lte(matters.createdAt, range.to) : undefined,
-      ),
-    )
+    .where(and(eq(matters.status, 'active'), eq(matters.dirtype, 0)))
     .groupBy(matters.type)
     .orderBy(desc(sql`COALESCE(SUM(${matters.size}), 0)`))
 
@@ -119,6 +104,8 @@ async function getDashboardOverviewStats(
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardOverviewStats> {
   const previous = previousRange(range)
+  const reader = new AdminStatsHourlyReader(db, range, now)
+  const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     totalUsers,
     newUsers,
@@ -129,25 +116,27 @@ async function getDashboardOverviewStats(
     traffic,
     previousTraffic,
     sharing,
+    previousSharing,
     dataQuality,
   ] = await Promise.all([
     countRows(db, user),
-    countRowsWhere(db, user, and(gte(user.createdAt, range.from), lte(user.createdAt, range.to))),
-    countRowsWhere(db, user, and(gte(user.createdAt, previous.from), lte(user.createdAt, previous.to))),
+    getSignupTotal(db, reader),
+    getSignupTotal(db, previousReader),
     countActiveUsers(db, range),
     countActiveUsers(db, previous),
     getQuotaTotals(db),
-    getTrafficTotals(db, range),
-    getTrafficTotals(db, previous),
-    getSharingEventTotals(db, range, now),
-    getTransferDataQuality(db, range),
+    getTrafficTotals(db, reader),
+    getTrafficTotals(db, previousReader),
+    getSharingEventTotals(db, now, reader),
+    getSharingEventTotals(db, now, previousReader),
+    getTransferDataQuality(db, range, now),
   ])
   const [trendNewUsers, activeByDay, storageUsedByDay, uploadByDay, downloadByDay] = await Promise.all([
-    getNewUsersByDay(db, range),
+    getSignupsByDay(db, range, reader),
     getActiveUsersByDay(db, range),
     getStorageUsedByDay(db, range),
-    getActivityBytesByDay(db, range, ['upload_confirm']),
-    getDownloadBytesByDay(db, range),
+    getActivityMetricByDay(db, range, reader, metricSpec(['upload_confirm']), 'bytes'),
+    getActivityMetricByDay(db, range, reader, metricSpec(DOWNLOAD_ACTIVITY_ACTIONS), 'bytes'),
   ])
   const trends = createDateBuckets(range).map((date) => {
     return {
@@ -176,10 +165,75 @@ async function getDashboardOverviewStats(
       uploadBytes: delta(traffic.uploadBytes, previousTraffic.uploadBytes),
       downloadBytes: delta(traffic.downloadBytes, previousTraffic.downloadBytes),
       activeShares: sharing.activeShares,
-      shareViews: delta(sharing.views, (await getSharingEventTotals(db, previous, now)).views),
-      shareDownloads: delta(sharing.downloads, (await getSharingEventTotals(db, previous, now)).downloads),
+      shareViews: delta(sharing.views, previousSharing.views),
+      shareDownloads: delta(sharing.downloads, previousSharing.downloads),
     },
     trends,
+  }
+}
+
+async function getDashboardOperationsStats(
+  db: Database,
+  now: Date,
+  range: AdminStatsDateRange,
+): Promise<AdminDashboardOperationsStats> {
+  const reader = new AdminStatsHourlyReader(db, range, now)
+  const activeTaskStatuses = ['queued', 'assigned', 'downloading', 'uploading', 'suspended', 'paused', 'interrupted']
+  const [
+    activeBackgroundJobs,
+    activeRemoteDownloads,
+    downloaderRows,
+    cloudReportBacklog,
+    webhookFailures,
+    backgroundJobOutcomes,
+    remoteDownloadOutcomes,
+    cloudReportStatus,
+    backgroundJobsByDay,
+    remoteDownloadsByDay,
+  ] = await Promise.all([
+    countRowsWhere(db, backgroundJobs, inArray(backgroundJobs.status, ['queued', 'running'])),
+    countRowsWhere(db, downloadTasks, inArray(downloadTasks.status, activeTaskStatuses)),
+    db.select({ status: downloaders.status }).from(downloaders),
+    countRowsWhere(db, cloudTrafficReports, inArray(cloudTrafficReports.status, ['pending', 'failed'])),
+    countRowsWhere(db, webhookEvents, eq(webhookEvents.status, 'failed')),
+    getOperationalOutcomes(db, reader, 'background_job'),
+    getOperationalOutcomes(db, reader, 'remote_download'),
+    getCloudReportOutcomes(db, reader),
+    getOperationalOutcomesByDay(db, reader, range, 'background_job'),
+    getOperationalOutcomesByDay(db, reader, range, 'remote_download'),
+  ])
+  const downloaderStatus = countBy(downloaderRows, (row) => row.status)
+  const completedJobs = backgroundJobOutcomes.get('completed') ?? 0
+  const failedJobs = backgroundJobOutcomes.get('failed') ?? 0
+  const completedRemoteDownloads = remoteDownloadOutcomes.get('completed') ?? 0
+  const failedRemoteDownloads = remoteDownloadOutcomes.get('failed') ?? 0
+
+  return {
+    ...statsFrame(now, range),
+    summary: {
+      activeBackgroundJobs,
+      activeRemoteDownloads,
+      onlineDownloaders: downloaderStatus.get('online') ?? 0,
+      offlineDownloaders: (downloaderStatus.get('offline') ?? 0) + (downloaderStatus.get('disabled') ?? 0),
+      backgroundJobFailureRate: nullablePercent(failedJobs, completedJobs + failedJobs),
+      remoteDownloadSuccessRate: nullablePercent(
+        completedRemoteDownloads,
+        completedRemoteDownloads + failedRemoteDownloads,
+      ),
+      cloudReportBacklog,
+      webhookFailures,
+    },
+    trend: createDateBuckets(range).map((date) => ({
+      date,
+      completedJobs: backgroundJobsByDay.get(date)?.get('completed') ?? 0,
+      failedJobs: backgroundJobsByDay.get(date)?.get('failed') ?? 0,
+      completedRemoteDownloads: remoteDownloadsByDay.get(date)?.get('completed') ?? 0,
+      failedRemoteDownloads: remoteDownloadsByDay.get(date)?.get('failed') ?? 0,
+    })),
+    backgroundJobOutcomes: percentRows([...backgroundJobOutcomes].map(([name, value]) => ({ name, value }))),
+    remoteDownloadOutcomes: percentRows([...remoteDownloadOutcomes].map(([name, value]) => ({ name, value }))),
+    downloaderStatus: percentRows([...downloaderStatus].map(([name, value]) => ({ name, value }))),
+    cloudReportStatus: percentRows([...cloudReportStatus].map(([name, value]) => ({ name, value }))),
   }
 }
 
@@ -189,17 +243,19 @@ async function getDashboardGrowthStats(
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardGrowthStats> {
   const previous = previousRange(range)
+  const reader = new AdminStatsHourlyReader(db, range, now)
+  const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [usersRows, newUsers, previousNewUsers, activeUsers, previousActiveUsers, activeByDay, registrationSources] =
     await Promise.all([
       db
         .select({ id: user.id, emailVerified: user.emailVerified, banned: user.banned, createdAt: user.createdAt })
         .from(user),
-      countRowsWhere(db, user, and(gte(user.createdAt, range.from), lte(user.createdAt, range.to))),
-      countRowsWhere(db, user, and(gte(user.createdAt, previous.from), lte(user.createdAt, previous.to))),
+      getSignupTotal(db, reader),
+      getSignupTotal(db, previousReader),
       countActiveUsers(db, range),
       countActiveUsers(db, previous),
       getRollingActiveUserTrend(db, range),
-      getRegistrationSources(db, range),
+      getRegistrationSources(db, reader),
     ])
   const activeLast30 = await activeUserIds(db, { from: daysAgo(now, 30), to: now, timeZone: range.timeZone })
   const totalUsers = usersRows.length
@@ -208,7 +264,7 @@ async function getDashboardGrowthStats(
   const unverifiedUsers = usersRows.filter((row) => !row.emailVerified && !row.banned).length
   const silentUsers = usersRows.filter((row) => row.emailVerified && !row.banned && !activeLast30.has(row.id)).length
   const normalUsers = Math.max(0, totalUsers - unverifiedUsers - bannedUsers - silentUsers)
-  const newUsersByDay = await getNewUsersByDay(db, range)
+  const newUsersByDay = await getSignupsByDay(db, range, reader)
   let totalAtStart = usersRows.filter((row) => row.createdAt < range.from).length
   const userScaleTrend = createDateBuckets(range).map((date) => {
     const dailyNew = newUsersByDay.get(date) ?? 0
@@ -244,6 +300,8 @@ async function getDashboardStorageStats(
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardStorageStats> {
   const previous = previousRange(range)
+  const reader = new AdminStatsHourlyReader(db, range, now)
+  const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     quotas,
     files,
@@ -256,6 +314,7 @@ async function getDashboardStorageStats(
     uploadsByDay,
     uploadFilesByDay,
     dataQuality,
+    spaceUsage,
   ] = await Promise.all([
     getQuotaTotals(db),
     db
@@ -264,13 +323,14 @@ async function getDashboardStorageStats(
       .where(and(eq(matters.status, 'active'), eq(matters.dirtype, 0))),
     getStorageUsedByDay(db, range),
     getStorageByType(db),
-    countActivityEvents(db, range, ['upload_confirm']),
-    countActivityEvents(db, previous, ['upload_confirm']),
-    getActivityBytesTotal(db, range, ['upload_confirm']),
-    getActivityBytesTotal(db, previous, ['upload_confirm']),
-    getActivityBytesByDay(db, range, ['upload_confirm']),
-    getActivityCountByDay(db, range, ['upload_confirm']),
-    getTransferDataQuality(db, range),
+    getActivityMetricTotal(db, reader, metricSpec(['upload_confirm']), 'count'),
+    getActivityMetricTotal(db, previousReader, metricSpec(['upload_confirm']), 'count'),
+    getActivityMetricTotal(db, reader, metricSpec(['upload_confirm']), 'bytes'),
+    getActivityMetricTotal(db, previousReader, metricSpec(['upload_confirm']), 'bytes'),
+    getActivityMetricByDay(db, range, reader, metricSpec(['upload_confirm']), 'bytes'),
+    getActivityMetricByDay(db, range, reader, metricSpec(['upload_confirm']), 'count'),
+    getTransferDataQuality(db, range, now),
+    getUsageBySpaceRows(db),
   ])
   const fileItems = files.map((row) => ({ bytes: row.size ?? 0, createdAt: row.createdAt }))
   const storageTrend = createDateBuckets(range).map((date) => {
@@ -294,6 +354,8 @@ async function getDashboardStorageStats(
       newFiles: delta(newFiles, previousNewFiles),
       newBytes: delta(uploadBytes, previousUploadBytes),
       coldFileBytes,
+      nearQuotaSpaces: spaceUsage.filter((space) => space.utilization >= 80 && space.utilization < 100).length,
+      overQuotaSpaces: spaceUsage.filter((space) => space.utilization >= 100).length,
     },
     storageTrend,
     typeBreakdown: percentByBytes(
@@ -309,6 +371,7 @@ async function getDashboardStorageStats(
       { name: '>1GB', max: Number.POSITIVE_INFINITY },
     ]),
     ageBreakdown: ageBucketBreakdown(fileItems, now),
+    topSpaces: spaceUsage.slice(0, 8),
   }
 }
 
@@ -318,6 +381,8 @@ async function getDashboardTrafficStats(
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardTrafficStats> {
   const previous = previousRange(range)
+  const reader = new AdminStatsHourlyReader(db, range, now)
+  const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     traffic,
     previousTraffic,
@@ -325,73 +390,60 @@ async function getDashboardTrafficStats(
     downloadByDay,
     uploadRequestsByDay,
     downloadRequestsByDay,
-    cloudRows,
-    downloadRows,
+    downloadSourceBytes,
+    downloadSourceRequests,
     uploadSuccessByDay,
     uploadFailureByDay,
-    downloadFailureRows,
-    uploadFailureRows,
+    downloadSuccessByDay,
+    downloadFailuresByDay,
+    downloadFailureReasons,
+    uploadFailureReasons,
     dataQuality,
   ] = await Promise.all([
-    getTrafficTotals(db, range),
-    getTrafficTotals(db, previous),
-    getActivityBytesByDay(db, range, ['upload_confirm']),
-    getDownloadBytesByDay(db, range),
-    getActivityCountByDay(db, range, ['upload_confirm', 'upload_cancel', 'upload_failed']),
-    getDownloadRequestsByDay(db, range),
-    getCloudTrafficRows(db, range),
-    getDownloadIssueRows(db, range),
-    getActivityCountByDay(db, range, ['upload_confirm']),
-    getActivityCountByDay(db, range, ['upload_cancel', 'upload_failed']),
-    getDownloadFailureRows(db, range),
-    getActivityFailureRows(db, range, ['upload_cancel', 'upload_failed']),
-    getTransferDataQuality(db, range),
+    getTrafficTotals(db, reader),
+    getTrafficTotals(db, previousReader),
+    getActivityMetricByDay(db, range, reader, metricSpec(['upload_confirm']), 'bytes'),
+    getActivityMetricByDay(db, range, reader, metricSpec(DOWNLOAD_ACTIVITY_ACTIONS), 'bytes'),
+    getActivityMetricByDay(
+      db,
+      range,
+      reader,
+      metricSpec(['upload_confirm', 'upload_cancel', 'upload_failed']),
+      'count',
+    ),
+    getDownloadRequestsByDay(db, range, reader),
+    getActivityMetricDimensionTotals(db, reader, metricSpec(DOWNLOAD_ACTIVITY_ACTIONS), 'source', 'bytes'),
+    getActivityMetricDimensionTotals(db, reader, metricSpec(DOWNLOAD_ACTIVITY_ACTIONS), 'source', 'count'),
+    getActivityMetricByDay(db, range, reader, metricSpec(['upload_confirm']), 'count'),
+    getActivityMetricByDay(db, range, reader, metricSpec(['upload_cancel', 'upload_failed']), 'count'),
+    getActivityMetricByDay(db, range, reader, metricSpec(DOWNLOAD_ACTIVITY_ACTIONS), 'count'),
+    getActivityMetricByDay(db, range, reader, metricSpec([DOWNLOAD_FAILURE_ACTION]), 'count'),
+    getActivityMetricDimensionTotals(db, reader, metricSpec([DOWNLOAD_FAILURE_ACTION]), 'reason', 'count'),
+    getActivityMetricDimensionTotals(db, reader, metricSpec(['upload_cancel', 'upload_failed']), 'reason', 'count'),
+    getTransferDataQuality(db, range, now),
   ])
   const sourceRows = new Map<string, { name: string; bytes: number; requests: number }>()
   if (traffic.uploadBytes > 0 || traffic.uploadRequests > 0) {
     sourceRows.set('upload', { name: 'upload', bytes: traffic.uploadBytes, requests: traffic.uploadRequests })
   }
-  for (const row of downloadRows) {
-    const item = sourceRows.get(row.source) ?? { name: row.source, bytes: 0, requests: 0 }
-    item.bytes += row.bytes
-    item.requests += 1
-    sourceRows.set(row.source, item)
+  for (const [source, bytes] of downloadSourceBytes) {
+    sourceRows.set(source, { name: source, bytes, requests: downloadSourceRequests.get(source) ?? 0 })
   }
-  for (const row of cloudRows) {
-    if (isCloudRowCovered(row, downloadRows, downloadFailureRows) || row.status === 'blocked') continue
-    const item = sourceRows.get(row.source) ?? { name: row.source, bytes: 0, requests: 0 }
-    item.bytes += row.bytes
-    item.requests += 1
-    sourceRows.set(row.source, item)
-  }
-  const statusRows = countBy(cloudRows, (row) => row.status)
-  const downloadSuccessByDay = new Map<string, number>()
-  const downloadFailuresByDay = new Map<string, number>()
+  const statusRows = new Map<string, number>([
+    [
+      'issued',
+      Math.max(
+        0,
+        traffic.downloadRequests - [...downloadFailureReasons.values()].reduce((sum, value) => sum + value, 0),
+      ),
+    ],
+    ['failed', [...downloadFailureReasons.values()].reduce((sum, value) => sum + value, 0)],
+  ])
   const failureReasonRows = new Map<string, { name: string; value: number }>()
-  for (const row of downloadRows) incrementMap(downloadSuccessByDay, dayKey(row.createdAt, range.timeZone), 1)
-  for (const row of uploadFailureRows) {
-    const item = failureReasonRows.get(row.reason) ?? { name: row.reason, value: 0 }
-    item.value += 1
-    failureReasonRows.set(row.reason, item)
-  }
-  for (const row of downloadFailureRows) {
-    incrementMap(downloadFailuresByDay, dayKey(row.createdAt, range.timeZone), 1)
-    const item = failureReasonRows.get(row.reason) ?? { name: row.reason, value: 0 }
-    item.value += 1
-    failureReasonRows.set(row.reason, item)
-  }
-  for (const row of cloudRows) {
-    const date = dayKey(row.createdAt, range.timeZone)
-    if (isCloudRowCovered(row, downloadRows, downloadFailureRows)) continue
-    if (row.status === 'blocked') {
-      incrementMap(downloadFailuresByDay, date, 1)
-      const name = row.source || 'blocked'
-      const item = failureReasonRows.get(name) ?? { name, value: 0 }
-      item.value += 1
-      failureReasonRows.set(name, item)
-      continue
-    }
-    incrementMap(downloadSuccessByDay, date, 1)
+  for (const [reason, value] of [...uploadFailureReasons, ...downloadFailureReasons]) {
+    const item = failureReasonRows.get(reason) ?? { name: reason, value: 0 }
+    item.value += value
+    failureReasonRows.set(reason, item)
   }
   const trafficTrend = createDateBuckets(range).map((date) => ({
     date,
@@ -413,10 +465,7 @@ async function getDashboardTrafficStats(
     }
   })
   const totalRequests = traffic.uploadRequests + traffic.downloadRequests
-  const blockedDownloads =
-    downloadFailureRows.length +
-    cloudRows.filter((row) => row.status === 'blocked' && !isCloudRowCovered(row, downloadRows, downloadFailureRows))
-      .length
+  const blockedDownloads = [...downloadFailureReasons.values()].reduce((sum, value) => sum + value, 0)
   const issuedDownloads = Math.max(0, traffic.downloadRequests - blockedDownloads)
 
   return {
@@ -438,7 +487,6 @@ async function getDashboardTrafficStats(
     issueStatus: percentRows(
       [...statusRows.entries()].map(([status, countValue]) => ({ status, name: status, value: countValue })),
     ).map(({ name, value, percent: pct }) => ({ status: name, count: value, percent: pct })),
-    bandwidthTrend: trafficTrend.map((row) => ({ date: row.date, bytes: row.uploadBytes + row.downloadBytes })),
     successTrend,
     failureReasons: percentRows([...failureReasonRows.values()]),
   }
@@ -450,9 +498,21 @@ async function getDashboardSharingStats(
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardSharingStats> {
   const previous = previousRange(range)
-  const [sharing, previousSharing, shareRows, saveCount, previousSaveCount, downloadSources] = await Promise.all([
-    getSharingEventTotals(db, range, now),
-    getSharingEventTotals(db, previous, now),
+  const reader = new AdminStatsHourlyReader(db, range, now)
+  const previousReader = new AdminStatsHourlyReader(db, previous, now)
+  const [
+    sharing,
+    previousSharing,
+    shareRows,
+    createdInRange,
+    createdPrevious,
+    typeCounts,
+    saveCount,
+    previousSaveCount,
+    downloadSources,
+  ] = await Promise.all([
+    getSharingEventTotals(db, now, reader),
+    getSharingEventTotals(db, now, previousReader),
     db
       .select({
         kind: shares.kind,
@@ -460,19 +520,21 @@ async function getDashboardSharingStats(
         expiresAt: shares.expiresAt,
         downloadLimit: shares.downloadLimit,
         downloads: shares.downloads,
-        createdAt: shares.createdAt,
       })
       .from(shares),
-    countActivityEvents(db, range, ['save_from_share']),
-    countActivityEvents(db, previous, ['save_from_share']),
-    getActivitySourceCounts(db, range, ['share_download']),
+    getShareCreatedTotal(db, reader),
+    getShareCreatedTotal(db, previousReader),
+    getShareCreatedKinds(db, reader),
+    getActivityMetricTotal(db, reader, metricSpec(['save_from_share']), 'count'),
+    getActivityMetricTotal(db, previousReader, metricSpec(['save_from_share']), 'count'),
+    getActivityMetricDimensionTotals(db, reader, metricSpec(['share_download']), 'source', 'count'),
   ])
   const landingDownloads = downloadSources.get('landing_share') ?? 0
   const directDownloads = downloadSources.get('direct_share') ?? 0
   const [viewsByDay, downloadsByDay, savesByDay] = await Promise.all([
-    getActivityCountByDay(db, range, ['share_view']),
-    getActivityCountByDay(db, range, ['share_download']),
-    getActivityCountByDay(db, range, ['save_from_share']),
+    getActivityMetricByDay(db, range, reader, metricSpec(['share_view']), 'count'),
+    getActivityMetricByDay(db, range, reader, metricSpec(['share_download']), 'count'),
+    getActivityMetricByDay(db, range, reader, metricSpec(['save_from_share']), 'count'),
   ])
   const trend = createDateBuckets(range).map((date) => ({
     date,
@@ -480,16 +542,8 @@ async function getDashboardSharingStats(
     downloads: downloadsByDay.get(date) ?? 0,
     saves: savesByDay.get(date) ?? 0,
   }))
-  const createdInRange = shareRows.filter((row) => row.createdAt >= range.from && row.createdAt <= range.to).length
-  const createdPrevious = shareRows.filter(
-    (row) => row.createdAt >= previous.from && row.createdAt <= previous.to,
-  ).length
   const activeShares = shareRows.filter((row) => isShareActive(row, now)).length
-  const typeCounts = countBy(
-    shareRows.filter((row) => row.createdAt >= range.from && row.createdAt <= range.to),
-    (row) => row.kind,
-  )
-  const topShares = await getTopSharesWithPercent(db, range, {
+  const topShares = await getTopSharesWithPercent(db, reader, {
     totalViews: sharing.views,
     totalDownloads: sharing.downloads,
   })
@@ -505,11 +559,6 @@ async function getDashboardSharingStats(
       downloadConversionRate: nullablePercent(landingDownloads, sharing.views),
       passwordPasses: sharing.passwordPasses,
     },
-    funnel: funnelRows([
-      { name: 'views', value: sharing.views },
-      { name: 'downloads', value: landingDownloads },
-      { name: 'saved_to_drive', value: saveCount },
-    ]),
     trend,
     typeBreakdown: percentRows([...typeCounts.entries()].map(([name, value]) => ({ name, value }))),
     sourceBreakdown: percentRows([
@@ -521,22 +570,42 @@ async function getDashboardSharingStats(
   }
 }
 
-async function getDashboardRankingStats(
-  db: Database,
-  now: Date,
-  range: AdminStatsDateRange,
-): Promise<AdminDashboardRankingStats> {
-  const [topShares, topSpaces, storageByType] = await Promise.all([
-    getTopSharesWithPercent(db, range),
-    getUsageBySpaceRows(db, range),
-    getStorageByType(db, range),
+async function getShareCreatedTotal(db: Database, reader: AdminStatsHourlyReader): Promise<number> {
+  const [rollupRows, rawRows] = await Promise.all([
+    reader.rows(ADMIN_STATS_METRICS.shareCreated),
+    getShareRowsForIntervals(db, await reader.rawIntervals()),
   ])
-  return {
-    ...statsFrame(now, range),
-    topShares,
-    topSpaces,
-    storageByType,
+  return rollupRows.filter((row) => row.dimensionKey === '').reduce((sum, row) => sum + row.count, 0) + rawRows.length
+}
+
+async function getShareCreatedKinds(db: Database, reader: AdminStatsHourlyReader): Promise<Map<string, number>> {
+  const [rollupRows, rawRows] = await Promise.all([
+    reader.rows(ADMIN_STATS_METRICS.shareCreated),
+    getShareRowsForIntervals(db, await reader.rawIntervals()),
+  ])
+  const result = new Map<string, number>()
+  for (const row of rollupRows) {
+    if (row.dimensionKey === 'kind') incrementMap(result, row.dimensionValue, row.count)
   }
+  for (const row of rawRows) incrementMap(result, row.kind, 1)
+  return result
+}
+
+async function getShareRowsForIntervals(db: Database, intervals: StatsInterval[]): Promise<Array<{ kind: string }>> {
+  const rows: Array<{ kind: string }> = []
+  for (let index = 0; index < intervals.length; index += 40) {
+    const conditions = intervals
+      .slice(index, index + 40)
+      .map((interval) => and(gte(shares.createdAt, interval.from), lt(shares.createdAt, interval.toExclusive)))
+    if (conditions.length === 0) continue
+    rows.push(
+      ...(await db
+        .select({ kind: shares.kind })
+        .from(shares)
+        .where(or(...conditions))),
+    )
+  }
+  return rows
 }
 
 function statsFrame(now: Date, range: AdminStatsDateRange) {
@@ -544,6 +613,19 @@ function statsFrame(now: Date, range: AdminStatsDateRange) {
 }
 
 function previousRange(range: AdminStatsDateRange): AdminStatsDateRange {
+  const firstDate = dayKey(range.from, range.timeZone)
+  const lastDate = dayKey(range.to, range.timeZone)
+  const localStart = localDateStart(firstDate, range.timeZone)
+  const localEnd = new Date(localDateStart(addCalendarDays(lastDate, 1), range.timeZone).getTime() - 1)
+  if (localStart.getTime() === range.from.getTime() && localEnd.getTime() === range.to.getTime()) {
+    const days = Math.floor((dateOrdinal(lastDate) - dateOrdinal(firstDate)) / 86_400_000) + 1
+    const previousStartDate = addCalendarDays(firstDate, -days)
+    return {
+      from: localDateStart(previousStartDate, range.timeZone),
+      to: new Date(localDateStart(firstDate, range.timeZone).getTime() - 1),
+      timeZone: range.timeZone,
+    }
+  }
   const durationMs = Math.max(0, range.to.getTime() - range.from.getTime())
   const to = new Date(range.from.getTime() - 1)
   return { from: new Date(to.getTime() - durationMs), to, timeZone: range.timeZone }
@@ -582,27 +664,19 @@ async function activeUserIds(db: Database, range: AdminStatsDateRange): Promise<
       .select({ userId: activityEvents.userId })
       .from(activityEvents)
       .innerJoin(user, eq(activityEvents.userId, user.id))
-      .where(and(gte(activityEvents.createdAt, range.from), lte(activityEvents.createdAt, range.to))),
+      .where(and(gte(activityEvents.createdAt, range.from), lte(activityEvents.createdAt, range.to)))
+      .groupBy(activityEvents.userId),
     db
       .select({ userId: session.userId })
       .from(session)
       .innerJoin(user, eq(session.userId, user.id))
-      .where(and(gte(session.createdAt, range.from), lte(session.createdAt, range.to))),
+      .where(and(gte(session.createdAt, range.from), lte(session.createdAt, range.to)))
+      .groupBy(session.userId),
   ])
   const ids = new Set<string>()
   for (const row of activityRows) if (row.userId) ids.add(row.userId)
   for (const row of sessionRows) ids.add(row.userId)
   return ids
-}
-
-async function getNewUsersByDay(db: Database, range: AdminStatsDateRange): Promise<Map<string, number>> {
-  const rows = await db
-    .select({ createdAt: user.createdAt })
-    .from(user)
-    .where(and(gte(user.createdAt, range.from), lte(user.createdAt, range.to)))
-  const byDay = new Map<string, number>()
-  for (const row of rows) incrementMap(byDay, dayKey(row.createdAt, range.timeZone), 1)
-  return byDay
 }
 
 async function getActiveUsersByDay(db: Database, range: AdminStatsDateRange): Promise<Map<string, Set<string>>> {
@@ -659,119 +733,376 @@ async function getRollingActiveUserTrend(
 
 async function getRegistrationSources(
   db: Database,
-  range: AdminStatsDateRange,
+  reader: AdminStatsHourlyReader,
 ): Promise<Array<{ name: string; value: number; percent: number }>> {
-  const newUsers = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(and(gte(user.createdAt, range.from), lte(user.createdAt, range.to)))
-  if (newUsers.length === 0) return []
-  const userIds = newUsers.map((row) => row.id)
-  const accounts = await db
-    .select({ userId: account.userId, providerId: account.providerId })
-    .from(account)
-    .where(inArray(account.userId, userIds))
-  const seen = new Set<string>()
   const counts = new Map<string, number>()
-  for (const row of accounts.sort((left, right) =>
-    left.userId === right.userId
-      ? left.providerId.localeCompare(right.providerId)
-      : left.userId.localeCompare(right.userId),
-  )) {
-    if (seen.has(row.userId)) continue
-    seen.add(row.userId)
-    incrementMap(counts, row.providerId || 'unknown', 1)
+  const [rollupRows, rawRows] = await Promise.all([
+    reader.rows(ADMIN_STATS_METRICS.userSignup),
+    getSignupRowsForIntervals(db, await reader.rawIntervals()),
+  ])
+  for (const row of rollupRows) {
+    if (row.dimensionKey === 'provider') incrementMap(counts, row.dimensionValue, row.count)
   }
-  const direct = userIds.length - seen.size
-  if (direct > 0) counts.set('direct', direct)
+  for (const row of rawRows) incrementMap(counts, row.provider, 1)
   return percentRows([...counts.entries()].map(([name, value]) => ({ name, value })))
 }
 
-async function getActivityBytesTotal(db: Database, range: AdminStatsDateRange, actions: string[]): Promise<number> {
-  const rows = await getActivityMetadataRows(db, range, actions)
-  return rows.reduce((sum, row) => sum + metadataNumber(row.metadata, 'bytes'), 0)
+async function getSignupTotal(db: Database, reader: AdminStatsHourlyReader): Promise<number> {
+  const [rollupRows, rawRows] = await Promise.all([
+    reader.rows(ADMIN_STATS_METRICS.userSignup),
+    getSignupRowsForIntervals(db, await reader.rawIntervals()),
+  ])
+  return rollupRows.filter((row) => row.dimensionKey === '').reduce((sum, row) => sum + row.count, 0) + rawRows.length
 }
 
-async function getActivityBytesByDay(
+async function getSignupsByDay(
   db: Database,
   range: AdminStatsDateRange,
-  actions: string[],
+  reader: AdminStatsHourlyReader,
 ): Promise<Map<string, number>> {
-  const rows = await getActivityMetadataRows(db, range, actions)
-  const byDay = new Map<string, number>()
-  for (const row of rows)
-    incrementMap(byDay, dayKey(row.createdAt, range.timeZone), metadataNumber(row.metadata, 'bytes'))
-  return byDay
-}
-
-async function getActivityCountByDay(
-  db: Database,
-  range: AdminStatsDateRange,
-  actions: string[],
-): Promise<Map<string, number>> {
-  const rows = await getActivityMetadataRows(db, range, actions)
-  const byDay = new Map<string, number>()
-  for (const row of rows) incrementMap(byDay, dayKey(row.createdAt, range.timeZone), 1)
-  return byDay
-}
-
-async function getActivitySourceCounts(
-  db: Database,
-  range: AdminStatsDateRange,
-  actions: string[],
-): Promise<Map<string, number>> {
-  const rows = await getActivityMetadataRows(db, range, actions)
-  const counts = new Map<string, number>()
-  for (const row of rows) {
-    const metadata = parseMetadata(row.metadata)
-    const source = typeof metadata.source === 'string' ? metadata.source : 'unknown'
-    incrementMap(counts, source, 1)
+  const [rollupRows, rawRows] = await Promise.all([
+    reader.rows(ADMIN_STATS_METRICS.userSignup),
+    getSignupRowsForIntervals(db, await reader.rawIntervals()),
+  ])
+  const result = new Map<string, number>()
+  for (const row of rollupRows) {
+    if (row.dimensionKey === '') incrementMap(result, reader.dayKey(row.bucketStart), row.count)
   }
-  return counts
+  for (const row of rawRows) incrementMap(result, dayKey(row.createdAt, range.timeZone), 1)
+  return result
 }
 
-async function countActivityEvents(db: Database, range: AdminStatsDateRange, actions: string[]): Promise<number> {
-  if (actions.length === 0) return 0
-  return countRowsWhere(
-    db,
-    activityEvents,
-    and(
-      inArray(activityEvents.action, actions),
-      gte(activityEvents.createdAt, range.from),
-      lte(activityEvents.createdAt, range.to),
-    ),
+async function getSignupRowsForIntervals(
+  db: Database,
+  intervals: StatsInterval[],
+): Promise<Array<{ userId: string; createdAt: Date; provider: string }>> {
+  const rows: Array<{ userId: string; createdAt: Date; provider: string }> = []
+  for (let index = 0; index < intervals.length; index += 40) {
+    const conditions = intervals
+      .slice(index, index + 40)
+      .map((interval) => and(gte(user.createdAt, interval.from), lt(user.createdAt, interval.toExclusive)))
+    if (conditions.length === 0) continue
+    const userRows = await db
+      .select({
+        userId: user.id,
+        createdAt: user.createdAt,
+        provider: account.providerId,
+      })
+      .from(user)
+      .leftJoin(account, eq(account.userId, user.id))
+      .where(or(...conditions))
+      .orderBy(user.id, account.createdAt, account.id)
+    const seen = new Set<string>()
+    for (const row of userRows) {
+      if (seen.has(row.userId)) continue
+      seen.add(row.userId)
+      rows.push({ userId: row.userId, createdAt: row.createdAt, provider: row.provider || 'direct' })
+    }
+  }
+  return rows
+}
+
+type ActivityMetricSpec = {
+  metric: (typeof ADMIN_STATS_METRICS)[keyof typeof ADMIN_STATS_METRICS]
+  actions: string[]
+  dimensionKey?: string
+  dimensionValues?: string[]
+}
+
+function metricSpec(actions: string[]): ActivityMetricSpec {
+  const key = [...actions].sort().join(',')
+  if (key === 'upload_confirm') {
+    return { metric: ADMIN_STATS_METRICS.transferUpload, actions, dimensionKey: 'status', dimensionValues: ['success'] }
+  }
+  if (key === 'upload_cancel,upload_failed') {
+    return {
+      metric: ADMIN_STATS_METRICS.transferUpload,
+      actions,
+      dimensionKey: 'status',
+      dimensionValues: ['canceled', 'failed'],
+    }
+  }
+  if (key === 'upload_cancel,upload_confirm,upload_failed') {
+    return { metric: ADMIN_STATS_METRICS.transferUpload, actions }
+  }
+  if (key === [...DOWNLOAD_ACTIVITY_ACTIONS].sort().join(',')) {
+    return { metric: ADMIN_STATS_METRICS.transferDownloadIssued, actions }
+  }
+  if (key === 'download_failed') return { metric: ADMIN_STATS_METRICS.transferDownloadFailed, actions }
+  if (key === 'share_download') return { metric: ADMIN_STATS_METRICS.shareDownloadIssued, actions }
+  if (key === 'share_password_passed') return { metric: ADMIN_STATS_METRICS.sharePasswordPassed, actions }
+  if (key === 'share_view') return { metric: ADMIN_STATS_METRICS.shareView, actions }
+  if (key === 'save_from_share') return { metric: ADMIN_STATS_METRICS.shareSaved, actions }
+  throw new Error(`Unsupported hourly activity metric: ${key}`)
+}
+
+type OperationalSource = 'background_job' | 'remote_download'
+
+async function getOperationalOutcomes(
+  db: Database,
+  reader: AdminStatsHourlyReader,
+  source: OperationalSource,
+): Promise<Map<string, number>> {
+  const metric =
+    source === 'background_job'
+      ? ADMIN_STATS_METRICS.backgroundJobFinished
+      : ADMIN_STATS_METRICS.remoteDownloadTaskFinished
+  const [rollup, raw] = await Promise.all([
+    getActivityMetricDimensionTotalsFromRollup(reader, metric, 'outcome', 'count'),
+    getOperationalRowsForIntervals(db, await reader.rawIntervals(), source),
+  ])
+  for (const row of raw) incrementMap(rollup, row.outcome, 1)
+  return rollup
+}
+
+async function getOperationalOutcomesByDay(
+  db: Database,
+  reader: AdminStatsHourlyReader,
+  range: AdminStatsDateRange,
+  source: OperationalSource,
+): Promise<Map<string, Map<string, number>>> {
+  const metric =
+    source === 'background_job'
+      ? ADMIN_STATS_METRICS.backgroundJobFinished
+      : ADMIN_STATS_METRICS.remoteDownloadTaskFinished
+  const [rollupRows, rawRows] = await Promise.all([
+    reader.rows(metric),
+    getOperationalRowsForIntervals(db, await reader.rawIntervals(), source),
+  ])
+  const result = new Map<string, Map<string, number>>()
+  for (const row of rollupRows) {
+    if (row.dimensionKey !== 'outcome') continue
+    incrementNestedMap(result, reader.dayKey(row.bucketStart), row.dimensionValue, row.count)
+  }
+  for (const row of rawRows) incrementNestedMap(result, dayKey(row.finishedAt, range.timeZone), row.outcome, 1)
+  return result
+}
+
+async function getOperationalRowsForIntervals(
+  db: Database,
+  intervals: StatsInterval[],
+  source: OperationalSource,
+): Promise<Array<{ outcome: string; finishedAt: Date }>> {
+  const rows: Array<{ outcome: string; finishedAt: Date }> = []
+  for (let index = 0; index < intervals.length; index += 40) {
+    const chunk = intervals.slice(index, index + 40)
+    if (source === 'background_job') {
+      const conditions = chunk.map((interval) =>
+        and(gte(backgroundJobs.finishedAt, interval.from), lt(backgroundJobs.finishedAt, interval.toExclusive)),
+      )
+      rows.push(
+        ...(
+          await db
+            .select({ outcome: backgroundJobs.status, finishedAt: backgroundJobs.finishedAt })
+            .from(backgroundJobs)
+            .where(and(sql`${backgroundJobs.finishedAt} IS NOT NULL`, or(...conditions)))
+        ).flatMap((row) => (row.finishedAt ? [{ outcome: row.outcome, finishedAt: row.finishedAt }] : [])),
+      )
+      continue
+    }
+    const conditions = chunk.map((interval) =>
+      and(gte(downloadTasks.finishedAt, interval.from), lt(downloadTasks.finishedAt, interval.toExclusive)),
+    )
+    rows.push(
+      ...(
+        await db
+          .select({ outcome: downloadTasks.status, finishedAt: downloadTasks.finishedAt })
+          .from(downloadTasks)
+          .where(and(sql`${downloadTasks.finishedAt} IS NOT NULL`, or(...conditions)))
+      ).flatMap((row) => (row.finishedAt ? [{ outcome: row.outcome, finishedAt: row.finishedAt }] : [])),
+    )
+  }
+  return rows
+}
+
+async function getActivityMetricDimensionTotalsFromRollup(
+  reader: AdminStatsHourlyReader,
+  metric: (typeof ADMIN_STATS_METRICS)[keyof typeof ADMIN_STATS_METRICS],
+  dimensionKey: string,
+  field: 'count' | 'bytes',
+): Promise<Map<string, number>> {
+  const rows = await reader.rows(metric)
+  const result = new Map<string, number>()
+  for (const row of rows) {
+    if (row.dimensionKey === dimensionKey) incrementMap(result, row.dimensionValue, row[field])
+  }
+  return result
+}
+
+async function getCloudReportOutcomes(db: Database, reader: AdminStatsHourlyReader): Promise<Map<string, number>> {
+  const [result, intervals] = await Promise.all([
+    getActivityMetricDimensionTotalsFromRollup(reader, ADMIN_STATS_METRICS.trafficReportSync, 'status', 'count'),
+    reader.rawIntervals(),
+  ])
+  for (let index = 0; index < intervals.length; index += 40) {
+    const conditions = intervals
+      .slice(index, index + 40)
+      .map((interval) =>
+        and(gte(cloudTrafficReports.updatedAt, interval.from), lt(cloudTrafficReports.updatedAt, interval.toExclusive)),
+      )
+    const rows = await db
+      .select({ status: cloudTrafficReports.status, value: count() })
+      .from(cloudTrafficReports)
+      .where(or(...conditions))
+      .groupBy(cloudTrafficReports.status)
+    for (const row of rows) incrementMap(result, row.status, toNumber(row.value))
+  }
+  return result
+}
+
+async function getActivityMetricTotal(
+  db: Database,
+  reader: AdminStatsHourlyReader,
+  spec: ActivityMetricSpec,
+  field: 'count' | 'bytes',
+): Promise<number> {
+  const [rollupRows, rawRows] = await Promise.all([
+    reader.rows(spec.metric),
+    getActivityRowsForIntervals(db, spec.actions, await reader.rawIntervals()),
+  ])
+  const rollupTotal = filterMetricRows(rollupRows, spec).reduce((sum, row) => sum + row[field], 0)
+  const rawTotal = rawRows.reduce(
+    (sum, row) => sum + (field === 'count' ? 1 : metadataNumber(row.metadata, 'bytes')),
+    0,
+  )
+  return rollupTotal + rawTotal
+}
+
+async function getActivityMetricByDay(
+  db: Database,
+  range: AdminStatsDateRange,
+  reader: AdminStatsHourlyReader,
+  spec: ActivityMetricSpec,
+  field: 'count' | 'bytes',
+): Promise<Map<string, number>> {
+  const [rollupRows, rawRows] = await Promise.all([
+    reader.rows(spec.metric),
+    getActivityRowsForIntervals(db, spec.actions, await reader.rawIntervals()),
+  ])
+  const result = new Map<string, number>()
+  for (const row of filterMetricRows(rollupRows, spec)) {
+    incrementMap(result, reader.dayKey(row.bucketStart), row[field])
+  }
+  for (const row of rawRows) {
+    incrementMap(
+      result,
+      dayKey(row.createdAt, range.timeZone),
+      field === 'count' ? 1 : metadataNumber(row.metadata, 'bytes'),
+    )
+  }
+  return result
+}
+
+async function getActivityMetricDimensionTotals(
+  db: Database,
+  reader: AdminStatsHourlyReader,
+  spec: ActivityMetricSpec,
+  dimensionKey: string,
+  field: 'count' | 'bytes',
+): Promise<Map<string, number>> {
+  const [rollupRows, rawRows] = await Promise.all([
+    reader.rows(spec.metric),
+    getActivityRowsForIntervals(db, spec.actions, await reader.rawIntervals()),
+  ])
+  const result = new Map<string, number>()
+  for (const row of rollupRows) {
+    if (row.dimensionKey === dimensionKey) incrementMap(result, row.dimensionValue, row[field])
+  }
+  for (const row of rawRows) {
+    const metadata = parseMetadata(row.metadata)
+    const metadataValue = metadata[dimensionKey]
+    const value =
+      typeof metadataValue === 'string'
+        ? metadataValue
+        : dimensionKey === 'share_id' && row.targetId
+          ? row.targetId
+          : dimensionKey === 'reason' && row.action === 'upload_cancel'
+            ? 'upload_canceled'
+            : dimensionKey === 'reason' && row.action === 'upload_failed'
+              ? 'upload_failed'
+              : dimensionKey === 'source' && row.action === 'object_download'
+                ? 'object_download'
+                : dimensionKey === 'source' && row.action === 'image_hosting_download'
+                  ? 'image_hosting'
+                  : dimensionKey === 'source' && row.action === 'webdav_download'
+                    ? 'webdav_download'
+                    : dimensionKey === 'source' && row.action === 'share_download'
+                      ? 'landing_share'
+                      : 'unknown'
+    incrementMap(result, value, field === 'count' ? 1 : metadataNumber(row.metadata, 'bytes'))
+  }
+  return result
+}
+
+function filterMetricRows(rows: Awaited<ReturnType<AdminStatsHourlyReader['rows']>>, spec: ActivityMetricSpec) {
+  if (!spec.dimensionKey) return rows.filter((row) => row.dimensionKey === '')
+  const values = new Set(spec.dimensionValues ?? [])
+  return rows.filter(
+    (row) => row.dimensionKey === spec.dimensionKey && (values.size === 0 || values.has(row.dimensionValue)),
   )
 }
 
-async function getActivityMetadataRows(db: Database, range: AdminStatsDateRange, actions: string[]) {
-  if (actions.length === 0) return []
-  return db
-    .select({ action: activityEvents.action, metadata: activityEvents.metadata, createdAt: activityEvents.createdAt })
-    .from(activityEvents)
-    .where(
-      and(
-        inArray(activityEvents.action, actions),
-        gte(activityEvents.createdAt, range.from),
-        lte(activityEvents.createdAt, range.to),
-      ),
+async function getActivityRowsForIntervals(
+  db: Database,
+  actions: string[],
+  intervals: StatsInterval[],
+): Promise<Array<{ action: string; metadata: string | null; createdAt: Date; targetId: string | null }>> {
+  const rows: Array<{ action: string; metadata: string | null; createdAt: Date; targetId: string | null }> = []
+  for (let index = 0; index < intervals.length; index += 40) {
+    const conditions = intervals
+      .slice(index, index + 40)
+      .map((interval) =>
+        and(gte(activityEvents.createdAt, interval.from), lt(activityEvents.createdAt, interval.toExclusive)),
+      )
+    if (conditions.length === 0) continue
+    rows.push(
+      ...(await db
+        .select({
+          action: activityEvents.action,
+          metadata: activityEvents.metadata,
+          createdAt: activityEvents.createdAt,
+          targetId: activityEvents.targetId,
+        })
+        .from(activityEvents)
+        .where(and(inArray(activityEvents.action, actions), or(...conditions)))),
     )
+  }
+  return rows
 }
 
-async function getTransferDataQuality(db: Database, range: AdminStatsDateRange): Promise<AdminTransferDataQuality> {
+async function getTransferDataQuality(
+  db: Database,
+  range: AdminStatsDateRange,
+  now: Date,
+): Promise<AdminTransferDataQuality> {
   const previous = previousRange(range)
-  const actions = ['upload_confirm', ...DOWNLOAD_ACTIVITY_ACTIONS]
-  const [currentRows, previousRows] = await Promise.all([
-    getActivityMetadataRows(db, range, actions),
-    getActivityMetadataRows(db, previous, actions),
+  const [current, previousCounts] = await Promise.all([
+    getMissingTransferBytes(db, new AdminStatsHourlyReader(db, range, now)),
+    getMissingTransferBytes(db, new AdminStatsHourlyReader(db, previous, now)),
   ])
-  const current = missingTransferBytes(currentRows)
-  const previousCounts = missingTransferBytes(previousRows)
   return {
     missingUploadBytesEvents: current.upload,
     previousMissingUploadBytesEvents: previousCounts.upload,
     missingDownloadBytesEvents: current.download,
     previousMissingDownloadBytesEvents: previousCounts.download,
   }
+}
+
+async function getMissingTransferBytes(
+  db: Database,
+  reader: AdminStatsHourlyReader,
+): Promise<{ upload: number; download: number }> {
+  const [rollupRows, rawRows] = await Promise.all([
+    reader.rows(ADMIN_STATS_METRICS.statsMissingBytes),
+    getActivityRowsForIntervals(db, ['upload_confirm', ...DOWNLOAD_ACTIVITY_ACTIONS], await reader.rawIntervals()),
+  ])
+  const result = missingTransferBytes(rawRows)
+  for (const row of rollupRows) {
+    if (row.dimensionKey !== 'direction') continue
+    if (row.dimensionValue === 'upload') result.upload += row.count
+    if (row.dimensionValue === 'download') result.download += row.count
+  }
+  return result
 }
 
 function missingTransferBytes(rows: Array<{ action: string; metadata: string | null }>): {
@@ -797,158 +1128,72 @@ async function getStorageUsedByDay(db: Database, range: AdminStatsDateRange): Pr
   const lastBucketStart = dateKeyStart(buckets[buckets.length - 1])
   const rows = await db
     .select({
-      bucketStart: statsRollupsDaily.bucketStart,
-      bytes: statsRollupsDaily.bytes,
+      bucketStart: statsRollupsHourly.bucketStart,
+      orgId: statsRollupsHourly.orgId,
+      bytes: statsRollupsHourly.bytes,
     })
-    .from(statsRollupsDaily)
+    .from(statsRollupsHourly)
     .where(
       and(
-        eq(statsRollupsDaily.metricKey, STORAGE_USED_ROLLUP_METRIC),
-        eq(statsRollupsDaily.orgId, GLOBAL_ROLLUP_ORG_ID),
-        eq(statsRollupsDaily.dimensionKey, GLOBAL_ROLLUP_DIMENSION_KEY),
-        eq(statsRollupsDaily.dimensionValue, GLOBAL_ROLLUP_DIMENSION_VALUE),
-        gte(statsRollupsDaily.bucketStart, daysAgo(firstBucketStart, 1)),
-        lte(statsRollupsDaily.bucketStart, daysAgo(lastBucketStart, -1)),
+        eq(statsRollupsHourly.metricKey, STORAGE_USED_ROLLUP_METRIC),
+        eq(statsRollupsHourly.dimensionKey, GLOBAL_ROLLUP_DIMENSION_KEY),
+        eq(statsRollupsHourly.dimensionValue, GLOBAL_ROLLUP_DIMENSION_VALUE),
+        gte(statsRollupsHourly.bucketStart, daysAgo(firstBucketStart, 1)),
+        lte(statsRollupsHourly.bucketStart, daysAgo(lastBucketStart, -1)),
       ),
     )
 
-  const byDay = new Map(rows.map((row) => [dayKey(row.bucketStart), toNumber(row.bytes)]))
-  return byDay
-}
-
-async function getCloudTrafficRows(db: Database, range: AdminStatsDateRange) {
-  return db
-    .select({
-      source: cloudTrafficReports.source,
-      eventId: cloudTrafficReports.eventId,
-      bytes: cloudTrafficReports.bytes,
-      status: cloudTrafficReports.status,
-      createdAt: cloudTrafficReports.createdAt,
-    })
-    .from(cloudTrafficReports)
-    .where(and(gte(cloudTrafficReports.createdAt, range.from), lte(cloudTrafficReports.createdAt, range.to)))
-}
-
-async function getDownloadIssueRows(
-  db: Database,
-  range: AdminStatsDateRange,
-): Promise<Array<{ source: string; bytes: number; trafficEventId: string | null; createdAt: Date }>> {
-  const rows = await getActivityMetadataRows(db, range, DOWNLOAD_ACTIVITY_ACTIONS)
-  return rows.map((row) => {
-    const metadata = parseMetadata(row.metadata)
-    return {
-      source:
-        typeof metadata.source === 'string'
-          ? metadata.source
-          : row.action === 'object_download'
-            ? 'object_download'
-            : 'landing_share',
-      bytes: toNumber(metadata.bytes),
-      trafficEventId: typeof metadata.trafficEventId === 'string' ? metadata.trafficEventId : null,
-      createdAt: row.createdAt,
-    }
-  })
-}
-
-async function getDownloadFailureRows(
-  db: Database,
-  range: AdminStatsDateRange,
-): Promise<Array<{ reason: string; trafficEventId: string | null; createdAt: Date }>> {
-  const rows = await getActivityMetadataRows(db, range, [DOWNLOAD_FAILURE_ACTION])
-  return rows.map((row) => {
-    const metadata = parseMetadata(row.metadata)
-    return {
-      reason: typeof metadata.reason === 'string' ? metadata.reason : 'unknown',
-      trafficEventId: typeof metadata.trafficEventId === 'string' ? metadata.trafficEventId : null,
-      createdAt: row.createdAt,
-    }
-  })
-}
-
-async function getActivityFailureRows(
-  db: Database,
-  range: AdminStatsDateRange,
-  actions: string[],
-): Promise<Array<{ reason: string; createdAt: Date }>> {
-  const rows = await getActivityMetadataRows(db, range, actions)
-  return rows.map((row) => {
-    const metadata = parseMetadata(row.metadata)
-    return {
-      reason:
-        typeof metadata.reason === 'string'
-          ? metadata.reason
-          : row.action === 'upload_cancel'
-            ? 'upload_canceled'
-            : 'upload_failed',
-      createdAt: row.createdAt,
-    }
-  })
-}
-
-async function getDownloadBytesByDay(db: Database, range: AdminStatsDateRange): Promise<Map<string, number>> {
-  const [activityRows, cloudRows] = await Promise.all([getDownloadIssueRows(db, range), getCloudTrafficRows(db, range)])
-  const byDay = new Map<string, number>()
-  for (const row of activityRows) incrementMap(byDay, dayKey(row.createdAt, range.timeZone), row.bytes)
-  for (const row of cloudRows) {
-    if (isCloudRowCovered(row, activityRows, []) || row.status === 'blocked') continue
-    incrementMap(byDay, dayKey(row.createdAt, range.timeZone), row.bytes)
+  const byBucket = new Map<number, number>()
+  for (const row of rows) {
+    const at = row.bucketStart.getTime()
+    byBucket.set(at, (byBucket.get(at) ?? 0) + toNumber(row.bytes))
   }
-  return byDay
+  const byDay = new Map<string, { at: number; bytes: number }>()
+  for (const [at, bytes] of byBucket) {
+    const date = dayKey(new Date(at), range.timeZone)
+    const current = byDay.get(date)
+    if (!current || at > current.at) byDay.set(date, { at, bytes })
+  }
+  return new Map([...byDay].map(([date, value]) => [date, value.bytes]))
 }
 
-async function getDownloadRequestsByDay(db: Database, range: AdminStatsDateRange): Promise<Map<string, number>> {
-  const [activityRows, failureRows, cloudRows] = await Promise.all([
-    getDownloadIssueRows(db, range),
-    getDownloadFailureRows(db, range),
-    getCloudTrafficRows(db, range),
+async function getDownloadRequestsByDay(
+  db: Database,
+  range: AdminStatsDateRange,
+  reader: AdminStatsHourlyReader,
+): Promise<Map<string, number>> {
+  const [issued, failed] = await Promise.all([
+    getActivityMetricByDay(db, range, reader, metricSpec(DOWNLOAD_ACTIVITY_ACTIONS), 'count'),
+    getActivityMetricByDay(db, range, reader, metricSpec([DOWNLOAD_FAILURE_ACTION]), 'count'),
   ])
-  const byDay = new Map<string, number>()
-  for (const row of activityRows) incrementMap(byDay, dayKey(row.createdAt, range.timeZone), 1)
-  for (const row of failureRows) incrementMap(byDay, dayKey(row.createdAt, range.timeZone), 1)
-  for (const row of cloudRows) {
-    if (isCloudRowCovered(row, activityRows, failureRows)) continue
-    incrementMap(byDay, dayKey(row.createdAt, range.timeZone), 1)
-  }
-  return byDay
+  const result = new Map(issued)
+  for (const [date, value] of failed) incrementMap(result, date, value)
+  return result
 }
 
 async function getTrafficTotals(
   db: Database,
-  range: AdminStatsDateRange,
+  reader: AdminStatsHourlyReader,
 ): Promise<{ uploadBytes: number; uploadRequests: number; downloadBytes: number; downloadRequests: number }> {
-  const [uploadBytes, uploadRequests, activityDownloadRows, activityFailureRows, cloudRows] = await Promise.all([
-    getActivityBytesTotal(db, range, ['upload_confirm']),
-    countActivityEvents(db, range, ['upload_confirm', 'upload_cancel', 'upload_failed']),
-    getDownloadIssueRows(db, range),
-    getDownloadFailureRows(db, range),
-    getCloudTrafficRows(db, range),
+  const [uploadBytes, uploadRequests, downloadBytes, issuedDownloads, failedDownloads] = await Promise.all([
+    getActivityMetricTotal(db, reader, metricSpec(['upload_confirm']), 'bytes'),
+    getActivityMetricTotal(db, reader, metricSpec(['upload_confirm', 'upload_cancel', 'upload_failed']), 'count'),
+    getActivityMetricTotal(db, reader, metricSpec(DOWNLOAD_ACTIVITY_ACTIONS), 'bytes'),
+    getActivityMetricTotal(db, reader, metricSpec(DOWNLOAD_ACTIVITY_ACTIONS), 'count'),
+    getActivityMetricTotal(db, reader, metricSpec([DOWNLOAD_FAILURE_ACTION]), 'count'),
   ])
-  const uncoveredCloudRows = cloudRows.filter(
-    (row) => !isCloudRowCovered(row, activityDownloadRows, activityFailureRows),
-  )
-  const cloudDownloadRows = uncoveredCloudRows.filter((row) => row.status !== 'blocked')
   return {
     uploadBytes,
     uploadRequests,
-    downloadBytes:
-      activityDownloadRows.reduce((sum, row) => sum + row.bytes, 0) +
-      cloudDownloadRows.reduce((sum, row) => sum + row.bytes, 0),
-    downloadRequests: activityDownloadRows.length + activityFailureRows.length + uncoveredCloudRows.length,
+    downloadBytes,
+    downloadRequests: issuedDownloads + failedDownloads,
   }
-}
-
-function isCloudRowCovered(
-  cloudRow: { source: string; eventId: string },
-  issuedRows: Array<{ trafficEventId: string | null }>,
-  failureRows: Array<{ trafficEventId: string | null }>,
-): boolean {
-  return [...issuedRows, ...failureRows].some((row) => row.trafficEventId === cloudRow.eventId)
 }
 
 async function getSharingEventTotals(
   db: Database,
-  range: AdminStatsDateRange,
   now: Date,
+  reader: AdminStatsHourlyReader,
 ): Promise<{ activeShares: number; views: number; passwordPasses: number; downloads: number }> {
   const [activeShares, views, passwordPasses, downloads] = await Promise.all([
     countRowsWhere(
@@ -960,24 +1205,24 @@ async function getSharingEventTotals(
         or(isNull(shares.downloadLimit), sql`${shares.downloads} < ${shares.downloadLimit}`),
       ),
     ),
-    countActivityEvents(db, range, ['share_view']),
-    countActivityEvents(db, range, ['share_password_passed']),
-    countActivityEvents(db, range, ['share_download']),
+    getActivityMetricTotal(db, reader, metricSpec(['share_view']), 'count'),
+    getActivityMetricTotal(db, reader, metricSpec(['share_password_passed']), 'count'),
+    getActivityMetricTotal(db, reader, metricSpec(['share_download']), 'count'),
   ])
   return { activeShares, views, passwordPasses, downloads }
 }
 
 async function getTopSharesWithPercent(
   db: Database,
-  range: AdminStatsDateRange,
+  reader: AdminStatsHourlyReader,
   totals?: { totalViews: number; totalDownloads: number },
 ): Promise<Array<AdminTopShare & { viewPercent: number; downloadPercent: number }>> {
-  const rows = await getTopSharesByActivity(db, range)
+  const rows = await getTopSharesByActivity(db, reader)
   const [totalViews, totalDownloads] = totals
     ? [totals.totalViews, totals.totalDownloads]
     : await Promise.all([
-        countActivityEvents(db, range, ['share_view']),
-        countActivityEvents(db, range, ['share_download']),
+        getActivityMetricTotal(db, reader, metricSpec(['share_view']), 'count'),
+        getActivityMetricTotal(db, reader, metricSpec(['share_download']), 'count'),
       ])
   return rows.map((row) => ({
     ...row,
@@ -986,24 +1231,17 @@ async function getTopSharesWithPercent(
   }))
 }
 
-async function getTopSharesByActivity(db: Database, range: AdminStatsDateRange): Promise<AdminTopShare[]> {
-  const activityRows = await db
-    .select({ targetId: activityEvents.targetId, action: activityEvents.action })
-    .from(activityEvents)
-    .where(
-      and(
-        inArray(activityEvents.action, ['share_view', 'share_download']),
-        gte(activityEvents.createdAt, range.from),
-        lte(activityEvents.createdAt, range.to),
-      ),
-    )
+async function getTopSharesByActivity(db: Database, reader: AdminStatsHourlyReader): Promise<AdminTopShare[]> {
+  const [viewCounts, downloadCounts] = await Promise.all([
+    getActivityMetricDimensionTotals(db, reader, metricSpec(['share_view']), 'share_id', 'count'),
+    getActivityMetricDimensionTotals(db, reader, metricSpec(['share_download']), 'share_id', 'count'),
+  ])
   const counts = new Map<string, { views: number; downloads: number }>()
-  for (const row of activityRows) {
-    if (!row.targetId) continue
-    const item = counts.get(row.targetId) ?? { views: 0, downloads: 0 }
-    if (row.action === 'share_view') item.views += 1
-    if (row.action === 'share_download') item.downloads += 1
-    counts.set(row.targetId, item)
+  for (const [shareId, views] of viewCounts) counts.set(shareId, { views, downloads: 0 })
+  for (const [shareId, downloads] of downloadCounts) {
+    const item = counts.get(shareId) ?? { views: 0, downloads: 0 }
+    item.downloads = downloads
+    counts.set(shareId, item)
   }
   const topIds = [...counts.entries()]
     .sort((a, b) => b[1].views - a[1].views || b[1].downloads - a[1].downloads)
@@ -1043,11 +1281,7 @@ async function getTopSharesByActivity(db: Database, range: AdminStatsDateRange):
   })
 }
 
-async function getUsageBySpaceRows(
-  db: Database,
-  range?: AdminStatsDateRange,
-): Promise<AdminDashboardRankingStats['topSpaces']> {
-  if (range) return getUsageBySpaceRowsForRange(db, range)
+async function getUsageBySpaceRows(db: Database): Promise<AdminDashboardStorageStats['topSpaces']> {
   const rows = await db
     .select({
       orgId: orgQuotas.orgId,
@@ -1060,7 +1294,6 @@ async function getUsageBySpaceRows(
     .from(orgQuotas)
     .leftJoin(organization, eq(organization.id, orgQuotas.orgId))
     .orderBy(desc(orgQuotas.used))
-    .limit(8)
   return rows.map((row) => ({
     orgId: row.orgId,
     orgName: row.orgName ?? row.orgId,
@@ -1069,48 +1302,6 @@ async function getUsageBySpaceRows(
     quotaBytes: row.quotaBytes,
     utilization: percent(row.usedBytes, row.quotaBytes),
   }))
-}
-
-async function getUsageBySpaceRowsForRange(
-  db: Database,
-  range: AdminStatsDateRange,
-): Promise<AdminDashboardRankingStats['topSpaces']> {
-  const rows = await db
-    .select({
-      orgId: matters.orgId,
-      usedBytes: sql<number>`COALESCE(SUM(${matters.size}), 0)`,
-      quotaBytes: orgQuotas.quota,
-      orgName: organization.name,
-      slug: organization.slug,
-      metadata: organization.metadata,
-    })
-    .from(matters)
-    .leftJoin(orgQuotas, eq(orgQuotas.orgId, matters.orgId))
-    .leftJoin(organization, eq(organization.id, matters.orgId))
-    .where(
-      and(
-        eq(matters.status, 'active'),
-        eq(matters.dirtype, 0),
-        gte(matters.createdAt, range.from),
-        lte(matters.createdAt, range.to),
-      ),
-    )
-    .groupBy(matters.orgId, orgQuotas.quota, organization.name, organization.slug, organization.metadata)
-    .orderBy(desc(sql`COALESCE(SUM(${matters.size}), 0)`))
-    .limit(8)
-
-  return rows.map((row) => {
-    const usedBytes = toNumber(row.usedBytes)
-    const quotaBytes = toNumber(row.quotaBytes)
-    return {
-      orgId: row.orgId,
-      orgName: row.orgName ?? row.orgId,
-      orgType: isPersonalOrgLike({ slug: row.slug ?? '', metadata: row.metadata ?? null }) ? 'personal' : 'team',
-      usedBytes,
-      quotaBytes,
-      utilization: percent(usedBytes, quotaBytes),
-    }
-  })
 }
 
 function percentRows<T extends { name: string }>(
@@ -1122,14 +1313,6 @@ function percentRows<T extends { name: string }>(
     const value = getValue(row)
     return { ...row, value, percent: percent(value, total) }
   })
-}
-
-function funnelRows<T extends { name: string; value: number }>(rows: T[]): Array<T & { percent: number }> {
-  const baseline = rows[0]?.value ?? 0
-  return rows.map((row, index) => ({
-    ...row,
-    percent: index === 0 ? (baseline > 0 ? 100 : 0) : percent(row.value, baseline),
-  }))
 }
 
 function isShareActive(
@@ -1200,6 +1383,17 @@ function incrementMap(map: Map<string, number>, key: string, value: number): voi
   map.set(key, (map.get(key) ?? 0) + value)
 }
 
+function incrementNestedMap(
+  map: Map<string, Map<string, number>>,
+  outerKey: string,
+  innerKey: string,
+  value: number,
+): void {
+  const inner = map.get(outerKey) ?? new Map<string, number>()
+  incrementMap(inner, innerKey, value)
+  map.set(outerKey, inner)
+}
+
 function addSetMap(map: Map<string, Set<string>>, key: string, value: string): void {
   const set = map.get(key) ?? new Set<string>()
   set.add(value)
@@ -1238,23 +1432,12 @@ function daysAgo(now: Date, days: number): Date {
   return date
 }
 
-function startOfDay(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+function startOfHour(date: Date): Date {
+  return new Date(Math.floor(date.getTime() / 3_600_000) * 3_600_000)
 }
 
 function dateKeyStart(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`)
-}
-
-function dayKey(date: Date, timeZone = 'UTC'): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date)
-  const values = new Map(parts.map((part) => [part.type, part.value]))
-  return `${values.get('year')}-${values.get('month')}-${values.get('day')}`
 }
 
 function percent(part: number, total: number): number {
