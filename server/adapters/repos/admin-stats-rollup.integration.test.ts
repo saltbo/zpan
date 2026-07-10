@@ -34,6 +34,10 @@ describe('admin hourly stats rollup', () => {
     await db.run(sql`UPDATE session SET created_at = ${atMs}, updated_at = ${atMs} WHERE user_id = ${userId}`)
     await db.run(sql`UPDATE organization SET created_at = ${atMs}, updated_at = ${atMs} WHERE id = ${orgId}`)
     await db.run(sql`
+      INSERT INTO user (id, name, email, email_verified, created_at, updated_at)
+      VALUES ('rollup-direct-user', 'Direct User', 'direct@example.com', 0, ${atMs}, ${atMs})
+    `)
+    await db.run(sql`
       INSERT INTO organization (id, name, slug, metadata, created_at, updated_at)
       VALUES ('rollup-team', 'Rollup Team', 'rollup-team', '{"type":"team"}', ${atMs}, ${atMs})
     `)
@@ -181,7 +185,8 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.shareDownloadIssued)).toMatchObject({ count: 1, bytes: 20 })
     expect(row(M.statsMissingBytes)).toMatchObject({ count: 2 })
     expect(row(M.teamMembershipChange)).toMatchObject({ count: 2 })
-    expect(row(M.userSignup, '', '', '')).toMatchObject({ count: 1 })
+    expect(row(M.userSignup, '', '', '')).toMatchObject({ count: 2 })
+    expect(row(M.userSignup, 'provider', 'direct', '')).toMatchObject({ count: 1 })
     expect(row(M.userActiveHour, '', '', '')).toMatchObject({ uniqueCount: 1 })
     expect(row(M.spaceCreated, '', '', '')).toMatchObject({ count: 2 })
     expect(row(M.shareCreated)).toMatchObject({ count: 4 })

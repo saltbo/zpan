@@ -809,7 +809,7 @@ type ActivityMetricSpec = {
   dimensionValues?: string[]
 }
 
-function metricSpec(actions: string[]): ActivityMetricSpec {
+export function metricSpec(actions: string[]): ActivityMetricSpec {
   const key = [...actions].sort().join(',')
   if (key === 'upload_confirm') {
     return { metric: ADMIN_STATS_METRICS.transferUpload, actions, dimensionKey: 'status', dimensionValues: ['success'] }

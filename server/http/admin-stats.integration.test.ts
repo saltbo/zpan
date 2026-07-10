@@ -1,7 +1,7 @@
 import type { AdminDashboardOverviewStats } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { createAdminStatsRepo } from '../adapters/repos/admin-stats'
+import { createAdminStatsRepo, metricSpec } from '../adapters/repos/admin-stats'
 import { currentTrafficPeriod } from '../domain/quota'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
@@ -26,6 +26,10 @@ describe('site stats routes', () => {
     expect(coreRes.status).toBe(404)
     expect(detailsRes.status).toBe(404)
     expect(rankingRes.status).toBe(404)
+  })
+
+  it('rejects unsupported hourly activity metric definitions', () => {
+    expect(() => metricSpec(['unknown_action'])).toThrow('Unsupported hourly activity metric: unknown_action')
   })
 
   it('gates advanced dashboard stats behind the analytics feature', async () => {
@@ -452,7 +456,7 @@ describe('site stats routes', () => {
     await db.run(sql`
       INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_name, metadata, created_at)
       VALUES ('upload-cancel-rate', ${orgId}, ${userId}, 'user', 'upload_cancel', 'file', 'cancel.bin',
-        '{"source":"upload","status":"canceled"}', ${nowSec})
+        '{', ${nowSec})
     `)
 
     const current = await app.request('/api/site/stats/traffic', { headers })
