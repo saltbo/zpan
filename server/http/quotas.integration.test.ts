@@ -188,19 +188,19 @@ describe('User Quotas API — /api/quotas', () => {
   })
 
   it('GET /api/quotas/me returns 404 when user has no org [spec: quotas/me-no-org]', async () => {
-    const { app, db } = await createTestApp()
-    const _headers = await authedHeaders(app, 'noorg@example.com')
-    // Delete the user's org membership and org to simulate no org
-    const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'noorg@example.com'`)
-    await db.run(sql`DELETE FROM member WHERE user_id = ${users[0].id}`)
-    // Sign in again to get fresh session without org
-    const signInRes = await app.request('/api/auth/sign-in/email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'noorg@example.com', password: 'password123456' }),
+    const { app, auth, db } = await createTestApp()
+    await authedHeaders(app, 'noorg@example.com')
+    const [user] = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'noorg@example.com'`)
+    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
+    const apiKey = (await (auth.api as any).createApiKey({
+      body: { configId: 'webdav', userId: user.id },
+    })) as { key: string }
+    await db.run(sql`DELETE FROM member WHERE user_id = ${user.id}`)
+
+    const res = await app.request('/api/quotas/me', {
+      headers: { Authorization: `Bearer ${apiKey.key}` },
     })
-    const freshHeaders = { Cookie: signInRes.headers.getSetCookie().join('; ') }
-    const res = await app.request('/api/quotas/me', { headers: freshHeaders })
+
     expect(res.status).toBe(404)
   })
 
