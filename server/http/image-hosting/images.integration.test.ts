@@ -100,6 +100,7 @@ async function insertImageHosting(
   db: TestDb,
   orgId: string,
   opts: {
+    createdAt?: number
     id?: string
     status?: string
     path?: string
@@ -113,11 +114,11 @@ async function insertImageHosting(
   const status = opts.status ?? 'active'
   const size = opts.size ?? 1024
   const storageId = opts.storageId ?? validStorage.id
-  const now = Date.now()
+  const createdAt = opts.createdAt ?? Date.now()
 
   await db.run(sql`
     INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
-    VALUES (${id}, ${orgId}, ${token}, ${path}, ${storageId}, ${`ih/${orgId}/${id}.png`}, ${size}, 'image/png', ${status}, 0, ${now})
+    VALUES (${id}, ${orgId}, ${token}, ${path}, ${storageId}, ${`ih/${orgId}/${id}.png`}, ${size}, 'image/png', ${status}, 0, ${createdAt})
   `)
   return { id, token, path, status, size }
 }
@@ -1064,29 +1065,128 @@ describe('GET /api/image-hosting/images', () => {
     expect(body.items[0].path).toBe('active.png')
   })
 
-  it('paginates with cursor', async () => {
+  it('orders by (createdAt, id) and traverses equal timestamps through an exact-full final page [spec: image-hosting/cursor-ordering] [spec: image-hosting/cursor-terminal]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    for (let i = 0; i < 3; i++) {
-      await new Promise((r) => setTimeout(r, 5))
-      await insertImageHosting(db, orgId, { path: `cursor-item${i}.png` })
+    const createdAt = 1_710_000_000_000
+    for (const id of ['gallery-d', 'gallery-b', 'gallery-c', 'gallery-a']) {
+      await insertImageHosting(db, orgId, { id, createdAt, path: `${id}.png` })
     }
 
     const page1 = await app.request('/api/image-hosting/images?limit=2', { headers })
     expect(page1.status).toBe(200)
-    const body1 = (await page1.json()) as { items: unknown[]; nextCursor: string | null }
-    expect(body1.items).toHaveLength(2)
-    expect(body1.nextCursor).toBeTruthy()
+    const body1 = (await page1.json()) as { items: Array<{ id: string }>; nextCursor: string | null }
+    expect(body1.items.map(({ id }) => id)).toEqual(['gallery-a', 'gallery-b'])
+    expect(body1.nextCursor).toEqual(expect.any(String))
 
-    const page2 = await app.request(`/api/image-hosting/images?limit=2&cursor=${body1.nextCursor}`, { headers })
+    const page2 = await app.request(
+      `/api/image-hosting/images?limit=2&cursor=${encodeURIComponent(body1.nextCursor ?? '')}`,
+      { headers },
+    )
     expect(page2.status).toBe(200)
-    const body2 = (await page2.json()) as { items: unknown[]; nextCursor: string | null }
-    expect(body2.items).toHaveLength(1)
+    const body2 = (await page2.json()) as { items: Array<{ id: string }>; nextCursor: string | null }
+    expect(body2.items.map(({ id }) => id)).toEqual(['gallery-c', 'gallery-d'])
     expect(body2.nextCursor).toBeNull()
+
+    const traversal = [...body1.items, ...body2.items].map(({ id }) => id)
+    expect(traversal).toEqual(['gallery-a', 'gallery-b', 'gallery-c', 'gallery-d'])
+    expect(new Set(traversal).size).toBe(traversal.length)
+  })
+
+  it.each([
+    ['empty', ''],
+    ['malformed', 'not-a-valid-cursor'],
+    ['oversized', 'a'.repeat(513)],
+  ])('returns the same typed AIP-193 400 for an %s cursor [spec: image-hosting/invalid-cursor]', async (_case, cursor) => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const res = await app.request(`/api/image-hosting/images?cursor=${encodeURIComponent(cursor)}`, { headers })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({
+      error: {
+        code: 400,
+        message: 'Invalid cursor',
+        status: 'INVALID_ARGUMENT',
+        details: [
+          {
+            '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+            reason: 'INVALID_CURSOR',
+            domain: 'zpan.dev',
+          },
+        ],
+      },
+    })
+  })
+
+  it('uses live-list semantics for inserts around the cursor [spec: image-hosting/cursor-live-insert]', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const createdAt = 1_710_000_000_000
+    await insertImageHosting(db, orgId, { id: 'live-b', createdAt })
+    await insertImageHosting(db, orgId, { id: 'live-d', createdAt })
+
+    const page1 = await app.request('/api/image-hosting/images?limit=1', { headers })
+    const body1 = (await page1.json()) as { items: Array<{ id: string }>; nextCursor: string | null }
+    expect(body1.items.map(({ id }) => id)).toEqual(['live-b'])
+    expect(body1.nextCursor).toEqual(expect.any(String))
+
+    await insertImageHosting(db, orgId, { id: 'live-c', createdAt })
+    await insertImageHosting(db, orgId, { id: 'live-a', createdAt })
+
+    const page2 = await app.request(
+      `/api/image-hosting/images?limit=10&cursor=${encodeURIComponent(body1.nextCursor ?? '')}`,
+      { headers },
+    )
+    expect(page2.status).toBe(200)
+    const body2 = (await page2.json()) as { items: Array<{ id: string }>; nextCursor: string | null }
+    expect(body2.items.map(({ id }) => id)).toEqual(['live-c', 'live-d'])
+    expect(body2.nextCursor).toBeNull()
+  })
+
+  it('does not omit or duplicate surviving rows after returned and unseen rows are deleted [spec: image-hosting/cursor-live-delete]', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const createdAt = 1_710_000_000_000
+    for (const id of ['delete-a', 'delete-b', 'delete-c', 'delete-d']) {
+      await insertImageHosting(db, orgId, { id, createdAt })
+    }
+
+    const page1 = await app.request('/api/image-hosting/images?limit=2', { headers })
+    const body1 = (await page1.json()) as { items: Array<{ id: string }>; nextCursor: string | null }
+    expect(body1.items.map(({ id }) => id)).toEqual(['delete-a', 'delete-b'])
+
+    await db.run(sql`DELETE FROM image_hostings WHERE id IN ('delete-a', 'delete-c')`)
+
+    const page2 = await app.request(
+      `/api/image-hosting/images?limit=2&cursor=${encodeURIComponent(body1.nextCursor ?? '')}`,
+      { headers },
+    )
+    expect(page2.status).toBe(200)
+    const body2 = (await page2.json()) as { items: Array<{ id: string }>; nextCursor: string | null }
+    expect(body2.items.map(({ id }) => id)).toEqual(['delete-d'])
+    expect(body2.nextCursor).toBeNull()
+
+    const deletedIds = new Set(['delete-a', 'delete-c'])
+    const survivingTraversal = [...body1.items, ...body2.items].map(({ id }) => id).filter((id) => !deletedIds.has(id))
+    expect(survivingTraversal).toEqual(['delete-b', 'delete-d'])
+    expect(new Set(survivingTraversal).size).toBe(survivingTraversal.length)
   })
 })
 

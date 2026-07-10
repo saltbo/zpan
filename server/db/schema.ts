@@ -560,7 +560,7 @@ export const imageHostings = sqliteTable(
   },
   (t) => [
     uniqueIndex('image_hostings_org_path_uniq').on(t.orgId, t.path),
-    index('image_hostings_org_created_idx').on(t.orgId, t.createdAt),
+    index('image_hostings_org_status_created_id_idx').on(t.orgId, t.status, t.createdAt, t.id),
     index('image_hostings_token_idx').on(t.token),
   ],
 )

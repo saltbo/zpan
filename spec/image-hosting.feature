@@ -122,3 +122,33 @@ Feature: Image hosting
     Given a configured and verified custom domain
     When an image URL is built
     Then it uses the custom domain
+
+  @image-hosting/cursor-ordering @api
+  Scenario: Gallery pagination is deterministic for equal timestamps
+    Given active images that share a creation timestamp
+    When the gallery is traversed in cursor pages
+    Then every image is returned once in ascending creation time and ID order
+
+  @image-hosting/invalid-cursor @api
+  Scenario: A malformed gallery cursor is rejected
+    Given an authenticated gallery request with a malformed cursor
+    When the gallery is listed
+    Then the API responds 400 with reason INVALID_CURSOR
+
+  @image-hosting/cursor-live-insert @api
+  Scenario: Gallery cursors use live-list insert semantics
+    Given the first gallery page has been returned
+    When images are inserted before and after its creation time and ID cursor
+    Then only newly inserted images after the cursor are eligible for later pages
+
+  @image-hosting/cursor-live-delete @api
+  Scenario: Gallery cursors use live-list deletion semantics
+    Given the first gallery page has been returned
+    When an image from that page and an unseen image are deleted
+    Then the traversal contains every surviving image exactly once
+
+  @image-hosting/cursor-terminal @api
+  Scenario: A null cursor is the sole gallery terminal signal
+    Given the final gallery page contains exactly the requested limit
+    When the final page is returned
+    Then nextCursor is null even though the page is full

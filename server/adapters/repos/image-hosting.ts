@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNotNull, like, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, isNotNull, like, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { imageHostingConfigs, imageHostings } from '../../db/schema'
 import { mimeToExt } from '../../lib/mime-utils'
@@ -161,31 +161,26 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
       }
 
       if (opts.cursor) {
-        // cursor is base64url-encoded ISO timestamp
-        try {
-          const ts = new Date(Buffer.from(opts.cursor, 'base64url').toString())
-          if (!Number.isNaN(ts.getTime())) {
-            conditions.push(gt(imageHostings.createdAt, ts))
-          }
-        } catch {
-          // ignore invalid cursor
-        }
+        conditions.push(
+          or(
+            gt(imageHostings.createdAt, opts.cursor.createdAt),
+            and(eq(imageHostings.createdAt, opts.cursor.createdAt), gt(imageHostings.id, opts.cursor.id)),
+          )!,
+        )
       }
 
       const items = await db
         .select()
         .from(imageHostings)
         .where(and(...conditions))
-        .orderBy(asc(imageHostings.createdAt))
+        .orderBy(asc(imageHostings.createdAt), asc(imageHostings.id))
         .limit(opts.limit + 1)
 
       const hasMore = items.length > opts.limit
       const page = hasMore ? items.slice(0, opts.limit) : items
 
       const nextCursor =
-        hasMore && page.length > 0
-          ? Buffer.from(page[page.length - 1].createdAt.toISOString()).toString('base64url')
-          : null
+        hasMore && page.length > 0 ? { createdAt: page[page.length - 1].createdAt, id: page[page.length - 1].id } : null
 
       return { items: page.map(toRecord), nextCursor }
     },
