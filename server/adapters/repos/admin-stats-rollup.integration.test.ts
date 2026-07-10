@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { assertMetricDimension, ADMIN_STATS_METRICS as M } from '../../domain/admin-stats-metrics'
+import { assertMetricDimension, ADMIN_STATS_METRICS as M, metricDefinition } from '../../domain/admin-stats-metrics'
 import { adminHeaders, createTestApp } from '../../test/setup.js'
 import { AdminStatsHourlyReader } from './admin-stats-hourly'
 import { rebuildAdminStatsHour } from './admin-stats-rollup'
@@ -219,6 +219,15 @@ describe('admin hourly stats rollup', () => {
     ).rejects.toThrow('stats_bucket_must_align_to_utc_hour')
   })
 
+  it('identifies the snapshot query stage that failed', async () => {
+    const { db } = await createTestApp()
+    await db.run(sql`DROP TABLE org_quotas`)
+
+    await expect(
+      rebuildAdminStatsHour(db, new Date('2026-07-10T12:00:00Z'), new Date('2026-07-10T12:30:00Z'), true),
+    ).rejects.toThrow('stats_rollup_query_failed:quota')
+  })
+
   it('treats absent and malformed rollup quality metadata as exact data', async () => {
     const { db } = await createTestApp()
     const bucketStart = Date.parse('2026-07-10T10:00:00.000Z')
@@ -230,7 +239,8 @@ describe('admin hourly stats rollup', () => {
         ('quality-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0, '{}', ${bucketStart}),
         ('quality-null', ${bucketStart}, 'org-null', 'transfer.upload', '', '', 1, 1, 0, NULL, ${bucketStart}),
         ('quality-array', ${bucketStart}, 'org-array', 'transfer.upload', '', '', 1, 2, 0, '[]', ${bucketStart}),
-        ('quality-invalid', ${bucketStart}, 'org-invalid', 'transfer.upload', '', '', 1, 3, 0, '{', ${bucketStart})
+        ('quality-invalid', ${bucketStart}, 'org-invalid', 'transfer.upload', '', '', 1, 3, 0, '{', ${bucketStart}),
+        ('quality-object', ${bucketStart}, 'org-object', 'transfer.upload', '', '', 1, 4, 0, '{}', ${bucketStart})
     `)
     const reader = new AdminStatsHourlyReader(
       db,
@@ -243,8 +253,9 @@ describe('admin hourly stats rollup', () => {
     )
 
     expect(reader.endExclusive()).toEqual(new Date(bucketStart + 3_600_000))
-    expect(await reader.rows(M.transferUpload)).toHaveLength(3)
+    expect(await reader.rows(M.transferUpload)).toHaveLength(4)
     expect((await reader.rows(M.transferUpload)).every((row) => row.lowerBound === false)).toBe(true)
+    expect(metricDefinition(M.transferUpload)).toMatchObject({ kind: 'counter', bytesUnit: 'bytes' })
     expect(() => assertMetricDimension(M.transferUpload, 'not-a-dimension')).toThrow(
       'Unsupported stats dimension: transfer.upload/not-a-dimension',
     )
