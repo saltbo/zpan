@@ -31,7 +31,7 @@ export class AdminStatsHourlyReader {
     const nextWholeSecond = Math.ceil((now.getTime() + 1) / 1000) * 1000
     this.toExclusive = new Date(Math.min(range.to.getTime() + 1, nextWholeSecond))
     this.queryFrom = ceilHour(range.from)
-    this.queryTo = floorHour(this.toExclusive)
+    this.queryTo = ceilHour(this.toExclusive)
   }
 
   async rows(metric: AdminStatsMetric): Promise<HourlyMetricRow[]> {

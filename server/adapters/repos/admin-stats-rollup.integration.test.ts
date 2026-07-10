@@ -270,4 +270,28 @@ describe('admin hourly stats rollup', () => {
       'Unsupported stats dimension: transfer.upload/not-a-dimension',
     )
   })
+
+  it('reads a current-hour rollup without querying raw source tables', async () => {
+    const { db } = await createTestApp()
+    const bucketStart = Date.parse('2026-07-10T10:00:00.000Z')
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES ('current-hour-rollup', ${bucketStart}, '', 'transfer.upload', '', '', 1, 42, 0, '{}', ${bucketStart})
+    `)
+    const reader = new AdminStatsHourlyReader(
+      db,
+      {
+        from: new Date(bucketStart),
+        to: new Date(bucketStart + 30 * 60_000),
+        timeZone: 'UTC',
+      },
+      new Date(bucketStart + 30 * 60_000),
+    )
+
+    expect(await reader.rows(M.transferUpload)).toEqual([
+      expect.objectContaining({ bucketStart: new Date(bucketStart), count: 1, bytes: 42 }),
+    ])
+  })
 })
