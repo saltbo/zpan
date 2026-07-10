@@ -306,6 +306,67 @@ describe('site stats routes', () => {
     expect(body.registrationSources.length).toBeGreaterThan(0)
   })
 
+  it('reads historical signup totals, trends, and providers from completed hourly rollups', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const at = Date.UTC(2026, 0, 1, 10)
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('growth-rollup-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
+        ('growth-rollup-total', ${at}, '', 'user.signup', '', '', 2, 0, 0,
+          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
+        ('growth-rollup-credential', ${at}, '', 'user.signup', 'provider', 'credential', 1, 0, 0,
+          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
+        ('growth-rollup-github', ${at}, '', 'user.signup', 'provider', 'github', 1, 0, 0,
+          '{"version":1,"quality":"exact"}', ${at + 3_600_000})
+    `)
+
+    const res = await app.request('/api/site/stats/growth?from=2026-01-01&to=2026-01-01', { headers })
+    const body = (await res.json()) as {
+      summary: { newUsers: { value: number } }
+      userScaleTrend: Array<{ newUsers: number; totalUsers: number }>
+      registrationSources: Array<{ name: string; value: number; percent: number }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.summary.newUsers.value).toBe(2)
+    expect(body.userScaleTrend).toEqual([{ date: '2026-01-01', newUsers: 2, totalUsers: 2 }])
+    expect(body.registrationSources).toEqual(
+      expect.arrayContaining([
+        { name: 'credential', value: 1, percent: 50 },
+        { name: 'github', value: 1, percent: 50 },
+      ]),
+    )
+  })
+
+  it('groups storage file types beyond the top eight into other', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const { orgId } = await seedStatsFixture(db)
+    const nowSec = Math.floor(Date.now() / 1000)
+    for (let index = 0; index < 9; index += 1) {
+      await db.run(sql`
+        INSERT INTO matters
+          (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+        VALUES (${`file-type-${index}`}, ${orgId}, ${`file-type-alias-${index}`}, ${`file-${index}`},
+          ${`custom/type-${index}`}, ${index + 1}, 0, '', ${`file-${index}`}, 'stats-storage', 'active', ${nowSec}, ${nowSec})
+      `)
+    }
+
+    const res = await app.request('/api/site/stats/storage', { headers })
+    const body = (await res.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
+
+    expect(res.status).toBe(200)
+    expect(body.typeBreakdown).toHaveLength(9)
+    expect(body.typeBreakdown.at(-1)).toMatchObject({ type: 'other', files: 2 })
+  })
+
   it('excludes orphan actors and uses immutable session creation time for historical active users', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
