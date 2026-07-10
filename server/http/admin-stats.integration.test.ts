@@ -1,7 +1,7 @@
 import type { AdminDashboardOverviewStats } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { createAdminStatsRepo } from '../adapters/repos/admin-stats'
+import { createAdminStatsRepo, metricSpec } from '../adapters/repos/admin-stats'
 import { currentTrafficPeriod } from '../domain/quota'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
@@ -21,9 +21,15 @@ describe('site stats routes', () => {
 
     const coreRes = await app.request('/api/site/stats/core', { headers })
     const detailsRes = await app.request('/api/site/stats/details', { headers })
+    const rankingRes = await app.request('/api/site/stats/ranking', { headers })
 
     expect(coreRes.status).toBe(404)
     expect(detailsRes.status).toBe(404)
+    expect(rankingRes.status).toBe(404)
+  })
+
+  it('rejects unsupported hourly activity metric definitions', () => {
+    expect(() => metricSpec(['unknown_action'])).toThrow('Unsupported hourly activity metric: unknown_action')
   })
 
   it('gates advanced dashboard stats behind the analytics feature', async () => {
@@ -76,6 +82,52 @@ describe('site stats routes', () => {
     expect(body.trends.map((point) => point.date)).toEqual(['2026-07-01'])
   })
 
+  it('interprets date-only ranges in the requested time zone', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    const res = await app.request('/api/site/stats/overview?from=2026-07-01&to=2026-07-01&timeZone=America%2FToronto', {
+      headers,
+    })
+    const body = (await res.json()) as { from: string; to: string; trends: Array<{ date: string }> }
+
+    expect(res.status).toBe(200)
+    expect(body.from).toBe('2026-07-01T04:00:00.000Z')
+    expect(body.to).toBe('2026-07-02T03:59:59.999Z')
+    expect(body.trends.map((point) => point.date)).toEqual(['2026-07-01'])
+  })
+
+  it('supports non-whole-hour time zones and daylight-saving day lengths', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    const kathmandu = await app.request(
+      '/api/site/stats/overview?from=2026-07-01&to=2026-07-01&timeZone=Asia%2FKathmandu',
+      { headers },
+    )
+    const spring = await app.request(
+      '/api/site/stats/overview?from=2026-03-08&to=2026-03-08&timeZone=America%2FToronto',
+      { headers },
+    )
+    const fall = await app.request(
+      '/api/site/stats/overview?from=2026-11-01&to=2026-11-01&timeZone=America%2FToronto',
+      { headers },
+    )
+
+    expect(await kathmandu.json()).toMatchObject({
+      from: '2026-06-30T18:15:00.000Z',
+      to: '2026-07-01T18:14:59.999Z',
+    })
+    expect(await spring.json()).toMatchObject({
+      from: '2026-03-08T05:00:00.000Z',
+      to: '2026-03-09T03:59:59.999Z',
+    })
+    expect(await fall.json()).toMatchObject({
+      from: '2026-11-01T04:00:00.000Z',
+      to: '2026-11-02T04:59:59.999Z',
+    })
+  })
+
   it('rejects dashboard ranges longer than one year', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
@@ -113,19 +165,19 @@ describe('site stats routes', () => {
     expect(Object.keys(body.paths).some((path) => path.startsWith('/api/site/stats'))).toBe(false)
   })
 
-  it('reads storage waterline trends from daily rollups when present', async () => {
+  it('reads storage waterline trends from hourly rollups when present', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
     await seedStatsFixture(db)
 
     await db.run(sql`
-      INSERT INTO stats_rollups_daily (
+      INSERT INTO stats_rollups_hourly (
         id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
         count, bytes, unique_count, metadata, updated_at
       )
       VALUES (
-        'storage-used-2026-01-01', ${Date.UTC(2026, 0, 1)}, '', 'storage.used.bytes', '', '',
+        'storage-used-2026-01-01', ${Date.UTC(2026, 0, 1)}, 'org-1', 'storage.used', '', '',
         0, 4096, 0, NULL, ${Date.UTC(2026, 0, 2)}
       )
     `)
@@ -139,8 +191,106 @@ describe('site stats routes', () => {
     expect(body.storageTrend).toEqual([{ date: '2026-01-01', usedBytes: 4096, newBytes: 0, newFiles: 0 }])
   })
 
-  it('upserts one exact storage rollup per UTC day', async () => {
-    const { db } = await createTestApp()
+  it('uses completed hourly event rollups and falls back to raw events when the marker is missing', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const [{ id: orgId }] = await db.all<{ id: string }>(sql`SELECT id FROM organization LIMIT 1`)
+    const at = Date.UTC(2026, 6, 1, 10)
+    await db.run(sql`
+      INSERT INTO activity_events (
+        id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at
+      ) VALUES (
+        'hourly-reader-raw', ${orgId}, NULL, 'system', 'upload_confirm', 'file', 'old-file', 'old.bin',
+        '{"bytes":111,"source":"upload"}', ${Math.floor(at / 1000) + 60}
+      )
+    `)
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly (
+        id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+        count, bytes, unique_count, metadata, updated_at
+      ) VALUES
+        ('hourly-reader-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
+        ('hourly-reader-upload', ${at}, ${orgId}, 'transfer.upload', 'status', 'success', 1, 999, 0,
+          '{"version":1,"quality":"exact"}', ${at + 3_600_000})
+    `)
+
+    const query =
+      '/api/site/stats/traffic?from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T10%3A59%3A59.999Z&timeZone=UTC'
+    const rollupRes = await app.request(query, { headers })
+    const rollupBody = (await rollupRes.json()) as { summary: { totalBytes: { value: number } } }
+
+    await db.run(sql`DELETE FROM stats_rollups_hourly WHERE id = 'hourly-reader-marker'`)
+    const fallbackRes = await app.request(query, { headers })
+    const fallbackBody = (await fallbackRes.json()) as { summary: { totalBytes: { value: number } } }
+
+    expect(rollupRes.status).toBe(200)
+    expect(rollupBody.summary.totalBytes.value).toBe(999)
+    expect(fallbackRes.status).toBe(200)
+    expect(fallbackBody.summary.totalBytes.value).toBe(111)
+  })
+
+  it('hydrates completed-hour dashboard dimensions from rollups', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const [{ id: orgId }] = await db.all<{ id: string }>(sql`SELECT id FROM organization LIMIT 1`)
+    const at = Date.UTC(2026, 6, 1, 10)
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('dimensions-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-share-total', ${at}, ${orgId}, 'share.created', '', '', 1, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-share-kind', ${at}, ${orgId}, 'share.created', 'kind', 'landing', 1, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-job-total', ${at}, ${orgId}, 'background_job.finished', '', '', 1, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-job-outcome', ${at}, ${orgId}, 'background_job.finished', 'outcome', 'failed', 1, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-download-total', ${at}, ${orgId}, 'transfer.download_issued', '', '', 1, 10, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-download-source', ${at}, ${orgId}, 'transfer.download_issued', 'source', 'object_download', 1, 10, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-failure-total', ${at}, ${orgId}, 'transfer.download_failed', '', '', 1, 4, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-failure-reason', ${at}, ${orgId}, 'transfer.download_failed', 'reason', 'network', 1, 4, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-quality-total', ${at}, ${orgId}, 'stats.quality_missing_bytes', '', '', 5, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-quality-upload', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'upload', 2, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-quality-download', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'download', 3, 0, 0, '{"quality":"exact"}', ${at})
+    `)
+    const query = 'from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T10%3A59%3A59.999Z&timeZone=UTC'
+
+    const [overviewRes, operationsRes, sharingRes, trafficRes] = await Promise.all([
+      app.request(`/api/site/stats/overview?${query}`, { headers }),
+      app.request(`/api/site/stats/operations?${query}`, { headers }),
+      app.request(`/api/site/stats/sharing?${query}`, { headers }),
+      app.request(`/api/site/stats/traffic?${query}`, { headers }),
+    ])
+    const overview = (await overviewRes.json()) as { dataQuality: AdminDashboardOverviewStats['dataQuality'] }
+    const operations = (await operationsRes.json()) as { backgroundJobOutcomes: Array<{ name: string; value: number }> }
+    const sharing = (await sharingRes.json()) as {
+      summary: { createdShares: { value: number } }
+      typeBreakdown: Array<{ name: string; value: number }>
+    }
+    const traffic = (await trafficRes.json()) as {
+      sourceBreakdown: Array<{ name: string; requests: number; bytes: number }>
+      failureReasons: Array<{ name: string; value: number }>
+    }
+
+    expect([overviewRes.status, operationsRes.status, sharingRes.status, trafficRes.status]).toEqual([
+      200, 200, 200, 200,
+    ])
+    expect(overview.dataQuality).toMatchObject({ missingUploadBytesEvents: 2, missingDownloadBytesEvents: 3 })
+    expect(operations.backgroundJobOutcomes).toContainEqual(expect.objectContaining({ name: 'failed', value: 1 }))
+    expect(sharing.summary.createdShares.value).toBe(1)
+    expect(sharing.typeBreakdown).toContainEqual(expect.objectContaining({ name: 'landing', value: 1 }))
+    expect(traffic.sourceBreakdown).toContainEqual(
+      expect.objectContaining({ name: 'object_download', requests: 1, bytes: 10 }),
+    )
+    expect(traffic.failureReasons).toContainEqual(expect.objectContaining({ name: 'network', value: 1 }))
+  })
+
+  it('refreshes exact hourly storage snapshots', async () => {
+    const { app, db } = await createTestApp()
+    await adminHeaders(app)
+    await seedStatsFixture(db)
     const [{ expected }] = await db.all<{ expected: number }>(
       sql`SELECT COALESCE(SUM(used), 0) AS expected FROM org_quotas`,
     )
@@ -148,17 +298,22 @@ describe('site stats routes', () => {
     const firstNow = new Date('2026-07-10T04:05:00.000Z')
     const secondNow = new Date('2026-07-10T18:05:00.000Z')
 
-    await repo.writeStorageUsedRollup(firstNow)
-    await repo.writeStorageUsedRollup(secondNow)
+    await repo.refreshHourlyRollups(firstNow)
+    await repo.refreshHourlyRollups(secondNow)
     const rows = await db.all<{ bucketStart: number; bytes: number; metadata: string }>(sql`
       SELECT bucket_start AS bucketStart, bytes, metadata
-      FROM stats_rollups_daily
-      WHERE metric_key = 'storage.used.bytes'
+      FROM stats_rollups_hourly
+      WHERE metric_key = 'storage.used' AND dimension_key = ''
+      ORDER BY bucket_start, org_id
     `)
 
-    expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ bucketStart: Date.UTC(2026, 6, 10), bytes: expected })
-    expect(JSON.parse(rows[0].metadata)).toEqual({ source: 'org_quotas.used', quality: 'exact_snapshot' })
+    expect(rows.map((row) => Number(row.bucketStart))).toContain(Date.UTC(2026, 6, 10, 18))
+    expect(
+      rows
+        .filter((row) => Number(row.bucketStart) === Date.UTC(2026, 6, 10, 18))
+        .reduce((sum, row) => sum + row.bytes, 0),
+    ).toBe(expected)
+    expect(JSON.parse(rows.at(-1)?.metadata ?? '{}')).toMatchObject({ version: 1, quality: 'exact' })
   })
 
   it('does not write rollups while serving storage stats fallback data', async () => {
@@ -167,15 +322,109 @@ describe('site stats routes', () => {
     await seedProLicense(db)
     await seedStatsFixture(db)
 
-    const before = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM stats_rollups_daily`)
+    const before = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM stats_rollups_hourly`)
     const res = await app.request('/api/site/stats/storage?from=2000-01-01&to=2000-01-02', { headers })
-    const after = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM stats_rollups_daily`)
+    const after = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM stats_rollups_hourly`)
     const body = (await res.json()) as { storageTrend: Array<{ usedBytes: number | null }> }
 
     expect(res.status).toBe(200)
     expect(before[0].count).toBe(0)
     expect(after[0].count).toBe(0)
     expect(body.storageTrend.every((point) => point.usedBytes === null)).toBe(true)
+  })
+
+  it('returns growth lifecycle metrics from the hourly-aware repository', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedStatsFixture(db)
+
+    const res = await app.request('/api/site/stats/growth', { headers })
+    const body = (await res.json()) as {
+      summary: {
+        totalUsers: number
+        newUsers: { value: number }
+        activeUsers: { value: number }
+        verifiedUsers: number
+        bannedUsers: number
+        silentUsers: number
+      }
+      userScaleTrend: Array<{ date: string; newUsers: number; totalUsers: number }>
+      activeUserTrend: Array<{ date: string; dau: number; wau: number; mau: number }>
+      userStatus: Array<{ name: string; value: number; percent: number }>
+      registrationSources: Array<{ name: string; value: number; percent: number }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.summary.totalUsers).toBeGreaterThanOrEqual(1)
+    expect(body.summary.newUsers.value).toBeGreaterThanOrEqual(1)
+    expect(body.summary.activeUsers.value).toBeGreaterThanOrEqual(1)
+    expect(body.summary.verifiedUsers + body.summary.bannedUsers + body.summary.silentUsers).toBeGreaterThanOrEqual(0)
+    expect(body.userScaleTrend.length).toBeGreaterThan(0)
+    expect(body.activeUserTrend.length).toBeGreaterThan(0)
+    expect(body.userStatus.map((row) => row.name)).toEqual(['normal', 'unverified', 'banned', 'silent'])
+    expect(body.registrationSources.length).toBeGreaterThan(0)
+  })
+
+  it('reads historical signup totals, trends, and providers from completed hourly rollups', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const at = Date.UTC(2026, 0, 1, 10)
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('growth-rollup-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
+        ('growth-rollup-total', ${at}, '', 'user.signup', '', '', 2, 0, 0,
+          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
+        ('growth-rollup-credential', ${at}, '', 'user.signup', 'provider', 'credential', 1, 0, 0,
+          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
+        ('growth-rollup-github', ${at}, '', 'user.signup', 'provider', 'github', 1, 0, 0,
+          '{"version":1,"quality":"exact"}', ${at + 3_600_000})
+    `)
+
+    const res = await app.request('/api/site/stats/growth?from=2026-01-01&to=2026-01-01', { headers })
+    const body = (await res.json()) as {
+      summary: { newUsers: { value: number } }
+      userScaleTrend: Array<{ newUsers: number; totalUsers: number }>
+      registrationSources: Array<{ name: string; value: number; percent: number }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.summary.newUsers.value).toBe(2)
+    expect(body.userScaleTrend).toEqual([{ date: '2026-01-01', newUsers: 2, totalUsers: 2 }])
+    expect(body.registrationSources).toEqual(
+      expect.arrayContaining([
+        { name: 'credential', value: 1, percent: 50 },
+        { name: 'github', value: 1, percent: 50 },
+      ]),
+    )
+  })
+
+  it('groups storage file types beyond the top eight into other', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const { orgId } = await seedStatsFixture(db)
+    const nowSec = Math.floor(Date.now() / 1000)
+    for (let index = 0; index < 9; index += 1) {
+      await db.run(sql`
+        INSERT INTO matters
+          (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+        VALUES (${`file-type-${index}`}, ${orgId}, ${`file-type-alias-${index}`}, ${`file-${index}`},
+          ${`custom/type-${index}`}, ${index + 1}, 0, '', ${`file-${index}`}, 'stats-storage', 'active', ${nowSec}, ${nowSec})
+      `)
+    }
+
+    const res = await app.request('/api/site/stats/storage', { headers })
+    const body = (await res.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
+
+    expect(res.status).toBe(200)
+    expect(body.typeBreakdown).toHaveLength(9)
+    expect(body.typeBreakdown.at(-1)).toMatchObject({ type: 'other', files: 2 })
   })
 
   it('excludes orphan actors and uses immutable session creation time for historical active users', async () => {
@@ -207,7 +456,7 @@ describe('site stats routes', () => {
     await db.run(sql`
       INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_name, metadata, created_at)
       VALUES ('upload-cancel-rate', ${orgId}, ${userId}, 'user', 'upload_cancel', 'file', 'cancel.bin',
-        '{"source":"upload","status":"canceled"}', ${nowSec})
+        '{', ${nowSec})
     `)
 
     const current = await app.request('/api/site/stats/traffic', { headers })
@@ -308,7 +557,49 @@ describe('site stats routes', () => {
     expect(body.failureReasons).toEqual([])
   })
 
-  it('applies dashboard ranges to sharing and ranking drill-down data', async () => {
+  it('separates operational health from transfer analytics', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const { orgId } = await seedStatsFixture(db)
+    const now = Date.now()
+    await db.run(sql`UPDATE download_tasks SET finished_at = updated_at WHERE id IN ('task-1', 'task-2')`)
+    await db.run(sql`
+      INSERT INTO cloud_traffic_reports
+        (id, org_id, period, source, source_id, event_id, bytes, status, created_at, updated_at)
+      VALUES ('operations-cloud-report', ${orgId}, '2026-07', 'object_download', 'stats-file',
+        'operations-cloud-report', 64, 'pending', ${now}, ${now})
+    `)
+
+    const res = await app.request('/api/site/stats/operations', { headers })
+    const body = (await res.json()) as {
+      summary: {
+        onlineDownloaders: number
+        backgroundJobFailureRate: number | null
+        remoteDownloadSuccessRate: number | null
+      }
+      backgroundJobOutcomes: Array<{ name: string; value: number }>
+      remoteDownloadOutcomes: Array<{ name: string; value: number }>
+      cloudReportStatus: Array<{ name: string; value: number }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.summary.onlineDownloaders).toBe(1)
+    expect(body.summary.backgroundJobFailureRate).toBe(100)
+    expect(body.summary.remoteDownloadSuccessRate).toBe(50)
+    expect(body.backgroundJobOutcomes).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'failed', value: 1 })]),
+    )
+    expect(body.remoteDownloadOutcomes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'completed', value: 1 }),
+        expect.objectContaining({ name: 'failed', value: 1 }),
+      ]),
+    )
+    expect(body.cloudReportStatus).toContainEqual(expect.objectContaining({ name: 'pending', value: 1 }))
+  })
+
+  it('applies dashboard ranges to sharing drill-down data', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -330,19 +621,6 @@ describe('site stats routes', () => {
       summary: { views: { value: number }; downloads: { value: number } }
       topShares: unknown[]
     }
-    const currentRankingRes = await app.request('/api/site/stats/ranking', { headers })
-    const currentRanking = (await currentRankingRes.json()) as {
-      topSpaces: unknown[]
-      storageByType: unknown[]
-      topShares: unknown[]
-    }
-    const oldRankingRes = await app.request('/api/site/stats/ranking?from=2000-01-01&to=2000-01-02', { headers })
-    const oldRanking = (await oldRankingRes.json()) as {
-      topSpaces: unknown[]
-      storageByType: unknown[]
-      topShares: unknown[]
-    }
-
     expect(currentSharingRes.status).toBe(200)
     expect(currentSharing.summary.views.value).toBe(1)
     expect(currentSharing.summary.downloads.value).toBe(1)
@@ -356,12 +634,6 @@ describe('site stats routes', () => {
     expect(oldSharing.summary.views.value).toBe(0)
     expect(oldSharing.summary.downloads.value).toBe(0)
     expect(oldSharing.topShares).toEqual([])
-    expect(currentRanking.topSpaces.length).toBeGreaterThan(0)
-    expect(currentRanking.storageByType.length).toBeGreaterThan(0)
-    expect(currentRanking.topShares.length).toBeGreaterThan(0)
-    expect(oldRanking.topSpaces).toEqual([])
-    expect(oldRanking.storageByType).toEqual([])
-    expect(oldRanking.topShares).toEqual([])
   })
 
   it('orders top share rankings by views before downloads', async () => {
@@ -384,7 +656,7 @@ describe('site stats routes', () => {
         ('activity-download-heavy-3', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec})
     `)
 
-    const res = await app.request('/api/site/stats/ranking', { headers })
+    const res = await app.request('/api/site/stats/sharing', { headers })
     const body = (await res.json()) as { topShares: Array<{ token: string; views: number; downloads: number }> }
 
     expect(res.status).toBe(200)
@@ -411,7 +683,7 @@ describe('site stats routes', () => {
       `)
     }
 
-    const res = await app.request('/api/site/stats/ranking', { headers })
+    const res = await app.request('/api/site/stats/sharing', { headers })
     const body = (await res.json()) as { topShares: Array<{ viewPercent: number }> }
 
     expect(res.status).toBe(200)

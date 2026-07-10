@@ -211,14 +211,13 @@ export interface PaginatedResponse<T> {
 
 export type {
   AdminDashboardGrowthStats,
+  AdminDashboardOperationsStats,
   AdminDashboardOverviewStats,
-  AdminDashboardRankingStats,
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
   AdminStatsDelta,
   AdminStatsRange,
-  AdminStorageByType,
   AdminTopShare,
   AdminTransferDataQuality,
   AdminUsageBySpace,

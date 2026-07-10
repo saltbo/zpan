@@ -1,13 +1,14 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { addCalendarDays, localDateStart } from '../domain/admin-stats-time'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
 import {
   getAdminDashboardGrowthStats,
+  getAdminDashboardOperationsStats,
   getAdminDashboardOverviewStats,
-  getAdminDashboardRankingStats,
   getAdminDashboardSharingStats,
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
@@ -24,10 +25,11 @@ const rangeQuerySchema = z.object({
 })
 
 function parseRange(query: z.infer<typeof rangeQuerySchema>): { from?: Date; to?: Date; timeZone?: string } {
+  const timeZone = query.timeZone ?? 'UTC'
   return {
-    from: query.from ? parseDashboardDate(query.from, 'start') : undefined,
-    to: query.to ? parseDashboardDate(query.to, 'end') : undefined,
-    timeZone: query.timeZone,
+    from: query.from ? parseDashboardDate(query.from, 'start', timeZone) : undefined,
+    to: query.to ? parseDashboardDate(query.to, 'end', timeZone) : undefined,
+    timeZone,
   }
 }
 
@@ -46,9 +48,10 @@ function isValidDashboardDate(value: string): boolean {
   return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
 }
 
-function parseDashboardDate(value: string, boundary: 'start' | 'end'): Date {
+function parseDashboardDate(value: string, boundary: 'start' | 'end', timeZone: string): Date {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return new Date(`${value}T${boundary === 'start' ? '00:00:00.000' : '23:59:59.999'}Z`)
+    if (boundary === 'start') return localDateStart(value, timeZone)
+    return new Date(localDateStart(addCalendarDays(value, 1), timeZone).getTime() - 1)
   }
   return new Date(value)
 }
@@ -56,6 +59,9 @@ function parseDashboardDate(value: string, boundary: 'start' | 'end'): Date {
 export const adminStats = new Hono<Env>()
   .get('/overview', requireAdmin, zValidator('query', rangeQuerySchema), async (c) =>
     c.json(await getAdminDashboardOverviewStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
+  )
+  .get('/operations', requireAdmin, requireFeature('analytics'), zValidator('query', rangeQuerySchema), async (c) =>
+    c.json(await getAdminDashboardOperationsStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
   )
   .get('/growth', requireAdmin, requireFeature('analytics'), zValidator('query', rangeQuerySchema), async (c) =>
     c.json(await getAdminDashboardGrowthStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
@@ -68,7 +74,4 @@ export const adminStats = new Hono<Env>()
   )
   .get('/sharing', requireAdmin, requireFeature('analytics'), zValidator('query', rangeQuerySchema), async (c) =>
     c.json(await getAdminDashboardSharingStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
-  )
-  .get('/ranking', requireAdmin, requireFeature('analytics'), zValidator('query', rangeQuerySchema), async (c) =>
-    c.json(await getAdminDashboardRankingStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
   )

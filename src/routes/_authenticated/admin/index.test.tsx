@@ -1,13 +1,14 @@
-import type { AdminDashboardOverviewStats } from '@shared/types'
+import type { AdminDashboardOperationsStats, AdminDashboardOverviewStats } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import {
   getAdminDashboardGrowthStats,
+  getAdminDashboardOperationsStats,
   getAdminDashboardOverviewStats,
-  getAdminDashboardRankingStats,
   getAdminDashboardSharingStats,
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
@@ -33,11 +34,11 @@ vi.mock('@/hooks/useEntitlement', () => ({
 
 vi.mock('@/lib/api', () => ({
   getAdminDashboardOverviewStats: vi.fn(),
+  getAdminDashboardOperationsStats: vi.fn(),
   getAdminDashboardGrowthStats: vi.fn(),
   getAdminDashboardStorageStats: vi.fn(),
   getAdminDashboardTrafficStats: vi.fn(),
   getAdminDashboardSharingStats: vi.fn(),
-  getAdminDashboardRankingStats: vi.fn(),
 }))
 
 const overviewStats: AdminDashboardOverviewStats = {
@@ -73,6 +74,27 @@ const overviewStats: AdminDashboardOverviewStats = {
       downloadBytes: 384,
     },
   ],
+}
+
+const operationsStats: AdminDashboardOperationsStats = {
+  generatedAt: '2026-07-09T00:00:00.000Z',
+  from: '2026-07-01T00:00:00.000Z',
+  to: '2026-07-09T00:00:00.000Z',
+  summary: {
+    activeBackgroundJobs: 2,
+    activeRemoteDownloads: 3,
+    onlineDownloaders: 4,
+    offlineDownloaders: 1,
+    backgroundJobFailureRate: 5,
+    remoteDownloadSuccessRate: 95,
+    cloudReportBacklog: 6,
+    webhookFailures: 7,
+  },
+  trend: [],
+  backgroundJobOutcomes: [],
+  remoteDownloadOutcomes: [],
+  downloaderStatus: [],
+  cloudReportStatus: [],
 }
 
 function renderOverviewPage() {
@@ -117,7 +139,7 @@ describe('Admin overview dashboard', () => {
     expect(getAdminDashboardStorageStats).not.toHaveBeenCalled()
     expect(getAdminDashboardTrafficStats).not.toHaveBeenCalled()
     expect(getAdminDashboardSharingStats).not.toHaveBeenCalled()
-    expect(getAdminDashboardRankingStats).not.toHaveBeenCalled()
+    expect(getAdminDashboardOperationsStats).not.toHaveBeenCalled()
   })
 
   it('warns when historical transfer bytes are incomplete', async () => {
@@ -140,5 +162,29 @@ describe('Admin overview dashboard', () => {
 
     expect(await screen.findByText('历史数据不完整')).toBeTruthy()
     expect(screen.getByText(/当前区间有 3条/)).toBeTruthy()
+  })
+
+  it('loads the operations dashboard only when an entitled admin expands it', async () => {
+    const user = userEvent.setup()
+    vi.mocked(useEntitlement).mockReturnValue({
+      bound: true,
+      active: true,
+      edition: 'pro',
+      licenseId: 'license-1',
+      cloudDashboardUrl: null,
+      hasFeature: (feature) => feature === 'analytics',
+      isLoading: false,
+      isError: false,
+    })
+    vi.mocked(getAdminDashboardOverviewStats).mockResolvedValue(overviewStats)
+    vi.mocked(getAdminDashboardOperationsStats).mockResolvedValue(operationsStats)
+
+    renderOverviewPage()
+    expect(getAdminDashboardOperationsStats).not.toHaveBeenCalled()
+
+    await user.click(screen.getByText('运行状态'))
+
+    expect(await screen.findByText('后台任务')).toBeTruthy()
+    expect(getAdminDashboardOperationsStats).toHaveBeenCalledTimes(1)
   })
 })

@@ -40,8 +40,8 @@ import {
   enableIhostFeature,
   generateInviteCodes,
   getAdminDashboardGrowthStats,
+  getAdminDashboardOperationsStats,
   getAdminDashboardOverviewStats,
-  getAdminDashboardRankingStats,
   getAdminDashboardSharingStats,
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
@@ -3828,11 +3828,15 @@ describe('api', () => {
     }
     const dashboardEndpoints = [
       { name: 'getAdminDashboardOverviewStats', path: '/api/site/stats/overview', fn: getAdminDashboardOverviewStats },
+      {
+        name: 'getAdminDashboardOperationsStats',
+        path: '/api/site/stats/operations',
+        fn: getAdminDashboardOperationsStats,
+      },
       { name: 'getAdminDashboardGrowthStats', path: '/api/site/stats/growth', fn: getAdminDashboardGrowthStats },
       { name: 'getAdminDashboardStorageStats', path: '/api/site/stats/storage', fn: getAdminDashboardStorageStats },
       { name: 'getAdminDashboardTrafficStats', path: '/api/site/stats/traffic', fn: getAdminDashboardTrafficStats },
       { name: 'getAdminDashboardSharingStats', path: '/api/site/stats/sharing', fn: getAdminDashboardSharingStats },
-      { name: 'getAdminDashboardRankingStats', path: '/api/site/stats/ranking', fn: getAdminDashboardRankingStats },
     ] as const
 
     for (const endpoint of dashboardEndpoints) {

@@ -379,6 +379,13 @@
       "when": 1783647878596,
       "tag": "0054_lively_nuke",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "6",
+      "when": 1783697537563,
+      "tag": "0055_hourly-admin-stats",
+      "breakpoints": true
     }
   ]
 }

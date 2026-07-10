@@ -2,22 +2,26 @@ import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { organization } from './auth-schema'
 
-export const matters = sqliteTable('matters', {
-  id: text('id').primaryKey(),
-  orgId: text('org_id').notNull(),
-  alias: text('alias').notNull().unique(),
-  name: text('name').notNull(),
-  type: text('type').notNull(),
-  size: integer('size').default(0),
-  dirtype: integer('dirtype').default(0),
-  parent: text('parent').notNull().default(''),
-  object: text('object').notNull().default(''),
-  storageId: text('storage_id').notNull(),
-  status: text('status').notNull().default('draft'), // draft, active
-  trashedAt: integer('trashed_at'), // null = live, epoch ms = in trash (soft delete)
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-})
+export const matters = sqliteTable(
+  'matters',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    alias: text('alias').notNull().unique(),
+    name: text('name').notNull(),
+    type: text('type').notNull(),
+    size: integer('size').default(0),
+    dirtype: integer('dirtype').default(0),
+    parent: text('parent').notNull().default(''),
+    object: text('object').notNull().default(''),
+    storageId: text('storage_id').notNull(),
+    status: text('status').notNull().default('draft'), // draft, active
+    trashedAt: integer('trashed_at'), // null = live, epoch ms = in trash (soft delete)
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [index('matters_status_dir_created_idx').on(t.status, t.dirtype, t.createdAt)],
+)
 
 export const webdavDeadProperties = sqliteTable(
   'webdav_dead_properties',
@@ -108,6 +112,7 @@ export const cloudTrafficReports = sqliteTable(
     uniqueIndex('cloud_traffic_reports_event_uniq').on(t.eventId),
     index('cloud_traffic_reports_org_period_idx').on(t.orgId, t.period),
     index('cloud_traffic_reports_status_idx').on(t.status),
+    index('cloud_traffic_reports_updated_idx').on(t.updatedAt),
   ],
 )
 
@@ -156,6 +161,7 @@ export const webhookEvents = sqliteTable(
     uniqueIndex('webhook_events_source_event_uniq').on(t.source, t.eventId),
     index('webhook_events_source_created_idx').on(t.source, t.createdAt),
     index('webhook_events_status_idx').on(t.status),
+    index('webhook_events_processed_idx').on(t.processedAt),
   ],
 )
 
@@ -284,6 +290,7 @@ export const backgroundJobs = sqliteTable(
     index('background_jobs_org_created_idx').on(t.orgId, t.createdAt),
     index('background_jobs_org_status_idx').on(t.orgId, t.status),
     index('background_jobs_org_type_idx').on(t.orgId, t.type),
+    index('background_jobs_created_idx').on(t.createdAt),
   ],
 )
 
@@ -368,6 +375,8 @@ export const downloadTasks = sqliteTable(
     index('download_tasks_org_category_idx').on(t.orgId, t.category),
     index('download_tasks_org_tags_idx').on(t.orgId, t.tags),
     index('download_tasks_downloader_idx').on(t.assignedDownloaderId, t.status),
+    index('download_tasks_created_idx').on(t.createdAt),
+    index('download_tasks_finished_idx').on(t.finishedAt),
   ],
 )
 
@@ -414,6 +423,7 @@ export const remoteDownloadUsageReports = sqliteTable(
     uniqueIndex('remote_download_usage_task_unit_uniq').on(t.taskId, t.unitIndex),
     index('remote_download_usage_org_idx').on(t.orgId),
     index('remote_download_usage_status_idx').on(t.status),
+    index('remote_download_usage_created_idx').on(t.createdAt),
   ],
 )
 
@@ -457,11 +467,12 @@ export const activityEvents = sqliteTable(
     index('activity_events_user_created_idx').on(t.userId, t.createdAt),
     index('activity_events_action_created_idx').on(t.action, t.createdAt),
     index('activity_events_target_created_idx').on(t.targetType, t.targetId, t.createdAt),
+    index('activity_events_created_idx').on(t.createdAt),
   ],
 )
 
-export const statsRollupsDaily = sqliteTable(
-  'stats_rollups_daily',
+export const statsRollupsHourly = sqliteTable(
+  'stats_rollups_hourly',
   {
     id: text('id').primaryKey(),
     bucketStart: integer('bucket_start', { mode: 'timestamp_ms' }).notNull(),
@@ -476,14 +487,15 @@ export const statsRollupsDaily = sqliteTable(
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
-    uniqueIndex('stats_rollups_daily_bucket_metric_dim_uniq').on(
+    uniqueIndex('stats_rollups_hourly_bucket_metric_dim_uniq').on(
       t.bucketStart,
       t.orgId,
       t.metricKey,
       t.dimensionKey,
       t.dimensionValue,
     ),
-    index('stats_rollups_daily_metric_bucket_idx').on(t.metricKey, t.bucketStart),
+    index('stats_rollups_hourly_metric_bucket_idx').on(t.metricKey, t.bucketStart),
+    index('stats_rollups_hourly_dimension_bucket_idx').on(t.metricKey, t.dimensionKey, t.bucketStart),
   ],
 )
 
@@ -504,7 +516,10 @@ export const shares = sqliteTable(
     status: text('status').notNull().default('active'), // 'active' | 'revoked'
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   },
-  (t) => [index('shares_creator_status_created_idx').on(t.creatorId, t.status, t.createdAt)],
+  (t) => [
+    index('shares_creator_status_created_idx').on(t.creatorId, t.status, t.createdAt),
+    index('shares_created_idx').on(t.createdAt),
+  ],
 )
 
 export const shareRecipients = sqliteTable(
