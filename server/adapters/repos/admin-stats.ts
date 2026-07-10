@@ -24,6 +24,7 @@ import {
   orgQuotas,
   shares,
   siteInvitations,
+  statsRollupsDaily,
   storages,
   webhookEvents,
 } from '../../db/schema'
@@ -38,6 +39,10 @@ import type {
 const RUNNING_DOWNLOAD_STATUSES = ['queued', 'assigned', 'running', 'downloading', 'ingesting']
 const DOWNLOAD_ACTIVITY_ACTIONS = ['share_download', 'object_download']
 const AUDITED_DOWNLOAD_SOURCES = new Set(['landing_share', 'object_download'])
+const STORAGE_USED_ROLLUP_METRIC = 'storage.used.bytes'
+const GLOBAL_ROLLUP_ORG_ID = ''
+const GLOBAL_ROLLUP_DIMENSION_KEY = ''
+const GLOBAL_ROLLUP_DIMENSION_VALUE = ''
 
 export function createAdminStatsRepo(db: Database): AdminStatsRepo {
   return {
@@ -547,7 +552,7 @@ async function getDashboardOverviewStats(
   const [trendNewUsers, activeByDay, storageUsedByDay, uploadByDay, downloadByDay] = await Promise.all([
     getNewUsersByDay(db, range),
     getActiveUsersByDay(db, range),
-    getStorageUsedByDay(db, range),
+    getStorageUsedByDay(db, range, now),
     getActivityBytesByDay(db, range, ['upload_confirm']),
     getDownloadBytesByDay(db, range),
   ])
@@ -651,7 +656,7 @@ async function getDashboardStorageStats(
       .select({ id: matters.id, type: matters.type, size: matters.size, createdAt: matters.createdAt })
       .from(matters)
       .where(and(eq(matters.status, 'active'), eq(matters.dirtype, 0))),
-    getStorageUsedByDay(db, range),
+    getStorageUsedByDay(db, range, now),
     getStorageByType(db, range),
   ])
   const fileItems = files.map((row) => ({ bytes: row.size ?? 0, createdAt: row.createdAt }))
@@ -1083,18 +1088,94 @@ async function getActivityMetadataRows(db: Database, range: AdminStatsDateRange,
     )
 }
 
-async function getStorageUsedByDay(db: Database, range: AdminStatsDateRange): Promise<Map<string, number>> {
+async function getStorageUsedByDay(db: Database, range: AdminStatsDateRange, now: Date): Promise<Map<string, number>> {
+  const buckets = createDateBuckets(range)
+  if (buckets.length === 0) return new Map()
+
+  const firstBucketStart = dateKeyStart(buckets[0])
+  const lastBucketStart = dateKeyStart(buckets[buckets.length - 1])
+  const rows = await db
+    .select({
+      bucketStart: statsRollupsDaily.bucketStart,
+      bytes: statsRollupsDaily.bytes,
+    })
+    .from(statsRollupsDaily)
+    .where(
+      and(
+        eq(statsRollupsDaily.metricKey, STORAGE_USED_ROLLUP_METRIC),
+        eq(statsRollupsDaily.orgId, GLOBAL_ROLLUP_ORG_ID),
+        eq(statsRollupsDaily.dimensionKey, GLOBAL_ROLLUP_DIMENSION_KEY),
+        eq(statsRollupsDaily.dimensionValue, GLOBAL_ROLLUP_DIMENSION_VALUE),
+        gte(statsRollupsDaily.bucketStart, firstBucketStart),
+        lte(statsRollupsDaily.bucketStart, lastBucketStart),
+      ),
+    )
+
+  const byDay = new Map(rows.map((row) => [dayKey(row.bucketStart), toNumber(row.bytes)]))
+  const today = dayKey(now)
+  const missingOrMutableBuckets = buckets.filter((date) => !byDay.has(date) || date === today)
+  if (missingOrMutableBuckets.length === 0) return byDay
+
+  const computed = await computeStorageUsedByDayFromCurrentFiles(db, missingOrMutableBuckets)
+  const updatedAt = now
+  for (const date of missingOrMutableBuckets) {
+    const bytes = computed.get(date) ?? 0
+    byDay.set(date, bytes)
+    const row = {
+      id: storageUsedRollupId(date),
+      bucketStart: dateKeyStart(date),
+      orgId: GLOBAL_ROLLUP_ORG_ID,
+      metricKey: STORAGE_USED_ROLLUP_METRIC,
+      dimensionKey: GLOBAL_ROLLUP_DIMENSION_KEY,
+      dimensionValue: GLOBAL_ROLLUP_DIMENSION_VALUE,
+      count: 0,
+      bytes,
+      uniqueCount: 0,
+      metadata: JSON.stringify({ source: 'current_state_backfill' }),
+      updatedAt,
+    }
+    const insert = db.insert(statsRollupsDaily).values(row)
+    if (date === today) {
+      await insert.onConflictDoUpdate({
+        target: [
+          statsRollupsDaily.bucketStart,
+          statsRollupsDaily.orgId,
+          statsRollupsDaily.metricKey,
+          statsRollupsDaily.dimensionKey,
+          statsRollupsDaily.dimensionValue,
+        ],
+        set: { bytes, metadata: row.metadata, updatedAt },
+      })
+    } else {
+      await insert.onConflictDoNothing({
+        target: [
+          statsRollupsDaily.bucketStart,
+          statsRollupsDaily.orgId,
+          statsRollupsDaily.metricKey,
+          statsRollupsDaily.dimensionKey,
+          statsRollupsDaily.dimensionValue,
+        ],
+      })
+    }
+  }
+
+  return byDay
+}
+
+async function computeStorageUsedByDayFromCurrentFiles(db: Database, buckets: string[]): Promise<Map<string, number>> {
+  const sortedBuckets = [...buckets].sort()
+  const lastDayEnd = endOfDateKey(sortedBuckets[sortedBuckets.length - 1])
   const files = await db
     .select({ size: matters.size, createdAt: matters.createdAt })
     .from(matters)
-    .where(and(eq(matters.status, 'active'), eq(matters.dirtype, 0), lte(matters.createdAt, range.to)))
+    .where(and(eq(matters.status, 'active'), eq(matters.dirtype, 0), lte(matters.createdAt, lastDayEnd)))
   const sortedFiles = files
     .map((row) => ({ bytes: row.size ?? 0, createdAt: row.createdAt }))
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
   const byDay = new Map<string, number>()
   let cursor = 0
   let runningBytes = 0
-  for (const date of createDateBuckets(range)) {
+  for (const date of sortedBuckets) {
     const dayEnd = endOfDateKey(date)
     while (cursor < sortedFiles.length && sortedFiles[cursor].createdAt <= dayEnd) {
       runningBytes += sortedFiles[cursor].bytes
@@ -1236,7 +1317,7 @@ async function getTopSharesByActivity(
     counts.set(row.targetId, item)
   }
   const topIds = [...counts.entries()]
-    .sort((a, b) => b[1].views + b[1].downloads - (a[1].views + a[1].downloads))
+    .sort((a, b) => b[1].views - a[1].views || b[1].downloads - a[1].downloads)
     .slice(0, 8)
     .map(([id]) => id)
   if (topIds.length === 0) return []
@@ -1482,8 +1563,16 @@ function endOfDateKey(date: string): Date {
   return new Date(`${date}T23:59:59.999Z`)
 }
 
+function dateKeyStart(date: string): Date {
+  return new Date(`${date}T00:00:00.000Z`)
+}
+
 function dayKey(date: Date): string {
   return date.toISOString().slice(0, 10)
+}
+
+function storageUsedRollupId(date: string): string {
+  return `daily:${STORAGE_USED_ROLLUP_METRIC}:${date}`
 }
 
 function unixSeconds(date: Date): number {

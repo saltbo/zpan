@@ -99,6 +99,42 @@ describe('admin stats routes', () => {
     expect(res.status).toBe(400)
   })
 
+  it('does not publish admin stats routes in the OpenAPI document', async () => {
+    const { app } = await createTestApp()
+
+    const res = await app.request('/api/openapi.json')
+    const body = (await res.json()) as { paths: Record<string, unknown> }
+
+    expect(res.status).toBe(200)
+    expect(Object.keys(body.paths).some((path) => path.startsWith('/api/admin/stats'))).toBe(false)
+  })
+
+  it('reads storage waterline trends from daily rollups when present', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedStatsFixture(db)
+
+    await db.run(sql`
+      INSERT INTO stats_rollups_daily (
+        id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+        count, bytes, unique_count, metadata, updated_at
+      )
+      VALUES (
+        'storage-used-2026-01-01', ${Date.UTC(2026, 0, 1)}, '', 'storage.used.bytes', '', '',
+        0, 4096, 0, NULL, ${Date.UTC(2026, 0, 2)}
+      )
+    `)
+
+    const res = await app.request('/api/admin/stats/storage?from=2026-01-01&to=2026-01-01', { headers })
+    const body = (await res.json()) as {
+      storageTrend: Array<{ date: string; usedBytes: number; newBytes: number; newFiles: number }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.storageTrend).toEqual([{ date: '2026-01-01', usedBytes: 4096, newBytes: 0, newFiles: 0 }])
+  })
+
   it('returns traffic dashboard stats from audit-backed download events for Pro admins', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
@@ -190,6 +226,34 @@ describe('admin stats routes', () => {
     expect(oldRanking.topSpaces).toEqual([])
     expect(oldRanking.storageByType).toEqual([])
     expect(oldRanking.topShares).toEqual([])
+  })
+
+  it('orders top share rankings by views before downloads', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const { orgId, userId } = await seedStatsFixture(db)
+    const nowSec = Math.floor(Date.now() / 1000)
+    const futureSec = nowSec + 7 * 24 * 60 * 60
+
+    await db.run(sql`
+      INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, expires_at, download_limit, views, downloads, status, created_at)
+      VALUES ('share-download-heavy', 'share-download-heavy', 'landing', 'stats-file', ${orgId}, ${userId}, ${futureSec}, 10, 0, 3, 'active', ${nowSec})
+    `)
+    await db.run(sql`
+      INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
+      VALUES
+        ('activity-download-heavy-1', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec}),
+        ('activity-download-heavy-2', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec}),
+        ('activity-download-heavy-3', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec})
+    `)
+
+    const res = await app.request('/api/admin/stats/ranking', { headers })
+    const body = (await res.json()) as { topShares: Array<{ token: string; views: number; downloads: number }> }
+
+    expect(res.status).toBe(200)
+    expect(body.topShares[0]).toMatchObject({ token: 'share-token-1', views: 1, downloads: 1 })
+    expect(body.topShares[1]).toMatchObject({ token: 'share-download-heavy', views: 0, downloads: 3 })
   })
 })
 
