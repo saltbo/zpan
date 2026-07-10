@@ -301,7 +301,7 @@ const APP_SCHEMA_SQL = `
 	  CREATE INDEX IF NOT EXISTS activity_events_user_created_idx ON activity_events(user_id, created_at);
 	  CREATE INDEX IF NOT EXISTS activity_events_action_created_idx ON activity_events(action, created_at);
 	  CREATE INDEX IF NOT EXISTS activity_events_target_created_idx ON activity_events(target_type, target_id, created_at);
-		  CREATE TABLE IF NOT EXISTS stats_rollups_daily (
+		  CREATE TABLE IF NOT EXISTS stats_rollups_hourly (
 		    id TEXT PRIMARY KEY NOT NULL,
 		    bucket_start INTEGER NOT NULL,
 	    org_id TEXT NOT NULL DEFAULT '',
@@ -314,8 +314,9 @@ const APP_SCHEMA_SQL = `
 	    metadata TEXT,
 	    updated_at INTEGER NOT NULL
 		  );
-		  CREATE UNIQUE INDEX IF NOT EXISTS stats_rollups_daily_bucket_metric_dim_uniq ON stats_rollups_daily(bucket_start, org_id, metric_key, dimension_key, dimension_value);
-		  CREATE INDEX IF NOT EXISTS stats_rollups_daily_metric_bucket_idx ON stats_rollups_daily(metric_key, bucket_start);
+		  CREATE UNIQUE INDEX IF NOT EXISTS stats_rollups_hourly_bucket_metric_dim_uniq ON stats_rollups_hourly(bucket_start, org_id, metric_key, dimension_key, dimension_value);
+		  CREATE INDEX IF NOT EXISTS stats_rollups_hourly_metric_bucket_idx ON stats_rollups_hourly(metric_key, bucket_start);
+		  CREATE INDEX IF NOT EXISTS stats_rollups_hourly_dimension_bucket_idx ON stats_rollups_hourly(metric_key, dimension_key, bucket_start);
 	  CREATE TABLE IF NOT EXISTS shares (
     id TEXT PRIMARY KEY,
     token TEXT NOT NULL UNIQUE,

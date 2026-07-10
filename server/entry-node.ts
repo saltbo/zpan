@@ -24,7 +24,7 @@ const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 const INSTANCE_TELEMETRY_INTERVAL_MS = 12 * 60 * 60 * 1000 // 12 hours
 const QUOTA_RESET_INTERVAL_MS = 24 * 60 * 60 * 1000 // daily; idempotent, resets only stale periods
 const TRASH_PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000 // daily; purges trash past the retention window
-const STATS_ROLLUP_INTERVAL_MS = 24 * 60 * 60 * 1000 // daily; updates the current UTC storage snapshot
+const STATS_ROLLUP_INTERVAL_MS = 10 * 60 * 1000
 const appVersionGlobalKey = '__ZPAN_APP_VERSION__'
 const appCommitGlobalKey = '__ZPAN_APP_COMMIT__'
 
@@ -153,12 +153,21 @@ function purgeExpiredTrashJob(): void {
 purgeExpiredTrashJob()
 setInterval(purgeExpiredTrashJob, TRASH_PURGE_INTERVAL_MS)
 
-console.log('stats.rollup.scheduler.started interval=24h')
+console.log('stats.rollup.scheduler.started interval=10m')
 function writeStatsRollup(): void {
   void (async () => {
     try {
-      const result = await deps.adminStats.writeStorageUsedRollup(new Date())
-      console.log(`stats.rollup.done bucket=${result.bucketStart.toISOString()} bytes=${result.bytes}`)
+      const results = await deps.adminStats.refreshHourlyRollups(new Date())
+      console.log(
+        JSON.stringify({
+          message: 'stats.rollup.done',
+          buckets: results.map((result) => ({
+            start: result.bucketStart.toISOString(),
+            rows: result.rows,
+            lowerBoundRows: result.lowerBoundRows,
+          })),
+        }),
+      )
     } catch (err) {
       console.error(`stats.rollup.error code=${err instanceof Error ? err.message : String(err)}`)
     }

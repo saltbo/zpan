@@ -1,18 +1,15 @@
 import type {
   AdminDashboardGrowthStats,
+  AdminDashboardOperationsStats,
   AdminDashboardOverviewStats,
-  AdminDashboardRankingStats,
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
+  AdminTransferDataQuality,
 } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { endOfDay, endOfMonth, format, startOfDay, startOfMonth, subDays, subMonths } from 'date-fns'
-import { FunnelChart as EChartsFunnelChart } from 'echarts/charts'
-import { TooltipComponent } from 'echarts/components'
-import * as echarts from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
 import {
   Activity,
   BarChart3,
@@ -31,7 +28,7 @@ import {
   UploadCloud,
   Users,
 } from 'lucide-react'
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useMemo, useState } from 'react'
 import type { DateRange } from 'react-day-picker'
 import {
   Area,
@@ -64,8 +61,8 @@ import { useEntitlement } from '@/hooks/useEntitlement'
 import {
   type AdminStatsRangeFilter,
   getAdminDashboardGrowthStats,
+  getAdminDashboardOperationsStats,
   getAdminDashboardOverviewStats,
-  getAdminDashboardRankingStats,
   getAdminDashboardSharingStats,
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
@@ -73,13 +70,11 @@ import {
 import { formatSize } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-echarts.use([EChartsFunnelChart, TooltipComponent, CanvasRenderer])
-
 export const Route = createFileRoute('/_authenticated/admin/')({
   component: OverviewPage,
 })
 
-type SectionId = 'overview' | 'growth' | 'storage' | 'traffic' | 'sharing' | 'ranking'
+type SectionId = 'overview' | 'growth' | 'storage' | 'traffic' | 'sharing' | 'operations'
 
 const COLORS = {
   blue: '#0369a1',
@@ -137,28 +132,28 @@ const SECTION_META: Array<{
   {
     id: 'storage',
     title: '存储与文件',
-    description: '观察容量增长、文件结构、冷文件和大对象占用。',
+    description: '观察容量水位、文件结构、文件年龄和大对象占用。',
     badges: ['Pro+'],
     icon: HardDrive,
   },
   {
     id: 'traffic',
     title: '流量与传输',
-    description: '观察上传下载流量、请求量、成功率和带宽压力。',
+    description: '观察确认上传、下载签发、失败率和计量状态。',
     badges: ['Pro+'],
     icon: UploadCloud,
   },
   {
     id: 'sharing',
     title: '分享与访问',
-    description: '观察分享创建、访问打开、下载完成和转存转化。',
+    description: '观察分享创建、访问、下载签发和转存行为。',
     badges: ['Pro+'],
     icon: Share2,
   },
   {
-    id: 'ranking',
-    title: '用户与空间排行',
-    description: '看资源消耗集中在哪些用户、空间和文件。',
+    id: 'operations',
+    title: '运行状态',
+    description: '检查后台任务、远程下载、下载器和计量上报健康。',
     badges: ['Pro+'],
     icon: Network,
   },
@@ -204,12 +199,12 @@ export function OverviewPage() {
     hasAnalytics,
     getAdminDashboardSharingStats,
   )
-  const rankingQuery = useDashboardSectionQuery(
-    'ranking',
-    ranges.ranking,
+  const operationsQuery = useDashboardSectionQuery(
+    'operations',
+    ranges.operations,
     openSections,
     hasAnalytics,
-    getAdminDashboardRankingStats,
+    getAdminDashboardOperationsStats,
   )
 
   function updateRange(section: SectionId, range: DateRange) {
@@ -258,7 +253,7 @@ export function OverviewPage() {
               ) : section.id === 'sharing' ? (
                 <QueryState query={sharingQuery}>{(data) => <SharingSection stats={data} />}</QueryState>
               ) : (
-                <QueryState query={rankingQuery}>{(data) => <RankingSection stats={data} />}</QueryState>
+                <QueryState query={operationsQuery}>{(data) => <OperationsSection stats={data} />}</QueryState>
               )}
             </DashboardSection>
           ))}
@@ -424,7 +419,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (ran
 function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
   const cards = [
     {
-      label: '注册用户',
+      label: '当前注册用户',
       value: formatNumber(stats.totals.users),
       delta: formatDelta(stats.totals.newUsers),
       icon: Users,
@@ -434,7 +429,7 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
       ],
     },
     {
-      label: '活跃用户',
+      label: '周期活跃用户',
       value: formatNumber(stats.totals.activeUsers.value),
       delta: formatDelta(stats.totals.activeUsers),
       icon: TrendingUp,
@@ -444,7 +439,7 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
       ],
     },
     {
-      label: '存储占用',
+      label: '当前存储占用',
       value: formatSize(stats.totals.storageUsedBytes),
       delta: formatDelta(stats.totals.uploadBytes, formatSize),
       icon: Database,
@@ -454,7 +449,7 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
       ],
     },
     {
-      label: '流量统计',
+      label: '确认/签发字节',
       value: formatSize(stats.totals.trafficBytes.value),
       delta: formatDelta(stats.totals.trafficBytes, formatSize),
       icon: Network,
@@ -472,6 +467,7 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
           <StatCard key={card.label} {...card} />
         ))}
       </div>
+      <TransferDataQualityNotice quality={stats.dataQuality} />
       <ChartCard
         title="用户增长与活跃趋势"
         subtitle="新增用户和活跃用户分开编码，避免把小量级新增淹没在活跃用户曲线里。"
@@ -514,7 +510,7 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
           </ComposedChart>
         </ResponsiveContainer>
       </ChartCard>
-      <ChartCard title="资源消耗趋势" subtitle="存储总量、上传量和下载流量使用双轴，保留容量水位与每日传输之间的关系。">
+      <ChartCard title="资源消耗趋势" subtitle="存储水位、确认上传字节和下载签发字节按用户所选时区聚合。">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={stats.trends} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
             <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
@@ -540,8 +536,8 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
               formatter={chartTooltipFormatter}
             />
             <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="bytes" dataKey="uploadBytes" name="上传量" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
-            <Bar yAxisId="bytes" dataKey="downloadBytes" name="下载流量" fill={CHART_COLORS[2]} radius={[4, 4, 0, 0]} />
+            <Bar yAxisId="bytes" dataKey="uploadBytes" name="确认上传" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+            <Bar yAxisId="bytes" dataKey="downloadBytes" name="下载签发" fill={CHART_COLORS[2]} radius={[4, 4, 0, 0]} />
             <Line
               yAxisId="bytes"
               type="monotone"
@@ -692,17 +688,17 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
           ]}
         />
         <StatCard
-          label="新增容量"
+          label="确认写入字节"
           value={formatSize(stats.summary.newBytes.value)}
           delta={formatDelta(stats.summary.newBytes, formatSize)}
           icon={Upload}
           metrics={[
-            { label: '新增文件', value: formatNumber(stats.summary.newFiles.value) },
+            { label: '确认上传文件', value: formatNumber(stats.summary.newFiles.value) },
             { label: '上期容量', value: formatSize(stats.summary.newBytes.previousValue) },
           ]}
         />
         <StatCard
-          label="新增文件"
+          label="确认上传文件"
           value={formatNumber(stats.summary.newFiles.value)}
           delta={formatDelta(stats.summary.newFiles)}
           icon={Database}
@@ -712,20 +708,57 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
           ]}
         />
         <StatCard
-          label="冷文件容量"
+          label="90 天以上文件"
           value={formatSize(stats.summary.coldFileBytes)}
           icon={FileClock}
           metrics={[
             {
-              label: '冷文件占比',
+              label: '年龄文件占比',
               value: formatPercent(ratio(stats.summary.coldFileBytes, stats.summary.storageUsedBytes)),
             },
             { label: '当前占用', value: formatSize(stats.summary.storageUsedBytes) },
           ]}
         />
       </div>
+      <TransferDataQualityNotice quality={stats.dataQuality} />
+      <ChartCard
+        title="空间配额压力"
+        subtitle={`全部空间中 ${stats.summary.nearQuotaSpaces} 个达到 80%，${stats.summary.overQuotaSpaces} 个达到或超过配额。`}
+        contentClassName="h-auto"
+      >
+        {stats.topSpaces.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-border/50">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>空间</TableHead>
+                  <TableHead>类型</TableHead>
+                  <TableHead className="text-right">占用</TableHead>
+                  <TableHead className="text-right">配额</TableHead>
+                  <TableHead className="text-right">使用率</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats.topSpaces.map((space) => (
+                  <TableRow key={space.orgId}>
+                    <TableCell className="max-w-60 truncate font-medium" title={space.orgName}>
+                      {space.orgName}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{labelize(space.orgType)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatSize(space.usedBytes)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatSize(space.quotaBytes)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatPercent(space.utilization)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </ChartCard>
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard title="存储增长趋势" subtitle="柱形看新增文件，折线看总容量水位和新增容量。">
+        <ChartCard title="存储与写入趋势" subtitle="存储占用是水位；确认上传文件和字节是周期事件量，不代表净增长。">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={stats.storageTrend}>
               <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
@@ -753,7 +786,13 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                 formatter={chartTooltipFormatter}
               />
               <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Bar yAxisId="files" dataKey="newFiles" name="新增文件" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+              <Bar
+                yAxisId="files"
+                dataKey="newFiles"
+                name="确认上传文件"
+                fill={CHART_COLORS[1]}
+                radius={[4, 4, 0, 0]}
+              />
               <Line
                 yAxisId="bytes"
                 type="monotone"
@@ -767,7 +806,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                 yAxisId="bytes"
                 type="monotone"
                 dataKey="newBytes"
-                name="新增容量"
+                name="确认写入字节"
                 stroke={CHART_COLORS[2]}
                 strokeWidth={2}
                 dot={false}
@@ -832,7 +871,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="文件年龄分布" subtitle="区分近期文件和冷文件容量，判断清理与归档空间。">
+        <ChartCard title="文件年龄分布" subtitle="仅按创建时间划分，不代表文件最近是否被访问。">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={stats.ageBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
@@ -862,12 +901,12 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="总流量"
+          label="确认/签发字节"
           value={formatSize(stats.summary.totalBytes.value)}
           delta={formatDelta(stats.summary.totalBytes, formatSize)}
           icon={Network}
           metrics={[
-            { label: '峰值日流量', value: formatSize(stats.summary.peakDailyBytes) },
+            { label: '峰值日字节', value: formatSize(stats.summary.peakDailyBytes) },
             { label: '请求量', value: formatNumber(stats.summary.requestCount.value) },
           ]}
         />
@@ -878,30 +917,34 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
           icon={Activity}
           metrics={[
             { label: '下载签发', value: formatNumber(stats.summary.issuedDownloads) },
-            { label: '拦截请求', value: formatNumber(stats.summary.blockedDownloads) },
+            { label: '签发失败', value: formatNumber(stats.summary.blockedDownloads) },
           ]}
         />
         <StatCard
-          label="签发放行率"
+          label="下载签发成功率"
           value={formatPercent(stats.summary.issueRate)}
           icon={Download}
           metrics={[
             { label: '签发成功', value: formatNumber(stats.summary.issuedDownloads) },
-            { label: '计量拦截', value: formatNumber(stats.summary.blockedDownloads) },
+            { label: '签发失败', value: formatNumber(stats.summary.blockedDownloads) },
           ]}
         />
         <StatCard
-          label="峰值日流量"
+          label="峰值日字节"
           value={formatSize(stats.summary.peakDailyBytes)}
           icon={TrendingUp}
           metrics={[
-            { label: '统计口径', value: '签发/计费流量' },
-            { label: '总流量', value: formatSize(stats.summary.totalBytes.value) },
+            { label: '统计口径', value: '确认上传 + 下载签发' },
+            { label: '周期总量', value: formatSize(stats.summary.totalBytes.value) },
           ]}
         />
       </div>
+      <TransferDataQualityNotice quality={stats.dataQuality} />
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard title="流量与请求趋势" subtitle="柱形看请求量，折线看上传下载流量。">
+        <ChartCard
+          title="传输事件趋势"
+          subtitle="上传为确认完成字节，下载为链接签发对象字节，不代表客户端实际完成传输。"
+        >
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={stats.trafficTrend}>
               <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
@@ -934,7 +977,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                 yAxisId="bytes"
                 type="monotone"
                 dataKey="uploadBytes"
-                name="上传流量"
+                name="确认上传字节"
                 stroke={CHART_COLORS[0]}
                 strokeWidth={2}
                 dot={false}
@@ -943,7 +986,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                 yAxisId="bytes"
                 type="monotone"
                 dataKey="downloadBytes"
-                name="下载流量"
+                name="下载签发字节"
                 stroke={CHART_COLORS[2]}
                 strokeWidth={2}
                 dot={false}
@@ -951,31 +994,17 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="带宽压力趋势" subtitle="按日流量水位观察带宽和成本压力。">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={stats.bandwidthTrend}>
-              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
-              <YAxis tickLine={false} axisLine={false} fontSize={12} width={58} tickFormatter={formatCompactSize} />
-              <RechartsTooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                formatter={chartTooltipFormatter}
-              />
-              <Area
-                type="monotone"
-                dataKey="bytes"
-                name="日流量"
-                stroke={CHART_COLORS[0]}
-                fill={CHART_COLORS[0]}
-                fillOpacity={0.1}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
+        <BreakdownChart
+          title="传输来源分布"
+          rows={stats.sourceBreakdown.map((row) => ({ name: row.name, value: row.bytes, percent: row.percent }))}
+          valueFormatter={formatSize}
+        />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard title="传输成功率" subtitle="成功率适合趋势图，而不是排行或占比图。">
+        <ChartCard
+          title="签发与确认成功率"
+          subtitle="上传成功指完成确认；下载成功指成功签发链接，不代表客户端下载完成。"
+        >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={stats.successTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
@@ -1125,15 +1154,8 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           ]}
         />
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard
-          title="分享转化漏斗"
-          subtitle="按访问、落地页下载、转存展示同一条分享链路；密码通过单独统计。"
-          contentClassName="h-auto min-h-[22rem]"
-        >
-          <FunnelChart data={stats.funnel} />
-        </ChartCard>
-        <ChartCard title="访问行为趋势" subtitle="访问、下载和转存放在同一时间轴看转化变化。">
+      <div className="grid gap-4">
+        <ChartCard title="访问行为趋势" subtitle="这些是独立事件量，不表示同一访客完成了连续漏斗。">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={stats.trend}>
               <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
@@ -1182,44 +1204,84 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
   )
 }
 
-function RankingSection({ stats }: { stats: AdminDashboardRankingStats }) {
-  const totalTypeBytes = stats.storageByType.reduce((sum, row) => sum + row.bytes, 0)
-
+function OperationsSection({ stats }: { stats: AdminDashboardOperationsStats }) {
   return (
-    <div className="grid gap-4 xl:grid-cols-3">
-      <TopRankingCard
-        title="新增容量 Top 空间"
-        description="每项显示统计周期内新增容量。"
-        items={stats.topSpaces.map((space) => ({
-          name: space.orgName,
-          detail: space.orgType,
-          value: formatSize(space.usedBytes),
-          percent: space.utilization,
-        }))}
-        totalLabel={`Top ${Math.min(4, stats.topSpaces.length)} 空间`}
-      />
-      <TopRankingCard
-        title="访问 Top 分享"
-        description="每项占统计周期内分享访问百分比。"
-        items={stats.topShares.map((share) => ({
-          name: share.name,
-          detail: share.creatorName,
-          value: formatNumber(share.views),
-          percent: share.viewPercent,
-        }))}
-        totalLabel={`Top ${Math.min(4, stats.topShares.length)} 分享`}
-      />
-      <TopRankingCard
-        title="文件类型排行"
-        description="每项占统计周期内新增文件容量百分比。"
-        items={stats.storageByType.map((row) => ({
-          name: labelize(row.type),
-          detail: `${formatNumber(row.files)} files`,
-          value: formatSize(row.bytes),
-          percent: ratio(row.bytes, totalTypeBytes),
-        }))}
-        totalLabel={`Top ${Math.min(4, stats.storageByType.length)} 类型`}
-      />
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="后台任务"
+          value={formatNumber(stats.summary.activeBackgroundJobs)}
+          icon={Activity}
+          metrics={[
+            { label: '运行中', value: formatNumber(stats.summary.activeBackgroundJobs) },
+            { label: '失败率', value: formatPercent(stats.summary.backgroundJobFailureRate) },
+          ]}
+        />
+        <StatCard
+          label="远程下载"
+          value={formatNumber(stats.summary.activeRemoteDownloads)}
+          icon={Download}
+          metrics={[
+            { label: '活跃任务', value: formatNumber(stats.summary.activeRemoteDownloads) },
+            { label: '成功率', value: formatPercent(stats.summary.remoteDownloadSuccessRate) },
+          ]}
+        />
+        <StatCard
+          label="下载器在线"
+          value={formatNumber(stats.summary.onlineDownloaders)}
+          icon={Network}
+          metrics={[
+            { label: '在线', value: formatNumber(stats.summary.onlineDownloaders) },
+            { label: '离线/禁用', value: formatNumber(stats.summary.offlineDownloaders) },
+          ]}
+        />
+        <StatCard
+          label="待处理异常"
+          value={formatNumber(stats.summary.cloudReportBacklog + stats.summary.webhookFailures)}
+          icon={FileClock}
+          metrics={[
+            { label: '计量积压', value: formatNumber(stats.summary.cloudReportBacklog) },
+            { label: 'Webhook 失败', value: formatNumber(stats.summary.webhookFailures) },
+          ]}
+        />
+      </div>
+      <ChartCard title="任务完成趋势" subtitle="完成与失败分别统计，快速定位后台任务或远程下载异常。">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={stats.trend}>
+            <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+            <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
+            <RechartsTooltip
+              contentStyle={tooltipContentStyle}
+              labelStyle={tooltipLabelStyle}
+              formatter={chartTooltipFormatter}
+            />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="completedJobs" name="后台任务完成" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="failedJobs" name="后台任务失败" fill={CHART_COLORS[4]} radius={[4, 4, 0, 0]} />
+            <Line
+              dataKey="completedRemoteDownloads"
+              name="远程下载完成"
+              stroke={CHART_COLORS[0]}
+              strokeWidth={2}
+              dot={false}
+            />
+            <Line
+              dataKey="failedRemoteDownloads"
+              name="远程下载失败"
+              stroke={CHART_COLORS[2]}
+              strokeWidth={2}
+              dot={false}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </ChartCard>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <BarBreakdownChart title="后台任务结果" rows={stats.backgroundJobOutcomes} valueFormatter={formatNumber} />
+        <BarBreakdownChart title="远程下载结果" rows={stats.remoteDownloadOutcomes} valueFormatter={formatNumber} />
+        <BreakdownChart title="下载器状态" rows={stats.downloaderStatus} valueFormatter={formatNumber} />
+        <BreakdownChart title="计量上报状态" rows={stats.cloudReportStatus} valueFormatter={formatNumber} />
+      </div>
     </div>
   )
 }
@@ -1403,121 +1465,6 @@ function PercentList({ items }: { items: Array<{ name: string; percent: number; 
   )
 }
 
-function FunnelChart({ data }: { data: Array<{ name: string; value: number; percent: number }> }) {
-  return (
-    <div className="grid min-h-[22rem] min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-      <EChartsFunnel data={data} />
-      <FunnelStageList data={data} />
-    </div>
-  )
-}
-
-function EChartsFunnel({ data }: { data: Array<{ name: string; value: number; percent: number }> }) {
-  const ref = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    if (!ref.current) return
-    const chart = echarts.init(ref.current, null, { renderer: 'canvas' })
-    chart.setOption({
-      backgroundColor: 'transparent',
-      color: data.map((_, index) => CHART_COLORS[index % CHART_COLORS.length]),
-      tooltip: {
-        trigger: 'item',
-        confine: true,
-        backgroundColor: 'var(--color-popover)',
-        borderColor: 'var(--color-border)',
-        borderWidth: 1,
-        padding: [8, 10],
-        textStyle: {
-          color: '#0f172a',
-          fontSize: 12,
-        },
-        formatter: ({ data: item }: { data: { name: string; value: number; percent: number } }) =>
-          `${labelize(item.name)}<br/>${formatCompactNumber(item.value)} · ${formatPercent(item.percent)}`,
-      },
-      series: [
-        {
-          type: 'funnel',
-          sort: 'none',
-          left: '8%',
-          top: 10,
-          bottom: 10,
-          width: '82%',
-          minSize: '26%',
-          maxSize: '100%',
-          gap: 3,
-          label: {
-            show: true,
-            position: 'inside',
-            color: '#ffffff',
-            fontSize: 12,
-            fontWeight: 700,
-            formatter: ({ data: item }: { data: { name: string } }) => labelize(item.name),
-          },
-          labelLine: {
-            show: false,
-          },
-          itemStyle: {
-            borderColor: '#ffffff',
-            borderWidth: 1.5,
-            borderRadius: 4,
-          },
-          emphasis: {
-            focus: 'self',
-            label: {
-              fontSize: 13,
-            },
-          },
-          data: data.map((item, index) => ({
-            name: item.name,
-            value: item.value,
-            percent: item.percent,
-            itemStyle: { color: CHART_COLORS[index % CHART_COLORS.length] },
-          })),
-        },
-      ],
-    })
-
-    const resizeObserver = new ResizeObserver(() => chart.resize())
-    resizeObserver.observe(ref.current)
-
-    return () => {
-      resizeObserver.disconnect()
-      chart.dispose()
-    }
-  }, [data])
-
-  return <div ref={ref} className="h-56 min-w-0 lg:h-auto lg:min-h-0" />
-}
-
-function FunnelStageList({ data }: { data: Array<{ name: string; value: number; percent: number }> }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-2 lg:justify-center">
-      {data.map((item, index) => {
-        const previous = data[index - 1]
-        const stepRate = previous && previous.value > 0 ? (item.value / previous.value) * 100 : index === 0 ? 100 : 0
-
-        return (
-          <div key={item.name} className="rounded-lg border border-border/70 bg-canvas/55 px-3 py-1.5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{labelize(item.name)}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {index === 0 ? '入口基准' : `上一步 ${formatPercent(stepRate)}`}
-                </p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-semibold tabular-nums">{formatCompactNumber(item.value)}</p>
-                <p className="text-xs text-muted-foreground">{formatPercent(item.percent)}</p>
-              </div>
-            </div>
-            <Progress value={clampPercent(item.percent)} className="mt-2 h-1.5 bg-muted" />
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 function TopSharesTable({ rows }: { rows: AdminDashboardSharingStats['topShares'] }) {
   return (
     <ChartCard title="Top 分享" contentClassName="h-auto">
@@ -1557,52 +1504,6 @@ function TopSharesTable({ rows }: { rows: AdminDashboardSharingStats['topShares'
   )
 }
 
-function TopRankingCard({
-  title,
-  description,
-  items,
-  totalLabel,
-}: {
-  title: string
-  description: string
-  totalLabel: string
-  items: Array<{ name: string; detail: string; value: string; percent: number }>
-}) {
-  return (
-    <div className="rounded-xl border border-border/70 bg-background/95 p-4 shadow-[0_14px_36px_-34px_rgba(15,23,42,0.6)] sm:p-5">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
-          <p className="mt-1 text-[13px] leading-5 text-muted-foreground">{description}</p>
-        </div>
-        <Badge variant="outline" className="shrink-0">
-          {totalLabel}
-        </Badge>
-      </div>
-      <div className="flex flex-col gap-4">
-        {items.map((item, index) => (
-          <div key={item.name} className="flex flex-col gap-2">
-            <div className="flex items-start justify-between gap-3 text-sm">
-              <div className="min-w-0">
-                <p className="truncate font-medium">
-                  <span className="mr-2 text-muted-foreground">#{index + 1}</span>
-                  {item.name}
-                </p>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.detail}</p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="font-semibold tabular-nums">{item.value}</p>
-                <p className="text-xs text-muted-foreground">{formatPercent(item.percent)}</p>
-              </div>
-            </div>
-            <Progress value={clampPercent(item.percent)} className="h-1.5 bg-muted" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function QueryState<T>({
   query,
   children,
@@ -1634,6 +1535,27 @@ function SectionSkeleton() {
   )
 }
 
+function TransferDataQualityNotice({ quality }: { quality: AdminTransferDataQuality }) {
+  const currentMissing = quality.missingUploadBytesEvents + quality.missingDownloadBytesEvents
+  const previousMissing = quality.previousMissingUploadBytesEvents + quality.previousMissingDownloadBytesEvents
+  if (currentMissing === 0 && previousMissing === 0) return null
+
+  return (
+    <div
+      role="status"
+      className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center"
+    >
+      <Badge variant="outline" className="w-fit border-amber-600/50 text-amber-700 dark:text-amber-300">
+        历史数据不完整
+      </Badge>
+      <span className="text-muted-foreground">
+        当前区间有 {formatNumber(currentMissing)}条、对比区间有 {formatNumber(previousMissing)}
+        条传输事件缺少可恢复的字节数； 流量与新增容量仅代表已知下限，事件数量不受影响。
+      </span>
+    </div>
+  )
+}
+
 function EmptyState() {
   return (
     <div className="rounded-lg border border-dashed border-border/70 bg-muted/10 p-8 text-center text-sm text-muted-foreground">
@@ -1650,7 +1572,7 @@ function initialRanges(today: Date): Record<SectionId, DateRange> {
     storage: { from: startOfDay(subDays(today, 89)), to: endOfDay(today) },
     traffic: { from: startOfDay(subDays(today, 6)), to: endOfDay(today) },
     sharing: last30,
-    ranking: last30,
+    operations: last30,
   }
 }
 

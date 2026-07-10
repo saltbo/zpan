@@ -1,20 +1,22 @@
 import type {
   AdminDashboardGrowthStats,
+  AdminDashboardOperationsStats,
   AdminDashboardOverviewStats,
-  AdminDashboardRankingStats,
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
 } from '@shared/types'
 
 export interface AdminStatsRepo {
-  writeStorageUsedRollup(now: Date): Promise<{ bucketStart: Date; bytes: number }>
+  refreshHourlyRollups(
+    now: Date,
+  ): Promise<Array<{ bucketStart: Date; bucketEnd: Date; rows: number; lowerBoundRows: number }>>
   getDashboardOverviewStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardOverviewStats>
+  getDashboardOperationsStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardOperationsStats>
   getDashboardGrowthStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardGrowthStats>
   getDashboardStorageStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardStorageStats>
   getDashboardTrafficStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardTrafficStats>
   getDashboardSharingStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardSharingStats>
-  getDashboardRankingStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardRankingStats>
 }
 
 export interface AdminStatsDateRange {
