@@ -45,6 +45,7 @@ import {
 } from './ports'
 import type { CloudTrafficMeteringDeps } from './store/traffic-metering'
 import { meterDownloadTraffic } from './store/traffic-metering'
+import { createTrafficEventId, recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
 
 // The ports + sub-usecase deps this resource touches. `c.get('deps')` (the full
 // Deps) structurally satisfies this, so the handler passes it whole. The
@@ -379,6 +380,7 @@ export async function downloadShareObject(
   if (!incremented) return { ok: false, error: expiredError('Download limit exceeded') }
 
   const bytes = targetMatter.size ?? 0
+  const trafficEventId = createTrafficEventId()
   const metered = await meterDownloadTraffic(deps, {
     cloudBaseUrl,
     orgId: share.orgId,
@@ -386,9 +388,23 @@ export async function downloadShareObject(
     storage,
     source: 'landing_share',
     sourceId: share.id,
+    eventId: trafficEventId,
     onRejected: () => deps.share.decrementDownloads(share.id),
   })
-  if (!metered.ok)
+  if (!metered.ok) {
+    await recordDownloadFailed(deps.activity, {
+      orgId: share.orgId,
+      userId: viewerId,
+      actorType: viewerId ? 'user' : 'anonymous',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: targetMatter.name,
+      source: 'landing_share',
+      bytes,
+      trafficEventId,
+      reason: metered.reason,
+      metadata: { shareId: share.id, matterId: targetMatter.id, storageId: targetMatter.storageId },
+    })
     return {
       ok: false,
       error:
@@ -396,6 +412,7 @@ export async function downloadShareObject(
           ? quotaExceeded('Traffic quota exceeded')
           : insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
     }
+  }
 
   // Presign. On failure the metering already succeeded, so roll it back
   // ourselves: refund the consumed traffic and the download count, then rethrow.
@@ -405,13 +422,24 @@ export async function downloadShareObject(
   } catch (e) {
     await deps.quota.refundTraffic(share.orgId, bytes)
     await deps.share.decrementDownloads(share.id)
+    await recordDownloadFailed(deps.activity, {
+      orgId: share.orgId,
+      userId: viewerId,
+      actorType: viewerId ? 'user' : 'anonymous',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: targetMatter.name,
+      source: 'landing_share',
+      bytes,
+      trafficEventId,
+      reason: 'presign_failed',
+      metadata: { shareId: share.id, matterId: targetMatter.id, storageId: targetMatter.storageId },
+    })
     throw e
   }
 
-  // Record the real actor. Anonymous downloads belong to the share target, not
-  // to the share creator as a fake user action. The presigned URL is never stored.
   try {
-    await deps.activity.record({
+    await recordDownloadIssued(deps.activity, {
       orgId: share.orgId,
       userId: viewerId,
       actorType: viewerId ? 'user' : 'anonymous',
@@ -419,21 +447,23 @@ export async function downloadShareObject(
       targetType: 'share',
       targetId: share.id,
       targetName: targetMatter.name,
+      source: 'landing_share',
+      bytes,
+      trafficEventId,
       metadata: {
         anonymous: !viewerId,
-        status: 'issued',
-        source: 'landing_share',
         shareId: share.id,
         matterId: targetMatter.id,
         rootMatterId: matter.id,
         creatorId: share.creatorId,
         storageId: targetMatter.storageId,
-        bytes,
         kind: share.kind,
       },
     })
   } catch (error) {
-    console.error('[shares] recordActivity failed:', error)
+    await deps.quota.refundTraffic(share.orgId, bytes)
+    await deps.share.decrementDownloads(share.id)
+    throw error
   }
 
   return { ok: true, url }

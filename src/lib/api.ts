@@ -437,12 +437,14 @@ export function retryBackgroundJob(id: string) {
 export interface AdminStatsRangeFilter {
   from?: string
   to?: string
+  timeZone?: string
 }
 
 function statsRangeQuery(filter: AdminStatsRangeFilter = {}): Record<string, string> {
   const query: Record<string, string> = {}
   if (filter.from) query.from = filter.from
   if (filter.to) query.to = filter.to
+  if (filter.timeZone) query.timeZone = filter.timeZone
   return query
 }
 

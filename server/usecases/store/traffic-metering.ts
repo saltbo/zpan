@@ -240,6 +240,7 @@ export type DownloadTrafficParams = {
   storage: DownloadTrafficStorage
   source: TrafficReportSource
   sourceId: string
+  eventId?: string
   // Compensating action run when traffic is rejected (quota or egress).
   onRejected?: () => Promise<void>
 }
@@ -280,6 +281,7 @@ export async function reportDownloadEgress(
       egressCreditPerUnit: params.storage.egressCreditPerUnit,
       source: params.source,
       sourceId: params.sourceId,
+      eventId: params.eventId,
     })
     return { ok: true }
   } catch (error) {

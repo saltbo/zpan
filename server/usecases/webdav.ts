@@ -31,6 +31,7 @@ import {
 } from './ports'
 import { withStorageUsageReservation } from './storage-usage'
 import { type DownloadTrafficStorage, meterDownloadTraffic, type TrafficReportSource } from './store/traffic-metering'
+import { recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
 
 // ─── Auth resolution ──────────────────────────────────────────────────────────
 // The middleware parses the Authorization header (http) and renders the 401 / 429;
@@ -178,32 +179,81 @@ export type WebDavTrafficOutcome =
   | { ok: false; reason: 'quota_exceeded' }
   | { ok: false; reason: 'insufficient_credits' }
 
+type WebDavTrafficDeps = Pick<Deps, 'quota' | 'licenseBinding' | 'licensingCloud' | 'cloudTrafficReports'> & {
+  activity: Pick<Deps['activity'], 'record'>
+}
+
 // Meters a download: consume the org's traffic quota, then report egress to
 // Cloud (refunding the quota on a block). Skips zero-byte reads (HEAD/empty
 // ranges) exactly like the former reserveWebDavTraffic did. The handler renders
 // the 422 / 402.
 export async function meterWebDavDownload(
-  deps: Pick<Deps, 'quota' | 'licenseBinding' | 'licensingCloud' | 'cloudTrafficReports'>,
+  deps: WebDavTrafficDeps,
   params: {
     cloudBaseUrl: string
     orgId: string
+    userId: string
     matterId: string
+    matterName: string
     storage: DownloadTrafficStorage
     bytes: number
+    trafficEventId: string
   },
 ): Promise<WebDavTrafficOutcome> {
   if (params.bytes <= 0) return { ok: true }
-  return meterDownloadTraffic(deps, {
+  const outcome = await meterDownloadTraffic(deps, {
     cloudBaseUrl: params.cloudBaseUrl,
     orgId: params.orgId,
     bytes: params.bytes,
     storage: params.storage,
     source: WEBDAV_DOWNLOAD_SOURCE,
     sourceId: params.matterId,
+    eventId: params.trafficEventId,
   })
+  if (!outcome.ok) {
+    await recordDownloadFailed(deps.activity, {
+      orgId: params.orgId,
+      userId: params.userId,
+      targetType: 'file',
+      targetId: params.matterId,
+      targetName: params.matterName,
+      source: WEBDAV_DOWNLOAD_SOURCE,
+      bytes: params.bytes,
+      trafficEventId: params.trafficEventId,
+      reason: outcome.reason,
+      metadata: { matterId: params.matterId, storageId: params.storage.id },
+    })
+  }
+  return outcome
 }
 
 const WEBDAV_DOWNLOAD_SOURCE: TrafficReportSource = 'webdav_download'
+
+export function recordWebDavDownloadIssued(
+  deps: { activity: Pick<Deps['activity'], 'record'> },
+  params: {
+    orgId: string
+    userId: string
+    matterId: string
+    matterName: string
+    storageId: string
+    bytes: number
+    trafficEventId: string
+  },
+): Promise<void> {
+  return recordDownloadIssued(deps.activity, {
+    orgId: params.orgId,
+    userId: params.userId,
+    action: 'webdav_download',
+    targetType: 'file',
+    targetId: params.matterId,
+    targetName: params.matterName,
+    source: WEBDAV_DOWNLOAD_SOURCE,
+    bytes: params.bytes,
+    trafficEventId: params.trafficEventId,
+    metadata: { matterId: params.matterId, storageId: params.storageId },
+  })
+}
 
 // Refunds previously-consumed traffic quota when an S3 read throws after metering.
 export function refundWebDavTraffic(

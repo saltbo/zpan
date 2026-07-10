@@ -341,7 +341,7 @@ describe('public redirect cloud traffic reporting', () => {
     ])
   })
 
-  it('still returns landing share URLs when audit recording fails after local traffic queue', async () => {
+  it('fails and refunds landing share traffic when audit recording fails', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
@@ -362,8 +362,15 @@ describe('public redirect cloud traffic reporting', () => {
 
     const res = await app.request(`/api/shares/${share.token}/objects/${ref}?downloadUrl=1`, { redirect: 'manual' })
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(500)
     expect(consoleError).toHaveBeenCalled()
+    const rows = await db.all<{ downloads: number; trafficUsed: number }>(sql`
+      SELECT s.downloads, q.traffic_used AS trafficUsed
+      FROM shares s
+      INNER JOIN org_quotas q ON q.org_id = s.org_id
+      WHERE s.id = ${share.id}
+    `)
+    expect(rows[0]).toEqual({ downloads: 0, trafficUsed: 0 })
   })
 
   it('reports token image-hosting redirects to Cloud', async () => {

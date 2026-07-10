@@ -3821,7 +3821,11 @@ describe('api', () => {
       from: '2026-07-01T00:00:00.000Z',
       to: '2026-07-09T00:00:00.000Z',
     }
-    const range = { from: '2026-07-01T00:00:00.000Z', to: '2026-07-09T00:00:00.000Z' }
+    const range = {
+      from: '2026-07-01T00:00:00.000Z',
+      to: '2026-07-09T00:00:00.000Z',
+      timeZone: 'America/Toronto',
+    }
     const dashboardEndpoints = [
       { name: 'getAdminDashboardOverviewStats', path: '/api/site/stats/overview', fn: getAdminDashboardOverviewStats },
       { name: 'getAdminDashboardGrowthStats', path: '/api/site/stats/growth', fn: getAdminDashboardGrowthStats },
@@ -3842,6 +3846,7 @@ describe('api', () => {
         expect(url).toContain(endpoint.path)
         expect(decodeURIComponent(url)).toContain(`from=${range.from}`)
         expect(decodeURIComponent(url)).toContain(`to=${range.to}`)
+        expect(decodeURIComponent(url)).toContain(`timeZone=${range.timeZone}`)
         expect(init.method).toBe('GET')
       })
 

@@ -11,7 +11,8 @@ vi.mock('../server/platform/cloudflare', () => ({
   }),
 }))
 
-const fakeDeps = { instance: 'instance', systemOptions: 'system-options' }
+const writeStorageUsedRollup = vi.fn()
+const fakeDeps = { instance: 'instance', systemOptions: 'system-options', adminStats: { writeStorageUsedRollup } }
 vi.mock('../server/composition', () => ({
   createDeps: vi.fn(() => fakeDeps),
 }))
@@ -52,6 +53,7 @@ describe('handleScheduled', () => {
     vi.mocked(reportInstanceTelemetry).mockReset()
     vi.mocked(runLicensingRefresh).mockReset()
     mockResetExpiredTrafficQuotas.mockReset()
+    writeStorageUsedRollup.mockReset()
   })
 
   it('syncs usage reports on the traffic cron only', async () => {
@@ -109,5 +111,12 @@ describe('handleScheduled', () => {
     expect(runLicensingRefresh).not.toHaveBeenCalled()
     expect(syncPendingCloudTrafficReports).not.toHaveBeenCalled()
     expect(syncPendingRemoteDownloadUsageReports).not.toHaveBeenCalled()
+  })
+
+  it('writes the storage rollup on the daily stats cron only', async () => {
+    await handleScheduled({ cron: '5 4 * * *' }, { DB: {} as D1Database })
+
+    expect(writeStorageUsedRollup).toHaveBeenCalledOnce()
+    expect(runLicensingRefresh).not.toHaveBeenCalled()
   })
 })
