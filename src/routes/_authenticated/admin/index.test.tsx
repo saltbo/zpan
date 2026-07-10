@@ -44,6 +44,12 @@ const overviewStats: AdminDashboardOverviewStats = {
   generatedAt: '2026-07-09T00:00:00.000Z',
   from: '2026-07-01T00:00:00.000Z',
   to: '2026-07-09T00:00:00.000Z',
+  dataQuality: {
+    missingUploadBytesEvents: 0,
+    previousMissingUploadBytesEvents: 0,
+    missingDownloadBytesEvents: 0,
+    previousMissingDownloadBytesEvents: 0,
+  },
   totals: {
     users: 42,
     newUsers: { value: 5, previousValue: 3, changePercent: 66.7 },
@@ -112,5 +118,27 @@ describe('Admin overview dashboard', () => {
     expect(getAdminDashboardTrafficStats).not.toHaveBeenCalled()
     expect(getAdminDashboardSharingStats).not.toHaveBeenCalled()
     expect(getAdminDashboardRankingStats).not.toHaveBeenCalled()
+  })
+
+  it('warns when historical transfer bytes are incomplete', async () => {
+    vi.mocked(useEntitlement).mockReturnValue({
+      bound: false,
+      active: false,
+      edition: null,
+      licenseId: null,
+      cloudDashboardUrl: null,
+      hasFeature: () => false,
+      isLoading: false,
+      isError: false,
+    })
+    vi.mocked(getAdminDashboardOverviewStats).mockResolvedValue({
+      ...overviewStats,
+      dataQuality: { ...overviewStats.dataQuality, missingUploadBytesEvents: 3 },
+    })
+
+    renderOverviewPage()
+
+    expect(await screen.findByText('历史数据不完整')).toBeTruthy()
+    expect(screen.getByText(/当前区间有 3 条/)).toBeTruthy()
   })
 })

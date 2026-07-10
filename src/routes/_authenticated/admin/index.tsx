@@ -5,6 +5,7 @@ import type {
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
+  AdminTransferDataQuality,
 } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
@@ -472,6 +473,7 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
           <StatCard key={card.label} {...card} />
         ))}
       </div>
+      <TransferDataQualityNotice quality={stats.dataQuality} />
       <ChartCard
         title="用户增长与活跃趋势"
         subtitle="新增用户和活跃用户分开编码，避免把小量级新增淹没在活跃用户曲线里。"
@@ -724,6 +726,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
           ]}
         />
       </div>
+      <TransferDataQualityNotice quality={stats.dataQuality} />
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="存储增长趋势" subtitle="柱形看新增文件，折线看总容量水位和新增容量。">
           <ResponsiveContainer width="100%" height="100%">
@@ -900,6 +903,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
           ]}
         />
       </div>
+      <TransferDataQualityNotice quality={stats.dataQuality} />
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="流量与请求趋势" subtitle="柱形看请求量，折线看上传下载流量。">
           <ResponsiveContainer width="100%" height="100%">
@@ -1630,6 +1634,27 @@ function SectionSkeleton() {
         ))}
       </div>
       <Skeleton className="h-80 rounded-lg" />
+    </div>
+  )
+}
+
+function TransferDataQualityNotice({ quality }: { quality: AdminTransferDataQuality }) {
+  const currentMissing = quality.missingUploadBytesEvents + quality.missingDownloadBytesEvents
+  const previousMissing = quality.previousMissingUploadBytesEvents + quality.previousMissingDownloadBytesEvents
+  if (currentMissing === 0 && previousMissing === 0) return null
+
+  return (
+    <div
+      role="status"
+      className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center"
+    >
+      <Badge variant="outline" className="w-fit border-amber-600/50 text-amber-700 dark:text-amber-300">
+        历史数据不完整
+      </Badge>
+      <span className="text-muted-foreground">
+        当前区间有 {formatNumber(currentMissing)}条、对比区间有 {formatNumber(previousMissing)}
+        条传输事件缺少可恢复的字节数； 流量与新增容量仅代表已知下限，事件数量不受影响。
+      </span>
     </div>
   )
 }

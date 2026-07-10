@@ -9,6 +9,7 @@ import type {
   AdminStatsDelta,
   AdminStorageByType,
   AdminTopShare,
+  AdminTransferDataQuality,
 } from '@shared/types'
 import type { SQL } from 'drizzle-orm'
 import { and, count, desc, eq, gt, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm'
@@ -128,6 +129,7 @@ async function getDashboardOverviewStats(
     traffic,
     previousTraffic,
     sharing,
+    dataQuality,
   ] = await Promise.all([
     countRows(db, user),
     countRowsWhere(db, user, and(gte(user.createdAt, range.from), lte(user.createdAt, range.to))),
@@ -138,6 +140,7 @@ async function getDashboardOverviewStats(
     getTrafficTotals(db, range),
     getTrafficTotals(db, previous),
     getSharingEventTotals(db, range, now),
+    getTransferDataQuality(db, range),
   ])
   const [trendNewUsers, activeByDay, storageUsedByDay, uploadByDay, downloadByDay] = await Promise.all([
     getNewUsersByDay(db, range),
@@ -159,6 +162,7 @@ async function getDashboardOverviewStats(
 
   return {
     ...statsFrame(now, range),
+    dataQuality,
     totals: {
       users: totalUsers,
       newUsers: delta(newUsers, previousNewUsers),
@@ -251,6 +255,7 @@ async function getDashboardStorageStats(
     previousUploadBytes,
     uploadsByDay,
     uploadFilesByDay,
+    dataQuality,
   ] = await Promise.all([
     getQuotaTotals(db),
     db
@@ -265,6 +270,7 @@ async function getDashboardStorageStats(
     getActivityBytesTotal(db, previous, ['upload_confirm']),
     getActivityBytesByDay(db, range, ['upload_confirm']),
     getActivityCountByDay(db, range, ['upload_confirm']),
+    getTransferDataQuality(db, range),
   ])
   const fileItems = files.map((row) => ({ bytes: row.size ?? 0, createdAt: row.createdAt }))
   const storageTrend = createDateBuckets(range).map((date) => {
@@ -280,6 +286,7 @@ async function getDashboardStorageStats(
 
   return {
     ...statsFrame(now, range),
+    dataQuality,
     summary: {
       storageUsedBytes: quotas.usedBytes,
       quotaBytes: quotas.quotaBytes,
@@ -324,6 +331,7 @@ async function getDashboardTrafficStats(
     uploadFailureByDay,
     downloadFailureRows,
     uploadFailureRows,
+    dataQuality,
   ] = await Promise.all([
     getTrafficTotals(db, range),
     getTrafficTotals(db, previous),
@@ -337,6 +345,7 @@ async function getDashboardTrafficStats(
     getActivityCountByDay(db, range, ['upload_cancel', 'upload_failed']),
     getDownloadFailureRows(db, range),
     getActivityFailureRows(db, range, ['upload_cancel', 'upload_failed']),
+    getTransferDataQuality(db, range),
   ])
   const sourceRows = new Map<string, { name: string; bytes: number; requests: number }>()
   if (traffic.uploadBytes > 0 || traffic.uploadRequests > 0) {
@@ -412,6 +421,7 @@ async function getDashboardTrafficStats(
 
   return {
     ...statsFrame(now, range),
+    dataQuality,
     summary: {
       totalBytes: delta(
         traffic.uploadBytes + traffic.downloadBytes,
@@ -745,6 +755,38 @@ async function getActivityMetadataRows(db: Database, range: AdminStatsDateRange,
         lte(activityEvents.createdAt, range.to),
       ),
     )
+}
+
+async function getTransferDataQuality(db: Database, range: AdminStatsDateRange): Promise<AdminTransferDataQuality> {
+  const previous = previousRange(range)
+  const actions = ['upload_confirm', ...DOWNLOAD_ACTIVITY_ACTIONS]
+  const [currentRows, previousRows] = await Promise.all([
+    getActivityMetadataRows(db, range, actions),
+    getActivityMetadataRows(db, previous, actions),
+  ])
+  const current = missingTransferBytes(currentRows)
+  const previousCounts = missingTransferBytes(previousRows)
+  return {
+    missingUploadBytesEvents: current.upload,
+    previousMissingUploadBytesEvents: previousCounts.upload,
+    missingDownloadBytesEvents: current.download,
+    previousMissingDownloadBytesEvents: previousCounts.download,
+  }
+}
+
+function missingTransferBytes(rows: Array<{ action: string; metadata: string | null }>): {
+  upload: number
+  download: number
+} {
+  let upload = 0
+  let download = 0
+  for (const row of rows) {
+    const bytes = parseMetadata(row.metadata).bytes
+    if (typeof bytes === 'number' && Number.isFinite(bytes)) continue
+    if (row.action === 'upload_confirm') upload += 1
+    else download += 1
+  }
+  return { upload, download }
 }
 
 async function getStorageUsedByDay(db: Database, range: AdminStatsDateRange): Promise<Map<string, number>> {
