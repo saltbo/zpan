@@ -223,7 +223,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/site/licensing', licensingAdmin)
   app.route('/api/site/branding', brandingAdmin)
   app.route('/api/site/audit-events', adminAudit)
-  app.route('/api/admin/stats', adminStats)
+  app.route('/api/site/stats', adminStats)
   app.route('/api/downloads/downloaders', downloaders)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))

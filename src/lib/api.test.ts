@@ -3815,7 +3815,7 @@ describe('api', () => {
     })
   })
 
-  describe('admin stats API', () => {
+  describe('site stats API', () => {
     const dashboardPayload = {
       generatedAt: '2026-07-09T00:00:00.000Z',
       from: '2026-07-01T00:00:00.000Z',
@@ -3823,12 +3823,12 @@ describe('api', () => {
     }
     const range = { from: '2026-07-01T00:00:00.000Z', to: '2026-07-09T00:00:00.000Z' }
     const dashboardEndpoints = [
-      { name: 'getAdminDashboardOverviewStats', path: '/api/admin/stats/overview', fn: getAdminDashboardOverviewStats },
-      { name: 'getAdminDashboardGrowthStats', path: '/api/admin/stats/growth', fn: getAdminDashboardGrowthStats },
-      { name: 'getAdminDashboardStorageStats', path: '/api/admin/stats/storage', fn: getAdminDashboardStorageStats },
-      { name: 'getAdminDashboardTrafficStats', path: '/api/admin/stats/traffic', fn: getAdminDashboardTrafficStats },
-      { name: 'getAdminDashboardSharingStats', path: '/api/admin/stats/sharing', fn: getAdminDashboardSharingStats },
-      { name: 'getAdminDashboardRankingStats', path: '/api/admin/stats/ranking', fn: getAdminDashboardRankingStats },
+      { name: 'getAdminDashboardOverviewStats', path: '/api/site/stats/overview', fn: getAdminDashboardOverviewStats },
+      { name: 'getAdminDashboardGrowthStats', path: '/api/site/stats/growth', fn: getAdminDashboardGrowthStats },
+      { name: 'getAdminDashboardStorageStats', path: '/api/site/stats/storage', fn: getAdminDashboardStorageStats },
+      { name: 'getAdminDashboardTrafficStats', path: '/api/site/stats/traffic', fn: getAdminDashboardTrafficStats },
+      { name: 'getAdminDashboardSharingStats', path: '/api/site/stats/sharing', fn: getAdminDashboardSharingStats },
+      { name: 'getAdminDashboardRankingStats', path: '/api/site/stats/ranking', fn: getAdminDashboardRankingStats },
     ] as const
 
     for (const endpoint of dashboardEndpoints) {

@@ -68,7 +68,6 @@ import {
   adminDownloadersApi,
   adminQuotas,
   adminSiteInvitations,
-  adminStatsApi,
   adminTeams,
   announcementsApi,
   authedSharesApi,
@@ -90,6 +89,7 @@ import {
   publicBrandingApi,
   publicSharesApi,
   publicSiteInvitations,
+  siteStatsApi,
   storages,
   system,
   teamsApi,
@@ -447,27 +447,27 @@ function statsRangeQuery(filter: AdminStatsRangeFilter = {}): Record<string, str
 }
 
 export function getAdminDashboardOverviewStats(filter: AdminStatsRangeFilter = {}) {
-  return unwrap<AdminDashboardOverviewStats>(adminStatsApi.overview.$get({ query: statsRangeQuery(filter) }))
+  return unwrap<AdminDashboardOverviewStats>(siteStatsApi.overview.$get({ query: statsRangeQuery(filter) }))
 }
 
 export function getAdminDashboardGrowthStats(filter: AdminStatsRangeFilter = {}) {
-  return unwrap<AdminDashboardGrowthStats>(adminStatsApi.growth.$get({ query: statsRangeQuery(filter) }))
+  return unwrap<AdminDashboardGrowthStats>(siteStatsApi.growth.$get({ query: statsRangeQuery(filter) }))
 }
 
 export function getAdminDashboardStorageStats(filter: AdminStatsRangeFilter = {}) {
-  return unwrap<AdminDashboardStorageStats>(adminStatsApi.storage.$get({ query: statsRangeQuery(filter) }))
+  return unwrap<AdminDashboardStorageStats>(siteStatsApi.storage.$get({ query: statsRangeQuery(filter) }))
 }
 
 export function getAdminDashboardTrafficStats(filter: AdminStatsRangeFilter = {}) {
-  return unwrap<AdminDashboardTrafficStats>(adminStatsApi.traffic.$get({ query: statsRangeQuery(filter) }))
+  return unwrap<AdminDashboardTrafficStats>(siteStatsApi.traffic.$get({ query: statsRangeQuery(filter) }))
 }
 
 export function getAdminDashboardSharingStats(filter: AdminStatsRangeFilter = {}) {
-  return unwrap<AdminDashboardSharingStats>(adminStatsApi.sharing.$get({ query: statsRangeQuery(filter) }))
+  return unwrap<AdminDashboardSharingStats>(siteStatsApi.sharing.$get({ query: statsRangeQuery(filter) }))
 }
 
 export function getAdminDashboardRankingStats(filter: AdminStatsRangeFilter = {}) {
-  return unwrap<AdminDashboardRankingStats>(adminStatsApi.ranking.$get({ query: statsRangeQuery(filter) }))
+  return unwrap<AdminDashboardRankingStats>(siteStatsApi.ranking.$get({ query: statsRangeQuery(filter) }))
 }
 
 // Admin Storages API
