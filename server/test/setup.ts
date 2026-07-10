@@ -367,7 +367,7 @@ const APP_SCHEMA_SQL = `
     created_at INTEGER NOT NULL
   );
   CREATE UNIQUE INDEX IF NOT EXISTS image_hostings_org_path_uniq ON image_hostings(org_id, path);
-  CREATE INDEX IF NOT EXISTS image_hostings_org_created_idx ON image_hostings(org_id, created_at);
+  CREATE INDEX IF NOT EXISTS image_hostings_org_status_created_id_idx ON image_hostings(org_id, status, created_at, id);
   CREATE INDEX IF NOT EXISTS image_hostings_token_idx ON image_hostings(token);
   CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,

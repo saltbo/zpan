@@ -19,8 +19,18 @@ export interface CreateImageHostingInput {
 
 export interface ListImageHostingsOptions {
   pathPrefix?: string
-  cursor?: string
+  cursor?: ImageHostingCursor
   limit: number
+}
+
+export interface ImageHostingCursor {
+  createdAt: Date
+  id: string
+}
+
+export interface ImageHostingRepoPage {
+  items: ImageHostingRecord[]
+  nextCursor: ImageHostingCursor | null
 }
 
 export interface ImageResolution {
@@ -39,10 +49,7 @@ export interface ImageHostingRepo {
   // CRUD. `create` resolves a unique path on collision before inserting.
   create(input: CreateImageHostingInput): Promise<ImageHostingRecord>
   get(id: string, orgId: string): Promise<ImageHostingRecord | null>
-  list(
-    orgId: string,
-    opts: ListImageHostingsOptions,
-  ): Promise<{ items: ImageHostingRecord[]; nextCursor: string | null }>
+  list(orgId: string, opts: ListImageHostingsOptions): Promise<ImageHostingRepoPage>
   setActive(id: string, orgId: string): Promise<boolean>
   delete(id: string, orgId: string): Promise<void>
 }

@@ -329,8 +329,9 @@ describe('image-hosting usecase', () => {
   describe('listImageHostings / getImageHosting', () => {
     it('listImageHostings forwards the repo result', async () => {
       const items = [makeRow({ status: 'active' })]
-      const deps = makeDeps({ imageHosting: { list: async () => ({ items, nextCursor: 'c1' }) } })
-      expect(await listImageHostings(deps, 'o1', { limit: 50 })).toEqual({ items, nextCursor: 'c1' })
+      const nextCursor = { createdAt: new Date('2026-07-10T00:00:00.000Z'), id: 'ih-1' }
+      const deps = makeDeps({ imageHosting: { list: async () => ({ items, nextCursor }) } })
+      expect(await listImageHostings(deps, 'o1', { limit: 50 })).toEqual({ items, nextCursor })
     })
 
     it('getImageHosting returns the row', async () => {

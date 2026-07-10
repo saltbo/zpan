@@ -107,6 +107,18 @@ describe('imageHostings table', () => {
     expect(imageHostings.createdAt.notNull).toBe(true)
   })
 
+  it('indexes the deterministic gallery cursor tuple after its equality filters', () => {
+    const { indexes } = getTableConfig(imageHostings)
+    const galleryIndex = indexes.find(({ config }) => config.name === 'image_hostings_org_status_created_id_idx')
+    const columnNames = galleryIndex?.config.columns.map((column) => {
+      if (!('name' in column) || typeof column.name !== 'string') {
+        throw new Error('Gallery cursor index must contain only named columns')
+      }
+      return column.name
+    })
+    expect(columnNames).toEqual(['org_id', 'status', 'created_at', 'id'])
+  })
+
   it('org_id and storage_id have cascade/no-action FKs', () => {
     const { foreignKeys } = getTableConfig(imageHostings)
     expect(foreignKeys).toHaveLength(2)

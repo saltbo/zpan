@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid'
 import {
   ALLOWED_IMAGE_MIMES,
   createIhostImageSchema,
+  cursorPageSchema,
   ErrorReason,
   listIhostImagesSchema,
   MAX_IMAGE_SIZE,
@@ -13,6 +14,7 @@ import { mimeToExt } from '../../lib/mime-utils'
 import { requireAuth, requireTeamRole } from '../../middleware/auth'
 import { requirePermission } from '../../middleware/authz'
 import type { Env } from '../../middleware/platform'
+import { decodeImageHostingCursor, encodeImageHostingCursor } from '../../usecases/image-hosting/cursor'
 import {
   confirmImageHosting,
   getImageHosting,
@@ -73,9 +75,7 @@ const imageDraftSchema = z
   })
   .openapi('ImageHostingDraft')
 
-const imageListSchema = z
-  .object({ items: z.array(imageHostingSchema), nextCursor: z.string().nullable() })
-  .openapi('ImageHostingList')
+const imageListSchema = cursorPageSchema(imageHostingSchema, 'ImageHostingCursorPage')
 
 // Derive a storage path from the upload's filename, falling back to a random name.
 function deriveDefaultPath(filename: string, mime: string): string {
@@ -124,6 +124,8 @@ const presignRoute = createRoute({
 const listRoute = createRoute({
   operationId: 'listImageHostings',
   summary: 'List hosted images',
+  description:
+    'Returns a live cursor page ordered by (createdAt, id). Inserts after the cursor are eligible for later pages; earlier inserts are not revisited.',
   tags: ['Image Hosting'],
   method: 'get',
   path: '/images',
@@ -131,7 +133,7 @@ const listRoute = createRoute({
   request: { query: listIhostImagesSchema },
   responses: {
     200: jsonContent(imageListSchema, 'Hosted images'),
-    400: errorResponse('No active organization'),
+    400: errorResponse('No active organization or invalid cursor'),
     403: errorResponse('Image hosting not enabled'),
   },
 })
@@ -329,8 +331,18 @@ const ihost = app
     if (!enabled.ok) throw enabled.error
 
     const { pathPrefix, cursor, limit } = c.req.valid('query')
-    const result = await listImageHostings(c.get('deps'), orgId, { pathPrefix, cursor, limit })
-    return c.json({ items: result.items.map(toImageHostingDTO), nextCursor: result.nextCursor }, 200)
+    const result = await listImageHostings(c.get('deps'), orgId, {
+      pathPrefix,
+      cursor: cursor ? decodeImageHostingCursor(cursor) : undefined,
+      limit,
+    })
+    return c.json(
+      {
+        items: result.items.map(toImageHostingDTO),
+        nextCursor: result.nextCursor ? encodeImageHostingCursor(result.nextCursor) : null,
+      },
+      200,
+    )
   })
   .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')

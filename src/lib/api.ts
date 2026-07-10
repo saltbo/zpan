@@ -11,6 +11,7 @@ import type {
   CreateDownloadTaskInput,
   CreateShareRequest,
   CreateStorageInput,
+  CursorPage,
   DiscountQuote,
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
@@ -1354,10 +1355,7 @@ export function uploadPartToS3(url: string, blob: Blob, options: UploadPartOptio
 
 export type { ImageHosting }
 
-export interface IhostImageListResult {
-  items: ImageHosting[]
-  nextCursor: string | null
-}
+export type ImageHostingCursorPage = CursorPage<ImageHosting>
 
 export interface IhostImageDraft {
   id: string
@@ -1372,7 +1370,7 @@ export function listIhostImages(opts?: { pathPrefix?: string; cursor?: string; l
   if (opts?.pathPrefix) query.pathPrefix = opts.pathPrefix
   if (opts?.cursor) query.cursor = opts.cursor
   if (opts?.limit != null) query.limit = String(opts.limit)
-  return unwrap<IhostImageListResult>(ihostApi.images.$get({ query }))
+  return unwrap<ImageHostingCursorPage>(ihostApi.images.$get({ query }))
 }
 
 export function createIhostImagePresign(data: { path: string; mime: AllowedImageMime; size: number }) {

@@ -1871,6 +1871,14 @@ type ImageHostingConfig struct {
 // ImageHostingConfigDomainStatus defines model for ImageHostingConfig.DomainStatus.
 type ImageHostingConfigDomainStatus string
 
+// ImageHostingCursorPage defines model for ImageHostingCursorPage.
+type ImageHostingCursorPage struct {
+	Items []ImageHosting `json:"items"`
+
+	// NextCursor Opaque continuation cursor; null when traversal is complete
+	NextCursor *string `json:"nextCursor"`
+}
+
 // ImageHostingDraft defines model for ImageHostingDraft.
 type ImageHostingDraft struct {
 	Id         string `json:"id"`
@@ -1878,12 +1886,6 @@ type ImageHostingDraft struct {
 	StorageKey string `json:"storageKey"`
 	Token      string `json:"token"`
 	UploadUrl  string `json:"uploadUrl"`
-}
-
-// ImageHostingList defines model for ImageHostingList.
-type ImageHostingList struct {
-	Items      []ImageHosting `json:"items"`
-	NextCursor *string        `json:"nextCursor"`
 }
 
 // InstanceInfo defines model for InstanceInfo.
@@ -3361,8 +3363,10 @@ type UpdateImageHostingConfigJSONBodyEnabled bool
 // ListImageHostingsParams defines parameters for ListImageHostings.
 type ListImageHostingsParams struct {
 	PathPrefix *string `form:"pathPrefix,omitempty" json:"pathPrefix,omitempty"`
-	Cursor     *string `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Limit      *int    `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque continuation cursor returned by the previous page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // PresignImageHostingUploadJSONBody defines parameters for PresignImageHostingUpload.
@@ -24253,7 +24257,7 @@ func (r UpdateImageHostingConfigResponse) ContentType() string {
 type ListImageHostingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ImageHostingList
+	JSON200      *ImageHostingCursorPage
 	JSON400      *Error
 	JSON403      *Error
 }
@@ -38533,7 +38537,7 @@ func ParseListImageHostingsResponse(rsp *http.Response) (*ListImageHostingsRespo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ImageHostingList
+		var dest ImageHostingCursorPage
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

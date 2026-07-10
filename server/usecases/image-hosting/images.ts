@@ -19,6 +19,7 @@ import {
   type ImageHostingConfigRepo,
   type ImageHostingRecord,
   type ImageHostingRepo,
+  type ImageHostingRepoPage,
   type ListImageHostingsOptions,
   noStorage,
   notFound,
@@ -213,7 +214,7 @@ export function listImageHostings(
   deps: Pick<ImageHostingDeps, 'imageHosting'>,
   orgId: string,
   opts: ListImageHostingsOptions,
-): Promise<{ items: ImageHostingRecord[]; nextCursor: string | null }> {
+): Promise<ImageHostingRepoPage> {
   return deps.imageHosting.list(orgId, opts)
 }
 
