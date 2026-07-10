@@ -1,0 +1,252 @@
+import { sql } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+import { assertMetricDimension, ADMIN_STATS_METRICS as M } from '../../domain/admin-stats-metrics'
+import { adminHeaders, createTestApp } from '../../test/setup.js'
+import { AdminStatsHourlyReader } from './admin-stats-hourly'
+import { rebuildAdminStatsHour } from './admin-stats-rollup'
+
+type RollupRow = {
+  orgId: string
+  metric: string
+  dimensionKey: string
+  dimensionValue: string
+  count: number
+  bytes: number
+  uniqueCount: number
+  metadata: string
+}
+
+describe('admin hourly stats rollup', () => {
+  it('rebuilds event, user, operational, and snapshot metrics idempotently', async () => {
+    const { app, db } = await createTestApp()
+    await adminHeaders(app)
+    const [{ id: orgId }] = await db.all<{ id: string }>(
+      sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    const [{ id: userId }] = await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`)
+    const bucketStart = new Date('2026-07-10T12:00:00.000Z')
+    const generatedAt = new Date('2026-07-10T12:30:00.000Z')
+    const atMs = bucketStart.getTime() + 60_000
+    const atSec = Math.floor(atMs / 1000)
+
+    await db.run(sql`UPDATE user SET created_at = ${atMs}, updated_at = ${atMs} WHERE id = ${userId}`)
+    await db.run(sql`UPDATE account SET created_at = ${atMs}, updated_at = ${atMs} WHERE user_id = ${userId}`)
+    await db.run(sql`UPDATE session SET created_at = ${atMs}, updated_at = ${atMs} WHERE user_id = ${userId}`)
+    await db.run(sql`UPDATE organization SET created_at = ${atMs}, updated_at = ${atMs} WHERE id = ${orgId}`)
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata, created_at, updated_at)
+      VALUES ('rollup-team', 'Rollup Team', 'rollup-team', '{"type":"team"}', ${atMs}, ${atMs})
+    `)
+    await db.run(sql`
+      UPDATE org_quotas
+      SET used = 500, quota = 1000, traffic_used = 300, traffic_quota = 2000
+      WHERE org_id = ${orgId}
+    `)
+    await db.run(sql`
+      INSERT INTO storages
+        (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES
+        ('rollup-storage', 'bucket', 'https://s3.example', 'auto', 'AK', 'SK', '', '', 1000, 500, 'active', ${atSec}, ${atSec}),
+        ('rollup-storage-disabled', 'bucket-2', 'https://s3.example', 'auto', 'AK', 'SK', '', '', 1000, 900, 'disabled', ${atSec}, ${atSec})
+    `)
+    await db.run(sql`
+      INSERT INTO matters
+        (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES
+        ('rollup-file', ${orgId}, 'rollup-file', 'video.mp4', 'video/mp4', 200, 0, '', 'video.mp4', 'rollup-storage', 'active', ${atSec}, ${atSec}),
+        ('rollup-dir', ${orgId}, 'rollup-dir', 'folder', '', 0, 1, '', '', 'rollup-storage', 'active', ${atSec}, ${atSec}),
+        ('rollup-trashed', ${orgId}, 'rollup-trashed', 'old.bin', 'application/octet-stream', 800, 0, '', 'old.bin', 'rollup-storage', 'trashed', ${atSec}, ${atSec})
+    `)
+    await db.run(sql`
+      INSERT INTO image_hostings
+        (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
+      VALUES ('rollup-image', ${orgId}, 'ih_rollup', 'image.png', 'rollup-storage', 'image.png', 300,
+        'image/png', 'active', 0, ${atMs})
+    `)
+    await db.run(sql`
+      INSERT INTO shares
+        (id, token, kind, matter_id, org_id, creator_id, expires_at, download_limit, views, downloads, status, created_at)
+      VALUES
+        ('rollup-share-usable', 'rollup-share-usable', 'landing', 'rollup-file', ${orgId}, ${userId}, NULL, NULL, 0, 0, 'active', ${atSec}),
+        ('rollup-share-revoked', 'rollup-share-revoked', 'direct', 'rollup-file', ${orgId}, ${userId}, NULL, NULL, 0, 0, 'revoked', ${atSec}),
+        ('rollup-share-expired', 'rollup-share-expired', 'landing', 'rollup-file', ${orgId}, ${userId}, ${atSec - 1}, NULL, 0, 0, 'active', ${atSec}),
+        ('rollup-share-limited', 'rollup-share-limited', 'direct', 'rollup-file', ${orgId}, ${userId}, NULL, 1, 0, 1, 'active', ${atSec})
+    `)
+    await db.run(sql`
+      INSERT INTO activity_events
+        (id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
+      VALUES
+        ('rollup-upload-ok', ${orgId}, ${userId}, 'user', 'upload_confirm', 'file', 'rollup-file', 'ok.bin',
+          '{"bytes":100,"source":"upload","storageId":"rollup-storage"}', ${atSec}),
+        ('rollup-upload-missing', ${orgId}, ${userId}, NULL, 'upload_confirm', 'file', 'rollup-file', 'missing.bin',
+          'not-json', ${atSec}),
+        ('rollup-upload-cancel', ${orgId}, ${userId}, 'user', 'upload_cancel', 'file', 'rollup-file', 'cancel.bin',
+          '{}', ${atSec}),
+        ('rollup-upload-failed', ${orgId}, ${userId}, 'user', 'upload_failed', 'file', 'rollup-file', 'failed.bin',
+          '{"reason":"network"}', ${atSec}),
+        ('rollup-share-download', ${orgId}, NULL, NULL, 'share_download', 'share', 'rollup-share-usable', 'shared.bin',
+          '{"bytes":20,"shareId":"rollup-share-usable","kind":"landing"}', ${atSec}),
+        ('rollup-object-download', ${orgId}, ${userId}, NULL, 'object_download', 'file', 'rollup-file', 'object.bin',
+          '{"bytes":30}', ${atSec}),
+        ('rollup-image-download', ${orgId}, NULL, 'anonymous', 'image_hosting_download', 'image', 'rollup-image', 'image.png',
+          '[]', ${atSec}),
+        ('rollup-webdav-download', ${orgId}, ${userId}, 'user', 'webdav_download', 'file', 'rollup-file', 'webdav.bin',
+          '{"bytes":40}', ${atSec}),
+        ('rollup-download-failed', ${orgId}, ${userId}, 'user', 'download_failed', 'file', 'rollup-file', 'blocked.bin',
+          '{"bytes":5,"reason":"quota_exceeded"}', ${atSec}),
+        ('rollup-share-view', ${orgId}, NULL, 'anonymous', 'share_view', 'share', 'rollup-share-usable', 'shared.bin',
+          NULL, ${atSec}),
+        ('rollup-share-save', ${orgId}, ${userId}, 'user', 'save_from_share', 'share', 'rollup-share-usable', 'shared.bin',
+          '{"bytes":6}', ${atSec}),
+        ('rollup-share-password', ${orgId}, NULL, 'anonymous', 'share_password_passed', 'share', 'rollup-share-usable', 'shared.bin',
+          NULL, ${atSec}),
+        ('rollup-restore', ${orgId}, ${userId}, 'user', 'restore', 'file', 'rollup-file', 'restored.bin', NULL, ${atSec}),
+        ('rollup-purge', ${orgId}, ${userId}, 'user', 'object_purge', 'file', 'rollup-file', 'purged.bin', NULL, ${atSec}),
+        ('rollup-team-join', ${orgId}, ${userId}, 'user', 'team_member_join', 'organization', 'rollup-team', 'team', NULL, ${atSec}),
+        ('rollup-team-remove', ${orgId}, ${userId}, 'user', 'team_member_remove', 'organization', 'rollup-team', 'team', NULL, ${atSec}),
+        ('rollup-license', ${orgId}, NULL, 'system', 'license_refresh', 'license', NULL, 'license',
+          '{"status":"failed"}', ${atSec})
+    `)
+    await db.run(sql`
+      INSERT INTO cloud_traffic_reports
+        (id, org_id, period, source, source_id, storage_id, event_id, bytes, unit_bytes, credits_per_unit, status, created_at, updated_at)
+      VALUES
+        ('rollup-traffic-ok', ${orgId}, '2026-07', 'object_download', 'rollup-file', 'rollup-storage', 'traffic-ok', 100, 50, 2, 'reported', ${atMs}, ${atMs}),
+        ('rollup-traffic-blocked', ${orgId}, '2026-07', 'landing_share', 'rollup-share-usable', NULL, 'traffic-blocked', 200, 50, 2, 'blocked', ${atMs}, ${atMs})
+    `)
+    await db.run(sql`
+      INSERT INTO downloaders
+        (id, name, token_hash, token_jti, status, enabled, version, hostname, platform, arch, engine, capabilities,
+          max_concurrent_tasks, current_tasks, download_bps, upload_bps, free_disk_bytes, created_by, created_at, updated_at)
+      VALUES
+        ('rollup-downloader', 'Online', 'hash-1', 'jti-1', 'online', 1, '1', 'host', 'linux', 'x64', 'http', '[]', 2, 1, 0, 0, 1, ${userId}, ${atMs}, ${atMs}),
+        ('rollup-downloader-offline', 'Offline', 'hash-2', 'jti-2', 'offline', 1, '1', 'host', 'linux', 'x64', 'http', '[]', 2, 0, 0, 0, 1, ${userId}, ${atMs}, ${atMs})
+    `)
+    await db.run(sql`
+      INSERT INTO download_tasks
+        (id, org_id, created_by_user_id, source_type, source_uri, display_name, target_folder, category, tags,
+          assigned_downloader_id, status, billing_charged_bytes, created_at, updated_at, finished_at)
+      VALUES
+        ('rollup-task-finished', ${orgId}, ${userId}, 'http', 'https://example.com/a', 'a', '', NULL, '[]',
+          'rollup-downloader', 'completed', 60, ${atMs}, ${atMs}, ${atMs}),
+        ('rollup-task-queued', ${orgId}, ${userId}, 'torrent', 'magnet:?xt=1', 'b', '', 'media', '[]',
+          'rollup-downloader', 'queued', 0, ${atMs}, ${atMs}, NULL)
+    `)
+    await db.run(sql`
+      INSERT INTO background_jobs
+        (id, org_id, user_id, type, status, target_folder, target_path, created_at, updated_at, finished_at)
+      VALUES
+        ('rollup-job-finished', ${orgId}, ${userId}, 'archive', 'failed', '', '', ${atMs}, ${atMs}, ${atMs}),
+        ('rollup-job-queued', ${orgId}, ${userId}, 'extract', 'queued', '', '', ${atMs}, ${atMs}, NULL)
+    `)
+    await db.run(sql`
+      INSERT INTO remote_download_usage_reports
+        (id, org_id, downloader_id, task_id, event_id, unit_index, unit_bytes, credits_per_unit, status, created_at, updated_at)
+      VALUES ('rollup-usage', ${orgId}, 'rollup-downloader', 'rollup-task-finished', 'usage-event', 0, 70, 3,
+        'reported', ${atMs}, ${atMs})
+    `)
+    await db.run(sql`
+      INSERT INTO webhook_events
+        (id, source, event_id, event_type, payload_hash, raw_payload, status, created_at, processed_at)
+      VALUES ('rollup-webhook', 'cloud', 'webhook-event', 'order.quota_changed', 'hash', '{}', 'processed', ${atMs}, ${atMs})
+    `)
+
+    const first = await rebuildAdminStatsHour(db, bucketStart, generatedAt, true)
+    const rows = await db.all<RollupRow>(sql`
+      SELECT org_id AS orgId, metric_key AS metric, dimension_key AS dimensionKey,
+        dimension_value AS dimensionValue, count, bytes, unique_count AS uniqueCount, metadata
+      FROM stats_rollups_hourly
+      WHERE bucket_start = ${bucketStart.getTime()}
+    `)
+    const row = (metric: string, dimensionKey = '', dimensionValue = '', rowOrgId = orgId) =>
+      rows.find(
+        (value) =>
+          value.metric === metric &&
+          value.orgId === rowOrgId &&
+          value.dimensionKey === dimensionKey &&
+          value.dimensionValue === dimensionValue,
+      )
+
+    expect(first).toMatchObject({
+      bucketStart,
+      bucketEnd: new Date('2026-07-10T13:00:00.000Z'),
+      rows: rows.length,
+      lowerBoundRows: expect.any(Number),
+    })
+    expect(first.lowerBoundRows).toBeGreaterThan(0)
+    expect(row(M.transferUpload)).toMatchObject({ count: 4, bytes: 100 })
+    expect(row(M.storageIngress)).toMatchObject({ count: 2, bytes: 100 })
+    expect(row(M.transferDownloadIssued)).toMatchObject({ count: 4, bytes: 90 })
+    expect(row(M.trafficQuotaBlocked)).toMatchObject({ count: 1, bytes: 5 })
+    expect(row(M.shareDownloadIssued)).toMatchObject({ count: 1, bytes: 20 })
+    expect(row(M.statsMissingBytes)).toMatchObject({ count: 2 })
+    expect(row(M.teamMembershipChange)).toMatchObject({ count: 2 })
+    expect(row(M.userSignup, '', '', '')).toMatchObject({ count: 1 })
+    expect(row(M.userActiveHour, '', '', '')).toMatchObject({ uniqueCount: 1 })
+    expect(row(M.spaceCreated, '', '', '')).toMatchObject({ count: 2 })
+    expect(row(M.shareCreated)).toMatchObject({ count: 4 })
+    expect(row(M.trafficReportSync)).toMatchObject({ count: 2, bytes: 300 })
+    expect(row(M.trafficCreditConsumed)).toMatchObject({ count: 4, bytes: 100 })
+    expect(row(M.remoteDownloadTaskCreated)).toMatchObject({ count: 2 })
+    expect(row(M.remoteDownloadTaskFinished)).toMatchObject({ count: 1, bytes: 60 })
+    expect(row(M.backgroundJobFinished)).toMatchObject({ count: 1 })
+    expect(row(M.remoteDownloadUsage)).toMatchObject({ count: 3, bytes: 70 })
+    expect(row(M.webhookProcessed, '', '', '')).toMatchObject({ count: 1 })
+    expect(row(M.storageInventory)).toMatchObject({ count: 2, bytes: 500 })
+    expect(row(M.shareInventory, 'lifecycle', 'usable')).toMatchObject({ count: 1 })
+    expect(row(M.shareInventory, 'lifecycle', 'revoked')).toMatchObject({ count: 1 })
+    expect(row(M.shareInventory, 'lifecycle', 'expired')).toMatchObject({ count: 1 })
+    expect(row(M.shareInventory, 'lifecycle', 'download_limit_reached')).toMatchObject({ count: 1 })
+    expect(row(M.backgroundJobSnapshot)).toMatchObject({ count: 1 })
+    expect(row(M.remoteDownloadTaskSnapshot)).toMatchObject({ count: 1 })
+    expect(row(M.downloaderSnapshot, '', '', '')).toMatchObject({ count: 2 })
+    expect(row(M.statsRollupRun, '', '', '')).toMatchObject({ count: 1 })
+    expect(JSON.parse(row(M.transferUpload)?.metadata ?? '{}')).toMatchObject({ quality: 'lower_bound' })
+
+    const second = await rebuildAdminStatsHour(db, bucketStart, generatedAt, true)
+    const [{ count: storedRows }] = await db.all<{ count: number }>(sql`
+      SELECT COUNT(*) AS count FROM stats_rollups_hourly WHERE bucket_start = ${bucketStart.getTime()}
+    `)
+    expect(second.rows).toBe(first.rows)
+    expect(storedRows).toBe(first.rows)
+  })
+
+  it('rejects buckets that are not aligned to a UTC hour', async () => {
+    const { db } = await createTestApp()
+
+    await expect(
+      rebuildAdminStatsHour(db, new Date('2026-07-10T12:00:00.001Z'), new Date('2026-07-10T12:30:00Z'), false),
+    ).rejects.toThrow('stats_bucket_must_align_to_utc_hour')
+  })
+
+  it('treats absent and malformed rollup quality metadata as exact data', async () => {
+    const { db } = await createTestApp()
+    const bucketStart = Date.parse('2026-07-10T10:00:00.000Z')
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('quality-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0, '{}', ${bucketStart}),
+        ('quality-null', ${bucketStart}, 'org-null', 'transfer.upload', '', '', 1, 1, 0, NULL, ${bucketStart}),
+        ('quality-array', ${bucketStart}, 'org-array', 'transfer.upload', '', '', 1, 2, 0, '[]', ${bucketStart}),
+        ('quality-invalid', ${bucketStart}, 'org-invalid', 'transfer.upload', '', '', 1, 3, 0, '{', ${bucketStart})
+    `)
+    const reader = new AdminStatsHourlyReader(
+      db,
+      {
+        from: new Date(bucketStart),
+        to: new Date(bucketStart + 3_600_000 - 1),
+        timeZone: 'UTC',
+      },
+      new Date(bucketStart + 7_200_000),
+    )
+
+    expect(reader.endExclusive()).toEqual(new Date(bucketStart + 3_600_000))
+    expect(await reader.rows(M.transferUpload)).toHaveLength(3)
+    expect((await reader.rows(M.transferUpload)).every((row) => row.lowerBound === false)).toBe(true)
+    expect(() => assertMetricDimension(M.transferUpload, 'not-a-dimension')).toThrow(
+      'Unsupported stats dimension: transfer.upload/not-a-dimension',
+    )
+  })
+})
