@@ -511,6 +511,17 @@ describe('WebDAV API', () => {
       'objects/readme.txt',
     )
     expect(S3Service.prototype.getObjectBytes).not.toHaveBeenCalled()
+    const events = await db.all<{ metadata: string }>(sql`
+      SELECT metadata FROM activity_events
+      WHERE action = 'webdav_download' AND target_id = 'readme'
+    `)
+    expect(events).toHaveLength(1)
+    expect(JSON.parse(events[0].metadata)).toMatchObject({
+      bytes: 12,
+      source: 'webdav_download',
+      status: 'issued',
+      matterId: 'readme',
+    })
   })
 
   it('GET consumes WebDAV traffic while HEAD does not [spec: webdav/get-traffic]', async () => {

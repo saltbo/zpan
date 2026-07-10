@@ -13,28 +13,37 @@ import {
   getAdminDashboardTrafficStats,
 } from '../usecases/admin-stats'
 
-const dashboardDateSchema = z.string().refine((value) => isValidDashboardDate(value), {
-  message: 'Expected yyyy-MM-dd or ISO datetime',
-})
+const dashboardDateSchema = z
+  .string()
+  .refine(isValidDashboardDate, { message: 'Expected valid yyyy-MM-dd or ISO datetime with offset' })
 
 const rangeQuerySchema = z.object({
   from: dashboardDateSchema.optional(),
   to: dashboardDateSchema.optional(),
+  timeZone: z.string().max(64).refine(isValidTimeZone, 'Invalid IANA time zone').optional(),
 })
 
-function parseRange(query: z.infer<typeof rangeQuerySchema>): { from?: Date; to?: Date } {
+function parseRange(query: z.infer<typeof rangeQuerySchema>): { from?: Date; to?: Date; timeZone?: string } {
   return {
     from: query.from ? parseDashboardDate(query.from, 'start') : undefined,
     to: query.to ? parseDashboardDate(query.to, 'end') : undefined,
+    timeZone: query.timeZone,
+  }
+}
+
+function isValidTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: value }).format()
+    return true
+  } catch {
+    return false
   }
 }
 
 function isValidDashboardDate(value: string): boolean {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const date = new Date(`${value}T00:00:00.000Z`)
-    return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
-  }
-  return !Number.isNaN(Date.parse(value))
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return z.string().datetime({ offset: true }).safeParse(value).success
+  const date = new Date(`${value}T00:00:00.000Z`)
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
 }
 
 function parseDashboardDate(value: string, boundary: 'start' | 'end'): Date {

@@ -478,6 +478,14 @@ export function createMatterRepo(db: Database): MatterRepo {
           targetType: 'file',
           targetId: existing.id,
           targetName: existing.name,
+          metadata: {
+            bytes: existing.size,
+            source: 'upload',
+            status: 'canceled',
+            storageId: existing.storageId,
+            matterId: existing.id,
+            matterType: existing.type,
+          },
         })
       }
 

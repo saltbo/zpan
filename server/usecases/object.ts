@@ -46,6 +46,7 @@ import {
 } from './ports'
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 import { meterDownloadTraffic } from './store/traffic-metering'
+import { createTrafficEventId, recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
 
 export { ObjectUploadSessionError } from './ports'
 
@@ -345,7 +346,7 @@ export async function completeUpload(
     actorId: string
   },
 ): Promise<CompleteUploadOutcome> {
-  const { storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
+  const { matter: uploadMatter, storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
   const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
   if (!record) throw new ObjectUploadSessionError('not_found')
   if (record.status !== 'active') throw new ObjectUploadSessionError('invalid_state')
@@ -356,16 +357,19 @@ export async function completeUpload(
     try {
       head = await deps.s3.headObject(storage, record.storageKey)
     } catch (error) {
+      await recordUploadFailure(deps.activity, uploadMatter, params.actorId, params.sessionId, 'object_not_found')
       throw new ObjectUploadSessionError('invalid_state', `Uploaded object not found: ${(error as Error).message}`)
     }
     const reported = params.parts[0]?.etag.replace(/"/g, '')
     if (!reported || reported !== head.etag) {
+      await recordUploadFailure(deps.activity, uploadMatter, params.actorId, params.sessionId, 'etag_mismatch')
       throw new ObjectUploadSessionError('invalid_state', 'Uploaded object ETag does not match')
     }
   } else {
     try {
       await deps.s3.completeMultipartUpload(storage, record.storageKey, record.uploadId, params.parts)
     } catch (error) {
+      await recordUploadFailure(deps.activity, uploadMatter, params.actorId, params.sessionId, 'storage_failure')
       throw new ObjectUploadSessionError(
         'storage_failure',
         `Storage multipart upload complete failed: ${(error as Error).message}`,
@@ -380,9 +384,42 @@ export async function completeUpload(
     userId: params.actorId,
     purgeReplaced: (incumbent) => purgeRecursively(deps, params.orgId, [incumbent]).then(() => undefined),
   })
-  if (exceeded) return { ok: false, error: quotaExceeded() }
-  if (!matter) return { ok: false, reason: 'not_found' }
+  if (exceeded) {
+    await recordUploadFailure(deps.activity, uploadMatter, params.actorId, params.sessionId, 'quota_exceeded')
+    return { ok: false, error: quotaExceeded() }
+  }
+  if (!matter) {
+    await recordUploadFailure(deps.activity, uploadMatter, params.actorId, params.sessionId, 'confirm_race')
+    return { ok: false, reason: 'not_found' }
+  }
   return { ok: true, matter }
+}
+
+function recordUploadFailure(
+  activity: ActivityRepo,
+  matter: Matter,
+  actorId: string,
+  sessionId: string,
+  reason: string,
+): Promise<void> {
+  return activity.record({
+    orgId: matter.orgId,
+    userId: actorId,
+    action: 'upload_failed',
+    targetType: 'file',
+    targetId: matter.id,
+    targetName: matter.name,
+    metadata: {
+      bytes: matter.size ?? 0,
+      source: 'upload',
+      status: 'failed',
+      reason,
+      sessionId,
+      storageId: matter.storageId,
+      matterId: matter.id,
+      matterType: matter.type,
+    },
+  })
 }
 
 // Aborts an in-progress upload and discards the draft. Idempotent for an
@@ -448,6 +485,7 @@ export async function getObject(
   if (!storage) return { ok: false, error: storageNotFound() }
 
   const bytes = matter.size ?? 0
+  const trafficEventId = createTrafficEventId()
   const metered = await meterDownloadTraffic(deps, {
     cloudBaseUrl: params.cloudBaseUrl,
     orgId: params.orgId,
@@ -455,8 +493,21 @@ export async function getObject(
     storage,
     source: 'object_download',
     sourceId: matter.id,
+    eventId: trafficEventId,
   })
-  if (!metered.ok)
+  if (!metered.ok) {
+    await recordDownloadFailed(deps.activity, {
+      orgId: params.orgId,
+      userId: params.actorId,
+      targetType: 'file',
+      targetId: matter.id,
+      targetName: matter.name,
+      source: 'object_download',
+      bytes,
+      trafficEventId,
+      reason: metered.reason,
+      metadata: { matterId: matter.id, storageId: matter.storageId },
+    })
     return {
       ok: false,
       error:
@@ -464,33 +515,43 @@ export async function getObject(
           ? quotaExceeded('Traffic quota exceeded')
           : insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
     }
+  }
 
   let downloadUrl: string
   try {
     downloadUrl = await deps.s3.presignDownload(storage, matter.object, matter.name)
   } catch (error) {
     await deps.quota.refundTraffic(params.orgId, bytes)
+    await recordDownloadFailed(deps.activity, {
+      orgId: params.orgId,
+      userId: params.actorId,
+      targetType: 'file',
+      targetId: matter.id,
+      targetName: matter.name,
+      source: 'object_download',
+      bytes,
+      trafficEventId,
+      reason: 'presign_failed',
+      metadata: { matterId: matter.id, storageId: matter.storageId },
+    })
     throw error
   }
   try {
-    await deps.activity.record({
+    await recordDownloadIssued(deps.activity, {
       orgId: params.orgId,
       userId: params.actorId,
       action: 'object_download',
       targetType: 'file',
       targetId: matter.id,
       targetName: matter.name,
-      metadata: {
-        status: 'issued',
-        source: 'object_download',
-        matterId: matter.id,
-        storageId: matter.storageId,
-        bytes,
-        matterType: matter.type,
-      },
+      source: 'object_download',
+      bytes,
+      trafficEventId,
+      metadata: { matterId: matter.id, storageId: matter.storageId, matterType: matter.type },
     })
   } catch (error) {
-    console.error('[objects] recordActivity failed:', error)
+    await deps.quota.refundTraffic(params.orgId, bytes)
+    throw error
   }
   return { ok: true, matter, downloadUrl }
 }
@@ -810,6 +871,8 @@ export async function confirmUpload(
             targetName: confirmed.name,
             metadata: {
               bytes,
+              source: 'upload',
+              status: 'success',
               storageId: confirmed.storageId,
               matterId: confirmed.id,
               matterType: confirmed.type,

@@ -9,6 +9,7 @@
 // route-specific Responses from the discriminated outcomes below.
 
 import {
+  type ActivityRepo,
   type AppError,
   expired as expiredError,
   forbidden,
@@ -24,6 +25,7 @@ import {
 } from './ports'
 import { PRESIGN_TTL_SECS } from './share'
 import { type CloudTrafficMeteringDeps, meterDownloadTraffic, reportDownloadEgress } from './store/traffic-metering'
+import { createTrafficEventId, recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
 
 // The metering usecases need the cloud-report ports plus quota; the redirect
 // flows additionally read shares / image-hosting / storages and presign via s3.
@@ -33,6 +35,7 @@ export type RedirectDeps = CloudTrafficMeteringDeps & {
   storages: StorageRepo
   share: ShareRepo
   imageHosting: ImageHostingRepo
+  activity: Pick<ActivityRepo, 'record'>
 }
 
 // ─── Direct share (ds_) ──────────────────────────────────────────────────────
@@ -69,6 +72,7 @@ export async function resolveDirectShareDownload(
   if (!ok) return { ok: false, error: expiredError('Download limit exceeded') }
 
   const bytes = matter.size ?? 0
+  const trafficEventId = createTrafficEventId()
   const metered = await meterDownloadTraffic(deps, {
     cloudBaseUrl: params.cloudBaseUrl,
     orgId: share.orgId,
@@ -76,9 +80,22 @@ export async function resolveDirectShareDownload(
     storage,
     source: 'direct_share',
     sourceId: share.id,
+    eventId: trafficEventId,
     onRejected: () => deps.share.decrementDownloads(share.id),
   })
-  if (!metered.ok)
+  if (!metered.ok) {
+    await recordDownloadFailed(deps.activity, {
+      orgId: share.orgId,
+      actorType: 'anonymous',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: matter.name,
+      source: 'direct_share',
+      bytes,
+      trafficEventId,
+      reason: metered.reason,
+      metadata: { shareId: share.id, matterId: matter.id, storageId: matter.storageId },
+    })
     return {
       ok: false,
       error:
@@ -86,6 +103,7 @@ export async function resolveDirectShareDownload(
           ? quotaExceeded('Traffic quota exceeded')
           : insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
     }
+  }
 
   let url: string
   try {
@@ -93,7 +111,38 @@ export async function resolveDirectShareDownload(
   } catch (e) {
     await deps.quota.refundTraffic(share.orgId, bytes)
     await deps.share.decrementDownloads(share.id)
+    await recordDownloadFailed(deps.activity, {
+      orgId: share.orgId,
+      actorType: 'anonymous',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: matter.name,
+      source: 'direct_share',
+      bytes,
+      trafficEventId,
+      reason: 'presign_failed',
+      metadata: { shareId: share.id, matterId: matter.id, storageId: matter.storageId },
+    })
     throw e
+  }
+
+  try {
+    await recordDownloadIssued(deps.activity, {
+      orgId: share.orgId,
+      actorType: 'anonymous',
+      action: 'share_download',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: matter.name,
+      source: 'direct_share',
+      bytes,
+      trafficEventId,
+      metadata: { shareId: share.id, matterId: matter.id, storageId: matter.storageId, kind: share.kind },
+    })
+  } catch (error) {
+    await deps.quota.refundTraffic(share.orgId, bytes)
+    await deps.share.decrementDownloads(share.id)
+    throw error
   }
 
   return { ok: true, url }
@@ -127,14 +176,41 @@ export async function resolveImageHostingDownload(
   const storage = await deps.storages.get(image.storageId)
   if (!storage) return { ok: false, error: storageNotFound() }
 
+  const trafficEventId = createTrafficEventId()
   const trafficAllowed = await deps.quota.consumeTrafficIfQuotaAllows(image.orgId, image.size)
-  if (!trafficAllowed) return { ok: false, error: quotaExceeded('Traffic quota exceeded') }
+  if (!trafficAllowed) {
+    await recordDownloadFailed(deps.activity, {
+      orgId: image.orgId,
+      actorType: 'anonymous',
+      targetType: 'image',
+      targetId: image.id,
+      targetName: image.storageKey,
+      source: 'image_hosting',
+      bytes: image.size,
+      trafficEventId,
+      reason: 'quota_exceeded',
+      metadata: { imageId: image.id, storageId: image.storageId },
+    })
+    return { ok: false, error: quotaExceeded('Traffic quota exceeded') }
+  }
 
   let url: string
   try {
     url = await deps.s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
   } catch (e) {
     await deps.quota.refundTraffic(image.orgId, image.size)
+    await recordDownloadFailed(deps.activity, {
+      orgId: image.orgId,
+      actorType: 'anonymous',
+      targetType: 'image',
+      targetId: image.id,
+      targetName: image.storageKey,
+      source: 'image_hosting',
+      bytes: image.size,
+      trafficEventId,
+      reason: 'presign_failed',
+      metadata: { imageId: image.id, storageId: image.storageId },
+    })
     throw e
   }
 
@@ -145,13 +221,45 @@ export async function resolveImageHostingDownload(
     storage,
     source: 'image_hosting',
     sourceId: image.id,
+    eventId: trafficEventId,
   })
   // reportDownloadEgress never consumes quota, so it cannot return quota_exceeded.
-  if (!reported.ok)
+  if (!reported.ok) {
+    await recordDownloadFailed(deps.activity, {
+      orgId: image.orgId,
+      actorType: 'anonymous',
+      targetType: 'image',
+      targetId: image.id,
+      targetName: image.storageKey,
+      source: 'image_hosting',
+      bytes: image.size,
+      trafficEventId,
+      reason: reported.reason,
+      metadata: { imageId: image.id, storageId: image.storageId },
+    })
     return {
       ok: false,
       error: insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
     }
+  }
+
+  try {
+    await recordDownloadIssued(deps.activity, {
+      orgId: image.orgId,
+      actorType: 'anonymous',
+      action: 'image_hosting_download',
+      targetType: 'image',
+      targetId: image.id,
+      targetName: image.storageKey,
+      source: 'image_hosting',
+      bytes: image.size,
+      trafficEventId,
+      metadata: { imageId: image.id, storageId: image.storageId, mime: image.mime },
+    })
+  } catch (error) {
+    await deps.quota.refundTraffic(image.orgId, image.size)
+    throw error
+  }
 
   try {
     await deps.imageHosting.incrementAccessCount(image.id)

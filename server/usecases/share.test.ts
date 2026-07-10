@@ -584,14 +584,13 @@ describe('downloadShareObject', () => {
     )
   })
 
-  it('still succeeds when the activity record throws', async () => {
+  it('fails when the activity record throws', async () => {
     const record = vi.fn(async () => {
       throw new Error('audit down')
     })
     const { deps } = makeDeps()
     deps.activity = { record } as unknown as ActivityRepo
-    const out = await downloadShareObject(deps, baseParams)
-    expect(out).toEqual({ ok: true, url: PRESIGNED_URL })
+    await expect(downloadShareObject(deps, baseParams)).rejects.toThrow('audit down')
   })
 
   it('returns matter_trashed / not_found from resolution', async () => {

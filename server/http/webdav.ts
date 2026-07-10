@@ -45,6 +45,7 @@ import {
   meterWebDavDownload,
   moveWebDavMatter,
   putWebDavFile,
+  recordWebDavDownloadIssued,
   refreshWebDavLock,
   refundWebDavTraffic,
   removeWebDavLock,
@@ -744,10 +745,19 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       : { action: 'ignore' }
 
     if (rangeRequest.action === 'none' || rangeRequest.action === 'ignore') {
-      const trafficError = await reserveWebDavTraffic(c, workspace.id, matter.id, storage, size)
-      if (trafficError) return trafficError
+      const reservation = await reserveWebDavTraffic(c, auth.userId, workspace.id, matter, storage, size)
+      if (reservation.error) return reservation.error
       try {
         const body = await getWebDavObjectBody(c.get('deps'), { storage, object: matter.object })
+        await recordWebDavDownloadIssued(c.get('deps'), {
+          orgId: workspace.id,
+          userId: auth.userId,
+          matterId: matter.id,
+          matterName: matter.name,
+          storageId: storage.id,
+          bytes: size,
+          trafficEventId: reservation.trafficEventId,
+        })
         return new Response(fixedLengthResponseBody(body, size), { headers })
       } catch (e) {
         await refundWebDavTraffic(c.get('deps'), { orgId: workspace.id, bytes: size })
@@ -758,8 +768,8 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (rangeRequest.action === 'reject') return rangeNotSatisfiable(size)
     if (rangeRequest.action !== 'serve') throw new Error('Unexpected range request action')
     const trafficBytes = rangeContentBytes(rangeRequest.ranges)
-    const trafficError = await reserveWebDavTraffic(c, workspace.id, matter.id, storage, trafficBytes)
-    if (trafficError) return trafficError
+    const reservation = await reserveWebDavTraffic(c, auth.userId, workspace.id, matter, storage, trafficBytes)
+    if (reservation.error) return reservation.error
     if (rangeRequest.ranges.length > 1) {
       const boundary = `zpan-webdav-${matter.id}`
       const contentLength = multipartRangeContentLength(boundary, matter.type, rangeRequest.ranges, size)
@@ -767,6 +777,20 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       headers.set('Content-Type', `multipart/byteranges; boundary=${boundary}`)
       headers.set('Content-Length', String(contentLength))
       headers.delete('Content-Range')
+      try {
+        await recordWebDavDownloadIssued(c.get('deps'), {
+          orgId: workspace.id,
+          userId: auth.userId,
+          matterId: matter.id,
+          matterName: matter.name,
+          storageId: storage.id,
+          bytes: trafficBytes,
+          trafficEventId: reservation.trafficEventId,
+        })
+      } catch (error) {
+        await refundWebDavTraffic(c.get('deps'), { orgId: workspace.id, bytes: trafficBytes })
+        throw error
+      }
       return new Response(fixedLengthResponseBody(body, contentLength), { status: 206, headers })
     }
 
@@ -785,6 +809,20 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     }
     headers.set('Content-Length', String(contentLength))
     headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
+    try {
+      await recordWebDavDownloadIssued(c.get('deps'), {
+        orgId: workspace.id,
+        userId: auth.userId,
+        matterId: matter.id,
+        matterName: matter.name,
+        storageId: storage.id,
+        bytes: contentLength,
+        trafficEventId: reservation.trafficEventId,
+      })
+    } catch (error) {
+      await refundWebDavTraffic(c.get('deps'), { orgId: workspace.id, bytes: contentLength })
+      throw error
+    }
     return new Response(fixedLengthResponseBody(body, contentLength), { status: 206, headers })
   } catch (e) {
     return davError(c, e)
@@ -796,20 +834,25 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
 // zero bytes) and the caller should proceed to stream the body.
 async function reserveWebDavTraffic(
   c: DavContext,
+  userId: string,
   orgId: string,
-  matterId: string,
+  matter: NonNullable<WebDavTarget['matter']>,
   storage: StorageRecord,
   bytes: number,
-): Promise<Response | null> {
+): Promise<{ error: Response | null; trafficEventId: string }> {
+  const trafficEventId = `traffic_${crypto.randomUUID()}`
   const outcome = await meterWebDavDownload(c.get('deps'), {
     cloudBaseUrl: cloudBaseUrl(c),
     orgId,
-    matterId,
+    userId,
+    matterId: matter.id,
+    matterName: matter.name,
     storage,
     bytes,
+    trafficEventId,
   })
-  if (outcome.ok) return null
-  if (outcome.reason === 'quota_exceeded') return c.text('Traffic quota exceeded', 422)
+  if (outcome.ok) return { error: null, trafficEventId }
+  if (outcome.reason === 'quota_exceeded') return { error: c.text('Traffic quota exceeded', 422), trafficEventId }
   throw insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } })
 }
 

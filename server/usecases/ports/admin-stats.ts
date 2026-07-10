@@ -8,6 +8,7 @@ import type {
 } from '@shared/types'
 
 export interface AdminStatsRepo {
+  writeStorageUsedRollup(now: Date): Promise<{ bucketStart: Date; bytes: number }>
   getDashboardOverviewStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardOverviewStats>
   getDashboardGrowthStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardGrowthStats>
   getDashboardStorageStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardStorageStats>
@@ -19,4 +20,5 @@ export interface AdminStatsRepo {
 export interface AdminStatsDateRange {
   from: Date
   to: Date
+  timeZone: string
 }

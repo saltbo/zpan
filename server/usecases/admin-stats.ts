@@ -15,19 +15,20 @@ export type AdminStatsDeps = {
 export interface AdminStatsRangeInput {
   from?: Date
   to?: Date
+  timeZone?: string
 }
 
 const MAX_DASHBOARD_RANGE_DAYS = 366
 const DAY_MS = 86_400_000
 
 export function normalizeStatsRange(input: AdminStatsRangeInput, now = new Date()): AdminStatsDateRange {
-  const to = endOfDay(input.to ?? now)
-  const from = startOfDay(input.from ?? daysAgo(to, 29))
+  const to = input.to ?? endOfDay(now)
+  const from = input.from ?? startOfDay(daysAgo(to, 29))
   if (from > to) throw badRequest('from must be before to', 'INVALID_TIME_RANGE')
   if (inclusiveDayCount(from, to) > MAX_DASHBOARD_RANGE_DAYS) {
     throw badRequest(`time range cannot exceed ${MAX_DASHBOARD_RANGE_DAYS} days`, 'TIME_RANGE_TOO_LARGE')
   }
-  return { from, to }
+  return { from, to, timeZone: input.timeZone ?? 'UTC' }
 }
 
 export function getAdminDashboardOverviewStats(

@@ -33,7 +33,7 @@ export interface AdminStatsRange {
 export interface AdminStatsDelta {
   value: number
   previousValue: number
-  changePercent: number
+  changePercent: number | null
 }
 
 export interface AdminDashboardOverviewStats extends AdminStatsRange {
@@ -54,7 +54,7 @@ export interface AdminDashboardOverviewStats extends AdminStatsRange {
     date: string
     newUsers: number
     activeUsers: number
-    storageUsedBytes: number
+    storageUsedBytes: number | null
     uploadBytes: number
     downloadBytes: number
   }>
@@ -84,7 +84,7 @@ export interface AdminDashboardStorageStats extends AdminStatsRange {
     newBytes: AdminStatsDelta
     coldFileBytes: number
   }
-  storageTrend: Array<{ date: string; usedBytes: number; newBytes: number; newFiles: number }>
+  storageTrend: Array<{ date: string; usedBytes: number | null; newBytes: number; newFiles: number }>
   typeBreakdown: Array<{ type: string; bytes: number; files: number; percent: number }>
   sizeBreakdown: Array<{ name: string; bytes: number; files: number; percent: number }>
   ageBreakdown: Array<{ name: string; bytes: number; files: number; percent: number }>
@@ -96,14 +96,14 @@ export interface AdminDashboardTrafficStats extends AdminStatsRange {
     requestCount: AdminStatsDelta
     issuedDownloads: number
     blockedDownloads: number
-    issueRate: number
+    issueRate: number | null
     peakDailyBytes: number
   }
   trafficTrend: Array<{ date: string; uploadBytes: number; downloadBytes: number; requests: number }>
   sourceBreakdown: Array<{ name: string; bytes: number; requests: number; percent: number }>
   issueStatus: Array<{ status: string; count: number; percent: number }>
   bandwidthTrend: Array<{ date: string; bytes: number }>
-  successTrend: Array<{ date: string; uploadSuccessRate: number; downloadSuccessRate: number }>
+  successTrend: Array<{ date: string; uploadSuccessRate: number | null; downloadSuccessRate: number | null }>
   failureReasons: Array<{ name: string; value: number; percent: number }>
 }
 
@@ -114,7 +114,8 @@ export interface AdminDashboardSharingStats extends AdminStatsRange {
     views: AdminStatsDelta
     downloads: AdminStatsDelta
     saves: AdminStatsDelta
-    downloadConversionRate: number
+    downloadConversionRate: number | null
+    passwordPasses: number
   }
   funnel: Array<{ name: string; value: number; percent: number }>
   trend: Array<{ date: string; views: number; downloads: number; saves: number }>

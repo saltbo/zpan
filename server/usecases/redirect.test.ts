@@ -124,6 +124,7 @@ function makeDeps(
   const decrementDownloads = vi.fn(async () => {})
   const presignDownload = vi.fn(async () => PRESIGNED_DOWNLOAD)
   const presignInline = vi.fn(async () => PRESIGNED_INLINE)
+  const record = vi.fn(async () => {})
 
   const deps = {
     share: makeShareRepo({ decrementDownloads, ...over.share }),
@@ -135,9 +136,10 @@ function makeDeps(
     licenseBinding: {} as RedirectDeps['licenseBinding'],
     licensingCloud: {} as RedirectDeps['licensingCloud'],
     cloudTrafficReports: {} as RedirectDeps['cloudTrafficReports'],
+    activity: { record } as RedirectDeps['activity'],
   } as RedirectDeps
 
-  return { deps, refundTraffic, incrementAccessCount, decrementDownloads, presignDownload, presignInline }
+  return { deps, refundTraffic, incrementAccessCount, decrementDownloads, presignDownload, presignInline, record }
 }
 
 beforeEach(() => {
@@ -150,10 +152,17 @@ beforeEach(() => {
 
 describe('resolveDirectShareDownload', () => {
   it('presigns the download and returns the URL on the happy path', async () => {
-    const { deps, presignDownload } = makeDeps()
+    const { deps, presignDownload, record } = makeDeps()
     const out = await resolveDirectShareDownload(deps, { token: 'ds_token1', cloudBaseUrl: CLOUD_BASE_URL })
     expect(out).toEqual({ ok: true, url: PRESIGNED_DOWNLOAD })
     expect(presignDownload).toHaveBeenCalledWith(sampleStorage, 'some/key.bin', 'file.bin', expect.any(Number))
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'share_download',
+        actorType: 'anonymous',
+        metadata: expect.objectContaining({ bytes: 1024, source: 'direct_share', status: 'issued' }),
+      }),
+    )
   })
 
   it('passes cloudBaseUrl, source/sourceId, and a decrement onRejected to the meter', async () => {
@@ -305,11 +314,17 @@ describe('resolveImageHostingDownload', () => {
   }
 
   it('presigns inline and bumps the access count on the happy path', async () => {
-    const { deps, presignInline, incrementAccessCount } = makeDeps()
+    const { deps, presignInline, incrementAccessCount, record } = makeDeps()
     const out = await resolveImageHostingDownload(deps, baseParams)
     expect(out).toEqual({ ok: true, url: PRESIGNED_INLINE })
     expect(presignInline).toHaveBeenCalledWith(sampleStorage, 'ih/o-1/ih-1.png', 'image/png', expect.any(Number))
     expect(incrementAccessCount).toHaveBeenCalledWith('ih-1')
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'image_hosting_download',
+        metadata: expect.objectContaining({ bytes: 1024, source: 'image_hosting', status: 'issued' }),
+      }),
+    )
   })
 
   it('returns not_found when the token does not resolve', async () => {

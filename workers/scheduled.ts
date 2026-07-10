@@ -23,6 +23,7 @@ export interface ScheduledEnv {
 const TRAFFIC_SYNC_CRON = '*/10 * * * *'
 const QUOTA_RESET_CRON = '0 0 1 * *'
 const TRASH_PURGE_CRON = '0 4 * * *'
+const STATS_ROLLUP_CRON = '5 4 * * *'
 type ScheduledTrigger = Pick<ScheduledEvent, 'cron'>
 
 function envAllowsIp(value: string | undefined): boolean {
@@ -46,6 +47,11 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
 
   if (event.cron === TRASH_PURGE_CRON) {
     await purgeExpiredTrash(deps, resolveTrashRetentionDays(env.ZPAN_TRASH_RETENTION_DAYS))
+    return
+  }
+
+  if (event.cron === STATS_ROLLUP_CRON) {
+    await deps.adminStats.writeStorageUsedRollup(new Date())
     return
   }
 

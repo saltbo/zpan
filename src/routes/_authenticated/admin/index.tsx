@@ -1096,7 +1096,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           icon={Activity}
           metrics={[
             { label: '下载请求', value: formatNumber(stats.summary.downloads.value) },
-            { label: '转存次数', value: formatNumber(stats.summary.saves.value) },
+            { label: '密码通过', value: formatNumber(stats.summary.passwordPasses) },
           ]}
         />
         <StatCard
@@ -1115,7 +1115,12 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           delta={formatDelta(stats.summary.saves)}
           icon={Link2}
           metrics={[
-            { label: '转存率', value: formatPercent(ratio(stats.summary.saves.value, stats.summary.views.value)) },
+            {
+              label: '转存率',
+              value: formatPercent(
+                stats.summary.views.value > 0 ? ratio(stats.summary.saves.value, stats.summary.views.value) : null,
+              ),
+            },
             { label: '上期转存', value: formatNumber(stats.summary.saves.previousValue) },
           ]}
         />
@@ -1123,7 +1128,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard
           title="分享转化漏斗"
-          subtitle="按创建、打开、下载、转存展示分享链路留存。"
+          subtitle="按访问、落地页下载、转存展示同一条分享链路；密码通过单独统计。"
           contentClassName="h-auto min-h-[22rem]"
         >
           <FunnelChart data={stats.funnel} />
@@ -1663,8 +1668,9 @@ function dateRangePresets(): Array<{ label: string; range: DateRange }> {
 
 function toRangeFilter(range: DateRange): AdminStatsRangeFilter {
   return {
-    ...(range.from ? { from: format(startOfDay(range.from), 'yyyy-MM-dd') } : {}),
-    ...(range.to ? { to: format(endOfDay(range.to), 'yyyy-MM-dd') } : {}),
+    ...(range.from ? { from: startOfDay(range.from).toISOString() } : {}),
+    ...(range.to ? { to: endOfDay(range.to).toISOString() } : {}),
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   }
 }
 
@@ -1695,7 +1701,8 @@ function formatChartDate(value: unknown): string {
   return `${Number(match[2])}/${Number(match[3])}`
 }
 
-function formatPercent(value: number): string {
+function formatPercent(value: number | null): string {
+  if (value === null) return '—'
   return `${Math.round(value * 10) / 10}%`
 }
 
@@ -1709,7 +1716,7 @@ function ratio(part: number, total: number): number {
 }
 
 function formatDelta(
-  delta: { value: number; previousValue: number; changePercent: number },
+  delta: { value: number; previousValue: number; changePercent: number | null },
   valueFormatter: (value: number) => string = formatNumber,
 ): string {
   const sign = delta.value >= delta.previousValue ? '+' : ''

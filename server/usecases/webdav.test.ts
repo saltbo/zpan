@@ -147,6 +147,7 @@ function makeDeps(
     cloudTrafficReports: {} as unknown as CloudTrafficReportRepo,
     licenseBinding: {} as unknown as LicenseBindingRepo,
     licensingCloud: {} as unknown as LicensingCloudGateway,
+    activity: { record: async () => {} },
     quota: {
       refundTraffic: async () => {},
       incrementUsageIfEffectiveQuotaAllows: async () => true,
@@ -356,9 +357,12 @@ describe('webdav usecase', () => {
       const out = await meterWebDavDownload(deps, {
         cloudBaseUrl: 'https://cloud',
         orgId: 'ws-1',
+        userId: 'u1',
         matterId: 'm1',
+        matterName: 'm1.txt',
         storage,
         bytes: 0,
+        trafficEventId: 'traffic-1',
       })
       expect(out).toEqual({ ok: true })
       expect(meterDownloadTraffic).not.toHaveBeenCalled()
@@ -370,9 +374,12 @@ describe('webdav usecase', () => {
       const out = await meterWebDavDownload(deps, {
         cloudBaseUrl: 'https://cloud',
         orgId: 'ws-1',
+        userId: 'u1',
         matterId: 'm1',
+        matterName: 'm1.txt',
         storage,
         bytes: 12,
+        trafficEventId: 'traffic-1',
       })
       expect(out).toEqual({ ok: true })
       expect(meterDownloadTraffic).toHaveBeenCalledWith(
@@ -392,7 +399,16 @@ describe('webdav usecase', () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: false, reason: 'quota_exceeded' })
       const deps = makeDeps()
       expect(
-        await meterWebDavDownload(deps, { cloudBaseUrl: 'c', orgId: 'ws-1', matterId: 'm1', storage, bytes: 12 }),
+        await meterWebDavDownload(deps, {
+          cloudBaseUrl: 'c',
+          orgId: 'ws-1',
+          userId: 'u1',
+          matterId: 'm1',
+          matterName: 'm1.txt',
+          storage,
+          bytes: 12,
+          trafficEventId: 'traffic-1',
+        }),
       ).toEqual({ ok: false, reason: 'quota_exceeded' })
     })
 
@@ -400,7 +416,16 @@ describe('webdav usecase', () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: false, reason: 'insufficient_credits' })
       const deps = makeDeps()
       expect(
-        await meterWebDavDownload(deps, { cloudBaseUrl: 'c', orgId: 'ws-1', matterId: 'm1', storage, bytes: 12 }),
+        await meterWebDavDownload(deps, {
+          cloudBaseUrl: 'c',
+          orgId: 'ws-1',
+          userId: 'u1',
+          matterId: 'm1',
+          matterName: 'm1.txt',
+          storage,
+          bytes: 12,
+          trafficEventId: 'traffic-1',
+        }),
       ).toEqual({ ok: false, reason: 'insufficient_credits' })
     })
 

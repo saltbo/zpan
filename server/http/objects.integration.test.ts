@@ -432,6 +432,17 @@ describe('Objects API', () => {
     })
     // ETag mismatch surfaces as an invalid upload-session state → 409.
     expect(res.status).toBe(409)
+    const events = await db.all<{ metadata: string }>(sql`
+      SELECT metadata FROM activity_events
+      WHERE action = 'upload_failed' AND target_id = ${created.id}
+    `)
+    expect(events).toHaveLength(1)
+    expect(JSON.parse(events[0].metadata)).toMatchObject({
+      bytes: 100,
+      source: 'upload',
+      status: 'failed',
+      reason: 'etag_mismatch',
+    })
   })
 
   it('DELETE /api/objects/:id/uploads/:sid aborts the upload and discards the draft [spec: objects/abort-upload]', async () => {
