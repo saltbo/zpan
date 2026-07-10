@@ -3,6 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { buildBackfillSql, splitSqlStatements, VALIDATION_SQL } from '../../scripts/backfill-admin-stats'
 
 describe('admin stats backfill', () => {
+  it('splits SQL batches without breaking quoted semicolons', () => {
+    expect(splitSqlStatements("SELECT 'a;b'; SELECT 'it''s'; SELECT 3")).toEqual([
+      "SELECT 'a;b'",
+      "SELECT 'it''s'",
+      'SELECT 3',
+    ])
+    expect(() => splitSqlStatements("SELECT 'unterminated")).toThrow('admin_stats_backfill_unterminated_sql_string')
+  })
+
   it('recovers exact available facts and is idempotent', () => {
     const db = new Database(':memory:')
     db.exec(`
