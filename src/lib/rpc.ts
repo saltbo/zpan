@@ -79,5 +79,5 @@ export const licensingAdminApi = hc<LicensingAdminRoute>('/api/site/licensing', 
 export const publicBrandingApi = hc<PublicBrandingRoute>('/api/site/branding', opts)
 export const brandingAdminApi = hc<BrandingAdminRoute>('/api/site/branding', opts)
 export const adminAuditApi = hc<AdminAuditRoute>('/api/site/audit-events', opts)
-export const adminStatsApi = hc<AdminStatsRoute>('/api/admin/stats', opts)
+export const siteStatsApi = hc<AdminStatsRoute>('/api/site/stats', opts)
 export const publicSiteInvitations = hc<PublicSiteInvitationsRoute>('/api/site/invitations', opts)

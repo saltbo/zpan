@@ -3,13 +3,22 @@ import { describe, expect, it } from 'vitest'
 import { currentTrafficPeriod } from '../domain/quota'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
-describe('admin stats routes', () => {
+describe('site stats routes', () => {
+  it('does not expose stats under the removed admin API group', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    const res = await app.request('/api/admin/stats/overview', { headers })
+
+    expect(res.status).toBe(404)
+  })
+
   it('does not expose legacy core or details stats endpoints', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const coreRes = await app.request('/api/admin/stats/core', { headers })
-    const detailsRes = await app.request('/api/admin/stats/details', { headers })
+    const coreRes = await app.request('/api/site/stats/core', { headers })
+    const detailsRes = await app.request('/api/site/stats/details', { headers })
 
     expect(coreRes.status).toBe(404)
     expect(detailsRes.status).toBe(404)
@@ -20,7 +29,7 @@ describe('admin stats routes', () => {
     const headers = await adminHeaders(app)
     await seedStatsFixture(db)
 
-    const res = await app.request('/api/admin/stats/storage', { headers })
+    const res = await app.request('/api/site/stats/storage', { headers })
     const body = (await res.json()) as { error: { details: Array<{ metadata: Record<string, string> }> } }
 
     expect(res.status).toBe(402)
@@ -31,7 +40,7 @@ describe('admin stats routes', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/stats/overview?from=2026-01-01&to=2026-01-07', { headers })
+    const res = await app.request('/api/site/stats/overview?from=2026-01-01&to=2026-01-07', { headers })
     const body = (await res.json()) as { from: string; to: string; trends: Array<{ date: string }> }
 
     expect(res.status).toBe(200)
@@ -52,19 +61,19 @@ describe('admin stats routes', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/stats/overview?from=2025-01-01&to=2026-01-02', { headers })
+    const res = await app.request('/api/site/stats/overview?from=2025-01-01&to=2026-01-02', { headers })
 
     expect(res.status).toBe(400)
   })
 
-  it('does not publish admin stats routes in the OpenAPI document', async () => {
+  it('does not publish site stats routes in the OpenAPI document', async () => {
     const { app } = await createTestApp()
 
     const res = await app.request('/api/openapi.json')
     const body = (await res.json()) as { paths: Record<string, unknown> }
 
     expect(res.status).toBe(200)
-    expect(Object.keys(body.paths).some((path) => path.startsWith('/api/admin/stats'))).toBe(false)
+    expect(Object.keys(body.paths).some((path) => path.startsWith('/api/site/stats'))).toBe(false)
   })
 
   it('reads storage waterline trends from daily rollups when present', async () => {
@@ -84,7 +93,7 @@ describe('admin stats routes', () => {
       )
     `)
 
-    const res = await app.request('/api/admin/stats/storage?from=2026-01-01&to=2026-01-01', { headers })
+    const res = await app.request('/api/site/stats/storage?from=2026-01-01&to=2026-01-01', { headers })
     const body = (await res.json()) as {
       storageTrend: Array<{ date: string; usedBytes: number; newBytes: number; newFiles: number }>
     }
@@ -100,7 +109,7 @@ describe('admin stats routes', () => {
     await seedStatsFixture(db)
 
     const before = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM stats_rollups_daily`)
-    const res = await app.request('/api/admin/stats/storage?from=2000-01-01&to=2000-01-02', { headers })
+    const res = await app.request('/api/site/stats/storage?from=2000-01-01&to=2000-01-02', { headers })
     const after = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM stats_rollups_daily`)
 
     expect(res.status).toBe(200)
@@ -114,7 +123,7 @@ describe('admin stats routes', () => {
     await seedProLicense(db)
     await seedStatsFixture(db)
 
-    const res = await app.request('/api/admin/stats/traffic', { headers })
+    const res = await app.request('/api/site/stats/traffic', { headers })
     const body = (await res.json()) as {
       summary: {
         totalBytes: { value: number }
@@ -151,7 +160,7 @@ describe('admin stats routes', () => {
     await seedProLicense(db)
     await seedStatsFixture(db)
 
-    const currentSharingRes = await app.request('/api/admin/stats/sharing', { headers })
+    const currentSharingRes = await app.request('/api/site/stats/sharing', { headers })
     const currentSharing = (await currentSharingRes.json()) as {
       summary: { views: { value: number }; downloads: { value: number } }
       topShares: Array<{
@@ -162,18 +171,18 @@ describe('admin stats routes', () => {
         downloadPercent: number
       }>
     }
-    const oldSharingRes = await app.request('/api/admin/stats/sharing?from=2000-01-01&to=2000-01-02', { headers })
+    const oldSharingRes = await app.request('/api/site/stats/sharing?from=2000-01-01&to=2000-01-02', { headers })
     const oldSharing = (await oldSharingRes.json()) as {
       summary: { views: { value: number }; downloads: { value: number } }
       topShares: unknown[]
     }
-    const currentRankingRes = await app.request('/api/admin/stats/ranking', { headers })
+    const currentRankingRes = await app.request('/api/site/stats/ranking', { headers })
     const currentRanking = (await currentRankingRes.json()) as {
       topSpaces: unknown[]
       storageByType: unknown[]
       topShares: unknown[]
     }
-    const oldRankingRes = await app.request('/api/admin/stats/ranking?from=2000-01-01&to=2000-01-02', { headers })
+    const oldRankingRes = await app.request('/api/site/stats/ranking?from=2000-01-01&to=2000-01-02', { headers })
     const oldRanking = (await oldRankingRes.json()) as {
       topSpaces: unknown[]
       storageByType: unknown[]
@@ -221,7 +230,7 @@ describe('admin stats routes', () => {
         ('activity-download-heavy-3', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec})
     `)
 
-    const res = await app.request('/api/admin/stats/ranking', { headers })
+    const res = await app.request('/api/site/stats/ranking', { headers })
     const body = (await res.json()) as { topShares: Array<{ token: string; views: number; downloads: number }> }
 
     expect(res.status).toBe(200)
