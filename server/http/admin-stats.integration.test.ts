@@ -273,6 +273,39 @@ describe('site stats routes', () => {
     expect(body.storageTrend.every((point) => point.usedBytes === null)).toBe(true)
   })
 
+  it('returns growth lifecycle metrics from the hourly-aware repository', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedStatsFixture(db)
+
+    const res = await app.request('/api/site/stats/growth', { headers })
+    const body = (await res.json()) as {
+      summary: {
+        totalUsers: number
+        newUsers: { value: number }
+        activeUsers: { value: number }
+        verifiedUsers: number
+        bannedUsers: number
+        silentUsers: number
+      }
+      userScaleTrend: Array<{ date: string; newUsers: number; totalUsers: number }>
+      activeUserTrend: Array<{ date: string; dau: number; wau: number; mau: number }>
+      userStatus: Array<{ name: string; value: number; percent: number }>
+      registrationSources: Array<{ name: string; value: number; percent: number }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.summary.totalUsers).toBeGreaterThanOrEqual(1)
+    expect(body.summary.newUsers.value).toBeGreaterThanOrEqual(1)
+    expect(body.summary.activeUsers.value).toBeGreaterThanOrEqual(1)
+    expect(body.summary.verifiedUsers + body.summary.bannedUsers + body.summary.silentUsers).toBeGreaterThanOrEqual(0)
+    expect(body.userScaleTrend.length).toBeGreaterThan(0)
+    expect(body.activeUserTrend.length).toBeGreaterThan(0)
+    expect(body.userStatus.map((row) => row.name)).toEqual(['normal', 'unverified', 'banned', 'silent'])
+    expect(body.registrationSources.length).toBeGreaterThan(0)
+  })
+
   it('excludes orphan actors and uses immutable session creation time for historical active users', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
