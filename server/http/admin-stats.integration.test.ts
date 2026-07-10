@@ -2,6 +2,7 @@ import type { AdminDashboardOverviewStats } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createAdminStatsRepo, metricSpec } from '../adapters/repos/admin-stats'
+import { rebuildAdminStatsHour } from '../adapters/repos/admin-stats-rollup'
 import { currentTrafficPeriod } from '../domain/quota'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
@@ -191,7 +192,7 @@ describe('site stats routes', () => {
     expect(body.storageTrend).toEqual([{ date: '2026-01-01', usedBytes: 4096, newBytes: 0, newFiles: 0 }])
   })
 
-  it('uses completed hourly event rollups and falls back to raw events when the marker is missing', async () => {
+  it('reads only hourly rollups and never falls back to raw events', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -210,8 +211,6 @@ describe('site stats routes', () => {
         id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
         count, bytes, unique_count, metadata, updated_at
       ) VALUES
-        ('hourly-reader-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
-          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
         ('hourly-reader-upload', ${at}, ${orgId}, 'transfer.upload', 'status', 'success', 1, 999, 0,
           '{"version":1,"quality":"exact"}', ${at + 3_600_000})
     `)
@@ -221,14 +220,14 @@ describe('site stats routes', () => {
     const rollupRes = await app.request(query, { headers })
     const rollupBody = (await rollupRes.json()) as { summary: { totalBytes: { value: number } } }
 
-    await db.run(sql`DELETE FROM stats_rollups_hourly WHERE id = 'hourly-reader-marker'`)
-    const fallbackRes = await app.request(query, { headers })
-    const fallbackBody = (await fallbackRes.json()) as { summary: { totalBytes: { value: number } } }
+    await db.run(sql`DELETE FROM stats_rollups_hourly WHERE id = 'hourly-reader-upload'`)
+    const emptyRes = await app.request(query, { headers })
+    const emptyBody = (await emptyRes.json()) as { summary: { totalBytes: { value: number } } }
 
     expect(rollupRes.status).toBe(200)
     expect(rollupBody.summary.totalBytes.value).toBe(999)
-    expect(fallbackRes.status).toBe(200)
-    expect(fallbackBody.summary.totalBytes.value).toBe(111)
+    expect(emptyRes.status).toBe(200)
+    expect(emptyBody.summary.totalBytes.value).toBe(0)
   })
 
   it('hydrates completed-hour dashboard dimensions from rollups', async () => {
@@ -316,7 +315,7 @@ describe('site stats routes', () => {
     expect(JSON.parse(rows.at(-1)?.metadata ?? '{}')).toMatchObject({ version: 1, quality: 'exact' })
   })
 
-  it('does not write rollups while serving storage stats fallback data', async () => {
+  it('does not write rollups while serving storage stats', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -328,8 +327,7 @@ describe('site stats routes', () => {
     const body = (await res.json()) as { storageTrend: Array<{ usedBytes: number | null }> }
 
     expect(res.status).toBe(200)
-    expect(before[0].count).toBe(0)
-    expect(after[0].count).toBe(0)
+    expect(after[0].count).toBe(before[0].count)
     expect(body.storageTrend.every((point) => point.usedBytes === null)).toBe(true)
   })
 
@@ -451,13 +449,13 @@ describe('site stats routes', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    const { orgId, userId } = await seedStatsFixture(db)
-    const nowSec = Math.floor(Date.now() / 1000)
+    const { orgId, userId, bucketStart, eventSec } = await seedStatsFixture(db)
     await db.run(sql`
       INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_name, metadata, created_at)
       VALUES ('upload-cancel-rate', ${orgId}, ${userId}, 'user', 'upload_cancel', 'file', 'cancel.bin',
-        '{', ${nowSec})
+        '{', ${eventSec})
     `)
+    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
 
     const current = await app.request('/api/site/stats/traffic', { headers })
     const currentBody = (await current.json()) as {
@@ -487,6 +485,8 @@ describe('site stats routes', () => {
         ('missing-previous-download-bytes', ${orgId}, ${userId}, 'user', 'share_download', 'share', 'previous.bin', '{}',
           ${Math.floor(Date.parse('2026-06-30T12:00:00.000Z') / 1000)})
     `)
+    await rebuildAdminStatsHour(db, new Date('2026-07-01T12:00:00.000Z'), new Date(), false)
+    await rebuildAdminStatsHour(db, new Date('2026-06-30T12:00:00.000Z'), new Date(), false)
 
     const res = await app.request('/api/site/stats/overview?from=2026-07-01&to=2026-07-01', { headers })
     const body = (await res.json()) as { dataQuality: AdminDashboardOverviewStats['dataQuality'] }
@@ -561,15 +561,15 @@ describe('site stats routes', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    const { orgId } = await seedStatsFixture(db)
-    const now = Date.now()
+    const { orgId, bucketStart, eventMs } = await seedStatsFixture(db)
     await db.run(sql`UPDATE download_tasks SET finished_at = updated_at WHERE id IN ('task-1', 'task-2')`)
     await db.run(sql`
       INSERT INTO cloud_traffic_reports
         (id, org_id, period, source, source_id, event_id, bytes, status, created_at, updated_at)
       VALUES ('operations-cloud-report', ${orgId}, '2026-07', 'object_download', 'stats-file',
-        'operations-cloud-report', 64, 'pending', ${now}, ${now})
+        'operations-cloud-report', 64, 'pending', ${eventMs}, ${eventMs})
     `)
+    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
 
     const res = await app.request('/api/site/stats/operations', { headers })
     const body = (await res.json()) as {
@@ -640,21 +640,21 @@ describe('site stats routes', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    const { orgId, userId } = await seedStatsFixture(db)
-    const nowSec = Math.floor(Date.now() / 1000)
-    const futureSec = nowSec + 7 * 24 * 60 * 60
+    const { orgId, userId, bucketStart, eventSec } = await seedStatsFixture(db)
+    const futureSec = eventSec + 7 * 24 * 60 * 60
 
     await db.run(sql`
       INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, expires_at, download_limit, views, downloads, status, created_at)
-      VALUES ('share-download-heavy', 'share-download-heavy', 'landing', 'stats-file', ${orgId}, ${userId}, ${futureSec}, 10, 0, 3, 'active', ${nowSec})
+      VALUES ('share-download-heavy', 'share-download-heavy', 'landing', 'stats-file', ${orgId}, ${userId}, ${futureSec}, 10, 0, 3, 'active', ${eventSec})
     `)
     await db.run(sql`
       INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
       VALUES
-        ('activity-download-heavy-1', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec}),
-        ('activity-download-heavy-2', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec}),
-        ('activity-download-heavy-3', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec})
+        ('activity-download-heavy-1', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec}),
+        ('activity-download-heavy-2', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec}),
+        ('activity-download-heavy-3', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec})
     `)
+    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
 
     const res = await app.request('/api/site/stats/sharing', { headers })
     const body = (await res.json()) as { topShares: Array<{ token: string; views: number; downloads: number }> }
@@ -668,20 +668,20 @@ describe('site stats routes', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    const { orgId, userId } = await seedStatsFixture(db)
-    const nowSec = Math.floor(Date.now() / 1000)
+    const { orgId, userId, bucketStart, eventSec } = await seedStatsFixture(db)
     for (let index = 2; index <= 9; index += 1) {
       const id = `share-percent-${index}`
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, expires_at, download_limit, views, downloads, status, created_at)
-        VALUES (${id}, ${id}, 'landing', 'stats-file', ${orgId}, ${userId}, NULL, NULL, 1, 0, 'active', ${nowSec})
+        VALUES (${id}, ${id}, 'landing', 'stats-file', ${orgId}, ${userId}, NULL, NULL, 1, 0, 'active', ${eventSec})
       `)
       await db.run(sql`
         INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
         VALUES (${`view-percent-${index}`}, ${orgId}, NULL, 'anonymous', 'share_view', 'share', ${id}, 'report.pdf',
-          '{"source":"landing_share"}', ${nowSec})
+          '{"source":"landing_share"}', ${eventSec})
       `)
     }
+    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
 
     const res = await app.request('/api/site/stats/sharing', { headers })
     const body = (await res.json()) as { topShares: Array<{ viewPercent: number }> }
@@ -693,15 +693,21 @@ describe('site stats routes', () => {
 })
 
 async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  const now = Date.now()
+  const generatedAt = Date.now()
+  const bucketStart = new Date(Math.floor(generatedAt / 3_600_000) * 3_600_000 - 3_600_000)
+  const now = bucketStart.getTime() + 30 * 60 * 1000
   const nowSec = Math.floor(now / 1000)
-  const future = now + 7 * 24 * 60 * 60 * 1000
+  const future = generatedAt + 7 * 24 * 60 * 60 * 1000
   const futureSec = Math.floor(future / 1000)
-  const period = currentTrafficPeriod(new Date(now))
+  const period = currentTrafficPeriod(new Date(generatedAt))
   const [{ id: orgId }] = await db.all<{ id: string }>(
     sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
   )
   const [{ id: userId }] = await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`)
+
+  await db.run(sql`UPDATE user SET created_at = ${now}, updated_at = ${now} WHERE id = ${userId}`)
+  await db.run(sql`UPDATE account SET created_at = ${now}, updated_at = ${now} WHERE user_id = ${userId}`)
+  await db.run(sql`UPDATE session SET created_at = ${now}, updated_at = ${now} WHERE user_id = ${userId}`)
 
   await db.run(sql`
     UPDATE org_quotas
@@ -752,5 +758,6 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
     VALUES ('job-1', ${orgId}, ${userId}, 'extract', 'failed', '', '', NULL, 0, 0, 0, 0, NULL, 'bad zip', NULL, 1, 0, NULL, ${now}, ${now}, ${now}, ${now})
   `)
 
-  return { orgId, userId }
+  await rebuildAdminStatsHour(db, bucketStart, new Date(generatedAt), true)
+  return { orgId, userId, bucketStart, eventMs: now, eventSec: nowSec }
 }

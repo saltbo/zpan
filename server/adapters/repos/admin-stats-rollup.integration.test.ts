@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { assertMetricDimension, ADMIN_STATS_METRICS as M, metricDefinition } from '../../domain/admin-stats-metrics'
 import { adminHeaders, createTestApp } from '../../test/setup.js'
 import { AdminStatsHourlyReader } from './admin-stats-hourly'
-import { rebuildAdminStatsHour } from './admin-stats-rollup'
+import { ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE, rebuildAdminStatsHour } from './admin-stats-rollup'
 
 type RollupRow = {
   orgId: string
@@ -17,6 +17,11 @@ type RollupRow = {
 }
 
 describe('admin hourly stats rollup', () => {
+  it('keeps each insert within the D1 bound-parameter limit', () => {
+    expect(ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE).toBe(9)
+    expect(ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE * 11).toBeLessThanOrEqual(100)
+  })
+
   it('rebuilds event, user, operational, and snapshot metrics idempotently', async () => {
     const { app, db } = await createTestApp()
     await adminHeaders(app)

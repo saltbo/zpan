@@ -27,6 +27,9 @@ import {
 import type { Database } from '../../platform/interface'
 
 const HOUR_MS = 3_600_000
+const D1_MAX_BOUND_PARAMS = 100
+const ROLLUP_BOUND_PARAMS_PER_ROW = 11
+export const ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE = Math.floor(D1_MAX_BOUND_PARAMS / ROLLUP_BOUND_PARAMS_PER_ROW)
 const DOWNLOAD_ACTIONS = ['share_download', 'object_download', 'image_hosting_download', 'webdav_download']
 const COUNTER_METRICS: AdminStatsMetric[] = [
   M.backgroundJobFinished,
@@ -121,8 +124,8 @@ export async function rebuildAdminStatsHour(
     ? eq(statsRollupsHourly.bucketStart, bucketStart)
     : and(eq(statsRollupsHourly.bucketStart, bucketStart), inArray(statsRollupsHourly.metricKey, COUNTER_METRICS))
   const writes: AtomicQuery[] = [db.delete(statsRollupsHourly).where(deleteWhere)]
-  for (let index = 0; index < rows.length; index += 80) {
-    writes.push(db.insert(statsRollupsHourly).values(rows.slice(index, index + 80)))
+  for (let index = 0; index < rows.length; index += ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE) {
+    writes.push(db.insert(statsRollupsHourly).values(rows.slice(index, index + ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE)))
   }
   await executeWriteTransaction(db, writes)
   return { bucketStart, bucketEnd, rows: rows.length, lowerBoundRows }
@@ -185,7 +188,7 @@ async function addEventMetrics(db: Database, rollups: RollupAccumulator, from: D
         1,
         bytes,
         {
-          source: source ?? fallbackDownloadSource(row.action),
+          source: source ?? downloadSourceForAction(row.action),
           storage_id: storageId,
           actor_type: actorType,
         },
@@ -206,7 +209,7 @@ async function addEventMetrics(db: Database, rollups: RollupAccumulator, from: D
       rollups.add(M.shareDownloadIssued, row.orgId, 1, bytes, {
         share_id: metadataString(metadata, 'shareId') ?? row.targetId,
         kind: metadataString(metadata, 'kind'),
-        source: source ?? fallbackDownloadSource(row.action),
+        source: source ?? downloadSourceForAction(row.action),
         actor_type: actorType,
       })
     }
@@ -679,7 +682,7 @@ function needsBytes(action: string): boolean {
   return action === 'upload_confirm' || DOWNLOAD_ACTIONS.includes(action)
 }
 
-function fallbackDownloadSource(action: string): string {
+function downloadSourceForAction(action: string): string {
   if (action === 'object_download') return 'object_download'
   if (action === 'image_hosting_download') return 'image_hosting'
   if (action === 'webdav_download') return 'webdav_download'
