@@ -32,6 +32,54 @@ interface BackfillPlan {
   recoverableShareBytes: number
   skippedShareBytesMissingCurrentFile: number
   cloudEventsToRecover: number
+  syntheticDirectShareDuplicatesToRemove: number
+}
+
+function legacyCloudTrafficMatch(activityAlias: string, trafficAlias: string): string {
+  return `
+    (${activityAlias}.actor_ref IS NULL OR ${activityAlias}.actor_ref <> 'stats-backfill')
+    AND ${activityAlias}.org_id = ${trafficAlias}.org_id
+    AND ${activityAlias}.target_id = ${trafficAlias}.source_id
+    AND ${trafficAlias}.status <> 'blocked'
+    AND (
+      (${activityAlias}.action = 'share_download' AND ${trafficAlias}.source IN ('direct_share', 'landing_share'))
+      OR (${activityAlias}.action = 'object_download' AND ${trafficAlias}.source = 'object_download')
+    )
+    AND ABS(${activityAlias}.created_at - CAST(${trafficAlias}.created_at / 1000 AS INTEGER)) <= 5
+    AND (
+      ${activityAlias}.metadata IS NULL
+      OR json_valid(${activityAlias}.metadata) = 0
+      OR json_type(${activityAlias}.metadata, '$.trafficEventId') IS NULL
+    )`
+}
+
+function unambiguousLegacyCloudTrafficMatch(activityAlias: string, trafficAlias: string): string {
+  return `
+    ${legacyCloudTrafficMatch(activityAlias, trafficAlias)}
+    AND (
+      SELECT COUNT(*) FROM cloud_traffic_reports candidate_traffic
+      WHERE ${legacyCloudTrafficMatch(activityAlias, 'candidate_traffic')}
+    ) = 1
+    AND (
+      SELECT COUNT(*) FROM activity_events candidate_activity
+      WHERE ${legacyCloudTrafficMatch('candidate_activity', trafficAlias)}
+    ) = 1`
+}
+
+function cloudTrafficCovered(trafficAlias: string): string {
+  return `
+    EXISTS (
+      SELECT 1 FROM activity_events ae
+      WHERE ae.id = 'backfill_' || ${trafficAlias}.event_id
+        OR (
+          json_valid(ae.metadata) = 1
+          AND json_extract(ae.metadata, '$.trafficEventId') = ${trafficAlias}.event_id
+        )
+    )
+    OR EXISTS (
+      SELECT 1 FROM activity_events ae
+      WHERE ${unambiguousLegacyCloudTrafficMatch('ae', trafficAlias)}
+    )`
 }
 
 export function buildBackfillSql(now = new Date()): string {
@@ -96,20 +144,18 @@ SET metadata = json_set(
   CASE WHEN metadata IS NULL OR metadata = '' OR json_valid(metadata) = 0 THEN '{}' ELSE metadata END,
   '$.bytes', (
     SELECT ctr.bytes FROM cloud_traffic_reports ctr
-    WHERE ctr.source_id = ae.target_id
-      AND ctr.source = CASE ae.action WHEN 'share_download' THEN 'landing_share' ELSE 'object_download' END
-      AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
-    ORDER BY ctr.created_at, ctr.event_id
+    WHERE ${unambiguousLegacyCloudTrafficMatch('ae', 'ctr')}
     LIMIT 1
   ),
-  '$.source', CASE ae.action WHEN 'share_download' THEN 'landing_share' ELSE 'object_download' END,
+  '$.source', (
+    SELECT ctr.source FROM cloud_traffic_reports ctr
+    WHERE ${unambiguousLegacyCloudTrafficMatch('ae', 'ctr')}
+    LIMIT 1
+  ),
   '$.status', 'issued',
   '$.trafficEventId', (
     SELECT ctr.event_id FROM cloud_traffic_reports ctr
-    WHERE ctr.source_id = ae.target_id
-      AND ctr.source = CASE ae.action WHEN 'share_download' THEN 'landing_share' ELSE 'object_download' END
-      AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
-    ORDER BY ctr.created_at, ctr.event_id
+    WHERE ${unambiguousLegacyCloudTrafficMatch('ae', 'ctr')}
     LIMIT 1
   ),
   '$.quality', 'recovered_from_matched_cloud_traffic_report'
@@ -118,9 +164,26 @@ WHERE action IN ('share_download', 'object_download')
   AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.trafficEventId') IS NULL)
   AND EXISTS (
     SELECT 1 FROM cloud_traffic_reports ctr
-    WHERE ctr.source_id = ae.target_id
-      AND ctr.source = CASE ae.action WHEN 'share_download' THEN 'landing_share' ELSE 'object_download' END
-      AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
+    WHERE ${unambiguousLegacyCloudTrafficMatch('ae', 'ctr')}
+  );
+
+DELETE FROM activity_events AS synthetic
+WHERE synthetic.actor_ref = 'stats-backfill'
+  AND synthetic.action = 'share_download'
+  AND EXISTS (
+    SELECT 1 FROM cloud_traffic_reports ctr
+    WHERE ctr.source = 'direct_share'
+      AND synthetic.id = 'backfill_' || ctr.event_id
+      AND EXISTS (
+        SELECT 1 FROM activity_events recovered
+        WHERE recovered.id <> synthetic.id
+          AND (recovered.actor_ref IS NULL OR recovered.actor_ref <> 'stats-backfill')
+          AND recovered.org_id = ctr.org_id
+          AND recovered.target_id = ctr.source_id
+          AND recovered.action = 'share_download'
+          AND json_valid(recovered.metadata) = 1
+          AND json_extract(recovered.metadata, '$.trafficEventId') = ctr.event_id
+      )
   );
 
 INSERT OR IGNORE INTO activity_events (
@@ -155,22 +218,7 @@ SELECT
   CAST(ctr.created_at / 1000 AS INTEGER)
 FROM cloud_traffic_reports ctr
 WHERE ctr.source IN ('direct_share', 'landing_share', 'image_hosting', 'object_download', 'webdav_download')
-  AND NOT EXISTS (
-    SELECT 1 FROM activity_events ae
-    WHERE ae.id = 'backfill_' || ctr.event_id
-      OR (
-        ctr.source IN ('landing_share', 'object_download')
-        AND
-        ae.target_id = ctr.source_id
-        AND ae.action = CASE
-          WHEN ctr.source IN ('direct_share', 'landing_share') THEN 'share_download'
-          WHEN ctr.source = 'image_hosting' THEN 'image_hosting_download'
-          WHEN ctr.source = 'object_download' THEN 'object_download'
-          ELSE 'webdav_download'
-        END
-        AND ABS(ae.created_at - CAST(ctr.created_at / 1000 AS INTEGER)) <= 5
-      )
-  );
+  AND NOT (${cloudTrafficCovered('ctr')});
 
 INSERT INTO stats_rollups_daily (
   id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
@@ -268,14 +316,27 @@ SELECT json_object(
   'cloudEventsToRecover', (
     SELECT COUNT(*) FROM cloud_traffic_reports ctr
     WHERE ctr.source IN ('direct_share', 'landing_share', 'image_hosting', 'object_download', 'webdav_download')
-      AND NOT EXISTS (
-        SELECT 1 FROM activity_events ae
-        WHERE ae.id = 'backfill_' || ctr.event_id
-          OR (
-            ctr.source IN ('landing_share', 'object_download')
-            AND ae.target_id = ctr.source_id
-            AND ae.action = CASE ctr.source WHEN 'landing_share' THEN 'share_download' ELSE 'object_download' END
-            AND ABS(ae.created_at - CAST(ctr.created_at / 1000 AS INTEGER)) <= 5
+      AND NOT (${cloudTrafficCovered('ctr')})
+  ),
+  'syntheticDirectShareDuplicatesToRemove', (
+    SELECT COUNT(*) FROM activity_events synthetic
+    JOIN cloud_traffic_reports ctr ON synthetic.id = 'backfill_' || ctr.event_id
+    WHERE synthetic.actor_ref = 'stats-backfill'
+      AND synthetic.action = 'share_download'
+      AND ctr.source = 'direct_share'
+      AND EXISTS (
+        SELECT 1 FROM activity_events recovered
+        WHERE recovered.id <> synthetic.id
+          AND (recovered.actor_ref IS NULL OR recovered.actor_ref <> 'stats-backfill')
+          AND recovered.org_id = ctr.org_id
+          AND recovered.target_id = ctr.source_id
+          AND recovered.action = 'share_download'
+          AND (
+            (
+              json_valid(recovered.metadata) = 1
+              AND json_extract(recovered.metadata, '$.trafficEventId') = ctr.event_id
+            )
+            OR (${unambiguousLegacyCloudTrafficMatch('recovered', 'ctr')})
           )
       )
   )

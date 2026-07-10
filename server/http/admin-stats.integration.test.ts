@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import { buildBackfillSql } from '../../scripts/backfill-admin-stats'
 import { createAdminStatsRepo } from '../adapters/repos/admin-stats'
 import { currentTrafficPeriod } from '../domain/quota'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup.js'
@@ -279,6 +280,99 @@ describe('site stats routes', () => {
       body.successTrend.some((point) => point.uploadSuccessRate === 100 && point.downloadSuccessRate === 100),
     ).toBe(true)
     expect(body.failureReasons).toEqual([])
+  })
+
+  it('repairs a direct-share backfill duplicate before serving traffic and sharing stats', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const { orgId, userId } = await seedStatsFixture(db)
+    const now = Date.now()
+    const nowSec = Math.floor(now / 1000)
+    const futureSec = nowSec + 7 * 24 * 60 * 60
+
+    await db.run(sql`
+      INSERT INTO shares (
+        id, token, kind, matter_id, org_id, creator_id, expires_at, download_limit,
+        views, downloads, status, created_at
+      )
+      VALUES (
+        'direct-share-backfill', 'direct-share-backfill', 'direct', 'stats-file', ${orgId}, ${userId},
+        ${futureSec}, 10, 0, 1, 'active', ${nowSec}
+      )
+    `)
+    await db.run(sql`
+      INSERT INTO activity_events (
+        id, org_id, user_id, actor_type, actor_ref, action, target_type, target_id,
+        target_name, metadata, created_at
+      )
+      VALUES
+        (
+          'native-direct-share-download', ${orgId}, NULL, 'anonymous', NULL, 'share_download', 'share',
+          'direct-share-backfill', 'report.pdf',
+          '{"bytes":512,"source":"direct_share","status":"issued","anonymous":true}', ${nowSec}
+        ),
+        (
+          'backfill_traffic-direct-share', ${orgId}, NULL, 'system', 'stats-backfill', 'share_download', 'share',
+          'direct-share-backfill', 'direct-share-backfill',
+          '{"direction":"download","status":"issued","source":"direct_share","bytes":512,"trafficEventId":"traffic-direct-share","quality":"recovered_from_cloud_traffic_report"}',
+          ${nowSec}
+        )
+    `)
+    await db.run(sql`
+      INSERT INTO cloud_traffic_reports (
+        id, org_id, period, source, source_id, storage_id, event_id, bytes,
+        unit_bytes, credits_per_unit, status, error, created_at, updated_at
+      )
+      VALUES (
+        'report-direct-share', ${orgId}, ${currentTrafficPeriod(new Date(now))}, 'direct_share',
+        'direct-share-backfill', NULL, 'traffic-direct-share', 512, NULL, NULL, 'reported', NULL, ${now}, ${now}
+      )
+    `)
+
+    db.$client.exec(buildBackfillSql(new Date(now)))
+
+    const repairedRows = await db.all<{
+      id: string
+      trafficEventId: string
+      source: string
+      bytes: number
+    }>(sql`
+      SELECT id,
+        json_extract(metadata, '$.trafficEventId') AS trafficEventId,
+        json_extract(metadata, '$.source') AS source,
+        json_extract(metadata, '$.bytes') AS bytes
+      FROM activity_events
+      WHERE target_id = 'direct-share-backfill' AND action = 'share_download'
+    `)
+    const trafficRes = await app.request('/api/site/stats/traffic', { headers })
+    const trafficBody = (await trafficRes.json()) as {
+      summary: { totalBytes: { value: number }; requestCount: { value: number } }
+      sourceBreakdown: Array<{ name: string; bytes: number; requests: number }>
+    }
+    const sharingRes = await app.request('/api/site/stats/sharing', { headers })
+    const sharingBody = (await sharingRes.json()) as {
+      summary: { downloads: { value: number } }
+      sourceBreakdown: Array<{ name: string; value: number }>
+    }
+
+    expect(repairedRows).toEqual([
+      {
+        id: 'native-direct-share-download',
+        trafficEventId: 'traffic-direct-share',
+        source: 'direct_share',
+        bytes: 512,
+      },
+    ])
+    expect(trafficRes.status).toBe(200)
+    expect(trafficBody.summary.totalBytes.value).toBe(1408)
+    expect(trafficBody.summary.requestCount.value).toBe(4)
+    expect(trafficBody.sourceBreakdown).toContainEqual(
+      expect.objectContaining({ name: 'direct_share', bytes: 512, requests: 1 }),
+    )
+    expect(sharingRes.status).toBe(200)
+    expect(sharingBody.summary.downloads.value).toBe(2)
+    expect(sharingBody.sourceBreakdown).toContainEqual(expect.objectContaining({ name: 'direct_share', value: 1 }))
   })
 
   it('applies dashboard ranges to sharing and ranking drill-down data', async () => {
