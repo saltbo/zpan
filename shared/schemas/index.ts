@@ -278,12 +278,7 @@ export type PatchIhostImageInput = z.infer<typeof patchIhostImageSchema>
 
 export const listIhostImagesSchema = z.object({
   pathPrefix: z.string().optional(),
-  cursor: z
-    .string()
-    .min(1)
-    .max(512)
-    .optional()
-    .openapi({ description: 'Opaque continuation cursor returned by the previous page' }),
+  cursor: z.string().optional().openapi({ description: 'Opaque continuation cursor returned by the previous page' }),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 })
 

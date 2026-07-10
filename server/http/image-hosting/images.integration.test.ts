@@ -1097,24 +1097,33 @@ describe('GET /api/image-hosting/images', () => {
     expect(new Set(traversal).size).toBe(traversal.length)
   })
 
-  it('returns typed AIP-193 400 for a malformed cursor [spec: image-hosting/invalid-cursor]', async () => {
+  it.each([
+    ['empty', ''],
+    ['malformed', 'not-a-valid-cursor'],
+    ['oversized', 'a'.repeat(513)],
+  ])('returns the same typed AIP-193 400 for an %s cursor [spec: image-hosting/invalid-cursor]', async (_case, cursor) => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/image-hosting/images?cursor=not-a-valid-cursor', { headers })
+    const res = await app.request(`/api/image-hosting/images?cursor=${encodeURIComponent(cursor)}`, { headers })
 
     expect(res.status).toBe(400)
-    const body = (await res.json()) as {
-      error: { code: number; status: string; details: Array<{ '@type': string; reason: string }> }
-    }
-    expect(body.error.code).toBe(400)
-    expect(body.error.status).toBe('INVALID_ARGUMENT')
-    expect(body.error.details[0]).toMatchObject({
-      '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
-      reason: 'INVALID_CURSOR',
+    expect(await res.json()).toEqual({
+      error: {
+        code: 400,
+        message: 'Invalid cursor',
+        status: 'INVALID_ARGUMENT',
+        details: [
+          {
+            '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+            reason: 'INVALID_CURSOR',
+            domain: 'zpan.dev',
+          },
+        ],
+      },
     })
   })
 

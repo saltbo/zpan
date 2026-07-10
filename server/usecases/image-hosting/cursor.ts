@@ -21,6 +21,7 @@ export function encodeImageHostingCursor(cursor: ImageHostingCursor): string {
 export function decodeImageHostingCursor(value: string): ImageHostingCursor {
   let payload: unknown
   try {
+    if (value.length === 0 || value.length > 512) throw new Error('Invalid cursor length')
     if (!BASE64URL_PATTERN.test(value)) throw new Error('Invalid base64url')
     const decoded = Buffer.from(value, 'base64url').toString('utf8')
     if (Buffer.from(decoded, 'utf8').toString('base64url') !== value) throw new Error('Non-canonical base64url')

@@ -333,7 +333,7 @@ const ihost = app
     const { pathPrefix, cursor, limit } = c.req.valid('query')
     const result = await listImageHostings(c.get('deps'), orgId, {
       pathPrefix,
-      cursor: cursor ? decodeImageHostingCursor(cursor) : undefined,
+      cursor: cursor === undefined ? undefined : decodeImageHostingCursor(cursor),
       limit,
     })
     return c.json(
