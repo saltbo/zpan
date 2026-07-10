@@ -227,6 +227,62 @@ describe('site stats routes', () => {
     expect(fallbackBody.summary.totalBytes.value).toBe(111)
   })
 
+  it('hydrates completed-hour dashboard dimensions from rollups', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const [{ id: orgId }] = await db.all<{ id: string }>(sql`SELECT id FROM organization LIMIT 1`)
+    const at = Date.UTC(2026, 6, 1, 10)
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('dimensions-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-share-total', ${at}, ${orgId}, 'share.created', '', '', 1, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-share-kind', ${at}, ${orgId}, 'share.created', 'kind', 'landing', 1, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-job-total', ${at}, ${orgId}, 'background_job.finished', '', '', 1, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-job-outcome', ${at}, ${orgId}, 'background_job.finished', 'outcome', 'failed', 1, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-download-total', ${at}, ${orgId}, 'transfer.download_issued', '', '', 1, 10, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-download-source', ${at}, ${orgId}, 'transfer.download_issued', 'source', 'object_download', 1, 10, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-failure-total', ${at}, ${orgId}, 'transfer.download_failed', '', '', 1, 4, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-failure-reason', ${at}, ${orgId}, 'transfer.download_failed', 'reason', 'network', 1, 4, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-quality-total', ${at}, ${orgId}, 'stats.quality_missing_bytes', '', '', 5, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-quality-upload', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'upload', 2, 0, 0, '{"quality":"exact"}', ${at}),
+        ('dimensions-quality-download', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'download', 3, 0, 0, '{"quality":"exact"}', ${at})
+    `)
+    const query = 'from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T10%3A59%3A59.999Z&timeZone=UTC'
+
+    const [overviewRes, operationsRes, sharingRes, trafficRes] = await Promise.all([
+      app.request(`/api/site/stats/overview?${query}`, { headers }),
+      app.request(`/api/site/stats/operations?${query}`, { headers }),
+      app.request(`/api/site/stats/sharing?${query}`, { headers }),
+      app.request(`/api/site/stats/traffic?${query}`, { headers }),
+    ])
+    const overview = (await overviewRes.json()) as { dataQuality: AdminDashboardOverviewStats['dataQuality'] }
+    const operations = (await operationsRes.json()) as { backgroundJobOutcomes: Array<{ name: string; value: number }> }
+    const sharing = (await sharingRes.json()) as {
+      summary: { createdShares: { value: number } }
+      typeBreakdown: Array<{ name: string; value: number }>
+    }
+    const traffic = (await trafficRes.json()) as {
+      sourceBreakdown: Array<{ name: string; requests: number; bytes: number }>
+      failureReasons: Array<{ name: string; value: number }>
+    }
+
+    expect([overviewRes.status, operationsRes.status, sharingRes.status, trafficRes.status]).toEqual([
+      200, 200, 200, 200,
+    ])
+    expect(overview.dataQuality).toMatchObject({ missingUploadBytesEvents: 2, missingDownloadBytesEvents: 3 })
+    expect(operations.backgroundJobOutcomes).toContainEqual(expect.objectContaining({ name: 'failed', value: 1 }))
+    expect(sharing.summary.createdShares.value).toBe(1)
+    expect(sharing.typeBreakdown).toContainEqual(expect.objectContaining({ name: 'landing', value: 1 }))
+    expect(traffic.sourceBreakdown).toContainEqual(
+      expect.objectContaining({ name: 'object_download', requests: 1, bytes: 10 }),
+    )
+    expect(traffic.failureReasons).toContainEqual(expect.objectContaining({ name: 'network', value: 1 }))
+  })
+
   it('refreshes exact hourly storage snapshots', async () => {
     const { app, db } = await createTestApp()
     await adminHeaders(app)
@@ -501,8 +557,15 @@ describe('site stats routes', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    await seedStatsFixture(db)
+    const { orgId } = await seedStatsFixture(db)
+    const now = Date.now()
     await db.run(sql`UPDATE download_tasks SET finished_at = updated_at WHERE id IN ('task-1', 'task-2')`)
+    await db.run(sql`
+      INSERT INTO cloud_traffic_reports
+        (id, org_id, period, source, source_id, event_id, bytes, status, created_at, updated_at)
+      VALUES ('operations-cloud-report', ${orgId}, '2026-07', 'object_download', 'stats-file',
+        'operations-cloud-report', 64, 'pending', ${now}, ${now})
+    `)
 
     const res = await app.request('/api/site/stats/operations', { headers })
     const body = (await res.json()) as {
@@ -513,6 +576,7 @@ describe('site stats routes', () => {
       }
       backgroundJobOutcomes: Array<{ name: string; value: number }>
       remoteDownloadOutcomes: Array<{ name: string; value: number }>
+      cloudReportStatus: Array<{ name: string; value: number }>
     }
 
     expect(res.status).toBe(200)
@@ -528,6 +592,7 @@ describe('site stats routes', () => {
         expect.objectContaining({ name: 'failed', value: 1 }),
       ]),
     )
+    expect(body.cloudReportStatus).toContainEqual(expect.objectContaining({ name: 'pending', value: 1 }))
   })
 
   it('applies dashboard ranges to sharing drill-down data', async () => {
