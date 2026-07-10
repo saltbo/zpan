@@ -5,12 +5,13 @@ import { activityEvents } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import type { ActivityActorType, ActivityRepo } from '../../usecases/ports'
 
-function normalizeActorType(value: string): ActivityActorType {
+function normalizeActorType(value: string | null, userId?: string | null): ActivityActorType {
   if (value === 'anonymous' || value === 'system' || value === 'downloader') return value
+  if (!userId) return 'anonymous'
   return 'user'
 }
 
-function actorDisplayName(actorType: string, actorRef: string | null): string {
+function actorDisplayName(actorType: ActivityActorType, actorRef: string | null): string {
   if (actorType === 'anonymous') return 'Anonymous'
   if (actorType === 'system') return actorRef ? `System:${actorRef}` : 'System'
   if (actorType === 'downloader') return actorRef ? `Downloader:${actorRef}` : 'Downloader'
@@ -66,24 +67,27 @@ export function createActivityRepo(db: Database): ActivityRepo {
         .limit(pageSize)
         .offset(offset)
 
-      const items = rows.map((row) => ({
-        id: row.id,
-        orgId: row.orgId,
-        userId: row.userId,
-        actorType: normalizeActorType(row.actorType),
-        actorRef: row.actorRef,
-        action: row.action,
-        targetType: row.targetType,
-        targetId: row.targetId,
-        targetName: row.targetName,
-        metadata: row.metadata,
-        createdAt: row.createdAt,
-        user: {
-          id: row.userId,
-          name: row.userName ?? actorDisplayName(row.actorType, row.actorRef),
-          image: row.userImage ?? null,
-        },
-      }))
+      const items = rows.map((row) => {
+        const actorType = normalizeActorType(row.actorType, row.userId)
+        return {
+          id: row.id,
+          orgId: row.orgId,
+          userId: row.userId,
+          actorType,
+          actorRef: row.actorRef,
+          action: row.action,
+          targetType: row.targetType,
+          targetId: row.targetId,
+          targetName: row.targetName,
+          metadata: row.metadata,
+          createdAt: row.createdAt,
+          user: {
+            id: row.userId,
+            name: row.userName ?? actorDisplayName(actorType, row.actorRef),
+            image: row.userImage ?? null,
+          },
+        }
+      })
 
       return { items, total }
     },
@@ -132,25 +136,28 @@ export function createActivityRepo(db: Database): ActivityRepo {
         .limit(pageSize)
         .offset(offset)
 
-      const items = rows.map((row) => ({
-        id: row.id,
-        orgId: row.orgId,
-        userId: row.userId,
-        actorType: normalizeActorType(row.actorType),
-        actorRef: row.actorRef,
-        action: row.action,
-        targetType: row.targetType,
-        targetId: row.targetId,
-        targetName: row.targetName,
-        metadata: row.metadata,
-        createdAt: row.createdAt,
-        user: {
-          id: row.userId,
-          name: row.userName ?? actorDisplayName(row.actorType, row.actorRef),
-          image: row.userImage ?? null,
-        },
-        orgName: row.orgName ?? null,
-      }))
+      const items = rows.map((row) => {
+        const actorType = normalizeActorType(row.actorType, row.userId)
+        return {
+          id: row.id,
+          orgId: row.orgId,
+          userId: row.userId,
+          actorType,
+          actorRef: row.actorRef,
+          action: row.action,
+          targetType: row.targetType,
+          targetId: row.targetId,
+          targetName: row.targetName,
+          metadata: row.metadata,
+          createdAt: row.createdAt,
+          user: {
+            id: row.userId,
+            name: row.userName ?? actorDisplayName(actorType, row.actorRef),
+            image: row.userImage ?? null,
+          },
+          orgName: row.orgName ?? null,
+        }
+      })
 
       return { items, total, page, pageSize }
     },
@@ -179,7 +186,7 @@ export function createActivityRepo(db: Database): ActivityRepo {
       return {
         items: rows.map((row) => ({
           ...row,
-          actorType: normalizeActorType(row.actorType),
+          actorType: normalizeActorType(row.actorType, row.userId),
         })),
         total: countRows[0]?.count ?? 0,
         page,

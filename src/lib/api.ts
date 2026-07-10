@@ -25,14 +25,12 @@ import type {
 import type {
   ActivityEvent,
   AdminAuditEvent,
-  AdminCoreStats,
   AdminDashboardGrowthStats,
   AdminDashboardOverviewStats,
   AdminDashboardRankingStats,
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
-  AdminDetailedStats,
   Announcement,
   AuthProvider,
   AuthProviderList,
@@ -435,14 +433,6 @@ export function retryBackgroundJob(id: string) {
 }
 
 // Admin dashboard stats
-
-export function getAdminCoreStats() {
-  return unwrap<AdminCoreStats>(adminStatsApi.core.$get())
-}
-
-export function getAdminDetailedStats(periodDays = 30) {
-  return unwrap<AdminDetailedStats>(adminStatsApi.details.$get({ query: { periodDays: String(periodDays) } }))
-}
 
 export interface AdminStatsRangeFilter {
   from?: string

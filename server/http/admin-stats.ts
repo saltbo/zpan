@@ -5,19 +5,13 @@ import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
 import {
-  getAdminCoreStats,
   getAdminDashboardGrowthStats,
   getAdminDashboardOverviewStats,
   getAdminDashboardRankingStats,
   getAdminDashboardSharingStats,
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
-  getAdminDetailedStats,
 } from '../usecases/admin-stats'
-
-const detailsQuerySchema = z.object({
-  periodDays: z.coerce.number().int().min(7).max(90).default(30),
-})
 
 const dashboardDateSchema = z.string().refine((value) => isValidDashboardDate(value), {
   message: 'Expected yyyy-MM-dd or ISO datetime',
@@ -51,11 +45,6 @@ function parseDashboardDate(value: string, boundary: 'start' | 'end'): Date {
 }
 
 export const adminStats = new Hono<Env>()
-  .get('/core', requireAdmin, async (c) => c.json(await getAdminCoreStats(c.get('deps')), 200))
-  .get('/details', requireAdmin, requireFeature('analytics'), zValidator('query', detailsQuerySchema), async (c) => {
-    const { periodDays } = c.req.valid('query')
-    return c.json(await getAdminDetailedStats(c.get('deps'), { periodDays }), 200)
-  })
   .get('/overview', requireAdmin, zValidator('query', rangeQuerySchema), async (c) =>
     c.json(await getAdminDashboardOverviewStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
   )

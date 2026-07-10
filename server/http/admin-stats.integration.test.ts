@@ -4,69 +4,27 @@ import { currentTrafficPeriod } from '../domain/quota'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 describe('admin stats routes', () => {
-  it('returns core dashboard stats for admins without a Pro license', async () => {
-    const { app, db } = await createTestApp()
+  it('does not expose legacy core or details stats endpoints', async () => {
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const { orgId, userId } = await seedStatsFixture(db)
 
-    const res = await app.request('/api/admin/stats/core', { headers })
-    const body = (await res.json()) as {
-      users: { total: number; admins: number }
-      storage: { usedBytes: number; backendCount: number }
-      sharing: { views: number; downloads: number }
-      operations: { pendingInvitations: number }
-    }
+    const coreRes = await app.request('/api/admin/stats/core', { headers })
+    const detailsRes = await app.request('/api/admin/stats/details', { headers })
 
-    expect(res.status).toBe(200)
-    expect(orgId).toBeTruthy()
-    expect(userId).toBeTruthy()
-    expect(body.users.total).toBeGreaterThanOrEqual(1)
-    expect(body.users.admins).toBe(1)
-    expect(body.storage.usedBytes).toBe(512)
-    expect(body.storage.backendCount).toBe(1)
-    expect(body.sharing.views).toBe(12)
-    expect(body.sharing.downloads).toBe(4)
-    expect(body.operations.pendingInvitations).toBe(1)
+    expect(coreRes.status).toBe(404)
+    expect(detailsRes.status).toBe(404)
   })
 
-  it('gates detailed dashboard stats behind the analytics feature', async () => {
+  it('gates advanced dashboard stats behind the analytics feature', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedStatsFixture(db)
 
-    const res = await app.request('/api/admin/stats/details', { headers })
+    const res = await app.request('/api/admin/stats/storage', { headers })
     const body = (await res.json()) as { error: { details: Array<{ metadata: Record<string, string> }> } }
 
     expect(res.status).toBe(402)
     expect(body.error.details[0].metadata.feature).toBe('analytics')
-  })
-
-  it('returns detailed dashboard stats for Pro admins', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await adminHeaders(app)
-    await seedProLicense(db)
-    await seedStatsFixture(db)
-
-    const res = await app.request('/api/admin/stats/details?periodDays=7', { headers })
-    const body = (await res.json()) as {
-      periodDays: number
-      trends: Array<{ remoteTasks: number; failedJobs: number }>
-      topShares: Array<{ token: string; views: number }>
-      remoteDownloads: { total: number; completed: number; failed: number; successRate: number }
-      reliability: {
-        backgroundJobs: { failed: number }
-        license: { active: boolean; edition: string; lastRefreshAt: string }
-      }
-    }
-
-    expect(res.status).toBe(200)
-    expect(body.periodDays).toBe(7)
-    expect(body.topShares[0]).toMatchObject({ token: 'share-token-1', views: 12 })
-    expect(body.remoteDownloads).toMatchObject({ total: 2, completed: 1, failed: 1, successRate: 50 })
-    expect(body.reliability.backgroundJobs.failed).toBe(1)
-    expect(body.reliability.license).toMatchObject({ active: true, edition: 'pro' })
-    expect(body.reliability.license.lastRefreshAt).toMatch(/^20\d{2}-/)
-    expect(body.trends.some((point) => point.remoteTasks > 0 || point.failedJobs > 0)).toBe(true)
   })
 
   it('normalizes date-only dashboard ranges to exact daily buckets', async () => {
@@ -133,6 +91,21 @@ describe('admin stats routes', () => {
 
     expect(res.status).toBe(200)
     expect(body.storageTrend).toEqual([{ date: '2026-01-01', usedBytes: 4096, newBytes: 0, newFiles: 0 }])
+  })
+
+  it('does not write rollups while serving storage stats fallback data', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedStatsFixture(db)
+
+    const before = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM stats_rollups_daily`)
+    const res = await app.request('/api/admin/stats/storage?from=2000-01-01&to=2000-01-02', { headers })
+    const after = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM stats_rollups_daily`)
+
+    expect(res.status).toBe(200)
+    expect(before[0].count).toBe(0)
+    expect(after[0].count).toBe(0)
   })
 
   it('returns traffic dashboard stats from audit-backed download events for Pro admins', async () => {
