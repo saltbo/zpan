@@ -36,7 +36,15 @@ export interface AdminStatsDelta {
   changePercent: number | null
 }
 
+export interface AdminTransferDataQuality {
+  missingUploadBytesEvents: number
+  previousMissingUploadBytesEvents: number
+  missingDownloadBytesEvents: number
+  previousMissingDownloadBytesEvents: number
+}
+
 export interface AdminDashboardOverviewStats extends AdminStatsRange {
+  dataQuality: AdminTransferDataQuality
   totals: {
     users: number
     newUsers: AdminStatsDelta
@@ -76,6 +84,7 @@ export interface AdminDashboardGrowthStats extends AdminStatsRange {
 }
 
 export interface AdminDashboardStorageStats extends AdminStatsRange {
+  dataQuality: AdminTransferDataQuality
   summary: {
     storageUsedBytes: number
     quotaBytes: number
@@ -91,6 +100,7 @@ export interface AdminDashboardStorageStats extends AdminStatsRange {
 }
 
 export interface AdminDashboardTrafficStats extends AdminStatsRange {
+  dataQuality: AdminTransferDataQuality
   summary: {
     totalBytes: AdminStatsDelta
     requestCount: AdminStatsDelta

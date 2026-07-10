@@ -220,6 +220,7 @@ export type {
   AdminStatsRange,
   AdminStorageByType,
   AdminTopShare,
+  AdminTransferDataQuality,
   AdminUsageBySpace,
 } from './admin-stats'
 

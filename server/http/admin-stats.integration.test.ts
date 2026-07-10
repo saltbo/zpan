@@ -1,3 +1,4 @@
+import type { AdminDashboardOverviewStats } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createAdminStatsRepo } from '../adapters/repos/admin-stats'
@@ -222,6 +223,32 @@ describe('site stats routes', () => {
     expect(currentBody.successTrend.some((point) => point.uploadSuccessRate === 50)).toBe(true)
     expect(currentBody.summary.requestCount.changePercent).toBeNull()
     expect(emptyBody.successTrend).toEqual([{ date: '2000-01-01', uploadSuccessRate: null, downloadSuccessRate: null }])
+  })
+
+  it('reports incomplete transfer byte metadata for the selected and comparison ranges', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const { orgId, userId } = await seedStatsFixture(db)
+    await db.run(sql`
+      INSERT INTO activity_events
+        (id, org_id, user_id, actor_type, action, target_type, target_name, metadata, created_at)
+      VALUES
+        ('missing-current-upload-bytes', ${orgId}, ${userId}, 'user', 'upload_confirm', 'file', 'current.bin', '{}',
+          ${Math.floor(Date.parse('2026-07-01T12:00:00.000Z') / 1000)}),
+        ('missing-previous-download-bytes', ${orgId}, ${userId}, 'user', 'share_download', 'share', 'previous.bin', '{}',
+          ${Math.floor(Date.parse('2026-06-30T12:00:00.000Z') / 1000)})
+    `)
+
+    const res = await app.request('/api/site/stats/overview?from=2026-07-01&to=2026-07-01', { headers })
+    const body = (await res.json()) as { dataQuality: AdminDashboardOverviewStats['dataQuality'] }
+
+    expect(res.status).toBe(200)
+    expect(body.dataQuality).toEqual({
+      missingUploadBytesEvents: 1,
+      previousMissingUploadBytesEvents: 0,
+      missingDownloadBytesEvents: 0,
+      previousMissingDownloadBytesEvents: 1,
+    })
   })
 
   it('excludes expired and exhausted shares from the active-share total', async () => {
