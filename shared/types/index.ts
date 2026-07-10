@@ -210,20 +210,13 @@ export interface PaginatedResponse<T> {
 }
 
 export type {
-  AdminBackgroundJobFailure,
-  AdminCoreStats,
-  AdminCountByStatus,
   AdminDashboardGrowthStats,
   AdminDashboardOverviewStats,
   AdminDashboardRankingStats,
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
-  AdminDetailedStats,
-  AdminDownloaderHealth,
-  AdminDownloadFailureReason,
   AdminStatsDelta,
-  AdminStatsPoint,
   AdminStatsRange,
   AdminStorageByType,
   AdminTopShare,

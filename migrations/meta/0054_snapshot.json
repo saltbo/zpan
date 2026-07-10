@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "827fe3c3-39c0-4dd3-8b2b-3d1a9f148adc",
+  "id": "c04d7898-5c72-458a-aa4f-b0a14af47bb9",
   "prevId": "788eaeff-a3a7-4da9-aadb-ab59817b494f",
   "tables": {
     "activity_events": {
@@ -23,21 +23,6 @@
         },
         "user_id": {
           "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "actor_type": {
-          "name": "actor_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
-        },
-        "actor_ref": {
-          "name": "actor_ref",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -83,6 +68,20 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "actor_type": {
+          "name": "actor_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "actor_ref": {
+          "name": "actor_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -2480,44 +2479,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "stats_rollup_state": {
-      "name": "stats_rollup_state",
-      "columns": {
-        "job_name": {
-          "name": "job_name",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "cursor_created_at": {
-          "name": "cursor_created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cursor_id": {
-          "name": "cursor_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "stats_rollups_daily": {
       "name": "stats_rollups_daily",
       "columns": {
@@ -2619,119 +2580,6 @@
         },
         "stats_rollups_daily_metric_bucket_idx": {
           "name": "stats_rollups_daily_metric_bucket_idx",
-          "columns": [
-            "metric_key",
-            "bucket_start"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "stats_rollups_hourly": {
-      "name": "stats_rollups_hourly",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "bucket_start": {
-          "name": "bucket_start",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "org_id": {
-          "name": "org_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "metric_key": {
-          "name": "metric_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "dimension_key": {
-          "name": "dimension_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "dimension_value": {
-          "name": "dimension_value",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "count": {
-          "name": "count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "bytes": {
-          "name": "bytes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "unique_count": {
-          "name": "unique_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "stats_rollups_hourly_bucket_metric_dim_uniq": {
-          "name": "stats_rollups_hourly_bucket_metric_dim_uniq",
-          "columns": [
-            "bucket_start",
-            "org_id",
-            "metric_key",
-            "dimension_key",
-            "dimension_value"
-          ],
-          "isUnique": true
-        },
-        "stats_rollups_hourly_metric_bucket_idx": {
-          "name": "stats_rollups_hourly_metric_bucket_idx",
           "columns": [
             "metric_key",
             "bucket_start"

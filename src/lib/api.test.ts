@@ -39,14 +39,12 @@ import {
   disconnectCloud,
   enableIhostFeature,
   generateInviteCodes,
-  getAdminCoreStats,
   getAdminDashboardGrowthStats,
   getAdminDashboardOverviewStats,
   getAdminDashboardRankingStats,
   getAdminDashboardSharingStats,
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
-  getAdminDetailedStats,
   getAnnouncement,
   getBackgroundJob,
   getBranding,
@@ -3818,129 +3816,6 @@ describe('api', () => {
   })
 
   describe('admin stats API', () => {
-    const corePayload = {
-      generatedAt: '2026-07-09T00:00:00.000Z',
-      users: { total: 3, admins: 1, activeLast30Days: 2, newLast7Days: 1 },
-      spaces: { total: 4, personal: 3, team: 1, newLast30Days: 1 },
-      storage: {
-        usedBytes: 100,
-        quotaBytes: 1000,
-        quotaUtilization: 10,
-        capacityBytes: 2000,
-        backendCount: 2,
-        activeBackendCount: 1,
-      },
-      traffic: { usedBytes: 50, quotaBytes: 500, utilization: 10, period: '2026-07' },
-      sharing: { totalShares: 4, activeShares: 3, views: 20, downloads: 5 },
-      operations: { pendingInvitations: 1, failedBackgroundJobs: 2, offlineDownloaders: 1, runningDownloadTasks: 3 },
-    }
-
-    const detailedPayload = {
-      generatedAt: '2026-07-09T00:00:00.000Z',
-      periodDays: 30,
-      trends: [
-        {
-          date: '2026-07-09',
-          signups: 1,
-          activeUsers: 2,
-          shareViews: 10,
-          shareDownloads: 4,
-          remoteTasks: 3,
-          failedJobs: 1,
-        },
-      ],
-      usageBySpace: [
-        { orgId: 'org-1', orgName: 'Team', orgType: 'team', usedBytes: 100, quotaBytes: 200, utilization: 50 },
-      ],
-      storageByType: [{ type: 'image/png', bytes: 100, files: 2 }],
-      topShares: [
-        {
-          id: 'share-1',
-          token: 'token-1',
-          name: 'file.png',
-          creatorId: 'user-1',
-          creatorName: 'Alice',
-          views: 10,
-          downloads: 4,
-          status: 'active',
-        },
-      ],
-      sharing: { expiredShares: 1, revokedShares: 1, downloadLimitHitShares: 1, conversionRate: 40 },
-      remoteDownloads: {
-        total: 5,
-        completed: 3,
-        failed: 1,
-        running: 1,
-        successRate: 60,
-        byStatus: [{ status: 'completed', count: 3 }],
-        failureReasons: [{ reason: 'network', count: 1 }],
-        byDownloader: [
-          { downloaderId: 'dl-1', name: 'Node', status: 'online', tasks: 5, failedTasks: 1, lastHeartbeatAt: null },
-        ],
-      },
-      reliability: {
-        backgroundJobs: {
-          total: 4,
-          failed: 1,
-          failureRate: 25,
-          byStatus: [{ status: 'failed', count: 1 }],
-          failures: [{ id: 'job-1', type: 'extract', errorMessage: 'bad zip', createdAt: '2026-07-09T00:00:00.000Z' }],
-        },
-        cloudTrafficReports: { pending: 1, failed: 1 },
-        license: { active: true, edition: 'pro', lastRefreshAt: null, lastRefreshError: null },
-      },
-    }
-
-    it('getAdminCoreStats fetches core dashboard stats', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(corePayload))
-
-      const result = await getAdminCoreStats()
-
-      expect(result).toEqual(corePayload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/stats/core')
-      expect(init.method).toBe('GET')
-    })
-
-    it('getAdminCoreStats throws ApiError on failure', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
-
-      await expect(getAdminCoreStats()).rejects.toThrow('Forbidden')
-    })
-
-    it('getAdminDetailedStats fetches detailed dashboard stats with periodDays', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(detailedPayload))
-
-      const result = await getAdminDetailedStats(90)
-
-      expect(result).toEqual(detailedPayload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/stats/details')
-      expect(url).toContain('periodDays=90')
-      expect(init.method).toBe('GET')
-    })
-
-    it('getAdminDetailedStats defaults to 30 days', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(detailedPayload))
-
-      await getAdminDetailedStats()
-
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('periodDays=30')
-    })
-
-    it('getAdminDetailedStats throws ApiError on feature gate failure', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        makeResponse(
-          { error: { code: 402, message: 'Feature not available', status: 'FAILED_PRECONDITION' } },
-          false,
-          402,
-        ),
-      )
-
-      await expect(getAdminDetailedStats()).rejects.toMatchObject({ status: 402 })
-    })
-
     const dashboardPayload = {
       generatedAt: '2026-07-09T00:00:00.000Z',
       from: '2026-07-01T00:00:00.000Z',
