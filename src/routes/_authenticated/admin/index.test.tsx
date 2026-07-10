@@ -139,6 +139,6 @@ describe('Admin overview dashboard', () => {
     renderOverviewPage()
 
     expect(await screen.findByText('历史数据不完整')).toBeTruthy()
-    expect(screen.getByText(/当前区间有 3 条/)).toBeTruthy()
+    expect(screen.getByText(/当前区间有 3条/)).toBeTruthy()
   })
 })
