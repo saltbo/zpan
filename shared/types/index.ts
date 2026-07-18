@@ -216,6 +216,7 @@ export type {
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
+  AdminStatsCoverage,
   AdminStatsDelta,
   AdminStatsRange,
   AdminTopShare,

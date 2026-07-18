@@ -217,8 +217,6 @@ WHERE ctr.source IN ('direct_share', 'landing_share', 'image_hosting', 'object_d
       )
   );
 
-DELETE FROM stats_rollups_hourly WHERE metric_key = 'storage.used.bytes';
-
 ${buildHourlyBackfillSql(now)}
 `
 }
@@ -233,6 +231,7 @@ type HourlySource = {
   bytes?: string
   uniqueCount?: string
   quality?: string
+  scope?: 'counters' | 'full'
   dimensions?: Record<string, string>
 }
 
@@ -250,20 +249,6 @@ function buildHourlyBackfillSql(now: Date): string {
         source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, 'upload')",
         status: "CASE ae.action WHEN 'upload_confirm' THEN 'success' WHEN 'upload_cancel' THEN 'canceled' ELSE 'failed' END",
         reason: "CASE WHEN ae.action = 'upload_confirm' THEN NULL WHEN json_valid(ae.metadata) = 1 AND json_type(ae.metadata, '$.reason') IS NOT NULL THEN json_extract(ae.metadata, '$.reason') WHEN ae.action = 'upload_cancel' THEN 'upload_canceled' ELSE 'upload_failed' END",
-        storage_id: "CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.storageId') END",
-      },
-    },
-    {
-      metric: 'storage.ingress',
-      source: 'activity_events ae',
-      timestampMs: 'ae.created_at * 1000',
-      org: 'ae.org_id',
-      where: "ae.action = 'upload_confirm'",
-      bytes: "SUM(CASE WHEN json_valid(ae.metadata) = 1 THEN COALESCE(json_extract(ae.metadata, '$.bytes'), 0) ELSE 0 END)",
-      quality: "CASE WHEN SUM(CASE WHEN ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
-      dimensions: {
-        source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, 'web_upload')",
-        status: "'success'",
         storage_id: "CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.storageId') END",
       },
     },
@@ -313,13 +298,6 @@ function buildHourlyBackfillSql(now: Date): string {
       dimensions: { source: 'ctr.source', status: 'ctr.status' },
     },
     {
-      metric: 'remote_download.task_created',
-      source: 'download_tasks dt',
-      timestampMs: 'dt.created_at',
-      org: 'dt.org_id',
-      dimensions: { category: "COALESCE(dt.category, 'uncategorized')", source: 'dt.source_type' },
-    },
-    {
       metric: 'remote_download.task_finished',
       source: 'download_tasks dt',
       timestampMs: 'dt.finished_at',
@@ -337,23 +315,6 @@ function buildHourlyBackfillSql(now: Date): string {
       dimensions: { job_type: 'bj.type', outcome: 'bj.status' },
     },
     {
-      metric: 'remote_download.usage',
-      source: 'remote_download_usage_reports ru',
-      timestampMs: 'ru.created_at',
-      org: 'ru.org_id',
-      count: 'SUM(ru.credits_per_unit)',
-      bytes: 'SUM(ru.unit_bytes)',
-      dimensions: { downloader_id: 'ru.downloader_id', status: 'ru.status' },
-    },
-    {
-      metric: 'webhook.processed',
-      source: 'webhook_events we',
-      timestampMs: 'we.processed_at',
-      org: "''",
-      where: 'we.processed_at IS NOT NULL',
-      dimensions: { outcome: 'we.status' },
-    },
-    {
       metric: 'stats.quality_missing_bytes',
       source: 'activity_events ae',
       timestampMs: 'ae.created_at * 1000',
@@ -367,7 +328,7 @@ function buildHourlyBackfillSql(now: Date): string {
   ]
 
   const statements = sources.flatMap((source) => hourlyStatements(source))
-  statements.push(userSignupBackfillSql(), activeUserBackfillSql(), rollupMarkerBackfillSql(now))
+  statements.push(userSignupBackfillSql(), rollupMarkerBackfillSql(now))
   return statements.join('\n\n')
 }
 
@@ -405,7 +366,7 @@ SELECT
   CAST(bucket_start AS TEXT) || ':' || COALESCE(NULLIF(org_id, ''), 'global') || ':${source.metric}:${dimensionKey || 'all'}:' || hex(dimension_value),
   bucket_start, org_id, '${source.metric}', '${dimensionKey}', dimension_value,
   count_value, bytes_value, unique_value,
-  json_object('version', 1, 'quality', quality_value),
+  json_object('version', 2, 'scope', '${source.scope ?? 'counters'}', 'quality', quality_value),
   bucket_start + 3600000
 FROM (
   SELECT ${bucket} AS bucket_start, ${source.org} AS org_id, ${dimension} AS dimension_value,
@@ -440,19 +401,6 @@ function userSignupBackfillSql(): string {
   })
 }
 
-function activeUserBackfillSql(): string {
-  return hourlyInsert({
-    metric: 'user.active_hour',
-    source: `(SELECT created_at AS at, user_id FROM session
-      UNION ALL
-      SELECT ae.created_at * 1000 AS at, ae.user_id FROM activity_events ae JOIN user u ON u.id = ae.user_id) active`,
-    timestampMs: 'active.at',
-    org: "''",
-    count: '0',
-    uniqueCount: 'COUNT(DISTINCT active.user_id)',
-  })
-}
-
 function rollupMarkerBackfillSql(now: Date): string {
   const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
   return hourlyInsert({
@@ -463,6 +411,7 @@ function rollupMarkerBackfillSql(now: Date): string {
     timestampMs: 'buckets.at',
     org: "''",
     count: '1',
+    scope: 'counters',
   })
 }
 

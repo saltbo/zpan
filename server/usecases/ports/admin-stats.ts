@@ -22,5 +22,5 @@ export interface AdminStatsRepo {
 export interface AdminStatsDateRange {
   from: Date
   to: Date
-  timeZone: string
+  timeZone: 'UTC'
 }

@@ -184,25 +184,18 @@ describe('admin hourly stats rollup', () => {
     })
     expect(first.lowerBoundRows).toBeGreaterThan(0)
     expect(row(M.transferUpload)).toMatchObject({ count: 4, bytes: 100 })
-    expect(row(M.storageIngress)).toMatchObject({ count: 2, bytes: 100 })
     expect(row(M.transferDownloadIssued)).toMatchObject({ count: 4, bytes: 90 })
-    expect(row(M.trafficQuotaBlocked)).toMatchObject({ count: 1, bytes: 5 })
     expect(row(M.shareDownloadIssued)).toMatchObject({ count: 1, bytes: 20 })
     expect(row(M.statsMissingBytes)).toMatchObject({ count: 2 })
-    expect(row(M.teamMembershipChange)).toMatchObject({ count: 2 })
     expect(row(M.userSignup, '', '', '')).toMatchObject({ count: 2 })
     expect(row(M.userSignup, 'provider', 'direct', '')).toMatchObject({ count: 1 })
-    expect(row(M.userActiveHour, '', '', '')).toMatchObject({ uniqueCount: 1 })
-    expect(row(M.spaceCreated, '', '', '')).toMatchObject({ count: 2 })
     expect(row(M.shareCreated)).toMatchObject({ count: 4 })
     expect(row(M.trafficReportSync)).toMatchObject({ count: 2, bytes: 300 })
-    expect(row(M.trafficCreditConsumed)).toMatchObject({ count: 4, bytes: 100 })
-    expect(row(M.remoteDownloadTaskCreated)).toMatchObject({ count: 2 })
     expect(row(M.remoteDownloadTaskFinished)).toMatchObject({ count: 1, bytes: 60 })
     expect(row(M.backgroundJobFinished)).toMatchObject({ count: 1 })
-    expect(row(M.remoteDownloadUsage)).toMatchObject({ count: 3, bytes: 70 })
-    expect(row(M.webhookProcessed, '', '', '')).toMatchObject({ count: 1 })
     expect(row(M.storageInventory)).toMatchObject({ count: 2, bytes: 500 })
+    expect(row(M.storageUsed)).toMatchObject({ bytes: 500 })
+    expect(row(M.storageQuota)).toMatchObject({ bytes: 1000 })
     expect(row(M.shareInventory, 'lifecycle', 'usable')).toMatchObject({ count: 1 })
     expect(row(M.shareInventory, 'lifecycle', 'revoked')).toMatchObject({ count: 1 })
     expect(row(M.shareInventory, 'lifecycle', 'expired')).toMatchObject({ count: 1 })
@@ -210,8 +203,12 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.backgroundJobSnapshot)).toMatchObject({ count: 1 })
     expect(row(M.remoteDownloadTaskSnapshot)).toMatchObject({ count: 1 })
     expect(row(M.downloaderSnapshot, '', '', '')).toMatchObject({ count: 2 })
+    expect(row(M.userInventory, '', '', '')).toMatchObject({ count: 2 })
+    expect(row(M.userActiveSnapshot, 'window', 'mau', '')).toMatchObject({ count: 1 })
+    expect(row(M.trafficReportSnapshot, '', '', '')).toMatchObject({ count: 2, bytes: 300 })
+    expect(row(M.webhookSnapshot, 'status', 'processed', '')).toMatchObject({ count: 1 })
     expect(row(M.statsRollupRun, '', '', '')).toMatchObject({ count: 1 })
-    expect(JSON.parse(row(M.transferUpload)?.metadata ?? '{}')).toMatchObject({ quality: 'lower_bound' })
+    expect(JSON.parse(row(M.transferUpload)?.metadata ?? '{}')).toMatchObject({ version: 2, quality: 'lower_bound' })
 
     const second = await rebuildAdminStatsHour(db, bucketStart, generatedAt, true)
     const [{ count: storedRows }] = await db.all<{ count: number }>(sql`
@@ -238,7 +235,7 @@ describe('admin hourly stats rollup', () => {
     ).rejects.toThrow('stats_rollup_query_failed:quota')
   })
 
-  it('treats absent and malformed rollup quality metadata as exact data', async () => {
+  it('reads only current-version result rows with a compatible completion scope', async () => {
     const { db } = await createTestApp()
     const bucketStart = Date.parse('2026-07-10T10:00:00.000Z')
     await db.run(sql`
@@ -246,11 +243,16 @@ describe('admin hourly stats rollup', () => {
         (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
           count, bytes, unique_count, metadata, updated_at)
       VALUES
-        ('quality-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0, '{}', ${bucketStart}),
+        ('quality-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${bucketStart}),
         ('quality-null', ${bucketStart}, 'org-null', 'transfer.upload', '', '', 1, 1, 0, NULL, ${bucketStart}),
         ('quality-array', ${bucketStart}, 'org-array', 'transfer.upload', '', '', 1, 2, 0, '[]', ${bucketStart}),
-        ('quality-invalid', ${bucketStart}, 'org-invalid', 'transfer.upload', '', '', 1, 3, 0, '{', ${bucketStart}),
-        ('quality-object', ${bucketStart}, 'org-object', 'transfer.upload', '', '', 1, 4, 0, '{}', ${bucketStart})
+        ('quality-v1', ${bucketStart}, 'org-v1', 'transfer.upload', '', '', 1, 3, 0,
+          '{"version":1,"scope":"full","quality":"exact"}', ${bucketStart}),
+        ('quality-exact', ${bucketStart}, 'org-exact', 'transfer.upload', '', '', 1, 4, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${bucketStart}),
+        ('quality-lower', ${bucketStart}, 'org-lower', 'transfer.upload', '', '', 1, 5, 0,
+          '{"version":2,"scope":"full","quality":"lower_bound"}', ${bucketStart})
     `)
     const reader = new AdminStatsHourlyReader(
       db,
@@ -263,35 +265,70 @@ describe('admin hourly stats rollup', () => {
     )
 
     expect(reader.endExclusive()).toEqual(new Date(bucketStart + 3_600_000))
-    expect(await reader.rows(M.transferUpload)).toHaveLength(4)
-    expect((await reader.rows(M.transferUpload)).every((row) => row.lowerBound === false)).toBe(true)
+    expect(await reader.rows(M.transferUpload)).toEqual([
+      expect.objectContaining({ orgId: 'org-exact', bytes: 4, lowerBound: false }),
+      expect.objectContaining({ orgId: 'org-lower', bytes: 5, lowerBound: true }),
+    ])
     expect(metricDefinition(M.transferUpload)).toMatchObject({ kind: 'counter', bytesUnit: 'bytes' })
     expect(() => assertMetricDimension(M.transferUpload, 'not-a-dimension')).toThrow(
       'Unsupported stats dimension: transfer.upload/not-a-dimension',
     )
   })
 
-  it('reads a current-hour rollup without querying raw source tables', async () => {
+  it('keeps counter-only repairs separate from full snapshot results', async () => {
+    const { db } = await createTestApp()
+    const bucketStart = Date.parse('2026-07-10T09:00:00.000Z')
+    const metadata = '{"version":2,"scope":"counters","quality":"exact"}'
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('counter-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0, ${metadata}, ${bucketStart}),
+        ('counter-result', ${bucketStart}, '', 'transfer.upload', '', '', 1, 42, 0, ${metadata}, ${bucketStart}),
+        ('orphan-gauge', ${bucketStart}, '', 'storage.used', '', '', 0, 99, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${bucketStart})
+    `)
+    const reader = new AdminStatsHourlyReader(
+      db,
+      {
+        from: new Date(bucketStart),
+        to: new Date(bucketStart + 3_600_000 - 1),
+        timeZone: 'UTC',
+      },
+      new Date(bucketStart + 7_200_000),
+    )
+
+    expect(await reader.rows(M.transferUpload)).toEqual([expect.objectContaining({ bytes: 42 })])
+    expect(await reader.rows(M.storageUsed)).toEqual([])
+    expect(await reader.coverage('counters')).toMatchObject({ status: 'complete', completedBuckets: 1 })
+    expect(await reader.coverage()).toMatchObject({ status: 'empty', completedBuckets: 0 })
+  })
+
+  it('never exposes the current open hour, even if rollup rows already exist', async () => {
     const { db } = await createTestApp()
     const bucketStart = Date.parse('2026-07-10T10:00:00.000Z')
     await db.run(sql`
       INSERT INTO stats_rollups_hourly
         (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
           count, bytes, unique_count, metadata, updated_at)
-      VALUES ('current-hour-rollup', ${bucketStart}, '', 'transfer.upload', '', '', 1, 42, 0, '{}', ${bucketStart})
+      VALUES
+        ('current-hour-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${bucketStart}),
+        ('current-hour-rollup', ${bucketStart}, '', 'transfer.upload', '', '', 1, 42, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${bucketStart})
     `)
     const reader = new AdminStatsHourlyReader(
       db,
       {
         from: new Date(bucketStart),
-        to: new Date(bucketStart + 30 * 60_000),
+        to: new Date(bucketStart + 3_600_000 - 1),
         timeZone: 'UTC',
       },
       new Date(bucketStart + 30 * 60_000),
     )
 
-    expect(await reader.rows(M.transferUpload)).toEqual([
-      expect.objectContaining({ bucketStart: new Date(bucketStart), count: 1, bytes: 42 }),
-    ])
+    expect(await reader.rows(M.transferUpload)).toEqual([])
+    expect(await reader.coverage()).toMatchObject({ status: 'empty', expectedBuckets: 0, completedBuckets: 0 })
   })
 })

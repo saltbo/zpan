@@ -1222,7 +1222,7 @@ export async function saveShareToDrive(deps: SaveToDriveDeps, input: SaveShareIn
     activity: {
       action: 'save_from_share',
       metadata: {
-        sourceShareId: share.id,
+        shareId: share.id,
         sourceMatterId: sourceMatter.id,
         creatorId: share.creatorId,
         bytes: sourceMatter.size ?? 0,

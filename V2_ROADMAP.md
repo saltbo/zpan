@@ -36,7 +36,7 @@ Each version ships 1–2 major features. Ship small, ship often.
 | [v2.5](docs/roadmap/v2.5.md) | **Multi-Platform Deployment** | 7 first-class targets via Turso (CF, Docker, AWS Lambda, Vercel, Netlify, Azure, GCP); avatar upload |
 | [v2.6](docs/roadmap/v2.6.md) | **Pro / Business Launch** | Cloud binding, entitlement system, white-label, audit log, quota store machinery, site announcements, retroactive gates |
 | [v2.7](docs/roadmap/v2.7.md) | **WebDAV & File Processing** | WebDAV protocol access, small-file zip compression/extraction, and Community remote-download orchestration through Aria2, qBittorrent, and future adapters |
-| [v2.8](docs/roadmap/v2.8.md) | **Admin Analytics & Dashboard** | Admin overview, usage/cost/reliability metrics, share analytics, and report exports |
+| [v2.8](docs/roadmap/v2.8.md) | **Admin Analytics & Dashboard** | Admin overview, usage/cost/reliability metrics, share analytics, and offline result coverage |
 | [v2.9](docs/roadmap/v2.9.md) | **Agent CLI** | Scriptable CLI for agents and CI: upload/manage files, shares, spaces, quota, and tasks |
 | [v2.10](docs/roadmap/v2.10.md) | **Desktop Sync Foundation** | Sync device model, change log, sync API contract, conflict model, and protocol tests for external clients |
 | Future | **Native Client Projects** | macOS File Provider, Windows/Linux sync clients, Flutter/mobile clients, and other OS-specific apps in separate repositories |
@@ -100,7 +100,7 @@ ZPan.
 
 - Quota store, subscription-plan catalog, gift-card / credit flows, and credit-backed traffic billing
 - Site announcements
-- Analytics dashboard and reporting exports
+- Analytics dashboard backed by completed offline results
 - Future webhook notifications and integration automation
 - Future enterprise / legacy identity such as SAML, LDAP / SCIM, and group mapping if demand proves real
 - Future advanced governance such as custom roles, retention policies, and admin support mode

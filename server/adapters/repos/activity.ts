@@ -2,8 +2,26 @@ import { and, count, desc, eq, gte, lte } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { organization, user } from '../../db/auth-schema'
 import { activityEvents } from '../../db/schema'
+import { assertAdminStatsEvent } from '../../domain/admin-stats-events'
 import type { Database } from '../../platform/interface'
-import type { ActivityActorType, ActivityRepo } from '../../usecases/ports'
+import type { ActivityActorType, ActivityRepo, RecordActivityInput } from '../../usecases/ports'
+
+export function activityEventValues(event: RecordActivityInput): typeof activityEvents.$inferInsert {
+  assertAdminStatsEvent(event.action, event.metadata)
+  return {
+    id: nanoid(),
+    orgId: event.orgId,
+    userId: event.userId ?? null,
+    actorType: event.actorType ?? (event.userId ? 'user' : 'anonymous'),
+    actorRef: event.actorRef ?? null,
+    action: event.action,
+    targetType: event.targetType,
+    targetId: event.targetId ?? null,
+    targetName: event.targetName,
+    metadata: event.metadata ? JSON.stringify(event.metadata) : null,
+    createdAt: new Date(),
+  }
+}
 
 function normalizeActorType(value: string | null, userId?: string | null): ActivityActorType {
   if (value === 'anonymous' || value === 'system' || value === 'downloader') return value
@@ -21,19 +39,7 @@ function actorDisplayName(actorType: ActivityActorType, actorRef: string | null)
 export function createActivityRepo(db: Database): ActivityRepo {
   return {
     async record(event) {
-      await db.insert(activityEvents).values({
-        id: nanoid(),
-        orgId: event.orgId,
-        userId: event.userId ?? null,
-        actorType: event.actorType ?? (event.userId ? 'user' : 'anonymous'),
-        actorRef: event.actorRef ?? null,
-        action: event.action,
-        targetType: event.targetType,
-        targetId: event.targetId ?? null,
-        targetName: event.targetName,
-        metadata: event.metadata ? JSON.stringify(event.metadata) : null,
-        createdAt: new Date(),
-      })
+      await db.insert(activityEvents).values(activityEventValues(event))
     },
 
     async list(orgId, opts) {

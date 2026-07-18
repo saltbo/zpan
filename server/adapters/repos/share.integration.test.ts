@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { DirType } from '../../../shared/constants'
 import type { CreateShareInput } from '../../../shared/schemas/share'
-import { matters } from '../../db/schema'
+import { activityEvents, matters } from '../../db/schema'
 import { isAccessibleByUser } from '../../domain/share'
 import { verifyPassword as verifyPasswordHash } from '../../lib/password'
 import type { Database } from '../../platform/interface'
@@ -14,7 +14,16 @@ import { createShareRepo } from './share.js'
 // under test, constructed per call from the test db.
 const createShare = (db: Database, input: CreateShareInput) => createShareRepo(db).create(input)
 const resolveShareByToken = (db: Database, token: string) => createShareRepo(db).resolveByToken(token)
-const incrementViews = (db: Database, shareId: string) => createShareRepo(db).incrementViews(shareId)
+const recordView = (db: Database, shareId: string, orgId: string) =>
+  createShareRepo(db).recordView(shareId, {
+    orgId,
+    actorType: 'anonymous',
+    action: 'share_view',
+    targetType: 'share',
+    targetId: shareId,
+    targetName: 'file.bin',
+    metadata: { shareId },
+  })
 const incrementDownloadsAtomic = (db: Database, shareId: string) =>
   createShareRepo(db).incrementDownloadsAtomic(shareId)
 const revokeShareByToken = (db: Database, token: string, creatorId: string) =>
@@ -305,21 +314,48 @@ describe('isAccessibleByUser', () => {
   })
 })
 
-// ─── incrementViews ───────────────────────────────────────────────────────────
+// ─── recordView ───────────────────────────────────────────────────────────────
 
-describe('incrementViews', () => {
-  it('increments view count correctly', async () => {
+describe('recordView', () => {
+  it('atomically increments the view count and records the stats fact', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const matter = await seedMatter(db, { orgId })
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
 
-    await incrementViews(db, share.id)
-    await incrementViews(db, share.id)
+    await recordView(db, share.id, orgId)
+    await recordView(db, share.id, orgId)
 
     const resolved = await resolveShareByToken(db, share.token)
     if (resolved.status !== 'ok') throw new Error('expected found')
     expect(resolved.share.views).toBe(2)
+    const events = await db.select().from(activityEvents).where(eq(activityEvents.targetId, share.id))
+    expect(events).toHaveLength(2)
+    expect(events.every((event) => event.action === 'share_view')).toBe(true)
+  })
+
+  it('does not increment the view count when the stats fact is invalid', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const matter = await seedMatter(db, { orgId })
+    const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
+
+    await expect(
+      createShareRepo(db).recordView(share.id, {
+        orgId,
+        actorType: 'anonymous',
+        action: 'share_view',
+        targetType: 'share',
+        targetId: share.id,
+        targetName: 'file.bin',
+        metadata: {},
+      }),
+    ).rejects.toThrow('invalid_admin_stats_event:share_view:shareId')
+
+    const resolved = await resolveShareByToken(db, share.token)
+    if (resolved.status !== 'ok') throw new Error('expected found')
+    expect(resolved.share.views).toBe(0)
+    await expect(db.select().from(activityEvents).where(eq(activityEvents.targetId, share.id))).resolves.toEqual([])
   })
 })
 

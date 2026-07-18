@@ -3824,7 +3824,7 @@ describe('api', () => {
     const range = {
       from: '2026-07-01T00:00:00.000Z',
       to: '2026-07-09T00:00:00.000Z',
-      timeZone: 'America/Toronto',
+      timeZone: 'UTC' as const,
     }
     const dashboardEndpoints = [
       { name: 'getAdminDashboardOverviewStats', path: '/api/site/stats/overview', fn: getAdminDashboardOverviewStats },

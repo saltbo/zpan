@@ -66,67 +66,43 @@ describe('site stats routes', () => {
     ])
   })
 
-  it('preserves explicit ISO offsets instead of shifting the selected local-day boundary', async () => {
+  it('accepts exact UTC hourly boundaries', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const from = encodeURIComponent('2026-07-01T04:00:00.000Z')
-    const to = encodeURIComponent('2026-07-02T03:59:59.999Z')
+    const from = encodeURIComponent('2026-07-01T10:00:00.000Z')
+    const to = encodeURIComponent('2026-07-01T10:59:59.999Z')
 
-    const res = await app.request(`/api/site/stats/overview?from=${from}&to=${to}&timeZone=America%2FToronto`, {
+    const res = await app.request(`/api/site/stats/overview?from=${from}&to=${to}&timeZone=UTC`, {
       headers,
     })
     const body = (await res.json()) as { from: string; to: string; trends: Array<{ date: string }> }
 
     expect(res.status).toBe(200)
-    expect(body.from).toBe('2026-07-01T04:00:00.000Z')
-    expect(body.to).toBe('2026-07-02T03:59:59.999Z')
+    expect(body.from).toBe('2026-07-01T10:00:00.000Z')
+    expect(body.to).toBe('2026-07-01T10:59:59.999Z')
     expect(body.trends.map((point) => point.date)).toEqual(['2026-07-01'])
   })
 
-  it('interprets date-only ranges in the requested time zone', async () => {
+  it('rejects partial-hour ranges that cannot map to offline result buckets', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const from = encodeURIComponent('2026-07-01T10:30:00.000Z')
+    const to = encodeURIComponent('2026-07-01T10:59:59.999Z')
+
+    const res = await app.request(`/api/site/stats/overview?from=${from}&to=${to}&timeZone=UTC`, { headers })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects local reporting zones because offline result buckets are UTC-only', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const res = await app.request('/api/site/stats/overview?from=2026-07-01&to=2026-07-01&timeZone=America%2FToronto', {
       headers,
     })
-    const body = (await res.json()) as { from: string; to: string; trends: Array<{ date: string }> }
 
-    expect(res.status).toBe(200)
-    expect(body.from).toBe('2026-07-01T04:00:00.000Z')
-    expect(body.to).toBe('2026-07-02T03:59:59.999Z')
-    expect(body.trends.map((point) => point.date)).toEqual(['2026-07-01'])
-  })
-
-  it('supports non-whole-hour time zones and daylight-saving day lengths', async () => {
-    const { app } = await createTestApp()
-    const headers = await adminHeaders(app)
-
-    const kathmandu = await app.request(
-      '/api/site/stats/overview?from=2026-07-01&to=2026-07-01&timeZone=Asia%2FKathmandu',
-      { headers },
-    )
-    const spring = await app.request(
-      '/api/site/stats/overview?from=2026-03-08&to=2026-03-08&timeZone=America%2FToronto',
-      { headers },
-    )
-    const fall = await app.request(
-      '/api/site/stats/overview?from=2026-11-01&to=2026-11-01&timeZone=America%2FToronto',
-      { headers },
-    )
-
-    expect(await kathmandu.json()).toMatchObject({
-      from: '2026-06-30T18:15:00.000Z',
-      to: '2026-07-01T18:14:59.999Z',
-    })
-    expect(await spring.json()).toMatchObject({
-      from: '2026-03-08T05:00:00.000Z',
-      to: '2026-03-09T03:59:59.999Z',
-    })
-    expect(await fall.json()).toMatchObject({
-      from: '2026-11-01T04:00:00.000Z',
-      to: '2026-11-02T04:59:59.999Z',
-    })
+    expect(res.status).toBe(400)
   })
 
   it('rejects dashboard ranges longer than one year', async () => {
@@ -178,8 +154,11 @@ describe('site stats routes', () => {
         count, bytes, unique_count, metadata, updated_at
       )
       VALUES (
-        'storage-used-2026-01-01', ${Date.UTC(2026, 0, 1)}, 'org-1', 'storage.used', '', '',
-        0, 4096, 0, NULL, ${Date.UTC(2026, 0, 2)}
+        'storage-marker-2026-01-01', ${Date.UTC(2026, 0, 1)}, '', 'stats.rollup_run', '', '',
+        1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${Date.UTC(2026, 0, 2)}
+      ), (
+        'storage-used-2026-01-01', ${Date.UTC(2026, 0, 1)}, '', 'storage.used', '', '',
+        0, 4096, 0, '{"version":2,"scope":"full","quality":"exact"}', ${Date.UTC(2026, 0, 2)}
       )
     `)
 
@@ -211,14 +190,20 @@ describe('site stats routes', () => {
         id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
         count, bytes, unique_count, metadata, updated_at
       ) VALUES
+        ('hourly-reader-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
         ('hourly-reader-upload', ${at}, ${orgId}, 'transfer.upload', 'status', 'success', 1, 999, 0,
-          '{"version":1,"quality":"exact"}', ${at + 3_600_000})
+          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000})
     `)
 
     const query =
       '/api/site/stats/traffic?from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T10%3A59%3A59.999Z&timeZone=UTC'
     const rollupRes = await app.request(query, { headers })
-    const rollupBody = (await rollupRes.json()) as { summary: { totalBytes: { value: number } } }
+    const rollupBody = (await rollupRes.json()) as {
+      coverage: { status: string; completedBuckets: number; expectedBuckets: number }
+      comparisonCoverage: { status: string; completedBuckets: number; expectedBuckets: number }
+      summary: { totalBytes: { value: number } }
+    }
 
     await db.run(sql`DELETE FROM stats_rollups_hourly WHERE id = 'hourly-reader-upload'`)
     const emptyRes = await app.request(query, { headers })
@@ -226,6 +211,8 @@ describe('site stats routes', () => {
 
     expect(rollupRes.status).toBe(200)
     expect(rollupBody.summary.totalBytes.value).toBe(999)
+    expect(rollupBody.coverage).toMatchObject({ status: 'complete', completedBuckets: 1, expectedBuckets: 1 })
+    expect(rollupBody.comparisonCoverage).toMatchObject({ status: 'empty', completedBuckets: 0, expectedBuckets: 1 })
     expect(emptyRes.status).toBe(200)
     expect(emptyBody.summary.totalBytes.value).toBe(0)
   })
@@ -241,18 +228,18 @@ describe('site stats routes', () => {
         (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
           count, bytes, unique_count, metadata, updated_at)
       VALUES
-        ('dimensions-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-share-total', ${at}, ${orgId}, 'share.created', '', '', 1, 0, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-share-kind', ${at}, ${orgId}, 'share.created', 'kind', 'landing', 1, 0, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-job-total', ${at}, ${orgId}, 'background_job.finished', '', '', 1, 0, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-job-outcome', ${at}, ${orgId}, 'background_job.finished', 'outcome', 'failed', 1, 0, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-download-total', ${at}, ${orgId}, 'transfer.download_issued', '', '', 1, 10, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-download-source', ${at}, ${orgId}, 'transfer.download_issued', 'source', 'object_download', 1, 10, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-failure-total', ${at}, ${orgId}, 'transfer.download_failed', '', '', 1, 4, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-failure-reason', ${at}, ${orgId}, 'transfer.download_failed', 'reason', 'network', 1, 4, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-quality-total', ${at}, ${orgId}, 'stats.quality_missing_bytes', '', '', 5, 0, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-quality-upload', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'upload', 2, 0, 0, '{"quality":"exact"}', ${at}),
-        ('dimensions-quality-download', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'download', 3, 0, 0, '{"quality":"exact"}', ${at})
+        ('dimensions-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-share-total', ${at}, ${orgId}, 'share.created', '', '', 1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-share-kind', ${at}, ${orgId}, 'share.created', 'kind', 'landing', 1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-job-total', ${at}, ${orgId}, 'background_job.finished', '', '', 1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-job-outcome', ${at}, ${orgId}, 'background_job.finished', 'outcome', 'failed', 1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-download-total', ${at}, ${orgId}, 'transfer.download_issued', '', '', 1, 10, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-download-source', ${at}, ${orgId}, 'transfer.download_issued', 'source', 'object_download', 1, 10, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-failure-total', ${at}, ${orgId}, 'transfer.download_failed', '', '', 1, 4, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-failure-reason', ${at}, ${orgId}, 'transfer.download_failed', 'reason', 'network', 1, 4, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-quality-total', ${at}, ${orgId}, 'stats.quality_missing_bytes', '', '', 5, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-quality-upload', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'upload', 2, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-quality-download', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'download', 3, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at})
     `)
     const query = 'from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T10%3A59%3A59.999Z&timeZone=UTC'
 
@@ -302,17 +289,17 @@ describe('site stats routes', () => {
     const rows = await db.all<{ bucketStart: number; bytes: number; metadata: string }>(sql`
       SELECT bucket_start AS bucketStart, bytes, metadata
       FROM stats_rollups_hourly
-      WHERE metric_key = 'storage.used' AND dimension_key = ''
+      WHERE metric_key = 'storage.used' AND org_id = '' AND dimension_key = ''
       ORDER BY bucket_start, org_id
     `)
 
-    expect(rows.map((row) => Number(row.bucketStart))).toContain(Date.UTC(2026, 6, 10, 18))
+    expect(rows.map((row) => Number(row.bucketStart))).toContain(Date.UTC(2026, 6, 10, 17))
     expect(
       rows
-        .filter((row) => Number(row.bucketStart) === Date.UTC(2026, 6, 10, 18))
+        .filter((row) => Number(row.bucketStart) === Date.UTC(2026, 6, 10, 17))
         .reduce((sum, row) => sum + row.bytes, 0),
     ).toBe(expected)
-    expect(JSON.parse(rows.at(-1)?.metadata ?? '{}')).toMatchObject({ version: 1, quality: 'exact' })
+    expect(JSON.parse(rows.at(-1)?.metadata ?? '{}')).toMatchObject({ version: 2, quality: 'exact' })
   })
 
   it('does not write rollups while serving storage stats', async () => {
@@ -375,13 +362,15 @@ describe('site stats routes', () => {
           count, bytes, unique_count, metadata, updated_at)
       VALUES
         ('growth-rollup-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
-          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
+          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
         ('growth-rollup-total', ${at}, '', 'user.signup', '', '', 2, 0, 0,
-          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
+          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+        ('growth-inventory-total', ${at}, '', 'user.inventory', '', '', 2, 0, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
         ('growth-rollup-credential', ${at}, '', 'user.signup', 'provider', 'credential', 1, 0, 0,
-          '{"version":1,"quality":"exact"}', ${at + 3_600_000}),
+          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
         ('growth-rollup-github', ${at}, '', 'user.signup', 'provider', 'github', 1, 0, 0,
-          '{"version":1,"quality":"exact"}', ${at + 3_600_000})
+          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000})
     `)
 
     const res = await app.request('/api/site/stats/growth?from=2026-01-01&to=2026-01-01', { headers })
@@ -402,11 +391,11 @@ describe('site stats routes', () => {
     )
   })
 
-  it('groups storage file types beyond the top eight into other', async () => {
+  it('does not expose raw storage changes until a snapshot rollup completes', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    const { orgId } = await seedStatsFixture(db)
+    const { orgId, bucketStart } = await seedStatsFixture(db)
     const nowSec = Math.floor(Date.now() / 1000)
     for (let index = 0; index < 9; index += 1) {
       await db.run(sql`
@@ -417,15 +406,53 @@ describe('site stats routes', () => {
       `)
     }
 
-    const res = await app.request('/api/site/stats/storage', { headers })
-    const body = (await res.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
+    const beforeRes = await app.request('/api/site/stats/storage', { headers })
+    const before = (await beforeRes.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
 
-    expect(res.status).toBe(200)
-    expect(body.typeBreakdown).toHaveLength(9)
-    expect(body.typeBreakdown.at(-1)).toMatchObject({ type: 'other', files: 2 })
+    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
+    const afterRes = await app.request('/api/site/stats/storage', { headers })
+    const after = (await afterRes.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
+
+    expect(beforeRes.status).toBe(200)
+    expect(before.typeBreakdown).not.toContainEqual(expect.objectContaining({ type: 'custom' }))
+    expect(afterRes.status).toBe(200)
+    expect(after.typeBreakdown).toContainEqual(expect.objectContaining({ type: 'custom', files: 9 }))
   })
 
-  it('excludes orphan actors and uses immutable session creation time for historical active users', async () => {
+  it('counts quota pressure across every space while bounding the ranking to eight', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const { bucketStart } = await seedStatsFixture(db)
+    for (let index = 0; index < 12; index += 1) {
+      await db.run(sql`
+        INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+        VALUES (
+          ${`quota-pressure-${index}`},
+          ${`quota-pressure-org-${index}`},
+          100,
+          ${index < 9 ? 90 : 110},
+          0,
+          0,
+          '2026-07'
+        )
+      `)
+    }
+    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
+
+    const res = await app.request('/api/site/stats/storage', { headers })
+    const body = (await res.json()) as {
+      summary: { nearQuotaSpaces: number; overQuotaSpaces: number }
+      topSpaces: Array<{ orgId: string }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.summary.nearQuotaSpaces).toBe(9)
+    expect(body.summary.overQuotaSpaces).toBe(3)
+    expect(body.topSpaces).toHaveLength(8)
+  })
+
+  it('reads historical active users from completed snapshots instead of raw activity', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const [{ id: orgId }] = await db.all<{ id: string }>(sql`SELECT id FROM organization LIMIT 1`)
@@ -436,6 +463,17 @@ describe('site stats routes', () => {
       VALUES
         ('valid-historical-activity', ${orgId}, ${userId}, 'user', 'login', 'user', 'valid', ${created}),
         ('orphan-historical-activity', ${orgId}, 'deleted-user', 'user', 'login', 'user', 'orphan', ${created})
+    `)
+    const at = Date.UTC(2026, 0, 2, 12)
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('active-snapshot-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+        ('active-snapshot-mau', ${at}, '', 'user.active_snapshot', 'window', 'mau', 1, 0, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000})
     `)
 
     const res = await app.request('/api/site/stats/overview?from=2026-01-02&to=2026-01-02', { headers })
@@ -493,6 +531,8 @@ describe('site stats routes', () => {
 
     expect(res.status).toBe(200)
     expect(body.dataQuality).toEqual({
+      missingBytesEvents: 1,
+      previousMissingBytesEvents: 1,
       missingUploadBytesEvents: 1,
       previousMissingUploadBytesEvents: 0,
       missingDownloadBytesEvents: 0,
@@ -655,6 +695,14 @@ describe('site stats routes', () => {
         ('activity-download-heavy-3', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec})
     `)
     await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('ranking-invalid-quality', ${bucketStart.getTime()}, ${orgId}, 'share.view', 'share_id',
+          'share-download-heavy', 1000, 0, 0, '{"version":2,"scope":"full"}', ${bucketStart.getTime()})
+    `)
 
     const res = await app.request('/api/site/stats/sharing', { headers })
     const body = (await res.json()) as { topShares: Array<{ token: string; views: number; downloads: number }> }

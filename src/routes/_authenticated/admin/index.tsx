@@ -5,6 +5,7 @@ import type {
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
+  AdminStatsRange,
   AdminTransferDataQuality,
 } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
@@ -160,56 +161,52 @@ const SECTION_META: Array<{
 ]
 
 export function OverviewPage() {
-  const today = useMemo(() => new Date(), [])
+  const today = useMemo(() => utcCalendarDate(new Date()), [])
   const [openSections, setOpenSections] = useState<Set<SectionId>>(() => new Set(['overview']))
-  const [ranges, setRanges] = useState<Record<SectionId, DateRange>>(() => initialRanges(today))
+  const [range, setRange] = useState<DateRange>(() => ({ from: startOfDay(subDays(today, 29)), to: endOfDay(today) }))
   const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
   const hasAnalytics = hasFeature('analytics')
 
   const overviewQuery = useQuery({
-    queryKey: ['admin', 'dashboard', 'overview', rangeKey(ranges.overview)],
-    queryFn: () => getAdminDashboardOverviewStats(toRangeFilter(ranges.overview)),
+    queryKey: ['admin', 'dashboard', 'overview', rangeKey(range)],
+    queryFn: () => getAdminDashboardOverviewStats(toRangeFilter(range)),
     staleTime: 30_000,
   })
   const growthQuery = useDashboardSectionQuery(
     'growth',
-    ranges.growth,
+    range,
     openSections,
     hasAnalytics,
     getAdminDashboardGrowthStats,
   )
   const storageQuery = useDashboardSectionQuery(
     'storage',
-    ranges.storage,
+    range,
     openSections,
     hasAnalytics,
     getAdminDashboardStorageStats,
   )
   const trafficQuery = useDashboardSectionQuery(
     'traffic',
-    ranges.traffic,
+    range,
     openSections,
     hasAnalytics,
     getAdminDashboardTrafficStats,
   )
   const sharingQuery = useDashboardSectionQuery(
     'sharing',
-    ranges.sharing,
+    range,
     openSections,
     hasAnalytics,
     getAdminDashboardSharingStats,
   )
   const operationsQuery = useDashboardSectionQuery(
     'operations',
-    ranges.operations,
+    range,
     openSections,
     hasAnalytics,
     getAdminDashboardOperationsStats,
   )
-
-  function updateRange(section: SectionId, range: DateRange) {
-    setRanges((current) => ({ ...current, [section]: range }))
-  }
 
   function toggleSection(section: SectionId) {
     if (section !== 'overview' && !hasAnalytics) return
@@ -224,6 +221,13 @@ export function OverviewPage() {
   return (
     <div className="-m-4 min-h-[calc(100svh-3.5rem)] bg-canvas p-4">
       <div className="mx-auto flex max-w-[1180px] flex-col gap-5">
+        <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/95 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div>
+            <h1 className="text-lg font-semibold">站点统计</h1>
+            <p className="mt-1 text-sm text-muted-foreground">统一使用 UTC 日期与已完成的离线小时结果。</p>
+          </div>
+          <DateRangePicker value={range} onChange={setRange} />
+        </div>
         <div className="flex flex-col gap-4">
           {SECTION_META.map((section) => (
             <DashboardSection
@@ -231,8 +235,6 @@ export function OverviewPage() {
               section={section}
               open={openSections.has(section.id)}
               locked={section.id !== 'overview' && !hasAnalytics && !entitlementLoading}
-              range={ranges[section.id]}
-              onRangeChange={(range) => updateRange(section.id, range)}
               onToggle={() => toggleSection(section.id)}
             >
               {section.id === 'overview' ? (
@@ -282,18 +284,14 @@ function DashboardSection({
   section,
   open,
   locked,
-  range,
   children,
   onToggle,
-  onRangeChange,
 }: {
   section: (typeof SECTION_META)[number]
   open: boolean
   locked?: boolean
-  range: DateRange
   children: ReactNode
   onToggle: () => void
-  onRangeChange: (range: DateRange) => void
 }) {
   const Icon = section.icon
 
@@ -323,7 +321,6 @@ function DashboardSection({
           </span>
         </button>
         <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
-          {open && !locked && <DateRangePicker value={range} onChange={onRangeChange} />}
           <button
             type="button"
             onClick={onToggle}
@@ -396,7 +393,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (ran
               }}
               defaultMonth={draft.from}
               numberOfMonths={2}
-              disabled={{ after: new Date() }}
+              disabled={{ after: utcCalendarDate(new Date()) }}
             />
             <div className="mt-3 flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs text-muted-foreground">{formatRange(draft)}</div>
@@ -419,32 +416,32 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (ran
 function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
   const cards = [
     {
-      label: '当前注册用户',
+      label: '期末注册用户',
       value: formatNumber(stats.totals.users),
       delta: formatDelta(stats.totals.newUsers),
       icon: Users,
       metrics: [
         { label: '新增用户', value: formatNumber(stats.totals.newUsers.value) },
-        { label: '活跃用户', value: formatNumber(stats.totals.activeUsers.value) },
+        { label: '30 日活跃用户', value: formatNumber(stats.totals.activeUsers.value) },
       ],
     },
     {
-      label: '周期活跃用户',
+      label: '30 日活跃用户',
       value: formatNumber(stats.totals.activeUsers.value),
       delta: formatDelta(stats.totals.activeUsers),
       icon: TrendingUp,
       metrics: [
-        { label: '活跃率', value: formatPercent(ratio(stats.totals.activeUsers.value, stats.totals.users)) },
+        { label: '30 日活跃率', value: formatPercent(stats.totals.activeUserRate) },
         { label: '环比人数', value: formatNumber(stats.totals.activeUsers.previousValue) },
       ],
     },
     {
-      label: '当前存储占用',
+      label: '期末存储占用',
       value: formatSize(stats.totals.storageUsedBytes),
       delta: formatDelta(stats.totals.uploadBytes, formatSize),
       icon: Database,
       metrics: [
-        { label: '使用率', value: formatPercent(ratio(stats.totals.storageUsedBytes, stats.totals.storageQuotaBytes)) },
+        { label: '使用率', value: formatPercent(stats.totals.storageUtilization) },
         { label: '区间新增', value: formatSize(stats.totals.uploadBytes.value) },
       ],
     },
@@ -510,7 +507,7 @@ function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
           </ComposedChart>
         </ResponsiveContainer>
       </ChartCard>
-      <ChartCard title="资源消耗趋势" subtitle="存储水位、确认上传字节和下载签发字节按用户所选时区聚合。">
+      <ChartCard title="资源消耗趋势" subtitle="存储水位、确认上传字节和下载签发字节按 UTC 日期聚合。">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={stats.trends} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
             <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
@@ -569,7 +566,7 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
           ]}
         />
         <StatCard
-          label="活跃用户"
+          label="30 日活跃用户"
           value={formatNumber(stats.summary.activeUsers.value)}
           delta={formatDelta(stats.summary.activeUsers)}
           icon={Activity}
@@ -593,8 +590,8 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
           value={formatNumber(stats.summary.silentUsers)}
           icon={FileClock}
           metrics={[
-            { label: '占比', value: formatPercent(ratio(stats.summary.silentUsers, stats.summary.totalUsers)) },
-            { label: '活跃率', value: formatPercent(ratio(stats.summary.activeUsers.value, stats.summary.totalUsers)) },
+            { label: '占比', value: formatPercent(stats.summary.silentUserRate) },
+            { label: '30 日活跃率', value: formatPercent(stats.summary.activeUserRate) },
           ]}
         />
       </div>
@@ -676,13 +673,13 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="存储占用"
+          label="期末存储占用"
           value={formatSize(stats.summary.storageUsedBytes)}
           icon={HardDrive}
           metrics={[
             {
               label: '配额使用率',
-              value: formatPercent(ratio(stats.summary.storageUsedBytes, stats.summary.quotaBytes)),
+              value: formatPercent(stats.summary.storageUtilization),
             },
             { label: '文件数', value: formatNumber(stats.summary.fileCount) },
           ]}
@@ -714,9 +711,9 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
           metrics={[
             {
               label: '年龄文件占比',
-              value: formatPercent(ratio(stats.summary.coldFileBytes, stats.summary.storageUsedBytes)),
+              value: formatPercent(stats.summary.coldFilePercent),
             },
-            { label: '当前占用', value: formatSize(stats.summary.storageUsedBytes) },
+            { label: '期末占用', value: formatSize(stats.summary.storageUsedBytes) },
           ]}
         />
       </div>
@@ -922,7 +919,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
         />
         <StatCard
           label="下载签发成功率"
-          value={formatPercent(stats.summary.issueRate)}
+          value={formatPercent(stats.summary.downloadIssueSuccessRate)}
           icon={Download}
           metrics={[
             { label: '签发成功', value: formatNumber(stats.summary.issuedDownloads) },
@@ -1109,13 +1106,13 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="分享链接"
+          label="期末可用分享"
           value={formatNumber(stats.summary.activeShares)}
           delta={formatDelta(stats.summary.createdShares)}
           icon={Share2}
           metrics={[
             { label: '区间创建', value: formatNumber(stats.summary.createdShares.value) },
-            { label: '下载转化', value: formatPercent(stats.summary.downloadConversionRate) },
+            { label: '每百次访问下载', value: formatPer100(stats.summary.downloadsPer100Views) },
           ]}
         />
         <StatCard
@@ -1134,7 +1131,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           delta={formatDelta(stats.summary.downloads)}
           icon={Download}
           metrics={[
-            { label: '访问转化', value: formatPercent(stats.summary.downloadConversionRate) },
+            { label: '每百次访问下载', value: formatPer100(stats.summary.downloadsPer100Views) },
             { label: '上期下载', value: formatNumber(stats.summary.downloads.previousValue) },
           ]}
         />
@@ -1145,10 +1142,8 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           icon={Link2}
           metrics={[
             {
-              label: '转存率',
-              value: formatPercent(
-                stats.summary.views.value > 0 ? ratio(stats.summary.saves.value, stats.summary.views.value) : null,
-              ),
+              label: '每百次访问转存',
+              value: formatPer100(stats.summary.savesPer100Views),
             },
             { label: '上期转存', value: formatNumber(stats.summary.saves.previousValue) },
           ]}
@@ -1237,7 +1232,7 @@ function OperationsSection({ stats }: { stats: AdminDashboardOperationsStats }) 
         />
         <StatCard
           label="待处理异常"
-          value={formatNumber(stats.summary.cloudReportBacklog + stats.summary.webhookFailures)}
+          value={formatNumber(stats.summary.alertCount)}
           icon={FileClock}
           metrics={[
             { label: '计量积压', value: formatNumber(stats.summary.cloudReportBacklog) },
@@ -1504,22 +1499,70 @@ function TopSharesTable({ rows }: { rows: AdminDashboardSharingStats['topShares'
   )
 }
 
-function QueryState<T>({
+function QueryState<T extends AdminStatsRange>({
   query,
   children,
 }: {
-  query: { isLoading: boolean; isError: boolean; data: T | undefined }
+  query: { isLoading: boolean; isError: boolean; data: T | undefined; refetch?: () => unknown }
   children: (data: T) => ReactNode
 }) {
   if (query.isLoading) return <SectionSkeleton />
   if (query.isError)
     return (
-      <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-        统计数据加载失败。
+      <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+        <span>统计结果加载失败。</span>
+        {query.refetch && (
+          <Button type="button" variant="outline" size="sm" onClick={() => query.refetch?.()}>
+            重试
+          </Button>
+        )}
       </div>
     )
   if (!query.data) return <EmptyState />
-  return <>{children(query.data)}</>
+  return (
+    <div className="grid gap-4">
+      <StatsCoverageNotice stats={query.data} />
+      {children(query.data)}
+    </div>
+  )
+}
+
+function StatsCoverageNotice({ stats }: { stats: AdminStatsRange }) {
+  const { coverage } = stats
+  const comparisonCoverage = stats.comparisonCoverage
+  const through = coverage.dataThrough
+    ? new Date(coverage.dataThrough).toISOString().replace('T', ' ').slice(0, 16)
+    : null
+  const comparisonIncomplete = comparisonCoverage ? comparisonCoverage.status !== 'complete' : false
+  const incomplete = coverage.status !== 'complete' || comparisonIncomplete
+  return (
+    <div
+      role="status"
+      className={cn(
+        'flex flex-col gap-1 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between',
+        incomplete ? 'border-amber-500/40 bg-amber-500/10' : 'border-border/70 bg-muted/20',
+      )}
+    >
+      <span className={incomplete ? 'text-amber-800 dark:text-amber-200' : 'text-muted-foreground'}>
+        {coverage.status === 'empty'
+          ? '所选范围还没有可用的离线结果。'
+          : coverage.status === 'partial'
+            ? '所选范围存在缺失的小时结果，当前数据不完整。'
+            : comparisonCoverage?.status === 'empty'
+              ? '对比区间还没有可用的离线结果，环比不可对账。'
+              : comparisonCoverage?.status === 'partial'
+                ? '对比区间存在缺失的小时结果，环比数据不完整。'
+                : '所选范围的离线结果完整。'}
+      </span>
+      <span className="text-xs text-muted-foreground">
+        {through ? `数据截至 ${through} UTC · ` : ''}
+        当前 {coverage.completedBuckets}/{coverage.expectedBuckets} 小时
+        {comparisonCoverage
+          ? ` · 对比 ${comparisonCoverage.completedBuckets}/${comparisonCoverage.expectedBuckets} 小时`
+          : ''}
+      </span>
+    </div>
+  )
 }
 
 function SectionSkeleton() {
@@ -1536,8 +1579,8 @@ function SectionSkeleton() {
 }
 
 function TransferDataQualityNotice({ quality }: { quality: AdminTransferDataQuality }) {
-  const currentMissing = quality.missingUploadBytesEvents + quality.missingDownloadBytesEvents
-  const previousMissing = quality.previousMissingUploadBytesEvents + quality.previousMissingDownloadBytesEvents
+  const currentMissing = quality.missingBytesEvents
+  const previousMissing = quality.previousMissingBytesEvents
   if (currentMissing === 0 && previousMissing === 0) return null
 
   return (
@@ -1549,8 +1592,8 @@ function TransferDataQualityNotice({ quality }: { quality: AdminTransferDataQual
         历史数据不完整
       </Badge>
       <span className="text-muted-foreground">
-        当前区间有 {formatNumber(currentMissing)}条、对比区间有 {formatNumber(previousMissing)}
-        条传输事件缺少可恢复的字节数； 流量与新增容量仅代表已知下限，事件数量不受影响。
+        当前区间有 {formatNumber(currentMissing)} 条、对比区间有 {formatNumber(previousMissing)}
+        条传输事件缺少可恢复的字节数；流量与新增容量仅代表已知下限，事件数量不受影响。
       </span>
     </div>
   )
@@ -1564,35 +1607,26 @@ function EmptyState() {
   )
 }
 
-function initialRanges(today: Date): Record<SectionId, DateRange> {
-  const last30 = { from: startOfDay(subDays(today, 29)), to: endOfDay(today) }
-  return {
-    overview: last30,
-    growth: last30,
-    storage: { from: startOfDay(subDays(today, 89)), to: endOfDay(today) },
-    traffic: { from: startOfDay(subDays(today, 6)), to: endOfDay(today) },
-    sharing: last30,
-    operations: last30,
-  }
-}
-
 function dateRangePresets(): Array<{ label: string; range: DateRange }> {
-  const today = new Date()
+  const today = utcCalendarDate(new Date())
   return [
     { label: '最近 3 天', range: { from: startOfDay(subDays(today, 2)), to: endOfDay(today) } },
     { label: '最近 7 天', range: { from: startOfDay(subDays(today, 6)), to: endOfDay(today) } },
     { label: '最近 30 天', range: { from: startOfDay(subDays(today, 29)), to: endOfDay(today) } },
-    { label: '最近一个月', range: { from: startOfDay(subDays(today, 30)), to: endOfDay(today) } },
     { label: '本月', range: { from: startOfMonth(today), to: endOfDay(today) } },
     { label: '上月', range: { from: startOfMonth(subMonths(today, 1)), to: endOfMonth(subMonths(today, 1)) } },
   ]
 }
 
+function utcCalendarDate(value: Date): Date {
+  return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate())
+}
+
 function toRangeFilter(range: DateRange): AdminStatsRangeFilter {
   return {
-    ...(range.from ? { from: startOfDay(range.from).toISOString() } : {}),
-    ...(range.to ? { to: endOfDay(range.to).toISOString() } : {}),
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    ...(range.from ? { from: format(range.from, 'yyyy-MM-dd') } : {}),
+    ...(range.to ? { to: format(range.to, 'yyyy-MM-dd') } : {}),
+    timeZone: 'UTC',
   }
 }
 
@@ -1632,17 +1666,16 @@ function formatPercentLabel(value: unknown): string {
   return `${value}%`
 }
 
-function ratio(part: number, total: number): number {
-  if (total <= 0) return 0
-  return (part / total) * 100
+function formatPer100(value: number | null): string {
+  return value === null ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: 1 })
 }
 
 function formatDelta(
-  delta: { value: number; previousValue: number; changePercent: number | null },
+  delta: { value: number; previousValue: number; change: number; changePercent: number | null },
   valueFormatter: (value: number) => string = formatNumber,
 ): string {
-  const sign = delta.value >= delta.previousValue ? '+' : ''
-  return `${sign}${valueFormatter(delta.value - delta.previousValue)} (${formatPercent(delta.changePercent)})`
+  const sign = delta.change >= 0 ? '+' : ''
+  return `${sign}${valueFormatter(delta.change)} (${formatPercent(delta.changePercent)})`
 }
 
 function formatCompactNumber(value: number): string {

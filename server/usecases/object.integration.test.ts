@@ -371,7 +371,7 @@ describe('saveShareToDrive', () => {
     expect(activities[0].userId).toBe('u2')
 
     const metadata = JSON.parse(activities[0].metadata ?? '{}')
-    expect(metadata.sourceShareId).toBe(share.id)
+    expect(metadata.shareId).toBe(share.id)
   })
 
   it('does NOT increment share downloads counter', async () => {
@@ -791,7 +791,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(updatedShare?.downloads).toBe(downloadsBefore)
   })
 
-  it('activity_events row created with save_from_share and sourceShareId metadata', async () => {
+  it('activity_events row created with save_from_share and shareId metadata', async () => {
     const { app, db, share, headers, personalOrgId } = await setup()
 
     await app.request(`/api/shares/${share.token}/objects`, {
@@ -806,7 +806,7 @@ describe('POST /api/shares/:token/objects', () => {
     const saveActivity = activities.find((a) => a.action === 'save_from_share')
     expect(saveActivity).toBeTruthy()
     const metadata = JSON.parse(saveActivity?.metadata ?? '{}')
-    expect(metadata.sourceShareId).toBe(share.id)
+    expect(metadata.shareId).toBe(share.id)
   })
 })
 

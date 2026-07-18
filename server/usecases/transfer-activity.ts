@@ -12,7 +12,7 @@ export function recordDownloadIssued(
     orgId: string
     userId?: string | null
     actorType?: 'user' | 'anonymous' | 'system' | 'downloader'
-    action: string
+    action: 'share_download' | 'object_download' | 'image_hosting_download' | 'webdav_download'
     targetType: string
     targetId: string
     targetName: string
@@ -31,12 +31,12 @@ export function recordDownloadIssued(
     targetId: input.targetId,
     targetName: input.targetName,
     metadata: {
+      ...input.metadata,
       direction: 'download',
       status: 'issued',
       source: input.source,
       bytes: input.bytes,
       trafficEventId: input.trafficEventId,
-      ...input.metadata,
     },
   })
 }
@@ -66,13 +66,13 @@ export function recordDownloadFailed(
     targetId: input.targetId,
     targetName: input.targetName,
     metadata: {
+      ...input.metadata,
       direction: 'download',
       status: 'failed',
       source: input.source,
       bytes: input.bytes,
       trafficEventId: input.trafficEventId,
       reason: input.reason,
-      ...input.metadata,
     },
   })
 }

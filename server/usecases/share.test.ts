@@ -129,7 +129,7 @@ const trashedResolution = (
 function makeShareRepo(over: Partial<ShareRepo> = {}): ShareRepo {
   return {
     resolveByToken: async () => okResolution(),
-    incrementViews: async () => {},
+    recordView: async () => {},
     hasDownloadsAvailable: async () => true,
     incrementDownloadsAtomic: async () => ({ ok: true, downloads: 3 }),
     decrementDownloads: async () => {},
@@ -163,7 +163,7 @@ function makeDeps(
   } = {},
 ) {
   const record = vi.fn(async () => {})
-  const incrementViews = vi.fn(async () => {})
+  const recordView = vi.fn(async () => {})
   const decrementDownloads = vi.fn(async () => {})
   const refundTraffic = vi.fn(async () => {})
   const presignDownload = vi.fn(async () => PRESIGNED_URL)
@@ -175,7 +175,7 @@ function makeDeps(
   const isEmailConfigured = vi.fn(async () => true)
 
   const deps = {
-    share: makeShareRepo({ incrementViews, decrementDownloads, ...over.share }),
+    share: makeShareRepo({ recordView, decrementDownloads, ...over.share }),
     matter: { list: async () => emptyMatterList, ...over.matter } as MatterRepo,
     storages: { get: async () => sampleStorage, ...over.storages } as StorageRepo,
     s3: { presignDownload, ...over.s3 } as S3Gateway,
@@ -195,7 +195,7 @@ function makeDeps(
   return {
     deps,
     record,
-    incrementViews,
+    recordView,
     decrementDownloads,
     refundTraffic,
     presignDownload,
@@ -251,7 +251,7 @@ describe('viewShare', () => {
   })
 
   it('returns the viewer DTO and signals the view cookie for an anonymous viewer', async () => {
-    const { deps, incrementViews } = makeDeps()
+    const { deps, recordView } = makeDeps()
     const out = await viewShare(deps, {
       token: 'sk_token1',
       viewerId: null,
@@ -261,7 +261,14 @@ describe('viewShare', () => {
     expect(out.ok).toBe(true)
     if (!out.ok) throw new Error('expected ok')
     expect(out.setViewCookie).toBe(true)
-    expect(incrementViews).toHaveBeenCalledWith('s-1')
+    expect(recordView).toHaveBeenCalledWith(
+      's-1',
+      expect.objectContaining({
+        action: 'share_view',
+        targetId: 's-1',
+        metadata: expect.objectContaining({ bytes: 1024 }),
+      }),
+    )
     expect(out.dto).toMatchObject({
       token: 'sk_token1',
       kind: 'landing',
@@ -277,7 +284,7 @@ describe('viewShare', () => {
   })
 
   it('does not increment views (no cookie) when already seen', async () => {
-    const { deps, incrementViews } = makeDeps()
+    const { deps, recordView } = makeDeps()
     const out = await viewShare(deps, {
       token: 'sk_token1',
       viewerId: null,
@@ -286,11 +293,11 @@ describe('viewShare', () => {
     })
     if (!out.ok) throw new Error('expected ok')
     expect(out.setViewCookie).toBe(false)
-    expect(incrementViews).not.toHaveBeenCalled()
+    expect(recordView).not.toHaveBeenCalled()
   })
 
   it('returns the richer creator DTO and never bumps views for the creator', async () => {
-    const { deps, incrementViews } = makeDeps()
+    const { deps, recordView } = makeDeps()
     const out = await viewShare(deps, {
       token: 'sk_token1',
       viewerId: 'creator-1',
@@ -299,7 +306,7 @@ describe('viewShare', () => {
     })
     if (!out.ok) throw new Error('expected ok')
     expect(out.setViewCookie).toBe(false)
-    expect(incrementViews).not.toHaveBeenCalled()
+    expect(recordView).not.toHaveBeenCalled()
     expect(out.dto).toMatchObject({
       id: 's-1',
       matterId: 'm-1',

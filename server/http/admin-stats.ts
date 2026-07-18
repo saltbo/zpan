@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { addCalendarDays, localDateStart } from '../domain/admin-stats-time'
+import { addCalendarDays, utcDateStart } from '../domain/admin-stats-time'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
@@ -21,24 +21,14 @@ const dashboardDateSchema = z
 const rangeQuerySchema = z.object({
   from: dashboardDateSchema.optional(),
   to: dashboardDateSchema.optional(),
-  timeZone: z.string().max(64).refine(isValidTimeZone, 'Invalid IANA time zone').optional(),
+  timeZone: z.literal('UTC').optional(),
 })
 
-function parseRange(query: z.infer<typeof rangeQuerySchema>): { from?: Date; to?: Date; timeZone?: string } {
-  const timeZone = query.timeZone ?? 'UTC'
+function parseRange(query: z.infer<typeof rangeQuerySchema>): { from?: Date; to?: Date; timeZone: 'UTC' } {
   return {
-    from: query.from ? parseDashboardDate(query.from, 'start', timeZone) : undefined,
-    to: query.to ? parseDashboardDate(query.to, 'end', timeZone) : undefined,
-    timeZone,
-  }
-}
-
-function isValidTimeZone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en-CA', { timeZone: value }).format()
-    return true
-  } catch {
-    return false
+    from: query.from ? parseDashboardDate(query.from, 'start') : undefined,
+    to: query.to ? parseDashboardDate(query.to, 'end') : undefined,
+    timeZone: 'UTC',
   }
 }
 
@@ -48,10 +38,10 @@ function isValidDashboardDate(value: string): boolean {
   return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
 }
 
-function parseDashboardDate(value: string, boundary: 'start' | 'end', timeZone: string): Date {
+function parseDashboardDate(value: string, boundary: 'start' | 'end'): Date {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    if (boundary === 'start') return localDateStart(value, timeZone)
-    return new Date(localDateStart(addCalendarDays(value, 1), timeZone).getTime() - 1)
+    if (boundary === 'start') return utcDateStart(value)
+    return new Date(utcDateStart(addCalendarDays(value, 1)).getTime() - 1)
   }
   return new Date(value)
 }

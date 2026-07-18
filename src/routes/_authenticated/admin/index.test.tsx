@@ -45,24 +45,35 @@ const overviewStats: AdminDashboardOverviewStats = {
   generatedAt: '2026-07-09T00:00:00.000Z',
   from: '2026-07-01T00:00:00.000Z',
   to: '2026-07-09T00:00:00.000Z',
+  timeZone: 'UTC',
+  coverage: {
+    status: 'complete',
+    expectedBuckets: 192,
+    completedBuckets: 192,
+    dataThrough: '2026-07-09T00:00:00.000Z',
+  },
   dataQuality: {
     missingUploadBytesEvents: 0,
     previousMissingUploadBytesEvents: 0,
     missingDownloadBytesEvents: 0,
     previousMissingDownloadBytesEvents: 0,
+    missingBytesEvents: 0,
+    previousMissingBytesEvents: 0,
   },
   totals: {
     users: 42,
-    newUsers: { value: 5, previousValue: 3, changePercent: 66.7 },
-    activeUsers: { value: 18, previousValue: 12, changePercent: 50 },
+    newUsers: { value: 5, previousValue: 3, change: 2, changePercent: 66.7 },
+    activeUsers: { value: 18, previousValue: 12, change: 6, changePercent: 50 },
+    activeUserRate: 42.9,
     storageUsedBytes: 1024,
     storageQuotaBytes: 4096,
-    trafficBytes: { value: 512, previousValue: 256, changePercent: 100 },
-    uploadBytes: { value: 128, previousValue: 64, changePercent: 100 },
-    downloadBytes: { value: 384, previousValue: 192, changePercent: 100 },
+    storageUtilization: 25,
+    trafficBytes: { value: 512, previousValue: 256, change: 256, changePercent: 100 },
+    uploadBytes: { value: 128, previousValue: 64, change: 64, changePercent: 100 },
+    downloadBytes: { value: 384, previousValue: 192, change: 192, changePercent: 100 },
     activeShares: 4,
-    shareViews: { value: 120, previousValue: 60, changePercent: 100 },
-    shareDownloads: { value: 30, previousValue: 15, changePercent: 100 },
+    shareViews: { value: 120, previousValue: 60, change: 60, changePercent: 100 },
+    shareDownloads: { value: 30, previousValue: 15, change: 15, changePercent: 100 },
   },
   trends: [
     {
@@ -80,6 +91,13 @@ const operationsStats: AdminDashboardOperationsStats = {
   generatedAt: '2026-07-09T00:00:00.000Z',
   from: '2026-07-01T00:00:00.000Z',
   to: '2026-07-09T00:00:00.000Z',
+  timeZone: 'UTC',
+  coverage: {
+    status: 'complete',
+    expectedBuckets: 192,
+    completedBuckets: 192,
+    dataThrough: '2026-07-09T00:00:00.000Z',
+  },
   summary: {
     activeBackgroundJobs: 2,
     activeRemoteDownloads: 3,
@@ -89,6 +107,7 @@ const operationsStats: AdminDashboardOperationsStats = {
     remoteDownloadSuccessRate: 95,
     cloudReportBacklog: 6,
     webhookFailures: 7,
+    alertCount: 13,
   },
   trend: [],
   backgroundJobOutcomes: [],
@@ -134,6 +153,7 @@ describe('Admin overview dashboard', () => {
     renderOverviewPage()
 
     expect(await screen.findByText('42')).toBeTruthy()
+    expect(screen.getByText('所选范围的离线结果完整。')).toBeTruthy()
     expect(screen.getByText('用户与增长')).toBeTruthy()
     expect(getAdminDashboardGrowthStats).not.toHaveBeenCalled()
     expect(getAdminDashboardStorageStats).not.toHaveBeenCalled()
@@ -155,13 +175,40 @@ describe('Admin overview dashboard', () => {
     })
     vi.mocked(getAdminDashboardOverviewStats).mockResolvedValue({
       ...overviewStats,
-      dataQuality: { ...overviewStats.dataQuality, missingUploadBytesEvents: 3 },
+      dataQuality: { ...overviewStats.dataQuality, missingUploadBytesEvents: 3, missingBytesEvents: 3 },
     })
 
     renderOverviewPage()
 
     expect(await screen.findByText('历史数据不完整')).toBeTruthy()
-    expect(screen.getByText(/当前区间有 3条/)).toBeTruthy()
+    expect(screen.getByText(/当前区间有 3 条/)).toBeTruthy()
+  })
+
+  it('warns when the comparison range is missing offline result buckets', async () => {
+    vi.mocked(useEntitlement).mockReturnValue({
+      bound: false,
+      active: false,
+      edition: null,
+      licenseId: null,
+      cloudDashboardUrl: null,
+      hasFeature: () => false,
+      isLoading: false,
+      isError: false,
+    })
+    vi.mocked(getAdminDashboardOverviewStats).mockResolvedValue({
+      ...overviewStats,
+      comparisonCoverage: {
+        status: 'partial',
+        expectedBuckets: 192,
+        completedBuckets: 144,
+        dataThrough: '2026-06-30T00:00:00.000Z',
+      },
+    })
+
+    renderOverviewPage()
+
+    expect(await screen.findByText('对比区间存在缺失的小时结果，环比数据不完整。')).toBeTruthy()
+    expect(screen.getByText(/对比 144\/192 小时/)).toBeTruthy()
   })
 
   it('loads the operations dashboard only when an entitled admin expands it', async () => {

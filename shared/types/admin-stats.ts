@@ -22,11 +22,22 @@ export interface AdminStatsRange {
   generatedAt: string
   from: string
   to: string
+  timeZone: 'UTC'
+  coverage: AdminStatsCoverage
+  comparisonCoverage?: AdminStatsCoverage
+}
+
+export interface AdminStatsCoverage {
+  status: 'complete' | 'partial' | 'empty'
+  expectedBuckets: number
+  completedBuckets: number
+  dataThrough: string | null
 }
 
 export interface AdminStatsDelta {
   value: number
   previousValue: number
+  change: number
   changePercent: number | null
 }
 
@@ -35,6 +46,8 @@ export interface AdminTransferDataQuality {
   previousMissingUploadBytesEvents: number
   missingDownloadBytesEvents: number
   previousMissingDownloadBytesEvents: number
+  missingBytesEvents: number
+  previousMissingBytesEvents: number
 }
 
 export interface AdminDashboardOverviewStats extends AdminStatsRange {
@@ -43,8 +56,10 @@ export interface AdminDashboardOverviewStats extends AdminStatsRange {
     users: number
     newUsers: AdminStatsDelta
     activeUsers: AdminStatsDelta
+    activeUserRate: number | null
     storageUsedBytes: number
     storageQuotaBytes: number
+    storageUtilization: number | null
     trafficBytes: AdminStatsDelta
     uploadBytes: AdminStatsDelta
     downloadBytes: AdminStatsDelta
@@ -70,6 +85,8 @@ export interface AdminDashboardGrowthStats extends AdminStatsRange {
     verifiedUsers: number
     bannedUsers: number
     silentUsers: number
+    activeUserRate: number | null
+    silentUserRate: number | null
   }
   userScaleTrend: Array<{ date: string; newUsers: number; totalUsers: number }>
   activeUserTrend: Array<{ date: string; dau: number; wau: number; mau: number }>
@@ -86,6 +103,8 @@ export interface AdminDashboardStorageStats extends AdminStatsRange {
     newFiles: AdminStatsDelta
     newBytes: AdminStatsDelta
     coldFileBytes: number
+    storageUtilization: number | null
+    coldFilePercent: number | null
     nearQuotaSpaces: number
     overQuotaSpaces: number
   }
@@ -103,7 +122,7 @@ export interface AdminDashboardTrafficStats extends AdminStatsRange {
     requestCount: AdminStatsDelta
     issuedDownloads: number
     blockedDownloads: number
-    issueRate: number | null
+    downloadIssueSuccessRate: number | null
     peakDailyBytes: number
   }
   trafficTrend: Array<{ date: string; uploadBytes: number; downloadBytes: number; requests: number }>
@@ -120,7 +139,8 @@ export interface AdminDashboardSharingStats extends AdminStatsRange {
     views: AdminStatsDelta
     downloads: AdminStatsDelta
     saves: AdminStatsDelta
-    downloadConversionRate: number | null
+    downloadsPer100Views: number | null
+    savesPer100Views: number | null
     passwordPasses: number
   }
   trend: Array<{ date: string; views: number; downloads: number; saves: number }>
@@ -139,6 +159,7 @@ export interface AdminDashboardOperationsStats extends AdminStatsRange {
     remoteDownloadSuccessRate: number | null
     cloudReportBacklog: number
     webhookFailures: number
+    alertCount: number
   }
   trend: Array<{
     date: string

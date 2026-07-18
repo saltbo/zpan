@@ -437,7 +437,7 @@ export function retryBackgroundJob(id: string) {
 export interface AdminStatsRangeFilter {
   from?: string
   to?: string
-  timeZone?: string
+  timeZone?: 'UTC'
 }
 
 function statsRangeQuery(filter: AdminStatsRangeFilter = {}): Record<string, string> {

@@ -3,7 +3,7 @@ import type { CreateShareInput } from '@shared/schemas/share'
 import { and, count, desc, eq, inArray, isNotNull, isNull, like, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { user } from '../../db/auth-schema'
-import { matters, shareRecipients, shares } from '../../db/schema'
+import { activityEvents, matters, shareRecipients, shares } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
 import { hashPassword } from '../../lib/password'
 import type { Database } from '../../platform/interface'
@@ -15,6 +15,7 @@ import {
   type ShareRepo,
   type ShareResolution,
 } from '../../usecases/ports'
+import { activityEventValues } from './activity'
 import { createQuotaRepo } from './quota'
 
 function buildPath(parent: string, name: string): string {
@@ -97,11 +98,14 @@ export function createShareRepo(db: Database): ShareRepo {
       return { status: 'ok', share: row.share, matter: row.matter, recipients }
     },
 
-    async incrementViews(shareId: string): Promise<void> {
-      await db
-        .update(shares)
-        .set({ views: sql`${shares.views} + 1` })
-        .where(eq(shares.id, shareId))
+    async recordView(shareId, activity): Promise<void> {
+      await executeWriteTransaction(db, [
+        db
+          .update(shares)
+          .set({ views: sql`${shares.views} + 1` })
+          .where(eq(shares.id, shareId)),
+        db.insert(activityEvents).values(activityEventValues(activity)),
+      ])
     },
 
     async hasDownloadsAvailable(shareId: string): Promise<boolean> {

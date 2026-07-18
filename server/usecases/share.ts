@@ -175,29 +175,24 @@ export async function viewShare(deps: ShareDeps, params: ViewShareParams): Promi
   // handler sets the cookie when setViewCookie is true.
   const setViewCookie = !isCreator && viewCookie !== 'seen'
   if (setViewCookie) {
-    await deps.share.incrementViews(share.id)
-    try {
-      await deps.activity.record({
-        orgId: share.orgId,
-        userId: viewerId,
-        actorType: viewerId ? 'user' : 'anonymous',
-        action: 'share_view',
-        targetType: 'share',
-        targetId: share.id,
-        targetName: matter.name,
-        metadata: {
-          shareId: share.id,
-          matterId: matter.id,
-          creatorId: share.creatorId,
-          kind: share.kind,
-          requiresPassword: !!share.passwordHash,
-          matterType: matter.type,
-          bytes: matter.size ?? 0,
-        },
-      })
-    } catch (error) {
-      console.error('[shares] recordActivity failed:', error)
-    }
+    await deps.share.recordView(share.id, {
+      orgId: share.orgId,
+      userId: viewerId,
+      actorType: viewerId ? 'user' : 'anonymous',
+      action: 'share_view',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: matter.name,
+      metadata: {
+        shareId: share.id,
+        matterId: matter.id,
+        creatorId: share.creatorId,
+        kind: share.kind,
+        requiresPassword: !!share.passwordHash,
+        matterType: matter.type,
+        bytes: matter.size ?? 0,
+      },
+    })
   }
 
   const dto = await composeShareView(deps, { share, matter, recipients }, { viewerId, accessCookie, now })
@@ -231,25 +226,21 @@ export async function verifySharePassword(
     ? new Date(Math.min(share.expiresAt.getTime(), now.getTime() + oneDayMs))
     : new Date(now.getTime() + oneDayMs)
 
-  try {
-    await deps.activity.record({
-      orgId: share.orgId,
-      userId: viewerId,
-      actorType: viewerId ? 'user' : 'anonymous',
-      action: 'share_password_passed',
-      targetType: 'share',
-      targetId: share.id,
-      targetName: matter.name,
-      metadata: {
-        shareId: share.id,
-        matterId: matter.id,
-        creatorId: share.creatorId,
-        kind: share.kind,
-      },
-    })
-  } catch (error) {
-    console.error('[shares] recordActivity failed:', error)
-  }
+  await deps.activity.record({
+    orgId: share.orgId,
+    userId: viewerId,
+    actorType: viewerId ? 'user' : 'anonymous',
+    action: 'share_password_passed',
+    targetType: 'share',
+    targetId: share.id,
+    targetName: matter.name,
+    metadata: {
+      shareId: share.id,
+      matterId: matter.id,
+      creatorId: share.creatorId,
+      kind: share.kind,
+    },
+  })
 
   return { ok: true, setAccessCookieExpiry }
 }
