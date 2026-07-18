@@ -14,11 +14,11 @@ function targetIsFile(path: string): AppError {
   })
 }
 
-export async function ensureDownloadTargetFolder(
+export async function ensureDownloadFolderPath(
   deps: Pick<Deps, 'matter' | 'storages'>,
-  params: { orgId: string; targetFolder: string; actorId: string },
+  params: { orgId: string; folderPath: string; actorId: string },
 ): Promise<string> {
-  const parts = params.targetFolder.split('/').filter(Boolean)
+  const parts = params.folderPath.split('/').filter(Boolean)
   if (parts.length === 0) return ''
 
   let parent = ''

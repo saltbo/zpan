@@ -206,6 +206,7 @@ export interface DownloadTaskRepo {
 }
 
 export interface UpdateDownloadTaskFields {
+  targetFolder?: string
   status?: string
   assignedDownloaderId?: string | null
   attempt?: number

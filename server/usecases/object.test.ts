@@ -488,6 +488,37 @@ describe('object usecase', () => {
       // object key uses the creator's uid
       expect(arg.object).toContain('o1/creator/')
     })
+
+    it('recreates the actual upload parent and uses its canonical path', async () => {
+      const create = vi.fn(async (input: Parameters<MatterRepo['create']>[0]) =>
+        input.dirtype === DirType.USER_FOLDER
+          ? folder(input.name, { name: input.name, parent: input.parent })
+          : file('m', input as Partial<Matter>),
+      )
+      const { deps } = makeDeps({
+        matter: {
+          findActiveConflict: async (_orgId, parent, name) =>
+            parent === '' && name === 'inbox' ? folder('Inbox', { name: 'Inbox' }) : null,
+          create,
+        },
+      })
+
+      const out = await createObject(deps, {
+        orgId: 'o1',
+        actor: {
+          kind: 'download-task-upload',
+          downloaderId: 'd1',
+          taskId: 't1',
+          targetFolder: 'inbox',
+          createdByUserId: 'creator',
+        },
+        input: { name: 'part.txt', type: 'text/plain', dirtype: DirType.FILE, parent: 'inbox/movie' },
+      })
+
+      expect(out.ok).toBe(true)
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: 'movie', parent: 'Inbox' }))
+      expect(create).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'part.txt', parent: 'Inbox/movie' }))
+    })
   })
 
   // An active upload session record as the repo returns it. uploadId=null is a
@@ -1069,6 +1100,28 @@ describe('object usecase', () => {
         input: { targetOrgId: 'o2', targetParent: '', mode: 'copy' },
       })
       expectError(out, 403, 'Forbidden')
+    })
+
+    it('rejects moving a folder used by an active download before copying it', async () => {
+      const copyObject = vi.fn(async () => {})
+      const { deps } = makeDeps({
+        matter: { get: async () => folder('Downloads', { name: 'Downloads', status: 'active' }) },
+        downloadTasks: {
+          findActiveTargetWithin: async () =>
+            ({ id: 'task-1', targetFolder: 'Downloads/Movies' }) as unknown as DownloadTaskRecord,
+        },
+        s3: { copyObject },
+      })
+
+      await expect(
+        transferObject(deps, {
+          orgId: 'o1',
+          userId: 'u1',
+          objectId: 'downloads',
+          input: { targetOrgId: 'o2', targetParent: '', mode: 'move' },
+        }),
+      ).rejects.toMatchObject({ httpStatus: 409, meta: { reason: 'DIRECTORY_IN_USE' } })
+      expect(copyObject).not.toHaveBeenCalled()
     })
 
     it('rejects a transfer that exceeds the target quota', async () => {
