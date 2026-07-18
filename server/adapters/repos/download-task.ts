@@ -233,8 +233,8 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
             notInArray(downloadTasks.status, ['completed', 'failed', 'canceled']),
             ne(downloadTasks.targetFolder, ''),
             or(
-              eq(downloadTasks.targetFolder, folderPath),
-              sql`substr(${downloadTasks.targetFolder}, 1, length(${prefix})) = ${prefix}`,
+              sql`lower(${downloadTasks.targetFolder}) = lower(${folderPath})`,
+              sql`lower(substr(${downloadTasks.targetFolder}, 1, length(${prefix}))) = lower(${prefix})`,
             ),
           ),
         )

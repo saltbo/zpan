@@ -22,7 +22,7 @@ import type {
 import type { ObjectUploadInstructions } from '@shared/types'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import type { Deps } from './deps'
-import { assertFolderNotUsedByDownload, ensureDownloadTargetFolder } from './downloads/download-folders'
+import { assertFolderNotUsedByDownload, ensureDownloadFolderPath } from './downloads/download-folders'
 import { assertTaskUploadAllowed } from './downloads/downloads'
 import {
   type ActivityRepo,
@@ -159,7 +159,8 @@ export async function createObject(
   params: { orgId: string; actor: ObjectActor; input: CreateMatterInput },
 ): Promise<CreateObjectOutcome> {
   const { orgId, actor, input } = params
-  const { name, type, parent, dirtype, onConflict } = input
+  const { name, type, dirtype, onConflict } = input
+  let { parent } = input
   const isFolder = dirtype !== DirType.FILE
   const size = input.size ?? 0
 
@@ -171,9 +172,9 @@ export async function createObject(
       return { ok: false, error: forbidden('Target folder is outside task authorization') }
     }
     await assertTaskUploadAllowed(deps as Deps, { taskId: actor.taskId, downloaderId: actor.downloaderId })
-    await ensureDownloadTargetFolder(deps, {
+    parent = await ensureDownloadFolderPath(deps, {
       orgId,
-      targetFolder: actor.targetFolder,
+      folderPath: parent,
       actorId: actor.createdByUserId,
     })
   }
@@ -729,7 +730,10 @@ export type TransferObjectResult = Awaited<ReturnType<typeof copyMatterToOrg>> &
 export type TransferObjectOutcome = { ok: true; result: TransferObjectResult } | { ok: false; error: AppError }
 
 export async function transferObject(
-  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'quota' | 'storageUsage' | 'share' | 'org' | 'activity'>,
+  deps: Pick<
+    Deps,
+    'matter' | 'storages' | 's3' | 'quota' | 'storageUsage' | 'share' | 'org' | 'activity' | 'downloadTasks'
+  >,
   params: { orgId: string; userId: string; objectId: string; input: TransferMatterInput },
 ): Promise<TransferObjectOutcome> {
   const { orgId, userId, objectId, input } = params
@@ -744,6 +748,7 @@ export async function transferObject(
   if (mode === 'move' && !(await hasEditorAccess(deps, { orgId, userId }))) {
     return { ok: false, error: forbidden() }
   }
+  if (mode === 'move') await assertFolderNotUsedByDownload(deps, { orgId, folder: source })
   if (!(await deps.org.canWriteToOrg(userId, targetOrgId))) {
     return { ok: false, error: forbidden() }
   }

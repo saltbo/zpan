@@ -31,7 +31,7 @@ import type {
 } from '../ports'
 import { DownloadError, featureBlocked } from '../ports'
 import { loadBindingState } from '../site/licensing'
-import { ensureDownloadTargetFolder } from './download-folders'
+import { ensureDownloadFolderPath } from './download-folders'
 import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './remote-download-usage'
 
 // Pure orchestration over the downloader / download-task repos: registration,
@@ -257,9 +257,9 @@ export async function createDownloadTask(
   userId: string,
   input: CreateDownloadTaskInput,
 ): Promise<DownloadTask> {
-  const targetFolder = await ensureDownloadTargetFolder(deps, {
+  const targetFolder = await ensureDownloadFolderPath(deps, {
     orgId,
-    targetFolder: input.targetFolder,
+    folderPath: input.targetFolder,
     actorId: userId,
   })
   const now = new Date()
@@ -542,7 +542,9 @@ export async function performDownloadTaskAction(
     if (!['paused', 'suspended'].includes(task.status)) {
       throw new DownloadError('invalid_state', 'Only paused or suspended tasks can be resumed')
     }
+    const targetFolder = await ensureTaskTargetFolder(deps, task)
     await deps.downloadTasks.setFields(id, {
+      targetFolder,
       status: 'queued',
       assignedDownloaderId: null,
       assignedAt: null,
@@ -580,7 +582,9 @@ export async function performDownloadTaskAction(
     if (task.status !== 'failed') {
       throw new DownloadError('invalid_state', 'Only failed tasks can be retried')
     }
+    const targetFolder = await ensureTaskTargetFolder(deps, task)
     await deps.downloadTasks.setFields(id, {
+      targetFolder,
       status: 'queued',
       assignedDownloaderId: null,
       errorCode: null,
@@ -600,7 +604,9 @@ export async function performDownloadTaskAction(
     if (!RESTARTABLE_TASK_STATUSES.includes(task.status as (typeof RESTARTABLE_TASK_STATUSES)[number])) {
       throw new DownloadError('invalid_state', 'Only inactive tasks can be restarted')
     }
+    const targetFolder = await ensureTaskTargetFolder(deps, task)
     await deps.downloadTasks.setFields(id, {
+      targetFolder,
       status: 'queued',
       assignedDownloaderId: null,
       attempt: task.attempt + 1,
@@ -622,6 +628,14 @@ export async function performDownloadTaskAction(
   }
 
   throw new DownloadError('invalid_state')
+}
+
+async function ensureTaskTargetFolder(deps: DownloadsDeps, task: DownloadTaskRecord): Promise<string> {
+  return ensureDownloadFolderPath(deps, {
+    orgId: task.orgId,
+    folderPath: task.targetFolder,
+    actorId: task.createdByUserId,
+  })
 }
 
 export async function assertTaskUploadAllowed(

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Deps } from '../deps'
 import type { Matter, MatterRepo, StorageRepo } from '../ports'
 import { NameConflictError } from '../ports'
-import { assertFolderNotUsedByDownload, ensureDownloadTargetFolder } from './download-folders'
+import { assertFolderNotUsedByDownload, ensureDownloadFolderPath } from './download-folders'
 
 const folder = (name: string, parent = ''): Matter => ({
   id: `${parent}/${name}`,
@@ -45,9 +45,9 @@ describe('download target folders', () => {
     const findActiveConflict = vi.fn()
     const select = vi.fn()
     await expect(
-      ensureDownloadTargetFolder(ensureDeps({ findActiveConflict, select }), {
+      ensureDownloadFolderPath(ensureDeps({ findActiveConflict, select }), {
         orgId: 'org-1',
-        targetFolder: '',
+        folderPath: '',
         actorId: 'user-1',
       }),
     ).resolves.toBe('')
@@ -62,9 +62,9 @@ describe('download target folders', () => {
     })
 
     await expect(
-      ensureDownloadTargetFolder(ensureDeps({ findActiveConflict, create }), {
+      ensureDownloadFolderPath(ensureDeps({ findActiveConflict, create }), {
         orgId: 'org-1',
-        targetFolder: 'Downloads',
+        folderPath: 'Downloads',
         actorId: 'user-1',
       }),
     ).resolves.toBe('Downloads')
@@ -77,9 +77,9 @@ describe('download target folders', () => {
     })
 
     await expect(
-      ensureDownloadTargetFolder(ensureDeps({ findActiveConflict, create }), {
+      ensureDownloadFolderPath(ensureDeps({ findActiveConflict, create }), {
         orgId: 'org-1',
-        targetFolder: 'Downloads',
+        folderPath: 'Downloads',
         actorId: 'user-1',
       }),
     ).resolves.toBe('Downloads')
@@ -88,7 +88,7 @@ describe('download target folders', () => {
   it('preserves unexpected create failures and unresolved conflicts', async () => {
     const unexpected = new Error('database unavailable')
     await expect(
-      ensureDownloadTargetFolder(
+      ensureDownloadFolderPath(
         ensureDeps({
           create: async () => {
             throw unexpected
@@ -96,7 +96,7 @@ describe('download target folders', () => {
         }),
         {
           orgId: 'org-1',
-          targetFolder: 'Downloads',
+          folderPath: 'Downloads',
           actorId: 'user-1',
         },
       ),
@@ -104,7 +104,7 @@ describe('download target folders', () => {
 
     const conflict = new NameConflictError('Downloads', 'winner')
     await expect(
-      ensureDownloadTargetFolder(
+      ensureDownloadFolderPath(
         ensureDeps({
           create: async () => {
             throw conflict
@@ -112,7 +112,7 @@ describe('download target folders', () => {
         }),
         {
           orgId: 'org-1',
-          targetFolder: 'Downloads',
+          folderPath: 'Downloads',
           actorId: 'user-1',
         },
       ),
@@ -122,9 +122,9 @@ describe('download target folders', () => {
   it('rejects a file in the target path', async () => {
     const file = { ...folder('Downloads'), type: 'text/plain', dirtype: DirType.FILE }
     await expect(
-      ensureDownloadTargetFolder(ensureDeps({ findActiveConflict: async () => file }), {
+      ensureDownloadFolderPath(ensureDeps({ findActiveConflict: async () => file }), {
         orgId: 'org-1',
-        targetFolder: 'Downloads/Movies',
+        folderPath: 'Downloads/Movies',
         actorId: 'user-1',
       }),
     ).rejects.toMatchObject({

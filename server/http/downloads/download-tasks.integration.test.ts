@@ -735,6 +735,14 @@ describe('Download tasks API integration', () => {
     `)
     expect(liveTargets[0].count).toBe(1)
 
+    // Multi-file downloads write below the configured target. Recreate a child
+    // directory too if it disappears between two uploaded files.
+    await db.run(sql`
+      UPDATE matters
+      SET trashed_at = ${Date.now()}
+      WHERE id = ${folder.id}
+    `)
+
     const createNestedObjectRes = await app.request('/api/objects', {
       method: 'POST',
       headers: uploadHeaders,
@@ -753,6 +761,16 @@ describe('Download tasks API integration', () => {
     }
     expect(nestedObject.status).toBe('draft')
     expect(nestedObject.upload.urls).toEqual(['https://presigned-upload.example.com'])
+    const liveNestedParents = await db.all<{ count: number }>(sql`
+      SELECT count(*) AS count
+      FROM matters
+      WHERE org_id = ${createdTask.orgId}
+        AND parent = 'Remote Downloads'
+        AND name = 'fixture-dir'
+        AND status = 'active'
+        AND trashed_at IS NULL
+    `)
+    expect(liveNestedParents[0].count).toBe(1)
 
     // Finalize the nested upload via the completions endpoint (single-PUT path).
     const nestedConfirmRes = await app.request(
@@ -1449,15 +1467,18 @@ describe('Download tasks API integration', () => {
       headers: { ...user, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         source: { type: 'http', uri: 'https://example.com/fixture.txt' },
-        targetFolder: 'media/Movies',
+        targetFolder: 'Media/Movies',
       }),
     })
     expect(createTaskRes.status).toBe(201)
     const task = (await createTaskRes.json()) as DownloadTask
+    // Tasks created before canonical target persistence can differ only in case
+    // from the live matter path. They must still hold the directory lease.
+    await db.run(sql`UPDATE download_tasks SET target_folder = 'media/movies' WHERE id = ${task.id}`)
     const folders = await db.all<{ id: string; name: string }>(sql`
       SELECT id, name FROM matters WHERE org_id = ${task.orgId} AND dirtype = 1
     `)
-    const media = folders.find((folder) => folder.name === 'media')
+    const media = folders.find((folder) => folder.name === 'Media')
     const movies = folders.find((folder) => folder.name === 'Movies')
     expect(media).toBeTruthy()
     expect(movies).toBeTruthy()
@@ -1469,7 +1490,7 @@ describe('Download tasks API integration', () => {
     }
     expect(deleteBody.error.details[0]).toMatchObject({
       reason: 'DIRECTORY_IN_USE',
-      metadata: { taskId: task.id, targetFolder: 'media/Movies' },
+      metadata: { taskId: task.id, targetFolder: 'media/movies' },
     })
 
     const renameTarget = await app.request(`/api/objects/${movies?.id}`, {
@@ -1482,6 +1503,61 @@ describe('Download tasks API integration', () => {
     await db.run(sql`UPDATE download_tasks SET status = 'completed' WHERE id = ${task.id}`)
     const deleteAfterCompletion = await app.request(`/api/objects/${media?.id}`, { method: 'DELETE', headers: user })
     expect(deleteAfterCompletion.status).toBe(204)
+  })
+
+  it('recreates a missing target when retrying or restarting a task', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const user = await authedHeaders(app, 'reactivate-target-user@example.com')
+    const createRes = await app.request('/api/downloads/tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/reactivate.bin' },
+        targetFolder: 'Archive/Movies',
+      }),
+    })
+    const task = (await createRes.json()) as DownloadTask
+
+    const removeTarget = () =>
+      db.run(sql`
+        UPDATE matters
+        SET trashed_at = ${Date.now()}
+        WHERE org_id = ${task.orgId} AND parent = 'Archive' AND name = 'Movies' AND trashed_at IS NULL
+      `)
+    await removeTarget()
+    await db.run(sql`UPDATE download_tasks SET status = 'failed' WHERE id = ${task.id}`)
+
+    const retryRes = await app.request(`/api/downloads/tasks/${task.id}/attempts`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fresh: false }),
+    })
+    expect(retryRes.status).toBe(201)
+    await expect(retryRes.json()).resolves.toMatchObject({ status: { state: 'queued' } })
+
+    await removeTarget()
+    const restartRes = await app.request(`/api/downloads/tasks/${task.id}/attempts`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fresh: true }),
+    })
+    expect(restartRes.status).toBe(201)
+    await expect(restartRes.json()).resolves.toMatchObject({
+      spec: { destination: { folder: 'Archive/Movies' } },
+      status: { state: 'queued', attempt: 2 },
+    })
+
+    const liveTargets = await db.all<{ count: number }>(sql`
+      SELECT count(*) AS count
+      FROM matters
+      WHERE org_id = ${task.orgId}
+        AND parent = 'Archive'
+        AND name = 'Movies'
+        AND status = 'active'
+        AND trashed_at IS NULL
+    `)
+    expect(liveTargets[0].count).toBe(1)
   })
 
   it('returns storage failure details when multipart upload completion fails [spec: download-tasks/upload-completion-failure]', async () => {
