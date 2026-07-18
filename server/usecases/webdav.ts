@@ -17,6 +17,7 @@ import { joinMatterPath } from '../domain/webdav'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import type { Database } from '../platform/interface'
 import type { Deps } from './deps'
+import { assertFolderNotUsedByDownload } from './downloads/download-folders'
 import {
   type ApiKeyAuth,
   ApiKeyRateLimitError,
@@ -416,9 +417,11 @@ export async function createWebDavCollection(
 // ─── DELETE ────────────────────────────────────────────────────────────────────
 
 export async function deleteWebDavMatter(
-  deps: Pick<Deps, 'webdavState' | 'matter'>,
+  deps: Pick<Deps, 'webdavState' | 'matter' | 'downloadTasks'>,
   params: { orgId: string; resourcePath: string; matterId: string; userId: string },
 ): Promise<void> {
+  const matter = await deps.matter.get(params.matterId, params.orgId)
+  if (matter) await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: matter })
   await deps.webdavState.deleteWebDavState(params.orgId, params.resourcePath)
   await deps.matter.trash(params.orgId, params.matterId, params.userId)
 }
@@ -430,7 +433,7 @@ export async function deleteWebDavMatter(
 // already validated workspace scope, locks, If/preconditions, and the
 // self/descendant guards.
 export async function moveWebDavMatter(
-  deps: Pick<Deps, 'webdavState' | 'matter'>,
+  deps: Pick<Deps, 'webdavState' | 'matter' | 'downloadTasks'>,
   params: {
     orgId: string
     userId: string
@@ -442,8 +445,12 @@ export async function moveWebDavMatter(
     replacedMatterId: string | null
   },
 ): Promise<void> {
+  const source = await deps.matter.get(params.sourceMatterId, params.orgId)
+  if (source) await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: source })
   const newPath = joinMatterPath(params.targetParent, params.targetName)
   if (params.replacedMatterId) {
+    const replaced = await deps.matter.get(params.replacedMatterId, params.orgId)
+    if (replaced) await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: replaced })
     await deps.webdavState.deleteWebDavState(params.orgId, params.targetResourcePath)
     await deps.matter.trash(params.orgId, params.replacedMatterId, params.userId)
   }
@@ -467,7 +474,7 @@ export type CopyWebDavFileOutcome =
 // copies the matter row + its dead properties. Returns the new resource path so
 // the handler can build the Location header. Conflict/quota errors throw.
 export async function copyWebDavFile(
-  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'quota' | 'storageUsage' | 'webdavState'>,
+  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'quota' | 'storageUsage' | 'webdavState' | 'downloadTasks'>,
   params: {
     orgId: string
     userId: string
@@ -484,6 +491,11 @@ export async function copyWebDavFile(
   const storage = sourceMatter.object ? await deps.storages.get(sourceMatter.storageId) : null
   if (sourceMatter.object && !storage) return { ok: false, reason: 'storage_not_found' }
   const bytes = sourceMatter.size ?? 0
+
+  if (params.replacedMatterId) {
+    const replaced = await deps.matter.get(params.replacedMatterId, params.orgId)
+    if (replaced) await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: replaced })
+  }
 
   return withStorageUsageReservation(deps, { orgId, storageId: sourceMatter.storageId, bytes }, async (ctx) => {
     let newObject = ''
@@ -520,7 +532,10 @@ export type CopyWebDavCollectionOutcome =
 // overwritten destination rows. The handler validated depth, locks, and the
 // self/descendant guard. depth='0' copies only the root (ordered is empty).
 export async function copyWebDavCollection(
-  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'quota' | 'storageUsage' | 'webdavPath' | 'webdavState'>,
+  deps: Pick<
+    Deps,
+    'matter' | 'storages' | 's3' | 'quota' | 'storageUsage' | 'webdavPath' | 'webdavState' | 'downloadTasks'
+  >,
   params: {
     orgId: string
     userId: string
@@ -535,6 +550,7 @@ export async function copyWebDavCollection(
   },
 ): Promise<CopyWebDavCollectionOutcome> {
   const { orgId, userId, sourceMatter, sourceRoot, targetMatter } = params
+  if (targetMatter) await assertFolderNotUsedByDownload(deps, { orgId, folder: targetMatter })
   const targetRoot = joinMatterPath(params.targetParent, params.targetName)
   const children = await deps.webdavPath.listChildren(orgId, sourceRoot)
   const descendants = await deps.matter.listActiveDescendants(orgId, sourceRoot)

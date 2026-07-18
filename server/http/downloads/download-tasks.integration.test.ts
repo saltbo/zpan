@@ -700,6 +700,15 @@ describe('Download tasks API integration', () => {
     expect(recoverDownloadingTask?.status.assignment?.uploadToken).toBeTruthy()
     expect(recoverDownloadingTask?.status.assignment?.uploadToken).toBe(assignedTask?.status.assignment?.uploadToken)
 
+    // Simulate an out-of-band deletion between task creation and ingestion. The
+    // task upload preflight must recreate the target instead of producing an
+    // orphan path.
+    await db.run(sql`
+      UPDATE matters
+      SET trashed_at = ${Date.now()}
+      WHERE org_id = ${createdTask.orgId} AND parent = '' AND name = 'Remote Downloads'
+    `)
+
     const createFolderRes = await app.request('/api/objects', {
       method: 'POST',
       headers: uploadHeaders,
@@ -715,6 +724,16 @@ describe('Download tasks API integration', () => {
     expect(folder.status).toBe('active')
     expect(folder.name).toBe('fixture-dir')
     expect(folder.dirtype).toBe(1)
+    const liveTargets = await db.all<{ count: number }>(sql`
+      SELECT count(*) AS count
+      FROM matters
+      WHERE org_id = ${createdTask.orgId}
+        AND parent = ''
+        AND name = 'Remote Downloads'
+        AND status = 'active'
+        AND trashed_at IS NULL
+    `)
+    expect(liveTargets[0].count).toBe(1)
 
     const createNestedObjectRes = await app.request('/api/objects', {
       method: 'POST',
@@ -1359,7 +1378,8 @@ describe('Download tasks API integration', () => {
     })
 
     expect(createTaskRes.status).toBe(201)
-    await expect(createTaskRes.json()).resolves.toMatchObject({
+    const task = (await createTaskRes.json()) as DownloadTask
+    expect(task).toMatchObject({
       spec: { destination: { folder: 'media/Movies' } },
     })
 
@@ -1367,6 +1387,101 @@ describe('Download tasks API integration', () => {
       sql`SELECT target_folder FROM download_tasks ORDER BY created_at DESC LIMIT 1`,
     )
     expect(rows[0].target_folder).toBe('media/Movies')
+
+    const folders = await db.all<{ name: string; parent: string; status: string }>(sql`
+      SELECT name, parent, status
+      FROM matters
+      WHERE org_id = ${task.orgId} AND dirtype = 1
+      ORDER BY parent, name
+    `)
+    expect(folders).toEqual([
+      { name: 'media', parent: '', status: 'active' },
+      { name: 'Movies', parent: 'media', status: 'active' },
+    ])
+  })
+
+  it('rejects a target folder path that contains a file', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const email = 'target-folder-file-user@example.com'
+    const user = await authedHeaders(app, email)
+    const orgRows = await db.all<{ orgId: string }>(sql`
+      SELECT m.organization_id AS orgId
+      FROM member m
+      JOIN user u ON u.id = m.user_id
+      WHERE u.email = ${email}
+      LIMIT 1
+    `)
+    const now = Math.floor(Date.now() / 1000)
+    await db.run(sql`
+      INSERT INTO matters (
+        id, org_id, alias, name, type, size, dirtype, parent, object,
+        storage_id, status, created_at, updated_at
+      ) VALUES (
+        'target-file', ${orgRows[0].orgId}, 'target-file-alias', 'media',
+        'text/plain', 1, 0, '', 'target-file-key', 'remote-download-storage',
+        'active', ${now}, ${now}
+      )
+    `)
+
+    const res = await app.request('/api/downloads/tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/fixture.txt' },
+        targetFolder: 'media/Movies',
+      }),
+    })
+
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+    expect(body.error.details[0].reason).toBe('TARGET_FOLDER_NOT_DIRECTORY')
+    const tasks = await db.all<{ count: number }>(sql`SELECT count(*) AS count FROM download_tasks`)
+    expect(tasks[0].count).toBe(0)
+  })
+
+  it('blocks changes to an active task target folder and its ancestors', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const user = await authedHeaders(app, 'occupied-target-user@example.com')
+    const createTaskRes = await app.request('/api/downloads/tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/fixture.txt' },
+        targetFolder: 'media/Movies',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const task = (await createTaskRes.json()) as DownloadTask
+    const folders = await db.all<{ id: string; name: string }>(sql`
+      SELECT id, name FROM matters WHERE org_id = ${task.orgId} AND dirtype = 1
+    `)
+    const media = folders.find((folder) => folder.name === 'media')
+    const movies = folders.find((folder) => folder.name === 'Movies')
+    expect(media).toBeTruthy()
+    expect(movies).toBeTruthy()
+
+    const deleteAncestor = await app.request(`/api/objects/${media?.id}`, { method: 'DELETE', headers: user })
+    expect(deleteAncestor.status).toBe(409)
+    const deleteBody = (await deleteAncestor.json()) as {
+      error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(deleteBody.error.details[0]).toMatchObject({
+      reason: 'DIRECTORY_IN_USE',
+      metadata: { taskId: task.id, targetFolder: 'media/Movies' },
+    })
+
+    const renameTarget = await app.request(`/api/objects/${movies?.id}`, {
+      method: 'PATCH',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Films' }),
+    })
+    expect(renameTarget.status).toBe(409)
+
+    await db.run(sql`UPDATE download_tasks SET status = 'completed' WHERE id = ${task.id}`)
+    const deleteAfterCompletion = await app.request(`/api/objects/${media?.id}`, { method: 'DELETE', headers: user })
+    expect(deleteAfterCompletion.status).toBe(204)
   })
 
   it('returns storage failure details when multipart upload completion fails [spec: download-tasks/upload-completion-failure]', async () => {

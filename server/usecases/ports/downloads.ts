@@ -188,6 +188,8 @@ export interface DownloadTaskRepo {
   /** Raw record scoped to org; throws DownloadError('not_found') when missing. */
   getRecord(orgId: string, id: string): Promise<DownloadTaskRecord>
   findRecord(id: string): Promise<DownloadTaskRecord | null>
+  /** Active task whose target is `folderPath` or a descendant of it. */
+  findActiveTargetWithin(orgId: string, folderPath: string): Promise<DownloadTaskRecord | null>
   setFields(id: string, fields: UpdateDownloadTaskFields): Promise<void>
   claimQueued(id: string, downloaderId: string, now: Date): Promise<boolean>
   delete(id: string): Promise<void>

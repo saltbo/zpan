@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AppError,
   BackgroundJobError,
   DownloadError,
   NameConflictError,
@@ -50,6 +51,18 @@ describe('buildErrorBody', () => {
 
 describe('mapDomainError', () => {
   const reasonOf = (m: ReturnType<typeof mapDomainError>) => m?.json.error.details?.[0]?.reason
+
+  it('preserves AppError status, reason, and metadata for protocol handlers', () => {
+    const m = mapDomainError(
+      new AppError(409, 'Folder is in use by a download task', {
+        reason: 'DIRECTORY_IN_USE',
+        metadata: { taskId: 'task-1' },
+      }),
+    )
+    expect(m?.status).toBe(409)
+    expect(reasonOf(m)).toBe('DIRECTORY_IN_USE')
+    expect(m?.json.error.details?.[0]?.metadata).toEqual({ taskId: 'task-1' })
+  })
 
   it('maps StorageQuotaExceededError to 422 / RESOURCE_EXHAUSTED', () => {
     const m = mapDomainError(new StorageQuotaExceededError())

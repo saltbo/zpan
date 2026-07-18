@@ -6,6 +6,8 @@ import type {
   ApiKeyGateway,
   CloudTrafficReportRepo,
   DavLock,
+  DownloadTaskRecord,
+  DownloadTaskRepo,
   LicenseBindingRepo,
   LicensingCloudGateway,
   Matter,
@@ -105,6 +107,7 @@ function makeDeps(
     storageUsage?: Partial<StorageUsageRepo>
     webdavPath?: Partial<WebDavPathRepo>
     webdavState?: Partial<WebDavStateRepo>
+    downloadTasks?: Partial<DownloadTaskRepo>
   } = {},
 ) {
   const deps = {
@@ -127,6 +130,7 @@ function makeDeps(
       touch: async () => {},
       applyUpload: async () => {},
       listActiveDescendants: async () => [],
+      get: async () => null,
       ...overrides.matter,
     } as unknown as MatterRepo,
     storages: {
@@ -179,6 +183,10 @@ function makeDeps(
       removeLock: async () => true,
       ...overrides.webdavState,
     } as unknown as WebDavStateRepo,
+    downloadTasks: {
+      findActiveTargetWithin: async () => null,
+      ...overrides.downloadTasks,
+    } as unknown as DownloadTaskRepo,
   }
   return deps
 }
@@ -563,6 +571,36 @@ describe('webdav usecase', () => {
       expect(deleteWebDavState).toHaveBeenCalledWith('ws-1', 'gone.txt')
       expect(trash).toHaveBeenCalledWith('ws-1', 'm1', 'u1')
       expect(order).toEqual(['state', 'trash'])
+    })
+
+    it('rejects deleting a folder used by an active download task before changing dav state', async () => {
+      const deleteWebDavState = vi.fn(async () => {})
+      const trash = vi.fn(async () => folder('target'))
+      const deps = makeDeps({
+        matter: { get: async () => folder('target', { name: 'Downloads' }), trash },
+        webdavState: { deleteWebDavState },
+        downloadTasks: {
+          findActiveTargetWithin: async () =>
+            ({ id: 'task-1', targetFolder: 'Downloads/Movies' }) as DownloadTaskRecord,
+        },
+      })
+
+      await expect(
+        deleteWebDavMatter(deps, {
+          orgId: 'ws-1',
+          resourcePath: 'Downloads',
+          matterId: 'target',
+          userId: 'u1',
+        }),
+      ).rejects.toMatchObject({
+        httpStatus: 409,
+        meta: {
+          reason: 'DIRECTORY_IN_USE',
+          metadata: { taskId: 'task-1', targetFolder: 'Downloads/Movies' },
+        },
+      })
+      expect(deleteWebDavState).not.toHaveBeenCalled()
+      expect(trash).not.toHaveBeenCalled()
     })
   })
 

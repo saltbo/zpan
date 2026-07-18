@@ -118,6 +118,7 @@ function makeDeps(
         finalName: name,
         toTrash: null,
       }),
+      findActiveConflict: async (_orgId: string, parent: string, name: string) => folder('target', { name, parent }),
       commitConflictPlan: async () => {},
       activateDraft: async () => true,
       ...overrides.matter,
@@ -184,6 +185,7 @@ function makeDeps(
     downloadTasks: {
       findRecord: async () =>
         ({ id: 't1', assignedDownloaderId: 'd1', status: 'uploading' }) as unknown as DownloadTaskRecord,
+      findActiveTargetWithin: async () => null,
       ...overrides.downloadTasks,
     } as unknown as DownloadTaskRepo,
   }
@@ -852,7 +854,7 @@ describe('object usecase', () => {
   describe('updateObject', () => {
     it('renames and returns the matter', async () => {
       const update = vi.fn(async () => file('m1', { name: 'New.txt' }))
-      const { deps } = makeDeps({ matter: { update } })
+      const { deps } = makeDeps({ matter: { get: async () => file('m1'), update } })
       const out = await updateObject(deps, {
         orgId: 'o1',
         objectId: 'm1',
@@ -883,7 +885,12 @@ describe('object usecase', () => {
   describe('trashObject / restoreObject', () => {
     it('trashes a matter', async () => {
       // Trash = active row with trashedAt set (no 'trashed' status).
-      const { deps } = makeDeps({ matter: { trash: async () => file('m1', { status: 'active', trashedAt: 1 }) } })
+      const { deps } = makeDeps({
+        matter: {
+          get: async () => file('m1'),
+          trash: async () => file('m1', { status: 'active', trashedAt: 1 }),
+        },
+      })
       const out = await trashObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1' })
       expect(out.ok).toBe(true)
       if (out.ok) {

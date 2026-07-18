@@ -24,11 +24,14 @@ import type {
   LicenseBindingRepo,
   LicensingCloudGateway,
   ListDownloadTasksFilters,
+  MatterRepo,
   RemoteDownloadUsageRepo,
+  StorageRepo,
   UpdateDownloadTaskFields,
 } from '../ports'
 import { DownloadError, featureBlocked } from '../ports'
 import { loadBindingState } from '../site/licensing'
+import { ensureDownloadTargetFolder } from './download-folders'
 import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './remote-download-usage'
 
 // Pure orchestration over the downloader / download-task repos: registration,
@@ -45,6 +48,8 @@ export type DownloadsDeps = {
   licensingCloud: LicensingCloudGateway
   remoteDownloadUsage: RemoteDownloadUsageRepo
   activity: ActivityRepo
+  matter: MatterRepo
+  storages: StorageRepo
 }
 
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
@@ -252,6 +257,11 @@ export async function createDownloadTask(
   userId: string,
   input: CreateDownloadTaskInput,
 ): Promise<DownloadTask> {
+  const targetFolder = await ensureDownloadTargetFolder(deps, {
+    orgId,
+    targetFolder: input.targetFolder,
+    actorId: userId,
+  })
   const now = new Date()
   const id = nanoid()
   await deps.downloadTasks.insert({
@@ -261,7 +271,7 @@ export async function createDownloadTask(
     sourceType: input.source.type,
     sourceUri: input.source.uri,
     displayName: input.name ?? null,
-    targetFolder: input.targetFolder,
+    targetFolder,
     category: input.category ?? null,
     tags: input.tags ?? [],
     assignedDownloaderId: null,
@@ -278,7 +288,7 @@ export async function createDownloadTask(
       sourceUri: input.source.uri,
     },
     action: 'download_task_created',
-    metadata: { sourceType: input.source.type, targetFolder: input.targetFolder },
+    metadata: { sourceType: input.source.type, targetFolder },
   })
   return deps.downloadTasks.get(orgId, id)
 }
