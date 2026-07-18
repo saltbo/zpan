@@ -8,6 +8,7 @@ import {
 } from '@shared/schemas'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import {
+  AppError,
   BackgroundJobError,
   DownloadError,
   NameConflictError,
@@ -67,6 +68,13 @@ const mapping = (status: ContentfulStatusCode, message: string, opts?: ErrorOpti
 // per-route try/catch. Returns null for errors we don't translate; `onError` then
 // falls back to a generic 500. To support a new domain error: add a branch here.
 export function mapDomainError(error: unknown): DomainErrorMapping | null {
+  if (error instanceof AppError) {
+    return mapping(error.httpStatus as ContentfulStatusCode, error.message, {
+      reason: error.meta.reason,
+      status: error.meta.canonicalStatus,
+      metadata: error.meta.metadata,
+    })
+  }
   if (error instanceof StorageQuotaExceededError) {
     return mapping(422, 'Quota exceeded', { reason: ErrorReason.QUOTA_EXCEEDED, status: 'RESOURCE_EXHAUSTED' })
   }

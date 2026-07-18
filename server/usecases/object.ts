@@ -22,6 +22,7 @@ import type {
 import type { ObjectUploadInstructions } from '@shared/types'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import type { Deps } from './deps'
+import { assertFolderNotUsedByDownload, ensureDownloadTargetFolder } from './downloads/download-folders'
 import { assertTaskUploadAllowed } from './downloads/downloads'
 import {
   type ActivityRepo,
@@ -170,6 +171,11 @@ export async function createObject(
       return { ok: false, error: forbidden('Target folder is outside task authorization') }
     }
     await assertTaskUploadAllowed(deps as Deps, { taskId: actor.taskId, downloaderId: actor.downloaderId })
+    await ensureDownloadTargetFolder(deps, {
+      orgId,
+      targetFolder: actor.targetFolder,
+      actorId: actor.createdByUserId,
+    })
   }
 
   // Reject oversize before creating anything, so no orphan draft is left behind.
@@ -593,10 +599,15 @@ export async function getTrashObject(
 export type UpdateObjectOutcome = { ok: true; matter: Matter } | { ok: false; error: AppError }
 
 export async function updateObject(
-  deps: Pick<Deps, 'matter'>,
+  deps: Pick<Deps, 'matter' | 'downloadTasks'>,
   params: { orgId: string; objectId: string; actorId: string; input: PatchMatterInput },
 ): Promise<UpdateObjectOutcome> {
   const { name, parent, onConflict } = params.input
+  const existing = await deps.matter.get(params.objectId, params.orgId)
+  if (!existing) return { ok: false, error: notFound() }
+  if ((name !== undefined && name !== existing.name) || (parent !== undefined && parent !== existing.parent)) {
+    await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: existing })
+  }
   const matter = await deps.matter.update(params.objectId, params.orgId, { name, parent, onConflict }, params.actorId)
   return matter ? { ok: true, matter } : { ok: false, error: notFound() }
 }
@@ -604,9 +615,12 @@ export async function updateObject(
 export type TrashObjectOutcome = { ok: true; matter: Matter } | { ok: false; error: AppError }
 
 export async function trashObject(
-  deps: Pick<Deps, 'matter'>,
+  deps: Pick<Deps, 'matter' | 'downloadTasks'>,
   params: { orgId: string; objectId: string; actorId: string },
 ): Promise<TrashObjectOutcome> {
+  const existing = await deps.matter.get(params.objectId, params.orgId)
+  if (!existing) return { ok: false, error: notFound() }
+  await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: existing })
   const matter = await deps.matter.trash(params.orgId, params.objectId, params.actorId)
   return matter ? { ok: true, matter } : { ok: false, error: notFound() }
 }

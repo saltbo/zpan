@@ -1,6 +1,6 @@
 import { downloadTaskRuntimeSchema } from '@shared/schemas'
 import type { DownloadTask, DownloadTaskRuntime } from '@shared/types'
-import { and, asc, count, desc, eq, gte, inArray, isNull, like, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, like, ne, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { downloaders, downloadTasks } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import {
@@ -219,6 +219,28 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
     async findRecord(id) {
       const row = await findRow(id)
       return row ? toRecord(row) : null
+    },
+
+    async findActiveTargetWithin(orgId, folderPath) {
+      if (!folderPath) return null
+      const prefix = `${folderPath}/`
+      const rows = await db
+        .select()
+        .from(downloadTasks)
+        .where(
+          and(
+            eq(downloadTasks.orgId, orgId),
+            notInArray(downloadTasks.status, ['completed', 'failed', 'canceled']),
+            ne(downloadTasks.targetFolder, ''),
+            or(
+              eq(downloadTasks.targetFolder, folderPath),
+              sql`substr(${downloadTasks.targetFolder}, 1, length(${prefix})) = ${prefix}`,
+            ),
+          ),
+        )
+        .orderBy(asc(downloadTasks.createdAt))
+        .limit(1)
+      return rows[0] ? toRecord(rows[0]) : null
     },
 
     async setFields(id, fields: UpdateDownloadTaskFields) {
