@@ -33,4 +33,4 @@
 - [x] Add the route-specific principal/query gate and permission composition.
 - [x] Add least-privilege event-stream scope handling.
 - [x] Document 401/403 and API-key stream behavior in OpenAPI.
-- [ ] Run focused, quality, Cloudflare, and review gates.
+- [x] Run focused, quality, Cloudflare, and review gates.
