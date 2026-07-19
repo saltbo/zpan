@@ -58,7 +58,7 @@ Request-time work is bounded and result-only. Charts and totals read only the ag
 
 - Upload bytes mean successfully confirmed upload bytes.
 - Download bytes and counts mean issued downloads, not client-completed transfers.
-- Cloud traffic report status describes metering synchronization and belongs to Operations, not download success.
+- Cloud traffic report status is a closed-hour snapshot of the current metering queue and belongs to Operations, not download success. Mutable report rows are never modeled as additive counters.
 - User, storage, share lifecycle, active job/task, downloader, report, and webhook state comes from closed-hour snapshots, not live request-time reads.
 - Storage inventory includes normal files and image-hosting objects.
 - Files older than 90 days are an age cohort, not proven cold data; the UI labels this explicitly.

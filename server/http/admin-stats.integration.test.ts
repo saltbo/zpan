@@ -602,12 +602,20 @@ describe('site stats routes', () => {
     const headers = await adminHeaders(app)
     await seedProLicense(db)
     const { orgId, bucketStart, eventMs } = await seedStatsFixture(db)
+    const previousBucket = new Date(bucketStart.getTime() - 3_600_000)
+    const reportAt = previousBucket.getTime() + 60_000
     await db.run(sql`UPDATE download_tasks SET finished_at = updated_at WHERE id IN ('task-1', 'task-2')`)
     await db.run(sql`
       INSERT INTO cloud_traffic_reports
         (id, org_id, period, source, source_id, event_id, bytes, status, created_at, updated_at)
       VALUES ('operations-cloud-report', ${orgId}, '2026-07', 'object_download', 'stats-file',
-        'operations-cloud-report', 64, 'pending', ${eventMs}, ${eventMs})
+        'operations-cloud-report', 64, 'pending', ${reportAt}, ${reportAt})
+    `)
+    await rebuildAdminStatsHour(db, previousBucket, new Date(reportAt + 3_600_000), true)
+    await db.run(sql`
+      UPDATE cloud_traffic_reports
+      SET status = 'reported', updated_at = ${eventMs}
+      WHERE id = 'operations-cloud-report'
     `)
     await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
 
@@ -636,7 +644,11 @@ describe('site stats routes', () => {
         expect.objectContaining({ name: 'failed', value: 1 }),
       ]),
     )
-    expect(body.cloudReportStatus).toContainEqual(expect.objectContaining({ name: 'pending', value: 1 }))
+    expect(body.cloudReportStatus).toEqual([{ name: 'reported', value: 1, percent: 100 }])
+    const [{ count: mutableCounters }] = await db.all<{ count: number }>(sql`
+      SELECT COUNT(*) AS count FROM stats_rollups_hourly WHERE metric_key = 'traffic.report_sync'
+    `)
+    expect(mutableCounters).toBe(0)
   })
 
   it('applies dashboard ranges to sharing drill-down data', async () => {

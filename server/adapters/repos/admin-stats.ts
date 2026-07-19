@@ -837,7 +837,7 @@ async function getActivityMetricDimensionTotalsFromRollup(
 }
 
 async function getCloudReportOutcomes(reader: AdminStatsHourlyReader): Promise<Map<string, number>> {
-  return getActivityMetricDimensionTotalsFromRollup(reader, ADMIN_STATS_METRICS.trafficReportSync, 'status', 'count')
+  return getLatestGaugeDimensions(reader, ADMIN_STATS_METRICS.trafficReportSnapshot, 'status')
 }
 
 async function getActivityMetricTotal(

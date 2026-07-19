@@ -92,6 +92,8 @@ describe('admin stats backfill', () => {
         ('open-marker', ${currentHourMs}, '', 'stats.rollup_run', '', '', 1, 0, 0,
           '{"version":2,"scope":"full","quality":"exact"}', ${currentHourMs}),
         ('stale-task', ${eventMs - 3_600_000}, 'o1', 'remote_download.task_finished', '', '', 1, 512, 0,
+          '{"version":2,"scope":"counters","quality":"exact"}', ${eventMs}),
+        ('stale-traffic', ${eventMs - 3_600_000}, 'o1', 'traffic.report_sync', '', '', 2, 640, 0,
           '{"version":2,"scope":"counters","quality":"exact"}', ${eventMs});
     `)
 
@@ -142,8 +144,6 @@ describe('admin stats backfill', () => {
       rollupSharesCreated: 1,
       rawShareDownloads: 1,
       rollupShareDownloads: 1,
-      rawTrafficReports: 2,
-      rollupTrafficReports: 2,
       rawFinishedDownloadTasks: 1,
       rollupFinishedDownloadTasks: 1,
       rawMissingByteEvents: 0,
@@ -173,6 +173,11 @@ describe('admin stats backfill', () => {
         )
         .get(),
     ).toEqual({ value: 1 })
+    expect(
+      db.prepare("SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE metric_key = 'traffic.report_sync'").get(),
+    ).toEqual({
+      value: 0,
+    })
     db.close()
   })
 })

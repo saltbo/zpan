@@ -36,7 +36,6 @@ const COUNTER_METRICS: AdminStatsMetric[] = [
   M.shareView,
   M.statsMissingBytes,
   M.statsRollupRun,
-  M.trafficReportSync,
   M.transferDownloadFailed,
   M.transferDownloadIssued,
   M.transferUpload,
@@ -269,18 +268,7 @@ async function addUserMetrics(db: Database, rollups: RollupAccumulator, from: Da
 }
 
 async function addOperationalMetrics(db: Database, rollups: RollupAccumulator, from: Date, to: Date): Promise<void> {
-  const [trafficRows, taskFinishedRows, jobRows] = await Promise.all([
-    db
-      .select({
-        orgId: cloudTrafficReports.orgId,
-        source: cloudTrafficReports.source,
-        status: cloudTrafficReports.status,
-        count: sql<number>`COUNT(*)`,
-        bytes: sql<number>`COALESCE(SUM(${cloudTrafficReports.bytes}), 0)`,
-      })
-      .from(cloudTrafficReports)
-      .where(and(gte(cloudTrafficReports.updatedAt, from), lt(cloudTrafficReports.updatedAt, to)))
-      .groupBy(cloudTrafficReports.orgId, cloudTrafficReports.source, cloudTrafficReports.status),
+  const [taskFinishedRows, jobRows] = await Promise.all([
     db
       .select({
         orgId: downloadTasks.orgId,
@@ -305,12 +293,6 @@ async function addOperationalMetrics(db: Database, rollups: RollupAccumulator, f
       .groupBy(backgroundJobs.orgId, backgroundJobs.type, backgroundJobs.status),
   ])
 
-  for (const row of trafficRows) {
-    rollups.add(M.trafficReportSync, row.orgId, Number(row.count), Number(row.bytes), {
-      source: row.source,
-      status: row.status,
-    })
-  }
   for (const row of taskFinishedRows) {
     rollups.add(M.remoteDownloadTaskFinished, row.orgId, Number(row.count), Number(row.bytes), {
       category: row.category ?? 'uncategorized',

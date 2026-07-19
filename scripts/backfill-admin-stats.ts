@@ -52,8 +52,6 @@ interface ValidationSummary {
   rollupSharePasswordPasses: number
   rawFailedDownloads: number
   rollupFailedDownloads: number
-  rawTrafficReports: number
-  rollupTrafficReports: number
   rawFinishedDownloadTasks: number
   rollupFinishedDownloadTasks: number
   rawFinishedBackgroundJobs: number
@@ -326,14 +324,6 @@ function buildHourlyBackfillSql(now: Date): string {
     activitySource('share.saved', "ae.action = 'save_from_share'", { share_id: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.shareId') END, ae.target_id)", actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)" }, true),
     activitySource('share.password_passed', "ae.action = 'share_password_passed'", { share_id: 'ae.target_id' }),
     {
-      metric: 'traffic.report_sync',
-      source: 'cloud_traffic_reports ctr',
-      timestampMs: 'ctr.updated_at',
-      org: 'ctr.org_id',
-      bytes: 'SUM(ctr.bytes)',
-      dimensions: { source: 'ctr.source', status: 'ctr.status' },
-    },
-    {
       metric: 'remote_download.task_finished',
       source: 'download_tasks dt',
       timestampMs: 'dt.finished_at',
@@ -526,8 +516,6 @@ function statsHistoryStartSql(): string {
         'share_download', 'object_download', 'image_hosting_download', 'webdav_download', 'download_failed',
         'share_view', 'save_from_share', 'share_password_passed'
       )), ${missing}),
-    COALESCE((SELECT CAST(MIN(ctr.updated_at) / 3600000 AS INTEGER) * 3600000
-      FROM cloud_traffic_reports ctr WHERE ctr.updated_at >= ${MIN_VALID_TIMESTAMP_MS}), ${missing}),
     COALESCE((SELECT CAST(MIN(dt.finished_at) / 3600000 AS INTEGER) * 3600000
       FROM download_tasks dt WHERE dt.finished_at IS NOT NULL AND dt.finished_at >= ${MIN_VALID_TIMESTAMP_MS}), ${missing}),
     COALESCE((SELECT CAST(MIN(bj.finished_at) / 3600000 AS INTEGER) * 3600000
@@ -627,10 +615,6 @@ export function buildValidationSql(now = new Date()): string {
     SELECT COUNT(*) FROM activity_events
     WHERE action = 'download_failed'
       AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
-  ),
-  'rawTrafficReports', (
-    SELECT COUNT(*) FROM cloud_traffic_reports
-    WHERE updated_at >= ${MIN_VALID_TIMESTAMP_MS} AND updated_at < ${currentHour}
   ),
   'rawFinishedDownloadTasks', (
     SELECT COUNT(*) FROM download_tasks
@@ -755,10 +739,6 @@ SELECT json_object(
   'rollupFailedDownloads', (
     SELECT COALESCE(SUM(count), 0) FROM counter_rows
     WHERE metric_key = 'transfer.download_failed' AND dimension_key = ''
-  ),
-  'rollupTrafficReports', (
-    SELECT COALESCE(SUM(count), 0) FROM counter_rows
-    WHERE metric_key = 'traffic.report_sync' AND dimension_key = ''
   ),
   'rollupFinishedDownloadTasks', (
     SELECT COALESCE(SUM(count), 0) FROM counter_rows
@@ -998,7 +978,6 @@ function assertBackfillValidation(summary: ValidationSummary): void {
     ['share saves', summary.rawShareSaves, summary.rollupShareSaves],
     ['share password passes', summary.rawSharePasswordPasses, summary.rollupSharePasswordPasses],
     ['failed downloads', summary.rawFailedDownloads, summary.rollupFailedDownloads],
-    ['traffic reports', summary.rawTrafficReports, summary.rollupTrafficReports],
     ['finished download tasks', summary.rawFinishedDownloadTasks, summary.rollupFinishedDownloadTasks],
     ['finished background jobs', summary.rawFinishedBackgroundJobs, summary.rollupFinishedBackgroundJobs],
     ['missing byte events', summary.rawMissingByteEvents, summary.rollupMissingByteEvents],

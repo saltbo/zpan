@@ -190,7 +190,7 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.userSignup, '', '', '')).toMatchObject({ count: 2 })
     expect(row(M.userSignup, 'provider', 'direct', '')).toMatchObject({ count: 1 })
     expect(row(M.shareCreated)).toMatchObject({ count: 4 })
-    expect(row(M.trafficReportSync)).toMatchObject({ count: 2, bytes: 300 })
+    expect(rows.some((value) => value.metric === 'traffic.report_sync')).toBe(false)
     expect(row(M.remoteDownloadTaskFinished)).toMatchObject({ count: 1, bytes: 60 })
     expect(row(M.backgroundJobFinished)).toMatchObject({ count: 1 })
     expect(row(M.storageInventory)).toMatchObject({ count: 2, bytes: 500 })

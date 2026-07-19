@@ -1275,7 +1275,7 @@ function OperationsSection({ stats }: { stats: AdminDashboardOperationsStats }) 
         <BarBreakdownChart title="后台任务结果" rows={stats.backgroundJobOutcomes} valueFormatter={formatNumber} />
         <BarBreakdownChart title="远程下载结果" rows={stats.remoteDownloadOutcomes} valueFormatter={formatNumber} />
         <BreakdownChart title="下载器状态" rows={stats.downloaderStatus} valueFormatter={formatNumber} />
-        <BreakdownChart title="计量上报状态" rows={stats.cloudReportStatus} valueFormatter={formatNumber} />
+        <BreakdownChart title="当前计量上报队列" rows={stats.cloudReportStatus} valueFormatter={formatNumber} />
       </div>
     </div>
   )
