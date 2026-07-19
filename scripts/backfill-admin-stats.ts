@@ -6,6 +6,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
 
+const MIN_VALID_TIMESTAMP_MS = Date.UTC(2000, 0, 1)
+const MIN_VALID_TIMESTAMP_SECONDS = Math.floor(MIN_VALID_TIMESTAMP_MS / 1000)
+const MAX_BACKFILL_HOURS = 100_000
+
 type Target =
   | { kind: 'sqlite'; path: string }
   | { kind: 'd1'; database: string; remote: boolean; env?: string }
@@ -34,8 +38,35 @@ interface ValidationSummary {
   rollupDownloadBytes: number
   rawShareViews: number
   rollupShareViews: number
+  rawUploadAttempts: number
+  rollupUploadAttempts: number
+  rawUserSignups: number
+  rollupUserSignups: number
+  rawSharesCreated: number
+  rollupSharesCreated: number
+  rawShareDownloads: number
+  rollupShareDownloads: number
+  rawShareSaves: number
+  rollupShareSaves: number
+  rawSharePasswordPasses: number
+  rollupSharePasswordPasses: number
+  rawFailedDownloads: number
+  rollupFailedDownloads: number
+  rawTrafficReports: number
+  rollupTrafficReports: number
+  rawFinishedDownloadTasks: number
+  rollupFinishedDownloadTasks: number
+  rawFinishedBackgroundJobs: number
+  rollupFinishedBackgroundJobs: number
+  rawMissingByteEvents: number
+  rollupMissingByteEvents: number
   orphanRollupBuckets: number
   lowerBoundRollups: number
+  legacyRollupRows: number
+  counterExpectedBuckets: number
+  counterCompletedBuckets: number
+  counterMissingBuckets: number
+  openCounterMarkers: number
 }
 
 interface BackfillPlan {
@@ -217,6 +248,10 @@ WHERE ctr.source IN ('direct_share', 'landing_share', 'image_hosting', 'object_d
       )
   );
 
+${purgeLegacyRollupsSql()}
+${purgeOpenRollupsSql(now)}
+${purgeCounterRollupsSql()}
+
 ${buildHourlyBackfillSql(now)}
 `
 }
@@ -236,6 +271,7 @@ type HourlySource = {
 }
 
 function buildHourlyBackfillSql(now: Date): string {
+  const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
   const sources: HourlySource[] = [
     {
       metric: 'transfer.upload',
@@ -327,9 +363,37 @@ function buildHourlyBackfillSql(now: Date): string {
     },
   ]
 
-  const statements = sources.flatMap((source) => hourlyStatements(source))
-  statements.push(userSignupBackfillSql(), rollupMarkerBackfillSql(now))
+  const statements = sources.flatMap((source) => hourlyStatements(source, currentHour))
+  statements.push(userSignupBackfillSql(currentHour), rollupMarkerBackfillSql(now))
   return statements.join('\n\n')
+}
+
+function purgeLegacyRollupsSql(): string {
+  return `DELETE FROM stats_rollups_hourly
+WHERE CASE WHEN json_valid(metadata) = 1 THEN
+    json_extract(metadata, '$.version') = 2
+    AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+    AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
+  ELSE 0 END = 0;`
+}
+
+function purgeOpenRollupsSql(now: Date): string {
+  const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
+  return `DELETE FROM stats_rollups_hourly WHERE bucket_start >= ${currentHour};`
+}
+
+function purgeCounterRollupsSql(): string {
+  return `DELETE FROM stats_rollups_hourly
+WHERE metric_key IN (
+    'background_job.finished', 'remote_download.task_finished', 'share.created',
+    'share.download_issued', 'share.password_passed', 'share.saved', 'share.view',
+    'stats.quality_missing_bytes', 'traffic.report_sync', 'transfer.download_failed',
+    'transfer.download_issued', 'transfer.upload', 'user.signup'
+  )
+  OR (
+    metric_key = 'stats.rollup_run'
+    AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') = 'counters' ELSE 0 END = 1
+  );`
 }
 
 function activitySource(metric: string, where: string, dimensions: Record<string, string>, bytes = false): HourlySource {
@@ -344,13 +408,21 @@ function activitySource(metric: string, where: string, dimensions: Record<string
   }
 }
 
-function hourlyStatements(source: HourlySource): string[] {
-  return [hourlyInsert(source), ...Object.entries(source.dimensions ?? {}).map(([key, value]) => hourlyInsert(source, key, value))]
+function hourlyStatements(source: HourlySource, before: number): string[] {
+  return [
+    hourlyInsert(source, '', "''", before),
+    ...Object.entries(source.dimensions ?? {}).map(([key, value]) => hourlyInsert(source, key, value, before)),
+  ]
 }
 
-function hourlyInsert(source: HourlySource, dimensionKey = '', dimensionExpression = "''"): string {
+function hourlyInsert(source: HourlySource, dimensionKey = '', dimensionExpression = "''", before?: number): string {
   const bucket = `CAST((${source.timestampMs}) / 3600000 AS INTEGER) * 3600000`
-  const where = [source.where, dimensionKey ? `(${dimensionExpression}) IS NOT NULL AND CAST((${dimensionExpression}) AS TEXT) <> ''` : null]
+  const where = [
+    source.where,
+    `(${source.timestampMs}) >= ${MIN_VALID_TIMESTAMP_MS}`,
+    before === undefined ? null : `(${source.timestampMs}) < ${before}`,
+    dimensionKey ? `(${dimensionExpression}) IS NOT NULL AND CAST((${dimensionExpression}) AS TEXT) <> ''` : null,
+  ]
     .filter(Boolean)
     .join(' AND ')
   const dimension = dimensionKey ? `CAST((${dimensionExpression}) AS TEXT)` : "''"
@@ -382,8 +454,8 @@ DO UPDATE SET count = excluded.count, bytes = excluded.bytes, unique_count = exc
 WHERE count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excluded.unique_count OR metadata <> excluded.metadata;`
 }
 
-function userSignupBackfillSql(): string {
-  return hourlyInsert({
+function userSignupBackfillSql(before: number): string {
+  return hourlyStatements({
     metric: 'user.signup',
     source: `user u LEFT JOIN account a ON a.id = (
       SELECT a2.id FROM account a2 WHERE a2.user_id = u.id ORDER BY a2.created_at, a2.id LIMIT 1
@@ -391,32 +463,82 @@ function userSignupBackfillSql(): string {
     timestampMs: 'u.created_at',
     org: "''",
     dimensions: { provider: "COALESCE(a.provider_id, 'direct')" },
-  }) + '\n' + hourlyInsert({
-    metric: 'user.signup',
-    source: `user u LEFT JOIN account a ON a.id = (
-      SELECT a2.id FROM account a2 WHERE a2.user_id = u.id ORDER BY a2.created_at, a2.id LIMIT 1
-    )`,
-    timestampMs: 'u.created_at',
-    org: "''",
-  })
+  }, before).join('\n\n')
 }
 
 function rollupMarkerBackfillSql(now: Date): string {
   const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
-  return hourlyInsert({
-    metric: 'stats.rollup_run',
-    source: `(SELECT DISTINCT bucket_start AS at
-      FROM stats_rollups_hourly WHERE metric_key <> 'stats.rollup_run'
-      UNION SELECT ${currentHour} AS at) buckets`,
-    timestampMs: 'buckets.at',
-    org: "''",
-    count: '1',
-    scope: 'counters',
-  })
+  const latestClosedHour = currentHour - 3_600_000
+  return `WITH
+digits(n) AS (VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9)),
+numbers(n) AS (
+  SELECT ones.n + tens.n * 10 + hundreds.n * 100 + thousands.n * 1000 + ten_thousands.n * 10000
+  FROM digits ones
+  CROSS JOIN digits tens
+  CROSS JOIN digits hundreds
+  CROSS JOIN digits thousands
+  CROSS JOIN digits ten_thousands
+),
+bounds AS (
+  SELECT ${statsHistoryStartSql()} AS start_at, ${latestClosedHour} AS end_at
+),
+buckets AS (
+  SELECT start_at + numbers.n * 3600000 AS bucket_start
+  FROM bounds
+  JOIN numbers ON start_at + numbers.n * 3600000 <= end_at
+  WHERE start_at IS NOT NULL AND start_at <= end_at
+)
+INSERT INTO stats_rollups_hourly (
+  id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+  count, bytes, unique_count, metadata, updated_at
+)
+SELECT
+  CAST(bucket_start AS TEXT) || ':global:stats.rollup_run:all:all',
+  bucket_start, '', 'stats.rollup_run', '', '', 1, 0, 0,
+  json_object('version', 2, 'scope', 'counters', 'quality', 'exact'),
+  bucket_start + 3600000
+FROM buckets
+WHERE true
+ON CONFLICT(bucket_start, org_id, metric_key, dimension_key, dimension_value)
+DO UPDATE SET count = excluded.count, bytes = excluded.bytes, unique_count = excluded.unique_count,
+  metadata = excluded.metadata, updated_at = excluded.updated_at
+WHERE CASE WHEN json_valid(stats_rollups_hourly.metadata) = 1 THEN
+    json_extract(stats_rollups_hourly.metadata, '$.version') = 2
+    AND json_extract(stats_rollups_hourly.metadata, '$.scope') = 'full'
+    AND json_extract(stats_rollups_hourly.metadata, '$.quality') IN ('exact', 'lower_bound')
+  ELSE 0 END = 0
+  AND (
+    count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excluded.unique_count
+    OR metadata <> excluded.metadata OR updated_at <> excluded.updated_at
+  );`
 }
 
-export const VALIDATION_SQL = `
-SELECT json_object(
+function statsHistoryStartSql(): string {
+  const missing = '9223372036854775807'
+  return `NULLIF(MIN(
+    COALESCE((SELECT CAST(MIN(u.created_at) / 3600000 AS INTEGER) * 3600000
+      FROM user u WHERE u.created_at >= ${MIN_VALID_TIMESTAMP_MS}), ${missing}),
+    COALESCE((SELECT CAST((MIN(s.created_at) * 1000) / 3600000 AS INTEGER) * 3600000
+      FROM shares s WHERE s.created_at >= ${MIN_VALID_TIMESTAMP_SECONDS}), ${missing}),
+    COALESCE((SELECT CAST((MIN(ae.created_at) * 1000) / 3600000 AS INTEGER) * 3600000
+      FROM activity_events ae WHERE ae.created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND ae.action IN (
+        'upload_confirm', 'upload_cancel', 'upload_failed',
+        'share_download', 'object_download', 'image_hosting_download', 'webdav_download', 'download_failed',
+        'share_view', 'save_from_share', 'share_password_passed'
+      )), ${missing}),
+    COALESCE((SELECT CAST(MIN(ctr.updated_at) / 3600000 AS INTEGER) * 3600000
+      FROM cloud_traffic_reports ctr WHERE ctr.updated_at >= ${MIN_VALID_TIMESTAMP_MS}), ${missing}),
+    COALESCE((SELECT CAST(MIN(dt.finished_at) / 3600000 AS INTEGER) * 3600000
+      FROM download_tasks dt WHERE dt.finished_at IS NOT NULL AND dt.finished_at >= ${MIN_VALID_TIMESTAMP_MS}), ${missing}),
+    COALESCE((SELECT CAST(MIN(bj.finished_at) / 3600000 AS INTEGER) * 3600000
+      FROM background_jobs bj WHERE bj.finished_at IS NOT NULL AND bj.finished_at >= ${MIN_VALID_TIMESTAMP_MS}), ${missing})
+  ), ${missing})`
+}
+
+export function buildValidationSql(now = new Date()): string {
+  const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
+  const latestClosedHour = currentHour - 3_600_000
+  const facts = `SELECT json_object(
   'activityEvents', (SELECT COUNT(*) FROM activity_events),
   'orphanUserEvents', (
     SELECT COUNT(*) FROM activity_events ae
@@ -436,9 +558,6 @@ SELECT json_object(
     SELECT COUNT(*) FROM activity_events
     WHERE action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download', 'download_failed')
   ),
-  'hourlyRollups', (
-    SELECT COUNT(*) FROM stats_rollups_hourly WHERE metric_key = 'stats.rollup_run' AND dimension_key = ''
-  ),
   'rawActiveShares', (SELECT COUNT(*) FROM shares WHERE status = 'active'),
   'validActiveShares', (
     SELECT COUNT(*) FROM shares
@@ -446,58 +565,247 @@ SELECT json_object(
       AND (expires_at IS NULL OR expires_at > unixepoch())
       AND (download_limit IS NULL OR downloads < download_limit)
   ),
-  'rawUploadEvents', (SELECT COUNT(*) FROM activity_events WHERE action = 'upload_confirm'),
-  'rollupUploadEvents', (
-    SELECT COALESCE(SUM(count), 0) FROM stats_rollups_hourly
-    WHERE metric_key = 'transfer.upload' AND dimension_key = 'status' AND dimension_value = 'success'
+  'rawUploadEvents', (
+    SELECT COUNT(*) FROM activity_events
+    WHERE action = 'upload_confirm'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
   'rawUploadBytes', (
     SELECT COALESCE(SUM(CASE WHEN json_valid(metadata) = 1 THEN COALESCE(json_extract(metadata, '$.bytes'), 0) ELSE 0 END), 0)
-    FROM activity_events WHERE action = 'upload_confirm'
-  ),
-  'rollupUploadBytes', (
-    SELECT COALESCE(SUM(bytes), 0) FROM stats_rollups_hourly
-    WHERE metric_key = 'transfer.upload' AND dimension_key = 'status' AND dimension_value = 'success'
+    FROM activity_events
+    WHERE action = 'upload_confirm'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
   'rawDownloadEvents', (
     SELECT COUNT(*) FROM activity_events
     WHERE action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
-  ),
-  'rollupDownloadEvents', (
-    SELECT COALESCE(SUM(count), 0) FROM stats_rollups_hourly
-    WHERE metric_key = 'transfer.download_issued' AND dimension_key = ''
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
   'rawDownloadBytes', (
     SELECT COALESCE(SUM(CASE WHEN json_valid(metadata) = 1 THEN COALESCE(json_extract(metadata, '$.bytes'), 0) ELSE 0 END), 0)
     FROM activity_events
     WHERE action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
-  'rollupDownloadBytes', (
-    SELECT COALESCE(SUM(bytes), 0) FROM stats_rollups_hourly
+  'rawShareViews', (
+    SELECT COUNT(*) FROM activity_events
+    WHERE action = 'share_view'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+  )
+) AS summary;`
+
+  const additionalFacts = `SELECT json_object(
+  'rawUploadAttempts', (
+    SELECT COUNT(*) FROM activity_events
+    WHERE action IN ('upload_confirm', 'upload_cancel', 'upload_failed')
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+  ),
+  'rawUserSignups', (
+    SELECT COUNT(*) FROM user
+    WHERE created_at >= ${MIN_VALID_TIMESTAMP_MS} AND created_at < ${currentHour}
+  ),
+  'rawSharesCreated', (
+    SELECT COUNT(*) FROM shares
+    WHERE created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+  ),
+  'rawShareDownloads', (
+    SELECT COUNT(*) FROM activity_events
+    WHERE action = 'share_download'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+  ),
+  'rawShareSaves', (
+    SELECT COUNT(*) FROM activity_events
+    WHERE action = 'save_from_share'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+  ),
+  'rawSharePasswordPasses', (
+    SELECT COUNT(*) FROM activity_events
+    WHERE action = 'share_password_passed'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+  ),
+  'rawFailedDownloads', (
+    SELECT COUNT(*) FROM activity_events
+    WHERE action = 'download_failed'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+  ),
+  'rawTrafficReports', (
+    SELECT COUNT(*) FROM cloud_traffic_reports
+    WHERE updated_at >= ${MIN_VALID_TIMESTAMP_MS} AND updated_at < ${currentHour}
+  ),
+  'rawFinishedDownloadTasks', (
+    SELECT COUNT(*) FROM download_tasks
+    WHERE finished_at >= ${MIN_VALID_TIMESTAMP_MS} AND finished_at < ${currentHour}
+  ),
+  'rawFinishedBackgroundJobs', (
+    SELECT COUNT(*) FROM background_jobs
+    WHERE finished_at >= ${MIN_VALID_TIMESTAMP_MS} AND finished_at < ${currentHour}
+  ),
+  'rawMissingByteEvents', (
+    SELECT COUNT(*) FROM activity_events
+    WHERE action IN ('upload_confirm', 'share_download', 'object_download', 'image_hosting_download', 'webdav_download')
+      AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.bytes') IS NULL)
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+  )
+) AS summary;`
+
+  const rollups = `WITH valid_rollups AS MATERIALIZED (
+  SELECT *
+  FROM stats_rollups_hourly
+  WHERE CASE WHEN json_valid(metadata) = 1 THEN
+      json_extract(metadata, '$.version') = 2
+      AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+      AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
+    ELSE 0 END = 1
+),
+counter_markers AS MATERIALIZED (
+  SELECT bucket_start
+  FROM valid_rollups
+  WHERE metric_key = 'stats.rollup_run' AND org_id = '' AND dimension_key = '' AND dimension_value = ''
+    AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+),
+counter_rows AS MATERIALIZED (
+  SELECT result.*
+  FROM valid_rollups result
+  WHERE result.metric_key <> 'stats.rollup_run'
+    AND EXISTS (SELECT 1 FROM counter_markers marker WHERE marker.bucket_start = result.bucket_start)
+)
+SELECT json_object(
+  'rollupUploadEvents', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'transfer.upload' AND dimension_key = 'status' AND dimension_value = 'success'
+  ),
+  'rollupUploadBytes', (
+    SELECT COALESCE(SUM(bytes), 0) FROM counter_rows
+    WHERE metric_key = 'transfer.upload' AND dimension_key = 'status' AND dimension_value = 'success'
+  ),
+  'rollupDownloadEvents', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
     WHERE metric_key = 'transfer.download_issued' AND dimension_key = ''
   ),
-  'rawShareViews', (SELECT COUNT(*) FROM activity_events WHERE action = 'share_view'),
+  'rollupDownloadBytes', (
+    SELECT COALESCE(SUM(bytes), 0) FROM counter_rows
+    WHERE metric_key = 'transfer.download_issued' AND dimension_key = ''
+  ),
   'rollupShareViews', (
-    SELECT COALESCE(SUM(count), 0) FROM stats_rollups_hourly
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
     WHERE metric_key = 'share.view' AND dimension_key = ''
   ),
   'orphanRollupBuckets', (
     SELECT COUNT(DISTINCT r.bucket_start)
-    FROM stats_rollups_hourly r
+    FROM valid_rollups r
     WHERE r.metric_key <> 'stats.rollup_run'
-      AND NOT EXISTS (
-        SELECT 1 FROM stats_rollups_hourly marker
-        WHERE marker.bucket_start = r.bucket_start
-          AND marker.metric_key = 'stats.rollup_run'
-          AND marker.dimension_key = ''
-      )
+      AND NOT EXISTS (SELECT 1 FROM counter_markers marker WHERE marker.bucket_start = r.bucket_start)
   ),
   'lowerBoundRollups', (
+    SELECT COUNT(*) FROM valid_rollups WHERE json_extract(metadata, '$.quality') = 'lower_bound'
+  ),
+  'legacyRollupRows', (
     SELECT COUNT(*) FROM stats_rollups_hourly
-    WHERE json_valid(metadata) = 1 AND json_extract(metadata, '$.quality') = 'lower_bound'
+    WHERE CASE WHEN json_valid(metadata) = 1 THEN
+        json_extract(metadata, '$.version') = 2
+        AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+        AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
+      ELSE 0 END = 0
   )
+) AS summary;`
+
+  const additionalRollups = `WITH valid_rollups AS MATERIALIZED (
+  SELECT *
+  FROM stats_rollups_hourly
+  WHERE CASE WHEN json_valid(metadata) = 1 THEN
+      json_extract(metadata, '$.version') = 2
+      AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+      AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
+    ELSE 0 END = 1
+),
+counter_markers AS MATERIALIZED (
+  SELECT bucket_start FROM valid_rollups
+  WHERE metric_key = 'stats.rollup_run' AND org_id = '' AND dimension_key = '' AND dimension_value = ''
+),
+counter_rows AS MATERIALIZED (
+  SELECT result.* FROM valid_rollups result
+  WHERE result.metric_key <> 'stats.rollup_run'
+    AND EXISTS (SELECT 1 FROM counter_markers marker WHERE marker.bucket_start = result.bucket_start)
+)
+SELECT json_object(
+  'rollupUploadAttempts', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'transfer.upload' AND dimension_key = ''
+  ),
+  'rollupUserSignups', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'user.signup' AND dimension_key = ''
+  ),
+  'rollupSharesCreated', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'share.created' AND dimension_key = ''
+  ),
+  'rollupShareDownloads', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'share.download_issued' AND dimension_key = ''
+  ),
+  'rollupShareSaves', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'share.saved' AND dimension_key = ''
+  ),
+  'rollupSharePasswordPasses', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'share.password_passed' AND dimension_key = ''
+  ),
+  'rollupFailedDownloads', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'transfer.download_failed' AND dimension_key = ''
+  ),
+  'rollupTrafficReports', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'traffic.report_sync' AND dimension_key = ''
+  ),
+  'rollupFinishedDownloadTasks', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'remote_download.task_finished' AND dimension_key = ''
+  ),
+  'rollupFinishedBackgroundJobs', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'background_job.finished' AND dimension_key = ''
+  ),
+  'rollupMissingByteEvents', (
+    SELECT COALESCE(SUM(count), 0) FROM counter_rows
+    WHERE metric_key = 'stats.quality_missing_bytes' AND dimension_key = ''
+  )
+) AS summary;`
+
+  const coverage = `WITH counter_markers AS MATERIALIZED (
+  SELECT bucket_start
+  FROM stats_rollups_hourly
+  WHERE metric_key = 'stats.rollup_run' AND org_id = '' AND dimension_key = '' AND dimension_value = ''
+    AND CASE WHEN json_valid(metadata) = 1 THEN
+      json_extract(metadata, '$.version') = 2
+      AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+      AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
+    ELSE 0 END = 1
+),
+coverage AS MATERIALIZED (
+  SELECT ${statsHistoryStartSql()} AS start_at, ${latestClosedHour} AS end_at
+),
+coverage_counts AS MATERIALIZED (
+  SELECT
+    CASE WHEN start_at IS NULL OR start_at > end_at THEN 0
+      ELSE CAST((end_at - start_at) / 3600000 AS INTEGER) + 1 END AS expected,
+    CASE WHEN start_at IS NULL OR start_at > end_at THEN 0
+      ELSE (SELECT COUNT(*) FROM counter_markers WHERE bucket_start BETWEEN start_at AND end_at) END AS completed
+  FROM coverage
+)
+SELECT json_object(
+  'hourlyRollups', (SELECT COUNT(*) FROM counter_markers),
+  'counterExpectedBuckets', (SELECT expected FROM coverage_counts),
+  'counterCompletedBuckets', (SELECT completed FROM coverage_counts),
+  'counterMissingBuckets', (SELECT expected - completed FROM coverage_counts),
+  'openCounterMarkers', (SELECT COUNT(*) FROM counter_markers WHERE bucket_start >= ${currentHour})
 ) AS summary;
 `
+
+  return [facts, additionalFacts, rollups, additionalRollups, coverage].join('\n\n')
+}
 
 export const BACKFILL_PLAN_SQL = `
 SELECT json_object(
@@ -637,19 +945,30 @@ export function splitSqlStatements(sql: string): string[] {
   return statements
 }
 
-function parseD1Summary<T>(output: string): T {
+function parseD1Summaries(output: string): string[] {
   const payload = JSON.parse(output) as Array<{ results?: Array<{ summary?: string }> }>
-  const summary = payload.flatMap((entry) => entry.results ?? []).find((row) => row.summary)?.summary
-  if (!summary) throw new Error('D1 validation query returned no summary')
-  return JSON.parse(summary) as T
+  return payload
+    .flatMap((entry) => entry.results ?? [])
+    .flatMap((row) => (row.summary ? [row.summary] : []))
+}
+
+function mergeSummaries<T>(summaries: string[]): T {
+  if (summaries.length === 0) throw new Error('D1 validation query returned no summary')
+  return Object.assign({}, ...summaries.map((summary) => JSON.parse(summary) as object)) as T
 }
 
 function querySummary<T>(target: Target, sql: string): T {
-  if (target.kind === 'd1') return parseD1Summary<T>(queryD1(target, sql))
+  if (target.kind === 'd1') {
+    const summaries = splitSqlStatements(sql).flatMap((statement) => parseD1Summaries(queryD1(target, statement)))
+    return mergeSummaries<T>(summaries)
+  }
   const db = new Database(target.path, { readonly: true })
   try {
-    const row = db.prepare(sql).get() as { summary: string }
-    return JSON.parse(row.summary) as T
+    const summaries = splitSqlStatements(sql).map((statement) => {
+      const row = db.prepare(statement).get() as { summary: string }
+      return row.summary
+    })
+    return mergeSummaries<T>(summaries)
   } finally {
     db.close()
   }
@@ -672,22 +991,50 @@ function assertBackfillValidation(summary: ValidationSummary): void {
     ['download events', summary.rawDownloadEvents, summary.rollupDownloadEvents],
     ['download bytes', summary.rawDownloadBytes, summary.rollupDownloadBytes],
     ['share views', summary.rawShareViews, summary.rollupShareViews],
+    ['upload attempts', summary.rawUploadAttempts, summary.rollupUploadAttempts],
+    ['user signups', summary.rawUserSignups, summary.rollupUserSignups],
+    ['shares created', summary.rawSharesCreated, summary.rollupSharesCreated],
+    ['share downloads', summary.rawShareDownloads, summary.rollupShareDownloads],
+    ['share saves', summary.rawShareSaves, summary.rollupShareSaves],
+    ['share password passes', summary.rawSharePasswordPasses, summary.rollupSharePasswordPasses],
+    ['failed downloads', summary.rawFailedDownloads, summary.rollupFailedDownloads],
+    ['traffic reports', summary.rawTrafficReports, summary.rollupTrafficReports],
+    ['finished download tasks', summary.rawFinishedDownloadTasks, summary.rollupFinishedDownloadTasks],
+    ['finished background jobs', summary.rawFinishedBackgroundJobs, summary.rollupFinishedBackgroundJobs],
+    ['missing byte events', summary.rawMissingByteEvents, summary.rollupMissingByteEvents],
   ].filter(([, raw, rollup]) => raw !== rollup)
-  if (mismatches.length > 0 || summary.orphanRollupBuckets > 0) {
+  if (
+    mismatches.length > 0 ||
+    summary.orphanRollupBuckets > 0 ||
+    summary.legacyRollupRows > 0 ||
+    summary.counterMissingBuckets > 0 ||
+    summary.openCounterMarkers > 0
+  ) {
     throw new Error(
-      `admin_stats_validation_failed:${JSON.stringify({ mismatches, orphanRollupBuckets: summary.orphanRollupBuckets })}`,
+      `admin_stats_validation_failed:${JSON.stringify({
+        mismatches,
+        orphanRollupBuckets: summary.orphanRollupBuckets,
+        legacyRollupRows: summary.legacyRollupRows,
+        counterMissingBuckets: summary.counterMissingBuckets,
+        openCounterMarkers: summary.openCounterMarkers,
+      })}`,
     )
   }
 }
 
 function main(): void {
   const options = parseOptions(process.argv.slice(2))
-  const before = querySummary<ValidationSummary>(options.target, VALIDATION_SQL)
+  const now = new Date()
+  const validationSql = buildValidationSql(now)
+  const before = querySummary<ValidationSummary>(options.target, validationSql)
   const plan = querySummary<BackfillPlan>(options.target, BACKFILL_PLAN_SQL)
   console.log(JSON.stringify({ mode: options.apply ? 'apply' : 'dry-run', before, plan }, null, 2))
   if (!options.apply) return
-  apply(options.target, buildBackfillSql())
-  const after = querySummary<ValidationSummary>(options.target, VALIDATION_SQL)
+  if (before.counterExpectedBuckets > MAX_BACKFILL_HOURS) {
+    throw new Error(`admin_stats_backfill_range_too_large:${before.counterExpectedBuckets}`)
+  }
+  apply(options.target, buildBackfillSql(now))
+  const after = querySummary<ValidationSummary>(options.target, validationSql)
   assertBackfillValidation(after)
   console.log(
     JSON.stringify(

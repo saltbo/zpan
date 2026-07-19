@@ -68,7 +68,9 @@ Rows with transfer events but no recoverable byte count carry `quality=lower_bou
 
 ## Backfill and validation
 
-Run `pnpm stats:backfill -- --apply ...` after the migration in each environment. The script repairs recoverable historical fact metadata and rebuilds historical counters idempotently. Backfilled markers use `scope=counters`; the script does not fabricate historical inventory or active-user snapshots, so snapshot-backed views honestly report partial or empty coverage for those hours.
+Run `pnpm stats:backfill -- --apply ...` after the migration in each environment. The script repairs recoverable historical fact metadata, removes incompatible result versions, and rebuilds historical counters idempotently. It writes a continuous `scope=counters` marker for every closed UTC hour from the first available fact through the latest closed hour, including hours with zero activity, and rejects missing or open-hour markers during validation. Existing `scope=full` markers and snapshot rows remain intact.
+
+The script does not fabricate historical inventory or active-user snapshots. Snapshot-backed views therefore report partial or empty coverage before full rollups began, while event-backed views can report complete historical coverage. Facts whose original byte size can no longer be recovered remain visible as `quality=lower_bound` instead of being guessed.
 
 Validation must cover:
 

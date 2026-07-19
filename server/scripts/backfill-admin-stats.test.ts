@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
-import { buildBackfillSql, splitSqlStatements, VALIDATION_SQL } from '../../scripts/backfill-admin-stats'
+import { buildBackfillSql, buildValidationSql, splitSqlStatements } from '../../scripts/backfill-admin-stats'
 
 describe('admin stats backfill', () => {
   it('splits SQL batches without breaking quoted semicolons', () => {
@@ -14,6 +14,14 @@ describe('admin stats backfill', () => {
 
   it('recovers exact available facts and is idempotent', () => {
     const db = new Database(':memory:')
+    const now = new Date('2026-07-10T12:00:00.000Z')
+    const historyStartMs = Date.parse('2026-04-01T00:10:00.000Z')
+    const eventMs = Date.parse('2026-07-10T09:10:00.000Z')
+    const eventSec = Math.floor(eventMs / 1000)
+    const currentHourMs = Date.parse('2026-07-10T12:00:00.000Z')
+    const currentEventSec = Math.floor(Date.parse('2026-07-10T12:10:00.000Z') / 1000)
+    const latestClosedHour = Date.parse('2026-07-10T11:00:00.000Z')
+    const expectedBuckets = (latestClosedHour - Math.floor(historyStartMs / 3_600_000) * 3_600_000) / 3_600_000 + 1
     db.exec(`
       CREATE TABLE user (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE account (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, provider_id TEXT NOT NULL, created_at INTEGER NOT NULL);
@@ -61,20 +69,34 @@ describe('admin stats backfill', () => {
         UNIQUE(bucket_start, org_id, metric_key, dimension_key, dimension_value)
       );
 
-      INSERT INTO user VALUES ('u1', 1);
+      INSERT INTO user VALUES ('u0', 0), ('u1', ${historyStartMs});
+      INSERT INTO account VALUES ('a1', 'u1', 'github', ${historyStartMs});
       INSERT INTO matters VALUES ('f1', 512, 0);
-      INSERT INTO shares VALUES ('s1', 'landing', 'f1', 'o1', 'active', NULL, 10, 1, 1);
+      INSERT INTO shares VALUES ('s1', 'landing', 'f1', 'o1', 'active', NULL, 10, 1, ${eventSec});
       INSERT INTO activity_events VALUES
-        ('upload-1', 'o1', 'u1', NULL, NULL, 'upload_confirm', 'file', 'f1', 'file.bin', NULL, 1),
-        ('share-1', 'o1', NULL, NULL, NULL, 'share_download', 'share', 's1', 'file.bin', '{"anonymous":true}', 1),
-        ('image-1', 'o1', NULL, NULL, NULL, 'image_hosting_download', 'image', 'img1', 'image.png', NULL, 1);
+        ('upload-1', 'o1', 'u1', NULL, NULL, 'upload_confirm', 'file', 'f1', 'file.bin', NULL, ${eventSec}),
+        ('open-upload', 'o1', 'u1', 'user', NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
+          '{"bytes":512,"source":"upload","status":"success"}', ${currentEventSec}),
+        ('share-1', 'o1', NULL, NULL, NULL, 'share_download', 'share', 's1', 'file.bin', '{"anonymous":true}', ${eventSec}),
+        ('image-1', 'o1', NULL, NULL, NULL, 'image_hosting_download', 'image', 'img1', 'image.png', NULL, ${eventSec});
       INSERT INTO cloud_traffic_reports VALUES
-        ('r1', 'o1', 'direct_share', 's1', 'traffic-1', 512, NULL, NULL, NULL, 'reported', NULL, 1000, 1000),
-        ('r2', 'o1', 'image_hosting', 'img1', 'traffic-2', 128, NULL, NULL, NULL, 'reported', NULL, 1000, 1000);
+        ('r1', 'o1', 'direct_share', 's1', 'traffic-1', 512, NULL, NULL, NULL, 'reported', NULL, ${eventMs}, ${eventMs}),
+        ('r2', 'o1', 'image_hosting', 'img1', 'traffic-2', 128, NULL, NULL, NULL, 'reported', NULL, ${eventMs}, ${eventMs});
+      INSERT INTO download_tasks VALUES ('t1', 'o1', 'video', 'url', 'd1', 'completed', 512, ${eventMs}, ${eventMs});
       INSERT INTO org_quotas VALUES ('q1', 512);
+      INSERT INTO stats_rollups_hourly VALUES
+        ('legacy-epoch', 0, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":1,"scope":"counters","quality":"exact"}', 0),
+        ('latest-full', ${latestClosedHour}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${latestClosedHour + 3_600_000}),
+        ('open-marker', ${currentHourMs}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":2,"scope":"full","quality":"exact"}', ${currentHourMs}),
+        ('stale-task', ${eventMs - 3_600_000}, 'o1', 'remote_download.task_finished', '', '', 1, 512, 0,
+          '{"version":2,"scope":"counters","quality":"exact"}', ${eventMs});
     `)
 
-    const sql = buildBackfillSql(new Date('2026-07-10T12:00:00.000Z'))
+    const sql = buildBackfillSql(now)
+    const validationSql = buildValidationSql(now)
     const statements = splitSqlStatements(sql)
     expect(statements.length).toBeGreaterThan(1)
     db.transaction(() =>
@@ -82,29 +104,50 @@ describe('admin stats backfill', () => {
         db.exec(statement)
       }),
     )()
-    const firstChanges = db.prepare('SELECT total_changes() AS value').get() as { value: number }
-    const firstSummary = JSON.parse((db.prepare(VALIDATION_SQL).get() as { summary: string }).summary) as Record<
-      string,
-      number
-    >
+    const firstSummary = Object.assign(
+      {},
+      ...splitSqlStatements(validationSql).map((statement) =>
+        JSON.parse((db.prepare(statement).get() as { summary: string }).summary),
+      ),
+    ) as Record<string, number>
+    const firstRows = db.prepare('SELECT * FROM stats_rollups_hourly ORDER BY id').all()
 
     db.transaction(() =>
       statements.forEach((statement) => {
         db.exec(statement)
       }),
     )()
-    const secondChanges = db.prepare('SELECT total_changes() AS value').get() as { value: number }
+    const secondRows = db.prepare('SELECT * FROM stats_rollups_hourly ORDER BY id').all()
 
-    expect(firstChanges.value).toBeGreaterThan(0)
-    expect(secondChanges.value - firstChanges.value).toBe(0)
+    expect(firstRows.length).toBeGreaterThan(0)
+    expect(secondRows).toEqual(firstRows)
     expect(firstSummary).toMatchObject({
       orphanUserEvents: 0,
       missingUploadBytes: 0,
       missingDownloadBytes: 0,
       trafficEvents: 2,
-      hourlyRollups: 2,
+      hourlyRollups: expectedBuckets,
       rawActiveShares: 1,
       validActiveShares: 1,
+      legacyRollupRows: 0,
+      counterExpectedBuckets: expectedBuckets,
+      counterCompletedBuckets: expectedBuckets,
+      counterMissingBuckets: 0,
+      openCounterMarkers: 0,
+      rawUploadAttempts: 1,
+      rollupUploadAttempts: 1,
+      rawUserSignups: 1,
+      rollupUserSignups: 1,
+      rawSharesCreated: 1,
+      rollupSharesCreated: 1,
+      rawShareDownloads: 1,
+      rollupShareDownloads: 1,
+      rawTrafficReports: 2,
+      rollupTrafficReports: 2,
+      rawFinishedDownloadTasks: 1,
+      rollupFinishedDownloadTasks: 1,
+      rawMissingByteEvents: 0,
+      rollupMissingByteEvents: 0,
     })
     expect(
       db.prepare("SELECT json_extract(metadata, '$.bytes') AS bytes FROM activity_events WHERE id = 'upload-1'").get(),
@@ -112,6 +155,24 @@ describe('admin stats backfill', () => {
     expect(db.prepare("SELECT COUNT(*) AS value FROM activity_events WHERE target_id = 'img1'").get()).toEqual({
       value: 1,
     })
+    expect(
+      db
+        .prepare("SELECT json_extract(metadata, '$.scope') AS scope FROM stats_rollups_hourly WHERE id = 'latest-full'")
+        .get(),
+    ).toEqual({ scope: 'full' })
+    expect(db.prepare('SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE bucket_start = 0').get()).toEqual({
+      value: 0,
+    })
+    expect(
+      db.prepare('SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE bucket_start >= ?').get(currentHourMs),
+    ).toEqual({ value: 0 })
+    expect(
+      db
+        .prepare(
+          "SELECT count AS value FROM stats_rollups_hourly WHERE metric_key = 'user.signup' AND dimension_key = 'provider' AND dimension_value = 'github'",
+        )
+        .get(),
+    ).toEqual({ value: 1 })
     db.close()
   })
 })
