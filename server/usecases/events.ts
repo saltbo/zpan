@@ -29,12 +29,13 @@ export type EventsMessage = { event: string; data: unknown }
 
 export type EventsEmit = (message: EventsMessage) => void
 
-// Per-connection subscription resolved from the EventSource URL. Always-on
-// domains (jobs, notifications) are read whenever orgId/userId is present;
-// page-scoped domains (download tasks) are polled only when the client opts in,
-// so an idle browser tab doesn't make the server scan resources no page shows.
+// Per-connection subscription resolved from the authenticated principal and
+// EventSource URL. User streams include jobs and notifications; API-key streams
+// use the least-privilege download-tasks-only scope. Download tasks are polled
+// only when the client opts in, so an idle browser tab does not scan them.
 export type EventsParams = {
   platform: Platform
+  scope: 'user' | 'download-tasks-only'
   orgId: string | null
   userId: string | null
   wantsDownloadTasks: boolean
@@ -77,6 +78,7 @@ export async function streamEvents(
 ): Promise<void> {
   const {
     platform,
+    scope,
     orgId,
     userId,
     wantsDownloadTasks,
@@ -103,7 +105,7 @@ export async function streamEvents(
     try {
       let changed = false
 
-      if (orgId) {
+      if (scope === 'user' && orgId) {
         const [queued, running] = await Promise.all([
           deps.backgroundJobs.list(orgId, { status: 'queued', page: 1, pageSize: ACTIVE_JOB_SCAN_SIZE }),
           deps.backgroundJobs.list(orgId, { status: 'running', page: 1, pageSize: ACTIVE_JOB_SCAN_SIZE }),
@@ -118,7 +120,7 @@ export async function streamEvents(
         }
       }
 
-      if (userId) {
+      if (scope === 'user' && userId) {
         const count = await deps.notifications.unreadCount(userId)
         const fingerprint = String(count)
         if (fingerprint !== unreadFingerprint) {

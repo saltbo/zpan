@@ -1,8 +1,10 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { errorResponseSchema } from '@shared/schemas'
-import { requireAuth } from '../middleware/auth'
+import { createMiddleware } from 'hono/factory'
+import { requirePermission } from '../middleware/authz'
 import type { Env } from '../middleware/platform'
 import { type EventsMessage, streamEvents } from '../usecases/events'
+import { forbidden, unauthorized } from '../usecases/ports'
 
 const encoder = new TextEncoder()
 
@@ -38,6 +40,20 @@ const eventsQueryDocSchema = z.object({
   dtSortDir: z.string().optional().openapi({ description: 'asc | desc' }),
 })
 
+const requireEventsAccess = createMiddleware<Env>(async (c, next) => {
+  const principal = c.get('principal')
+  if (principal?.kind === 'user') {
+    await next()
+    return
+  }
+  if (principal?.kind === 'api-key') {
+    if (!principal.orgId || c.req.query('downloadTasks') !== '1') throw forbidden('Forbidden')
+    await next()
+    return
+  }
+  throw unauthorized('Unauthorized')
+})
+
 // The SSE body is a stream of text/event-stream frames, not JSON, so the schema
 // is just a string. OpenAPI 3.x has no native way to type the named events of a
 // single stream, so they're spelled out in the route description below.
@@ -46,16 +62,18 @@ const eventStreamRoute = createRoute({
   tags: ['Events'],
   method: 'get',
   path: '/',
-  middleware: [requireAuth] as const,
+  middleware: [requireEventsAccess, requirePermission('remoteDownload', 'read')] as const,
   summary: 'Server-sent events stream',
   description: [
     'A single SSE connection multiplexing several domains via named events:',
     '',
-    '- `jobs` → `{ activeCount }` — background-job set changed (always on)',
-    '- `notifications` → `{ unreadCount }` — unread count changed (always on)',
+    '- `jobs` → `{ activeCount }` — background-job set changed (browser users only, always on)',
+    '- `notifications` → `{ unreadCount }` — unread count changed (browser users only, always on)',
     '- `download-tasks` → `{ items, total, page, pageSize }` — download tasks changed (opt-in via `?downloadTasks=1`)',
     '- `heartbeat` → `{ at }` — keep-alive emitted when nothing changed for a while',
     '- `error` → `{ message }` — a domain query failed this tick',
+    '',
+    'Organization API keys require `?downloadTasks=1` and `remoteDownload:read`. Their stream is limited to `download-tasks` data from the key organization plus heartbeat and error control events.',
   ].join('\n'),
   request: { query: eventsQueryDocSchema },
   responses: {
@@ -64,12 +82,13 @@ const eventStreamRoute = createRoute({
       description: 'Open SSE stream of domain-change events',
     },
     401: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Forbidden' },
   },
 })
 
 // One SSE stream multiplexing several domains via named events:
-//   event: jobs           → { activeCount }                 background-job set changed (always on)
-//   event: notifications  → { unreadCount }                 unread count changed (always on)
+//   event: jobs           → { activeCount }                 browser user's background jobs changed
+//   event: notifications  → { unreadCount }                 browser user's unread count changed
 //   event: download-tasks → { items, total, page, pageSize } download tasks changed (opt-in via ?downloadTasks=1)
 //   event: heartbeat      → { at }                          no change for HEARTBEAT_INTERVAL_MS
 //   event: error          → { message }                     a domain query failed this tick
@@ -93,6 +112,7 @@ export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, (c) => {
 
   const params = {
     platform: c.get('platform'),
+    scope: c.get('principal')?.kind === 'api-key' ? ('download-tasks-only' as const) : ('user' as const),
     orgId: c.get('orgId'),
     userId: c.get('userId'),
     wantsDownloadTasks: query.downloadTasks === '1',

@@ -38,6 +38,7 @@ const POLL = 2000
 
 const baseParams = (over: Partial<EventsParams> = {}): EventsParams => ({
   platform,
+  scope: 'user',
   orgId: 'o1',
   userId: 'u1',
   wantsDownloadTasks: false,
@@ -158,6 +159,20 @@ describe('streamEvents', () => {
     await run(deps, baseParams({ orgId: null, userId: null }), 2)
     expect(list).not.toHaveBeenCalled()
     expect(unreadCount).not.toHaveBeenCalled()
+  })
+
+  it('limits download-tasks-only scope to the org-scoped download-task domain', async () => {
+    vi.mocked(listDownloadTasks).mockResolvedValue({ items: [task('d1', 't0')], total: 1 })
+    const { deps, list, unreadCount } = makeDeps()
+
+    const { events } = await run(deps, baseParams({ scope: 'download-tasks-only', wantsDownloadTasks: true }), 2)
+
+    expect(list).not.toHaveBeenCalled()
+    expect(unreadCount).not.toHaveBeenCalled()
+    expect(listDownloadTasks).toHaveBeenCalledWith(deps, platform, expect.objectContaining({ orgId: 'o1' }))
+    expect(events.filter((event) => event.event === 'download-tasks')).toEqual([
+      { event: 'download-tasks', data: { items: [task('d1', 't0')], total: 1, page: 1, pageSize: 50 } },
+    ])
   })
 
   describe('download tasks (opt-in)', () => {

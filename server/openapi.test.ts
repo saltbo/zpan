@@ -51,6 +51,20 @@ describe('global OpenAPI document', () => {
     expect(html).toContain('/api/openapi.json')
   })
 
+  it('documents the organization API-key event-stream authorization contract', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      paths: Record<string, { get?: { description?: string; responses?: Record<string, { description?: string }> } }>
+    }
+    const events = doc.paths['/api/events']?.get
+
+    expect(events?.responses?.['403']?.description).toBe('Forbidden')
+    expect(events?.description).toContain('Organization API keys')
+    expect(events?.description).toContain('remoteDownload:read')
+    expect(events?.description).toContain('?downloadTasks=1')
+  })
+
   it("merges better-auth's auto-generated schema (incl. the device flow) into the same doc", async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
