@@ -603,7 +603,7 @@ FROM (
     ${count} AS count_value, ${bytes} AS bytes_value, ${uniqueCount} AS unique_value, ${quality} AS quality_value
   FROM ${source.source}
   ${where ? `WHERE ${where}` : ''}
-  GROUP BY bucket_start, org_id${dimensionKey ? ', dimension_value' : ''}
+  GROUP BY 1, 2${dimensionKey ? ', 3' : ''}
 ) rollup
 WHERE true
 ON CONFLICT(bucket_start, org_id, metric_key, dimension_key, dimension_value)

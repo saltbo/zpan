@@ -74,10 +74,16 @@ describe('admin stats backfill', () => {
         UNIQUE(bucket_start, org_id, metric_key, dimension_key, dimension_value)
       );
 
-      INSERT INTO user VALUES ('u0', 0), ('u1', ${historyStartMs});
-      INSERT INTO account VALUES ('a1', 'u1', 'github', ${historyStartMs});
-      INSERT INTO organization VALUES ('o1', '{"type":"personal"}', ${historyStartMs});
-      INSERT INTO member VALUES ('m1', 'o1', 'u1', ${historyStartMs});
+      INSERT INTO user VALUES ('u0', 0), ('u1', ${historyStartMs}), ('u2', ${historyStartMs + 1000});
+      INSERT INTO account VALUES
+        ('a1', 'u1', 'github', ${historyStartMs}),
+        ('a2', 'u2', 'github', ${historyStartMs + 1000});
+      INSERT INTO organization VALUES
+        ('o1', '{"type":"personal"}', ${historyStartMs}),
+        ('o2', '{"type":"personal"}', ${historyStartMs + 1000});
+      INSERT INTO member VALUES
+        ('m1', 'o1', 'u1', ${historyStartMs}),
+        ('m2', 'o2', 'u2', ${historyStartMs + 1000});
       INSERT INTO matters VALUES ('f1', 512, 0);
       INSERT INTO shares VALUES ('s1', 'landing', 'f1', 'o1', 'active', NULL, 10, 0, 1, ${eventSec});
       INSERT INTO activity_events VALUES
@@ -156,8 +162,8 @@ describe('admin stats backfill', () => {
       openCounterMarkers: 0,
       rawUploadAttempts: 1,
       rollupUploadAttempts: 1,
-      rawUserSignups: 1,
-      rollupUserSignups: 1,
+      rawUserSignups: 2,
+      rollupUserSignups: 2,
       rawSharesCreated: 1,
       rollupSharesCreated: 1,
       rawFailedDownloads: 1,
@@ -202,7 +208,7 @@ describe('admin stats backfill', () => {
           "SELECT count AS value FROM stats_rollups_hourly WHERE metric_key = 'user.signup' AND dimension_key = 'provider' AND dimension_value = 'github'",
         )
         .get(),
-    ).toEqual({ value: 1 })
+    ).toEqual({ value: 2 })
     expect(
       db.prepare("SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE metric_key = 'traffic.report_sync'").get(),
     ).toEqual({
