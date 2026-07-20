@@ -225,6 +225,30 @@ describe('admin stats backfill', () => {
       { outcome: 'completed', bytes: 512, value: 1 },
       { outcome: 'failed', bytes: 0, value: 1 },
     ])
+
+    db.exec(`
+      INSERT INTO stats_rollups_hourly VALUES
+        ('current-snapshot-marker', ${currentHourMs}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${currentHourMs}),
+        ('current-snapshot-gauge', ${currentHourMs}, '', 'storage.used', '', '', 0, 1024, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${currentHourMs});
+    `)
+    const snapshotSummary = Object.assign(
+      {},
+      ...splitSqlStatements(validationSql).map((statement) =>
+        JSON.parse((db.prepare(statement).get() as { summary: string }).summary),
+      ),
+    ) as Record<string, number>
+    expect(snapshotSummary.orphanRollupBuckets).toBe(0)
+
+    db.prepare("DELETE FROM stats_rollups_hourly WHERE id = 'current-snapshot-marker'").run()
+    const missingMarkerSummary = Object.assign(
+      {},
+      ...splitSqlStatements(validationSql).map((statement) =>
+        JSON.parse((db.prepare(statement).get() as { summary: string }).summary),
+      ),
+    ) as Record<string, number>
+    expect(missingMarkerSummary.orphanRollupBuckets).toBe(1)
     db.close()
   })
 })
