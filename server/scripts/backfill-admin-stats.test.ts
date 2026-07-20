@@ -1,6 +1,11 @@
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
-import { buildBackfillSql, buildValidationSql, splitSqlStatements } from '../../scripts/backfill-admin-stats'
+import {
+  assertBackfillValidation,
+  buildBackfillSql,
+  buildValidationSql,
+  splitSqlStatements,
+} from '../../scripts/backfill-admin-stats'
 
 describe('admin stats backfill', () => {
   it('splits SQL batches without breaking quoted semicolons', () => {
@@ -10,6 +15,14 @@ describe('admin stats backfill', () => {
       'SELECT 3',
     ])
     expect(() => splitSqlStatements("SELECT 'unterminated")).toThrow('admin_stats_backfill_unterminated_sql_string')
+  })
+
+  it('rejects required dimension mismatches', () => {
+    expect(() =>
+      assertBackfillValidation({ requiredDimensionMismatchGroups: 1 } as Parameters<
+        typeof assertBackfillValidation
+      >[0]),
+    ).toThrow('"requiredDimensionMismatchGroups":1')
   })
 
   it('recovers exact available facts and is idempotent', () => {

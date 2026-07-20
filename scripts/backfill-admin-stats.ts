@@ -1272,7 +1272,7 @@ function apply(target: Target, sql: string): void {
   }
 }
 
-function assertBackfillValidation(summary: ValidationSummary): void {
+export function assertBackfillValidation(summary: ValidationSummary): void {
   const mismatches = [
     ['upload events', summary.rawUploadEvents, summary.rollupUploadEvents],
     ['upload bytes', summary.rawUploadBytes, summary.rollupUploadBytes],
