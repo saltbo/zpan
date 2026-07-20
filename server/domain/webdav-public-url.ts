@@ -1,6 +1,7 @@
 import { normalizePublicOrigin } from './site-public-origin'
 
 export type WebDavMountPath = '' | '/dav'
+export const WEBDAV_AUTH_CHALLENGE = 'Basic realm="ZPan WebDAV"'
 
 export function webDavPublicUrl(sitePublicOrigin: string | null | undefined): URL | null {
   const origin = normalizePublicOrigin(sitePublicOrigin)
@@ -25,7 +26,18 @@ export function webDavMountPath(requestUrl: string, sitePublicOrigin: string | n
   return isWebDavPublicRequest(requestUrl, sitePublicOrigin) ? '' : '/dav'
 }
 
-export function effectiveWebDavUrl(requestUrl: string, sitePublicOrigin: string | null | undefined): string {
+export function webDavPathUrl(requestUrl: string, sitePublicOrigin: string | null | undefined): string {
+  const origin = normalizePublicOrigin(sitePublicOrigin) ?? new URL(requestUrl).origin
+  return new URL('/dav/', `${origin}/`).toString()
+}
+
+export function effectiveWebDavUrl(
+  requestUrl: string,
+  sitePublicOrigin: string | null | undefined,
+  verifiedOrigin: string | null | undefined,
+): string {
   const publicUrl = webDavPublicUrl(sitePublicOrigin)
-  return publicUrl ? `${publicUrl.origin}/` : new URL('/dav/', requestUrl).toString()
+  return publicUrl && publicUrl.origin === normalizePublicOrigin(verifiedOrigin)
+    ? `${publicUrl.origin}/`
+    : webDavPathUrl(requestUrl, sitePublicOrigin)
 }

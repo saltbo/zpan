@@ -147,6 +147,7 @@ import {
   uploadToS3,
   upsertAuthProvider,
   verifySharePassword,
+  verifySiteWebDav,
 } from './api'
 
 function makeResponse(body: unknown, ok = true, status = 200): Response {
@@ -1911,7 +1912,7 @@ describe('api', () => {
         theme: { mode: 'preset', preset: 'default', custom: null, configured: false },
       },
       auth: { signupMode: 'invite_only', captcha: { enabled: false }, providers: [] },
-      services: { webdav: { url: 'https://dav.pan.example.com/' } },
+      services: { webdav: { url: 'https://pan.example.com/dav/' } },
     } as const
     const settings = {
       identity: config.site,
@@ -1924,6 +1925,13 @@ describe('api', () => {
         minScore: null,
       },
       quotas: { defaultOrgBytes: 1024, defaultTeamBytes: 1024, defaultMonthlyTrafficBytes: 0 },
+      webdav: {
+        pathUrl: 'https://pan.example.com/dav/',
+        candidateUrl: 'https://dav.pan.example.com/',
+        status: 'unverified',
+        lastVerifiedAt: null,
+        error: null,
+      },
     } as const
 
     it('gets the public configz document', async () => {
@@ -2018,6 +2026,21 @@ describe('api', () => {
       await expect(
         updateSiteQuotas({ defaultOrgBytes: 0, defaultTeamBytes: 0, defaultMonthlyTrafficBytes: 0 }),
       ).rejects.toThrow('invalid')
+    })
+
+    it('verifies the derived WebDAV domain', async () => {
+      const result = { ...settings.webdav, status: 'ready', lastVerifiedAt: '2026-07-20T12:00:00.000Z' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(result))
+
+      await expect(verifySiteWebDav()).resolves.toEqual(result)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/webdav/verification')
+      expect(init.method).toBe('POST')
+    })
+
+    it('throws when WebDAV verification fails at the API boundary', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
+      await expect(verifySiteWebDav()).rejects.toMatchObject({ name: 'ApiError', status: 401 })
     })
   })
 

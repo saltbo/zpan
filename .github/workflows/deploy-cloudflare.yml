@@ -202,11 +202,18 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        # Keep post-deploy hooks inside the repository deploy command so
-        # GitHub Actions and Cloudflare Workers Builds can share the same path.
         run: pnpm run deploy
 
+      - name: Clear WebDAV domain readiness
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 execute zpan-db --remote --command \
+            "INSERT INTO system_options (key, value) VALUES ('webdav_verified_origin', ''), ('webdav_verified_at', ''), ('webdav_verification_error', '') ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+
       - name: Reconcile fixed WebDAV domain
+        id: webdav
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -214,3 +221,19 @@ jobs:
           OUTPUT=$(node scripts/sync-cloudflare-webdav.mjs)
           echo "$OUTPUT"
           printf '%s\n' "$OUTPUT" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record WebDAV domain readiness
+        if: steps.webdav.outputs.origin != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WEBDAV_ORIGIN: ${{ steps.webdav.outputs.origin }}
+        run: |
+          if [[ ! "$WEBDAV_ORIGIN" =~ ^https://[A-Za-z0-9.-]+$ ]]; then
+            echo "::error::Invalid WebDAV origin returned by deployment sync"
+            exit 1
+          fi
+          VERIFIED_AT=$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')
+          pnpm exec wrangler d1 execute zpan-db --remote --command \
+            "INSERT INTO system_options (key, value) VALUES ('webdav_verified_origin', '$WEBDAV_ORIGIN'), ('webdav_verified_at', '$VERIFIED_AT'), ('webdav_verification_error', '') ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+          echo "WebDAV readiness recorded for $WEBDAV_ORIGIN" >> "$GITHUB_STEP_SUMMARY"

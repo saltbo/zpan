@@ -5,6 +5,7 @@ import {
   siteQuotaSettingsSchema,
   siteRegistrationSettingsSchema,
   siteSettingsSchema,
+  siteWebDavSettingsSchema,
   updateSiteCaptchaSchema,
   updateSiteIdentitySchema,
   updateSiteQuotasSchema,
@@ -18,6 +19,7 @@ import {
   updateSiteIdentity,
   updateSiteQuotas,
   updateSiteRegistration,
+  verifySiteWebDav,
 } from '../../usecases/site/settings'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
@@ -85,6 +87,16 @@ const updateQuotasRoute = createRoute({
   responses: { 200: jsonContent(siteQuotaSettingsSchema, 'Updated quota settings') },
 })
 
+const verifyWebDavRoute = createRoute({
+  operationId: 'verifySiteWebDav',
+  summary: 'Verify the derived WebDAV domain',
+  tags: ['Site Settings'],
+  method: 'post',
+  path: '/webdav/verification',
+  middleware: [requireAdmin] as const,
+  responses: { 200: jsonContent(siteWebDavSettingsSchema, 'Current WebDAV verification status') },
+})
+
 function actor(c: { get(key: 'userId' | 'orgId'): string | null }) {
   return { userId: c.get('userId')!, orgId: c.get('orgId')! }
 }
@@ -102,4 +114,7 @@ export const siteSettings = new OpenAPIHono<Env>()
   )
   .openapi(updateQuotasRoute, async (c) =>
     c.json(await updateSiteQuotas(c.get('deps'), actor(c), c.req.valid('json')), 200),
+  )
+  .openapi(verifyWebDavRoute, async (c) =>
+    c.json(await verifySiteWebDav(c.get('deps'), actor(c), c.req.url, fetch), 200),
   )

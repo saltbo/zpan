@@ -19,6 +19,7 @@ import type {
   SiteQuotaSettings,
   SiteRegistrationSettings,
   SiteSettings,
+  SiteWebDavSettings,
   UpdateSiteCaptchaInput,
   UpdateSiteIdentityInput,
   UpdateSiteQuotasInput,
@@ -27,6 +28,7 @@ import type {
 import { readCaptchaConfig } from '../../domain/captcha'
 import { hasFeature } from '../../domain/licensing'
 import { normalizePublicOrigin, SITE_PUBLIC_ORIGIN_KEY } from '../../domain/site-public-origin'
+import { WEBDAV_AUTH_CHALLENGE, webDavPathUrl, webDavPublicUrl } from '../../domain/webdav-public-url'
 import {
   type ActivityRepo,
   badRequest,
@@ -50,6 +52,9 @@ export const SITE_SETTING_KEYS = {
   defaultOrgQuota: 'default_org_quota',
   defaultTeamQuota: 'default_team_quota',
   defaultMonthlyTrafficQuota: 'default_org_monthly_traffic_quota',
+  webdavVerifiedOrigin: 'webdav_verified_origin',
+  webdavVerifiedAt: 'webdav_verified_at',
+  webdavVerificationError: 'webdav_verification_error',
 } as const
 
 const ALL_SETTING_KEYS = Object.values(SITE_SETTING_KEYS)
@@ -123,6 +128,23 @@ function quotasFrom(values: Map<string, string>): SiteQuotaSettings {
   }
 }
 
+function webdavFrom(values: Map<string, string>, requestUrl: string): SiteWebDavSettings {
+  const publicUrl = normalizePublicOrigin(values.get(SITE_SETTING_KEYS.publicOrigin)) ?? new URL(requestUrl).origin
+  const candidate = webDavPublicUrl(publicUrl)
+  const verifiedOrigin = normalizePublicOrigin(values.get(SITE_SETTING_KEYS.webdavVerifiedOrigin))
+  const error = values.get(SITE_SETTING_KEYS.webdavVerificationError)?.trim() || null
+  const ready = candidate !== null && candidate.origin === verifiedOrigin
+  const lastVerifiedAt = ready ? values.get(SITE_SETTING_KEYS.webdavVerifiedAt)?.trim() || null : null
+
+  return {
+    pathUrl: webDavPathUrl(requestUrl, publicUrl),
+    candidateUrl: candidate ? `${candidate.origin}/` : null,
+    status: ready ? 'ready' : error ? 'failed' : 'unverified',
+    lastVerifiedAt,
+    error: ready ? null : error,
+  }
+}
+
 async function registrationFrom(
   deps: Pick<SiteSettingsDeps, 'licenseBinding'>,
   values: Map<string, string>,
@@ -144,6 +166,7 @@ export async function getSiteSettings(
     registration: await registrationFrom(deps, values),
     captcha: captchaFrom(values),
     quotas: quotasFrom(values),
+    webdav: webdavFrom(values, requestUrl),
   }
 }
 
@@ -170,7 +193,13 @@ export async function updateSiteIdentity(
   const publicUrl = normalizePublicOrigin(input.publicUrl)
   if (!publicUrl) throw badRequest('Public URL must be an HTTP or HTTPS origin')
 
-  const current = optionMap(await deps.systemOptions.getMany([SITE_SETTING_KEYS.name, SITE_SETTING_KEYS.description]))
+  const current = optionMap(
+    await deps.systemOptions.getMany([
+      SITE_SETTING_KEYS.name,
+      SITE_SETTING_KEYS.description,
+      SITE_SETTING_KEYS.publicOrigin,
+    ]),
+  )
   const identityChanged =
     input.name !== (current.get(SITE_SETTING_KEYS.name) ?? DEFAULT_SITE_NAME) ||
     input.description !== (current.get(SITE_SETTING_KEYS.description) ?? DEFAULT_SITE_DESCRIPTION)
@@ -183,14 +212,67 @@ export async function updateSiteIdentity(
     }
   }
 
+  const publicUrlChanged = normalizePublicOrigin(current.get(SITE_SETTING_KEYS.publicOrigin)) !== publicUrl
   await deps.systemOptions.setMany([
     { key: SITE_SETTING_KEYS.name, value: input.name },
     { key: SITE_SETTING_KEYS.description, value: input.description },
     { key: SITE_SETTING_KEYS.publicOrigin, value: publicUrl },
+    ...(publicUrlChanged
+      ? [
+          { key: SITE_SETTING_KEYS.webdavVerifiedOrigin, value: '' },
+          { key: SITE_SETTING_KEYS.webdavVerifiedAt, value: '' },
+          { key: SITE_SETTING_KEYS.webdavVerificationError, value: '' },
+        ]
+      : []),
   ])
   resetSitePublicOriginCache()
   await recordUpdate(deps, actor, 'site_identity_update', ['name', 'description', 'publicUrl'])
   return { ...input, publicUrl }
+}
+
+export async function verifySiteWebDav(
+  deps: Pick<SiteSettingsDeps, 'systemOptions' | 'activity'>,
+  actor: { userId: string; orgId: string },
+  requestUrl: string,
+  fetcher: typeof fetch,
+): Promise<SiteWebDavSettings> {
+  const values = optionMap(await deps.systemOptions.getMany(ALL_SETTING_KEYS))
+  const candidate = webdavFrom(values, requestUrl).candidateUrl
+  let error: string | null = null
+
+  await deps.systemOptions.setMany([
+    { key: SITE_SETTING_KEYS.webdavVerifiedOrigin, value: '' },
+    { key: SITE_SETTING_KEYS.webdavVerifiedAt, value: '' },
+    { key: SITE_SETTING_KEYS.webdavVerificationError, value: '' },
+  ])
+
+  if (!candidate) {
+    error = 'The Public URL must use a hostname before a WebDAV domain can be verified.'
+  } else {
+    try {
+      const response = await fetcher(candidate, {
+        method: 'OPTIONS',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (response.status !== 401 || response.headers.get('WWW-Authenticate') !== WEBDAV_AUTH_CHALLENGE) {
+        error = `WebDAV verification returned HTTP ${response.status} without the expected authentication challenge.`
+      }
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : 'WebDAV verification request failed.'
+    }
+  }
+
+  const verifiedAt = error ? '' : new Date().toISOString()
+  await deps.systemOptions.setMany([
+    { key: SITE_SETTING_KEYS.webdavVerifiedOrigin, value: error || !candidate ? '' : new URL(candidate).origin },
+    { key: SITE_SETTING_KEYS.webdavVerifiedAt, value: verifiedAt },
+    { key: SITE_SETTING_KEYS.webdavVerificationError, value: error ?? '' },
+  ])
+  await recordUpdate(deps, actor, 'site_webdav_verify', ['status'])
+
+  const updatedValues = optionMap(await deps.systemOptions.getMany(ALL_SETTING_KEYS))
+  return webdavFrom(updatedValues, requestUrl)
 }
 
 export async function updateSiteRegistration(

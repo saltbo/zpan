@@ -131,6 +131,10 @@ export function updateSiteQuotas(input: UpdateSiteQuotasInput) {
   return unwrap<SiteSettings['quotas']>(siteSettingsApi.quotas.$put({ json: input }))
 }
 
+export function verifySiteWebDav() {
+  return unwrap<SiteSettings['webdav']>(siteSettingsApi.webdav.verification.$post())
+}
+
 export type UserQuota = Pick<
   OrgQuota,
   | 'orgId'

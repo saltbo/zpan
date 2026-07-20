@@ -40,7 +40,7 @@ describe('getSiteConfig', () => {
         theme: { mode: 'preset', preset: 'default', custom: null, configured: false },
       },
       auth: { signupMode: SignupMode.INVITE_ONLY, captcha: { enabled: false }, providers: [] },
-      services: { webdav: { url: 'https://dav.pan.example.com/' } },
+      services: { webdav: { url: 'https://pan.example.com/dav/' } },
     })
   })
 
@@ -58,6 +58,7 @@ describe('getSiteConfig', () => {
         ['site_name', 'My ZPan'],
         ['site_description', 'Files'],
         ['site_public_origin', 'https://files.example.com'],
+        ['webdav_verified_origin', 'https://dav.files.example.com'],
         ['auth_signup_mode', SignupMode.CLOSED],
         ['captcha_enabled', 'true'],
         ['captcha_provider', 'hcaptcha'],
@@ -85,5 +86,17 @@ describe('getSiteConfig', () => {
     expect(JSON.stringify(config)).not.toContain('captcha-secret')
     expect(JSON.stringify(config)).not.toContain('oauth-secret')
     expect(JSON.stringify(config)).not.toContain('client-id')
+  })
+
+  it('falls back to the path URL when the verified origin belongs to an old Public URL', async () => {
+    const config = await getSiteConfig(
+      makeDeps([
+        ['site_public_origin', 'https://files.example.com'],
+        ['webdav_verified_origin', 'https://dav.old.example.com'],
+      ]),
+      'https://request.example.com/api/configz',
+    )
+
+    expect(config.services.webdav.url).toBe('https://files.example.com/dav/')
   })
 })

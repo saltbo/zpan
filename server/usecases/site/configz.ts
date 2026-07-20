@@ -31,6 +31,7 @@ const CONFIG_KEYS = [
   SITE_SETTING_KEYS.captchaSiteKey,
   SITE_SETTING_KEYS.captchaSecretKey,
   SITE_SETTING_KEYS.captchaMinScore,
+  SITE_SETTING_KEYS.webdavVerifiedOrigin,
 ]
 
 function brandingView(config: Awaited<ReturnType<typeof readBranding>>): SiteBranding {
@@ -84,6 +85,10 @@ export async function getSiteConfig(deps: ConfigzDeps, requestUrl: string): Prom
       captcha: captcha ? { enabled: true, provider: captcha.provider, siteKey: captcha.siteKey } : { enabled: false },
       providers,
     },
-    services: { webdav: { url: effectiveWebDavUrl(requestUrl, publicUrl) } },
+    services: {
+      webdav: {
+        url: effectiveWebDavUrl(requestUrl, publicUrl, values.get(SITE_SETTING_KEYS.webdavVerifiedOrigin)),
+      },
+    },
   }
 }

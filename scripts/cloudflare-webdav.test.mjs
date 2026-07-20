@@ -6,6 +6,7 @@ import {
   syncCloudflareWebDav,
   webDavHostname,
 } from './cloudflare-webdav.mjs'
+import { webDavOrigin } from './sync-cloudflare-webdav.mjs'
 
 function envelope(result, init = {}) {
   return Response.json({ success: true, errors: [], messages: [], result, ...init })
@@ -98,6 +99,8 @@ describe('Cloudflare WebDAV deployment sync', () => {
     expect(rule.ref).toBe(managedRuleRef('dav.files.example.com'))
     expect(rule.expression).toBe('http.host eq "dav.files.example.com"')
     expect(rule.action_parameters.uri.path.expression).toBe('concat("/dav", http.request.uri.path)')
+    expect(webDavOrigin({ hostname: 'dav.files.example.com' })).toBe('https://dav.files.example.com')
+    expect(webDavOrigin({ hostname: null })).toBe('')
   })
 
   it('identifies the primary domain and excludes its fixed DAV companion', () => {

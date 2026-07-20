@@ -7,9 +7,10 @@ import {
   DEFAULT_SITE_NAME,
   SignupMode,
 } from '@shared/constants'
+import type { SiteSettings } from '@shared/schemas'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Database, Globe2, ShieldCheck, UserPlus } from 'lucide-react'
+import { Database, Globe2, Network, ShieldCheck, UserPlus } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +32,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { siteConfigQueryKey } from '@/hooks/use-site-config'
 import { siteSettingsQueryKey, useSiteSettings } from '@/hooks/use-site-settings'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { updateSiteCaptcha, updateSiteIdentity, updateSiteQuotas, updateSiteRegistration } from '@/lib/api'
+import {
+  updateSiteCaptcha,
+  updateSiteIdentity,
+  updateSiteQuotas,
+  updateSiteRegistration,
+  verifySiteWebDav,
+} from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/settings/')({
   component: SettingsPage,
@@ -73,7 +80,7 @@ const settingsSchema = z.object({
 })
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
-type SettingsDrawer = 'identity' | 'registration' | 'captcha' | 'storage' | null
+type SettingsDrawer = 'identity' | 'registration' | 'captcha' | 'webdav' | 'storage' | null
 type FieldControlProps = {
   id?: string
   'aria-invalid'?: boolean
@@ -171,6 +178,7 @@ export function SettingsPage() {
   const captchaSiteKey = settings?.captcha.siteKey ?? ''
   const captchaSecretConfigured = settings?.captcha.secretConfigured ?? false
   const captchaMinScore = settings?.captcha.minScore === null ? '' : String(settings?.captcha.minScore ?? '')
+  const webdav = settings?.webdav
   const { hasFeature } = useEntitlement()
   const hasWhiteLabel = hasFeature('white_label')
   const hasOpenRegistration = hasFeature('open_registration')
@@ -339,6 +347,22 @@ export function SettingsPage() {
     },
   })
 
+  const webdavVerificationMutation = useMutation({
+    mutationFn: verifySiteWebDav,
+    onSuccess: (result) => {
+      queryClient.setQueryData<SiteSettings>(siteSettingsQueryKey, (current) =>
+        current ? { ...current, webdav: result } : current,
+      )
+      queryClient.invalidateQueries({ queryKey: siteSettingsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteConfigQueryKey })
+      if (result.status === 'ready') toast.success(t('admin.settings.webdavVerified'))
+      else toast.error(result.error ?? t('admin.settings.webdavVerificationFailed'))
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
+  })
+
   const quotaUnit = form.watch('quotaUnit')
   const teamQuotaUnit = form.watch('teamQuotaUnit')
   const registrationsEnabled = form.watch('registrationsEnabled')
@@ -417,6 +441,26 @@ export function SettingsPage() {
             }
             editLabel={t('common.edit')}
             onEdit={() => setSettingsDrawer('captcha')}
+          />
+        </SettingsSection>
+
+        <SettingsSection title={t('admin.settings.webdavSection')}>
+          <SettingsItemCard
+            icon={<Network className="size-4" />}
+            title={t('admin.settings.webdavTitle')}
+            description={t('admin.settings.webdavDescription')}
+            details={webdav?.status === 'ready' ? webdav.candidateUrl : webdav?.pathUrl}
+            status={
+              <Badge
+                variant={
+                  webdav?.status === 'ready' ? 'default' : webdav?.status === 'failed' ? 'destructive' : 'secondary'
+                }
+              >
+                {t(`admin.settings.webdavStatus.${webdav?.status ?? 'unverified'}`)}
+              </Badge>
+            }
+            editLabel={t('admin.settings.webdavDetails')}
+            onEdit={() => setSettingsDrawer('webdav')}
           />
         </SettingsSection>
 
@@ -505,6 +549,64 @@ export function SettingsPage() {
         >
           <Input placeholder={t('admin.settings.sitePublicOriginPlaceholder')} {...form.register('sitePublicOrigin')} />
         </AdminFormField>
+      </AdminFormDrawer>
+
+      <AdminFormDrawer
+        open={settingsDrawer === 'webdav'}
+        onOpenChange={(open) => !open && closeSettingsDrawer()}
+        title={t('admin.settings.webdavTitle')}
+        description={t('admin.settings.webdavDrawerDescription')}
+        bodyClassName="grid auto-rows-min content-start gap-4"
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => closeSettingsDrawer()}>
+              {t('common.close')}
+            </Button>
+            <Button
+              type="button"
+              disabled={!webdav?.candidateUrl || webdavVerificationMutation.isPending}
+              onClick={() => webdavVerificationMutation.mutate()}
+            >
+              {webdavVerificationMutation.isPending
+                ? t('admin.settings.webdavVerifying')
+                : t('admin.settings.webdavVerify')}
+            </Button>
+          </>
+        }
+      >
+        <AdminFormField
+          id="webdavPathUrl"
+          label={t('admin.settings.webdavPathUrl')}
+          help={t('admin.settings.webdavPathUrlHint')}
+        >
+          <Input id="webdavPathUrl" readOnly value={webdav?.pathUrl ?? ''} />
+        </AdminFormField>
+        <AdminFormField
+          id="webdavCandidateUrl"
+          label={t('admin.settings.webdavCandidateUrl')}
+          help={t('admin.settings.webdavCandidateUrlHint')}
+        >
+          <Input id="webdavCandidateUrl" readOnly value={webdav?.candidateUrl ?? ''} />
+        </AdminFormField>
+        <div className="rounded-md border bg-muted/40 p-3 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium">{t('admin.settings.webdavVerificationStatus')}</span>
+            <Badge
+              variant={
+                webdav?.status === 'ready' ? 'default' : webdav?.status === 'failed' ? 'destructive' : 'secondary'
+              }
+            >
+              {t(`admin.settings.webdavStatus.${webdav?.status ?? 'unverified'}`)}
+            </Badge>
+          </div>
+          {webdav?.lastVerifiedAt && (
+            <p className="mt-2 text-muted-foreground">
+              {t('admin.settings.webdavLastVerified', { value: new Date(webdav.lastVerifiedAt).toLocaleString() })}
+            </p>
+          )}
+          {webdav?.error && <p className="mt-2 text-destructive">{webdav.error}</p>}
+        </div>
+        <p className="text-muted-foreground text-xs leading-5">{t('admin.settings.webdavVerificationHint')}</p>
       </AdminFormDrawer>
 
       <AdminFormDrawer

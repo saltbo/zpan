@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { ApiKeyTemplate } from '../../shared/api-key-templates'
 import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { encodeDavPathSegment, joinMatterPath, workspaceHref } from '../domain/webdav'
-import { type WebDavMountPath, webDavPublicUrl } from '../domain/webdav-public-url'
+import { WEBDAV_AUTH_CHALLENGE, type WebDavMountPath, webDavPublicUrl } from '../domain/webdav-public-url'
 import {
   type DavEntry,
   davEtag,
@@ -59,7 +59,6 @@ import {
 const READ_METHODS = new Set(['OPTIONS', 'PROPFIND', 'GET', 'HEAD'])
 const WRITE_METHODS = new Set(['PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY', 'PROPPATCH', 'LOCK', 'UNLOCK'])
 const WEBDAV_RESOURCE = 'webdav'
-const WEBDAV_REALM = 'Basic realm="ZPan WebDAV"'
 
 type DavContext = Context<Env>
 type DavAuth = { userId: string }
@@ -93,7 +92,7 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
 }
 
 function unauthorized(): Response {
-  return new Response('Unauthorized', { status: 401, headers: { 'WWW-Authenticate': WEBDAV_REALM } })
+  return new Response('Unauthorized', { status: 401, headers: { 'WWW-Authenticate': WEBDAV_AUTH_CHALLENGE } })
 }
 
 function rateLimited(error: ApiKeyRateLimitError): Response {

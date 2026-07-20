@@ -146,6 +146,7 @@ export type {
   SiteQuotaSettings,
   SiteRegistrationSettings,
   SiteSettings,
+  SiteWebDavSettings,
   UpdateSiteCaptchaInput,
   UpdateSiteIdentityInput,
   UpdateSiteQuotasInput,
@@ -163,10 +164,12 @@ export {
   siteQuotaSettingsSchema,
   siteRegistrationSettingsSchema,
   siteSettingsSchema,
+  siteWebDavSettingsSchema,
   updateSiteCaptchaSchema,
   updateSiteIdentitySchema,
   updateSiteQuotasSchema,
   updateSiteRegistrationSchema,
+  webDavVerificationStatusSchema,
 } from './site-config'
 export type { CreateStorageInput, UpdateStorageEgressBillingInput, UpdateStorageInput } from './storage'
 export { createStorageSchema, updateStorageEgressBillingSchema, updateStorageSchema } from './storage'

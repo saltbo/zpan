@@ -504,6 +504,27 @@ func (e SiteBrandingThemeMode) Valid() bool {
 	}
 }
 
+// Defines values for WebDavVerificationStatus.
+const (
+	WebDavVerificationStatusFailed     WebDavVerificationStatus = "failed"
+	WebDavVerificationStatusReady      WebDavVerificationStatus = "ready"
+	WebDavVerificationStatusUnverified WebDavVerificationStatus = "unverified"
+)
+
+// Valid indicates whether the value is a known member of the WebDavVerificationStatus enum.
+func (e WebDavVerificationStatus) Valid() bool {
+	switch e {
+	case WebDavVerificationStatusFailed:
+		return true
+	case WebDavVerificationStatusReady:
+		return true
+	case WebDavVerificationStatusUnverified:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ChangeEmail200JSONResponseBodyMessage.
 const (
 	ChangeEmail200JSONResponseBodyMessageEmailUpdated          ChangeEmail200JSONResponseBodyMessage = "Email updated"
@@ -1361,13 +1382,13 @@ func (e UpdateStorageJSONBodyStatus) Valid() bool {
 
 // Defines values for CancelOrderJSONBodyStatus.
 const (
-	Canceled CancelOrderJSONBodyStatus = "canceled"
+	CancelOrderJSONBodyStatusCanceled CancelOrderJSONBodyStatus = "canceled"
 )
 
 // Valid indicates whether the value is a known member of the CancelOrderJSONBodyStatus enum.
 func (e CancelOrderJSONBodyStatus) Valid() bool {
 	switch e {
-	case Canceled:
+	case CancelOrderJSONBodyStatusCanceled:
 		return true
 	default:
 		return false
@@ -2488,6 +2509,16 @@ type SiteSettings struct {
 	Identity     SiteIdentitySettings     `json:"identity"`
 	Quotas       SiteQuotaSettings        `json:"quotas"`
 	Registration SiteRegistrationSettings `json:"registration"`
+	Webdav       SiteWebDavSettings       `json:"webdav"`
+}
+
+// SiteWebDavSettings defines model for SiteWebDavSettings.
+type SiteWebDavSettings struct {
+	CandidateUrl   *string                  `json:"candidateUrl"`
+	Error          *string                  `json:"error"`
+	LastVerifiedAt *time.Time               `json:"lastVerifiedAt"`
+	PathUrl        string                   `json:"pathUrl"`
+	Status         WebDavVerificationStatus `json:"status"`
 }
 
 // Storage defines model for Storage.
@@ -2629,6 +2660,9 @@ type User struct {
 	UpdatedAt       time.Time  `json:"updatedAt"`
 	Username        *string    `json:"username,omitempty"`
 }
+
+// WebDavVerificationStatus defines model for WebDavVerificationStatus.
+type WebDavVerificationStatus string
 
 // BanUserJSONBody defines parameters for BanUser.
 type BanUserJSONBody struct {
@@ -5370,6 +5404,9 @@ type ClientInterface interface {
 	UpdateSiteRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateSiteRegistration(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// VerifySiteWebDav request
+	VerifySiteWebDav(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListStorages request
 	ListStorages(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -8666,6 +8703,18 @@ func (c *Client) UpdateSiteRegistrationWithBody(ctx context.Context, contentType
 
 func (c *Client) UpdateSiteRegistration(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateSiteRegistrationRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) VerifySiteWebDav(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVerifySiteWebDavRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -16796,6 +16845,33 @@ func NewUpdateSiteRegistrationRequestWithBody(server string, contentType string,
 	return req, nil
 }
 
+// NewVerifySiteWebDavRequest generates requests for VerifySiteWebDav
+func NewVerifySiteWebDavRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/webdav/verification")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListStoragesRequest generates requests for ListStorages
 func NewListStoragesRequest(server string) (*http.Request, error) {
 	var err error
@@ -19243,6 +19319,9 @@ type ClientWithResponsesInterface interface {
 	UpdateSiteRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteRegistrationResponse, error)
 
 	UpdateSiteRegistrationWithResponse(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteRegistrationResponse, error)
+
+	// VerifySiteWebDavWithResponse request
+	VerifySiteWebDavWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*VerifySiteWebDavResponse, error)
 
 	// ListStoragesWithResponse request
 	ListStoragesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListStoragesResponse, error)
@@ -26761,6 +26840,36 @@ func (r UpdateSiteRegistrationResponse) ContentType() string {
 	return ""
 }
 
+type VerifySiteWebDavResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SiteWebDavSettings
+}
+
+// Status returns HTTPResponse.Status
+func (r VerifySiteWebDavResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r VerifySiteWebDavResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r VerifySiteWebDavResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListStoragesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -30435,6 +30544,15 @@ func (c *ClientWithResponses) UpdateSiteRegistrationWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParseUpdateSiteRegistrationResponse(rsp)
+}
+
+// VerifySiteWebDavWithResponse request returning *VerifySiteWebDavResponse
+func (c *ClientWithResponses) VerifySiteWebDavWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*VerifySiteWebDavResponse, error) {
+	rsp, err := c.VerifySiteWebDav(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVerifySiteWebDavResponse(rsp)
 }
 
 // ListStoragesWithResponse request returning *ListStoragesResponse
@@ -41377,6 +41495,32 @@ func ParseUpdateSiteRegistrationResponse(rsp *http.Response) (*UpdateSiteRegistr
 			return nil, err
 		}
 		response.JSON402 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseVerifySiteWebDavResponse parses an HTTP response from a VerifySiteWebDavWithResponse call
+func ParseVerifySiteWebDavResponse(rsp *http.Response) (*VerifySiteWebDavResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &VerifySiteWebDavResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SiteWebDavSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 

@@ -3,7 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { updateSiteCaptcha, updateSiteIdentity, updateSiteQuotas, updateSiteRegistration } from '@/lib/api'
+import {
+  updateSiteCaptcha,
+  updateSiteIdentity,
+  updateSiteQuotas,
+  updateSiteRegistration,
+  verifySiteWebDav,
+} from '@/lib/api'
 import { SettingsPage } from './index'
 
 const state = vi.hoisted(() => ({
@@ -22,6 +28,13 @@ const state = vi.hoisted(() => ({
       defaultOrgBytes: 1073741824,
       defaultTeamBytes: 1073741824,
       defaultMonthlyTrafficBytes: 0,
+    },
+    webdav: {
+      pathUrl: 'https://zpan.example.com/dav/',
+      candidateUrl: 'https://dav.zpan.example.com/',
+      status: 'unverified',
+      lastVerifiedAt: null,
+      error: null,
     },
   },
 }))
@@ -46,6 +59,7 @@ vi.mock('@/lib/api', () => ({
   updateSiteRegistration: vi.fn(),
   updateSiteCaptcha: vi.fn(),
   updateSiteQuotas: vi.fn(),
+  verifySiteWebDav: vi.fn(),
 }))
 
 function renderSettingsPage() {
@@ -59,13 +73,13 @@ function renderSettingsPage() {
   )
 }
 
-function openSection(view: ReturnType<typeof renderSettingsPage>, title: string) {
+function openSection(view: ReturnType<typeof renderSettingsPage>, title: string, action = 'common.edit') {
   const section = view
     .getAllByText(title)
     .map((element) => element.closest('[data-settings-row]'))
     .find(Boolean)
   if (!section) throw new Error(`${title} section not found`)
-  fireEvent.click(within(section as HTMLElement).getByRole('button', { name: 'common.edit' }))
+  fireEvent.click(within(section as HTMLElement).getByRole('button', { name: action }))
 }
 
 beforeEach(() => {
@@ -175,5 +189,24 @@ describe('SettingsPage', () => {
 
   it('shows email configuration on the settings page', () => {
     expect(renderSettingsPage().getByText('email-config')).toBeTruthy()
+  })
+
+  it('verifies the derived WebDAV domain from its settings drawer', async () => {
+    vi.mocked(verifySiteWebDav).mockResolvedValueOnce({
+      ...state.settings.webdav,
+      status: 'ready',
+      lastVerifiedAt: '2026-07-20T12:00:00.000Z',
+    })
+    const view = renderSettingsPage()
+    openSection(view, 'admin.settings.webdavTitle', 'admin.settings.webdavDetails')
+
+    expect(view.getByLabelText('admin.settings.webdavCandidateUrl')).toHaveProperty(
+      'value',
+      'https://dav.zpan.example.com/',
+    )
+    fireEvent.click(view.getByRole('button', { name: 'admin.settings.webdavVerify' }))
+
+    await waitFor(() => expect(verifySiteWebDav).toHaveBeenCalledOnce())
+    expect(toast.success).toHaveBeenCalledWith('admin.settings.webdavVerified')
   })
 })

@@ -17,7 +17,7 @@ describe('[CF] System API', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { site: { publicUrl: string }; services: { webdav: { url: string } } }
     expect(body.site.publicUrl).toBe('https://pan.example.com')
-    expect(body.services.webdav.url).toBe('https://dav.pan.example.com/')
+    expect(body.services.webdav.url).toBe('https://pan.example.com/dav/')
   })
 
   it('does not expose the removed generic Options API', async () => {

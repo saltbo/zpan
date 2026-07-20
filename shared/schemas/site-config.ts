@@ -109,12 +109,27 @@ export const siteQuotaSettingsSchema = z
   })
   .openapi('SiteQuotaSettings')
 
+export const webDavVerificationStatusSchema = z
+  .enum(['unverified', 'ready', 'failed'])
+  .openapi('WebDavVerificationStatus')
+
+export const siteWebDavSettingsSchema = z
+  .object({
+    pathUrl: z.url(),
+    candidateUrl: z.url().nullable(),
+    status: webDavVerificationStatusSchema,
+    lastVerifiedAt: z.iso.datetime().nullable(),
+    error: z.string().nullable(),
+  })
+  .openapi('SiteWebDavSettings')
+
 export const siteSettingsSchema = z
   .object({
     identity: siteIdentitySettingsSchema,
     registration: siteRegistrationSettingsSchema,
     captcha: siteCaptchaSettingsSchema,
     quotas: siteQuotaSettingsSchema,
+    webdav: siteWebDavSettingsSchema,
   })
   .openapi('SiteSettings')
 
@@ -138,6 +153,7 @@ export type SiteIdentitySettings = z.infer<typeof siteIdentitySettingsSchema>
 export type SiteRegistrationSettings = z.infer<typeof siteRegistrationSettingsSchema>
 export type SiteCaptchaSettings = z.infer<typeof siteCaptchaSettingsSchema>
 export type SiteQuotaSettings = z.infer<typeof siteQuotaSettingsSchema>
+export type SiteWebDavSettings = z.infer<typeof siteWebDavSettingsSchema>
 export type UpdateSiteIdentityInput = z.infer<typeof updateSiteIdentitySchema>
 export type UpdateSiteRegistrationInput = z.infer<typeof updateSiteRegistrationSchema>
 export type UpdateSiteCaptchaInput = z.infer<typeof updateSiteCaptchaSchema>

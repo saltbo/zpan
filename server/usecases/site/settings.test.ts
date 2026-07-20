@@ -11,6 +11,7 @@ import {
   updateSiteIdentity,
   updateSiteQuotas,
   updateSiteRegistration,
+  verifySiteWebDav,
 } from './settings'
 
 vi.mock('./licensing', () => ({ loadBindingState: vi.fn(), resolveEffectiveSignupMode: vi.fn() }))
@@ -75,6 +76,13 @@ describe('site settings usecase', () => {
         defaultTeamBytes: DEFAULT_ORG_QUOTA,
         defaultMonthlyTrafficBytes: DEFAULT_ORG_TRAFFIC_QUOTA,
       },
+      webdav: {
+        pathUrl: 'https://pan.example.com/dav/',
+        candidateUrl: 'https://dav.pan.example.com/',
+        status: 'unverified',
+        lastVerifiedAt: null,
+        error: null,
+      },
     })
     expect(JSON.stringify(settings)).not.toContain('secretKey')
   })
@@ -93,6 +101,13 @@ describe('site settings usecase', () => {
       expect.arrayContaining([{ key: 'site_public_origin', value: 'https://files.example.com' }]),
     )
     expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'site_identity_update' }))
+    expect(setMany).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { key: 'webdav_verified_origin', value: '' },
+        { key: 'webdav_verified_at', value: '' },
+        { key: 'webdav_verification_error', value: '' },
+      ]),
+    )
   })
 
   it('requires white-label only when name or description changes', async () => {
@@ -171,5 +186,57 @@ describe('site settings usecase', () => {
       { key: 'default_team_quota', value: '2048' },
       { key: 'default_org_monthly_traffic_quota', value: '4096' },
     ])
+  })
+
+  it('verifies and records the derived WebDAV origin', async () => {
+    const { deps, values, record } = makeDeps([['site_public_origin', 'https://files.example.com']])
+    const fetcher = vi.fn(
+      async () =>
+        new Response('Unauthorized', {
+          status: 401,
+          headers: { 'WWW-Authenticate': 'Basic realm="ZPan WebDAV"' },
+        }),
+    ) as typeof fetch
+
+    const result = await verifySiteWebDav(
+      deps,
+      actor,
+      'https://files.example.com/api/site/settings/webdav/verification',
+      fetcher,
+    )
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://dav.files.example.com/',
+      expect.objectContaining({ method: 'OPTIONS', redirect: 'manual' }),
+    )
+    expect(result).toMatchObject({
+      candidateUrl: 'https://dav.files.example.com/',
+      status: 'ready',
+      error: null,
+    })
+    expect(result.lastVerifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(values.get('webdav_verified_origin')).toBe('https://dav.files.example.com')
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'site_webdav_verify' }))
+  })
+
+  it('stores a failed verification and keeps the path URL available', async () => {
+    const { deps, values } = makeDeps([['site_public_origin', 'https://files.example.com']])
+    const fetcher = vi.fn(async () => new Response('Not Found', { status: 404 })) as typeof fetch
+
+    const result = await verifySiteWebDav(
+      deps,
+      actor,
+      'https://files.example.com/api/site/settings/webdav/verification',
+      fetcher,
+    )
+
+    expect(result).toEqual({
+      pathUrl: 'https://files.example.com/dav/',
+      candidateUrl: 'https://dav.files.example.com/',
+      status: 'failed',
+      lastVerifiedAt: null,
+      error: 'WebDAV verification returned HTTP 404 without the expected authentication challenge.',
+    })
+    expect(values.get('webdav_verified_origin')).toBe('')
   })
 })

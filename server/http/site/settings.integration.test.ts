@@ -1,5 +1,5 @@
 import { SignupMode } from '@shared/constants'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { adminHeaders, createTestApp } from '../../test/setup.js'
 
 async function put(
@@ -25,7 +25,7 @@ describe('Site configuration API', () => {
     expect(body).toMatchObject({
       site: { name: 'ZPan', description: '', publicUrl: 'https://pan.example.com' },
       auth: { captcha: { enabled: false }, providers: [] },
-      services: { webdav: { url: 'https://dav.pan.example.com/' } },
+      services: { webdav: { url: 'https://pan.example.com/dav/' } },
     })
     expect(body).toHaveProperty('branding')
   })
@@ -42,10 +42,15 @@ describe('Site configuration API', () => {
       identity: { name: 'ZPan', description: '' },
       registration: { configuredMode: SignupMode.OPEN, effectiveMode: SignupMode.OPEN },
       captcha: { enabled: false, secretConfigured: false },
+      webdav: {
+        pathUrl: expect.stringContaining('/dav/'),
+        candidateUrl: expect.stringContaining('dav.'),
+        status: 'unverified',
+      },
     })
   })
 
-  it('updates Public URL and configz derives the WebDAV domain from it [spec: system/webdav-url]', async () => {
+  it('publishes the derived WebDAV domain only after verification [spec: system/webdav-url]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
@@ -66,7 +71,32 @@ describe('Site configuration API', () => {
       services: { webdav: { url: string } }
     }
     expect(config.site.publicUrl).toBe('https://files.example.com')
-    expect(config.services.webdav.url).toBe('https://dav.files.example.com/')
+    expect(config.services.webdav.url).toBe('https://files.example.com/dav/')
+
+    const probe = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response('Unauthorized', {
+        status: 401,
+        headers: { 'WWW-Authenticate': 'Basic realm="ZPan WebDAV"' },
+      }),
+    )
+    const verification = await app.request('/api/site/settings/webdav/verification', {
+      method: 'POST',
+      headers: admin,
+    })
+    probe.mockRestore()
+    expect(verification.status).toBe(200)
+    await expect(verification.json()).resolves.toMatchObject({ status: 'ready' })
+
+    const verifiedConfig = (await (await app.request('https://request.example.com/api/configz')).json()) as {
+      services: { webdav: { url: string } }
+    }
+    expect(verifiedConfig.services.webdav.url).toBe('https://dav.files.example.com/')
+  })
+
+  it('requires admin for WebDAV verification', async () => {
+    const { app } = await createTestApp()
+    const response = await app.request('/api/site/settings/webdav/verification', { method: 'POST' })
+    expect(response.status).toBe(401)
   })
 
   it('updates captcha as a group without returning its secret [spec: system/captcha-secret-private]', async () => {

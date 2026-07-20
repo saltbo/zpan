@@ -15,10 +15,10 @@ Feature: Site configuration
     Then access is denied and the generic Options API is unavailable
 
   @system/webdav-url @api
-  Scenario: Configz derives the WebDAV URL from Public URL
-    Given an admin-configured Public URL
-    When configz is requested
-    Then the WebDAV URL uses the derived dav subdomain
+  Scenario: Configz publishes only a verified WebDAV domain
+    Given an admin-configured Public URL with an unverified derived WebDAV domain
+    When configz is requested before and after an admin verifies that domain
+    Then the WebDAV URL uses the path fallback first and the derived dav subdomain after verification
 
   @system/captcha-secret-private @api
   Scenario: Captcha is updated as a group without exposing its secret
