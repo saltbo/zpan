@@ -87,6 +87,7 @@ Validation must cover:
 - UTC range alignment and exclusion of the current open hour;
 - rollup idempotency and database-side grouping;
 - version and scope rejection, including counter-only versus full coverage;
+- required dimension reconciliation with base rows, including missing base and missing dimension groups;
 - missing-bucket repair and lower-bound byte quality;
 - dashboard endpoints never writing results or falling back to raw data;
 - browser rendering without metric calculations.

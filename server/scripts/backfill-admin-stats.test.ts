@@ -1,6 +1,11 @@
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
-import { buildBackfillSql, buildValidationSql, splitSqlStatements } from '../../scripts/backfill-admin-stats'
+import {
+  assertBackfillValidation,
+  buildBackfillSql,
+  buildValidationSql,
+  splitSqlStatements,
+} from '../../scripts/backfill-admin-stats'
 
 describe('admin stats backfill', () => {
   it('splits SQL batches without breaking quoted semicolons', () => {
@@ -10,6 +15,14 @@ describe('admin stats backfill', () => {
       'SELECT 3',
     ])
     expect(() => splitSqlStatements("SELECT 'unterminated")).toThrow('admin_stats_backfill_unterminated_sql_string')
+  })
+
+  it('rejects required dimension mismatches', () => {
+    expect(() =>
+      assertBackfillValidation({ requiredDimensionMismatchGroups: 1 } as Parameters<
+        typeof assertBackfillValidation
+      >[0]),
+    ).toThrow('"requiredDimensionMismatchGroups":1')
   })
 
   it('recovers exact available facts and is idempotent', () => {
@@ -123,6 +136,13 @@ describe('admin stats backfill', () => {
 
     const sql = buildBackfillSql(now)
     const validationSql = buildValidationSql(now)
+    const readValidationSummary = () =>
+      Object.assign(
+        {},
+        ...splitSqlStatements(validationSql).map((statement) =>
+          JSON.parse((db.prepare(statement).get() as { summary: string }).summary),
+        ),
+      ) as Record<string, number>
     const statements = splitSqlStatements(sql)
     expect(statements.length).toBeGreaterThan(1)
     db.transaction(() =>
@@ -130,12 +150,7 @@ describe('admin stats backfill', () => {
         db.exec(statement)
       }),
     )()
-    const firstSummary = Object.assign(
-      {},
-      ...splitSqlStatements(validationSql).map((statement) =>
-        JSON.parse((db.prepare(statement).get() as { summary: string }).summary),
-      ),
-    ) as Record<string, number>
+    const firstSummary = readValidationSummary()
     const firstRows = db.prepare('SELECT * FROM stats_rollups_hourly ORDER BY id').all()
 
     db.transaction(() =>
@@ -160,6 +175,7 @@ describe('admin stats backfill', () => {
       counterCompletedBuckets: expectedBuckets,
       counterMissingBuckets: 0,
       openCounterMarkers: 0,
+      requiredDimensionMismatchGroups: 0,
       rawUploadAttempts: 1,
       rollupUploadAttempts: 1,
       rawUserSignups: 2,
@@ -233,21 +249,49 @@ describe('admin stats backfill', () => {
         ('current-snapshot-gauge', ${currentHourMs}, '', 'storage.used', '', '', 0, 1024, 0,
           '{"version":3,"scope":"snapshots","quality":"exact"}', ${currentHourMs});
     `)
-    const snapshotSummary = Object.assign(
-      {},
-      ...splitSqlStatements(validationSql).map((statement) =>
-        JSON.parse((db.prepare(statement).get() as { summary: string }).summary),
-      ),
-    ) as Record<string, number>
+    const snapshotSummary = readValidationSummary()
     expect(snapshotSummary.orphanRollupBuckets).toBe(0)
+    expect(snapshotSummary.requiredDimensionMismatchGroups).toBe(0)
+
+    db.exec(`
+      INSERT INTO stats_rollups_hourly VALUES
+        ('current-share-lifecycle', ${currentHourMs}, 'o1', 'share.inventory', 'lifecycle', 'usable', 3, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${currentHourMs});
+    `)
+    expect(readValidationSummary().requiredDimensionMismatchGroups).toBe(1)
+
+    db.exec(`
+      INSERT INTO stats_rollups_hourly VALUES
+        ('current-share-base', ${currentHourMs}, 'o1', 'share.inventory', '', '', 3, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${currentHourMs});
+    `)
+    expect(readValidationSummary().requiredDimensionMismatchGroups).toBe(0)
+
+    db.prepare("DELETE FROM stats_rollups_hourly WHERE id = 'current-share-lifecycle'").run()
+    expect(readValidationSummary().requiredDimensionMismatchGroups).toBe(1)
+    db.prepare("UPDATE stats_rollups_hourly SET count = 2 WHERE id = 'current-share-base'").run()
+    db.exec(`
+      INSERT INTO stats_rollups_hourly VALUES
+        ('current-share-lifecycle', ${currentHourMs}, 'o1', 'share.inventory', 'lifecycle', 'usable', 3, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${currentHourMs});
+    `)
+    expect(readValidationSummary().requiredDimensionMismatchGroups).toBe(1)
+    db.prepare("UPDATE stats_rollups_hourly SET count = 3 WHERE id = 'current-share-base'").run()
+    expect(readValidationSummary().requiredDimensionMismatchGroups).toBe(0)
+
+    db.exec(`
+      INSERT INTO stats_rollups_hourly VALUES
+        ('current-traffic-base', ${currentHourMs}, '', 'traffic.report_snapshot', '', '', 1, 10, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${currentHourMs}),
+        ('current-traffic-status', ${currentHourMs}, '', 'traffic.report_snapshot', 'status', 'reported', 1, 9, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${currentHourMs});
+    `)
+    expect(readValidationSummary().requiredDimensionMismatchGroups).toBe(1)
+    db.prepare("UPDATE stats_rollups_hourly SET bytes = 10 WHERE id = 'current-traffic-status'").run()
+    expect(readValidationSummary().requiredDimensionMismatchGroups).toBe(0)
 
     db.prepare("DELETE FROM stats_rollups_hourly WHERE id = 'current-snapshot-marker'").run()
-    const missingMarkerSummary = Object.assign(
-      {},
-      ...splitSqlStatements(validationSql).map((statement) =>
-        JSON.parse((db.prepare(statement).get() as { summary: string }).summary),
-      ),
-    ) as Record<string, number>
+    const missingMarkerSummary = readValidationSummary()
     expect(missingMarkerSummary.orphanRollupBuckets).toBe(1)
     db.close()
   })
