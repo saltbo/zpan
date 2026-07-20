@@ -37,6 +37,10 @@ export function normalizeStatsRange(input: AdminStatsRangeInput, now = new Date(
   if (calendarDayCount(from, to) > MAX_DASHBOARD_RANGE_DAYS) {
     throw badRequest(`time range cannot exceed ${MAX_DASHBOARD_RANGE_DAYS} days`, 'TIME_RANGE_TOO_LARGE')
   }
+  const currentHourStart = Math.floor(now.getTime() / 3_600_000) * 3_600_000
+  if (from.getTime() >= currentHourStart) {
+    throw badRequest('time range must include a closed UTC hour', 'INVALID_TIME_RANGE')
+  }
   return { from, to, timeZone }
 }
 
