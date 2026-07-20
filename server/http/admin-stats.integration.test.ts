@@ -94,6 +94,18 @@ describe('site stats routes', () => {
     expect(res.status).toBe(400)
   })
 
+  it('rejects ranges with no closed offline result bucket', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const nextHour = Math.floor(Date.now() / 3_600_000) * 3_600_000 + 3_600_000
+    const from = encodeURIComponent(new Date(nextHour).toISOString())
+    const to = encodeURIComponent(new Date(nextHour + 3_600_000 - 1).toISOString())
+
+    const res = await app.request(`/api/site/stats/overview?from=${from}&to=${to}&timeZone=UTC`, { headers })
+
+    expect(res.status).toBe(400)
+  })
+
   it('rejects local reporting zones because offline result buckets are UTC-only', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
