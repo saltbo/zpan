@@ -268,8 +268,9 @@ describe('WebDAV API', () => {
     expect(byId.status).toBe(207)
   })
 
-  it('uses root-relative hrefs and destinations on the configured DAV hostname [spec: webdav/custom-host]', async () => {
-    const { app, db, auth } = await createTestApp({ WEBDAV_PUBLIC_URL: 'https://dav.example.com' })
+  it('uses root-relative hrefs and destinations on the Public URL-derived DAV hostname [spec: webdav/custom-host]', async () => {
+    const { app, db, auth, deps } = await createTestApp()
+    await deps.systemOptions.set('site_public_origin', 'https://example.com', false)
     await authedHeaders(app)
     await seedStorage(db)
     const workspace = await org(db)
@@ -313,13 +314,14 @@ describe('WebDAV API', () => {
     expect(await mainOrigin.text()).toContain(`<D:href>/dav/${workspacePath}/source.txt</D:href>`)
   })
 
-  it('does not adopt the DAV hostname as the site public origin', async () => {
-    const { app, db } = await createTestApp({ WEBDAV_PUBLIC_URL: 'https://dav.example.com' })
+  it('does not replace the site Public URL with the DAV hostname', async () => {
+    const { app, db, deps } = await createTestApp()
+    await deps.systemOptions.set('site_public_origin', 'https://example.com', false)
 
     const res = await app.request('https://dav.example.com/dav/', { method: 'PROPFIND' })
     expect(res.status).toBe(401)
     const rows = await db.all<{ value: string }>(sql`SELECT value FROM system_options WHERE key = 'site_public_origin'`)
-    expect(rows).toEqual([])
+    expect(rows).toEqual([{ value: 'https://example.com' }])
   })
 
   it('PROPFIND mount root lists all member workspaces and hides non-member workspaces [spec: webdav/propfind-workspaces]', async () => {

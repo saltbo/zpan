@@ -1,5 +1,6 @@
 import { createMiddleware } from 'hono/factory'
 import type { Auth } from '../auth'
+import type { WebDavMountPath } from '../domain/webdav-public-url'
 import type { Platform } from '../platform/interface'
 import type { Deps } from '../usecases/deps'
 
@@ -12,6 +13,8 @@ export type Env = {
     userId: string | null
     userRole: string | null
     orgId: string | null
+    sitePublicOrigin: string | null
+    webDavMountPath: WebDavMountPath
     // Structured detail for the access log on a failed request. Set by `jsonError`
     // (via `app.onError`); read by the accessLog middleware so every 4xx/5xx carries
     // its reason + full message, not just unhandled crashes.
@@ -58,5 +61,7 @@ export const platformMiddleware = (platform: Platform, auth: Auth) =>
     c.set('auth', auth)
     c.set('principal', null)
     c.set('errorLog', null)
+    c.set('sitePublicOrigin', null)
+    c.set('webDavMountPath', '/dav')
     await next()
   })

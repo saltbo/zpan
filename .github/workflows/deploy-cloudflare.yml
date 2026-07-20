@@ -206,23 +206,11 @@ jobs:
         # GitHub Actions and Cloudflare Workers Builds can share the same path.
         run: pnpm run deploy
 
-      - name: Reconcile optional WebDAV custom domain
+      - name: Reconcile fixed WebDAV domain
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          WEBDAV_PUBLIC_URL: ${{ vars.WEBDAV_PUBLIC_URL }}
         run: |
-          HAS_RUNTIME_BINDING=$(pnpm exec wrangler secret list --format json | jq -r 'any(.[]; .name == "WEBDAV_PUBLIC_URL")')
-
-          if [ -n "$WEBDAV_PUBLIC_URL" ]; then
-            node scripts/sync-cloudflare-webdav.mjs --validate-only
-            pnpm exec wrangler secret put WEBDAV_PUBLIC_URL <<< "$WEBDAV_PUBLIC_URL"
-            node scripts/sync-cloudflare-webdav.mjs
-            echo "WebDAV custom domain: $WEBDAV_PUBLIC_URL" >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$HAS_RUNTIME_BINDING" = "true" ]; then
-            node scripts/sync-cloudflare-webdav.mjs
-            printf 'y\n' | pnpm exec wrangler secret delete WEBDAV_PUBLIC_URL
-            echo "WebDAV custom domain disabled; /dav/ remains available." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "WebDAV custom domain is not configured; keeping /dav/." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          OUTPUT=$(node scripts/sync-cloudflare-webdav.mjs)
+          echo "$OUTPUT"
+          printf '%s\n' "$OUTPUT" >> "$GITHUB_STEP_SUMMARY"

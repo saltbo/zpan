@@ -117,7 +117,7 @@ Deploy via GitHub Actions with zero server management. Free tier covers personal
 
 After initial setup, the workflow runs automatically every time you sync your fork with the latest release.
 
-Optional WebDAV-only domain: add the repository variable `WEBDAV_PUBLIC_URL=https://dav.example.com` and extend the API token with **Zone:Read** and **Transform Rules:Edit**. The deployment workflow discovers the zone, attaches the Worker Custom Domain, and manages the path rewrite automatically. Delete the variable and deploy once to return to `/dav/` and clean up the managed Cloudflare resources. See [WebDAV custom domains](docs/webdav-custom-domain.md).
+Dedicated WebDAV domain: configure the site's **Public URL** in Admin Settings and extend the API token with **Transform Rules:Edit**. For a primary Worker Custom Domain such as `files.example.com`, the deployment workflow automatically attaches `dav.files.example.com` and manages the root-to-`/dav` rewrite. The original `/dav/` endpoint remains available. See [WebDAV custom domains](docs/webdav-custom-domain.md).
 
 ### AWS Lambda
 

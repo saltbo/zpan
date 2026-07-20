@@ -1,35 +1,20 @@
-# WebDAV custom domains
+# WebDAV domain
 
-ZPan always serves WebDAV internally at `/dav`. `WEBDAV_PUBLIC_URL` optionally exposes that mount at the root of a dedicated hostname while keeping the original `/dav/` endpoint available.
+ZPan always serves WebDAV internally at `/dav`. The dedicated hostname is fixed by prepending `dav.` to the hostname in Admin Settings → Public URL. For example, `https://files.example.com` produces `https://dav.files.example.com/`. The original `/dav/` endpoint remains available.
 
 ## Cloudflare Workers
 
-In your fork, open **Settings → Secrets and variables → Actions → Variables** and add:
+Set the primary site hostname as a Worker Custom Domain and configure the same origin as **Public URL** in ZPan Admin Settings. The existing `CLOUDFLARE_API_TOKEN` also needs `Transform Rules:Edit` for that zone.
 
-```text
-WEBDAV_PUBLIC_URL=https://dav.example.com
-```
+The production deployment finds the primary Custom Domain already attached to the `zpan` Worker, derives its `dav.` hostname, creates a hostname-only Transform Rule, attaches the derived hostname as another Worker Custom Domain, and verifies the WebDAV authentication challenge. ZPan-owned rules use a `zpan_webdav_` ref prefix; the workflow does not replace or delete unrelated rules.
 
-The existing `CLOUDFLARE_API_TOKEN` also needs these zone permissions for the zone containing the hostname:
-
-- `Zone:Read`
-- `Transform Rules:Edit`
-
-The production deployment discovers the matching Zone, creates a hostname-only Transform Rule, attaches the hostname as a Worker Custom Domain, and verifies the WebDAV authentication challenge. ZPan-owned rules use a `zpan_webdav_` ref prefix; the workflow does not replace or delete unrelated rules.
-
-To change the hostname, update the variable and deploy. The old hostname is removed only after the new hostname passes verification. To disable it, delete the variable and deploy once; `/dav/` remains available.
+If the Worker has no primary Custom Domain, the deployment skips the dedicated hostname and `/dav/` remains available. If it has multiple possible primary Custom Domains, deployment fails instead of choosing one arbitrarily.
 
 The static-assets `run_worker_first` list is not widened. Normal application assets on the primary hostname continue to bypass the Worker, while requests to the dedicated DAV hostname are rewritten to `/dav` before Worker dispatch.
 
 ## Docker and other reverse proxies
 
-Set the same runtime variable on the ZPan service:
-
-```text
-WEBDAV_PUBLIC_URL=https://dav.example.com
-```
-
-The reverse proxy in front of ZPan must:
+Configure the main origin as **Public URL** in ZPan Admin Settings. If it is `https://files.example.com`, configure the reverse proxy in front of ZPan to serve `dav.files.example.com` and:
 
 1. Route the dedicated hostname to ZPan.
 2. Internally prefix every request path with `/dav` without returning a redirect.
@@ -37,4 +22,4 @@ The reverse proxy in front of ZPan must:
 
 For example, an external request to `/Workspace/file.txt` must reach ZPan as `/dav/Workspace/file.txt` while the request hostname remains `dav.example.com`. ZPan then emits root-relative WebDAV resource addresses such as `/Workspace/file.txt`.
 
-Without `WEBDAV_PUBLIC_URL`, clients should connect to `https://your-zpan.example/dav/` as before.
+Without the dedicated proxy hostname, clients can still connect to `https://your-zpan.example/dav/`.

@@ -23,7 +23,13 @@ async function putOption(
 
 describe('System API — options CRUD', () => {
   it('exposes the effective WebDAV URL as a read-only runtime option [spec: system/webdav-url]', async () => {
-    const { app } = await createTestApp({ WEBDAV_PUBLIC_URL: 'https://dav.example.com' })
+    const { app } = await createTestApp()
+    const admin = await adminHeaders(app)
+    const setPublicUrl = await putOption(app, admin, 'site_public_origin', {
+      value: 'https://example.com',
+      public: false,
+    })
+    expect(setPublicUrl.status).toBe(200)
 
     const list = await app.request('https://pan.example.com/api/site/options')
     const listBody = (await list.json()) as {
@@ -37,7 +43,6 @@ describe('System API — options CRUD', () => {
     expect(get.status).toBe(200)
     expect(await get.json()).toEqual({ key: 'webdav_url', value: 'https://dav.example.com/', public: true })
 
-    const admin = await adminHeaders(app)
     const put = await putOption(app, admin, 'webdav_url', { value: 'https://other.example.com' })
     expect(put.status).toBe(400)
     expect(await put.text()).toContain('read-only')
@@ -47,11 +52,11 @@ describe('System API — options CRUD', () => {
     expect(await del.text()).toContain('read-only')
   })
 
-  it('falls back to the request-origin /dav path when no custom URL is configured', async () => {
+  it('derives the DAV hostname from an auto-detected Public URL', async () => {
     const { app } = await createTestApp()
     const res = await app.request('https://pan.example.com/api/site/options/webdav_url')
 
-    expect(await res.json()).toEqual({ key: 'webdav_url', value: 'https://pan.example.com/dav/', public: true })
+    expect(await res.json()).toEqual({ key: 'webdav_url', value: 'https://dav.pan.example.com/', public: true })
   })
 
   it('GET unknown key returns 404 [spec: system/option-not-found]', async () => {

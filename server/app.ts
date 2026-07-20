@@ -1,12 +1,11 @@
 import { release as osRelease } from 'node:os'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
-import { WEBDAV_PUBLIC_URL_ENV } from '@shared/constants'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
 import { createDeps } from './composition'
-import { isWebDavPublicRequest } from './domain/webdav-public-url'
+import { isPotentialWebDavPublicRequest, isWebDavPublicRequest } from './domain/webdav-public-url'
 import { adminStats } from './http/admin-stats'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
@@ -47,7 +46,7 @@ import type { Platform } from './platform/interface'
 import { getDeployPlatform } from './runtime-platform'
 import type { Deps } from './usecases/deps'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/site/instance-telemetry'
-import { ensureSitePublicOrigin } from './usecases/site/public-origin'
+import { ensureSitePublicOrigin, getSitePublicOrigin } from './usecases/site/public-origin'
 
 export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
   const app = new OpenAPIHono<Env>()
@@ -59,9 +58,14 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     await next()
   })
   app.use('/*', async (c, next) => {
-    if (isWebDavPublicRequest(c.req.url, platform.getEnv(WEBDAV_PUBLIC_URL_ENV))) {
-      await next()
-      return
+    if (isPotentialWebDavPublicRequest(c.req.url)) {
+      const sitePublicOrigin = await getSitePublicOrigin(deps)
+      if (isWebDavPublicRequest(c.req.url, sitePublicOrigin)) {
+        c.set('sitePublicOrigin', sitePublicOrigin)
+        c.set('webDavMountPath', '')
+        await next()
+        return
+      }
     }
     const result = await ensureSitePublicOrigin(deps, c.req.url).catch((err) => {
       console.error(`site.public_origin.detect.error code=${formatError(err)}`)

@@ -110,10 +110,9 @@ describe('imageHostingDomain middleware — app-host passthrough', () => {
   })
 
   it('configured WebDAV host → next(), normal routing works', async () => {
-    const { app } = await createTestApp({ WEBDAV_PUBLIC_URL: 'https://dav.example.com' })
-    const res = await app.request('/api/health', {
-      headers: { host: 'dav.example.com' },
-    })
+    const { app, deps } = await createTestApp()
+    await deps.systemOptions.set('site_public_origin', 'https://example.com', false)
+    const res = await app.request('https://dav.example.com/api/health')
     expect(res.status).toBe(200)
   })
 
@@ -160,7 +159,8 @@ describe('imageHostingDomain middleware — unverified domain', () => {
 
 describe('imageHostingDomain middleware — custom domain redirect', () => {
   it('only reserves the exact WebDAV hostname, not its subdomains', async () => {
-    const { app, db } = await createTestApp({ WEBDAV_PUBLIC_URL: 'https://dav.example.com' })
+    const { app, db, deps } = await createTestApp()
+    await deps.systemOptions.set('site_public_origin', 'https://example.com', false)
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)

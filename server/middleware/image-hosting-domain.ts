@@ -1,6 +1,4 @@
-import { WEBDAV_PUBLIC_URL_ENV } from '@shared/constants'
 import type { Context, Next } from 'hono'
-import { parseWebDavPublicUrl } from '../domain/webdav-public-url'
 import { PRESIGN_TTL_SECS } from '../http/share-utils'
 import { reportTrafficForDownload } from '../http/store/traffic-metering'
 import type { Env } from '../middleware/platform'
@@ -94,8 +92,7 @@ export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<R
   const host = normalizeHost(rawHost)
   if (!host) return next()
 
-  const webDavUrl = parseWebDavPublicUrl(c.get('platform').getEnv(WEBDAV_PUBLIC_URL_ENV))
-  if (host === webDavUrl?.hostname) return next()
+  if (c.get('webDavMountPath') === '') return next()
 
   const appHosts = getAppHostCandidates(c)
   if (appHosts.some((h) => host === h || host.endsWith(`.${h}`))) {

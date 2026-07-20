@@ -42,11 +42,10 @@ describe('[CF] Worker fetch handler', () => {
   })
 
   it('keeps auth initialization isolated between the DAV and primary hostnames', async () => {
-    const webDavEnv = { ...testEnv, WEBDAV_PUBLIC_URL: 'https://dav.example.com' }
-    const dav = await worker.fetch(new Request('https://dav.example.com/dav/', { method: 'PROPFIND' }), webDavEnv)
+    const dav = await worker.fetch(new Request('https://dav.example.com/dav/', { method: 'PROPFIND' }), testEnv)
     expect(dav.status).toBe(401)
 
-    const primary = await worker.fetch(new Request('https://pan.example.com/api/health'), webDavEnv)
+    const primary = await worker.fetch(new Request('https://pan.example.com/api/health'), testEnv)
     expect(primary.status).toBe(200)
   })
 })

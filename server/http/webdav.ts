@@ -1,9 +1,9 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ApiKeyTemplate } from '../../shared/api-key-templates'
-import { DirType, WEBDAV_PUBLIC_URL_ENV, ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { encodeDavPathSegment, joinMatterPath, workspaceHref } from '../domain/webdav'
-import { parseWebDavPublicUrl, type WebDavMountPath, webDavMountPath } from '../domain/webdav-public-url'
+import { type WebDavMountPath, webDavPublicUrl } from '../domain/webdav-public-url'
 import {
   type DavEntry,
   davEtag,
@@ -128,7 +128,7 @@ function davPath(c: DavContext): string {
 }
 
 function publicMountPath(c: DavContext): WebDavMountPath {
-  return webDavMountPath(c.req.url, c.get('platform').getEnv(WEBDAV_PUBLIC_URL_ENV))
+  return c.get('webDavMountPath')
 }
 
 function normalizeDavMountPath(pathname: string): string {
@@ -1151,9 +1151,9 @@ async function unlockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 
 function matterLocation(c: DavContext, workspaceSegment: string, path: string): string {
   const requestUrl = new URL(c.req.url)
-  const configuredUrl = parseWebDavPublicUrl(c.get('platform').getEnv(WEBDAV_PUBLIC_URL_ENV))
-  const url = configuredUrl && configuredUrl.host === requestUrl.host ? configuredUrl : requestUrl
   const mountPath = publicMountPath(c)
+  const publicUrl = mountPath === '' ? webDavPublicUrl(c.get('sitePublicOrigin')) : null
+  const url = publicUrl ?? requestUrl
   url.pathname = `${mountPath}/${encodeDavPathSegment(workspaceSegment)}/${path
     .split('/')
     .map(encodeDavPathSegment)

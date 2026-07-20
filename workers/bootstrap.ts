@@ -3,7 +3,7 @@ import { createShareRepo } from '../server/adapters/repos/share'
 import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
-import { parseWebDavPublicUrl } from '../server/domain/webdav-public-url'
+import { isPotentialWebDavPublicRequest } from '../server/domain/webdav-public-url'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { platformContext } from '../server/platform/context'
 import type { ArchiveJobMessage } from '../server/usecases/ports'
@@ -15,7 +15,6 @@ interface Env {
   BETTER_AUTH_SECRET: string
   BETTER_AUTH_URL?: string
   TRUSTED_ORIGINS?: string
-  WEBDAV_PUBLIC_URL?: string
   ASSETS: Fetcher
   [key: string]: unknown
 }
@@ -39,9 +38,8 @@ export default {
     }
     const platform = createCloudflarePlatform(env)
     const origin = new URL(request.url).origin
-    const webDavUrl = parseWebDavPublicUrl(env.WEBDAV_PUBLIC_URL)
-    const webDavRequest = webDavUrl?.host === new URL(request.url).host
-    const inferredOrigin = webDavRequest ? webDavUrl.origin : origin
+    const webDavRequest = isPotentialWebDavPublicRequest(request.url)
+    const inferredOrigin = origin
     const baseURL = env.BETTER_AUTH_URL || inferredOrigin
     const trustedOrigins = env.TRUSTED_ORIGINS?.split(',')
       .map((o) => o.trim())

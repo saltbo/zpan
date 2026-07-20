@@ -23,7 +23,7 @@ Feature: WebDAV
 
   @webdav/custom-host @api
   Scenario: A dedicated hostname exposes WebDAV at its root
-    Given a configured WebDAV public hostname
+    Given a WebDAV hostname derived from the site Public URL
     When DAV methods address resources through that hostname
     Then response hrefs and destinations are root-relative while the main site keeps the /dav mount
 

@@ -9,27 +9,23 @@ const DEFAULT_WORKER_NAME = 'zpan'
 const VERIFY_ATTEMPTS = 30
 const VERIFY_DELAY_MS = 10_000
 
-export function parseCloudflareWebDavUrl(raw) {
-  const value = raw?.trim()
-  if (!value) return null
-
-  const url = new URL(value)
-  if (url.protocol !== 'https:') throw new Error('WEBDAV_PUBLIC_URL must use https for Cloudflare deployments')
-  if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
-    throw new Error('WEBDAV_PUBLIC_URL must be an origin without credentials, path, query, or fragment')
-  }
-  return url
+export function webDavHostname(primaryHostname) {
+  return `dav.${primaryHostname}`
 }
 
-export function findHostnameZone(hostname, zones) {
-  const matches = zones
-    .filter((zone) => hostname === zone.name || hostname.endsWith(`.${zone.name}`))
-    .sort((a, b) => b.name.length - a.name.length)
-  if (matches.length === 0) throw new Error(`No accessible Cloudflare zone contains ${hostname}`)
-  if (matches.length > 1 && matches[0].name.length === matches[1].name.length) {
-    throw new Error(`Multiple accessible Cloudflare zones match ${hostname}`)
+export function findPrimaryWorkerDomain(domains, managedHostnames = new Set()) {
+  const candidates = domains.filter((domain) => !managedHostnames.has(domain.hostname))
+  const primary = candidates.filter(
+    (candidate) => !candidates.some((other) => candidate.hostname === webDavHostname(other.hostname)),
+  )
+  if (primary.length === 0) return null
+  if (primary.length > 1) {
+    throw new Error(`Multiple primary Worker Custom Domains found: ${primary.map((domain) => domain.hostname).join(', ')}`)
   }
-  return matches[0]
+  if (primary[0].hostname.startsWith('dav.')) {
+    throw new Error(`Cannot infer a primary Worker Custom Domain from ${primary[0].hostname}`)
+  }
+  return primary[0]
 }
 
 export function managedRuleRef(hostname) {
@@ -56,7 +52,6 @@ export function buildRewriteRule(hostname) {
 export async function syncCloudflareWebDav({
   token,
   accountId,
-  publicUrl,
   workerName = DEFAULT_WORKER_NAME,
   apiFetch = fetch,
   verifyFetch = fetch,
@@ -67,15 +62,20 @@ export async function syncCloudflareWebDav({
   if (!token) throw new Error('CLOUDFLARE_API_TOKEN is required')
   if (!accountId) throw new Error('CLOUDFLARE_ACCOUNT_ID is required')
 
-  const desiredUrl = parseCloudflareWebDavUrl(publicUrl)
   const client = createApiClient({ token, apiFetch })
-  const zones = await listZones(client, accountId)
-  const managedRules = await listManagedRules(client, zones)
   const domains = await listWorkerDomains(client, accountId)
+  const workerDomains = domains.filter(
+    (domain) => domain.service === workerName && (!domain.environment || domain.environment === 'production'),
+  )
+  const zones = workerDomainZones(workerDomains)
+  const managedRules = await listManagedRules(client, zones)
+  const managedHostnames = new Set(managedRules.map(({ rule }) => managedRuleHostname(rule)))
+  const primaryDomain = findPrimaryWorkerDomain(workerDomains, managedHostnames)
+  const desiredUrl = primaryDomain ? new URL(`https://${webDavHostname(primaryDomain.hostname)}`) : null
 
   let desiredRule = null
   if (desiredUrl) {
-    const zone = findHostnameZone(desiredUrl.hostname, zones)
+    const zone = { id: primaryDomain.zone_id, name: primaryDomain.zone_name }
     desiredRule = await ensureRewriteRule(client, zone, managedRules, desiredUrl.hostname)
     await ensureWorkerDomain(client, accountId, domains, {
       hostname: desiredUrl.hostname,
@@ -115,6 +115,12 @@ export async function syncCloudflareWebDav({
   }
 }
 
+function workerDomainZones(domains) {
+  const zones = new Map()
+  for (const domain of domains) zones.set(domain.zone_id, { id: domain.zone_id, name: domain.zone_name })
+  return [...zones.values()]
+}
+
 function createApiClient({ token, apiFetch }) {
   return {
     async request(path, { method = 'GET', body, allowNotFound = false } = {}) {
@@ -138,20 +144,6 @@ function createApiClient({ token, apiFetch }) {
       return payload
     },
   }
-}
-
-async function listZones(client, accountId) {
-  const zones = []
-  let page = 1
-  let totalPages = 1
-  do {
-    const query = new URLSearchParams({ 'account.id': accountId, page: String(page), per_page: '50' })
-    const payload = await client.request(`/zones?${query}`)
-    zones.push(...payload.result)
-    totalPages = payload.result_info?.total_pages ?? 1
-    page += 1
-  } while (page <= totalPages)
-  return zones
 }
 
 async function getTransformRuleset(client, zoneId) {

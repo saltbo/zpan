@@ -113,7 +113,7 @@ ZPan 并不打算成为：
 
 完成初始设置后，每次你将 fork 与最新版本同步时，该工作流都会自动运行。
 
-可选的 WebDAV 独立域名：添加仓库变量 `WEBDAV_PUBLIC_URL=https://dav.example.com`，并为 API Token 增加 **Zone:Read** 和 **Transform Rules:Edit** 权限。部署流程会自动识别 Zone、绑定 Worker Custom Domain 并管理路径 rewrite。删除该变量并重新部署一次，即可恢复 `/dav/` 并清理自动创建的 Cloudflare 资源。详见 [WebDAV 自定义域名](../webdav-custom-domain.md)。
+WebDAV 独立域名：先在管理后台设置站点的**对外访问地址**，并为 API Token 增加 **Transform Rules:Edit** 权限。若主站 Worker Custom Domain 为 `files.example.com`，部署流程会自动绑定 `dav.files.example.com`，并管理根路径到 `/dav` 的 rewrite；原有 `/dav/` 入口仍然可用。详见 [WebDAV 自定义域名](../webdav-custom-domain.md)。
 
 ### AWS Lambda
 

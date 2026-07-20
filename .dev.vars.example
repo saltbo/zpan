@@ -8,9 +8,6 @@ BETTER_AUTH_SECRET=
 BETTER_AUTH_URL=http://localhost:5185
 TRUSTED_ORIGINS=http://localhost:5185
 
-# Optional dedicated WebDAV origin. A reverse proxy must map its root to /dav.
-WEBDAV_PUBLIC_URL=
-
 # Local ZPan Cloud URL.
 ZPAN_CLOUD_URL=http://localhost:5186
 

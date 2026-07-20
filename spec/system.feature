@@ -4,7 +4,7 @@ Feature: System options
 
   @system/webdav-url @api
   Scenario: The effective WebDAV URL is exposed as a read-only option
-    Given an optional WebDAV public hostname
+    Given the site Public URL
     When system options are listed or the WebDAV option is requested
     Then the effective URL is public and cannot be mutated through the options API
 

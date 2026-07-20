@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { WEBDAV_PUBLIC_URL_ENV, WEBDAV_URL_OPTION_KEY } from '@shared/constants'
+import { WEBDAV_URL_OPTION_KEY } from '@shared/constants'
 import { pageSchema } from '@shared/schemas'
 import type { Context } from 'hono'
 import { effectiveWebDavUrl } from '../../domain/webdav-public-url'
@@ -7,6 +7,7 @@ import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { badRequest } from '../../usecases/ports'
 import { runtimeInfo } from '../../usecases/site/instance-info'
+import { getSitePublicOrigin } from '../../usecases/site/public-origin'
 import {
   deleteSystemOption,
   getChangelog,
@@ -132,10 +133,10 @@ const deleteOptionRoute = createRoute({
   },
 })
 
-function webDavOption(c: Context<Env>) {
+async function webDavOption(c: Context<Env>) {
   return {
     key: WEBDAV_URL_OPTION_KEY,
-    value: effectiveWebDavUrl(c.req.url, c.get('platform').getEnv(WEBDAV_PUBLIC_URL_ENV)),
+    value: effectiveWebDavUrl(c.req.url, await getSitePublicOrigin(c.get('deps'))),
     public: true,
   }
 }
@@ -153,11 +154,11 @@ const system = new OpenAPIHono<Env>()
   )
   .openapi(listOptionsRoute, async (c) => {
     const { items } = await listSystemOptions(c.get('deps'), { isAdmin: c.get('userRole') === 'admin' })
-    const options = [...items.filter((item) => item.key !== WEBDAV_URL_OPTION_KEY), webDavOption(c)]
+    const options = [...items.filter((item) => item.key !== WEBDAV_URL_OPTION_KEY), await webDavOption(c)]
     return c.json({ items: options, total: options.length, page: 1, pageSize: options.length }, 200)
   })
   .openapi(getOptionRoute, async (c) => {
-    if (c.req.valid('param').key === WEBDAV_URL_OPTION_KEY) return c.json(webDavOption(c), 200)
+    if (c.req.valid('param').key === WEBDAV_URL_OPTION_KEY) return c.json(await webDavOption(c), 200)
     const result = await getSystemOption(c.get('deps'), {
       key: c.req.valid('param').key,
       isAdmin: c.get('userRole') === 'admin',

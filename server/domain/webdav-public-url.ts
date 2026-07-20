@@ -1,29 +1,31 @@
+import { normalizePublicOrigin } from './site-public-origin'
+
 export type WebDavMountPath = '' | '/dav'
 
-export function parseWebDavPublicUrl(raw: string | undefined): URL | null {
-  const value = raw?.trim()
-  if (!value) return null
+export function webDavPublicUrl(sitePublicOrigin: string | null | undefined): URL | null {
+  const origin = normalizePublicOrigin(sitePublicOrigin)
+  if (!origin) return null
 
-  const url = new URL(value)
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('WEBDAV_PUBLIC_URL must use http or https')
-  }
-  if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
-    throw new Error('WEBDAV_PUBLIC_URL must be an origin without credentials, path, query, or fragment')
-  }
+  const url = new URL(origin)
+  if (url.hostname.startsWith('[') || /^\d+(?:\.\d+){3}$/.test(url.hostname)) return null
+  url.hostname = `dav.${url.hostname}`
   return url
 }
 
-export function isWebDavPublicRequest(requestUrl: string, rawPublicUrl: string | undefined): boolean {
-  const publicUrl = parseWebDavPublicUrl(rawPublicUrl)
+export function isPotentialWebDavPublicRequest(requestUrl: string): boolean {
+  return new URL(requestUrl).hostname.toLowerCase().startsWith('dav.')
+}
+
+export function isWebDavPublicRequest(requestUrl: string, sitePublicOrigin: string | null | undefined): boolean {
+  const publicUrl = webDavPublicUrl(sitePublicOrigin)
   return publicUrl !== null && new URL(requestUrl).host === publicUrl.host
 }
 
-export function webDavMountPath(requestUrl: string, rawPublicUrl: string | undefined): WebDavMountPath {
-  return isWebDavPublicRequest(requestUrl, rawPublicUrl) ? '' : '/dav'
+export function webDavMountPath(requestUrl: string, sitePublicOrigin: string | null | undefined): WebDavMountPath {
+  return isWebDavPublicRequest(requestUrl, sitePublicOrigin) ? '' : '/dav'
 }
 
-export function effectiveWebDavUrl(requestUrl: string, rawPublicUrl: string | undefined): string {
-  const publicUrl = parseWebDavPublicUrl(rawPublicUrl)
+export function effectiveWebDavUrl(requestUrl: string, sitePublicOrigin: string | null | undefined): string {
+  const publicUrl = webDavPublicUrl(sitePublicOrigin)
   return publicUrl ? `${publicUrl.origin}/` : new URL('/dav/', requestUrl).toString()
 }
