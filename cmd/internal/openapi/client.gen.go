@@ -26201,6 +26201,7 @@ func (r ListSystemOptionsResponse) ContentType() string {
 type DeleteSystemOptionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -40760,6 +40761,16 @@ func ParseDeleteSystemOptionResponse(rsp *http.Response) (*DeleteSystemOptionRes
 	response := &DeleteSystemOptionResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	}
 
 	return response, nil
