@@ -597,7 +597,9 @@ async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now:
     rollups.incrementGauge(M.storageTrashSnapshot, '', row.files, row.bytes, 'storage_id', row.storageId)
   }
   for (const row of shareRows) {
+    rollups.incrementGauge(M.shareInventory, row.orgId, Number(row.count), 0)
     rollups.incrementGauge(M.shareInventory, row.orgId, Number(row.count), 0, 'lifecycle', row.lifecycle)
+    rollups.incrementGauge(M.shareInventory, '', Number(row.count), 0)
     rollups.incrementGauge(M.shareInventory, '', Number(row.count), 0, 'lifecycle', row.lifecycle)
   }
   for (const row of jobRows) {
