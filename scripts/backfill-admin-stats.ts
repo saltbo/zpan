@@ -59,6 +59,7 @@ interface ValidationSummary {
   rawMissingByteEvents: number
   rollupMissingByteEvents: number
   orphanRollupBuckets: number
+  requiredDimensionMismatchGroups: number
   lowerBoundRollups: number
   legacyRollupRows: number
   counterExpectedBuckets: number
@@ -881,6 +882,50 @@ counter_rows AS MATERIALIZED (
   FROM valid_rollups result
   WHERE result.metric_key <> 'stats.rollup_run'
     AND EXISTS (SELECT 1 FROM counter_markers marker WHERE marker.bucket_start = result.bucket_start)
+),
+required_dimensions(metric_key, dimension_key, check_bytes) AS (
+  VALUES
+    ('transfer.upload', 'source', 1),
+    ('transfer.upload', 'status', 1),
+    ('transfer.download_issued', 'actor_type', 1),
+    ('transfer.download_issued', 'source', 1),
+    ('share.download_issued', 'actor_type', 1),
+    ('share.download_issued', 'source', 1),
+    ('user.signup', 'provider', 0),
+    ('share.created', 'kind', 0),
+    ('remote_download.task_finished', 'category', 1),
+    ('remote_download.task_finished', 'outcome', 1),
+    ('background_job.finished', 'job_type', 0),
+    ('background_job.finished', 'outcome', 0),
+    ('storage.inventory', 'file_type_group', 1),
+    ('storage.inventory', 'size_bucket', 1),
+    ('storage.inventory', 'age_bucket', 1),
+    ('storage.trash_snapshot', 'storage_id', 1),
+    ('share.inventory', 'lifecycle', 0),
+    ('traffic.report_snapshot', 'status', 1),
+    ('webhook.snapshot', 'status', 0),
+    ('downloader.snapshot', 'status', 0)
+),
+base_rows AS MATERIALIZED (
+  SELECT bucket_start, org_id, metric_key, count, bytes
+  FROM valid_rollups
+  WHERE dimension_key = ''
+),
+dimension_rows AS MATERIALIZED (
+  SELECT bucket_start, org_id, metric_key, dimension_key, SUM(count) AS count, SUM(bytes) AS bytes
+  FROM valid_rollups
+  WHERE dimension_key <> ''
+  GROUP BY bucket_start, org_id, metric_key, dimension_key
+),
+required_dimension_keys AS MATERIALIZED (
+  SELECT required.metric_key, required.dimension_key, required.check_bytes, base.bucket_start, base.org_id
+  FROM required_dimensions required
+  JOIN base_rows base ON base.metric_key = required.metric_key
+  UNION
+  SELECT required.metric_key, required.dimension_key, required.check_bytes, dimension.bucket_start, dimension.org_id
+  FROM required_dimensions required
+  JOIN dimension_rows dimension
+    ON dimension.metric_key = required.metric_key AND dimension.dimension_key = required.dimension_key
 )
 SELECT json_object(
   'rollupUploadEvents', (
@@ -916,6 +961,28 @@ SELECT json_object(
             OR (json_extract(r.metadata, '$.scope') = 'snapshots' AND marker.scope IN ('snapshots', 'full'))
             OR (json_extract(r.metadata, '$.scope') = 'full' AND marker.scope = 'full')
           )
+      )
+  ),
+  'requiredDimensionMismatchGroups', (
+    SELECT COUNT(*)
+    FROM required_dimension_keys required
+    LEFT JOIN base_rows base
+      ON base.bucket_start = required.bucket_start
+      AND base.org_id = required.org_id
+      AND base.metric_key = required.metric_key
+    LEFT JOIN dimension_rows dimension
+      ON dimension.bucket_start = required.bucket_start
+      AND dimension.org_id = required.org_id
+      AND dimension.metric_key = required.metric_key
+      AND dimension.dimension_key = required.dimension_key
+    WHERE base.metric_key IS NULL
+      OR (
+        dimension.metric_key IS NULL
+        AND (base.count <> 0 OR (required.check_bytes = 1 AND base.bytes <> 0))
+      )
+      OR (
+        dimension.metric_key IS NOT NULL
+        AND (base.count <> dimension.count OR (required.check_bytes = 1 AND base.bytes <> dimension.bytes))
       )
   ),
   'lowerBoundRollups', (
@@ -1226,6 +1293,7 @@ function assertBackfillValidation(summary: ValidationSummary): void {
   if (
     mismatches.length > 0 ||
     summary.orphanRollupBuckets > 0 ||
+    summary.requiredDimensionMismatchGroups > 0 ||
     summary.legacyRollupRows > 0 ||
     summary.counterMissingBuckets > 0 ||
     summary.openCounterMarkers > 0
@@ -1234,6 +1302,7 @@ function assertBackfillValidation(summary: ValidationSummary): void {
       `admin_stats_validation_failed:${JSON.stringify({
         mismatches,
         orphanRollupBuckets: summary.orphanRollupBuckets,
+        requiredDimensionMismatchGroups: summary.requiredDimensionMismatchGroups,
         legacyRollupRows: summary.legacyRollupRows,
         counterMissingBuckets: summary.counterMissingBuckets,
         openCounterMarkers: summary.openCounterMarkers,
