@@ -231,6 +231,8 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.storageQuota, 'status', 'invalid', '')).toMatchObject({ count: 1 })
     expect(row(M.storageTrashSnapshot)).toMatchObject({ count: 1, bytes: 800 })
     expect(row(M.statsDataQualitySnapshot, 'kind', 'storage_usage_drift', '')).toMatchObject({ count: 0, bytes: 0 })
+    expect(row(M.shareInventory)).toMatchObject({ count: 4 })
+    expect(row(M.shareInventory, '', '', '')).toMatchObject({ count: 4 })
     expect(row(M.shareInventory, 'lifecycle', 'usable')).toMatchObject({ count: 1 })
     expect(row(M.shareInventory, 'lifecycle', 'revoked')).toMatchObject({ count: 1 })
     expect(row(M.shareInventory, 'lifecycle', 'expired')).toMatchObject({ count: 1 })
