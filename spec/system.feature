@@ -2,6 +2,12 @@ Feature: System options
   Admins manage instance-wide system options (public and private), default quota
   values, captcha, and read instance info + the release changelog.
 
+  @system/webdav-url @api
+  Scenario: The effective WebDAV URL is exposed as a read-only option
+    Given an optional WebDAV public hostname
+    When system options are listed or the WebDAV option is requested
+    Then the effective URL is public and cannot be mutated through the options API
+
   @system/option-not-found @api
   Scenario: An unknown option key returns 404
     Given no option for a key

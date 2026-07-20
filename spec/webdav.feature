@@ -21,6 +21,12 @@ Feature: WebDAV
     When PROPFIND is issued
     Then the mount root, workspace root, and folder children are listed
 
+  @webdav/custom-host @api
+  Scenario: A dedicated hostname exposes WebDAV at its root
+    Given a configured WebDAV public hostname
+    When DAV methods address resources through that hostname
+    Then response hrefs and destinations are root-relative while the main site keeps the /dav mount
+
   @webdav/propfind-workspaces @api
   Scenario: PROPFIND hides non-member workspaces
     Given several workspaces
