@@ -866,11 +866,15 @@ export function buildValidationSql(now = new Date()): string {
       AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
     ELSE 0 END = 1
 ),
-counter_markers AS MATERIALIZED (
-  SELECT bucket_start
+completion_markers AS MATERIALIZED (
+  SELECT bucket_start, json_extract(metadata, '$.scope') AS scope
   FROM valid_rollups
   WHERE metric_key = 'stats.rollup_run' AND org_id = '' AND dimension_key = '' AND dimension_value = ''
-    AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+),
+counter_markers AS MATERIALIZED (
+  SELECT bucket_start
+  FROM completion_markers
+  WHERE scope IN ('counters', 'full')
 ),
 counter_rows AS MATERIALIZED (
   SELECT result.*
@@ -903,7 +907,16 @@ SELECT json_object(
     SELECT COUNT(DISTINCT r.bucket_start)
     FROM valid_rollups r
     WHERE r.metric_key <> 'stats.rollup_run'
-      AND NOT EXISTS (SELECT 1 FROM counter_markers marker WHERE marker.bucket_start = r.bucket_start)
+      AND NOT EXISTS (
+        SELECT 1
+        FROM completion_markers marker
+        WHERE marker.bucket_start = r.bucket_start
+          AND (
+            (json_extract(r.metadata, '$.scope') = 'counters' AND marker.scope IN ('counters', 'full'))
+            OR (json_extract(r.metadata, '$.scope') = 'snapshots' AND marker.scope IN ('snapshots', 'full'))
+            OR (json_extract(r.metadata, '$.scope') = 'full' AND marker.scope = 'full')
+          )
+      )
   ),
   'lowerBoundRollups', (
     SELECT COUNT(*) FROM valid_rollups WHERE json_extract(metadata, '$.quality') = 'lower_bound'
