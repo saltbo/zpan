@@ -14,8 +14,8 @@ export type BrandingDeps = {
 
 const LOGO_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'] as const
 const FAVICON_MIMES = ['image/png', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/svg+xml'] as const
-// Caps apply to the RAW uploaded bytes. Base64 inflates ~33%, but GET
-// /api/site/branding is public + 5-min cached so the stored payload stays small.
+// Caps apply to the raw uploaded bytes. Base64 inflates them by roughly 33%, so
+// the limits also keep the public configz payload small.
 export const MAX_LOGO_SIZE = 256 * 1024 // 256 KB
 export const MAX_FAVICON_SIZE = 64 * 1024 // 64 KB
 
@@ -71,7 +71,7 @@ export type BrandingUpdateOutcome =
 
 export async function readBranding(deps: Pick<BrandingDeps, 'systemOptions'>): Promise<BrandingConfig> {
   const keys = Object.values(BRANDING_KEYS)
-  const rows = await deps.systemOptions.listByKeyLike('branding_%')
+  const rows = await deps.systemOptions.listByPrefix('branding_')
   const map = new Map(rows.filter((r) => (keys as readonly string[]).includes(r.key)).map((r) => [r.key, r.value]))
   const configured = THEME_KEYS.some((field) => map.has(BRANDING_KEYS[field]))
   const mode = readThemeMode(map.get(BRANDING_KEYS.theme_mode))
@@ -188,7 +188,7 @@ export async function uploadBrandingImage(
   const bytes = new Uint8Array(await file.arrayBuffer())
   const url = `data:${file.type};base64,${Buffer.from(bytes).toString('base64')}`
 
-  await deps.systemOptions.set(BRANDING_KEYS[field], url, true)
+  await deps.systemOptions.set(BRANDING_KEYS[field], url)
   return { ok: true, url }
 }
 
@@ -197,7 +197,7 @@ export async function setBrandingField(
   field: 'wordmark_text' | 'hide_powered_by' | ThemeField,
   value: string,
 ): Promise<void> {
-  await deps.systemOptions.set(BRANDING_KEYS[field], value, true)
+  await deps.systemOptions.set(BRANDING_KEYS[field], value)
 }
 
 export async function resetBrandingField(

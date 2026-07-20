@@ -42,9 +42,9 @@ function prepareNodeDatabase() {
   sqlite
     .prepare(
       `
-        INSERT INTO system_options (key, value, public)
-        VALUES ('auth_signup_mode', '', 1)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value, public = excluded.public
+        INSERT INTO system_options (key, value)
+        VALUES ('auth_signup_mode', '')
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
       `,
     )
     .run()
@@ -52,9 +52,9 @@ function prepareNodeDatabase() {
   sqlite
     .prepare(
       `
-        INSERT INTO system_options (key, value, public)
-        VALUES ('cloud_store_enabled', 'true', 0)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value, public = excluded.public
+        INSERT INTO system_options (key, value)
+        VALUES ('cloud_store_enabled', 'true')
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
       `,
     )
     .run()
@@ -62,8 +62,8 @@ function prepareNodeDatabase() {
   sqlite
     .prepare(
       `
-        INSERT INTO system_options (key, value, public)
-        VALUES (?, ?, 0), (?, ?, 0), (?, ?, 0)
+        INSERT INTO system_options (key, value)
+        VALUES (?, ?), (?, ?), (?, ?)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value
       `,
     )
@@ -191,9 +191,13 @@ setup('seed admin and storage', async () => {
       }
     }
 
-    const quotaResp = await request.put('/api/site/options/default_org_quota', {
+    const quotaResp = await request.put('/api/site/settings/quotas', {
       headers,
-      data: { value: defaultOrgQuota },
+      data: {
+        defaultOrgBytes: Number(defaultOrgQuota),
+        defaultTeamBytes: Number(defaultOrgQuota),
+        defaultMonthlyTrafficBytes: 0,
+      },
     })
     if (!quotaResp.ok()) throw new Error(`could not set E2E default quota: ${quotaResp.status()}`)
 

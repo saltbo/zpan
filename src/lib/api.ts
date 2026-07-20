@@ -16,9 +16,15 @@ import type {
   DownloadTaskActionInput,
   PresignObjectUploadPartsInput,
   RedeemGiftCardResponse,
+  SiteConfig,
+  SiteSettings,
   UpdateDownloaderCreditBillingInput,
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
+  UpdateSiteCaptchaInput,
+  UpdateSiteIdentityInput,
+  UpdateSiteQuotasInput,
+  UpdateSiteRegistrationInput,
   UpdateStorageEgressBillingInput,
   UpdateStorageInput,
 } from '@shared/schemas'
@@ -75,6 +81,7 @@ import {
   backgroundJobsApi,
   brandingAdminApi,
   cloudStoreApi,
+  configzApi,
   downloaderSelfApi,
   downloadTasksApi,
   emailConfig,
@@ -86,9 +93,9 @@ import {
   licensingApi,
   notificationsApi,
   objects,
-  publicBrandingApi,
   publicSharesApi,
   publicSiteInvitations,
+  siteSettingsApi,
   siteStatsApi,
   storages,
   system,
@@ -99,6 +106,30 @@ import {
 } from './rpc'
 
 export type { Storage, StorageObject }
+
+export function getSiteConfig() {
+  return unwrap<SiteConfig>(configzApi.index.$get())
+}
+
+export function getSiteSettings() {
+  return unwrap<SiteSettings>(siteSettingsApi.index.$get())
+}
+
+export function updateSiteIdentity(input: UpdateSiteIdentityInput) {
+  return unwrap<SiteSettings['identity']>(siteSettingsApi.identity.$put({ json: input }))
+}
+
+export function updateSiteRegistration(input: UpdateSiteRegistrationInput) {
+  return unwrap<SiteSettings['registration']>(siteSettingsApi.registration.$put({ json: input }))
+}
+
+export function updateSiteCaptcha(input: UpdateSiteCaptchaInput) {
+  return unwrap<SiteSettings['captcha']>(siteSettingsApi.captcha.$put({ json: input }))
+}
+
+export function updateSiteQuotas(input: UpdateSiteQuotasInput) {
+  return unwrap<SiteSettings['quotas']>(siteSettingsApi.quotas.$put({ json: input }))
+}
 
 export type UserQuota = Pick<
   OrgQuota,
@@ -679,28 +710,6 @@ export function listCloudOrders(options: { limit?: number; offset?: number } = {
     ...(options.offset !== undefined ? { offset: String(options.offset) } : {}),
   }
   return unwrap<{ items: CloudOrder[]; total: number }>(cloudStoreApi.orders.$get({ query }))
-}
-
-// System Options API
-
-export interface SiteOption {
-  key: string
-  value: string
-  public: boolean
-}
-
-export function listSystemOptions() {
-  return unwrap<{ items: SiteOption[]; total: number }>(system.options.$get())
-}
-
-export function getSystemOption(key: string) {
-  return unwrap<SiteOption>(system.options[':key'].$get({ param: { key } }))
-}
-
-export function setSystemOption(key: string, value: string, isPublic?: boolean) {
-  const body: { value: string; public?: boolean } = { value }
-  if (isPublic !== undefined) body.public = isPublic
-  return unwrap<SiteOption>(system.options[':key'].$put({ param: { key }, json: body }))
 }
 
 // Auth Providers API
@@ -1442,10 +1451,6 @@ export async function deleteTeamLogo(teamId: string) {
 // Branding API
 
 export type { BrandingConfig, BrandingField, BrandingThemeMode, BrandingThemePresetId, BrandingThemeValues }
-
-export function getBranding() {
-  return unwrap<BrandingConfig>(publicBrandingApi.index.$get())
-}
 
 // PUT uses multipart/form-data (logo/favicon are File objects).
 // Hono RPC does not express multipart cleanly — same documented exception as avatar/team logo uploads.

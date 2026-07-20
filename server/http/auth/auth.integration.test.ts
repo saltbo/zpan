@@ -101,9 +101,9 @@ describe('Auth API', () => {
       body: JSON.stringify({ name: 'Test', email: 'captcha-login@example.com', password: 'password123456' }),
     })
     await db.insert(schema.systemOptions).values([
-      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
-      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
-      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+      { key: CAPTCHA_ENABLED_KEY, value: 'true' },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key' },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key' },
     ])
 
     const res = await app.request('/api/auth/sign-in/email', {
@@ -119,9 +119,9 @@ describe('Auth API', () => {
   it('POST /api/auth/sign-up/email rejects missing captcha token when captcha is enabled', async () => {
     const { app, db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
-      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
-      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
-      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+      { key: CAPTCHA_ENABLED_KEY, value: 'true' },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key' },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key' },
     ])
 
     const res = await app.request('/api/auth/sign-up/email', {
@@ -142,9 +142,9 @@ describe('Auth API', () => {
       body: JSON.stringify({ name: 'Test', email: 'captcha-valid@example.com', password: 'password123456' }),
     })
     await db.insert(schema.systemOptions).values([
-      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
-      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
-      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+      { key: CAPTCHA_ENABLED_KEY, value: 'true' },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key' },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key' },
     ])
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }))))
 
@@ -164,9 +164,9 @@ describe('Auth API', () => {
   it('POST /api/auth/sign-up/email accepts valid captcha token when captcha is enabled', async () => {
     const { app, db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
-      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
-      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
-      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+      { key: CAPTCHA_ENABLED_KEY, value: 'true' },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key' },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key' },
     ])
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }))))
 

@@ -19,7 +19,7 @@ export function createInstanceRepo(db: Database): InstanceRepo {
       const id = nanoid(21)
       await db
         .insert(systemOptions)
-        .values({ key: INSTANCE_ID_KEY, value: id, public: false })
+        .values({ key: INSTANCE_ID_KEY, value: id })
         .onConflictDoUpdate({ target: systemOptions.key, set: { value: id } })
       return id
     },

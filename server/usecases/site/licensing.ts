@@ -347,6 +347,17 @@ export async function checkTeamLimit(
 
 export type SignupModeDeps = { systemOptions: SystemOptionsRepo; licenseBinding: LicenseBindingRepo }
 
+export async function resolveEffectiveSignupMode(
+  deps: Pick<SignupModeDeps, 'licenseBinding'>,
+  raw: string | null | undefined,
+): Promise<SignupMode> {
+  if (raw === SignupMode.INVITE_ONLY || raw === SignupMode.CLOSED) return raw
+  if (raw !== SignupMode.OPEN) return SignupMode.OPEN
+
+  const state = await loadBindingState({ licenseBinding: deps.licenseBinding })
+  return hasFeature('open_registration', state) ? SignupMode.OPEN : SignupMode.INVITE_ONLY
+}
+
 /**
  * Returns the effective signup mode.
  *
@@ -357,13 +368,7 @@ export type SignupModeDeps = { systemOptions: SystemOptionsRepo; licenseBinding:
  */
 export async function getEffectiveSignupMode(deps: SignupModeDeps): Promise<SignupMode> {
   const raw = await deps.systemOptions.getValue('auth_signup_mode')
-
-  if (raw === SignupMode.INVITE_ONLY || raw === SignupMode.CLOSED) return raw
-  if (raw !== SignupMode.OPEN) return SignupMode.OPEN // unknown/empty → open (existing behaviour)
-
-  // Stored value is explicitly 'open' — gate behind Pro feature
-  const state = await loadBindingState({ licenseBinding: deps.licenseBinding })
-  return hasFeature('open_registration', state) ? SignupMode.OPEN : SignupMode.INVITE_ONLY
+  return resolveEffectiveSignupMode(deps, raw)
 }
 
 // ─── Admin operations (/api/site/licensing admin routes) ──────────────────────────

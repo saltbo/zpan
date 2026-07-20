@@ -11,6 +11,7 @@ import type {
   BackgroundJobsRoute,
   BrandingAdminRoute,
   CloudStoreRoute,
+  ConfigzRoute,
   DownloaderSelfRoute,
   DownloadersRoute,
   DownloadTasksRoute,
@@ -22,10 +23,10 @@ import type {
   LicensingRoute,
   NotificationsRoute,
   ObjectsRoute,
-  PublicBrandingRoute,
   PublicSharesRoute,
   PublicSiteInvitationsRoute,
   PublicTeamsRoute,
+  SiteSettingsRoute,
   StoragesRoute,
   SystemRoute,
   TeamsRoute,
@@ -54,7 +55,9 @@ export const adminTeams = hc<AdminTeamsRoute>('/api/teams', opts)
 export const userQuotas = hc<UserQuotasRoute>('/api/quotas', opts)
 export const cloudStoreApi = hc<CloudStoreRoute>('/api/store', opts)
 export const system = hc<SystemRoute>('/api/site', opts)
-// One auth-providers resource (public list + admin CRUD, gated per-route).
+export const configzApi = hc<ConfigzRoute>('/api/configz', opts)
+export const siteSettingsApi = hc<SiteSettingsRoute>('/api/site/settings', opts)
+// Admin auth-provider management; public provider summaries come from configz.
 export const authProviders = hc<AuthProvidersRoute>('/api/site/auth-providers', opts)
 export const inviteCodes = hc<AdminInviteCodesRoute>('/api/site/invite-codes', opts)
 export const adminSiteInvitations = hc<AdminSiteInvitationsRoute>('/api/site/invitations', opts)
@@ -76,7 +79,6 @@ export const ihostConfigApi = hc<IhostConfigRoute>('/api/image-hosting/config', 
 export const ihostApi = hc<IhostRoute>('/api/image-hosting', opts)
 export const licensingApi = hc<LicensingRoute>('/api/site/licensing', opts)
 export const licensingAdminApi = hc<LicensingAdminRoute>('/api/site/licensing', opts)
-export const publicBrandingApi = hc<PublicBrandingRoute>('/api/site/branding', opts)
 export const brandingAdminApi = hc<BrandingAdminRoute>('/api/site/branding', opts)
 export const adminAuditApi = hc<AdminAuditRoute>('/api/site/audit-events', opts)
 export const siteStatsApi = hc<AdminStatsRoute>('/api/site/stats', opts)

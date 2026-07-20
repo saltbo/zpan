@@ -250,8 +250,7 @@ const APP_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS webhook_events_status_idx ON webhook_events(status);
   CREATE TABLE IF NOT EXISTS system_options (
     key TEXT PRIMARY KEY,
-    value TEXT NOT NULL DEFAULT '',
-    public INTEGER DEFAULT 0
+    value TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE IF NOT EXISTS invite_codes (
     id TEXT PRIMARY KEY,

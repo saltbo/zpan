@@ -1,42 +1,36 @@
-Feature: System options
-  Admins manage instance-wide system options (public and private), default quota
-  values, captcha, and read instance info + the release changelog.
+Feature: Site configuration
+  The frontend reads one safe structured configuration document while admins
+  edit fixed groups of site settings through dedicated endpoints.
+
+  @system/public-config @api
+  Scenario: Public site configuration has a stable safe structure
+    Given an anonymous visitor
+    When they request configz
+    Then site identity, branding, effective auth settings, and service URLs are returned without secrets
+
+  @system/settings-admin-only @api
+  Scenario: Editable site settings are admin-only
+    Given a non-admin
+    When they request editable site settings
+    Then access is denied and the generic Options API is unavailable
 
   @system/webdav-url @api
-  Scenario: The effective WebDAV URL is exposed as a read-only option
-    Given the site Public URL
-    When system options are listed or the WebDAV option is requested
-    Then the effective URL is public and cannot be mutated through the options API
+  Scenario: Configz derives the WebDAV URL from Public URL
+    Given an admin-configured Public URL
+    When configz is requested
+    Then the WebDAV URL uses the derived dav subdomain
 
-  @system/option-not-found @api
-  Scenario: An unknown option key returns 404
-    Given no option for a key
-    When it is requested
-    Then the API responds 404
-
-  @system/admin-crud @api
-  Scenario: Admins manage options through their lifecycle
+  @system/captcha-secret-private @api
+  Scenario: Captcha is updated as a group without exposing its secret
     Given an admin
-    When they create, read, update, and delete an option
-    Then public/private visibility is honored throughout
+    When they configure and enable captcha
+    Then admin settings report only whether a secret exists and configz exposes only public captcha fields
 
-  @system/mutations-require-admin @api
-  Scenario: Option mutations require an admin
-    Given an unauthenticated request
-    When it mutates an option
-    Then it is rejected
-
-  @system/validate-org-quota @api
-  Scenario: Default org quota values are validated
+  @system/settings-validation @api
+  Scenario: Site setting groups reject invalid values
     Given an admin
-    When they set an invalid default organization quota
-    Then it is rejected
-
-  @system/validate-traffic-quota @api
-  Scenario: Default monthly traffic quota values are validated
-    Given an admin
-    When they set an invalid default monthly traffic quota
-    Then it is rejected
+    When they submit invalid quota or captcha settings
+    Then the request is rejected without a partial update
 
   @system/instance-info-admin-only @api
   Scenario: Instance info is admin-only
@@ -49,9 +43,3 @@ Feature: System options
     Given the changelog endpoint
     When a non-admin requests it
     Then access is denied
-
-  @system/captcha-secret-private @api
-  Scenario: Captcha secret stays private and cannot be enabled prematurely
-    Given an admin
-    When they read captcha config or enable captcha before keys exist
-    Then the secret stays private and premature enabling is rejected

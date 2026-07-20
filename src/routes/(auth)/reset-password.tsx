@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useSiteOptions } from '@/hooks/use-site-options'
+import { useSiteConfig } from '@/hooks/use-site-config'
 import { resetPassword } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/(auth)/reset-password')({
@@ -15,7 +15,8 @@ export const Route = createFileRoute('/(auth)/reset-password')({
 function ResetPassword() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { siteName } = useSiteOptions()
+  const { data: siteConfig } = useSiteConfig()
+  const siteName = siteConfig?.site.name ?? DEFAULT_SITE_NAME
   const token = new URLSearchParams(window.location.search).get('token')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')

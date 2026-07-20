@@ -1,3 +1,4 @@
+import { DEFAULT_SITE_NAME } from '@shared/constants'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
@@ -28,7 +29,7 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '@/components/ui/sidebar'
-import { useSiteOptions } from '@/hooks/use-site-options'
+import { useSiteConfig } from '@/hooks/use-site-config'
 import { getIhostConfig, listBackgroundJobs } from '@/lib/api'
 import { useActiveOrganization, useSession } from '@/lib/auth-client'
 import { OrgSwitcher } from '../team/org-switcher'
@@ -40,7 +41,8 @@ export function AppSidebar() {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const { data: activeOrg } = useActiveOrganization()
-  const { siteName } = useSiteOptions()
+  const { data: siteConfig } = useSiteConfig()
+  const siteName = siteConfig?.site.name ?? DEFAULT_SITE_NAME
   const { branding } = useBranding()
   const { data: ihostConfig } = useQuery({
     queryKey: ['ihost', 'config', activeOrg?.id],

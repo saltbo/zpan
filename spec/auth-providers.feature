@@ -1,30 +1,30 @@
 Feature: Auth providers
-  Admins configure social/OIDC login providers. The public list exposes only
-  enabled providers without secrets; admin reads mask the client secret. The free
-  plan caps the provider count.
+  Admins configure social/OIDC login providers. Configz exposes only enabled,
+  minimal provider metadata; admin reads mask the client secret. The free plan
+  caps the provider count.
 
   @auth-providers/public-enabled-only @api
   Scenario: The public list shows only enabled providers
     Given a mix of enabled and disabled providers
-    When the public provider list is requested
+    When configz is requested
     Then only enabled providers are returned
 
   @auth-providers/public-no-secret @api
   Scenario: The public list never exposes secrets
     Given a configured provider
-    When the public list is requested
-    Then no client secret is included
+    When configz is requested
+    Then no management credentials or client secret are included
 
   @auth-providers/metadata @api
   Scenario: Providers carry display name and icon
     Given a known provider
-    When the public list is requested
+    When configz is requested
     Then its display name and icon come from provider metadata
 
   @auth-providers/oidc-fallback @api
   Scenario: Unknown OIDC providers fall back to their id
     Given an unknown OIDC provider
-    When the public list is requested
+    When configz is requested
     Then the providerId is used as name and icon
 
   @auth-providers/admin-only @api
@@ -39,11 +39,11 @@ Feature: Auth providers
     When an admin lists them
     Then all configs are returned
 
-  @auth-providers/anon-public-list @api
-  Scenario: Anonymous callers receive the public list, not a 401
-    Given enabled and disabled providers
-    When the merged provider list is requested without authentication
-    Then only enabled providers are returned without secrets
+  @auth-providers/management-admin-only @api
+  Scenario: Anonymous callers cannot read provider management data
+    Given configured providers
+    When the management API is requested without authentication
+    Then the API responds 401
 
   @auth-providers/mask-secret @api
   Scenario: Admin reads mask the client secret

@@ -1,35 +1,35 @@
 Feature: Branding
   Pro instances customize their wordmark, theme colors, and logo (white-label).
-  The public branding endpoint serves the active look without authentication.
+  Configz serves the active look without authentication.
 
   @branding/defaults @api
   Scenario: Unconfigured branding returns defaults
     Given no branding is configured
-    When the public branding is requested
+    When configz is requested
     Then default branding is returned
 
   @branding/public @api
   Scenario: Branding is public
     Given configured branding
-    When it is requested without authentication
+    When configz is requested without authentication
     Then it is still returned
 
   @branding/stored-values @api
   Scenario: Stored branding is served
     Given stored branding values
-    When the public branding is requested
+    When configz is requested
     Then the stored values are returned
 
   @branding/legacy-url-compat @api
   Scenario: Legacy absolute-URL logo and favicon are still served
     Given stored branding with absolute-URL logo and favicon
-    When the public branding is requested
+    When configz is requested
     Then the absolute URLs are returned unchanged
 
   @branding/custom-theme @api
   Scenario: Custom theme colors are served
     Given stored custom theme colors
-    When the public branding is requested
+    When configz is requested
     Then the custom theme values are returned
 
   @branding/white-label-gated @api

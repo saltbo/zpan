@@ -537,8 +537,8 @@ describe('Quota Store API', () => {
   it('uses configured site public origin for checkout URLs', async () => {
     const { app, db } = await createTestApp()
     await db.run(sql`
-      INSERT INTO system_options (key, value, public)
-      VALUES ('site_public_origin', 'https://files.example.com/path', 0)
+      INSERT INTO system_options (key, value)
+      VALUES ('site_public_origin', 'https://files.example.com/path')
     `)
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')

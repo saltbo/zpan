@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { useSiteOptions } from '@/hooks/use-site-options'
+import { useSiteConfig } from '@/hooks/use-site-config'
 import { signIn } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/(auth)/sign-in')({
@@ -30,7 +30,10 @@ function SignIn() {
       return null
     }
   })()
-  const { authSignupMode, captchaEnabled, captchaProvider, captchaSiteKey, siteName } = useSiteOptions()
+  const { data: siteConfig } = useSiteConfig()
+  const authSignupMode = siteConfig?.auth.signupMode
+  const captcha = siteConfig?.auth.captcha
+  const siteName = siteConfig?.site.name ?? DEFAULT_SITE_NAME
   const { providers } = useOAuthProviders()
   const authProviders = providers
   const [identity, setIdentity] = useState('')
@@ -46,7 +49,7 @@ function SignIn() {
     setLoading(true)
     try {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity)
-      const fetchOptions = captchaEnabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined
+      const fetchOptions = captcha?.enabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined
       const result = isEmail
         ? await signIn.email({ email: identity, password, callbackURL: '/files', fetchOptions })
         : await signIn.username({ username: identity, password, callbackURL: '/files', fetchOptions })
@@ -118,16 +121,16 @@ function SignIn() {
                 required
               />
             </div>
-            {captchaEnabled && captchaSiteKey && (
-              <ProviderCaptcha provider={captchaProvider} siteKey={captchaSiteKey} onToken={setCaptchaToken} />
+            {captcha?.enabled && (
+              <ProviderCaptcha provider={captcha.provider} siteKey={captcha.siteKey} onToken={setCaptchaToken} />
             )}
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken)}>
+            <Button type="submit" className="w-full" disabled={loading || (captcha?.enabled && !captchaToken)}>
               {loading ? t('auth.signingIn') : t('auth.signIn')}
             </Button>
           </form>
         )}
-        {authSignupMode !== SignupMode.CLOSED && (
+        {authSignupMode !== undefined && authSignupMode !== SignupMode.CLOSED && (
           <p className="text-center text-sm text-muted-foreground">
             {t('auth.noAccount')}{' '}
             <Link to="/sign-up" search={{ invite: undefined }} className="underline hover:text-foreground">

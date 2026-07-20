@@ -1,3 +1,4 @@
+import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME } from '@shared/constants'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronsUpDown, LogOut, Settings, ShieldCheck, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -11,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useSiteOptions } from '@/hooks/use-site-options'
+import { useSiteConfig } from '@/hooks/use-site-config'
 import { signOut, useSession } from '@/lib/auth-client'
 import { getInitials } from '@/lib/format'
 
@@ -25,7 +26,9 @@ interface ShareLayoutProps {
 export function ShareLayout({ children }: ShareLayoutProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { siteName, siteDescription } = useSiteOptions()
+  const { data: siteConfig } = useSiteConfig()
+  const siteName = siteConfig?.site.name ?? DEFAULT_SITE_NAME
+  const siteDescription = siteConfig?.site.description ?? DEFAULT_SITE_DESCRIPTION
   const { branding } = useBranding()
   const { data: session } = useSession()
   const user = session?.user as { name?: string; username?: string; role?: string; image?: string | null } | undefined

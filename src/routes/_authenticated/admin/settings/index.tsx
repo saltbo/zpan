@@ -1,14 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { CAPTCHA_PROVIDERS, type CaptchaProvider } from '@shared/captcha'
 import {
-  CAPTCHA_ENABLED_KEY,
-  CAPTCHA_MIN_SCORE_KEY,
-  CAPTCHA_PROVIDER_KEY,
-  CAPTCHA_PROVIDERS,
-  CAPTCHA_SECRET_OPTION_KEY,
-  CAPTCHA_SITE_KEY_KEY,
-  type CaptchaProvider,
-} from '@shared/captcha'
-import { SignupMode } from '@shared/constants'
+  DEFAULT_ORG_QUOTA,
+  DEFAULT_ORG_TRAFFIC_QUOTA,
+  DEFAULT_SITE_DESCRIPTION,
+  DEFAULT_SITE_NAME,
+  SignupMode,
+} from '@shared/constants'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Database, Globe2, ShieldCheck, UserPlus } from 'lucide-react'
@@ -30,9 +28,10 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { siteOptionsQueryKey, useSiteOptions } from '@/hooks/use-site-options'
+import { siteConfigQueryKey } from '@/hooks/use-site-config'
+import { siteSettingsQueryKey, useSiteSettings } from '@/hooks/use-site-settings'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { setSystemOption } from '@/lib/api'
+import { updateSiteCaptcha, updateSiteIdentity, updateSiteQuotas, updateSiteRegistration } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/settings/')({
   component: SettingsPage,
@@ -51,7 +50,16 @@ const settingsSchema = z.object({
   sitePublicOrigin: z
     .string()
     .trim()
-    .refine((value) => value === '' || /^https?:\/\/[^/]+/.test(value), 'Site URL must start with http:// or https://'),
+    .url('Site URL must be a valid URL')
+    .refine((value) => {
+      const url = new URL(value)
+      return (
+        (url.protocol === 'http:' || url.protocol === 'https:') &&
+        url.pathname === '/' &&
+        url.search === '' &&
+        url.hash === ''
+      )
+    }, 'Site URL must be an HTTP or HTTPS origin without a path, query, or fragment'),
   quotaValue: z.coerce.number<number>().positive('Quota must be a positive number'),
   quotaUnit: z.enum(['MB', 'GB']),
   teamQuotaValue: z.coerce.number<number>().positive('Quota must be a positive number'),
@@ -149,20 +157,20 @@ export function SettingsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [settingsDrawer, setSettingsDrawer] = useState<SettingsDrawer>(null)
-  const {
-    siteName,
-    siteDescription,
-    sitePublicOrigin,
-    defaultOrgQuota: quotaBytes,
-    defaultTeamQuota: teamQuotaBytes,
-    authSignupMode,
-    captchaEnabled,
-    captchaProvider,
-    captchaSiteKey,
-    captchaSecretKey,
-    captchaMinScore,
-    isLoading,
-  } = useSiteOptions()
+  const { data: settings, isLoading } = useSiteSettings()
+  const siteName = settings?.identity.name ?? DEFAULT_SITE_NAME
+  const siteDescription = settings?.identity.description ?? DEFAULT_SITE_DESCRIPTION
+  const sitePublicOrigin = settings?.identity.publicUrl ?? ''
+  const quotaBytes = settings?.quotas.defaultOrgBytes ?? DEFAULT_ORG_QUOTA
+  const teamQuotaBytes = settings?.quotas.defaultTeamBytes ?? quotaBytes
+  const monthlyTrafficBytes = settings?.quotas.defaultMonthlyTrafficBytes ?? DEFAULT_ORG_TRAFFIC_QUOTA
+  const authSignupMode = settings?.registration.configuredMode ?? SignupMode.OPEN
+  const effectiveSignupMode = settings?.registration.effectiveMode ?? authSignupMode
+  const captchaEnabled = settings?.captcha.enabled ?? false
+  const captchaProvider = settings?.captcha.provider ?? 'cloudflare-turnstile'
+  const captchaSiteKey = settings?.captcha.siteKey ?? ''
+  const captchaSecretConfigured = settings?.captcha.secretConfigured ?? false
+  const captchaMinScore = settings?.captcha.minScore === null ? '' : String(settings?.captcha.minScore ?? '')
   const { hasFeature } = useEntitlement()
   const hasWhiteLabel = hasFeature('white_label')
   const hasOpenRegistration = hasFeature('open_registration')
@@ -201,7 +209,7 @@ export function SettingsPage() {
       captchaEnabled,
       captchaProvider,
       captchaSiteKey,
-      captchaSecretKey,
+      captchaSecretKey: '',
       captchaMinScore,
     }
   }, [
@@ -214,7 +222,6 @@ export function SettingsPage() {
     captchaEnabled,
     captchaProvider,
     captchaSiteKey,
-    captchaSecretKey,
     captchaMinScore,
   ])
 
@@ -236,12 +243,15 @@ export function SettingsPage() {
       const valid = await form.trigger(['siteName', 'siteDescription', 'sitePublicOrigin'])
       if (!valid) throw new Error(t('admin.settings.identityInvalid'))
       const values = form.getValues()
-      await setSystemOption('site_name', values.siteName, true)
-      await setSystemOption('site_description', values.siteDescription, true)
-      await setSystemOption('site_public_origin', values.sitePublicOrigin.trim(), false)
+      await updateSiteIdentity({
+        name: values.siteName,
+        description: values.siteDescription,
+        publicUrl: values.sitePublicOrigin.trim(),
+      })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteSettingsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteConfigQueryKey })
       closeSettingsDrawer({ reset: false })
       toast.success(t('admin.settings.saved'))
     },
@@ -264,16 +274,20 @@ export function SettingsPage() {
       const unit =
         values.quotaUnit === 'MB' || values.quotaUnit === 'GB' ? values.quotaUnit : bytesToDisplay(quotaBytes).unit
       const bytes = Math.round(values.quotaValue * UNITS[unit])
-      await setSystemOption('default_org_quota', String(bytes), false)
       const teamUnit =
         values.teamQuotaUnit === 'MB' || values.teamQuotaUnit === 'GB'
           ? values.teamQuotaUnit
           : bytesToDisplay(teamQuotaBytes).unit
       const teamBytes = Math.round(values.teamQuotaValue * UNITS[teamUnit])
-      await setSystemOption('default_team_quota', String(teamBytes), false)
+      await updateSiteQuotas({
+        defaultOrgBytes: bytes,
+        defaultTeamBytes: teamBytes,
+        defaultMonthlyTrafficBytes: monthlyTrafficBytes,
+      })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteSettingsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteConfigQueryKey })
       closeSettingsDrawer({ reset: false })
       toast.success(t('admin.settings.saved'))
     },
@@ -283,15 +297,16 @@ export function SettingsPage() {
   })
 
   const registrationMutation = useMutation({
-    mutationFn: (checked: boolean) =>
-      setSystemOption('auth_signup_mode', checked ? SignupMode.OPEN : SignupMode.CLOSED, true),
+    mutationFn: (checked: boolean) => updateSiteRegistration({ mode: checked ? SignupMode.OPEN : SignupMode.CLOSED }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteSettingsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteConfigQueryKey })
       closeSettingsDrawer({ reset: false })
       toast.success(t('admin.settings.saved'))
     },
     onError: (err) => {
-      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteSettingsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteConfigQueryKey })
       toast.error(err.message)
     },
   })
@@ -301,19 +316,25 @@ export function SettingsPage() {
       const valid = await form.trigger(['captchaEnabled', 'captchaSiteKey', 'captchaSecretKey'])
       if (!valid) throw new Error(t('admin.settings.captchaInvalid'))
       const values = form.getValues()
-      await setSystemOption(CAPTCHA_PROVIDER_KEY, values.captchaProvider, true)
-      await setSystemOption(CAPTCHA_SITE_KEY_KEY, values.captchaSiteKey.trim(), true)
-      await setSystemOption(CAPTCHA_SECRET_OPTION_KEY, values.captchaSecretKey.trim(), false)
-      await setSystemOption(CAPTCHA_MIN_SCORE_KEY, values.captchaMinScore.trim(), false)
-      await setSystemOption(CAPTCHA_ENABLED_KEY, String(values.captchaEnabled), true)
+      const secretKey = values.captchaSecretKey.trim()
+      const minScore = values.captchaMinScore.trim()
+      await updateSiteCaptcha({
+        enabled: values.captchaEnabled,
+        provider: values.captchaProvider,
+        siteKey: values.captchaSiteKey.trim(),
+        ...(secretKey ? { secretKey } : {}),
+        minScore: minScore ? Number(minScore) : null,
+      })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteSettingsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteConfigQueryKey })
       closeSettingsDrawer({ reset: false })
       toast.success(t('admin.settings.saved'))
     },
     onError: (err) => {
-      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteSettingsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteConfigQueryKey })
       toast.error(err.message)
     },
   })
@@ -325,7 +346,7 @@ export function SettingsPage() {
   const selectedCaptchaProvider = form.watch('captchaProvider')
   const savedQuota = bytesToDisplay(quotaBytes)
   const savedTeamQuota = bytesToDisplay(teamQuotaBytes)
-  const savedRegistrationsEnabled = authSignupMode === SignupMode.OPEN
+  const savedRegistrationsEnabled = effectiveSignupMode === SignupMode.OPEN
 
   if (isLoading) {
     return (
@@ -436,11 +457,7 @@ export function SettingsPage() {
             <Button type="button" variant="outline" onClick={() => closeSettingsDrawer()}>
               {t('common.cancel')}
             </Button>
-            <Button
-              type="button"
-              disabled={!hasWhiteLabel || identityMutation.isPending}
-              onClick={() => identityMutation.mutate()}
-            >
+            <Button type="button" disabled={identityMutation.isPending} onClick={() => identityMutation.mutate()}>
               {identityMutation.isPending ? t('common.loading') : t('common.save')}
             </Button>
           </>
@@ -597,7 +614,7 @@ export function SettingsPage() {
         >
           <Input
             type="password"
-            placeholder={t('admin.settings.captchaSecretKeyPlaceholder')}
+            placeholder={captchaSecretConfigured ? '••••••••' : t('admin.settings.captchaSecretKeyPlaceholder')}
             {...form.register('captchaSecretKey')}
           />
         </AdminFormField>

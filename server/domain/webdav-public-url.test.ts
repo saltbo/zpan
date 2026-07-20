@@ -19,12 +19,10 @@ describe('WebDAV public URL', () => {
   })
 
   it('returns the derived origin or the request-origin path fallback', () => {
-    expect(effectiveWebDavUrl('https://example.com/api/site/options', 'https://example.com')).toBe(
+    expect(effectiveWebDavUrl('https://example.com/api/configz', 'https://example.com')).toBe(
       'https://dav.example.com/',
     )
-    expect(effectiveWebDavUrl('https://pan.example.com/api/site/options', undefined)).toBe(
-      'https://pan.example.com/dav/',
-    )
+    expect(effectiveWebDavUrl('https://pan.example.com/api/configz', undefined)).toBe('https://pan.example.com/dav/')
   })
 
   it('preserves protocol and port for deployments behind a local proxy', () => {

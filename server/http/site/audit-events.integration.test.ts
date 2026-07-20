@@ -335,48 +335,42 @@ describe('Team lifecycle audit events', () => {
   })
 })
 
-// ─── System option audit events ───────────────────────────────────────────────
+// ─── Site settings audit events ───────────────────────────────────────────────
 
-describe('System option audit events', () => {
-  it('records system_option_set when admin sets an option', async () => {
+describe('Site settings audit events', () => {
+  it('records site_quotas_update when admin updates quotas', async () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
 
-    const res = await app.request('/api/site/options/site_title', {
+    const res = await app.request('/api/site/settings/quotas', {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: 'My ZPan', public: true }),
+      body: JSON.stringify({ defaultOrgBytes: 1024, defaultTeamBytes: 2048, defaultMonthlyTrafficBytes: 0 }),
     })
-    expect(res.status).toBe(201)
+    expect(res.status).toBe(200)
 
-    const evt = await getLatestActivity(db, 'system_option_set')
+    const evt = await getLatestActivity(db, 'site_quotas_update')
     expect(evt).toBeDefined()
-    expect(evt?.targetType).toBe('system')
-    expect(evt?.targetName).toBe('site_title')
+    expect(evt?.targetType).toBe('site_settings')
+    expect(evt?.targetName).toBe('site_quotas_update')
     assertNoSecrets(evt?.metadata ?? null)
   })
 
-  it('records system_option_delete when admin deletes an option', async () => {
+  it('records site_registration_update when admin updates registration', async () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
 
-    // Create it first
-    await app.request('/api/site/options/temp_key', {
+    const res = await app.request('/api/site/settings/registration', {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: 'temp', public: false }),
+      body: JSON.stringify({ mode: 'closed' }),
     })
+    expect(res.status).toBe(200)
 
-    const res = await app.request('/api/site/options/temp_key', {
-      method: 'DELETE',
-      headers: admin,
-    })
-    expect(res.status).toBe(204)
-
-    const evt = await getLatestActivity(db, 'system_option_delete')
+    const evt = await getLatestActivity(db, 'site_registration_update')
     expect(evt).toBeDefined()
-    expect(evt?.targetType).toBe('system')
-    expect(evt?.targetName).toBe('temp_key')
+    expect(evt?.targetType).toBe('site_settings')
+    expect(evt?.targetName).toBe('site_registration_update')
     assertNoSecrets(evt?.metadata ?? null)
   })
 })
@@ -785,18 +779,17 @@ describe('Admin audit API with new event types', () => {
     await seedProLicense(db)
     const admin = await adminHeaders(app)
 
-    // Seed a system_option_set event
-    await app.request('/api/site/options/audit_test_key', {
+    await app.request('/api/site/settings/quotas', {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: 'test', public: false }),
+      body: JSON.stringify({ defaultOrgBytes: 1024, defaultTeamBytes: 2048, defaultMonthlyTrafficBytes: 0 }),
     })
 
-    const res = await app.request('/api/site/audit-events?action=system_option_set', { headers: admin })
+    const res = await app.request('/api/site/audit-events?action=site_quotas_update', { headers: admin })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ action: string }>; total: number }
     expect(body.total).toBeGreaterThan(0)
-    expect(body.items.every((e) => e.action === 'system_option_set')).toBe(true)
+    expect(body.items.every((e) => e.action === 'site_quotas_update')).toBe(true)
   })
 
   it('can filter by new target types', async () => {
@@ -804,18 +797,17 @@ describe('Admin audit API with new event types', () => {
     await seedProLicense(db)
     const admin = await adminHeaders(app)
 
-    // Seed a system target type event
-    await app.request('/api/site/options/another_key', {
+    await app.request('/api/site/settings/registration', {
       method: 'PUT',
       headers: { ...admin, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: 'value', public: false }),
+      body: JSON.stringify({ mode: 'closed' }),
     })
 
-    const res = await app.request('/api/site/audit-events?targetType=system', { headers: admin })
+    const res = await app.request('/api/site/audit-events?targetType=site_settings', { headers: admin })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ targetType: string }>; total: number }
     expect(body.total).toBeGreaterThan(0)
-    expect(body.items.every((e) => e.targetType === 'system')).toBe(true)
+    expect(body.items.every((e) => e.targetType === 'site_settings')).toBe(true)
   })
 
   it('existing file/folder events still appear in audit', async () => {

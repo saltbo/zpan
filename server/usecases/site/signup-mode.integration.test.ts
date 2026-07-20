@@ -142,7 +142,7 @@ describe('closed mode (non-Pro instance)', () => {
   })
 })
 
-// ─── PUT /api/site/options/auth_signup_mode ─────────────────────────────────
+// ─── PUT /api/site/settings/registration ─────────────────────────────────────
 
 describe('PUT auth_signup_mode via admin API', () => {
   async function adminHeaders(ctx: TestCtx) {
@@ -155,11 +155,11 @@ describe('PUT auth_signup_mode via admin API', () => {
     return { Cookie: signInRes.headers.getSetCookie().join('; ') }
   }
 
-  async function putSignupMode(ctx: TestCtx, headers: Record<string, string>, value: string) {
-    return ctx.app.request('/api/site/options/auth_signup_mode', {
+  async function putSignupMode(ctx: TestCtx, headers: Record<string, string>, mode: string) {
+    return ctx.app.request('/api/site/settings/registration', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value, public: true }),
+      body: JSON.stringify({ mode }),
     })
   }
 
@@ -181,21 +181,21 @@ describe('PUT auth_signup_mode via admin API', () => {
     await seedProLicense(ctx)
     const headers = await adminHeaders(ctx)
     const res = await putSignupMode(ctx, headers, 'open')
-    expect(res.status).toBe(201)
+    expect(res.status).toBe(200)
   })
 
   it('setting invite_only without Pro succeeds', async () => {
     const ctx = await createTestApp()
     const headers = await adminHeaders(ctx)
     const res = await putSignupMode(ctx, headers, 'invite_only')
-    expect(res.status).toBe(201)
+    expect(res.status).toBe(200)
   })
 
   it('setting closed without Pro succeeds', async () => {
     const ctx = await createTestApp()
     const headers = await adminHeaders(ctx)
     const res = await putSignupMode(ctx, headers, 'closed')
-    expect(res.status).toBe(201)
+    expect(res.status).toBe(200)
   })
 
   it('setting invite_only with Pro succeeds', async () => {
@@ -203,6 +203,6 @@ describe('PUT auth_signup_mode via admin API', () => {
     await seedProLicense(ctx)
     const headers = await adminHeaders(ctx)
     const res = await putSignupMode(ctx, headers, 'invite_only')
-    expect(res.status).toBe(201)
+    expect(res.status).toBe(200)
   })
 })

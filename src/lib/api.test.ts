@@ -47,7 +47,6 @@ import {
   getAdminDashboardTrafficStats,
   getAnnouncement,
   getBackgroundJob,
-  getBranding,
   getChangelog,
   getCloudCredits,
   getEmailConfig,
@@ -58,9 +57,10 @@ import {
   getProfile,
   getSession,
   getShare,
+  getSiteConfig,
   getSiteInvitation,
+  getSiteSettings,
   getStorage,
-  getSystemOption,
   getTeam,
   getTrashObject,
   getUnreadCount,
@@ -96,7 +96,6 @@ import {
   listShares,
   listSiteInvitations,
   listStorages,
-  listSystemOptions,
   listTeamActivities,
   listTeams,
   listTrash,
@@ -126,7 +125,6 @@ import {
   saveShareToDrive,
   sendDownloaderHeartbeat,
   serverEventsUrl,
-  setSystemOption,
   testEmail,
   transferObject,
   updateAnnouncement,
@@ -136,6 +134,10 @@ import {
   updateIhostConfig,
   updateObject,
   updateOrgEntitlement,
+  updateSiteCaptcha,
+  updateSiteIdentity,
+  updateSiteQuotas,
+  updateSiteRegistration,
   updateStorage,
   updateStorageEgressBilling,
   updateUserEntitlement,
@@ -1898,86 +1900,124 @@ describe('api', () => {
     })
   })
 
-  describe('listSystemOptions', () => {
-    it('fetches all system options', async () => {
-      const payload = { items: [{ key: 'site_name', value: 'ZPan', public: true }], total: 1 }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+  describe('site configuration', () => {
+    const config = {
+      site: { name: 'ZPan', description: '', publicUrl: 'https://pan.example.com' },
+      branding: {
+        logoUrl: null,
+        faviconUrl: null,
+        wordmark: null,
+        hidePoweredBy: false,
+        theme: { mode: 'preset', preset: 'default', custom: null, configured: false },
+      },
+      auth: { signupMode: 'invite_only', captcha: { enabled: false }, providers: [] },
+      services: { webdav: { url: 'https://dav.pan.example.com/' } },
+    } as const
+    const settings = {
+      identity: config.site,
+      registration: { configuredMode: 'open', effectiveMode: 'invite_only' },
+      captcha: {
+        enabled: false,
+        provider: 'cloudflare-turnstile',
+        siteKey: '',
+        secretConfigured: false,
+        minScore: null,
+      },
+      quotas: { defaultOrgBytes: 1024, defaultTeamBytes: 1024, defaultMonthlyTrafficBytes: 0 },
+    } as const
 
-      const result = await listSystemOptions()
-
-      expect(result).toEqual(payload)
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/site/options')
+    it('gets the public configz document', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(config))
+      await expect(getSiteConfig()).resolves.toEqual(config)
+      expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain('/api/configz')
     })
 
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
-
-      await expect(listSystemOptions()).rejects.toThrow('forbidden')
-    })
-  })
-
-  describe('getSystemOption', () => {
-    it('fetches a single system option by key', async () => {
-      const option = { key: 'site_name', value: 'ZPan', public: true }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(option))
-
-      const result = await getSystemOption('site_name')
-
-      expect(result).toEqual(option)
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/site/options/site_name')
+    it('throws when configz fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'failed' }, false, 500))
+      await expect(getSiteConfig()).rejects.toThrow('failed')
     })
 
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
-
-      await expect(getSystemOption('missing_key')).rejects.toThrow('not found')
+    it('gets the structured admin settings', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(settings))
+      await expect(getSiteSettings()).resolves.toEqual(settings)
+      expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain('/api/site/settings')
     })
-  })
 
-  describe('setSystemOption', () => {
-    it('puts option with value only when isPublic is not provided', async () => {
-      const option = { key: 'site_name', value: 'MyZPan', public: false }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(option))
+    it('throws when reading settings fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
+      await expect(getSiteSettings()).rejects.toThrow('unauthorized')
+    })
 
-      const result = await setSystemOption('site_name', 'MyZPan')
-
-      expect(result).toEqual(option)
+    it('updates identity with a structured payload', async () => {
+      const input = { name: 'ZPan', description: 'Files', publicUrl: 'https://pan.example.com' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(input))
+      await expect(updateSiteIdentity(input)).resolves.toEqual(input)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site/options/site_name')
+      expect(url).toContain('/api/site/settings/identity')
       expect(init.method).toBe('PUT')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toEqual({ value: 'MyZPan' })
-      expect(body.public).toBeUndefined()
+      expect(JSON.parse(String(init.body))).toEqual(input)
     })
 
-    it('puts option with value and public=true when isPublic is true', async () => {
-      const option = { key: 'site_name', value: 'MyZPan', public: true }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(option))
-
-      await setSystemOption('site_name', 'MyZPan', true)
-
-      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toEqual({ value: 'MyZPan', public: true })
-    })
-
-    it('puts option with value and public=false when isPublic is false', async () => {
-      const option = { key: 'site_name', value: 'MyZPan', public: false }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(option))
-
-      await setSystemOption('site_name', 'MyZPan', false)
-
-      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toEqual({ value: 'MyZPan', public: false })
-    })
-
-    it('throws on error response', async () => {
+    it('throws when updating identity fails', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+      await expect(
+        updateSiteIdentity({ name: 'ZPan', description: '', publicUrl: 'https://pan.example.com' }),
+      ).rejects.toThrow('forbidden')
+    })
 
-      await expect(setSystemOption('key', 'val')).rejects.toThrow('forbidden')
+    it('updates registration mode', async () => {
+      const result = { configuredMode: 'closed', effectiveMode: 'closed' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(result))
+      await expect(updateSiteRegistration({ mode: 'closed' })).resolves.toEqual(result)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/registration')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(String(init.body))).toEqual({ mode: 'closed' })
+    })
+
+    it('throws when updating registration fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'blocked' }, false, 402))
+      await expect(updateSiteRegistration({ mode: 'open' })).rejects.toThrow('blocked')
+    })
+
+    it('updates captcha without requiring a secret in every request', async () => {
+      const input = {
+        enabled: true,
+        provider: 'hcaptcha' as const,
+        siteKey: 'site-key',
+        minScore: null,
+      }
+      const result = { ...input, secretConfigured: true }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(result))
+      await expect(updateSiteCaptcha(input)).resolves.toEqual(result)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/captcha')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(String(init.body))).toEqual(input)
+    })
+
+    it('throws when updating captcha fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'invalid' }, false, 400))
+      await expect(
+        updateSiteCaptcha({ enabled: true, provider: 'hcaptcha', siteKey: '', minScore: null }),
+      ).rejects.toThrow('invalid')
+    })
+
+    it('updates all quota settings atomically', async () => {
+      const input = { defaultOrgBytes: 1024, defaultTeamBytes: 2048, defaultMonthlyTrafficBytes: 0 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(input))
+      await expect(updateSiteQuotas(input)).resolves.toEqual(input)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/quotas')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(String(init.body))).toEqual(input)
+    })
+
+    it('throws when updating quotas fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'invalid' }, false, 400))
+      await expect(
+        updateSiteQuotas({ defaultOrgBytes: 0, defaultTeamBytes: 0, defaultMonthlyTrafficBytes: 0 }),
+      ).rejects.toThrow('invalid')
     })
   })
 
@@ -3589,49 +3629,6 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
 
       await expect(disconnectCloud()).rejects.toThrow()
-    })
-  })
-
-  describe('getBranding', () => {
-    it('calls GET /api/site/branding and returns config', async () => {
-      const payload = {
-        logo_url: null,
-        favicon_url: null,
-        wordmark_text: null,
-        hide_powered_by: false,
-        theme: { mode: 'preset', preset: 'default', custom: null, configured: false },
-      }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await getBranding()
-
-      expect(result).toEqual(payload)
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/site/branding')
-    })
-
-    it('resolves with stored branding values', async () => {
-      const logoDataUri = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='
-      const payload = {
-        logo_url: logoDataUri,
-        favicon_url: null,
-        wordmark_text: 'MyCloud',
-        hide_powered_by: true,
-        theme: { mode: 'preset', preset: 'forest', custom: null, configured: true },
-      }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await getBranding()
-
-      expect(result.logo_url).toBe(logoDataUri)
-      expect(result.wordmark_text).toBe('MyCloud')
-      expect(result.hide_powered_by).toBe(true)
-    })
-
-    it('throws ApiError on non-ok response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Internal error' }, false, 500))
-
-      await expect(getBranding()).rejects.toThrow('Internal error')
     })
   })
 

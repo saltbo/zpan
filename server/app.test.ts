@@ -11,9 +11,9 @@ describe('auth captcha integration', () => {
   it('rejects protected auth endpoints through the Better Auth captcha plugin', async () => {
     const { app, db } = await createTestApp()
     await db.insert(systemOptions).values([
-      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
-      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
-      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+      { key: CAPTCHA_ENABLED_KEY, value: 'true' },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key' },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key' },
     ])
 
     const res = await app.request('/api/auth/sign-up/email', {
@@ -29,9 +29,9 @@ describe('auth captcha integration', () => {
   it('passes verified captcha headers through to Better Auth', async () => {
     const { app, db } = await createTestApp()
     await db.insert(systemOptions).values([
-      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
-      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
-      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+      { key: CAPTCHA_ENABLED_KEY, value: 'true' },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key' },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key' },
     ])
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }))))
 
@@ -52,9 +52,9 @@ describe('auth captcha integration', () => {
   it('leaves social auth with Better Auth when captcha is enabled', async () => {
     const { app, db } = await createTestApp()
     await db.insert(systemOptions).values([
-      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
-      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
-      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+      { key: CAPTCHA_ENABLED_KEY, value: 'true' },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key' },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key' },
     ])
 
     const res = await app.request('/api/auth/sign-in/social', {
@@ -81,9 +81,9 @@ describe('auth captcha integration', () => {
   it('does not apply captcha to social auth requests with malformed bodies', async () => {
     const { app, db } = await createTestApp()
     await db.insert(systemOptions).values([
-      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
-      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
-      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+      { key: CAPTCHA_ENABLED_KEY, value: 'true' },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key' },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key' },
     ])
 
     const res = await app.request('/api/auth/sign-in/social', {

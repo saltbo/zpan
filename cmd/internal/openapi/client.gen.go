@@ -66,6 +66,54 @@ func (e AuditEventActorType) Valid() bool {
 	}
 }
 
+// Defines values for BrandingThemePreset.
+const (
+	Default BrandingThemePreset = "default"
+	Forest  BrandingThemePreset = "forest"
+	Ocean   BrandingThemePreset = "ocean"
+	Rose    BrandingThemePreset = "rose"
+)
+
+// Valid indicates whether the value is a known member of the BrandingThemePreset enum.
+func (e BrandingThemePreset) Valid() bool {
+	switch e {
+	case Default:
+		return true
+	case Forest:
+		return true
+	case Ocean:
+		return true
+	case Rose:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CaptchaProvider.
+const (
+	Captchafox          CaptchaProvider = "captchafox"
+	CloudflareTurnstile CaptchaProvider = "cloudflare-turnstile"
+	GoogleRecaptcha     CaptchaProvider = "google-recaptcha"
+	Hcaptcha            CaptchaProvider = "hcaptcha"
+)
+
+// Valid indicates whether the value is a known member of the CaptchaProvider enum.
+func (e CaptchaProvider) Valid() bool {
+	switch e {
+	case Captchafox:
+		return true
+	case CloudflareTurnstile:
+		return true
+	case GoogleRecaptcha:
+		return true
+	case Hcaptcha:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DownloadTaskSpecSourceType.
 const (
 	DownloadTaskSpecSourceTypeHttp       DownloadTaskSpecSourceType = "http"
@@ -369,6 +417,93 @@ func (e ImageHostingConfigDomainStatus) Valid() bool {
 	}
 }
 
+// Defines values for PublicAuthProviderType.
+const (
+	PublicAuthProviderTypeBuiltin PublicAuthProviderType = "builtin"
+	PublicAuthProviderTypeOidc    PublicAuthProviderType = "oidc"
+)
+
+// Valid indicates whether the value is a known member of the PublicAuthProviderType enum.
+func (e PublicAuthProviderType) Valid() bool {
+	switch e {
+	case PublicAuthProviderTypeBuiltin:
+		return true
+	case PublicAuthProviderTypeOidc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PublicCaptcha0Enabled.
+const (
+	PublicCaptcha0EnabledFalse PublicCaptcha0Enabled = false
+)
+
+// Valid indicates whether the value is a known member of the PublicCaptcha0Enabled enum.
+func (e PublicCaptcha0Enabled) Valid() bool {
+	switch e {
+	case PublicCaptcha0EnabledFalse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PublicCaptcha1Enabled.
+const (
+	PublicCaptcha1EnabledTrue PublicCaptcha1Enabled = true
+)
+
+// Valid indicates whether the value is a known member of the PublicCaptcha1Enabled enum.
+func (e PublicCaptcha1Enabled) Valid() bool {
+	switch e {
+	case PublicCaptcha1EnabledTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SignupMode.
+const (
+	Closed     SignupMode = "closed"
+	InviteOnly SignupMode = "invite_only"
+	Open       SignupMode = "open"
+)
+
+// Valid indicates whether the value is a known member of the SignupMode enum.
+func (e SignupMode) Valid() bool {
+	switch e {
+	case Closed:
+		return true
+	case InviteOnly:
+		return true
+	case Open:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SiteBrandingThemeMode.
+const (
+	Custom SiteBrandingThemeMode = "custom"
+	Preset SiteBrandingThemeMode = "preset"
+)
+
+// Valid indicates whether the value is a known member of the SiteBrandingThemeMode enum.
+func (e SiteBrandingThemeMode) Valid() bool {
+	switch e {
+	case Custom:
+		return true
+	case Preset:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ChangeEmail200JSONResponseBodyMessage.
 const (
 	ChangeEmail200JSONResponseBodyMessageEmailUpdated          ChangeEmail200JSONResponseBodyMessage = "Email updated"
@@ -506,13 +641,13 @@ func (e PostApiAuthOauth2Link200JSONResponseBodyRedirect) Valid() bool {
 
 // Defines values for SignInEmail200JSONResponseBodyRedirect.
 const (
-	False SignInEmail200JSONResponseBodyRedirect = false
+	SignInEmail200JSONResponseBodyRedirectFalse SignInEmail200JSONResponseBodyRedirect = false
 )
 
 // Valid indicates whether the value is a known member of the SignInEmail200JSONResponseBodyRedirect enum.
 func (e SignInEmail200JSONResponseBodyRedirect) Valid() bool {
 	switch e {
-	case False:
+	case SignInEmail200JSONResponseBodyRedirectFalse:
 		return true
 	default:
 		return false
@@ -1145,16 +1280,16 @@ func (e UpdateAnnouncementJSONBodyStatus) Valid() bool {
 
 // Defines values for UpsertAuthProviderJSONBodyType.
 const (
-	Builtin UpsertAuthProviderJSONBodyType = "builtin"
-	Oidc    UpsertAuthProviderJSONBodyType = "oidc"
+	UpsertAuthProviderJSONBodyTypeBuiltin UpsertAuthProviderJSONBodyType = "builtin"
+	UpsertAuthProviderJSONBodyTypeOidc    UpsertAuthProviderJSONBodyType = "oidc"
 )
 
 // Valid indicates whether the value is a known member of the UpsertAuthProviderJSONBodyType enum.
 func (e UpsertAuthProviderJSONBodyType) Valid() bool {
 	switch e {
-	case Builtin:
+	case UpsertAuthProviderJSONBodyTypeBuiltin:
 		return true
-	case Oidc:
+	case UpsertAuthProviderJSONBodyTypeOidc:
 		return true
 	default:
 		return false
@@ -1274,13 +1409,13 @@ func (e CreateTeamInviteLinkJSONBodyRole) Valid() bool {
 
 // Defines values for JoinTeam200JSONResponseBodyOk.
 const (
-	True JoinTeam200JSONResponseBodyOk = true
+	JoinTeam200JSONResponseBodyOkTrue JoinTeam200JSONResponseBodyOk = true
 )
 
 // Valid indicates whether the value is a known member of the JoinTeam200JSONResponseBodyOk enum.
 func (e JoinTeam200JSONResponseBodyOk) Valid() bool {
 	switch e {
-	case True:
+	case JoinTeam200JSONResponseBodyOkTrue:
 		return true
 	default:
 		return false
@@ -1419,7 +1554,7 @@ type AuditEventPage struct {
 type AuthProvider struct {
 	CallbackUri  string    `json:"callbackUri"`
 	ClientId     string    `json:"clientId"`
-	ClientSecret *string   `json:"clientSecret"`
+	ClientSecret string    `json:"clientSecret"`
 	DiscoveryUrl *string   `json:"discoveryUrl"`
 	Enabled      bool      `json:"enabled"`
 	Icon         string    `json:"icon"`
@@ -1493,6 +1628,21 @@ type BrandingConfig struct {
 	} `json:"theme"`
 	WordmarkText *string `json:"wordmark_text"`
 }
+
+// BrandingThemePreset defines model for BrandingThemePreset.
+type BrandingThemePreset string
+
+// BrandingThemeValues defines model for BrandingThemeValues.
+type BrandingThemeValues struct {
+	CanvasColor        string `json:"canvasColor"`
+	PrimaryColor       string `json:"primaryColor"`
+	PrimaryForeground  string `json:"primaryForeground"`
+	RingColor          string `json:"ringColor"`
+	SidebarAccentColor string `json:"sidebarAccentColor"`
+}
+
+// CaptchaProvider defines model for CaptchaProvider.
+type CaptchaProvider string
 
 // Changelog defines model for Changelog.
 type Changelog struct {
@@ -2022,6 +2172,43 @@ type PendingInvitation struct {
 	Role      string  `json:"role"`
 }
 
+// PublicAuthProvider defines model for PublicAuthProvider.
+type PublicAuthProvider struct {
+	Icon string                 `json:"icon"`
+	Id   string                 `json:"id"`
+	Name string                 `json:"name"`
+	Type PublicAuthProviderType `json:"type"`
+}
+
+// PublicAuthProviderType defines model for PublicAuthProvider.Type.
+type PublicAuthProviderType string
+
+// PublicCaptcha defines model for PublicCaptcha.
+type PublicCaptcha struct {
+	union json.RawMessage
+}
+
+// PublicCaptcha0 defines model for .
+type PublicCaptcha0 struct {
+	Enabled PublicCaptcha0Enabled `json:"enabled"`
+}
+
+// PublicCaptcha0Enabled defines model for PublicCaptcha.0.Enabled.
+type PublicCaptcha0Enabled bool
+
+// PublicCaptcha1 defines model for .
+type PublicCaptcha1 struct {
+	Enabled  PublicCaptcha1Enabled `json:"enabled"`
+	Provider CaptchaProvider       `json:"provider"`
+	SiteKey  string                `json:"siteKey"`
+}
+
+// PublicCaptcha1Enabled defines model for PublicCaptcha.1.Enabled.
+type PublicCaptcha1Enabled bool
+
+// PublicOrigin defines model for PublicOrigin.
+type PublicOrigin = string
+
 // PublicProfile defines model for PublicProfile.
 type PublicProfile struct {
 	Shares []*interface{} `json:"shares"`
@@ -2201,6 +2388,62 @@ type ShareView struct {
 	Views            int             `json:"views"`
 }
 
+// SignupMode defines model for SignupMode.
+type SignupMode string
+
+// SiteBranding defines model for SiteBranding.
+type SiteBranding struct {
+	FaviconUrl    *string `json:"faviconUrl"`
+	HidePoweredBy bool    `json:"hidePoweredBy"`
+	LogoUrl       *string `json:"logoUrl"`
+	Theme         struct {
+		Configured bool                  `json:"configured"`
+		Custom     *BrandingThemeValues  `json:"custom"`
+		Mode       SiteBrandingThemeMode `json:"mode"`
+		Preset     BrandingThemePreset   `json:"preset"`
+	} `json:"theme"`
+	Wordmark *string `json:"wordmark"`
+}
+
+// SiteBrandingThemeMode defines model for SiteBranding.Theme.Mode.
+type SiteBrandingThemeMode string
+
+// SiteCaptchaSettings defines model for SiteCaptchaSettings.
+type SiteCaptchaSettings struct {
+	Enabled          bool            `json:"enabled"`
+	MinScore         *float32        `json:"minScore"`
+	Provider         CaptchaProvider `json:"provider"`
+	SecretConfigured bool            `json:"secretConfigured"`
+	SiteKey          string          `json:"siteKey"`
+}
+
+// SiteConfig defines model for SiteConfig.
+type SiteConfig struct {
+	Auth struct {
+		Captcha    PublicCaptcha        `json:"captcha"`
+		Providers  []PublicAuthProvider `json:"providers"`
+		SignupMode SignupMode           `json:"signupMode"`
+	} `json:"auth"`
+	Branding SiteBranding `json:"branding"`
+	Services struct {
+		Webdav struct {
+			Url string `json:"url"`
+		} `json:"webdav"`
+	} `json:"services"`
+	Site struct {
+		Description string `json:"description"`
+		Name        string `json:"name"`
+		PublicUrl   string `json:"publicUrl"`
+	} `json:"site"`
+}
+
+// SiteIdentitySettings defines model for SiteIdentitySettings.
+type SiteIdentitySettings struct {
+	Description string       `json:"description"`
+	Name        string       `json:"name"`
+	PublicUrl   PublicOrigin `json:"publicUrl"`
+}
+
 // SiteInvitation defines model for SiteInvitation.
 type SiteInvitation struct {
 	AcceptedAt    *string `json:"acceptedAt"`
@@ -2224,6 +2467,27 @@ type SiteInvitationList struct {
 	Page     int              `json:"page"`
 	PageSize int              `json:"pageSize"`
 	Total    int              `json:"total"`
+}
+
+// SiteQuotaSettings defines model for SiteQuotaSettings.
+type SiteQuotaSettings struct {
+	DefaultMonthlyTrafficBytes int `json:"defaultMonthlyTrafficBytes"`
+	DefaultOrgBytes            int `json:"defaultOrgBytes"`
+	DefaultTeamBytes           int `json:"defaultTeamBytes"`
+}
+
+// SiteRegistrationSettings defines model for SiteRegistrationSettings.
+type SiteRegistrationSettings struct {
+	ConfiguredMode SignupMode `json:"configuredMode"`
+	EffectiveMode  SignupMode `json:"effectiveMode"`
+}
+
+// SiteSettings defines model for SiteSettings.
+type SiteSettings struct {
+	Captcha      SiteCaptchaSettings      `json:"captcha"`
+	Identity     SiteIdentitySettings     `json:"identity"`
+	Quotas       SiteQuotaSettings        `json:"quotas"`
+	Registration SiteRegistrationSettings `json:"registration"`
 }
 
 // Storage defines model for Storage.
@@ -2254,21 +2518,6 @@ type StorageList struct {
 	Page     int       `json:"page"`
 	PageSize int       `json:"pageSize"`
 	Total    int       `json:"total"`
-}
-
-// SystemOption defines model for SystemOption.
-type SystemOption struct {
-	Key    string `json:"key"`
-	Public bool   `json:"public"`
-	Value  string `json:"value"`
-}
-
-// SystemOptionList defines model for SystemOptionList.
-type SystemOptionList struct {
-	Items    []SystemOption `json:"items"`
-	Page     int            `json:"page"`
-	PageSize int            `json:"pageSize"`
-	Total    int            `json:"total"`
 }
 
 // TeamInvitationList defines model for TeamInvitationList.
@@ -2348,6 +2597,20 @@ type TrashObjectPage struct {
 	Page     int           `json:"page"`
 	PageSize int           `json:"pageSize"`
 	Total    int           `json:"total"`
+}
+
+// UpdateSiteCaptcha defines model for UpdateSiteCaptcha.
+type UpdateSiteCaptcha struct {
+	Enabled   bool            `json:"enabled"`
+	MinScore  *float32        `json:"minScore"`
+	Provider  CaptchaProvider `json:"provider"`
+	SecretKey *string         `json:"secretKey,omitempty"`
+	SiteKey   string          `json:"siteKey"`
+}
+
+// UpdateSiteRegistration defines model for UpdateSiteRegistration.
+type UpdateSiteRegistration struct {
+	Mode SignupMode `json:"mode"`
 }
 
 // User defines model for User.
@@ -3662,12 +3925,6 @@ type ValidateInviteCodeJSONBody struct {
 	Code string `json:"code"`
 }
 
-// SetSystemOptionJSONBody defines parameters for SetSystemOption.
-type SetSystemOptionJSONBody struct {
-	Public *bool  `json:"public,omitempty"`
-	Value  string `json:"value"`
-}
-
 // CreateStorageJSONBody defines parameters for CreateStorage.
 type CreateStorageJSONBody struct {
 	AccessKey                  string  `json:"accessKey"`
@@ -4081,8 +4338,17 @@ type GenerateInviteCodesJSONRequestBody GenerateInviteCodesJSONBody
 // ValidateInviteCodeJSONRequestBody defines body for ValidateInviteCode for application/json ContentType.
 type ValidateInviteCodeJSONRequestBody ValidateInviteCodeJSONBody
 
-// SetSystemOptionJSONRequestBody defines body for SetSystemOption for application/json ContentType.
-type SetSystemOptionJSONRequestBody SetSystemOptionJSONBody
+// UpdateSiteCaptchaJSONRequestBody defines body for UpdateSiteCaptcha for application/json ContentType.
+type UpdateSiteCaptchaJSONRequestBody = UpdateSiteCaptcha
+
+// UpdateSiteIdentityJSONRequestBody defines body for UpdateSiteIdentity for application/json ContentType.
+type UpdateSiteIdentityJSONRequestBody = SiteIdentitySettings
+
+// UpdateSiteQuotasJSONRequestBody defines body for UpdateSiteQuotas for application/json ContentType.
+type UpdateSiteQuotasJSONRequestBody = SiteQuotaSettings
+
+// UpdateSiteRegistrationJSONRequestBody defines body for UpdateSiteRegistration for application/json ContentType.
+type UpdateSiteRegistrationJSONRequestBody = UpdateSiteRegistration
 
 // CreateStorageJSONRequestBody defines body for CreateStorage for application/json ContentType.
 type CreateStorageJSONRequestBody CreateStorageJSONBody
@@ -4125,6 +4391,68 @@ type GrantUserEntitlementJSONRequestBody GrantUserEntitlementJSONBody
 
 // UpdateUserEntitlementJSONRequestBody defines body for UpdateUserEntitlement for application/json ContentType.
 type UpdateUserEntitlementJSONRequestBody UpdateUserEntitlementJSONBody
+
+// AsPublicCaptcha0 returns the union data inside the PublicCaptcha as a PublicCaptcha0
+func (t PublicCaptcha) AsPublicCaptcha0() (PublicCaptcha0, error) {
+	var body PublicCaptcha0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPublicCaptcha0 overwrites any union data inside the PublicCaptcha as the provided PublicCaptcha0
+func (t *PublicCaptcha) FromPublicCaptcha0(v PublicCaptcha0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePublicCaptcha0 performs a merge with any union data inside the PublicCaptcha, using the provided PublicCaptcha0
+func (t *PublicCaptcha) MergePublicCaptcha0(v PublicCaptcha0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPublicCaptcha1 returns the union data inside the PublicCaptcha as a PublicCaptcha1
+func (t PublicCaptcha) AsPublicCaptcha1() (PublicCaptcha1, error) {
+	var body PublicCaptcha1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPublicCaptcha1 overwrites any union data inside the PublicCaptcha as the provided PublicCaptcha1
+func (t *PublicCaptcha) FromPublicCaptcha1(v PublicCaptcha1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePublicCaptcha1 performs a merge with any union data inside the PublicCaptcha, using the provided PublicCaptcha1
+func (t *PublicCaptcha) MergePublicCaptcha1(v PublicCaptcha1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PublicCaptcha) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PublicCaptcha) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // AsCreateBackgroundJobJSONBody0 returns the union data inside the CreateBackgroundJobJSONBody as a CreateBackgroundJobJSONBody0
 func (t CreateBackgroundJobJSONBody) AsCreateBackgroundJobJSONBody0() (CreateBackgroundJobJSONBody0, error) {
@@ -4733,6 +5061,9 @@ type ClientInterface interface {
 
 	CancelBackgroundJob(ctx context.Context, id string, body CancelBackgroundJobJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetSiteConfig request
+	GetSiteConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListDownloaders request
 	ListDownloaders(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4944,9 +5275,6 @@ type ClientInterface interface {
 
 	UpsertAuthProvider(ctx context.Context, providerId string, body UpsertAuthProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetBranding request
-	GetBranding(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// UpdateBranding request
 	UpdateBranding(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5020,19 +5348,28 @@ type ClientInterface interface {
 	// GetLicensingStatus request
 	GetLicensingStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListSystemOptions request
-	ListSystemOptions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetSiteSettings request
+	GetSiteSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteSystemOption request
-	DeleteSystemOption(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpdateSiteCaptchaWithBody request with any body
+	UpdateSiteCaptchaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetSystemOption request
-	GetSystemOption(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateSiteCaptcha(ctx context.Context, body UpdateSiteCaptchaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// SetSystemOptionWithBody request with any body
-	SetSystemOptionWithBody(ctx context.Context, key string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpdateSiteIdentityWithBody request with any body
+	UpdateSiteIdentityWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	SetSystemOption(ctx context.Context, key string, body SetSystemOptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateSiteIdentity(ctx context.Context, body UpdateSiteIdentityJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateSiteQuotasWithBody request with any body
+	UpdateSiteQuotasWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateSiteQuotas(ctx context.Context, body UpdateSiteQuotasJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateSiteRegistrationWithBody request with any body
+	UpdateSiteRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateSiteRegistration(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListStorages request
 	ListStorages(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6971,6 +7308,18 @@ func (c *Client) CancelBackgroundJob(ctx context.Context, id string, body Cancel
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetSiteConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSiteConfigRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListDownloaders(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListDownloadersRequest(c.Server)
 	if err != nil {
@@ -7907,18 +8256,6 @@ func (c *Client) UpsertAuthProvider(ctx context.Context, providerId string, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetBranding(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetBrandingRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) UpdateBranding(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateBrandingRequest(c.Server)
 	if err != nil {
@@ -8231,8 +8568,8 @@ func (c *Client) GetLicensingStatus(ctx context.Context, reqEditors ...RequestEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListSystemOptions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListSystemOptionsRequest(c.Server)
+func (c *Client) GetSiteSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSiteSettingsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -8243,8 +8580,8 @@ func (c *Client) ListSystemOptions(ctx context.Context, reqEditors ...RequestEdi
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteSystemOption(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteSystemOptionRequest(c.Server, key)
+func (c *Client) UpdateSiteCaptchaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteCaptchaRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8255,8 +8592,8 @@ func (c *Client) DeleteSystemOption(ctx context.Context, key string, reqEditors 
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetSystemOption(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetSystemOptionRequest(c.Server, key)
+func (c *Client) UpdateSiteCaptcha(ctx context.Context, body UpdateSiteCaptchaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteCaptchaRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8267,8 +8604,8 @@ func (c *Client) GetSystemOption(ctx context.Context, key string, reqEditors ...
 	return c.Client.Do(req)
 }
 
-func (c *Client) SetSystemOptionWithBody(ctx context.Context, key string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetSystemOptionRequestWithBody(c.Server, key, contentType, body)
+func (c *Client) UpdateSiteIdentityWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteIdentityRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8279,8 +8616,56 @@ func (c *Client) SetSystemOptionWithBody(ctx context.Context, key string, conten
 	return c.Client.Do(req)
 }
 
-func (c *Client) SetSystemOption(ctx context.Context, key string, body SetSystemOptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetSystemOptionRequest(c.Server, key, body)
+func (c *Client) UpdateSiteIdentity(ctx context.Context, body UpdateSiteIdentityJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteIdentityRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSiteQuotasWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteQuotasRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSiteQuotas(ctx context.Context, body UpdateSiteQuotasJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteQuotasRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSiteRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteRegistrationRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSiteRegistration(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteRegistrationRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -12682,6 +13067,33 @@ func NewCancelBackgroundJobRequestWithBody(server string, id string, contentType
 	return req, nil
 }
 
+// NewGetSiteConfigRequest generates requests for GetSiteConfig
+func NewGetSiteConfigRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/configz")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListDownloadersRequest generates requests for ListDownloaders
 func NewListDownloadersRequest(server string) (*http.Request, error) {
 	var err error
@@ -15418,33 +15830,6 @@ func NewUpsertAuthProviderRequestWithBody(server string, providerId string, cont
 	return req, nil
 }
 
-// NewGetBrandingRequest generates requests for GetBranding
-func NewGetBrandingRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/site/branding")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewUpdateBrandingRequest generates requests for UpdateBranding
 func NewUpdateBrandingRequest(server string) (*http.Request, error) {
 	var err error
@@ -16224,8 +16609,8 @@ func NewGetLicensingStatusRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewListSystemOptionsRequest generates requests for ListSystemOptions
-func NewListSystemOptionsRequest(server string) (*http.Request, error) {
+// NewGetSiteSettingsRequest generates requests for GetSiteSettings
+func NewGetSiteSettingsRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -16233,7 +16618,7 @@ func NewListSystemOptionsRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/site/options")
+	operationPath := fmt.Sprintf("/api/site/settings")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -16251,102 +16636,147 @@ func NewListSystemOptionsRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewDeleteSystemOptionRequest generates requests for DeleteSystemOption
-func NewDeleteSystemOptionRequest(server string, key string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "key", key, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/site/options/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetSystemOptionRequest generates requests for GetSystemOption
-func NewGetSystemOptionRequest(server string, key string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "key", key, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/site/options/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewSetSystemOptionRequest calls the generic SetSystemOption builder with application/json body
-func NewSetSystemOptionRequest(server string, key string, body SetSystemOptionJSONRequestBody) (*http.Request, error) {
+// NewUpdateSiteCaptchaRequest calls the generic UpdateSiteCaptcha builder with application/json body
+func NewUpdateSiteCaptchaRequest(server string, body UpdateSiteCaptchaJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewSetSystemOptionRequestWithBody(server, key, "application/json", bodyReader)
+	return NewUpdateSiteCaptchaRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewSetSystemOptionRequestWithBody generates requests for SetSystemOption with any type of body
-func NewSetSystemOptionRequestWithBody(server string, key string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUpdateSiteCaptchaRequestWithBody generates requests for UpdateSiteCaptcha with any type of body
+func NewUpdateSiteCaptchaRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "key", key, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/site/options/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/site/settings/captcha")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUpdateSiteIdentityRequest calls the generic UpdateSiteIdentity builder with application/json body
+func NewUpdateSiteIdentityRequest(server string, body UpdateSiteIdentityJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateSiteIdentityRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUpdateSiteIdentityRequestWithBody generates requests for UpdateSiteIdentity with any type of body
+func NewUpdateSiteIdentityRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/identity")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUpdateSiteQuotasRequest calls the generic UpdateSiteQuotas builder with application/json body
+func NewUpdateSiteQuotasRequest(server string, body UpdateSiteQuotasJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateSiteQuotasRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUpdateSiteQuotasRequestWithBody generates requests for UpdateSiteQuotas with any type of body
+func NewUpdateSiteQuotasRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/quotas")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUpdateSiteRegistrationRequest calls the generic UpdateSiteRegistration builder with application/json body
+func NewUpdateSiteRegistrationRequest(server string, body UpdateSiteRegistrationJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateSiteRegistrationRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUpdateSiteRegistrationRequestWithBody generates requests for UpdateSiteRegistration with any type of body
+func NewUpdateSiteRegistrationRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/registration")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -18504,6 +18934,9 @@ type ClientWithResponsesInterface interface {
 
 	CancelBackgroundJobWithResponse(ctx context.Context, id string, body CancelBackgroundJobJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelBackgroundJobResponse, error)
 
+	// GetSiteConfigWithResponse request
+	GetSiteConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSiteConfigResponse, error)
+
 	// ListDownloadersWithResponse request
 	ListDownloadersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDownloadersResponse, error)
 
@@ -18715,9 +19148,6 @@ type ClientWithResponsesInterface interface {
 
 	UpsertAuthProviderWithResponse(ctx context.Context, providerId string, body UpsertAuthProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertAuthProviderResponse, error)
 
-	// GetBrandingWithResponse request
-	GetBrandingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBrandingResponse, error)
-
 	// UpdateBrandingWithResponse request
 	UpdateBrandingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UpdateBrandingResponse, error)
 
@@ -18791,19 +19221,28 @@ type ClientWithResponsesInterface interface {
 	// GetLicensingStatusWithResponse request
 	GetLicensingStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetLicensingStatusResponse, error)
 
-	// ListSystemOptionsWithResponse request
-	ListSystemOptionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListSystemOptionsResponse, error)
+	// GetSiteSettingsWithResponse request
+	GetSiteSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSiteSettingsResponse, error)
 
-	// DeleteSystemOptionWithResponse request
-	DeleteSystemOptionWithResponse(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*DeleteSystemOptionResponse, error)
+	// UpdateSiteCaptchaWithBodyWithResponse request with any body
+	UpdateSiteCaptchaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteCaptchaResponse, error)
 
-	// GetSystemOptionWithResponse request
-	GetSystemOptionWithResponse(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*GetSystemOptionResponse, error)
+	UpdateSiteCaptchaWithResponse(ctx context.Context, body UpdateSiteCaptchaJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteCaptchaResponse, error)
 
-	// SetSystemOptionWithBodyWithResponse request with any body
-	SetSystemOptionWithBodyWithResponse(ctx context.Context, key string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetSystemOptionResponse, error)
+	// UpdateSiteIdentityWithBodyWithResponse request with any body
+	UpdateSiteIdentityWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteIdentityResponse, error)
 
-	SetSystemOptionWithResponse(ctx context.Context, key string, body SetSystemOptionJSONRequestBody, reqEditors ...RequestEditorFn) (*SetSystemOptionResponse, error)
+	UpdateSiteIdentityWithResponse(ctx context.Context, body UpdateSiteIdentityJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteIdentityResponse, error)
+
+	// UpdateSiteQuotasWithBodyWithResponse request with any body
+	UpdateSiteQuotasWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteQuotasResponse, error)
+
+	UpdateSiteQuotasWithResponse(ctx context.Context, body UpdateSiteQuotasJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteQuotasResponse, error)
+
+	// UpdateSiteRegistrationWithBodyWithResponse request with any body
+	UpdateSiteRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteRegistrationResponse, error)
+
+	UpdateSiteRegistrationWithResponse(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteRegistrationResponse, error)
 
 	// ListStoragesWithResponse request
 	ListStoragesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListStoragesResponse, error)
@@ -23665,6 +24104,36 @@ func (r CancelBackgroundJobResponse) ContentType() string {
 	return ""
 }
 
+type GetSiteConfigResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SiteConfig
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSiteConfigResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSiteConfigResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSiteConfigResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListDownloadersResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -25481,36 +25950,6 @@ func (r UpsertAuthProviderResponse) ContentType() string {
 	return ""
 }
 
-type GetBrandingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *BrandingConfig
-}
-
-// Status returns HTTPResponse.Status
-func (r GetBrandingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetBrandingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetBrandingResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type UpdateBrandingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -26168,14 +26607,14 @@ func (r GetLicensingStatusResponse) ContentType() string {
 	return ""
 }
 
-type ListSystemOptionsResponse struct {
+type GetSiteSettingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *SystemOptionList
+	JSON200      *SiteSettings
 }
 
 // Status returns HTTPResponse.Status
-func (r ListSystemOptionsResponse) Status() string {
+func (r GetSiteSettingsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -26183,7 +26622,7 @@ func (r ListSystemOptionsResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListSystemOptionsResponse) StatusCode() int {
+func (r GetSiteSettingsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -26191,21 +26630,22 @@ func (r ListSystemOptionsResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListSystemOptionsResponse) ContentType() string {
+func (r GetSiteSettingsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type DeleteSystemOptionResponse struct {
+type UpdateSiteCaptchaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *SiteCaptchaSettings
 	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteSystemOptionResponse) Status() string {
+func (r UpdateSiteCaptchaResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -26213,7 +26653,7 @@ func (r DeleteSystemOptionResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteSystemOptionResponse) StatusCode() int {
+func (r UpdateSiteCaptchaResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -26221,56 +26661,23 @@ func (r DeleteSystemOptionResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DeleteSystemOptionResponse) ContentType() string {
+func (r UpdateSiteCaptchaResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type GetSystemOptionResponse struct {
+type UpdateSiteIdentityResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *SystemOption
-	JSON403      *Error
-	JSON404      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetSystemOptionResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetSystemOptionResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetSystemOptionResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type SetSystemOptionResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *SystemOption
-	JSON201      *SystemOption
+	JSON200      *SiteIdentitySettings
 	JSON400      *Error
 	JSON402      *Error
 }
 
 // Status returns HTTPResponse.Status
-func (r SetSystemOptionResponse) Status() string {
+func (r UpdateSiteIdentityResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -26278,7 +26685,7 @@ func (r SetSystemOptionResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r SetSystemOptionResponse) StatusCode() int {
+func (r UpdateSiteIdentityResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -26286,7 +26693,68 @@ func (r SetSystemOptionResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r SetSystemOptionResponse) ContentType() string {
+func (r UpdateSiteIdentityResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateSiteQuotasResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SiteQuotaSettings
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateSiteQuotasResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateSiteQuotasResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateSiteQuotasResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateSiteRegistrationResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SiteRegistrationSettings
+	JSON402      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateSiteRegistrationResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateSiteRegistrationResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateSiteRegistrationResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -28975,6 +29443,15 @@ func (c *ClientWithResponses) CancelBackgroundJobWithResponse(ctx context.Contex
 	return ParseCancelBackgroundJobResponse(rsp)
 }
 
+// GetSiteConfigWithResponse request returning *GetSiteConfigResponse
+func (c *ClientWithResponses) GetSiteConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSiteConfigResponse, error) {
+	rsp, err := c.GetSiteConfig(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSiteConfigResponse(rsp)
+}
+
 // ListDownloadersWithResponse request returning *ListDownloadersResponse
 func (c *ClientWithResponses) ListDownloadersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDownloadersResponse, error) {
 	rsp, err := c.ListDownloaders(ctx, reqEditors...)
@@ -29654,15 +30131,6 @@ func (c *ClientWithResponses) UpsertAuthProviderWithResponse(ctx context.Context
 	return ParseUpsertAuthProviderResponse(rsp)
 }
 
-// GetBrandingWithResponse request returning *GetBrandingResponse
-func (c *ClientWithResponses) GetBrandingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBrandingResponse, error) {
-	rsp, err := c.GetBranding(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetBrandingResponse(rsp)
-}
-
 // UpdateBrandingWithResponse request returning *UpdateBrandingResponse
 func (c *ClientWithResponses) UpdateBrandingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UpdateBrandingResponse, error) {
 	rsp, err := c.UpdateBranding(ctx, reqEditors...)
@@ -29892,48 +30360,81 @@ func (c *ClientWithResponses) GetLicensingStatusWithResponse(ctx context.Context
 	return ParseGetLicensingStatusResponse(rsp)
 }
 
-// ListSystemOptionsWithResponse request returning *ListSystemOptionsResponse
-func (c *ClientWithResponses) ListSystemOptionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListSystemOptionsResponse, error) {
-	rsp, err := c.ListSystemOptions(ctx, reqEditors...)
+// GetSiteSettingsWithResponse request returning *GetSiteSettingsResponse
+func (c *ClientWithResponses) GetSiteSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSiteSettingsResponse, error) {
+	rsp, err := c.GetSiteSettings(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListSystemOptionsResponse(rsp)
+	return ParseGetSiteSettingsResponse(rsp)
 }
 
-// DeleteSystemOptionWithResponse request returning *DeleteSystemOptionResponse
-func (c *ClientWithResponses) DeleteSystemOptionWithResponse(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*DeleteSystemOptionResponse, error) {
-	rsp, err := c.DeleteSystemOption(ctx, key, reqEditors...)
+// UpdateSiteCaptchaWithBodyWithResponse request with arbitrary body returning *UpdateSiteCaptchaResponse
+func (c *ClientWithResponses) UpdateSiteCaptchaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteCaptchaResponse, error) {
+	rsp, err := c.UpdateSiteCaptchaWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeleteSystemOptionResponse(rsp)
+	return ParseUpdateSiteCaptchaResponse(rsp)
 }
 
-// GetSystemOptionWithResponse request returning *GetSystemOptionResponse
-func (c *ClientWithResponses) GetSystemOptionWithResponse(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*GetSystemOptionResponse, error) {
-	rsp, err := c.GetSystemOption(ctx, key, reqEditors...)
+func (c *ClientWithResponses) UpdateSiteCaptchaWithResponse(ctx context.Context, body UpdateSiteCaptchaJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteCaptchaResponse, error) {
+	rsp, err := c.UpdateSiteCaptcha(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetSystemOptionResponse(rsp)
+	return ParseUpdateSiteCaptchaResponse(rsp)
 }
 
-// SetSystemOptionWithBodyWithResponse request with arbitrary body returning *SetSystemOptionResponse
-func (c *ClientWithResponses) SetSystemOptionWithBodyWithResponse(ctx context.Context, key string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetSystemOptionResponse, error) {
-	rsp, err := c.SetSystemOptionWithBody(ctx, key, contentType, body, reqEditors...)
+// UpdateSiteIdentityWithBodyWithResponse request with arbitrary body returning *UpdateSiteIdentityResponse
+func (c *ClientWithResponses) UpdateSiteIdentityWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteIdentityResponse, error) {
+	rsp, err := c.UpdateSiteIdentityWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseSetSystemOptionResponse(rsp)
+	return ParseUpdateSiteIdentityResponse(rsp)
 }
 
-func (c *ClientWithResponses) SetSystemOptionWithResponse(ctx context.Context, key string, body SetSystemOptionJSONRequestBody, reqEditors ...RequestEditorFn) (*SetSystemOptionResponse, error) {
-	rsp, err := c.SetSystemOption(ctx, key, body, reqEditors...)
+func (c *ClientWithResponses) UpdateSiteIdentityWithResponse(ctx context.Context, body UpdateSiteIdentityJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteIdentityResponse, error) {
+	rsp, err := c.UpdateSiteIdentity(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseSetSystemOptionResponse(rsp)
+	return ParseUpdateSiteIdentityResponse(rsp)
+}
+
+// UpdateSiteQuotasWithBodyWithResponse request with arbitrary body returning *UpdateSiteQuotasResponse
+func (c *ClientWithResponses) UpdateSiteQuotasWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteQuotasResponse, error) {
+	rsp, err := c.UpdateSiteQuotasWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSiteQuotasResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateSiteQuotasWithResponse(ctx context.Context, body UpdateSiteQuotasJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteQuotasResponse, error) {
+	rsp, err := c.UpdateSiteQuotas(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSiteQuotasResponse(rsp)
+}
+
+// UpdateSiteRegistrationWithBodyWithResponse request with arbitrary body returning *UpdateSiteRegistrationResponse
+func (c *ClientWithResponses) UpdateSiteRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteRegistrationResponse, error) {
+	rsp, err := c.UpdateSiteRegistrationWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSiteRegistrationResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateSiteRegistrationWithResponse(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteRegistrationResponse, error) {
+	rsp, err := c.UpdateSiteRegistration(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSiteRegistrationResponse(rsp)
 }
 
 // ListStoragesWithResponse request returning *ListStoragesResponse
@@ -37755,6 +38256,32 @@ func ParseCancelBackgroundJobResponse(rsp *http.Response) (*CancelBackgroundJobR
 	return response, nil
 }
 
+// ParseGetSiteConfigResponse parses an HTTP response from a GetSiteConfigWithResponse call
+func ParseGetSiteConfigResponse(rsp *http.Response) (*GetSiteConfigResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSiteConfigResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SiteConfig
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListDownloadersResponse parses an HTTP response from a ListDownloadersWithResponse call
 func ParseListDownloadersResponse(rsp *http.Response) (*ListDownloadersResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -40035,32 +40562,6 @@ func ParseUpsertAuthProviderResponse(rsp *http.Response) (*UpsertAuthProviderRes
 	return response, nil
 }
 
-// ParseGetBrandingResponse parses an HTTP response from a GetBrandingWithResponse call
-func ParseGetBrandingResponse(rsp *http.Response) (*GetBrandingResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetBrandingResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BrandingConfig
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseUpdateBrandingResponse parses an HTTP response from a UpdateBrandingWithResponse call
 func ParseUpdateBrandingResponse(rsp *http.Response) (*UpdateBrandingResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -40724,22 +41225,22 @@ func ParseGetLicensingStatusResponse(rsp *http.Response) (*GetLicensingStatusRes
 	return response, nil
 }
 
-// ParseListSystemOptionsResponse parses an HTTP response from a ListSystemOptionsWithResponse call
-func ParseListSystemOptionsResponse(rsp *http.Response) (*ListSystemOptionsResponse, error) {
+// ParseGetSiteSettingsResponse parses an HTTP response from a GetSiteSettingsWithResponse call
+func ParseGetSiteSettingsResponse(rsp *http.Response) (*GetSiteSettingsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListSystemOptionsResponse{
+	response := &GetSiteSettingsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SystemOptionList
+		var dest SiteSettings
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40750,20 +41251,27 @@ func ParseListSystemOptionsResponse(rsp *http.Response) (*ListSystemOptionsRespo
 	return response, nil
 }
 
-// ParseDeleteSystemOptionResponse parses an HTTP response from a DeleteSystemOptionWithResponse call
-func ParseDeleteSystemOptionResponse(rsp *http.Response) (*DeleteSystemOptionResponse, error) {
+// ParseUpdateSiteCaptchaResponse parses an HTTP response from a UpdateSiteCaptchaWithResponse call
+func ParseUpdateSiteCaptchaResponse(rsp *http.Response) (*UpdateSiteCaptchaResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DeleteSystemOptionResponse{
+	response := &UpdateSiteCaptchaResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SiteCaptchaSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -40776,73 +41284,26 @@ func ParseDeleteSystemOptionResponse(rsp *http.Response) (*DeleteSystemOptionRes
 	return response, nil
 }
 
-// ParseGetSystemOptionResponse parses an HTTP response from a GetSystemOptionWithResponse call
-func ParseGetSystemOptionResponse(rsp *http.Response) (*GetSystemOptionResponse, error) {
+// ParseUpdateSiteIdentityResponse parses an HTTP response from a UpdateSiteIdentityWithResponse call
+func ParseUpdateSiteIdentityResponse(rsp *http.Response) (*UpdateSiteIdentityResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetSystemOptionResponse{
+	response := &UpdateSiteIdentityResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SystemOption
+		var dest SiteIdentitySettings
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseSetSystemOptionResponse parses an HTTP response from a SetSystemOptionWithResponse call
-func ParseSetSystemOptionResponse(rsp *http.Response) (*SetSystemOptionResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &SetSystemOptionResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SystemOption
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest SystemOption
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
@@ -40850,6 +41311,65 @@ func ParseSetSystemOptionResponse(rsp *http.Response) (*SetSystemOptionResponse,
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateSiteQuotasResponse parses an HTTP response from a UpdateSiteQuotasWithResponse call
+func ParseUpdateSiteQuotasResponse(rsp *http.Response) (*UpdateSiteQuotasResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateSiteQuotasResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SiteQuotaSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateSiteRegistrationResponse parses an HTTP response from a UpdateSiteRegistrationWithResponse call
+func ParseUpdateSiteRegistrationResponse(rsp *http.Response) (*UpdateSiteRegistrationResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateSiteRegistrationResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SiteRegistrationSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
 		var dest Error

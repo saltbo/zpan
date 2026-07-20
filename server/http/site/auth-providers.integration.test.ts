@@ -32,13 +32,17 @@ async function putProvider(
   })
 }
 
-describe('Auth Providers — public list', () => {
+async function publicProviders(app: Awaited<ReturnType<typeof createTestApp>>['app']) {
+  const response = await app.request('/api/configz')
+  expect(response.status).toBe(200)
+  const body = (await response.json()) as { auth: { providers: Array<Record<string, unknown>> } }
+  return body.auth.providers
+}
+
+describe('Auth Providers — configz projection', () => {
   it('returns empty items when no providers are configured', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/site/auth-providers')
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[] }
-    expect(body.items).toEqual([])
+    expect(await publicProviders(app)).toEqual([])
   })
 
   it('returns only enabled providers [spec: auth-providers/public-enabled-only]', async () => {
@@ -49,22 +53,21 @@ describe('Auth Providers — public list', () => {
     await putProvider(app, admin, 'github', { ...githubConfig, enabled: true })
     await putProvider(app, admin, 'google', { ...githubConfig, clientId: 'google-id', enabled: false })
 
-    const res = await app.request('/api/site/auth-providers')
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<Record<string, unknown>>; callbackBaseUri: string }
-    expect(body.items).toHaveLength(1)
-    expect(body.items[0].providerId).toBe('github')
+    const providers = await publicProviders(app)
+    expect(providers).toHaveLength(1)
+    expect(providers[0].id).toBe('github')
   })
 
-  it('nulls clientSecret in public response [spec: auth-providers/public-no-secret]', async () => {
+  it('omits every management and secret field [spec: auth-providers/public-no-secret]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
     await putProvider(app, admin, 'github', githubConfig)
 
-    const res = await app.request('/api/site/auth-providers')
-    const body = (await res.json()) as { items: Array<Record<string, unknown>>; callbackBaseUri: string }
-    expect(body.items[0].clientSecret).toBeNull()
+    const providers = await publicProviders(app)
+    expect(providers[0]).toEqual({ id: 'github', type: 'builtin', name: 'GitHub', icon: 'github' })
+    expect(JSON.stringify(providers)).not.toContain('client-id-123')
+    expect(JSON.stringify(providers)).not.toContain('super-secret-value')
   })
 
   it('returns display name and icon from provider metadata [spec: auth-providers/metadata]', async () => {
@@ -73,44 +76,9 @@ describe('Auth Providers — public list', () => {
 
     await putProvider(app, admin, 'github', githubConfig)
 
-    const res = await app.request('/api/site/auth-providers')
-    const body = (await res.json()) as {
-      items: Array<Record<string, unknown>>
-      callbackBaseUri: string
-    }
-    expect(body.items[0].name).toBe('GitHub')
-    expect(body.items[0].icon).toBe('github')
-  })
-
-  it('returns a built-in provider callback URI from request origin', async () => {
-    const { app } = await createTestApp()
-    const admin = await adminHeaders(app)
-    const origin = 'https://auth.example'
-
-    await putProvider(app, admin, 'github', githubConfig, origin)
-
-    const res = await app.request(`${origin}/api/site/auth-providers`)
-    const body = (await res.json()) as {
-      items: Array<Record<string, unknown>>
-      callbackBaseUri: string
-    }
-    expect(body.callbackBaseUri).toBe('https://auth.example')
-    expect(body.items[0].callbackUri).toBe('https://auth.example/api/auth/callback/github')
-  })
-
-  it('prefers BETTER_AUTH_URL over request origin for callback URIs', async () => {
-    const { app } = await createTestApp({ BETTER_AUTH_URL: 'https://auth.configured.example' })
-    const admin = await adminHeaders(app)
-
-    await putProvider(app, admin, 'github', githubConfig, 'https://admin.example')
-
-    const res = await app.request('https://admin.example/api/site/auth-providers')
-    const body = (await res.json()) as {
-      items: Array<Record<string, unknown>>
-      callbackBaseUri: string
-    }
-    expect(body.callbackBaseUri).toBe('https://auth.configured.example')
-    expect(body.items[0].callbackUri).toBe('https://auth.configured.example/api/auth/callback/github')
+    const providers = await publicProviders(app)
+    expect(providers[0].name).toBe('GitHub')
+    expect(providers[0].icon).toBe('github')
   })
 
   it('uses providerId as fallback name and icon for unknown OIDC provider [spec: auth-providers/oidc-fallback]', async () => {
@@ -119,24 +87,10 @@ describe('Auth Providers — public list', () => {
 
     await putProvider(app, admin, 'my-custom-oidc', oidcConfig)
 
-    const res = await app.request('/api/site/auth-providers')
-    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
-    expect(body.items).toHaveLength(1)
-    // No entry in OAuthProviderMeta for 'my-custom-oidc', so falls back to providerId
-    expect(body.items[0].name).toBe('my-custom-oidc')
-    expect(body.items[0].icon).toBe('my-custom-oidc')
-  })
-
-  it('returns a custom OIDC callback URI from request origin', async () => {
-    const { app } = await createTestApp()
-    const admin = await adminHeaders(app)
-    const origin = 'https://auth.example'
-
-    await putProvider(app, admin, 'my-custom-oidc', oidcConfig, origin)
-
-    const res = await app.request(`${origin}/api/site/auth-providers`)
-    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
-    expect(body.items[0].callbackUri).toBe('https://auth.example/api/auth/oauth2/callback/my-custom-oidc')
+    const providers = await publicProviders(app)
+    expect(providers).toHaveLength(1)
+    expect(providers[0].name).toBe('my-custom-oidc')
+    expect(providers[0].icon).toBe('my-custom-oidc')
   })
 
   it('disabled provider does not appear in public list', async () => {
@@ -145,27 +99,21 @@ describe('Auth Providers — public list', () => {
 
     await putProvider(app, admin, 'github', { ...githubConfig, enabled: false })
 
-    const res = await app.request('/api/site/auth-providers')
-    const body = (await res.json()) as { items: unknown[] }
-    expect(body.items).toHaveLength(0)
+    expect(await publicProviders(app)).toHaveLength(0)
   })
 })
 
 describe('Auth Providers — admin list', () => {
-  it('serves the public (secret-free) list to anonymous callers [spec: auth-providers/anon-public-list]', async () => {
+  it('rejects anonymous callers [spec: auth-providers/management-admin-only]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
     await putProvider(app, admin, 'github', githubConfig)
 
-    // No auth → public list, never the admin (secret-bearing) view.
     const res = await app.request('/api/site/auth-providers')
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
-    expect(body.items).toHaveLength(1)
-    expect(body.items[0].clientSecret).toBeNull()
+    expect(res.status).toBe(401)
   })
 
-  it('serves the public (secret-free) list to non-admin users [spec: auth-providers/admin-only]', async () => {
+  it('rejects non-admin users [spec: auth-providers/admin-only]', async () => {
     const { app } = await createTestApp()
     // First sign-up makes admin; second is regular user
     const admin = await adminHeaders(app)
@@ -178,10 +126,7 @@ describe('Auth Providers — admin list', () => {
     })
     const freshHeaders = { Cookie: signInRes.headers.getSetCookie().join('; ') }
     const res = await app.request('/api/site/auth-providers', { headers: freshHeaders })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
-    expect(body.items).toHaveLength(1)
-    expect(body.items[0].clientSecret).toBeNull()
+    expect(res.status).toBe(403)
   })
 
   it('returns empty items when no providers are configured', async () => {
@@ -404,9 +349,7 @@ describe('Auth Providers — admin delete', () => {
     await putProvider(app, admin, 'github', githubConfig)
     await app.request('/api/site/auth-providers/github', { method: 'DELETE', headers: admin })
 
-    const res = await app.request('/api/site/auth-providers')
-    const body = (await res.json()) as { items: unknown[] }
-    expect(body.items).toHaveLength(0)
+    expect(await publicProviders(app)).toHaveLength(0)
   })
 
   it('deleted provider no longer appears in admin list', async () => {

@@ -113,9 +113,7 @@ export async function saveEmailConfig(
   deps: Pick<EmailConfigDeps, 'systemOptions'>,
   input: SaveEmailConfigInput,
 ): Promise<void> {
-  for (const [key, value] of configEntries(input)) {
-    await deps.systemOptions.set(key, value, false)
-  }
+  await deps.systemOptions.setMany(configEntries(input).map(([key, value]) => ({ key, value })))
 }
 
 export async function sendTestEmail(

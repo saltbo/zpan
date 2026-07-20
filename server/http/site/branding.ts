@@ -4,7 +4,7 @@ import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { AppError, badRequest, payloadTooLarge, unsupportedMediaType } from '../../usecases/ports'
-import { applyBrandingUpdate, readBranding, resetBranding, type ThemeUpdate } from '../../usecases/site/branding'
+import { applyBrandingUpdate, resetBranding, type ThemeUpdate } from '../../usecases/site/branding'
 import { errorResponse, jsonContent } from '../openapi'
 
 const brandingThemeValuesSchema = z.object({
@@ -89,15 +89,6 @@ function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | {
   return { ok: true, values }
 }
 
-const readRoute = createRoute({
-  operationId: 'getBranding',
-  summary: 'Get branding',
-  tags: ['Branding'],
-  method: 'get',
-  path: '/',
-  responses: { 200: jsonContent(brandingConfigSchema, 'Branding config') },
-})
-
 const updateRoute = createRoute({
   operationId: 'updateBranding',
   summary: 'Update branding',
@@ -130,11 +121,6 @@ const resetRoute = createRoute({
     400: errorResponse('Invalid field'),
   },
 })
-
-// Public — no auth required. Used on sign-in/sign-up pages too.
-export const publicBranding = new OpenAPIHono<Env>().openapi(readRoute, async (c) =>
-  c.json(await readBranding(c.get('deps')), 200),
-)
 
 // Admin — requires auth + admin role + white_label feature.
 export const brandingAdmin = new OpenAPIHono<Env>()

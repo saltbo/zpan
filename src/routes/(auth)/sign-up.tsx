@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { useSiteOptions } from '@/hooks/use-site-options'
+import { useSiteConfig } from '@/hooks/use-site-config'
 import { ApiError, getSiteInvitation } from '@/lib/api'
 import { signUp } from '@/lib/auth-client'
 
@@ -25,14 +25,10 @@ function SignUp() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { invite } = Route.useSearch()
-  const {
-    authSignupMode,
-    captchaEnabled,
-    captchaProvider,
-    captchaSiteKey,
-    isLoading: optionsLoading,
-    siteName,
-  } = useSiteOptions()
+  const { data: siteConfig, isLoading: configLoading } = useSiteConfig()
+  const authSignupMode = siteConfig?.auth.signupMode
+  const captcha = siteConfig?.auth.captcha
+  const siteName = siteConfig?.site.name ?? DEFAULT_SITE_NAME
   const { providers } = useOAuthProviders()
   const authProviders = providers
   const [email, setEmail] = useState('')
@@ -139,7 +135,7 @@ function SignUp() {
         email,
         password,
         callbackURL: '/files',
-        fetchOptions: captchaEnabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined,
+        fetchOptions: captcha?.enabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined,
         ...(authSignupMode === SignupMode.INVITE_ONLY ? { inviteCode } : {}),
         ...(hasValidInvite && invite ? { siteInvitationToken: invite } : {}),
       })
@@ -224,15 +220,18 @@ function SignUp() {
                 <Input id="inviteCode" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required />
               </div>
             )}
-            {captchaEnabled && captchaSiteKey && (
-              <ProviderCaptcha provider={captchaProvider} siteKey={captchaSiteKey} onToken={setCaptchaToken} />
+            {captcha?.enabled && (
+              <ProviderCaptcha provider={captcha.provider} siteKey={captcha.siteKey} onToken={setCaptchaToken} />
             )}
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button
               type="submit"
               className="w-full"
               disabled={
-                loading || optionsLoading || (mustUseInvitation && !hasValidInvite) || (captchaEnabled && !captchaToken)
+                loading ||
+                configLoading ||
+                (mustUseInvitation && !hasValidInvite) ||
+                (captcha?.enabled && !captchaToken)
               }
             >
               {loading ? t('auth.creatingAccount') : t('auth.signUp')}

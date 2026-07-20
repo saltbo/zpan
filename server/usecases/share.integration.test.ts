@@ -37,11 +37,11 @@ function makeShare(overrides: Partial<ShareNotificationShare> = {}): ShareNotifi
 
 async function configureEmail(db: TestDb) {
   await db.insert(systemOptions).values([
-    { key: 'email_enabled', value: 'true', public: false },
-    { key: 'email_provider', value: 'smtp', public: false },
-    { key: 'email_from', value: 'no-reply@example.com', public: false },
-    { key: 'email_smtp_host', value: 'smtp.example.com', public: false },
-    { key: 'email_smtp_port', value: '587', public: false },
+    { key: 'email_enabled', value: 'true' },
+    { key: 'email_provider', value: 'smtp' },
+    { key: 'email_from', value: 'no-reply@example.com' },
+    { key: 'email_smtp_host', value: 'smtp.example.com' },
+    { key: 'email_smtp_port', value: '587' },
   ])
 }
 

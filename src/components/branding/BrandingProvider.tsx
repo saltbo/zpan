@@ -4,11 +4,10 @@ import {
   type BrandingThemeConfig,
   type BrandingThemeValues,
 } from '@shared/types'
-import { useQuery } from '@tanstack/react-query'
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
-import { getBranding } from '@/lib/api'
+import { siteConfigQueryKey, useSiteConfig } from '@/hooks/use-site-config'
 
-export const brandingQueryKey = ['branding'] as const
+export const brandingQueryKey = siteConfigQueryKey
 
 interface BrandingContext {
   branding: BrandingConfig
@@ -109,13 +108,29 @@ function BrandingEffects({ branding }: { branding: BrandingConfig }) {
 }
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
-  const { data, isLoading } = useQuery({
-    queryKey: brandingQueryKey,
-    queryFn: getBranding,
-    staleTime: 5 * 60 * 1000,
-  })
-
-  const branding = data ?? defaultBranding
+  const { data, isLoading } = useSiteConfig()
+  const branding: BrandingConfig = data
+    ? {
+        logo_url: data.branding.logoUrl,
+        favicon_url: data.branding.faviconUrl,
+        wordmark_text: data.branding.wordmark,
+        hide_powered_by: data.branding.hidePoweredBy,
+        theme: {
+          mode: data.branding.theme.mode,
+          preset: data.branding.theme.preset,
+          custom: data.branding.theme.custom
+            ? {
+                primary_color: data.branding.theme.custom.primaryColor,
+                primary_foreground: data.branding.theme.custom.primaryForeground,
+                canvas_color: data.branding.theme.custom.canvasColor,
+                sidebar_accent_color: data.branding.theme.custom.sidebarAccentColor,
+                ring_color: data.branding.theme.custom.ringColor,
+              }
+            : null,
+          configured: data.branding.theme.configured,
+        },
+      }
+    : defaultBranding
 
   return (
     <BrandingCtx.Provider value={{ branding, isLoading }}>

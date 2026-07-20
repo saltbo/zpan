@@ -1,0 +1,1 @@
+ALTER TABLE `system_options` DROP COLUMN `public`;

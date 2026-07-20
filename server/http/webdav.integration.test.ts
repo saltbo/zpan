@@ -270,7 +270,7 @@ describe('WebDAV API', () => {
 
   it('uses root-relative hrefs and destinations on the Public URL-derived DAV hostname [spec: webdav/custom-host]', async () => {
     const { app, db, auth, deps } = await createTestApp()
-    await deps.systemOptions.set('site_public_origin', 'https://example.com', false)
+    await deps.systemOptions.set('site_public_origin', 'https://example.com')
     await authedHeaders(app)
     await seedStorage(db)
     const workspace = await org(db)
@@ -316,7 +316,7 @@ describe('WebDAV API', () => {
 
   it('does not replace the site Public URL with the DAV hostname', async () => {
     const { app, db, deps } = await createTestApp()
-    await deps.systemOptions.set('site_public_origin', 'https://example.com', false)
+    await deps.systemOptions.set('site_public_origin', 'https://example.com')
 
     const res = await app.request('https://dav.example.com/dav/', { method: 'PROPFIND' })
     expect(res.status).toBe(401)

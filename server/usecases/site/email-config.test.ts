@@ -38,7 +38,7 @@ const cloudflareSettings: EmailSettings = {
 
 function makeDeps(overrides: { email?: Partial<EmailGateway>; systemOptions?: Partial<SystemOptionsRepo> } = {}) {
   const send = vi.fn(async (_p: Platform, _m: EmailMessage) => {})
-  const set = vi.fn(async (_k: string, _v: string, _public: boolean) => {})
+  const setMany = vi.fn(async (_entries: Array<{ key: string; value: string }>) => {})
   const getSettings = vi.fn(async (_p: Platform): Promise<EmailSettings> => ({ enabled: false, config: null }))
   const email: EmailGateway = {
     getConfig: async () => ({}) as EmailConfig,
@@ -48,17 +48,17 @@ function makeDeps(overrides: { email?: Partial<EmailGateway>; systemOptions?: Pa
     ...overrides.email,
   }
   const systemOptions: SystemOptionsRepo = {
-    list: async () => [],
-    listPublic: async () => [],
     get: async () => null,
     getValue: async () => null,
-    listByKeyLike: async () => [],
-    set,
+    getMany: async () => [],
+    listByPrefix: async () => [],
+    set: async () => {},
+    setMany,
     delete: async () => {},
     ...overrides.systemOptions,
   }
   const deps: EmailConfigDeps = { email, systemOptions }
-  return { deps, send, set, getSettings }
+  return { deps, send, setMany, getSettings }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -128,8 +128,8 @@ describe('email-config usecase', () => {
   })
 
   describe('saveEmailConfig', () => {
-    it('writes the SMTP option rows (each non-public)', async () => {
-      const { deps, set } = makeDeps()
+    it('writes the SMTP option rows atomically', async () => {
+      const { deps, setMany } = makeDeps()
       const input: SaveEmailConfigInput = {
         enabled: true,
         provider: 'smtp',
@@ -137,20 +137,20 @@ describe('email-config usecase', () => {
         smtp: { host: 'mail.example.com', port: 465, user: 'u', pass: 'p', secure: false },
       }
       await saveEmailConfig(deps, input)
-      expect(set.mock.calls).toEqual([
-        ['email_enabled', 'true', false],
-        ['email_provider', 'smtp', false],
-        ['email_from', 'sender@example.com', false],
-        ['email_smtp_host', 'mail.example.com', false],
-        ['email_smtp_port', '465', false],
-        ['email_smtp_user', 'u', false],
-        ['email_smtp_pass', 'p', false],
-        ['email_smtp_secure', 'false', false],
+      expect(setMany).toHaveBeenCalledWith([
+        { key: 'email_enabled', value: 'true' },
+        { key: 'email_provider', value: 'smtp' },
+        { key: 'email_from', value: 'sender@example.com' },
+        { key: 'email_smtp_host', value: 'mail.example.com' },
+        { key: 'email_smtp_port', value: '465' },
+        { key: 'email_smtp_user', value: 'u' },
+        { key: 'email_smtp_pass', value: 'p' },
+        { key: 'email_smtp_secure', value: 'false' },
       ])
     })
 
     it('writes the HTTP option rows', async () => {
-      const { deps, set } = makeDeps()
+      const { deps, setMany } = makeDeps()
       const input: SaveEmailConfigInput = {
         enabled: true,
         provider: 'http',
@@ -158,28 +158,28 @@ describe('email-config usecase', () => {
         http: { url: 'https://api.sendgrid.com/v3/mail/send', apiKey: 'SG.key12345' },
       }
       await saveEmailConfig(deps, input)
-      expect(set.mock.calls).toEqual([
-        ['email_enabled', 'true', false],
-        ['email_provider', 'http', false],
-        ['email_from', 'http-from@example.com', false],
-        ['email_http_url', 'https://api.sendgrid.com/v3/mail/send', false],
-        ['email_http_api_key', 'SG.key12345', false],
+      expect(setMany).toHaveBeenCalledWith([
+        { key: 'email_enabled', value: 'true' },
+        { key: 'email_provider', value: 'http' },
+        { key: 'email_from', value: 'http-from@example.com' },
+        { key: 'email_http_url', value: 'https://api.sendgrid.com/v3/mail/send' },
+        { key: 'email_http_api_key', value: 'SG.key12345' },
       ])
     })
 
     it('writes only the three shared rows for Cloudflare', async () => {
-      const { deps, set } = makeDeps()
+      const { deps, setMany } = makeDeps()
       const input: SaveEmailConfigInput = { enabled: true, provider: 'cloudflare', from: 'no-reply@zpan.space' }
       await saveEmailConfig(deps, input)
-      expect(set.mock.calls).toEqual([
-        ['email_enabled', 'true', false],
-        ['email_provider', 'cloudflare', false],
-        ['email_from', 'no-reply@zpan.space', false],
+      expect(setMany).toHaveBeenCalledWith([
+        { key: 'email_enabled', value: 'true' },
+        { key: 'email_provider', value: 'cloudflare' },
+        { key: 'email_from', value: 'no-reply@zpan.space' },
       ])
     })
 
     it('persists a disabled state even when a provider config is given', async () => {
-      const { deps, set } = makeDeps()
+      const { deps, setMany } = makeDeps()
       const input: SaveEmailConfigInput = {
         enabled: false,
         provider: 'smtp',
@@ -187,8 +187,12 @@ describe('email-config usecase', () => {
         smtp: { host: 'mail.example.com', port: 587, user: '', pass: '', secure: true },
       }
       await saveEmailConfig(deps, input)
-      expect(set).toHaveBeenCalledWith('email_enabled', 'false', false)
-      expect(set).toHaveBeenCalledWith('email_provider', 'smtp', false)
+      expect(setMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          { key: 'email_enabled', value: 'false' },
+          { key: 'email_provider', value: 'smtp' },
+        ]),
+      )
     })
   })
 

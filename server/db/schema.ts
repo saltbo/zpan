@@ -207,7 +207,6 @@ export const siteInvitations = sqliteTable(
 export const systemOptions = sqliteTable('system_options', {
   key: text('key').primaryKey(),
   value: text('value').notNull().default(''),
-  public: integer('public', { mode: 'boolean' }).default(false),
 })
 
 export const licenseBindings = sqliteTable(

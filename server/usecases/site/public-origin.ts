@@ -40,7 +40,7 @@ export async function ensureSitePublicOrigin(
 
   // Concurrent first requests may race here; both write the same resolved origin,
   // so the re-read below settles on the persisted value either way.
-  await deps.systemOptions.set(SITE_PUBLIC_ORIGIN_KEY, origin, false)
+  await deps.systemOptions.set(SITE_PUBLIC_ORIGIN_KEY, origin)
 
   const saved = await getSitePublicOrigin(deps)
   if (saved) cachedOrigin = saved

@@ -6,14 +6,14 @@ import {
   type BrandingThemePresetId,
   type BrandingThemeValues,
 } from '@shared/types'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Eye, ImageUp, Palette, RotateCcw, Upload } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/admin/admin-form-drawer'
 import { ThemeColorInput, ThemePreview } from '@/components/admin/branding-theme-preview'
-import { brandingQueryKey } from '@/components/branding/BrandingProvider'
+import { brandingQueryKey, useBranding } from '@/components/branding/BrandingProvider'
 import { ProBadge } from '@/components/ProBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card'
@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { getBranding, resetBrandingField, saveBranding } from '@/lib/api'
+import { resetBrandingField, saveBranding } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 interface BrandingFormState {
@@ -221,11 +221,7 @@ function FileUploadField({
 export function BrandingSection() {
   const { t } = useTranslation()
   const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
-  const { data: branding, isLoading: brandingLoading } = useQuery({
-    queryKey: brandingQueryKey,
-    queryFn: getBranding,
-    staleTime: 5 * 60 * 1000,
-  })
+  const { branding, isLoading: brandingLoading } = useBranding()
 
   if (entitlementLoading || brandingLoading) {
     return <div className="py-10 text-center text-sm text-muted-foreground">{t('common.loading')}</div>

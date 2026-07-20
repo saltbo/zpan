@@ -1,6 +1,5 @@
 // The auth-providers resource usecase. Owns every business decision behind the
-// /api/admin/auth-providers (full CRUD, secrets masked) and /api/site/auth-providers
-// (public, enabled-only, no secrets) routes — provider-id validation, the
+// admin auth-provider API and configz projection — provider-id validation, the
 // builtin/OIDC shape rules, and the Community social-login-count gate — so the
 // http handlers only validate the request body, call these functions, and
 // serialize the result.
@@ -12,13 +11,13 @@ import { FREE_SOCIAL_LOGIN_LIMIT } from '@shared/constants'
 import {
   BUILTIN_PROVIDER_IDS,
   isValidProviderId,
-  OAUTH_PROVIDER_KEY_PATTERN,
   OAUTH_PROVIDER_KEY_PREFIX,
   type OAuthProviderConfig,
   OAuthProviderMeta,
   type OAuthProviderType,
   parseProviderConfig,
 } from '@shared/oauth-providers'
+import type { SiteConfig } from '@shared/schemas'
 import type { AuthProvider } from '@shared/types'
 import { hasFeature } from '../../domain/licensing'
 import { type AppError, badRequest, featureBlocked, type LicenseBindingRepo, type SystemOptionsRepo } from '../ports'
@@ -52,7 +51,7 @@ export function providerCallbackUri(config: OAuthProviderConfig, authOrigin: str
 // Role changes values only: admin gets a masked clientSecret, front-of-house gets null.
 // name/icon come from the static OAuthProviderMeta registry (providerId fallback);
 // clientId/discoveryUrl/scopes are not secrets, so they are exposed to everyone.
-function toAuthProvider(config: OAuthProviderConfig, isAdmin: boolean, authOrigin: string): AuthProvider {
+function toAuthProvider(config: OAuthProviderConfig, authOrigin: string): AuthProvider {
   const meta = OAuthProviderMeta[config.providerId]
   return {
     providerId: config.providerId,
@@ -64,7 +63,7 @@ function toAuthProvider(config: OAuthProviderConfig, isAdmin: boolean, authOrigi
     discoveryUrl: config.discoveryUrl ?? null,
     scopes: config.scopes ?? null,
     callbackUri: providerCallbackUri(config, authOrigin),
-    clientSecret: isAdmin ? maskSecret(config.clientSecret) : null,
+    clientSecret: maskSecret(config.clientSecret),
   }
 }
 
@@ -85,20 +84,35 @@ export type DeleteProviderOutcome = { ok: true } | { ok: false; error: AppError 
 
 const INVALID_PROVIDER_ID_MESSAGE = 'Provider ID must contain only lowercase letters, numbers, and hyphens'
 
-// One list, one shape. Admin sees every stored config with a masked secret;
-// front-of-house sees the enabled-only subset with `clientSecret: null` — a content
-// difference (mask / null / filter), never a shape difference.
 export async function listAuthProviders(
   deps: Pick<AuthProviderDeps, 'systemOptions'>,
-  { isAdmin, authOrigin }: { isAdmin: boolean; authOrigin: string },
+  { authOrigin }: { authOrigin: string },
 ): Promise<{ items: AuthProvider[] }> {
-  const rows = await deps.systemOptions.listByKeyLike(OAUTH_PROVIDER_KEY_PATTERN)
+  const rows = await deps.systemOptions.listByPrefix(OAUTH_PROVIDER_KEY_PREFIX)
   const items = rows
     .map((r) => parseProviderConfig(r.value))
     .filter((config) => config !== null)
-    .filter((config) => isAdmin || config.enabled)
-    .map((config) => toAuthProvider(config, isAdmin, authOrigin))
+    .map((config) => toAuthProvider(config, authOrigin))
   return { items }
+}
+
+export async function listPublicAuthProviders(
+  deps: Pick<AuthProviderDeps, 'systemOptions'>,
+): Promise<SiteConfig['auth']['providers']> {
+  const rows = await deps.systemOptions.listByPrefix(OAUTH_PROVIDER_KEY_PREFIX)
+  return rows
+    .map((row) => parseProviderConfig(row.value))
+    .filter((config): config is OAuthProviderConfig => config?.enabled === true)
+    .map((config) => {
+      const meta = OAuthProviderMeta[config.providerId]
+      return {
+        id: config.providerId,
+        type: config.type,
+        name: meta?.name ?? config.providerId,
+        icon: meta?.icon ?? config.providerId,
+      }
+    })
+    .sort((left, right) => left.id.localeCompare(right.id))
 }
 
 export async function upsertAuthProvider(
@@ -120,12 +134,12 @@ export async function upsertAuthProvider(
 
   const existing = await deps.systemOptions.get(key)
   if (existing) {
-    await deps.systemOptions.set(key, value, false)
+    await deps.systemOptions.set(key, value)
   } else {
     // The free-plan count limit only gates *new* providers, not updates to an
     // existing one.
     const [configured, state] = await Promise.all([
-      deps.systemOptions.listByKeyLike(OAUTH_PROVIDER_KEY_PATTERN),
+      deps.systemOptions.listByPrefix(OAUTH_PROVIDER_KEY_PREFIX),
       loadBindingState(deps),
     ])
     if (!hasFeature('social_login_unlimited', state) && configured.length >= FREE_SOCIAL_LOGIN_LIMIT) {
@@ -141,10 +155,10 @@ export async function upsertAuthProvider(
         }),
       }
     }
-    await deps.systemOptions.set(key, value, false)
+    await deps.systemOptions.set(key, value)
   }
 
-  return { ok: true, config: toAuthProvider(config, true, authOrigin) }
+  return { ok: true, config: toAuthProvider(config, authOrigin) }
 }
 
 export async function deleteAuthProvider(

@@ -176,14 +176,8 @@ export interface SiteInvitation {
   status: SiteInvitationStatus
 }
 
-export interface SystemOption {
-  key: string
-  value: string
-  public: boolean
-}
-
-// One monomorphic shape for every caller. Role changes values only: admin sees a
-// masked `clientSecret`, front-of-house sees `clientSecret: null` (and the enabled-only list).
+// Full admin management shape. The public config exposes a separate minimal
+// provider projection from shared/schemas/site-config.ts.
 export interface AuthProvider {
   providerId: string
   type: string
@@ -194,7 +188,7 @@ export interface AuthProvider {
   discoveryUrl: string | null
   scopes: string[] | null
   callbackUri: string
-  clientSecret: string | null
+  clientSecret: string
 }
 
 export interface AuthProviderList {

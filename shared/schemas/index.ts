@@ -138,6 +138,36 @@ export {
   shareKindSchema,
   shareRecipientSchema,
 } from './share'
+export type {
+  SiteBranding,
+  SiteCaptchaSettings,
+  SiteConfig,
+  SiteIdentitySettings,
+  SiteQuotaSettings,
+  SiteRegistrationSettings,
+  SiteSettings,
+  UpdateSiteCaptchaInput,
+  UpdateSiteIdentityInput,
+  UpdateSiteQuotasInput,
+  UpdateSiteRegistrationInput,
+} from './site-config'
+export {
+  captchaProviderSchema,
+  publicAuthProviderSchema,
+  publicCaptchaSchema,
+  signupModeSchema,
+  siteBrandingSchema,
+  siteCaptchaSettingsSchema,
+  siteConfigSchema,
+  siteIdentitySettingsSchema,
+  siteQuotaSettingsSchema,
+  siteRegistrationSettingsSchema,
+  siteSettingsSchema,
+  updateSiteCaptchaSchema,
+  updateSiteIdentitySchema,
+  updateSiteQuotasSchema,
+  updateSiteRegistrationSchema,
+} from './site-config'
 export type { CreateStorageInput, UpdateStorageEgressBillingInput, UpdateStorageInput } from './storage'
 export { createStorageSchema, updateStorageEgressBillingSchema, updateStorageSchema } from './storage'
 

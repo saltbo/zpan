@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { SiteConfig } from '../../../shared/schemas'
 import type { BrandingConfig } from '../../../shared/types'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense as seedProLicenseRow } from '../../test/setup.js'
 
@@ -10,22 +11,28 @@ async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp>>['db'
 
 async function seedBrandingOption(db: Awaited<ReturnType<typeof createTestApp>>['db'], key: string, value: string) {
   const { systemOptions } = await import('../../db/schema.js')
-  await db.insert(systemOptions).values({ key, value, public: true })
+  await db.insert(systemOptions).values({ key, value })
 }
 
-// ─── GET /api/site/branding ────────────────────────────────────────────────────────
+async function getPublicBranding(
+  app: Awaited<ReturnType<typeof createTestApp>>['app'],
+): Promise<SiteConfig['branding']> {
+  const response = await app.request('/api/configz')
+  expect(response.status).toBe(200)
+  return ((await response.json()) as SiteConfig).branding
+}
 
-describe('GET /api/site/branding', () => {
+// ─── Branding in GET /api/configz ───────────────────────────────────────────
+
+describe('branding in GET /api/configz', () => {
   it('returns defaults when no branding configured [spec: branding/defaults]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/site/branding')
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as BrandingConfig
+    const body = await getPublicBranding(app)
     expect(body).toMatchObject({
-      logo_url: null,
-      favicon_url: null,
-      wordmark_text: null,
-      hide_powered_by: false,
+      logoUrl: null,
+      faviconUrl: null,
+      wordmark: null,
+      hidePoweredBy: false,
       theme: {
         mode: 'preset',
         preset: 'default',
@@ -37,7 +44,7 @@ describe('GET /api/site/branding', () => {
 
   it('is accessible without authentication [spec: branding/public]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/site/branding')
+    const res = await app.request('/api/configz')
     expect(res.status).toBe(200)
   })
 
@@ -46,11 +53,9 @@ describe('GET /api/site/branding', () => {
     await seedBrandingOption(db, 'branding_wordmark_text', 'MyCloud')
     await seedBrandingOption(db, 'branding_hide_powered_by', 'true')
 
-    const res = await app.request('/api/site/branding')
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { wordmark_text: string; hide_powered_by: boolean }
-    expect(body.wordmark_text).toBe('MyCloud')
-    expect(body.hide_powered_by).toBe(true)
+    const body = await getPublicBranding(app)
+    expect(body.wordmark).toBe('MyCloud')
+    expect(body.hidePoweredBy).toBe(true)
   })
 
   it('still returns a legacy absolute-URL logo/favicon unchanged [spec: branding/legacy-url-compat]', async () => {
@@ -58,11 +63,9 @@ describe('GET /api/site/branding', () => {
     await seedBrandingOption(db, 'branding_logo_url', 'https://cdn.example.com/_system/branding/logo.svg')
     await seedBrandingOption(db, 'branding_favicon_url', 'https://cdn.example.com/_system/branding/favicon.png')
 
-    const res = await app.request('/api/site/branding')
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as BrandingConfig
-    expect(body.logo_url).toBe('https://cdn.example.com/_system/branding/logo.svg')
-    expect(body.favicon_url).toBe('https://cdn.example.com/_system/branding/favicon.png')
+    const body = await getPublicBranding(app)
+    expect(body.logoUrl).toBe('https://cdn.example.com/_system/branding/logo.svg')
+    expect(body.faviconUrl).toBe('https://cdn.example.com/_system/branding/favicon.png')
   })
 
   it('returns stored built-in theme values when set', async () => {
@@ -70,9 +73,7 @@ describe('GET /api/site/branding', () => {
     await seedBrandingOption(db, 'branding_theme_mode', 'preset')
     await seedBrandingOption(db, 'branding_theme_preset', 'forest')
 
-    const res = await app.request('/api/site/branding')
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as BrandingConfig
+    const body = await getPublicBranding(app)
     expect(body.theme).toMatchObject({
       mode: 'preset',
       preset: 'forest',
@@ -90,18 +91,16 @@ describe('GET /api/site/branding', () => {
     await seedBrandingOption(db, 'branding_theme_sidebar_accent_color', '#dbeafe')
     await seedBrandingOption(db, 'branding_theme_ring_color', '#0f172a')
 
-    const res = await app.request('/api/site/branding')
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as BrandingConfig
+    const body = await getPublicBranding(app)
     expect(body.theme).toMatchObject({
       mode: 'custom',
       configured: true,
       custom: {
-        primary_color: '#123456',
-        primary_foreground: '#fff',
-        canvas_color: '#f1f5f9',
-        sidebar_accent_color: '#dbeafe',
-        ring_color: '#0f172a',
+        primaryColor: '#123456',
+        primaryForeground: '#fff',
+        canvasColor: '#f1f5f9',
+        sidebarAccentColor: '#dbeafe',
+        ringColor: '#0f172a',
       },
     })
   })
@@ -173,11 +172,9 @@ describe('PUT /api/site/branding', () => {
     expect(body.wordmark_text).toBe('MyCloud')
     expect(body.hide_powered_by).toBe(true)
 
-    // Verify GET reflects the update
-    const getRes = await app.request('/api/site/branding')
-    const getBody = (await getRes.json()) as { wordmark_text: string; hide_powered_by: boolean }
-    expect(getBody.wordmark_text).toBe('MyCloud')
-    expect(getBody.hide_powered_by).toBe(true)
+    const publicBranding = await getPublicBranding(app)
+    expect(publicBranding.wordmark).toBe('MyCloud')
+    expect(publicBranding.hidePoweredBy).toBe(true)
   })
 
   it('saves a built-in theme selection [spec: branding/builtin-theme]', async () => {
@@ -194,9 +191,11 @@ describe('PUT /api/site/branding', () => {
     const body = (await res.json()) as BrandingConfig
     expect(body.theme).toMatchObject({ mode: 'preset', preset: 'ocean', configured: true })
 
-    const getRes = await app.request('/api/site/branding')
-    const getBody = (await getRes.json()) as BrandingConfig
-    expect(getBody.theme).toMatchObject({ mode: 'preset', preset: 'ocean', configured: true })
+    expect((await getPublicBranding(app)).theme).toMatchObject({
+      mode: 'preset',
+      preset: 'ocean',
+      configured: true,
+    })
   })
 
   it('saves custom theme colors when valid [spec: branding/save-custom-theme]', async () => {
@@ -242,9 +241,11 @@ describe('PUT /api/site/branding', () => {
     const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(422)
 
-    const getRes = await app.request('/api/site/branding')
-    const getBody = (await getRes.json()) as BrandingConfig
-    expect(getBody.theme).toMatchObject({ mode: 'preset', preset: 'forest', configured: true })
+    expect((await getPublicBranding(app)).theme).toMatchObject({
+      mode: 'preset',
+      preset: 'forest',
+      configured: true,
+    })
   })
 
   it('returns 422 for inherited object property theme presets', async () => {
@@ -277,10 +278,7 @@ describe('PUT /api/site/branding', () => {
     const expected = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
     expect(body.logo_url).toBe(expected)
 
-    // GET reflects the same data URI.
-    const getRes = await app.request('/api/site/branding')
-    const getBody = (await getRes.json()) as BrandingConfig
-    expect(getBody.logo_url).toBe(expected)
+    expect((await getPublicBranding(app)).logoUrl).toBe(expected)
   })
 
   it('stores an uploaded favicon as a data URI [spec: branding/favicon-upload]', async () => {
@@ -382,8 +380,7 @@ describe('DELETE /api/site/branding/:field', () => {
 
     const res = await app.request('/api/site/branding/theme', { method: 'DELETE', headers })
     expect(res.status).toBe(204)
-    const getRes = await app.request('/api/site/branding')
-    const body = (await getRes.json()) as BrandingConfig
+    const body = await getPublicBranding(app)
     expect(body.theme).toMatchObject({
       mode: 'preset',
       preset: 'default',
@@ -401,8 +398,7 @@ describe('DELETE /api/site/branding/:field', () => {
 
     const res = await app.request('/api/site/branding/theme_preset', { method: 'DELETE', headers })
     expect(res.status).toBe(204)
-    const getRes = await app.request('/api/site/branding')
-    const body = (await getRes.json()) as BrandingConfig
+    const body = await getPublicBranding(app)
     expect(body.theme.configured).toBe(false)
   })
 

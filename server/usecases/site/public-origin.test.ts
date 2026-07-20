@@ -20,8 +20,8 @@ describe('ensureSitePublicOrigin', () => {
   it('adopts an existing configured origin instead of the request origin', async () => {
     const { db, deps } = await createTestApp()
     await db.run(sql`
-      INSERT INTO system_options (key, value, public)
-      VALUES ('site_public_origin', 'https://configured.example.com', 0)
+      INSERT INTO system_options (key, value)
+      VALUES ('site_public_origin', 'https://configured.example.com')
     `)
 
     const result = await ensureSitePublicOrigin(deps, 'https://request.example.com/files')

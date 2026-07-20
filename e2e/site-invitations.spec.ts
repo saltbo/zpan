@@ -1,20 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { expandSignUpForm, signInAsAdmin } from './helpers'
 
-async function setSignupMode(page: import('@playwright/test').Page, value: string) {
-  const result = await page.evaluate(async (nextValue) => {
-    const res = await fetch('/api/site/options/auth_signup_mode', {
-      method: 'PUT',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: nextValue, public: true }),
-    })
-    return { ok: res.ok, status: res.status, body: await res.text() }
-  }, value)
-
-  expect(result.ok, result.body).toBe(true)
-}
-
 async function saveEmailConfig(page: import('@playwright/test').Page) {
   const result = await page.evaluate(async () => {
     const res = await fetch('/api/site/email', {
@@ -38,16 +24,10 @@ async function saveEmailConfig(page: import('@playwright/test').Page) {
 }
 
 test.describe('Site invitation signup flow', () => {
-  test.afterEach(async ({ page }) => {
-    await signInAsAdmin(page)
-    await setSignupMode(page, '')
-  })
-
   test('admin can inspect invitation and invited user can register with token @desktop', async ({ page }) => {
     const invitationEmail = `invited-${Date.now()}@example.com`
 
     await signInAsAdmin(page)
-    await setSignupMode(page, 'closed')
     await saveEmailConfig(page)
     await page.goto('/admin/users')
 

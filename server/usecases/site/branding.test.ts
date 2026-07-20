@@ -17,20 +17,20 @@ import {
 function makeDeps(overrides: { options?: Map<string, string> } = {}) {
   const store = overrides.options ?? new Map<string, string>()
 
-  const set = vi.fn(async (key: string, value: string, _isPublic: boolean) => {
+  const set = vi.fn(async (key: string, value: string) => {
     store.set(key, value)
   })
   const del = vi.fn(async (key: string) => {
     store.delete(key)
   })
-  const listByKeyLike = vi.fn(async (_pattern: string) => [...store].map(([key, value]) => ({ key, value })))
-  const systemOptions = { set, delete: del, listByKeyLike } as unknown as SystemOptionsRepo
+  const listByPrefix = vi.fn(async (_prefix: string) => [...store].map(([key, value]) => ({ key, value })))
+  const systemOptions = { set, delete: del, listByPrefix } as unknown as SystemOptionsRepo
 
   const record = vi.fn(async () => {})
   const activity = { record } as unknown as ActivityRepo
 
   const deps: BrandingDeps = { systemOptions, activity }
-  return { deps, store, set, del, listByKeyLike, record }
+  return { deps, store, set, del, listByPrefix, record }
 }
 
 function baseUpdate(over: Partial<BrandingUpdateInput> = {}): BrandingUpdateInput {
@@ -203,7 +203,7 @@ describe('uploadBrandingImage', () => {
     const res = await uploadBrandingImage(deps, 'logo', imageFileFrom('image/svg+xml', bytes))
     const expected = dataUri('image/svg+xml', bytes)
     expect(res).toEqual({ ok: true, url: expected })
-    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.logo, expected, true)
+    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.logo, expected)
     expect(store.get(BRANDING_KEYS.logo)).toBe(expected)
   })
 
@@ -218,10 +218,10 @@ describe('uploadBrandingImage', () => {
 })
 
 describe('setBrandingField / resetBrandingField / resetBrandingTheme', () => {
-  it('setBrandingField writes the mapped key as public', async () => {
+  it('setBrandingField writes the mapped key', async () => {
     const { deps, set, store } = makeDeps()
     await setBrandingField(deps, 'wordmark_text', 'Hi')
-    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.wordmark_text, 'Hi', true)
+    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.wordmark_text, 'Hi')
     expect(store.get(BRANDING_KEYS.wordmark_text)).toBe('Hi')
   })
 
@@ -246,8 +246,8 @@ describe('applyBrandingUpdate', () => {
     const out = await applyBrandingUpdate(deps, baseUpdate({ wordmarkText: 'MyCloud', hidePoweredBy: true }))
     expect(out.ok).toBe(true)
     if (out.ok) expect(out.config).toMatchObject({ wordmark_text: 'MyCloud', hide_powered_by: true })
-    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.wordmark_text, 'MyCloud', true)
-    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.hide_powered_by, 'true', true)
+    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.wordmark_text, 'MyCloud')
+    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.hide_powered_by, 'true')
     expect(record).toHaveBeenCalledTimes(1)
     expect(record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -264,21 +264,21 @@ describe('applyBrandingUpdate', () => {
   it('writes hide_powered_by = "false" when the parsed flag is false', async () => {
     const { deps, set } = makeDeps()
     await applyBrandingUpdate(deps, baseUpdate({ hidePoweredBy: false }))
-    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.hide_powered_by, 'false', true)
+    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.hide_powered_by, 'false')
   })
 
   it('writes an empty wordmark string (clear) when provided', async () => {
     const { deps, set } = makeDeps()
     await applyBrandingUpdate(deps, baseUpdate({ wordmarkText: '' }))
-    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.wordmark_text, '', true)
+    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.wordmark_text, '')
   })
 
   it('persists each provided theme field', async () => {
     const { deps, set, record } = makeDeps()
     const out = await applyBrandingUpdate(deps, baseUpdate({ theme: { theme_mode: 'preset', theme_preset: 'ocean' } }))
     expect(out.ok).toBe(true)
-    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.theme_mode, 'preset', true)
-    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.theme_preset, 'ocean', true)
+    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.theme_mode, 'preset')
+    expect(set).toHaveBeenCalledWith(BRANDING_KEYS.theme_preset, 'ocean')
     expect(record).toHaveBeenCalledWith(
       expect.objectContaining({ metadata: { fields: ['theme_mode', 'theme_preset'] } }),
     )

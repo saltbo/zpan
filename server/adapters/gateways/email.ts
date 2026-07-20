@@ -91,7 +91,7 @@ async function sendViaCloudflare(platform: Platform, from: string, message: Emai
 
 export function createEmailGateway(systemOptions: SystemOptionsRepo): EmailGateway {
   async function loadOptions(): Promise<Map<string, string>> {
-    const rows = await systemOptions.listByKeyLike('email_%')
+    const rows = await systemOptions.listByPrefix('email_')
     return new Map(rows.map((r) => [r.key, r.value]))
   }
 

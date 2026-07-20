@@ -11,17 +11,18 @@ async function buildApp() {
 }
 
 describe('[CF] System API', () => {
-  it('GET /api/site/options returns empty list without auth', async () => {
+  it('GET /api/configz returns structured public configuration', async () => {
     const app = await buildApp()
-    const res = await app.request('/api/site/options')
+    const res = await app.request('https://pan.example.com/api/configz')
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number }
-    expect(Array.isArray(body.items)).toBe(true)
+    const body = (await res.json()) as { site: { publicUrl: string }; services: { webdav: { url: string } } }
+    expect(body.site.publicUrl).toBe('https://pan.example.com')
+    expect(body.services.webdav.url).toBe('https://dav.pan.example.com/')
   })
 
-  it('GET unknown option returns 404', async () => {
+  it('does not expose the removed generic Options API', async () => {
     const app = await buildApp()
-    const res = await app.request('/api/site/options/nonexistent_key')
+    const res = await app.request('/api/site/options')
     expect(res.status).toBe(404)
   })
 })

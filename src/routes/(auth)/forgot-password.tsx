@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useSiteOptions } from '@/hooks/use-site-options'
+import { useSiteConfig } from '@/hooks/use-site-config'
 import { requestPasswordReset } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/(auth)/forgot-password')({
@@ -14,7 +14,8 @@ export const Route = createFileRoute('/(auth)/forgot-password')({
 
 function ForgotPassword() {
   const { t } = useTranslation()
-  const { siteName } = useSiteOptions()
+  const { data: siteConfig } = useSiteConfig()
+  const siteName = siteConfig?.site.name ?? DEFAULT_SITE_NAME
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)

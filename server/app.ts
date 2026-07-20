@@ -9,6 +9,7 @@ import { isPotentialWebDavPublicRequest, isWebDavPublicRequest } from './domain/
 import { adminStats } from './http/admin-stats'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
+import { configz } from './http/configz'
 import downloadTasks from './http/downloads/download-tasks'
 import downloaders, { downloaderSelfRoute } from './http/downloads/downloaders'
 import { events } from './http/events'
@@ -23,11 +24,12 @@ import { authedShares, publicShares } from './http/shares'
 import { announcements } from './http/site/announcements'
 import { adminAudit } from './http/site/audit'
 import { authProviders } from './http/site/auth-providers'
-import { brandingAdmin, publicBranding } from './http/site/branding'
+import { brandingAdmin } from './http/site/branding'
 import emailConfig from './http/site/email-config'
 import { adminSiteInvitations, publicSiteInvitations } from './http/site/invitations'
 import { adminInviteCodes, publicInviteCodes } from './http/site/invite-codes'
 import { licensing, licensingAdmin } from './http/site/licensing'
+import { siteSettings } from './http/site/settings'
 import storages from './http/site/storages'
 import system from './http/site/system'
 import { cloudStore, cloudStoreWebhooks } from './http/store'
@@ -188,13 +190,13 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   // /r/* is listed separately in run_worker_first.
   // /s/:token is intentionally left for the SPA landing page.
   app.route('/api/shares', publicShares)
+  app.route('/api/configz', configz)
   // Self-hosted avatar blobs (CF + AVATARS R2 binding, no AVATARS_PUBLIC_URL). Public.
   app.get('/api/avatar-blobs/:scope/:id', serveAvatarBlob)
   app.route('/r', redirect)
   app.route('/api/teams', publicTeams)
   app.route('/api/site/auth-providers', authProviders)
   app.route('/api/site/licensing', licensing)
-  app.route('/api/site/branding', publicBranding)
   app.route('/api/site/invitations', publicSiteInvitations)
   app.route('/api/store', cloudStoreWebhooks)
   app.route('/api/internal', internal)
@@ -212,6 +214,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/teams', teams)
   app.route('/api/teams', adminTeams)
   app.route('/api/site/storages', storages)
+  app.route('/api/site/settings', siteSettings)
   app.route('/api/site/email', emailConfig)
   // Public/user router mounts BEFORE the admin router on a shared path: a sub-app's
   // blanket `.use(requireAdmin)` becomes prefix-wide middleware, so mounting admin
@@ -320,6 +323,8 @@ export type AdminQuotasRoute = typeof adminQuotas
 export type AdminTeamsRoute = typeof adminTeams
 export type UserQuotasRoute = typeof userQuotas
 export type SystemRoute = typeof system
+export type ConfigzRoute = typeof configz
+export type SiteSettingsRoute = typeof siteSettings
 export type EmailConfigRoute = typeof emailConfig
 export type AdminInviteCodesRoute = typeof adminInviteCodes
 export type PublicInviteCodesRoute = typeof publicInviteCodes
@@ -341,7 +346,6 @@ export type IhostConfigRoute = typeof ihostConfig
 export type AnnouncementsRoute = typeof announcements
 export type LicensingRoute = typeof licensing
 export type LicensingAdminRoute = typeof licensingAdmin
-export type PublicBrandingRoute = typeof publicBranding
 export type BrandingAdminRoute = typeof brandingAdmin
 export type AdminAuditRoute = typeof adminAudit
 export type AdminStatsRoute = typeof adminStats

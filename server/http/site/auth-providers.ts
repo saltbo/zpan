@@ -4,9 +4,8 @@ import type { Env } from '../../middleware/platform'
 import { deleteAuthProvider, listAuthProviders, upsertAuthProvider } from '../../usecases/site/auth-provider'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
-// One monomorphic schema for every caller. Role changes values only — admin gets a
-// masked `clientSecret`, front-of-house gets `clientSecret: null` (and the enabled-only
-// list). clientId/discoveryUrl/scopes are not secrets, so they are exposed to everyone.
+// Full management shape. Public consumers receive the minimal provider projection
+// from configz instead.
 const authProviderSchema = z
   .object({
     providerId: z.string(),
@@ -18,7 +17,7 @@ const authProviderSchema = z
     discoveryUrl: z.string().nullable(),
     scopes: z.array(z.string()).nullable(),
     callbackUri: z.string(),
-    clientSecret: z.string().nullable(),
+    clientSecret: z.string(),
   })
   .openapi('AuthProvider')
 
@@ -47,6 +46,7 @@ const listRoute = createRoute({
   tags: ['Auth Providers'],
   method: 'get',
   path: '/',
+  middleware: [requireAdmin] as const,
   responses: { 200: jsonContent(authProviderListSchema, 'Auth providers') },
 })
 
@@ -86,12 +86,12 @@ function resolveAuthBaseUri(c: { get(key: 'platform'): Env['Variables']['platfor
   return c.get('platform').getEnv('BETTER_AUTH_URL')?.trim() || new URL(c.req.url).origin
 }
 
-// One auth-providers resource. GET / serves the enabled list without secrets to
-// anonymous/login callers, and the full config to admins; writes are admin-only.
+// Auth-provider management resource. Public enabled providers are projected by
+// /api/configz; every route here is admin-only.
 export const authProviders = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
     const authOrigin = resolveAuthBaseUri(c)
-    const { items } = await listAuthProviders(c.get('deps'), { isAdmin: c.get('userRole') === 'admin', authOrigin })
+    const { items } = await listAuthProviders(c.get('deps'), { authOrigin })
     return c.json({ items, total: items.length, page: 1, pageSize: items.length, callbackBaseUri: authOrigin }, 200)
   })
   .openapi(upsertRoute, async (c) => {
