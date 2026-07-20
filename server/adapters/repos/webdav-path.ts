@@ -2,7 +2,6 @@ import { ObjectStatus } from '@shared/constants'
 import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { member, organization } from '../../db/auth-schema'
 import { matters } from '../../db/schema'
-import { encodeDavPathSegment } from '../../domain/webdav'
 import type { Database } from '../../platform/interface'
 import {
   type Matter,
@@ -20,9 +19,7 @@ export function createWebDavPathRepo(db: Database): WebDavPathRepo {
     return (
       workspaces.find(
         (workspace) =>
-          workspace.slug === pathSegment ||
-          workspace.id === pathSegment ||
-          workspace.href === `/dav/${encodeDavPathSegment(pathSegment)}/`,
+          workspace.slug === pathSegment || workspace.id === pathSegment || workspace.pathSegment === pathSegment,
       ) ?? null
     )
   }
@@ -95,7 +92,7 @@ function toWebDavWorkspaces(rows: WorkspaceRow[]): WebDavWorkspace[] {
     )
     const segment =
       preferredSegments.get(preferredSegment) === 1 && !conflictsWithOtherWorkspace ? preferredSegment : row.slug
-    return { ...row, href: `/dav/${encodeDavPathSegment(segment)}/` }
+    return { ...row, pathSegment: segment }
   })
 }
 

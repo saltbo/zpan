@@ -40,6 +40,15 @@ describe('[CF] Worker fetch handler', () => {
       expect(res.headers.get('WWW-Authenticate')).toBe('Basic realm="ZPan WebDAV"')
     }
   })
+
+  it('keeps auth initialization isolated between the DAV and primary hostnames', async () => {
+    const webDavEnv = { ...testEnv, WEBDAV_PUBLIC_URL: 'https://dav.example.com' }
+    const dav = await worker.fetch(new Request('https://dav.example.com/dav/', { method: 'PROPFIND' }), webDavEnv)
+    expect(dav.status).toBe(401)
+
+    const primary = await worker.fetch(new Request('https://pan.example.com/api/health'), webDavEnv)
+    expect(primary.status).toBe(200)
+  })
 })
 
 describe('[CF] SSR share OG meta injection', () => {

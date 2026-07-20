@@ -7,7 +7,13 @@ import {
   type CaptchaProvider,
   DEFAULT_CAPTCHA_PROVIDER,
 } from '@shared/captcha'
-import { DEFAULT_ORG_QUOTA, DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME, SignupMode } from '@shared/constants'
+import {
+  DEFAULT_ORG_QUOTA,
+  DEFAULT_SITE_DESCRIPTION,
+  DEFAULT_SITE_NAME,
+  SignupMode,
+  WEBDAV_URL_OPTION_KEY,
+} from '@shared/constants'
 import { useQuery } from '@tanstack/react-query'
 import { listSystemOptions, type SiteOption } from '@/lib/api'
 
@@ -41,6 +47,7 @@ export function useSiteOptions() {
     siteName: optionMap.get('site_name') ?? DEFAULT_SITE_NAME,
     siteDescription: optionMap.get('site_description') ?? DEFAULT_SITE_DESCRIPTION,
     sitePublicOrigin: optionMap.get('site_public_origin') ?? '',
+    webDavUrl: optionMap.get(WEBDAV_URL_OPTION_KEY) ?? '',
     defaultOrgQuota,
     defaultTeamQuota: resolveDefaultTeamQuotaValue(optionMap.get('default_team_quota'), defaultOrgQuota),
     authSignupMode: (optionMap.get('auth_signup_mode') as SignupMode) ?? SignupMode.OPEN,

@@ -10,6 +10,7 @@ import {
   type WebDavWorkspace,
   workspaceHref,
 } from './webdav'
+import type { WebDavMountPath } from './webdav-public-url'
 
 export { DAV_NAMESPACE, davEtag }
 
@@ -44,10 +45,11 @@ export function workspaceEntry(
   workspace: WebDavWorkspace,
   deadProperties: DavDeadProperty[],
   locks: DavLock[],
+  mountPath: WebDavMountPath,
 ): DavEntry {
   const stableDate = new Date(0)
   return {
-    href: workspaceHref(workspace),
+    href: workspaceHref(workspace, mountPath),
     displayName: workspace.name,
     collection: true,
     contentType: 'httpd/unix-directory',
@@ -60,10 +62,10 @@ export function workspaceEntry(
   }
 }
 
-export function mountRootEntry(): DavEntry {
+export function mountRootEntry(mountPath: WebDavMountPath): DavEntry {
   const stableDate = new Date(0)
   return {
-    href: '/dav/',
+    href: `${mountPath}/`,
     displayName: 'dav',
     collection: true,
     contentType: 'httpd/unix-directory',
@@ -81,10 +83,11 @@ export function matterEntry(
   matter: WebDavMatter,
   deadProperties: DavDeadProperty[],
   locks: DavLock[],
+  mountPath: WebDavMountPath,
 ): DavEntry {
   const collection = matter.dirtype !== DirType.FILE
   return {
-    href: collection ? `${matterHref(workspace, matter)}/` : matterHref(workspace, matter),
+    href: collection ? `${matterHref(workspace, matter, mountPath)}/` : matterHref(workspace, matter, mountPath),
     displayName: matter.name,
     collection,
     contentType: collection ? 'httpd/unix-directory' : matter.type,

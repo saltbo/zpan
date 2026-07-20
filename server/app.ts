@@ -1,10 +1,12 @@
 import { release as osRelease } from 'node:os'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
+import { WEBDAV_PUBLIC_URL_ENV } from '@shared/constants'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
 import { createDeps } from './composition'
+import { isWebDavPublicRequest } from './domain/webdav-public-url'
 import { adminStats } from './http/admin-stats'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
@@ -57,6 +59,10 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     await next()
   })
   app.use('/*', async (c, next) => {
+    if (isWebDavPublicRequest(c.req.url, platform.getEnv(WEBDAV_PUBLIC_URL_ENV))) {
+      await next()
+      return
+    }
     const result = await ensureSitePublicOrigin(deps, c.req.url).catch((err) => {
       console.error(`site.public_origin.detect.error code=${formatError(err)}`)
       return { origin: null, created: false }

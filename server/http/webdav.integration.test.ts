@@ -268,6 +268,60 @@ describe('WebDAV API', () => {
     expect(byId.status).toBe(207)
   })
 
+  it('uses root-relative hrefs and destinations on the configured DAV hostname [spec: webdav/custom-host]', async () => {
+    const { app, db, auth } = await createTestApp({ WEBDAV_PUBLIC_URL: 'https://dav.example.com' })
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    await file(db, workspace.id, { id: 'custom-host-source', name: 'source.txt', size: 12 })
+
+    const root = await app.request('https://dav.example.com/dav/', {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key),
+    })
+    const rootXml = await root.text()
+    const workspacePath = encodeDavPathSegment(workspace.name)
+    expect(root.status).toBe(207)
+    expect(rootXml).toContain('<D:href>/</D:href>')
+    expect(rootXml).toContain(`<D:href>/${workspacePath}/</D:href>`)
+    expect(rootXml).not.toContain('/dav/')
+
+    const patch = await app.request(`https://dav.example.com/dav/${workspace.slug}/source.txt`, {
+      method: 'PROPPATCH',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<D:propertyupdate xmlns:D="DAV:" xmlns:Z="urn:zpan:test"><D:set><D:prop><Z:color>blue</Z:color></D:prop></D:set></D:propertyupdate>',
+    })
+    expect(await patch.text()).toContain(`<D:href>/${workspacePath}/source.txt</D:href>`)
+
+    // Simulate TLS termination: the proxy-facing request URL is http while the
+    // public Destination remains https on the same configured hostname.
+    const copy = await app.request(`http://dav.example.com/dav/${workspace.slug}/source.txt`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `https://dav.example.com/${workspacePath}/copied.txt`,
+      }),
+    })
+    expect(copy.status).toBe(201)
+    expect(copy.headers.get('Location')).toBe(`https://dav.example.com/${workspacePath}/copied.txt`)
+
+    const mainOrigin = await app.request(`https://pan.example.com/dav/${workspace.slug}/source.txt`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '0' }),
+    })
+    expect(await mainOrigin.text()).toContain(`<D:href>/dav/${workspacePath}/source.txt</D:href>`)
+  })
+
+  it('does not adopt the DAV hostname as the site public origin', async () => {
+    const { app, db } = await createTestApp({ WEBDAV_PUBLIC_URL: 'https://dav.example.com' })
+
+    const res = await app.request('https://dav.example.com/dav/', { method: 'PROPFIND' })
+    expect(res.status).toBe(401)
+    const rows = await db.all<{ value: string }>(sql`SELECT value FROM system_options WHERE key = 'site_public_origin'`)
+    expect(rows).toEqual([])
+  })
+
   it('PROPFIND mount root lists all member workspaces and hides non-member workspaces [spec: webdav/propfind-workspaces]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)

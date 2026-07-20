@@ -109,6 +109,14 @@ describe('imageHostingDomain middleware — app-host passthrough', () => {
     expect(res.status).toBe(200)
   })
 
+  it('configured WebDAV host → next(), normal routing works', async () => {
+    const { app } = await createTestApp({ WEBDAV_PUBLIC_URL: 'https://dav.example.com' })
+    const res = await app.request('/api/health', {
+      headers: { host: 'dav.example.com' },
+    })
+    expect(res.status).toBe(200)
+  })
+
   it('unknown external host with no DB entry → next() → normal 404', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/nonexistent-endpoint', {
@@ -151,6 +159,22 @@ describe('imageHostingDomain middleware — unverified domain', () => {
 // ─── Custom domain redirect ───────────────────────────────────────────────────
 
 describe('imageHostingDomain middleware — custom domain redirect', () => {
+  it('only reserves the exact WebDAV hostname, not its subdomains', async () => {
+    const { app, db } = await createTestApp({ WEBDAV_PUBLIC_URL: 'https://dav.example.com' })
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'dav-subdomain-image', path: 'image.png' })
+    await insertImageHostingConfig(db, orgId, { customDomain: 'img.dav.example.com' })
+
+    const res = await app.request('/image.png', {
+      headers: { host: 'img.dav.example.com' },
+      redirect: 'manual',
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
+  })
+
   it('verified custom domain with valid path returns non-cacheable metered redirect', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)

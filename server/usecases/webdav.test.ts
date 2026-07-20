@@ -54,7 +54,12 @@ const storage = {
   egressCreditPerUnit: 0,
 } as unknown as StorageRecord
 
-const workspace: WebDavWorkspace = { id: 'ws-1', name: 'Workspace', slug: 'workspace', href: '/dav/workspace/' }
+const workspace: WebDavWorkspace = {
+  id: 'ws-1',
+  name: 'Workspace',
+  slug: 'workspace',
+  pathSegment: 'workspace',
+}
 
 function file(id: string, overrides: Partial<Matter> = {}): Matter {
   return {

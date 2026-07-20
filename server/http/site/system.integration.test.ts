@@ -22,6 +22,38 @@ async function putOption(
 }
 
 describe('System API — options CRUD', () => {
+  it('exposes the effective WebDAV URL as a read-only runtime option [spec: system/webdav-url]', async () => {
+    const { app } = await createTestApp({ WEBDAV_PUBLIC_URL: 'https://dav.example.com' })
+
+    const list = await app.request('https://pan.example.com/api/site/options')
+    const listBody = (await list.json()) as {
+      items: Array<{ key: string; value: string; public: boolean }>
+      total: number
+    }
+    expect(listBody.items).toContainEqual({ key: 'webdav_url', value: 'https://dav.example.com/', public: true })
+    expect(listBody.total).toBe(listBody.items.length)
+
+    const get = await app.request('https://pan.example.com/api/site/options/webdav_url')
+    expect(get.status).toBe(200)
+    expect(await get.json()).toEqual({ key: 'webdav_url', value: 'https://dav.example.com/', public: true })
+
+    const admin = await adminHeaders(app)
+    const put = await putOption(app, admin, 'webdav_url', { value: 'https://other.example.com' })
+    expect(put.status).toBe(400)
+    expect(await put.text()).toContain('read-only')
+
+    const del = await app.request('/api/site/options/webdav_url', { method: 'DELETE', headers: admin })
+    expect(del.status).toBe(400)
+    expect(await del.text()).toContain('read-only')
+  })
+
+  it('falls back to the request-origin /dav path when no custom URL is configured', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('https://pan.example.com/api/site/options/webdav_url')
+
+    expect(await res.json()).toEqual({ key: 'webdav_url', value: 'https://pan.example.com/dav/', public: true })
+  })
+
   it('GET unknown key returns 404 [spec: system/option-not-found]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/site/options/site_name')
@@ -60,8 +92,9 @@ describe('System API — options CRUD', () => {
     // List: anon sees only public, admin sees all
     const anonList = await app.request('/api/site/options')
     const anonBody = (await anonList.json()) as { items: { key: string }[]; total: number }
-    expect(anonBody.total).toBe(1)
+    expect(anonBody.total).toBe(2)
     expect(anonBody.items[0].key).toBe('site_name')
+    expect(anonBody.items[1].key).toBe('webdav_url')
 
     const adminList = await app.request('/api/site/options', { headers: admin })
     const adminBody = (await adminList.json()) as { items: { key: string }[]; total: number }

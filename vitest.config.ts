@@ -46,7 +46,13 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'jsdom',
-          include: ['server/**/*.test.ts', 'shared/**/*.test.ts', 'src/**/*.test.ts', 'src/**/*.test.tsx'],
+          include: [
+            'server/**/*.test.ts',
+            'shared/**/*.test.ts',
+            'src/**/*.test.ts',
+            'src/**/*.test.tsx',
+            'scripts/**/*.test.mjs',
+          ],
           exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts', '**/e2e-*.test.ts'],
           setupFiles: ['./server/test/app-version.ts'],
           coverage: {

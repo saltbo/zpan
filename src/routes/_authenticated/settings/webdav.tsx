@@ -5,11 +5,16 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { useSiteOptions } from '@/hooks/use-site-options'
 import { useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/settings/webdav')({
   component: WebDavSettingsPage,
 })
+
+export function resolveWebDavSettingsUrl(configuredUrl: string, origin: string): string {
+  return configuredUrl || `${origin}/dav/`
+}
 
 function CopyButton({ value }: { value: string }) {
   const { t } = useTranslation()
@@ -30,8 +35,9 @@ function CopyButton({ value }: { value: string }) {
 function WebDavSettingsPage() {
   const { t } = useTranslation()
   const { data: session } = useSession()
+  const { webDavUrl: configuredWebDavUrl } = useSiteOptions()
   const origin = typeof window === 'undefined' ? '' : window.location.origin
-  const webDavUrl = `${origin}/dav/`
+  const webDavUrl = resolveWebDavSettingsUrl(configuredWebDavUrl, origin)
   const user = session?.user as { email?: string; username?: string } | undefined
   const username = user?.email ?? user?.username ?? ''
 

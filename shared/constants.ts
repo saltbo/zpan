@@ -39,6 +39,8 @@ export type SignupMode = (typeof SignupMode)[keyof typeof SignupMode]
 
 export const ZPAN_CLOUD_URL_DEFAULT = 'https://cloud.zpan.space'
 export const ZPAN_GITHUB_URL = 'https://github.com/saltbo/zpan'
+export const WEBDAV_PUBLIC_URL_ENV = 'WEBDAV_PUBLIC_URL'
+export const WEBDAV_URL_OPTION_KEY = 'webdav_url'
 // The About page renders this hand-maintained, product-facing changelog in a
 // side drawer; raw.githubusercontent.com serves the file with CORS.
 export const ZPAN_CHANGELOG_RAW_URL = 'https://raw.githubusercontent.com/saltbo/zpan/main/CHANGELOG.md'

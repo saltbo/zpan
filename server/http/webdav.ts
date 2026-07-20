@@ -1,8 +1,9 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ApiKeyTemplate } from '../../shared/api-key-templates'
-import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { encodeDavPathSegment, joinMatterPath } from '../domain/webdav'
+import { DirType, WEBDAV_PUBLIC_URL_ENV, ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import { encodeDavPathSegment, joinMatterPath, workspaceHref } from '../domain/webdav'
+import { parseWebDavPublicUrl, type WebDavMountPath, webDavMountPath } from '../domain/webdav-public-url'
 import {
   type DavEntry,
   davEtag,
@@ -126,6 +127,10 @@ function davPath(c: DavContext): string {
   return normalizeDavMountPath(new URL(c.req.url).pathname)
 }
 
+function publicMountPath(c: DavContext): WebDavMountPath {
+  return webDavMountPath(c.req.url, c.get('platform').getEnv(WEBDAV_PUBLIC_URL_ENV))
+}
+
 function normalizeDavMountPath(pathname: string): string {
   return pathname.replace(/^\/dav\/+/, '/dav/')
 }
@@ -140,7 +145,7 @@ function destinationPath(c: DavContext): string | Response {
   const header = c.req.header('Destination')
   if (!header) return c.text('Destination header required', 400)
   const url = new URL(header, c.req.url)
-  if (url.origin !== new URL(c.req.url).origin) return c.text('Cross-origin DAV destination rejected', 400)
+  if (url.host !== new URL(c.req.url).host) return c.text('Cross-origin DAV destination rejected', 400)
   return normalizeDavMountPath(url.pathname)
 }
 
@@ -441,12 +446,13 @@ function resourcePath(target: WebDavTarget): string {
     : joinMatterPath(target.parent, target.name)
 }
 
-function targetHref(target: WebDavTarget): string {
-  if (target.mountRoot) return '/dav/'
+function targetHref(c: DavContext, target: WebDavTarget): string {
+  const mountPath = publicMountPath(c)
+  if (target.mountRoot) return `${mountPath}/`
   const workspace = requireWorkspace(target)
-  if (!target.matter) return workspace.href
+  if (!target.matter) return workspaceHref(workspace, mountPath)
   const path = joinMatterPath(target.matter.parent, target.matter.name)
-  const href = `${workspace.href}${path.split('/').map(encodeDavPathSegment).join('/')}`
+  const href = `${workspaceHref(workspace, mountPath)}${path.split('/').map(encodeDavPathSegment).join('/')}`
   return target.matter.dirtype === DirType.FILE ? href : `${href}/`
 }
 
@@ -542,7 +548,7 @@ async function ifTaggedTarget(c: DavContext, auth: DavAuth, tag: string): Promis
   if (tag.startsWith('opaquelocktoken:')) return null
   try {
     const url = new URL(tag, c.req.url)
-    if (url.origin !== new URL(c.req.url).origin) return null
+    if (url.host !== new URL(c.req.url).host) return null
     return await resolveWebDavPath(c.get('deps'), { userId: auth.userId, rawPath: normalizeDavMountPath(url.pathname) })
   } catch {
     return null
@@ -551,11 +557,12 @@ async function ifTaggedTarget(c: DavContext, auth: DavAuth, tag: string): Promis
 
 async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEntry[]> {
   const entries: DavEntry[] = []
+  const mountPath = publicMountPath(c)
   const byWorkspace = new Map<string, { workspace: NonNullable<WebDavTarget['workspace']>; targets: WebDavTarget[] }>()
 
   for (const target of targets) {
     if (target.mountRoot) {
-      entries.push(mountRootEntry())
+      entries.push(mountRootEntry(mountPath))
       continue
     }
     const workspace = requireWorkspace(target)
@@ -579,8 +586,8 @@ async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEn
       const locks = locksByPath.get(path) ?? []
       entries.push(
         target.matter
-          ? matterEntry(workspace, target.matter, deadProperties, locks)
-          : workspaceEntry(workspace, deadProperties, locks),
+          ? matterEntry(workspace, target.matter, deadProperties, locks, mountPath)
+          : workspaceEntry(workspace, deadProperties, locks, mountPath),
       )
     }
   }
@@ -696,7 +703,7 @@ async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
       matterId: target.matter?.id ?? null,
     })
     const properties = operations.map((operation) => operation.property)
-    return xmlResponse(proppatchMultistatus(targetHref(target), properties), 207)
+    return xmlResponse(proppatchMultistatus(targetHref(c, target), properties), 207)
   } catch (e) {
     if (
       e instanceof Error &&
@@ -1041,7 +1048,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
           depth,
         })
         if (!result.ok) return c.text('Storage not found', 404)
-        c.header('Location', matterLocation(c.req.url, targetWorkspace.slug, result.location))
+        c.header('Location', matterLocation(c, targetWorkspace.pathSegment, result.location))
         return c.body(null, result.status)
       } catch (e) {
         const mapped = mapDomainError(e)
@@ -1063,7 +1070,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
         replacingTarget,
       })
       if (!result.ok) return c.text('Storage not found', 404)
-      c.header('Location', matterLocation(c.req.url, targetWorkspace.slug, result.location))
+      c.header('Location', matterLocation(c, targetWorkspace.pathSegment, result.location))
       return c.body(null, result.status)
     } catch (e) {
       const mapped = mapDomainError(e)
@@ -1142,9 +1149,15 @@ async function unlockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
   }
 }
 
-function matterLocation(requestUrl: string, slug: string, path: string): string {
-  const url = new URL(requestUrl)
-  url.pathname = `/dav/${encodeDavPathSegment(slug)}/${path.split('/').map(encodeDavPathSegment).join('/')}`
+function matterLocation(c: DavContext, workspaceSegment: string, path: string): string {
+  const requestUrl = new URL(c.req.url)
+  const configuredUrl = parseWebDavPublicUrl(c.get('platform').getEnv(WEBDAV_PUBLIC_URL_ENV))
+  const url = configuredUrl && configuredUrl.host === requestUrl.host ? configuredUrl : requestUrl
+  const mountPath = publicMountPath(c)
+  url.pathname = `${mountPath}/${encodeDavPathSegment(workspaceSegment)}/${path
+    .split('/')
+    .map(encodeDavPathSegment)
+    .join('/')}`
   url.search = ''
   return url.toString()
 }

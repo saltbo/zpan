@@ -1,7 +1,11 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { WEBDAV_PUBLIC_URL_ENV, WEBDAV_URL_OPTION_KEY } from '@shared/constants'
 import { pageSchema } from '@shared/schemas'
+import type { Context } from 'hono'
+import { effectiveWebDavUrl } from '../../domain/webdav-public-url'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
+import { badRequest } from '../../usecases/ports'
 import { runtimeInfo } from '../../usecases/site/instance-info'
 import {
   deleteSystemOption,
@@ -122,8 +126,19 @@ const deleteOptionRoute = createRoute({
   path: '/options/{key}',
   middleware: [requireAdmin] as const,
   request: { params: z.object({ key: z.string() }) },
-  responses: { 204: { description: 'Deleted option' } },
+  responses: {
+    204: { description: 'Deleted option' },
+    400: errorResponse('Read-only option'),
+  },
 })
+
+function webDavOption(c: Context<Env>) {
+  return {
+    key: WEBDAV_URL_OPTION_KEY,
+    value: effectiveWebDavUrl(c.req.url, c.get('platform').getEnv(WEBDAV_PUBLIC_URL_ENV)),
+    public: true,
+  }
+}
 
 const system = new OpenAPIHono<Env>()
   .openapi(instanceRoute, async (c) => {
@@ -138,9 +153,11 @@ const system = new OpenAPIHono<Env>()
   )
   .openapi(listOptionsRoute, async (c) => {
     const { items } = await listSystemOptions(c.get('deps'), { isAdmin: c.get('userRole') === 'admin' })
-    return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
+    const options = [...items.filter((item) => item.key !== WEBDAV_URL_OPTION_KEY), webDavOption(c)]
+    return c.json({ items: options, total: options.length, page: 1, pageSize: options.length }, 200)
   })
   .openapi(getOptionRoute, async (c) => {
+    if (c.req.valid('param').key === WEBDAV_URL_OPTION_KEY) return c.json(webDavOption(c), 200)
     const result = await getSystemOption(c.get('deps'), {
       key: c.req.valid('param').key,
       isAdmin: c.get('userRole') === 'admin',
@@ -149,6 +166,7 @@ const system = new OpenAPIHono<Env>()
     return c.json(result.option, 200)
   })
   .openapi(setOptionRoute, async (c) => {
+    if (c.req.valid('param').key === WEBDAV_URL_OPTION_KEY) throw badRequest('webdav_url is read-only')
     const body = c.req.valid('json')
     const result = await setSystemOption(c.get('deps'), {
       userId: c.get('userId')!,
@@ -161,6 +179,7 @@ const system = new OpenAPIHono<Env>()
     return result.created ? c.json(result.option, 201) : c.json(result.option, 200)
   })
   .openapi(deleteOptionRoute, async (c) => {
+    if (c.req.valid('param').key === WEBDAV_URL_OPTION_KEY) throw badRequest('webdav_url is read-only')
     await deleteSystemOption(c.get('deps'), {
       userId: c.get('userId')!,
       orgId: c.get('orgId')!,

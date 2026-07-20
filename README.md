@@ -117,6 +117,8 @@ Deploy via GitHub Actions with zero server management. Free tier covers personal
 
 After initial setup, the workflow runs automatically every time you sync your fork with the latest release.
 
+Optional WebDAV-only domain: add the repository variable `WEBDAV_PUBLIC_URL=https://dav.example.com` and extend the API token with **Zone:Read** and **Transform Rules:Edit**. The deployment workflow discovers the zone, attaches the Worker Custom Domain, and manages the path rewrite automatically. Delete the variable and deploy once to return to `/dav/` and clean up the managed Cloudflare resources. See [WebDAV custom domains](docs/webdav-custom-domain.md).
+
 ### AWS Lambda
 
 Deploy via GitHub Actions using SAM. Lambda Function URL provides HTTPS with no API Gateway needed.
