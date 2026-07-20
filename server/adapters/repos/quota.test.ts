@@ -1,11 +1,64 @@
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { orgQuotaEntitlements, orgQuotas } from '../../db/schema.js'
-import { createTestApp } from '../../test/setup.js'
+import { orgQuotaEntitlements, orgQuotas, systemOptions } from '../../db/schema.js'
+import { adminHeaders, createTestApp } from '../../test/setup.js'
 import { createQuotaRepo } from './quota.js'
 
 describe('effective quota', () => {
+  it('enforces one quota row per organization', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    await db.insert(orgQuotas).values({ id: nanoid(), orgId })
+
+    await expect(db.insert(orgQuotas).values({ id: nanoid(), orgId })).rejects.toThrow()
+  })
+
+  it('restores missing and revoked Free baselines idempotently', async () => {
+    const { app, db } = await createTestApp()
+    await adminHeaders(app)
+    const [{ orgId }] = await db.select({ orgId: orgQuotas.orgId }).from(orgQuotas).limit(1)
+    const now = new Date('2026-07-20T12:00:00.000Z')
+    await db.delete(orgQuotaEntitlements).where(eq(orgQuotaEntitlements.orgId, orgId))
+    await db
+      .insert(systemOptions)
+      .values([
+        { key: 'default_org_quota', value: '1234' },
+        { key: 'default_org_monthly_traffic_quota', value: '5678' },
+      ])
+      .onConflictDoUpdate({ target: systemOptions.key, set: { value: sql`excluded.value` } })
+
+    const repo = createQuotaRepo(db)
+    await repo.reconcileFreePlanBaselines(now)
+    await repo.reconcileFreePlanBaselines(new Date(now.getTime() + 1000))
+
+    const inserted = await db
+      .select({ resourceType: orgQuotaEntitlements.resourceType, bytes: orgQuotaEntitlements.bytes })
+      .from(orgQuotaEntitlements)
+      .where(eq(orgQuotaEntitlements.orgId, orgId))
+      .orderBy(orgQuotaEntitlements.resourceType)
+    expect(inserted).toEqual([
+      { resourceType: 'storage', bytes: 1234 },
+      { resourceType: 'traffic', bytes: 5678 },
+    ])
+
+    await db
+      .update(orgQuotaEntitlements)
+      .set({ status: 'revoked', expiresAt: now })
+      .where(eq(orgQuotaEntitlements.orgId, orgId))
+    await repo.reconcileFreePlanBaselines(new Date(now.getTime() + 2000))
+    await expect(
+      db
+        .select({ status: orgQuotaEntitlements.status, expiresAt: orgQuotaEntitlements.expiresAt })
+        .from(orgQuotaEntitlements)
+        .where(eq(orgQuotaEntitlements.orgId, orgId))
+        .orderBy(orgQuotaEntitlements.resourceType),
+    ).resolves.toEqual([
+      { status: 'active', expiresAt: null },
+      { status: 'active', expiresAt: null },
+    ])
+  })
+
   it('returns storage and traffic quota state', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
@@ -109,6 +162,44 @@ describe('effective quota', () => {
       trafficPlanName: null,
       trafficExtraNames: [],
     })
+  })
+
+  it('keeps Free as the active baseline and falls back to it after a paid plan expires', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 0,
+      used: 250,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values([
+      {
+        ...entitlement(orgId, 'storage', 'free-storage-plan', 5000, 'active', now, 'Free'),
+        source: 'free_plan',
+      },
+      {
+        ...entitlement(orgId, 'storage', `stripe_subscription:sub_storage:${orgId}`, 3000, 'active', now, 'Pro'),
+        expiresAt: new Date('2026-05-07T00:00:00Z'),
+      },
+    ])
+
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId, now)).resolves.toMatchObject({
+      baseQuota: 3000,
+      quota: 3000,
+      storagePlanName: 'Pro',
+    })
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId, new Date('2026-05-08T00:00:00Z'))).resolves.toMatchObject(
+      {
+        baseQuota: 5000,
+        quota: 5000,
+        storagePlanName: 'Free',
+      },
+    )
   })
 
   it('uses a smaller active subscription plan instead of the larger default quota', async () => {
@@ -639,6 +730,9 @@ describe('effective quota', () => {
       trafficUsed: 900,
       trafficPeriod: '2026-04',
     })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values(entitlement(orgId, 'traffic', 'free-traffic-plan', 1000, 'active', now, 'Free'))
     await db.run(sql`
       CREATE TRIGGER org_quotas_rollover_race
       BEFORE UPDATE ON org_quotas
@@ -656,13 +750,13 @@ describe('effective quota', () => {
     expect(rows[0].trafficPeriod).toBe('2026-05')
   })
 
-  it('allows traffic when no quota row exists', async () => {
+  it('fails closed when no traffic quota row exists', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const now = new Date('2026-05-06T00:00:00Z')
 
-    await expect(createQuotaRepo(db).hasTrafficQuotaForBytes(orgId, 1024, now)).resolves.toBe(true)
-    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 1024, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).hasTrafficQuotaForBytes(orgId, 1024, now)).resolves.toBe(false)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 1024, now)).resolves.toBe(false)
   })
 
   it('treats zero base storage quota as limited when storage entitlements exist', async () => {

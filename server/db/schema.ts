@@ -80,15 +80,19 @@ export const storages = sqliteTable('storages', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
 
-export const orgQuotas = sqliteTable('org_quotas', {
-  id: text('id').primaryKey(),
-  orgId: text('org_id').notNull(),
-  quota: integer('quota').notNull().default(0),
-  used: integer('used').notNull().default(0),
-  trafficQuota: integer('traffic_quota').notNull().default(0),
-  trafficUsed: integer('traffic_used').notNull().default(0),
-  trafficPeriod: text('traffic_period').notNull().default('1970-01'),
-})
+export const orgQuotas = sqliteTable(
+  'org_quotas',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    quota: integer('quota').notNull().default(0),
+    used: integer('used').notNull().default(0),
+    trafficQuota: integer('traffic_quota').notNull().default(0),
+    trafficUsed: integer('traffic_used').notNull().default(0),
+    trafficPeriod: text('traffic_period').notNull().default('1970-01'),
+  },
+  (t) => [uniqueIndex('org_quotas_org_uniq').on(t.orgId)],
+)
 
 export const cloudTrafficReports = sqliteTable(
   'cloud_traffic_reports',
@@ -105,6 +109,8 @@ export const cloudTrafficReports = sqliteTable(
     creditsPerUnit: integer('credits_per_unit'),
     status: text('status').notNull(),
     error: text('error'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    nextRetryAt: integer('next_retry_at', { mode: 'timestamp_ms' }),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
@@ -112,6 +118,7 @@ export const cloudTrafficReports = sqliteTable(
     uniqueIndex('cloud_traffic_reports_event_uniq').on(t.eventId),
     index('cloud_traffic_reports_org_period_idx').on(t.orgId, t.period),
     index('cloud_traffic_reports_status_idx').on(t.status),
+    index('cloud_traffic_reports_retry_idx').on(t.status, t.nextRetryAt, t.createdAt),
     index('cloud_traffic_reports_updated_idx').on(t.updatedAt),
   ],
 )
@@ -138,7 +145,7 @@ export const orgQuotaEntitlements = sqliteTable(
     index('org_quota_entitlements_org_type_idx').on(t.orgId, t.resourceType, t.entitlementType, t.status),
     uniqueIndex('org_quota_entitlements_active_plan_uniq')
       .on(t.orgId, t.resourceType, t.entitlementType)
-      .where(sql`status = 'active' AND entitlement_type = 'plan'`),
+      .where(sql`status = 'active' AND entitlement_type = 'plan' AND source <> 'free_plan'`),
     uniqueIndex('org_quota_entitlements_source_resource_uniq').on(t.source, t.sourceId, t.resourceType),
   ],
 )

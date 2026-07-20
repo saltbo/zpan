@@ -260,6 +260,16 @@ describe('confirmUpload — name conflict', () => {
     const { db } = await createTestApp()
     await insertStorage(db)
     const orgId = nanoid()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+      VALUES (${nanoid()}, ${orgId}, 0, 0, 0, 0, '2026-05')
+    `)
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, status, created_at, updated_at)
+      VALUES (${nanoid()}, ${orgId}, 'storage', 'plan', 'test', ${nanoid()}, 1000000, ${now}, 'active', ${now}, ${now})
+    `)
 
     const draftId = await makeFile(db, orgId, 'collision.txt', { status: 'draft' })
     await makeFile(db, orgId, 'collision.txt') // active sibling

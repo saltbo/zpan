@@ -5,6 +5,7 @@ import {
   ADMIN_STATS_METRICS,
   type AdminStatsDimension,
   type AdminStatsMetric,
+  type AdminStatsRollupMetadata,
   type AdminStatsRollupScope,
   assertMetricDimension,
   metricDefinition,
@@ -33,7 +34,7 @@ export class AdminStatsHourlyReader {
   private readonly queryFrom: Date
   private readonly queryTo: Date
   private readonly metricRows = new Map<string, Promise<HourlyMetricRow[]>>()
-  private readonly markerBucketsPromises = new Map<AdminStatsRollupScope, Promise<Set<number>>>()
+  private readonly markerRowsPromises = new Map<AdminStatsRollupScope, Promise<CompatibleMarkerRow[]>>()
 
   constructor(
     private readonly db: Database,
@@ -121,19 +122,19 @@ export class AdminStatsHourlyReader {
           AND bucket_start >= ${this.queryFrom.getTime()}
           AND bucket_start < ${this.queryTo.getTime()}
           AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.version') END = ${ROLLUP_VERSION}
-          AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') END = 'full'
+          AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') END IN ('snapshots', 'full')
           AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.quality') END IN ('exact', 'lower_bound')
       )
-      SELECT used.org_id AS orgId, used.bytes AS usedBytes, COALESCE(quota.bytes, 0) AS quotaBytes
+      SELECT used.org_id AS orgId, used.bytes AS usedBytes, quota.bytes AS quotaBytes
       FROM stats_rollups_hourly used
-      LEFT JOIN stats_rollups_hourly quota
+      INNER JOIN stats_rollups_hourly quota
         ON quota.bucket_start = used.bucket_start
         AND quota.org_id = used.org_id
         AND quota.metric_key = ${ADMIN_STATS_METRICS.storageQuota}
         AND quota.dimension_key = ''
         AND quota.dimension_value = ''
         AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.version') END = ${ROLLUP_VERSION}
-        AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.scope') END = 'full'
+        AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.scope') END IN ('snapshots', 'full')
         AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.quality') END IN ('exact', 'lower_bound')
       WHERE used.bucket_start = (SELECT bucketStart FROM latest)
         AND used.org_id <> ''
@@ -141,7 +142,7 @@ export class AdminStatsHourlyReader {
         AND used.dimension_key = ''
         AND used.dimension_value = ''
         AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.version') END = ${ROLLUP_VERSION}
-        AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.scope') END = 'full'
+        AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.scope') END IN ('snapshots', 'full')
         AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.quality') END IN ('exact', 'lower_bound')
       ORDER BY used.bytes DESC, used.org_id
       LIMIT ${DASHBOARD_RANKING_LIMIT}
@@ -155,14 +156,22 @@ export class AdminStatsHourlyReader {
 
   async coverage(requiredScope: AdminStatsRollupScope = 'full'): Promise<AdminStatsCoverage> {
     const expectedBuckets = Math.max(0, Math.floor((this.queryTo.getTime() - this.queryFrom.getTime()) / HOUR_MS))
-    const markerBuckets = await this.markerBuckets(requiredScope)
-    const completedBuckets = markerBuckets.size
-    const latest = Math.max(...markerBuckets, Number.NEGATIVE_INFINITY)
+    const markerRows = await this.markerRows(requiredScope)
+    const completedBuckets = markerRows.length
+    const lowerBoundBuckets = markerRows.filter(
+      (row) => qualityForScope(row.metadata, requiredScope) === 'lower_bound',
+    ).length
+    const latest = markerRows.reduce<CompatibleMarkerRow | null>(
+      (value, row) => (!value || row.bucketStart.getTime() > value.bucketStart.getTime() ? row : value),
+      null,
+    )
     return {
       status: completedBuckets === 0 ? 'empty' : completedBuckets === expectedBuckets ? 'complete' : 'partial',
       expectedBuckets,
       completedBuckets,
-      dataThrough: Number.isFinite(latest) ? new Date(latest + HOUR_MS).toISOString() : null,
+      lowerBoundBuckets,
+      quality: lowerBoundBuckets > 0 ? 'lower_bound' : 'exact',
+      dataThrough: latest ? dataThroughForScope(latest, requiredScope) : null,
     }
   }
 
@@ -179,7 +188,7 @@ export class AdminStatsHourlyReader {
     dimensionKeys: readonly (AdminStatsDimension | '')[],
   ): Promise<HourlyMetricRow[]> {
     if (this.queryFrom >= this.queryTo) return []
-    const requiredScope = metricDefinition(metric).kind === 'gauge' ? 'full' : 'counters'
+    const requiredScope = metricDefinition(metric).kind === 'gauge' ? 'snapshots' : 'counters'
     const markerBuckets = await this.markerBuckets(requiredScope)
     if (markerBuckets.size === 0) return []
     const rows = await this.db
@@ -201,8 +210,8 @@ export class AdminStatsHourlyReader {
           gte(statsRollupsHourly.bucketStart, this.queryFrom),
           lt(statsRollupsHourly.bucketStart, this.queryTo),
           sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.version') END = ${ROLLUP_VERSION}`,
-          requiredScope === 'full'
-            ? sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.scope') END = 'full'`
+          requiredScope === 'snapshots'
+            ? sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.scope') END IN ('snapshots', 'full')`
             : sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.scope') END IN ('counters', 'full')`,
           sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.quality') END IN ('exact', 'lower_bound')`,
         ),
@@ -225,15 +234,19 @@ export class AdminStatsHourlyReader {
   }
 
   private markerBuckets(requiredScope: AdminStatsRollupScope): Promise<Set<number>> {
-    const cached = this.markerBucketsPromises.get(requiredScope)
-    if (cached) return cached
-    const buckets = this.loadMarkerBuckets(requiredScope)
-    this.markerBucketsPromises.set(requiredScope, buckets)
-    return buckets
+    return this.markerRows(requiredScope).then((rows) => new Set(rows.map((row) => row.bucketStart.getTime())))
   }
 
-  private async loadMarkerBuckets(requiredScope: AdminStatsRollupScope): Promise<Set<number>> {
-    if (this.queryFrom >= this.queryTo) return new Set()
+  private markerRows(requiredScope: AdminStatsRollupScope): Promise<CompatibleMarkerRow[]> {
+    const cached = this.markerRowsPromises.get(requiredScope)
+    if (cached) return cached
+    const rows = this.loadMarkerRows(requiredScope)
+    this.markerRowsPromises.set(requiredScope, rows)
+    return rows
+  }
+
+  private async loadMarkerRows(requiredScope: AdminStatsRollupScope): Promise<CompatibleMarkerRow[]> {
+    if (this.queryFrom >= this.queryTo) return []
     const rows = await this.db
       .select({ bucketStart: statsRollupsHourly.bucketStart, metadata: statsRollupsHourly.metadata })
       .from(statsRollupsHourly)
@@ -246,19 +259,37 @@ export class AdminStatsHourlyReader {
           lt(statsRollupsHourly.bucketStart, this.queryTo),
         ),
       )
-    return new Set(
-      rows
-        .filter((row) => {
-          const metadata = parseAdminStatsRollupMetadata(row.metadata)
-          return supportsScope(metadata?.scope, requiredScope)
-        })
-        .map((row) => row.bucketStart.getTime()),
-    )
+    return rows.flatMap((row) => {
+      const metadata = parseAdminStatsRollupMetadata(row.metadata)
+      return metadata && supportsScope(metadata.scope, requiredScope)
+        ? [{ bucketStart: row.bucketStart, metadata }]
+        : []
+    })
   }
 }
 
+type CompatibleMarkerRow = { bucketStart: Date; metadata: AdminStatsRollupMetadata }
+
+function qualityForScope(
+  metadata: AdminStatsRollupMetadata,
+  requiredScope: AdminStatsRollupScope,
+): 'exact' | 'lower_bound' {
+  if (requiredScope === 'counters') return metadata.counterQuality ?? metadata.quality
+  if (requiredScope === 'snapshots') return metadata.snapshotQuality ?? metadata.quality
+  return metadata.quality
+}
+
+function dataThroughForScope(row: CompatibleMarkerRow, requiredScope: AdminStatsRollupScope): string {
+  if (requiredScope === 'snapshots' && row.metadata.snapshotObservedAt) return row.metadata.snapshotObservedAt
+  return new Date(row.bucketStart.getTime() + HOUR_MS).toISOString()
+}
+
 function supportsScope(scope: AdminStatsRollupScope | undefined, requiredScope: AdminStatsRollupScope): boolean {
-  return scope === 'full' || (requiredScope === 'counters' && scope === 'counters')
+  return (
+    scope === 'full' ||
+    (requiredScope === 'counters' && scope === 'counters') ||
+    (requiredScope === 'snapshots' && scope === 'snapshots')
+  )
 }
 
 function floorHour(date: Date): Date {

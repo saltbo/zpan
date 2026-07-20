@@ -38,6 +38,7 @@ export interface QuotaRepo {
   listOrgQuotaOverview(): Promise<OrgQuotaOverviewRow[]>
   getEffectiveQuota(orgId: string, now?: Date): Promise<EffectiveQuota>
   getEffectiveQuotasByOrg(orgIds: string[], now?: Date): Promise<Map<string, EffectiveQuota>>
+  reconcileFreePlanBaselines(now?: Date): Promise<void>
   resetExpiredTrafficQuotas(now?: Date): Promise<void>
   hasQuotaForBytes(orgId: string, bytes: number): Promise<boolean>
   hasTrafficQuotaForBytes(orgId: string, bytes: number, now?: Date): Promise<boolean>

@@ -1,7 +1,8 @@
 import { downloadTaskRuntimeSchema } from '@shared/schemas'
 import type { DownloadTask, DownloadTaskRuntime } from '@shared/types'
 import { and, asc, count, desc, eq, gte, inArray, isNull, like, ne, notInArray, or, type SQL, sql } from 'drizzle-orm'
-import { downloaders, downloadTasks } from '../../db/schema'
+import { activityEvents, downloaders, downloadTasks } from '../../db/schema'
+import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
 import {
   type CreateDownloadTaskRecordInput,
@@ -11,6 +12,7 @@ import {
   type ListDownloadTasksFilters,
   type UpdateDownloadTaskFields,
 } from '../../usecases/ports'
+import { adminStatsFactValues } from './admin-stats-fact'
 
 type DownloadTaskRow = typeof downloadTasks.$inferSelect
 
@@ -244,7 +246,35 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
     },
 
     async setFields(id, fields: UpdateDownloadTaskFields) {
-      await db.update(downloadTasks).set(fields).where(eq(downloadTasks.id, id))
+      const row = await findRow(id)
+      if (!row) throw new DownloadError('not_found')
+      const nextStatus = fields.status ?? row.status
+      const finishedAt = fields.finishedAt ?? row.finishedAt
+      const writes: AtomicQuery[] = [db.update(downloadTasks).set(fields).where(eq(downloadTasks.id, id))]
+      if (!row.finishedAt && finishedAt && ['completed', 'failed', 'canceled'].includes(nextStatus)) {
+        writes.push(
+          db
+            .insert(activityEvents)
+            .values(
+              adminStatsFactValues({
+                action: 'stats_remote_download_finished',
+                sourceId: `${row.id}:${row.attempt}:${finishedAt.getTime()}:${nextStatus}`,
+                targetId: row.id,
+                orgId: row.orgId,
+                targetType: 'remote_download',
+                occurredAt: finishedAt,
+                metadata: {
+                  category: row.category ?? 'uncategorized',
+                  downloaderId: row.assignedDownloaderId,
+                  outcome: nextStatus,
+                  bytes: nextStatus === 'completed' ? (fields.billingChargedBytes ?? row.billingChargedBytes) : 0,
+                },
+              }),
+            )
+            .onConflictDoNothing(),
+        )
+      }
+      await executeWriteTransaction(db, writes)
     },
 
     async claimQueued(id, downloaderId, now) {

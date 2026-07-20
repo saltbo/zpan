@@ -10,7 +10,7 @@ import { createQuotaRepo } from '../adapters/repos/quota'
 import { createShareRepo } from '../adapters/repos/share'
 import { createStorageRepo } from '../adapters/repos/storage'
 import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
-import { matters } from '../db/schema'
+import { matters, orgQuotaEntitlements, orgQuotas } from '../db/schema'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 import type { Database } from '../platform/interface'
 import { type SaveShareInput, type SaveToDriveDeps, saveShareToDrive as saveShareToDriveUseCase } from './object'
@@ -42,6 +42,26 @@ async function seedStorage(db: ReturnType<typeof buildDb>, id: string) {
     `INSERT OR IGNORE INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
      VALUES ('${id}', 'cf-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AKIA...', 'secret...', '', '', 0, 0, 'active', ${Date.now()}, ${Date.now()})`,
   )
+}
+
+async function seedStorageQuota(db: ReturnType<typeof buildDb>, orgId: string, bytes = 10_000_000) {
+  const now = new Date()
+  await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota: bytes })
+  await db.insert(orgQuotaEntitlements).values({
+    id: nanoid(),
+    orgId,
+    resourceType: 'storage',
+    entitlementType: 'plan',
+    source: 'free_plan',
+    sourceId: `free_plan:${orgId}`,
+    bytes,
+    startsAt: now,
+    expiresAt: null,
+    status: 'active',
+    metadata: JSON.stringify({ packageName: 'Free', source: 'free_plan' }),
+    createdAt: now,
+    updatedAt: now,
+  })
 }
 
 async function seedMatter(db: ReturnType<typeof buildDb>, orgId: string, dirtype = DirType.FILE) {
@@ -129,6 +149,7 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     const srcOrgId = `src-${nanoid(6)}`
     const dstOrgId = `dst-${nanoid(6)}`
     await seedStorage(db, 'cf-storage-1')
+    await seedStorageQuota(db, dstOrgId)
 
     const matter = await seedMatter(db, srcOrgId)
     const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'cf-u1', kind: 'landing' })
@@ -154,6 +175,7 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     const srcOrgId = `src-${nanoid(6)}`
     const dstOrgId = `dst-${nanoid(6)}`
     await seedStorage(db, 'cf-storage-1')
+    await seedStorageQuota(db, dstOrgId)
 
     const matter = await seedMatter(db, srcOrgId)
     const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'cf-u3', kind: 'landing' })
@@ -184,6 +206,7 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     const srcOrgId = `src-${nanoid(6)}`
     const dstOrgId = `dst-${nanoid(6)}`
     await seedStorage(db, 'cf-storage-1')
+    await seedStorageQuota(db, dstOrgId)
 
     // Create folder structure
     const now = new Date()

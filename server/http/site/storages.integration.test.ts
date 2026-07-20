@@ -336,7 +336,7 @@ async function insertStorage(
 }
 
 describe('selectStorage service', () => {
-  it('returns the single active storage when capacity is unlimited (0) [spec: storages/select-active]', async () => {
+  it('returns the single active storage when capacity is not reported (0) [spec: storages/select-active]', async () => {
     const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', capacity: 0, used: 0 })
 

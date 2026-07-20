@@ -2,7 +2,7 @@ import type { AdminDashboardOverviewStats } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createAdminStatsRepo, metricSpec } from '../adapters/repos/admin-stats'
-import { rebuildAdminStatsHour } from '../adapters/repos/admin-stats-rollup'
+import { captureAdminStatsSnapshot, rebuildAdminStatsHour } from '../adapters/repos/admin-stats-rollup'
 import { currentTrafficPeriod } from '../domain/quota'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
@@ -155,10 +155,10 @@ describe('site stats routes', () => {
       )
       VALUES (
         'storage-marker-2026-01-01', ${Date.UTC(2026, 0, 1)}, '', 'stats.rollup_run', '', '',
-        1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${Date.UTC(2026, 0, 2)}
+        1, 0, 0, '{"version":3,"scope":"full","quality":"exact"}', ${Date.UTC(2026, 0, 2)}
       ), (
         'storage-used-2026-01-01', ${Date.UTC(2026, 0, 1)}, '', 'storage.used', '', '',
-        0, 4096, 0, '{"version":2,"scope":"full","quality":"exact"}', ${Date.UTC(2026, 0, 2)}
+        0, 4096, 0, '{"version":3,"scope":"snapshots","quality":"exact"}', ${Date.UTC(2026, 0, 2)}
       )
     `)
 
@@ -191,9 +191,9 @@ describe('site stats routes', () => {
         count, bytes, unique_count, metadata, updated_at
       ) VALUES
         ('hourly-reader-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+          '{"version":3,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
         ('hourly-reader-upload', ${at}, ${orgId}, 'transfer.upload', 'status', 'success', 1, 999, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000})
+          '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000})
     `)
 
     const query =
@@ -228,18 +228,18 @@ describe('site stats routes', () => {
         (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
           count, bytes, unique_count, metadata, updated_at)
       VALUES
-        ('dimensions-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-share-total', ${at}, ${orgId}, 'share.created', '', '', 1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-share-kind', ${at}, ${orgId}, 'share.created', 'kind', 'landing', 1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-job-total', ${at}, ${orgId}, 'background_job.finished', '', '', 1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-job-outcome', ${at}, ${orgId}, 'background_job.finished', 'outcome', 'failed', 1, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-download-total', ${at}, ${orgId}, 'transfer.download_issued', '', '', 1, 10, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-download-source', ${at}, ${orgId}, 'transfer.download_issued', 'source', 'object_download', 1, 10, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-failure-total', ${at}, ${orgId}, 'transfer.download_failed', '', '', 1, 4, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-failure-reason', ${at}, ${orgId}, 'transfer.download_failed', 'reason', 'network', 1, 4, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-quality-total', ${at}, ${orgId}, 'stats.quality_missing_bytes', '', '', 5, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-quality-upload', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'upload', 2, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at}),
-        ('dimensions-quality-download', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'download', 3, 0, 0, '{"version":2,"scope":"full","quality":"exact"}', ${at})
+        ('dimensions-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0, '{"version":3,"scope":"full","quality":"exact"}', ${at}),
+        ('dimensions-share-total', ${at}, ${orgId}, 'share.created', '', '', 1, 0, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at}),
+        ('dimensions-share-kind', ${at}, ${orgId}, 'share.created', 'kind', 'landing', 1, 0, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at}),
+        ('dimensions-job-total', ${at}, ${orgId}, 'background_job.finished', '', '', 1, 0, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at}),
+        ('dimensions-job-outcome', ${at}, ${orgId}, 'background_job.finished', 'outcome', 'failed', 1, 0, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at}),
+        ('dimensions-download-total', ${at}, ${orgId}, 'transfer.download_issued', '', '', 1, 10, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at}),
+        ('dimensions-download-source', ${at}, ${orgId}, 'transfer.download_issued', 'source', 'object_download', 1, 10, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at}),
+        ('dimensions-failure-total', ${at}, ${orgId}, 'transfer.download_failed', '', '', 1, 4, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at}),
+        ('dimensions-failure-reason', ${at}, ${orgId}, 'transfer.download_failed', 'reason', 'network', 1, 4, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at}),
+        ('dimensions-quality-total', ${at}, ${orgId}, 'stats.quality_missing_bytes', '', '', 5, 0, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at}),
+        ('dimensions-quality-upload', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'upload', 2, 0, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at}),
+        ('dimensions-quality-download', ${at}, ${orgId}, 'stats.quality_missing_bytes', 'direction', 'download', 3, 0, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${at})
     `)
     const query = 'from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T10%3A59%3A59.999Z&timeZone=UTC'
 
@@ -293,13 +293,13 @@ describe('site stats routes', () => {
       ORDER BY bucket_start, org_id
     `)
 
-    expect(rows.map((row) => Number(row.bucketStart))).toContain(Date.UTC(2026, 6, 10, 17))
+    expect(rows.map((row) => Number(row.bucketStart))).toContain(Date.UTC(2026, 6, 10, 18))
     expect(
       rows
-        .filter((row) => Number(row.bucketStart) === Date.UTC(2026, 6, 10, 17))
+        .filter((row) => Number(row.bucketStart) === Date.UTC(2026, 6, 10, 18))
         .reduce((sum, row) => sum + row.bytes, 0),
     ).toBe(expected)
-    expect(JSON.parse(rows.at(-1)?.metadata ?? '{}')).toMatchObject({ version: 2, quality: 'exact' })
+    expect(JSON.parse(rows.at(-1)?.metadata ?? '{}')).toMatchObject({ version: 3, quality: 'exact' })
   })
 
   it('does not write rollups while serving storage stats', async () => {
@@ -362,15 +362,15 @@ describe('site stats routes', () => {
           count, bytes, unique_count, metadata, updated_at)
       VALUES
         ('growth-rollup-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+          '{"version":3,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
         ('growth-rollup-total', ${at}, '', 'user.signup', '', '', 2, 0, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+          '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000}),
         ('growth-inventory-total', ${at}, '', 'user.inventory', '', '', 2, 0, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${at + 3_600_000}),
         ('growth-rollup-credential', ${at}, '', 'user.signup', 'provider', 'credential', 1, 0, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+          '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000}),
         ('growth-rollup-github', ${at}, '', 'user.signup', 'provider', 'github', 1, 0, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000})
+          '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000})
     `)
 
     const res = await app.request('/api/site/stats/growth?from=2026-01-01&to=2026-01-01', { headers })
@@ -409,7 +409,8 @@ describe('site stats routes', () => {
     const beforeRes = await app.request('/api/site/stats/storage', { headers })
     const before = (await beforeRes.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
 
-    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
+    await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
+    await rebuildAdminStatsHour(db, bucketStart, new Date())
     const afterRes = await app.request('/api/site/stats/storage', { headers })
     const after = (await afterRes.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
 
@@ -426,6 +427,17 @@ describe('site stats routes', () => {
     const { bucketStart } = await seedStatsFixture(db)
     for (let index = 0; index < 12; index += 1) {
       await db.run(sql`
+        INSERT INTO organization (id, name, slug, metadata, created_at, updated_at)
+        VALUES (
+          ${`quota-pressure-org-${index}`},
+          ${`Quota Pressure ${index}`},
+          ${`quota-pressure-${index}`},
+          '{"type":"team"}',
+          ${bucketStart.getTime()},
+          ${bucketStart.getTime()}
+        )
+      `)
+      await db.run(sql`
         INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
         VALUES (
           ${`quota-pressure-${index}`},
@@ -437,19 +449,55 @@ describe('site stats routes', () => {
           '2026-07'
         )
       `)
+      await db.run(sql`
+        INSERT INTO org_quota_entitlements
+          (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, status, created_at, updated_at)
+        VALUES (
+          ${`quota-pressure-plan-${index}`},
+          ${`quota-pressure-org-${index}`},
+          'storage',
+          'plan',
+          'test',
+          ${`quota-pressure-source-${index}`},
+          100,
+          ${bucketStart.getTime()},
+          'active',
+          ${bucketStart.getTime()},
+          ${bucketStart.getTime()}
+        )
+      `)
     }
-    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata, created_at, updated_at)
+      VALUES ('quota-invalid-org', 'Invalid Quota', 'quota-invalid', '{"type":"team"}', ${bucketStart.getTime()}, ${bucketStart.getTime()})
+    `)
+    await db.run(sql`
+      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+      VALUES ('quota-invalid', 'quota-invalid-org', 0, 1000, 0, 0, '2026-07')
+    `)
+    await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
+    await rebuildAdminStatsHour(db, bucketStart, new Date())
 
     const res = await app.request('/api/site/stats/storage', { headers })
     const body = (await res.json()) as {
-      summary: { nearQuotaSpaces: number; overQuotaSpaces: number }
-      topSpaces: Array<{ orgId: string }>
+      summary: {
+        quotaBytes: number | null
+        storageUtilization: number | null
+        nearQuotaSpaces: number
+        overQuotaSpaces: number
+        invalidQuotaSpaces: number
+      }
+      topSpaces: Array<{ orgId: string; utilization: number | null }>
     }
 
     expect(res.status).toBe(200)
     expect(body.summary.nearQuotaSpaces).toBe(9)
     expect(body.summary.overQuotaSpaces).toBe(3)
+    expect(body.summary.invalidQuotaSpaces).toBe(2)
+    expect(body.summary.quotaBytes).toBeNull()
+    expect(body.summary.storageUtilization).toBeNull()
     expect(body.topSpaces).toHaveLength(8)
+    expect(body.topSpaces[0]).toMatchObject({ orgId: 'quota-invalid-org', utilization: null })
   })
 
   it('reads historical active users from completed snapshots instead of raw activity', async () => {
@@ -471,9 +519,11 @@ describe('site stats routes', () => {
           count, bytes, unique_count, metadata, updated_at)
       VALUES
         ('active-snapshot-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+          '{"version":3,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+        ('active-snapshot-total', ${at}, '', 'user.active_snapshot', '', '', 1, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${at + 3_600_000}),
         ('active-snapshot-mau', ${at}, '', 'user.active_snapshot', 'window', 'mau', 1, 0, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${at + 3_600_000})
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${at + 3_600_000})
     `)
 
     const res = await app.request('/api/site/stats/overview?from=2026-01-02&to=2026-01-02', { headers })
@@ -493,7 +543,7 @@ describe('site stats routes', () => {
       VALUES ('upload-cancel-rate', ${orgId}, ${userId}, 'user', 'upload_cancel', 'file', 'cancel.bin',
         '{', ${eventSec})
     `)
-    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
+    await rebuildAdminStatsHour(db, bucketStart, new Date())
 
     const current = await app.request('/api/site/stats/traffic', { headers })
     const currentBody = (await current.json()) as {
@@ -523,8 +573,8 @@ describe('site stats routes', () => {
         ('missing-previous-download-bytes', ${orgId}, ${userId}, 'user', 'share_download', 'share', 'previous.bin', '{}',
           ${Math.floor(Date.parse('2026-06-30T12:00:00.000Z') / 1000)})
     `)
-    await rebuildAdminStatsHour(db, new Date('2026-07-01T12:00:00.000Z'), new Date(), false)
-    await rebuildAdminStatsHour(db, new Date('2026-06-30T12:00:00.000Z'), new Date(), false)
+    await rebuildAdminStatsHour(db, new Date('2026-07-01T12:00:00.000Z'), new Date())
+    await rebuildAdminStatsHour(db, new Date('2026-06-30T12:00:00.000Z'), new Date())
 
     const res = await app.request('/api/site/stats/overview?from=2026-07-01&to=2026-07-01', { headers })
     const body = (await res.json()) as { dataQuality: AdminDashboardOverviewStats['dataQuality'] }
@@ -611,13 +661,14 @@ describe('site stats routes', () => {
       VALUES ('operations-cloud-report', ${orgId}, '2026-07', 'object_download', 'stats-file',
         'operations-cloud-report', 64, 'pending', ${reportAt}, ${reportAt})
     `)
-    await rebuildAdminStatsHour(db, previousBucket, new Date(reportAt + 3_600_000), true)
+    await rebuildAdminStatsHour(db, previousBucket, new Date(reportAt + 3_600_000))
     await db.run(sql`
       UPDATE cloud_traffic_reports
       SET status = 'reported', updated_at = ${eventMs}
       WHERE id = 'operations-cloud-report'
     `)
-    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
+    await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
+    await rebuildAdminStatsHour(db, bucketStart, new Date())
 
     const res = await app.request('/api/site/stats/operations', { headers })
     const body = (await res.json()) as {
@@ -659,7 +710,12 @@ describe('site stats routes', () => {
 
     const currentSharingRes = await app.request('/api/site/stats/sharing', { headers })
     const currentSharing = (await currentSharingRes.json()) as {
-      summary: { views: { value: number }; downloads: { value: number } }
+      dataQuality: { unlocatedViews: number; unlocatedDownloads: number; unlocatedEvents: number }
+      summary: {
+        views: { value: number; change: number | null }
+        downloads: { value: number; change: number | null }
+        downloadsPer100Views: number | null
+      }
       topShares: Array<{
         token: string
         views: number
@@ -676,6 +732,10 @@ describe('site stats routes', () => {
     expect(currentSharingRes.status).toBe(200)
     expect(currentSharing.summary.views.value).toBe(1)
     expect(currentSharing.summary.downloads.value).toBe(1)
+    expect(currentSharing.dataQuality).toEqual({ unlocatedViews: 11, unlocatedDownloads: 3, unlocatedEvents: 14 })
+    expect(currentSharing.summary.views.change).toBeNull()
+    expect(currentSharing.summary.downloads.change).toBeNull()
+    expect(currentSharing.summary.downloadsPer100Views).toBeNull()
     expect(currentSharing.topShares[0]).toMatchObject({
       token: 'share-token-1',
       views: 1,
@@ -686,6 +746,29 @@ describe('site stats routes', () => {
     expect(oldSharing.summary.views.value).toBe(0)
     expect(oldSharing.summary.downloads.value).toBe(0)
     expect(oldSharing.topShares).toEqual([])
+  })
+
+  it('keeps deleted shares in historical rankings without reading their counters live', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedStatsFixture(db)
+    await db.run(sql`DELETE FROM shares WHERE id = 'share-1'`)
+
+    const res = await app.request('/api/site/stats/sharing', { headers })
+    const body = (await res.json()) as {
+      topShares: Array<{ id: string; token: string; name: string; status: string; views: number; downloads: number }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.topShares[0]).toMatchObject({
+      id: 'share-1',
+      token: '',
+      name: '已删除的分享',
+      status: 'deleted',
+      views: 1,
+      downloads: 1,
+    })
   })
 
   it('orders top share rankings by views before downloads', async () => {
@@ -706,14 +789,14 @@ describe('site stats routes', () => {
         ('activity-download-heavy-2', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec}),
         ('activity-download-heavy-3', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec})
     `)
-    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
+    await rebuildAdminStatsHour(db, bucketStart, new Date())
     await db.run(sql`
       INSERT INTO stats_rollups_hourly
         (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
           count, bytes, unique_count, metadata, updated_at)
       VALUES
         ('ranking-invalid-quality', ${bucketStart.getTime()}, ${orgId}, 'share.view', 'share_id',
-          'share-download-heavy', 1000, 0, 0, '{"version":2,"scope":"full"}', ${bucketStart.getTime()})
+          'share-download-heavy', 1000, 0, 0, '{"version":3,"scope":"counters"}', ${bucketStart.getTime()})
     `)
 
     const res = await app.request('/api/site/stats/sharing', { headers })
@@ -741,7 +824,7 @@ describe('site stats routes', () => {
           '{"source":"landing_share"}', ${eventSec})
       `)
     }
-    await rebuildAdminStatsHour(db, bucketStart, new Date(), true)
+    await rebuildAdminStatsHour(db, bucketStart, new Date())
 
     const res = await app.request('/api/site/stats/sharing', { headers })
     const body = (await res.json()) as { topShares: Array<{ viewPercent: number }> }
@@ -801,7 +884,16 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
       ('activity-share-view', ${orgId}, NULL, 'anonymous', 'share_view', 'share', 'share-1', 'report.pdf', '{"source":"landing_share","anonymous":true}', ${nowSec}),
       ('activity-share-password', ${orgId}, NULL, 'anonymous', 'share_password_passed', 'share', 'share-1', 'report.pdf', '{"source":"landing_share","anonymous":true}', ${nowSec}),
       ('activity-share-download', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-1', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec}),
-      ('activity-object-download', ${orgId}, ${userId}, 'user', 'object_download', 'file', 'stats-file', 'report.pdf', '{"bytes":256,"source":"object_download"}', ${nowSec})
+      ('activity-object-download', ${orgId}, ${userId}, 'user', 'object_download', 'file', 'stats-file', 'report.pdf', '{"bytes":256,"source":"object_download"}', ${nowSec}),
+      ('stats-fixture-share-created', ${orgId}, NULL, 'system', 'stats_share_created', 'share', 'share-1', 'share-1', '{"kind":"landing","statsQuality":"exact"}', ${nowSec}),
+      ('stats-fixture-task-completed', ${orgId}, NULL, 'system', 'stats_remote_download_finished', 'remote_download', 'task-1', 'task-1', '{"category":"direct","outcome":"completed","bytes":0,"statsQuality":"exact"}', ${nowSec}),
+      ('stats-fixture-task-failed', ${orgId}, NULL, 'system', 'stats_remote_download_finished', 'remote_download', 'task-2', 'task-2', '{"category":"direct","outcome":"failed","bytes":0,"statsQuality":"exact"}', ${nowSec}),
+      ('stats-fixture-job-failed', ${orgId}, NULL, 'system', 'stats_background_job_finished', 'background_job', 'job-1', 'job-1', '{"jobType":"extract","outcome":"failed","statsQuality":"exact"}', ${nowSec})
+  `)
+  await db.run(sql`
+    UPDATE activity_events
+    SET created_at = ${nowSec}, metadata = '{"provider":"credential","statsQuality":"exact"}'
+    WHERE action = 'stats_user_signup' AND target_id = ${userId}
   `)
   await db.run(sql`
     INSERT INTO downloaders (id, name, token_hash, token_jti, status, enabled, version, hostname, platform, arch, engine, capabilities, max_concurrent_tasks, current_tasks, download_bps, upload_bps, free_disk_bytes, created_by, last_heartbeat_at, created_at, updated_at)
@@ -818,6 +910,7 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
     VALUES ('job-1', ${orgId}, ${userId}, 'extract', 'failed', '', '', NULL, 0, 0, 0, 0, NULL, 'bad zip', NULL, 1, 0, NULL, ${now}, ${now}, ${now}, ${now})
   `)
 
-  await rebuildAdminStatsHour(db, bucketStart, new Date(generatedAt), true)
+  await captureAdminStatsSnapshot(db, bucketStart, new Date(now))
+  await rebuildAdminStatsHour(db, bucketStart, new Date(generatedAt))
   return { orgId, userId, bucketStart, eventMs: now, eventSec: nowSec }
 }

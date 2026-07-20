@@ -143,6 +143,7 @@ SET metadata = json_set(
           ELSE ''
         END
       )
+      AND ctr.status <> 'blocked'
       AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
     ORDER BY ctr.created_at, ctr.event_id
     LIMIT 1
@@ -159,6 +160,7 @@ SET metadata = json_set(
           ELSE ''
         END
       )
+      AND ctr.status <> 'blocked'
       AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
     ORDER BY ctr.created_at, ctr.event_id
     LIMIT 1
@@ -176,6 +178,7 @@ SET metadata = json_set(
           ELSE ''
         END
       )
+      AND ctr.status <> 'blocked'
       AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
     ORDER BY ctr.created_at, ctr.event_id
     LIMIT 1
@@ -196,6 +199,7 @@ WHERE action IN ('share_download', 'object_download', 'image_hosting_download', 
           ELSE ''
         END
       )
+      AND ctr.status <> 'blocked'
       AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
   );
 
@@ -237,6 +241,7 @@ WHERE ctr.source IN ('direct_share', 'landing_share', 'image_hosting', 'object_d
       OR (
         ae.target_id = ctr.source_id
         AND ae.action = CASE
+          WHEN ctr.status = 'blocked' THEN 'download_failed'
           WHEN ctr.source IN ('direct_share', 'landing_share') THEN 'share_download'
           WHEN ctr.source = 'image_hosting' THEN 'image_hosting_download'
           WHEN ctr.source = 'object_download' THEN 'object_download'
@@ -246,12 +251,135 @@ WHERE ctr.source IN ('direct_share', 'landing_share', 'image_hosting', 'object_d
       )
   );
 
+${buildImmutableFactBackfillSql()}
+
 ${purgeLegacyRollupsSql()}
 ${purgeOpenRollupsSql(now)}
 ${purgeCounterRollupsSql()}
 
 ${buildHourlyBackfillSql(now)}
 `
+}
+
+function buildImmutableFactBackfillSql(): string {
+  return `INSERT OR IGNORE INTO activity_events (
+  id, org_id, user_id, actor_type, actor_ref, action, target_type,
+  target_id, target_name, metadata, created_at
+)
+SELECT
+  'stats:stats_share_created:' || ae.target_id,
+  ae.org_id, NULL, 'system', 'stats-backfill', 'stats_share_created', 'share',
+  ae.target_id, ae.target_id,
+  json_object(
+    'kind', COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.kind') END, 'unknown'),
+    'statsQuality', 'lower_bound'
+  ),
+  ae.created_at
+FROM activity_events ae
+WHERE ae.action = 'share_create' AND ae.target_id IS NOT NULL;
+
+INSERT OR IGNORE INTO activity_events (
+  id, org_id, user_id, actor_type, actor_ref, action, target_type,
+  target_id, target_name, metadata, created_at
+)
+SELECT
+  'stats:stats_share_created:' || s.id,
+  s.org_id, NULL, 'system', 'stats-backfill', 'stats_share_created', 'share',
+  s.id, s.id, json_object('kind', s.kind, 'statsQuality', 'lower_bound'), s.created_at
+FROM shares s;
+
+INSERT OR IGNORE INTO activity_events (
+  id, org_id, user_id, actor_type, actor_ref, action, target_type,
+  target_id, target_name, metadata, created_at
+)
+SELECT
+  'stats:stats_user_signup:' || u.id,
+  COALESCE((
+    SELECT m.organization_id
+    FROM member m
+    JOIN organization o ON o.id = m.organization_id
+    WHERE m.user_id = u.id AND o.metadata LIKE '%"type":"personal"%'
+    ORDER BY m.created_at, m.id
+    LIMIT 1
+  ), ''),
+  NULL, 'system', 'stats-backfill', 'stats_user_signup', 'user',
+  u.id, u.id,
+  json_object(
+    'provider', COALESCE((
+      SELECT a.provider_id FROM account a WHERE a.user_id = u.id ORDER BY a.created_at, a.id LIMIT 1
+    ), 'direct'),
+    'statsQuality', 'lower_bound'
+  ),
+  CAST(u.created_at / 1000 AS INTEGER)
+FROM user u;
+
+INSERT OR IGNORE INTO activity_events (
+  id, org_id, user_id, actor_type, actor_ref, action, target_type,
+  target_id, target_name, metadata, created_at
+)
+SELECT
+  'stats:stats_background_job_finished:' || bj.id,
+  bj.org_id, NULL, 'system', 'stats-backfill', 'stats_background_job_finished', 'background_job',
+  bj.id, bj.id,
+  json_object('jobType', bj.type, 'outcome', bj.status, 'statsQuality', 'lower_bound'),
+  CAST(bj.finished_at / 1000 AS INTEGER)
+FROM background_jobs bj
+WHERE bj.finished_at IS NOT NULL;
+
+INSERT OR IGNORE INTO activity_events (
+  id, org_id, user_id, actor_type, actor_ref, action, target_type,
+  target_id, target_name, metadata, created_at
+)
+SELECT
+  'stats:stats_remote_download_finished:event:' || ae.id,
+  ae.org_id, NULL, 'system', 'stats-backfill', 'stats_remote_download_finished', 'remote_download',
+  ae.target_id, ae.target_id,
+  json_object(
+    'category', COALESCE(dt.category, 'uncategorized'),
+    'downloaderId', dt.assigned_downloader_id,
+    'outcome', CASE ae.action
+      WHEN 'download_task_completed' THEN 'completed'
+      WHEN 'download_task_failed' THEN 'failed'
+      ELSE 'canceled'
+    END,
+    'bytes', CASE WHEN ae.action = 'download_task_completed' THEN COALESCE(dt.billing_charged_bytes, 0) ELSE 0 END,
+    'statsQuality', 'lower_bound'
+  ),
+  ae.created_at
+FROM activity_events ae
+LEFT JOIN download_tasks dt ON dt.id = ae.target_id
+WHERE ae.action IN ('download_task_completed', 'download_task_failed', 'download_task_canceled')
+  AND ae.target_id IS NOT NULL;
+
+INSERT OR IGNORE INTO activity_events (
+  id, org_id, user_id, actor_type, actor_ref, action, target_type,
+  target_id, target_name, metadata, created_at
+)
+SELECT
+  'stats:stats_remote_download_finished:' || dt.id,
+  dt.org_id, NULL, 'system', 'stats-backfill', 'stats_remote_download_finished', 'remote_download',
+  dt.id, dt.id,
+  json_object(
+    'category', COALESCE(dt.category, 'uncategorized'),
+    'downloaderId', dt.assigned_downloader_id,
+    'outcome', dt.status,
+    'bytes', dt.billing_charged_bytes,
+    'statsQuality', 'lower_bound'
+  ),
+  CAST(dt.finished_at / 1000 AS INTEGER)
+FROM download_tasks dt
+WHERE dt.finished_at IS NOT NULL
+  AND dt.status IN ('completed', 'failed', 'canceled')
+  AND NOT EXISTS (
+    SELECT 1 FROM activity_events ae
+    WHERE ae.target_id = dt.id
+      AND ae.action = CASE dt.status
+        WHEN 'completed' THEN 'download_task_completed'
+        WHEN 'failed' THEN 'download_task_failed'
+        WHEN 'canceled' THEN 'download_task_canceled'
+        ELSE ''
+      END
+  );`
 }
 
 type HourlySource = {
@@ -270,6 +398,22 @@ type HourlySource = {
 
 function buildHourlyBackfillSql(now: Date): string {
   const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
+  const missingShareViewsQuality = `CASE WHEN EXISTS (
+    SELECT 1 FROM shares s
+    WHERE s.views > (
+      SELECT COUNT(*) FROM activity_events history
+      WHERE history.action = 'share_view'
+        AND COALESCE(CASE WHEN json_valid(history.metadata) = 1 THEN json_extract(history.metadata, '$.shareId') END, history.target_id) = s.id
+    )
+  ) THEN 'lower_bound' ELSE 'exact' END`
+  const missingShareDownloadsQuality = `CASE WHEN EXISTS (
+    SELECT 1 FROM shares s
+    WHERE s.downloads > (
+      SELECT COUNT(*) FROM activity_events history
+      WHERE history.action = 'share_download'
+        AND COALESCE(CASE WHEN json_valid(history.metadata) = 1 THEN json_extract(history.metadata, '$.shareId') END, history.target_id) = s.id
+    )
+  ) THEN 'lower_bound' ELSE 'exact' END`
   const sources: HourlySource[] = [
     {
       metric: 'transfer.upload',
@@ -293,7 +437,10 @@ function buildHourlyBackfillSql(now: Date): string {
       org: 'ae.org_id',
       where: "ae.action IN ('share_download','object_download','image_hosting_download','webdav_download')",
       bytes: "SUM(CASE WHEN json_valid(ae.metadata) = 1 THEN COALESCE(json_extract(ae.metadata, '$.bytes'), 0) ELSE 0 END)",
-      quality: "CASE WHEN SUM(CASE WHEN ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
+      quality: `CASE WHEN
+        SUM(CASE WHEN ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL THEN 1 ELSE 0 END) > 0
+        OR (${missingShareDownloadsQuality}) = 'lower_bound'
+        THEN 'lower_bound' ELSE 'exact' END`,
       dimensions: {
         source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, CASE ae.action WHEN 'object_download' THEN 'object_download' WHEN 'image_hosting_download' THEN 'image_hosting' WHEN 'webdav_download' THEN 'webdav_download' ELSE 'landing_share' END)",
         actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)",
@@ -314,31 +461,45 @@ function buildHourlyBackfillSql(now: Date): string {
     },
     {
       metric: 'share.created',
-      source: 'shares s',
-      timestampMs: 's.created_at * 1000',
-      org: 's.org_id',
-      dimensions: { kind: 's.kind' },
+      source: 'activity_events ae',
+      timestampMs: 'ae.created_at * 1000',
+      org: 'ae.org_id',
+      where: "ae.action = 'stats_share_created'",
+      quality:
+        "CASE WHEN SUM(CASE WHEN json_valid(ae.metadata) = 1 AND json_extract(ae.metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
+      dimensions: { kind: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.kind') END, 'unknown')" },
     },
-    activitySource('share.view', "ae.action = 'share_view'", { share_id: 'ae.target_id', actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)" }),
-    activitySource('share.download_issued', "ae.action = 'share_download'", { share_id: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.shareId') END, ae.target_id)", kind: "CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.kind') END", source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, 'landing_share')", actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)" }, true),
+    activitySource('share.view', "ae.action = 'share_view'", { share_id: 'ae.target_id', actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)" }, false, missingShareViewsQuality),
+    activitySource('share.download_issued', "ae.action = 'share_download'", { share_id: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.shareId') END, ae.target_id)", kind: "CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.kind') END", source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, 'landing_share')", actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)" }, true, missingShareDownloadsQuality),
     activitySource('share.saved', "ae.action = 'save_from_share'", { share_id: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.shareId') END, ae.target_id)", actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)" }, true),
     activitySource('share.password_passed', "ae.action = 'share_password_passed'", { share_id: 'ae.target_id' }),
     {
       metric: 'remote_download.task_finished',
-      source: 'download_tasks dt',
-      timestampMs: 'dt.finished_at',
-      org: 'dt.org_id',
-      where: 'dt.finished_at IS NOT NULL',
-      bytes: 'SUM(dt.billing_charged_bytes)',
-      dimensions: { category: "COALESCE(dt.category, 'uncategorized')", downloader_id: 'dt.assigned_downloader_id', outcome: 'dt.status' },
+      source: 'activity_events ae',
+      timestampMs: 'ae.created_at * 1000',
+      org: 'ae.org_id',
+      where: "ae.action = 'stats_remote_download_finished'",
+      bytes: "SUM(CASE WHEN json_valid(ae.metadata) = 1 THEN COALESCE(json_extract(ae.metadata, '$.bytes'), 0) ELSE 0 END)",
+      quality:
+        "CASE WHEN SUM(CASE WHEN json_valid(ae.metadata) = 1 AND json_extract(ae.metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
+      dimensions: {
+        category: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.category') END, 'uncategorized')",
+        downloader_id: "CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.downloaderId') END",
+        outcome: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.outcome') END, 'unknown')",
+      },
     },
     {
       metric: 'background_job.finished',
-      source: 'background_jobs bj',
-      timestampMs: 'bj.finished_at',
-      org: 'bj.org_id',
-      where: 'bj.finished_at IS NOT NULL',
-      dimensions: { job_type: 'bj.type', outcome: 'bj.status' },
+      source: 'activity_events ae',
+      timestampMs: 'ae.created_at * 1000',
+      org: 'ae.org_id',
+      where: "ae.action = 'stats_background_job_finished'",
+      quality:
+        "CASE WHEN SUM(CASE WHEN json_valid(ae.metadata) = 1 AND json_extract(ae.metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
+      dimensions: {
+        job_type: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.jobType') END, 'unknown')",
+        outcome: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.outcome') END, 'unknown')",
+      },
     },
     {
       metric: 'stats.quality_missing_bytes',
@@ -361,8 +522,8 @@ function buildHourlyBackfillSql(now: Date): string {
 function purgeLegacyRollupsSql(): string {
   return `DELETE FROM stats_rollups_hourly
 WHERE CASE WHEN json_valid(metadata) = 1 THEN
-    json_extract(metadata, '$.version') = 2
-    AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+    json_extract(metadata, '$.version') = 3
+    AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
     AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
   ELSE 0 END = 0;`
 }
@@ -386,7 +547,13 @@ WHERE metric_key IN (
   );`
 }
 
-function activitySource(metric: string, where: string, dimensions: Record<string, string>, bytes = false): HourlySource {
+function activitySource(
+  metric: string,
+  where: string,
+  dimensions: Record<string, string>,
+  bytes = false,
+  quality?: string,
+): HourlySource {
   return {
     metric,
     source: 'activity_events ae',
@@ -394,6 +561,7 @@ function activitySource(metric: string, where: string, dimensions: Record<string
     org: 'ae.org_id',
     where,
     bytes: bytes ? "SUM(CASE WHEN json_valid(ae.metadata) = 1 THEN COALESCE(json_extract(ae.metadata, '$.bytes'), 0) ELSE 0 END)" : undefined,
+    quality,
     dimensions,
   }
 }
@@ -428,14 +596,14 @@ SELECT
   CAST(bucket_start AS TEXT) || ':' || COALESCE(NULLIF(org_id, ''), 'global') || ':${source.metric}:${dimensionKey || 'all'}:' || hex(dimension_value),
   bucket_start, org_id, '${source.metric}', '${dimensionKey}', dimension_value,
   count_value, bytes_value, unique_value,
-  json_object('version', 2, 'scope', '${source.scope ?? 'counters'}', 'quality', quality_value),
+  json_object('version', 3, 'scope', '${source.scope ?? 'counters'}', 'quality', quality_value),
   bucket_start + 3600000
 FROM (
   SELECT ${bucket} AS bucket_start, ${source.org} AS org_id, ${dimension} AS dimension_value,
     ${count} AS count_value, ${bytes} AS bytes_value, ${uniqueCount} AS unique_value, ${quality} AS quality_value
   FROM ${source.source}
   ${where ? `WHERE ${where}` : ''}
-  GROUP BY bucket_start, org_id${dimensionKey ? ', dimension_value' : ''}
+  GROUP BY 1, 2${dimensionKey ? ', 3' : ''}
 ) rollup
 WHERE true
 ON CONFLICT(bucket_start, org_id, metric_key, dimension_key, dimension_value)
@@ -447,12 +615,15 @@ WHERE count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excl
 function userSignupBackfillSql(before: number): string {
   return hourlyStatements({
     metric: 'user.signup',
-    source: `user u LEFT JOIN account a ON a.id = (
-      SELECT a2.id FROM account a2 WHERE a2.user_id = u.id ORDER BY a2.created_at, a2.id LIMIT 1
-    )`,
-    timestampMs: 'u.created_at',
+    source: 'activity_events ae',
+    timestampMs: 'ae.created_at * 1000',
     org: "''",
-    dimensions: { provider: "COALESCE(a.provider_id, 'direct')" },
+    where: "ae.action = 'stats_user_signup'",
+    quality:
+      "CASE WHEN SUM(CASE WHEN json_valid(ae.metadata) = 1 AND json_extract(ae.metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
+    dimensions: {
+      provider: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.provider') END, 'unknown')",
+    },
   }, before).join('\n\n')
 }
 
@@ -477,50 +648,100 @@ buckets AS (
   FROM bounds
   JOIN numbers ON start_at + numbers.n * 3600000 <= end_at
   WHERE start_at IS NOT NULL AND start_at <= end_at
+),
+snapshot_markers AS MATERIALIZED (
+  SELECT
+    bucket_start,
+    COALESCE(json_extract(metadata, '$.snapshotQuality'), json_extract(metadata, '$.quality'), 'exact') AS quality,
+    COALESCE(json_extract(metadata, '$.snapshotObservedAt'), json_extract(metadata, '$.observedAt')) AS observed_at
+  FROM stats_rollups_hourly
+  WHERE metric_key = 'stats.rollup_run' AND org_id = '' AND dimension_key = '' AND dimension_value = ''
+    AND json_valid(metadata) = 1
+    AND json_extract(metadata, '$.version') = 3
+    AND json_extract(metadata, '$.scope') IN ('snapshots', 'full')
+    AND COALESCE(json_extract(metadata, '$.snapshotObservedAt'), json_extract(metadata, '$.observedAt')) IS NOT NULL
 )
 INSERT INTO stats_rollups_hourly (
   id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
   count, bytes, unique_count, metadata, updated_at
 )
 SELECT
-  CAST(bucket_start AS TEXT) || ':global:stats.rollup_run:all:all',
-  bucket_start, '', 'stats.rollup_run', '', '', 1, 0, 0,
-  json_object('version', 2, 'scope', 'counters', 'quality', 'exact'),
-  bucket_start + 3600000
+  CAST(buckets.bucket_start AS TEXT) || ':global:stats.rollup_run:all:all',
+  buckets.bucket_start, '', 'stats.rollup_run', '', '', 1, 0, 0,
+  CASE WHEN snapshot_markers.bucket_start IS NULL THEN
+    json_object(
+      'version', 3,
+      'scope', 'counters',
+      'quality', CASE WHEN EXISTS (
+        SELECT 1 FROM stats_rollups_hourly result
+        WHERE result.bucket_start = buckets.bucket_start
+          AND result.metric_key <> 'stats.rollup_run'
+          AND json_valid(result.metadata) = 1
+          AND json_extract(result.metadata, '$.version') = 3
+          AND json_extract(result.metadata, '$.scope') = 'counters'
+          AND json_extract(result.metadata, '$.quality') = 'lower_bound'
+      ) THEN 'lower_bound' ELSE 'exact' END,
+      'counterQuality', CASE WHEN EXISTS (
+        SELECT 1 FROM stats_rollups_hourly result
+        WHERE result.bucket_start = buckets.bucket_start
+          AND result.metric_key <> 'stats.rollup_run'
+          AND json_valid(result.metadata) = 1
+          AND json_extract(result.metadata, '$.version') = 3
+          AND json_extract(result.metadata, '$.scope') = 'counters'
+          AND json_extract(result.metadata, '$.quality') = 'lower_bound'
+      ) THEN 'lower_bound' ELSE 'exact' END
+    )
+  ELSE
+    json_object(
+      'version', 3,
+      'scope', 'full',
+      'quality', CASE WHEN snapshot_markers.quality = 'lower_bound' OR EXISTS (
+        SELECT 1 FROM stats_rollups_hourly result
+        WHERE result.bucket_start = buckets.bucket_start
+          AND result.metric_key <> 'stats.rollup_run'
+          AND json_valid(result.metadata) = 1
+          AND json_extract(result.metadata, '$.version') = 3
+          AND json_extract(result.metadata, '$.scope') = 'counters'
+          AND json_extract(result.metadata, '$.quality') = 'lower_bound'
+      ) THEN 'lower_bound' ELSE 'exact' END,
+      'counterQuality', CASE WHEN EXISTS (
+        SELECT 1 FROM stats_rollups_hourly result
+        WHERE result.bucket_start = buckets.bucket_start
+          AND result.metric_key <> 'stats.rollup_run'
+          AND json_valid(result.metadata) = 1
+          AND json_extract(result.metadata, '$.version') = 3
+          AND json_extract(result.metadata, '$.scope') = 'counters'
+          AND json_extract(result.metadata, '$.quality') = 'lower_bound'
+      ) THEN 'lower_bound' ELSE 'exact' END,
+      'snapshotQuality', snapshot_markers.quality,
+      'snapshotObservedAt', snapshot_markers.observed_at
+    )
+  END,
+  buckets.bucket_start + 3600000
 FROM buckets
+LEFT JOIN snapshot_markers ON snapshot_markers.bucket_start = buckets.bucket_start
 WHERE true
 ON CONFLICT(bucket_start, org_id, metric_key, dimension_key, dimension_value)
 DO UPDATE SET count = excluded.count, bytes = excluded.bytes, unique_count = excluded.unique_count,
   metadata = excluded.metadata, updated_at = excluded.updated_at
-WHERE CASE WHEN json_valid(stats_rollups_hourly.metadata) = 1 THEN
-    json_extract(stats_rollups_hourly.metadata, '$.version') = 2
-    AND json_extract(stats_rollups_hourly.metadata, '$.scope') = 'full'
-    AND json_extract(stats_rollups_hourly.metadata, '$.quality') IN ('exact', 'lower_bound')
-  ELSE 0 END = 0
-  AND (
-    count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excluded.unique_count
-    OR metadata <> excluded.metadata OR updated_at <> excluded.updated_at
-  );`
+WHERE count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excluded.unique_count
+  OR metadata <> excluded.metadata OR updated_at <> excluded.updated_at;`
 }
 
 function statsHistoryStartSql(): string {
   const missing = '9223372036854775807'
-  return `NULLIF(MIN(
-    COALESCE((SELECT CAST(MIN(u.created_at) / 3600000 AS INTEGER) * 3600000
-      FROM user u WHERE u.created_at >= ${MIN_VALID_TIMESTAMP_MS}), ${missing}),
-    COALESCE((SELECT CAST((MIN(s.created_at) * 1000) / 3600000 AS INTEGER) * 3600000
-      FROM shares s WHERE s.created_at >= ${MIN_VALID_TIMESTAMP_SECONDS}), ${missing}),
-    COALESCE((SELECT CAST((MIN(ae.created_at) * 1000) / 3600000 AS INTEGER) * 3600000
-      FROM activity_events ae WHERE ae.created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND ae.action IN (
+  return `NULLIF(COALESCE((
+    SELECT CAST((MIN(ae.created_at) * 1000) / 3600000 AS INTEGER) * 3600000
+    FROM activity_events ae
+    WHERE ae.created_at >= ${MIN_VALID_TIMESTAMP_SECONDS}
+      AND ae.action IN (
         'upload_confirm', 'upload_cancel', 'upload_failed',
         'share_download', 'object_download', 'image_hosting_download', 'webdav_download', 'download_failed',
-        'share_view', 'save_from_share', 'share_password_passed'
-      )), ${missing}),
-    COALESCE((SELECT CAST(MIN(dt.finished_at) / 3600000 AS INTEGER) * 3600000
-      FROM download_tasks dt WHERE dt.finished_at IS NOT NULL AND dt.finished_at >= ${MIN_VALID_TIMESTAMP_MS}), ${missing}),
-    COALESCE((SELECT CAST(MIN(bj.finished_at) / 3600000 AS INTEGER) * 3600000
-      FROM background_jobs bj WHERE bj.finished_at IS NOT NULL AND bj.finished_at >= ${MIN_VALID_TIMESTAMP_MS}), ${missing})
-  ), ${missing})`
+        'share_view', 'save_from_share', 'share_password_passed',
+        'stats_user_signup', 'stats_share_created',
+        'stats_remote_download_finished', 'stats_background_job_finished'
+      )
+  ), ${missing}), ${missing})`
 }
 
 export function buildValidationSql(now = new Date()): string {
@@ -589,12 +810,14 @@ export function buildValidationSql(now = new Date()): string {
       AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
   'rawUserSignups', (
-    SELECT COUNT(*) FROM user
-    WHERE created_at >= ${MIN_VALID_TIMESTAMP_MS} AND created_at < ${currentHour}
+    SELECT COUNT(*) FROM activity_events
+    WHERE action = 'stats_user_signup'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
   'rawSharesCreated', (
-    SELECT COUNT(*) FROM shares
-    WHERE created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+    SELECT COUNT(*) FROM activity_events
+    WHERE action = 'stats_share_created'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
   'rawShareDownloads', (
     SELECT COUNT(*) FROM activity_events
@@ -617,12 +840,14 @@ export function buildValidationSql(now = new Date()): string {
       AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
   'rawFinishedDownloadTasks', (
-    SELECT COUNT(*) FROM download_tasks
-    WHERE finished_at >= ${MIN_VALID_TIMESTAMP_MS} AND finished_at < ${currentHour}
+    SELECT COUNT(*) FROM activity_events
+    WHERE action = 'stats_remote_download_finished'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
   'rawFinishedBackgroundJobs', (
-    SELECT COUNT(*) FROM background_jobs
-    WHERE finished_at >= ${MIN_VALID_TIMESTAMP_MS} AND finished_at < ${currentHour}
+    SELECT COUNT(*) FROM activity_events
+    WHERE action = 'stats_background_job_finished'
+      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
   'rawMissingByteEvents', (
     SELECT COUNT(*) FROM activity_events
@@ -636,8 +861,8 @@ export function buildValidationSql(now = new Date()): string {
   SELECT *
   FROM stats_rollups_hourly
   WHERE CASE WHEN json_valid(metadata) = 1 THEN
-      json_extract(metadata, '$.version') = 2
-      AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+      json_extract(metadata, '$.version') = 3
+      AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
       AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
     ELSE 0 END = 1
 ),
@@ -686,8 +911,8 @@ SELECT json_object(
   'legacyRollupRows', (
     SELECT COUNT(*) FROM stats_rollups_hourly
     WHERE CASE WHEN json_valid(metadata) = 1 THEN
-        json_extract(metadata, '$.version') = 2
-        AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+        json_extract(metadata, '$.version') = 3
+        AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
         AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
       ELSE 0 END = 0
   )
@@ -697,14 +922,15 @@ SELECT json_object(
   SELECT *
   FROM stats_rollups_hourly
   WHERE CASE WHEN json_valid(metadata) = 1 THEN
-      json_extract(metadata, '$.version') = 2
-      AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+      json_extract(metadata, '$.version') = 3
+      AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
       AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
     ELSE 0 END = 1
 ),
 counter_markers AS MATERIALIZED (
   SELECT bucket_start FROM valid_rollups
   WHERE metric_key = 'stats.rollup_run' AND org_id = '' AND dimension_key = '' AND dimension_value = ''
+    AND json_extract(metadata, '$.scope') IN ('counters', 'full')
 ),
 counter_rows AS MATERIALIZED (
   SELECT result.* FROM valid_rollups result
@@ -759,10 +985,11 @@ SELECT json_object(
   FROM stats_rollups_hourly
   WHERE metric_key = 'stats.rollup_run' AND org_id = '' AND dimension_key = '' AND dimension_value = ''
     AND CASE WHEN json_valid(metadata) = 1 THEN
-      json_extract(metadata, '$.version') = 2
-      AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+      json_extract(metadata, '$.version') = 3
+      AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
       AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
     ELSE 0 END = 1
+    AND json_extract(metadata, '$.scope') IN ('counters', 'full')
 ),
 coverage AS MATERIALIZED (
   SELECT ${statsHistoryStartSql()} AS start_at, ${latestClosedHour} AS end_at
@@ -828,6 +1055,7 @@ SELECT json_object(
           OR (
             ae.target_id = ctr.source_id
             AND ae.action = CASE
+              WHEN ctr.status = 'blocked' THEN 'download_failed'
               WHEN ctr.source IN ('direct_share', 'landing_share') THEN 'share_download'
               WHEN ctr.source = 'image_hosting' THEN 'image_hosting_download'
               WHEN ctr.source = 'object_download' THEN 'object_download'

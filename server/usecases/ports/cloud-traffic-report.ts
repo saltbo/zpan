@@ -6,7 +6,7 @@ export type TrafficReportSource =
   | 'custom_domain_image'
   | 'webdav_download'
 
-export type CloudTrafficReportStatus = 'pending' | 'reported' | 'skipped_unbound' | 'blocked' | 'failed'
+export type CloudTrafficReportStatus = 'pending' | 'reported' | 'skipped_unbound' | 'blocked' | 'failed' | 'dead_letter'
 
 export interface CloudTrafficReportRecord {
   id: string
@@ -21,6 +21,8 @@ export interface CloudTrafficReportRecord {
   creditsPerUnit: number | null
   status: CloudTrafficReportStatus
   error: string | null
+  attemptCount: number
+  nextRetryAt: Date | null
   createdAt: Date
   updatedAt: Date
 }
@@ -42,6 +44,12 @@ export interface InsertCloudTrafficReportInput {
 export interface CloudTrafficReportRepo {
   findByEventId(eventId: string): Promise<CloudTrafficReportRecord | undefined>
   insert(input: InsertCloudTrafficReportInput): Promise<void>
-  updateStatus(eventId: string, status: CloudTrafficReportStatus, error: string | null, now: Date): Promise<void>
-  listPending(limit: number): Promise<CloudTrafficReportRecord[]>
+  updateStatus(
+    eventId: string,
+    status: CloudTrafficReportStatus,
+    error: string | null,
+    now: Date,
+    retry?: { attemptCount: number; nextRetryAt: Date | null },
+  ): Promise<void>
+  listPending(limit: number, now: Date): Promise<CloudTrafficReportRecord[]>
 }

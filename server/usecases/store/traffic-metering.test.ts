@@ -145,7 +145,7 @@ describe('cloud traffic metering', () => {
 
     const result = await syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })
 
-    expect(result).toEqual({ attempted: 0, reported: 0, blocked: 0, failed: 0 })
+    expect(result).toEqual({ attempted: 0, reported: 0, blocked: 0, failed: 0, deadLetter: 0 })
     expect(fetch).toHaveBeenCalledTimes(1)
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
     expect(url).toBe('https://cloud.example/api/stores/store-test-binding/billing/usage-events')
@@ -297,6 +297,7 @@ describe('cloud traffic metering', () => {
       reported: 1,
       blocked: 0,
       failed: 0,
+      deadLetter: 0,
     })
 
     const result = await syncPendingCloudTrafficReports({
@@ -305,11 +306,73 @@ describe('cloud traffic metering', () => {
       now: new Date('2026-05-01T00:01:00.000Z'),
     })
 
-    expect(result).toEqual({ attempted: 0, reported: 0, blocked: 0, failed: 0 })
+    expect(result).toEqual({ attempted: 0, reported: 0, blocked: 0, failed: 0, deadLetter: 0 })
     expect(fetch).toHaveBeenCalledTimes(2)
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
       { status: 'reported', error: null, period: '2026-04' },
     ])
+  })
+
+  it('selects new pending reports before retryable failures', async () => {
+    const { db } = await createTestApp()
+    const repo = createCloudTrafficReportRepo(db)
+    const now = new Date('2026-05-01T00:00:00.000Z')
+    const input = {
+      orgId: 'org_1',
+      period: '2026-05',
+      source: 'object_download' as const,
+      sourceId: 'matter_1',
+      bytes: 1024,
+      storageId: 'storage_1',
+      unitBytes: 1024,
+      creditsPerUnit: 1,
+      status: 'pending' as const,
+    }
+    await repo.insert({ ...input, eventId: 'failed-old', now: new Date(now.getTime() - 60_000) })
+    await repo.updateStatus('failed-old', 'failed', 'offline', now, {
+      attemptCount: 1,
+      nextRetryAt: new Date(now.getTime() - 1),
+    })
+    await repo.insert({ ...input, eventId: 'pending-new', now })
+
+    await expect(repo.listPending(1, now)).resolves.toMatchObject([{ eventId: 'pending-new', status: 'pending' }])
+  })
+
+  it('dead-letters terminal idempotency conflicts without retrying them', async () => {
+    const { db, platform } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
+    await seedTrafficBinding(db)
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('usage_idempotency_conflict')))
+    const now = new Date('2026-05-01T00:00:00.000Z')
+
+    await expect(
+      reportTrafficEgress({
+        platform,
+        orgId: 'org_1',
+        bytes: 1024,
+        source: 'object_download',
+        sourceId: 'matter_1',
+        eventId: 'evt_terminal',
+        now,
+        ...meteredStorage,
+      }),
+    ).resolves.toMatchObject({ status: 'dead_letter', eventId: 'evt_terminal' })
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
+      {
+        eventId: 'evt_terminal',
+        status: 'dead_letter',
+        error: 'usage_idempotency_conflict',
+        attemptCount: 1,
+        nextRetryAt: null,
+      },
+    ])
+    await expect(
+      syncPendingCloudTrafficReports({
+        db,
+        cloudBaseUrl: 'https://cloud.example',
+        now: new Date(now.getTime() + 60_000),
+      }),
+    ).resolves.toEqual({ attempted: 0, reported: 0, blocked: 0, failed: 0, deadLetter: 0 })
+    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
   it('marks reports reported when Cloud returns its own usage event id', async () => {

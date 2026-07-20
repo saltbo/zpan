@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { assertMetricDimension, ADMIN_STATS_METRICS as M, metricDefinition } from '../../domain/admin-stats-metrics'
 import { adminHeaders, createTestApp } from '../../test/setup.js'
 import { AdminStatsHourlyReader } from './admin-stats-hourly'
-import { ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE, rebuildAdminStatsHour } from './admin-stats-rollup'
+import {
+  ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE,
+  captureAdminStatsSnapshot,
+  rebuildAdminStatsHour,
+} from './admin-stats-rollup'
 
 type RollupRow = {
   orgId: string
@@ -48,8 +52,17 @@ describe('admin hourly stats rollup', () => {
     `)
     await db.run(sql`
       UPDATE org_quotas
-      SET used = 500, quota = 1000, traffic_used = 300, traffic_quota = 2000
+      SET used = 1300, quota = 1000, traffic_used = 300, traffic_quota = 2000
       WHERE org_id = ${orgId}
+    `)
+    await db.run(sql`
+      UPDATE org_quota_entitlements
+      SET bytes = 1000, starts_at = ${atMs}
+      WHERE org_id = ${orgId} AND resource_type = 'storage' AND source = 'free_plan' AND status = 'active'
+    `)
+    await db.run(sql`
+      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+      VALUES ('rollup-orphan-quota', 'deleted-org', 999999, 999999, 0, 0, '2026-07')
     `)
     await db.run(sql`
       INSERT INTO storages
@@ -60,11 +73,11 @@ describe('admin hourly stats rollup', () => {
     `)
     await db.run(sql`
       INSERT INTO matters
-        (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+        (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
       VALUES
-        ('rollup-file', ${orgId}, 'rollup-file', 'video.mp4', 'video/mp4', 200, 0, '', 'video.mp4', 'rollup-storage', 'active', ${atSec}, ${atSec}),
-        ('rollup-dir', ${orgId}, 'rollup-dir', 'folder', '', 0, 1, '', '', 'rollup-storage', 'active', ${atSec}, ${atSec}),
-        ('rollup-trashed', ${orgId}, 'rollup-trashed', 'old.bin', 'application/octet-stream', 800, 0, '', 'old.bin', 'rollup-storage', 'trashed', ${atSec}, ${atSec})
+        ('rollup-file', ${orgId}, 'rollup-file', 'video.mp4', 'video/mp4', 200, 0, '', 'video.mp4', 'rollup-storage', 'active', NULL, ${atSec}, ${atSec}),
+        ('rollup-dir', ${orgId}, 'rollup-dir', 'folder', '', 0, 1, '', '', 'rollup-storage', 'active', NULL, ${atSec}, ${atSec}),
+        ('rollup-trashed', ${orgId}, 'rollup-trashed', 'old.bin', 'application/octet-stream', 800, 0, '', 'old.bin', 'rollup-storage', 'trashed', ${atMs}, ${atSec}, ${atSec})
     `)
     await db.run(sql`
       INSERT INTO image_hostings
@@ -114,7 +127,23 @@ describe('admin hourly stats rollup', () => {
         ('rollup-team-join', ${orgId}, ${userId}, 'user', 'team_member_join', 'organization', 'rollup-team', 'team', NULL, ${atSec}),
         ('rollup-team-remove', ${orgId}, ${userId}, 'user', 'team_member_remove', 'organization', 'rollup-team', 'team', NULL, ${atSec}),
         ('rollup-license', ${orgId}, NULL, 'system', 'license_refresh', 'license', NULL, 'license',
-          '{"status":"failed"}', ${atSec})
+          '{"status":"failed"}', ${atSec}),
+        ('rollup-signup-credential', ${orgId}, NULL, 'system', 'stats_user_signup', 'user', ${userId}, ${userId},
+          '{"provider":"credential","statsQuality":"exact"}', ${atSec}),
+        ('rollup-signup-direct', '', NULL, 'system', 'stats_user_signup', 'user', 'rollup-direct-user', 'rollup-direct-user',
+          '{"provider":"direct","statsQuality":"exact"}', ${atSec}),
+        ('rollup-share-created-usable', ${orgId}, NULL, 'system', 'stats_share_created', 'share', 'rollup-share-usable', 'rollup-share-usable',
+          '{"kind":"landing","statsQuality":"exact"}', ${atSec}),
+        ('rollup-share-created-revoked', ${orgId}, NULL, 'system', 'stats_share_created', 'share', 'rollup-share-revoked', 'rollup-share-revoked',
+          '{"kind":"direct","statsQuality":"exact"}', ${atSec}),
+        ('rollup-share-created-expired', ${orgId}, NULL, 'system', 'stats_share_created', 'share', 'rollup-share-expired', 'rollup-share-expired',
+          '{"kind":"landing","statsQuality":"exact"}', ${atSec}),
+        ('rollup-share-created-limited', ${orgId}, NULL, 'system', 'stats_share_created', 'share', 'rollup-share-limited', 'rollup-share-limited',
+          '{"kind":"direct","statsQuality":"exact"}', ${atSec}),
+        ('rollup-task-finished-fact', ${orgId}, NULL, 'system', 'stats_remote_download_finished', 'remote_download', 'rollup-task-finished', 'rollup-task-finished',
+          '{"category":"uncategorized","downloaderId":"rollup-downloader","outcome":"completed","bytes":60,"statsQuality":"exact"}', ${atSec}),
+        ('rollup-job-finished-fact', ${orgId}, NULL, 'system', 'stats_background_job_finished', 'background_job', 'rollup-job-finished', 'rollup-job-finished',
+          '{"jobType":"archive","outcome":"failed","statsQuality":"exact"}', ${atSec})
     `)
     await db.run(sql`
       INSERT INTO cloud_traffic_reports
@@ -160,7 +189,8 @@ describe('admin hourly stats rollup', () => {
       VALUES ('rollup-webhook', 'cloud', 'webhook-event', 'order.quota_changed', 'hash', '{}', 'processed', ${atMs}, ${atMs})
     `)
 
-    const first = await rebuildAdminStatsHour(db, bucketStart, generatedAt, true)
+    await captureAdminStatsSnapshot(db, bucketStart, generatedAt)
+    const first = await rebuildAdminStatsHour(db, bucketStart, generatedAt)
     const rows = await db.all<RollupRow>(sql`
       SELECT org_id AS orgId, metric_key AS metric, dimension_key AS dimensionKey,
         dimension_value AS dimensionValue, count, bytes, unique_count AS uniqueCount, metadata
@@ -179,9 +209,10 @@ describe('admin hourly stats rollup', () => {
     expect(first).toMatchObject({
       bucketStart,
       bucketEnd: new Date('2026-07-10T13:00:00.000Z'),
-      rows: rows.length,
+      rows: expect.any(Number),
       lowerBoundRows: expect.any(Number),
     })
+    expect(rows.length).toBeGreaterThan(first.rows)
     expect(first.lowerBoundRows).toBeGreaterThan(0)
     expect(row(M.transferUpload)).toMatchObject({ count: 4, bytes: 100 })
     expect(row(M.transferDownloadIssued)).toMatchObject({ count: 4, bytes: 90 })
@@ -194,12 +225,19 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.remoteDownloadTaskFinished)).toMatchObject({ count: 1, bytes: 60 })
     expect(row(M.backgroundJobFinished)).toMatchObject({ count: 1 })
     expect(row(M.storageInventory)).toMatchObject({ count: 2, bytes: 500 })
-    expect(row(M.storageUsed)).toMatchObject({ bytes: 500 })
+    expect(row(M.storageUsed)).toMatchObject({ bytes: 1300 })
     expect(row(M.storageQuota)).toMatchObject({ bytes: 1000 })
+    expect(row(M.storageQuota, 'status', 'over', '')).toMatchObject({ count: 1 })
+    expect(row(M.storageQuota, 'status', 'invalid', '')).toMatchObject({ count: 1 })
+    expect(row(M.storageTrashSnapshot)).toMatchObject({ count: 1, bytes: 800 })
+    expect(row(M.statsDataQualitySnapshot, 'kind', 'storage_usage_drift', '')).toMatchObject({ count: 0, bytes: 0 })
     expect(row(M.shareInventory, 'lifecycle', 'usable')).toMatchObject({ count: 1 })
     expect(row(M.shareInventory, 'lifecycle', 'revoked')).toMatchObject({ count: 1 })
     expect(row(M.shareInventory, 'lifecycle', 'expired')).toMatchObject({ count: 1 })
     expect(row(M.shareInventory, 'lifecycle', 'download_limit_reached')).toMatchObject({ count: 1 })
+    expect(row(M.statsDataQualitySnapshot, '', '', '')).toMatchObject({ count: 1 })
+    expect(row(M.statsDataQualitySnapshot, 'kind', 'share_downloads', '')).toMatchObject({ count: 1 })
+    expect(row(M.statsDataQualitySnapshot, 'kind', 'share_views', '')).toMatchObject({ count: 0 })
     expect(row(M.backgroundJobSnapshot)).toMatchObject({ count: 1 })
     expect(row(M.remoteDownloadTaskSnapshot)).toMatchObject({ count: 1 })
     expect(row(M.downloaderSnapshot, '', '', '')).toMatchObject({ count: 2 })
@@ -208,21 +246,40 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.trafficReportSnapshot, '', '', '')).toMatchObject({ count: 2, bytes: 300 })
     expect(row(M.webhookSnapshot, 'status', 'processed', '')).toMatchObject({ count: 1 })
     expect(row(M.statsRollupRun, '', '', '')).toMatchObject({ count: 1 })
-    expect(JSON.parse(row(M.transferUpload)?.metadata ?? '{}')).toMatchObject({ version: 2, quality: 'lower_bound' })
+    expect(JSON.parse(row(M.transferUpload)?.metadata ?? '{}')).toMatchObject({ version: 3, quality: 'lower_bound' })
+    expect(JSON.parse(row(M.statsRollupRun, '', '', '')?.metadata ?? '{}')).toMatchObject({
+      version: 3,
+      scope: 'full',
+      quality: 'lower_bound',
+      counterQuality: 'lower_bound',
+      snapshotQuality: 'exact',
+      snapshotObservedAt: generatedAt.toISOString(),
+    })
 
-    const second = await rebuildAdminStatsHour(db, bucketStart, generatedAt, true)
+    const reader = new AdminStatsHourlyReader(
+      db,
+      { from: bucketStart, to: new Date(bucketStart.getTime() + 3_600_000 - 1), timeZone: 'UTC' },
+      new Date(bucketStart.getTime() + 2 * 3_600_000),
+    )
+    await expect(reader.coverage('counters')).resolves.toMatchObject({ quality: 'lower_bound' })
+    await expect(reader.coverage('snapshots')).resolves.toMatchObject({
+      quality: 'exact',
+      dataThrough: generatedAt.toISOString(),
+    })
+
+    const second = await rebuildAdminStatsHour(db, bucketStart, generatedAt)
     const [{ count: storedRows }] = await db.all<{ count: number }>(sql`
       SELECT COUNT(*) AS count FROM stats_rollups_hourly WHERE bucket_start = ${bucketStart.getTime()}
     `)
     expect(second.rows).toBe(first.rows)
-    expect(storedRows).toBe(first.rows)
+    expect(storedRows).toBeGreaterThan(first.rows)
   })
 
   it('rejects buckets that are not aligned to a UTC hour', async () => {
     const { db } = await createTestApp()
 
     await expect(
-      rebuildAdminStatsHour(db, new Date('2026-07-10T12:00:00.001Z'), new Date('2026-07-10T12:30:00Z'), false),
+      rebuildAdminStatsHour(db, new Date('2026-07-10T12:00:00.001Z'), new Date('2026-07-10T12:30:00Z')),
     ).rejects.toThrow('stats_bucket_must_align_to_utc_hour')
   })
 
@@ -231,8 +288,8 @@ describe('admin hourly stats rollup', () => {
     await db.run(sql`DROP TABLE org_quotas`)
 
     await expect(
-      rebuildAdminStatsHour(db, new Date('2026-07-10T12:00:00Z'), new Date('2026-07-10T12:30:00Z'), true),
-    ).rejects.toThrow('stats_rollup_query_failed:quota')
+      captureAdminStatsSnapshot(db, new Date('2026-07-10T12:00:00Z'), new Date('2026-07-10T12:30:00Z')),
+    ).rejects.toThrow(/stats_rollup_query_failed:(quota|data-quality)/)
   })
 
   it('reads only current-version result rows with a compatible completion scope', async () => {
@@ -244,15 +301,15 @@ describe('admin hourly stats rollup', () => {
           count, bytes, unique_count, metadata, updated_at)
       VALUES
         ('quality-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${bucketStart}),
+          '{"version":3,"scope":"full","quality":"exact"}', ${bucketStart}),
         ('quality-null', ${bucketStart}, 'org-null', 'transfer.upload', '', '', 1, 1, 0, NULL, ${bucketStart}),
         ('quality-array', ${bucketStart}, 'org-array', 'transfer.upload', '', '', 1, 2, 0, '[]', ${bucketStart}),
         ('quality-v1', ${bucketStart}, 'org-v1', 'transfer.upload', '', '', 1, 3, 0,
           '{"version":1,"scope":"full","quality":"exact"}', ${bucketStart}),
         ('quality-exact', ${bucketStart}, 'org-exact', 'transfer.upload', '', '', 1, 4, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${bucketStart}),
+          '{"version":3,"scope":"full","quality":"exact"}', ${bucketStart}),
         ('quality-lower', ${bucketStart}, 'org-lower', 'transfer.upload', '', '', 1, 5, 0,
-          '{"version":2,"scope":"full","quality":"lower_bound"}', ${bucketStart})
+          '{"version":3,"scope":"full","quality":"lower_bound"}', ${bucketStart})
     `)
     const reader = new AdminStatsHourlyReader(
       db,
@@ -278,7 +335,7 @@ describe('admin hourly stats rollup', () => {
   it('keeps counter-only repairs separate from full snapshot results', async () => {
     const { db } = await createTestApp()
     const bucketStart = Date.parse('2026-07-10T09:00:00.000Z')
-    const metadata = '{"version":2,"scope":"counters","quality":"exact"}'
+    const metadata = '{"version":3,"scope":"counters","quality":"exact"}'
     await db.run(sql`
       INSERT INTO stats_rollups_hourly
         (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
@@ -287,7 +344,7 @@ describe('admin hourly stats rollup', () => {
         ('counter-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0, ${metadata}, ${bucketStart}),
         ('counter-result', ${bucketStart}, '', 'transfer.upload', '', '', 1, 42, 0, ${metadata}, ${bucketStart}),
         ('orphan-gauge', ${bucketStart}, '', 'storage.used', '', '', 0, 99, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${bucketStart})
+          '{"version":3,"scope":"full","quality":"exact"}', ${bucketStart})
     `)
     const reader = new AdminStatsHourlyReader(
       db,
@@ -314,9 +371,9 @@ describe('admin hourly stats rollup', () => {
           count, bytes, unique_count, metadata, updated_at)
       VALUES
         ('current-hour-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${bucketStart}),
+          '{"version":3,"scope":"full","quality":"exact"}', ${bucketStart}),
         ('current-hour-rollup', ${bucketStart}, '', 'transfer.upload', '', '', 1, 42, 0,
-          '{"version":2,"scope":"full","quality":"exact"}', ${bucketStart})
+          '{"version":3,"scope":"full","quality":"exact"}', ${bucketStart})
     `)
     const reader = new AdminStatsHourlyReader(
       db,

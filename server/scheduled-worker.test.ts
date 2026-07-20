@@ -12,7 +12,13 @@ vi.mock('../server/platform/cloudflare', () => ({
 }))
 
 const refreshHourlyRollups = vi.fn()
-const fakeDeps = { instance: 'instance', systemOptions: 'system-options', adminStats: { refreshHourlyRollups } }
+const reconcileFreePlanBaselines = vi.fn()
+const fakeDeps = {
+  instance: 'instance',
+  systemOptions: 'system-options',
+  adminStats: { refreshHourlyRollups },
+  quota: { reconcileFreePlanBaselines },
+}
 vi.mock('../server/composition', () => ({
   createDeps: vi.fn(() => fakeDeps),
 }))
@@ -54,6 +60,7 @@ describe('handleScheduled', () => {
     vi.mocked(runLicensingRefresh).mockReset()
     mockResetExpiredTrafficQuotas.mockReset()
     refreshHourlyRollups.mockReset()
+    reconcileFreePlanBaselines.mockReset()
   })
 
   it('syncs usage reports on the traffic cron only', async () => {
@@ -64,6 +71,7 @@ describe('handleScheduled', () => {
       cloudBaseUrl: 'https://cloud.example',
     })
     expect(refreshHourlyRollups).toHaveBeenCalledOnce()
+    expect(reconcileFreePlanBaselines).toHaveBeenCalledOnce()
     expect(runLicensingRefresh).not.toHaveBeenCalled()
     expect(reportInstanceTelemetry).not.toHaveBeenCalled()
   })

@@ -157,6 +157,7 @@ console.log('stats.rollup.scheduler.started interval=10m')
 function writeStatsRollup(): void {
   void (async () => {
     try {
+      await deps.quota.reconcileFreePlanBaselines()
       const results = await deps.adminStats.refreshHourlyRollups(new Date())
       console.log(
         JSON.stringify({

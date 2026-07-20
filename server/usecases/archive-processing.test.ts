@@ -496,11 +496,7 @@ describe('archive processing', () => {
   it('fails quota checks without creating visible extracted output', async () => {
     const { db } = await createTestApp()
     await seedStorage(db)
-    await db.run(sql`
-      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
-      VALUES ('archive-quota', ${ORG_ID}, 0, 0, 0, 0, '1970-01')
-    `)
-    await seedStoragePlanEntitlement(db, ORG_ID, 4, 'archive-quota-plan')
+    await db.run(sql`UPDATE org_quota_entitlements SET bytes = 4 WHERE id = 'archive-default-quota-plan'`)
     await seedMatter(db, { id: 'quota-zip', name: 'quota.zip', object: 'source/quota.zip', size: 200 })
 
     const s3 = new MemoryS3()
@@ -522,11 +518,7 @@ describe('archive processing', () => {
   it('fails compression quota checks and removes streamed output', async () => {
     const { db } = await createTestApp()
     await seedStorage(db)
-    await db.run(sql`
-      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
-      VALUES ('archive-compress-quota', ${ORG_ID}, 0, 0, 0, 0, '1970-01')
-    `)
-    await seedStoragePlanEntitlement(db, ORG_ID, 4, 'archive-compress-quota-plan')
+    await db.run(sql`UPDATE org_quota_entitlements SET bytes = 4 WHERE id = 'archive-default-quota-plan'`)
     await seedMatter(db, { id: 'file-a', name: 'a.txt', object: 'objects/a.txt', size: 5 })
 
     const s3 = new MemoryS3()
@@ -833,6 +825,11 @@ async function seedStorage(db: TestDb): Promise<void> {
     INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
     VALUES (${STORAGE_ID}, 'bucket', 'https://s3.example.com', 'auto', 'ak', 'sk', '', '', 0, 0, 'active', ${now}, ${now})
   `)
+  await db.run(sql`
+    INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+    VALUES ('archive-default-quota', ${ORG_ID}, 0, 0, 0, 0, '1970-01')
+  `)
+  await seedStoragePlanEntitlement(db, ORG_ID, 10 * 1024 ** 3, 'archive-default-quota-plan')
 }
 
 async function seedMatter(

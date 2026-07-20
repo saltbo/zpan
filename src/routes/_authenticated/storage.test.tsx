@@ -374,7 +374,7 @@ describe('StoragePage', () => {
     expect(view.getByText('storage.trafficPeriodDetail:2026-05')).toBeTruthy()
   })
 
-  it('does not mark unlimited quota usage as over cap', async () => {
+  it('renders invalid storage quota separately from unlimited traffic', async () => {
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
       baseQuota: 0,
@@ -404,7 +404,8 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.getAllByText('1.5 KB').length).toBeGreaterThan(0))
     expect(view.queryByText('storage.overCap')).toBeNull()
-    expect(view.getAllByText('storage.usageNoLimit')).toHaveLength(2)
+    expect(view.getByText('storage.usageInvalid')).toBeTruthy()
+    expect(view.getByText('storage.usageNoLimit')).toBeTruthy()
   })
 
   it('hides self-service forms when storage purchases are disabled', async () => {

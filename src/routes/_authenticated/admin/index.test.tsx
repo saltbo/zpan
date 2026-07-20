@@ -50,6 +50,8 @@ const overviewStats: AdminDashboardOverviewStats = {
     status: 'complete',
     expectedBuckets: 192,
     completedBuckets: 192,
+    lowerBoundBuckets: 0,
+    quality: 'exact',
     dataThrough: '2026-07-09T00:00:00.000Z',
   },
   dataQuality: {
@@ -96,6 +98,8 @@ const operationsStats: AdminDashboardOperationsStats = {
     status: 'complete',
     expectedBuckets: 192,
     completedBuckets: 192,
+    lowerBoundBuckets: 0,
+    quality: 'exact',
     dataThrough: '2026-07-09T00:00:00.000Z',
   },
   summary: {
@@ -106,6 +110,7 @@ const operationsStats: AdminDashboardOperationsStats = {
     backgroundJobFailureRate: 5,
     remoteDownloadSuccessRate: 95,
     cloudReportBacklog: 6,
+    cloudReportDeadLetters: 0,
     webhookFailures: 7,
     alertCount: 13,
   },
@@ -201,6 +206,8 @@ describe('Admin overview dashboard', () => {
         status: 'partial',
         expectedBuckets: 192,
         completedBuckets: 144,
+        lowerBoundBuckets: 0,
+        quality: 'exact',
         dataThrough: '2026-06-30T00:00:00.000Z',
       },
     })
