@@ -1,11 +1,14 @@
-export const ROLLUP_VERSION = 2
+export const ROLLUP_VERSION = 3
 
-export type AdminStatsRollupScope = 'counters' | 'full'
+export type AdminStatsRollupScope = 'counters' | 'snapshots' | 'full'
 
 export interface AdminStatsRollupMetadata {
   version: number
   scope: AdminStatsRollupScope
   quality: 'exact' | 'lower_bound'
+  counterQuality?: 'exact' | 'lower_bound'
+  snapshotQuality?: 'exact' | 'lower_bound'
+  snapshotObservedAt?: string
 }
 
 export type AdminStatsMetricKind = 'counter' | 'gauge'
@@ -47,10 +50,12 @@ export const ADMIN_STATS_METRICS = {
   sharePasswordPassed: 'share.password_passed',
   shareSaved: 'share.saved',
   shareView: 'share.view',
+  statsDataQualitySnapshot: 'stats.data_quality_snapshot',
   statsMissingBytes: 'stats.quality_missing_bytes',
   statsRollupRun: 'stats.rollup_run',
   storageInventory: 'storage.inventory',
   storageQuota: 'storage.quota',
+  storageTrashSnapshot: 'storage.trash_snapshot',
   storageUsed: 'storage.used',
   trafficReportSnapshot: 'traffic.report_snapshot',
   transferDownloadFailed: 'transfer.download_failed',
@@ -85,10 +90,12 @@ export const ADMIN_STATS_METRIC_REGISTRY = {
   [M.sharePasswordPassed]: counter(['share_id']),
   [M.shareSaved]: counter(['actor_type', 'share_id'], true),
   [M.shareView]: counter(['actor_type', 'share_id']),
+  [M.statsDataQualitySnapshot]: gauge(['kind'], 'events', true),
   [M.statsMissingBytes]: counter(['direction', 'source']),
   [M.statsRollupRun]: counter(['outcome']),
   [M.storageInventory]: gauge(['age_bucket', 'file_type_group', 'size_bucket', 'storage_id'], 'entities', true),
   [M.storageQuota]: gauge(['status'], null, true),
+  [M.storageTrashSnapshot]: gauge(['storage_id'], 'entities', true),
   [M.storageUsed]: gauge(['storage_id'], null, true),
   [M.trafficReportSnapshot]: gauge(['status'], 'entities', true),
   [M.transferDownloadFailed]: counter(['reason', 'source'], true),
@@ -131,9 +138,37 @@ export function parseAdminStatsRollupMetadata(metadata: string | null): AdminSta
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null
     const record = value as Record<string, unknown>
     if (record.version !== ROLLUP_VERSION) return null
-    if (record.scope !== 'counters' && record.scope !== 'full') return null
+    if (record.scope !== 'counters' && record.scope !== 'snapshots' && record.scope !== 'full') return null
     if (record.quality !== 'exact' && record.quality !== 'lower_bound') return null
-    return { version: record.version, scope: record.scope, quality: record.quality }
+    if (
+      record.counterQuality !== undefined &&
+      record.counterQuality !== 'exact' &&
+      record.counterQuality !== 'lower_bound'
+    ) {
+      return null
+    }
+    if (
+      record.snapshotQuality !== undefined &&
+      record.snapshotQuality !== 'exact' &&
+      record.snapshotQuality !== 'lower_bound'
+    ) {
+      return null
+    }
+    const snapshotObservedAt = record.snapshotObservedAt ?? record.observedAt
+    if (
+      snapshotObservedAt !== undefined &&
+      (typeof snapshotObservedAt !== 'string' || !Number.isFinite(Date.parse(snapshotObservedAt)))
+    ) {
+      return null
+    }
+    return {
+      version: record.version,
+      scope: record.scope,
+      quality: record.quality,
+      counterQuality: record.counterQuality,
+      snapshotQuality: record.snapshotQuality,
+      snapshotObservedAt,
+    }
   } catch {
     return null
   }

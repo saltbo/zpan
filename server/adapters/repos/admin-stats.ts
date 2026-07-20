@@ -6,7 +6,9 @@ import type {
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
+  AdminSharingDataQuality,
   AdminStatsDelta,
+  AdminStorageDataQuality,
   AdminTopShare,
   AdminTransferDataQuality,
 } from '@shared/types'
@@ -23,7 +25,7 @@ import { addCalendarDays, statsDayKey as dayKey, utcDateStart } from '../../doma
 import type { Database } from '../../platform/interface'
 import type { AdminStatsDateRange, AdminStatsRepo } from '../../usecases/ports'
 import { AdminStatsHourlyReader } from './admin-stats-hourly'
-import { rebuildAdminStatsHour } from './admin-stats-rollup'
+import { captureAdminStatsSnapshot, rebuildAdminStatsHour } from './admin-stats-rollup'
 
 const DOWNLOAD_ACTIVITY_ACTIONS = ['share_download', 'object_download', 'image_hosting_download', 'webdav_download']
 const DOWNLOAD_FAILURE_ACTION = 'download_failed'
@@ -40,7 +42,8 @@ export function createAdminStatsRepo(db: Database): AdminStatsRepo {
 }
 
 async function refreshHourlyRollups(db: Database, now: Date) {
-  const latestClosedHour = new Date(startOfHour(now).getTime() - 3_600_000)
+  const currentHour = startOfHour(now)
+  const latestClosedHour = new Date(currentHour.getTime() - 3_600_000)
   const repairFrom = new Date(latestClosedHour.getTime() - 47 * 3_600_000)
   const markers = await db
     .select({ bucketStart: statsRollupsHourly.bucketStart, metadata: statsRollupsHourly.metadata })
@@ -56,7 +59,10 @@ async function refreshHourlyRollups(db: Database, now: Date) {
     )
   const completed = new Set(
     markers
-      .filter((row) => parseAdminStatsRollupMetadata(row.metadata) !== null)
+      .filter((row) => {
+        const scope = parseAdminStatsRollupMetadata(row.metadata)?.scope
+        return scope === 'counters' || scope === 'full'
+      })
       .map((row) => row.bucketStart.getTime()),
   )
   const repairTargets: Date[] = []
@@ -64,10 +70,11 @@ async function refreshHourlyRollups(db: Database, now: Date) {
     if (!completed.has(at)) repairTargets.push(new Date(at))
     if (repairTargets.length === 3) break
   }
-  const latest = await rebuildAdminStatsHour(db, latestClosedHour, now, true)
+  const latest = await rebuildAdminStatsHour(db, latestClosedHour, now)
   const repaired = []
-  for (const bucketStart of repairTargets) repaired.push(await rebuildAdminStatsHour(db, bucketStart, now, false))
-  return [latest, ...repaired]
+  for (const bucketStart of repairTargets) repaired.push(await rebuildAdminStatsHour(db, bucketStart, now))
+  const snapshot = await captureAdminStatsSnapshot(db, currentHour, now)
+  return [latest, ...repaired, snapshot]
 }
 
 async function getDashboardOverviewStats(
@@ -75,8 +82,9 @@ async function getDashboardOverviewStats(
   now: Date,
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardOverviewStats> {
-  const previous = previousRange(range)
-  const reader = new AdminStatsHourlyReader(db, range, now)
+  const effective = effectiveRange(range, now)
+  const previous = previousRange(effective)
+  const reader = new AdminStatsHourlyReader(db, effective, now)
   const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     users,
@@ -89,9 +97,13 @@ async function getDashboardOverviewStats(
     previousTraffic,
     sharing,
     previousSharing,
+    sharingDataQuality,
+    previousSharingDataQuality,
     dataQuality,
     coverage,
     comparisonCoverage,
+    snapshotCoverage,
+    comparisonSnapshotCoverage,
   ] = await Promise.all([
     getUserInventory(reader),
     getSignupTotal(reader),
@@ -103,9 +115,13 @@ async function getDashboardOverviewStats(
     getTrafficTotals(previousReader),
     getSharingEventTotals(reader),
     getSharingComparisonTotals(previousReader),
+    getSharingDataQuality(reader),
+    getSharingDataQuality(previousReader),
     getTransferDataQuality(reader, previousReader),
-    reader.coverage(),
-    previousReader.coverage(),
+    reader.coverage('counters'),
+    previousReader.coverage('counters'),
+    reader.coverage('snapshots'),
+    previousReader.coverage('snapshots'),
   ])
   const [trendNewUsers, activeByDay, storageUsedByDay, uploadByDay, downloadByDay] = await Promise.all([
     getSignupsByDay(reader),
@@ -114,37 +130,51 @@ async function getDashboardOverviewStats(
     getActivityMetricByDay(reader, metricSpec(['upload_confirm']), 'bytes'),
     getActivityMetricByDay(reader, metricSpec(DOWNLOAD_ACTIVITY_ACTIONS), 'bytes'),
   ])
-  const trends = createDateBuckets(range).map((date) => {
+  const trends = createDateBuckets(effective).map((date) => {
     return {
       date,
       newUsers: trendNewUsers.get(date) ?? 0,
-      activeUsers: activeByDay.get(date) ?? 0,
+      activeUsers: activeByDay.get(date) ?? null,
       storageUsedBytes: storageUsedByDay.get(date) ?? null,
       uploadBytes: uploadByDay.get(date) ?? 0,
       downloadBytes: downloadByDay.get(date) ?? 0,
     }
   })
+  const sharingComparable =
+    comparable(coverage, comparisonCoverage) &&
+    hasExactSharingHistory(sharingDataQuality) &&
+    hasExactSharingHistory(previousSharingDataQuality)
+  const validQuotaBytes = quotas && quotas.invalidQuotaSpaces === 0 ? quotas.quotaBytes : null
 
   return {
-    ...statsFrame(now, range, coverage, comparisonCoverage),
+    ...statsFrame(now, effective, coverage, comparisonCoverage, snapshotCoverage, comparisonSnapshotCoverage),
     dataQuality,
     totals: {
-      users: users.total,
-      newUsers: delta(newUsers, previousNewUsers),
-      activeUsers: delta(activeUsers.mau, previousActiveUsers.mau),
-      activeUserRate: nullablePercent(activeUsers.mau, users.total),
-      storageUsedBytes: quotas.usedBytes,
-      storageQuotaBytes: quotas.quotaBytes,
-      storageUtilization: nullablePercent(quotas.usedBytes, quotas.quotaBytes),
+      users: users?.total ?? null,
+      newUsers: delta(newUsers, previousNewUsers, comparable(coverage, comparisonCoverage)),
+      activeUsers: delta(
+        activeUsers?.mau ?? null,
+        previousActiveUsers?.mau ?? null,
+        comparable(snapshotCoverage, comparisonSnapshotCoverage),
+      ),
+      activeUserRate: nullablePercent(activeUsers?.mau ?? null, users?.total ?? null),
+      storageUsedBytes: quotas?.usedBytes ?? null,
+      storageQuotaBytes: validQuotaBytes,
+      storageUtilization: nullablePercent(quotas?.usedBytes ?? null, validQuotaBytes),
       trafficBytes: delta(
         traffic.uploadBytes + traffic.downloadBytes,
         previousTraffic.uploadBytes + previousTraffic.downloadBytes,
+        comparable(coverage, comparisonCoverage),
       ),
-      uploadBytes: delta(traffic.uploadBytes, previousTraffic.uploadBytes),
-      downloadBytes: delta(traffic.downloadBytes, previousTraffic.downloadBytes),
+      uploadBytes: delta(traffic.uploadBytes, previousTraffic.uploadBytes, comparable(coverage, comparisonCoverage)),
+      downloadBytes: delta(
+        traffic.downloadBytes,
+        previousTraffic.downloadBytes,
+        comparable(coverage, comparisonCoverage),
+      ),
       activeShares: sharing.activeShares,
-      shareViews: delta(sharing.views, previousSharing.views),
-      shareDownloads: delta(sharing.downloads, previousSharing.downloads),
+      shareViews: delta(sharing.views, previousSharing.views, sharingComparable),
+      shareDownloads: delta(sharing.downloads, previousSharing.downloads, sharingComparable),
     },
     trends,
   }
@@ -155,7 +185,8 @@ async function getDashboardOperationsStats(
   now: Date,
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardOperationsStats> {
-  const reader = new AdminStatsHourlyReader(db, range, now)
+  const effective = effectiveRange(range, now)
+  const reader = new AdminStatsHourlyReader(db, effective, now)
   const [
     activeBackgroundJobs,
     activeRemoteDownloads,
@@ -168,6 +199,7 @@ async function getDashboardOperationsStats(
     backgroundJobsByDay,
     remoteDownloadsByDay,
     coverage,
+    snapshotCoverage,
   ] = await Promise.all([
     getLatestGaugeTotal(reader, ADMIN_STATS_METRICS.backgroundJobSnapshot),
     getLatestGaugeTotal(reader, ADMIN_STATS_METRICS.remoteDownloadTaskSnapshot),
@@ -179,7 +211,8 @@ async function getDashboardOperationsStats(
     getCloudReportOutcomes(reader),
     getOperationalOutcomesByDay(reader, 'background_job'),
     getOperationalOutcomesByDay(reader, 'remote_download'),
-    reader.coverage(),
+    reader.coverage('counters'),
+    reader.coverage('snapshots'),
   ])
   const completedJobs = backgroundJobOutcomes.get('completed') ?? 0
   const failedJobs = backgroundJobOutcomes.get('failed') ?? 0
@@ -187,12 +220,14 @@ async function getDashboardOperationsStats(
   const failedRemoteDownloads = remoteDownloadOutcomes.get('failed') ?? 0
 
   return {
-    ...statsFrame(now, range, coverage),
+    ...statsFrame(now, effective, coverage, undefined, snapshotCoverage),
     summary: {
       activeBackgroundJobs,
       activeRemoteDownloads,
-      onlineDownloaders: downloaderStatus.get('online') ?? 0,
-      offlineDownloaders: (downloaderStatus.get('offline') ?? 0) + (downloaderStatus.get('disabled') ?? 0),
+      onlineDownloaders: downloaderStatus?.get('online') ?? null,
+      offlineDownloaders: downloaderStatus
+        ? (downloaderStatus.get('offline') ?? 0) + (downloaderStatus.get('disabled') ?? 0)
+        : null,
       backgroundJobFailureRate: nullablePercent(failedJobs, completedJobs + failedJobs),
       remoteDownloadSuccessRate: nullablePercent(
         completedRemoteDownloads,
@@ -200,9 +235,13 @@ async function getDashboardOperationsStats(
       ),
       cloudReportBacklog,
       webhookFailures,
-      alertCount: cloudReportBacklog + webhookFailures,
+      cloudReportDeadLetters: cloudReportStatus?.get('dead_letter') ?? null,
+      alertCount:
+        cloudReportBacklog === null || webhookFailures === null
+          ? null
+          : cloudReportBacklog + webhookFailures + (cloudReportStatus?.get('dead_letter') ?? 0),
     },
-    trend: createDateBuckets(range).map((date) => ({
+    trend: createDateBuckets(effective).map((date) => ({
       date,
       completedJobs: backgroundJobsByDay.get(date)?.get('completed') ?? 0,
       failedJobs: backgroundJobsByDay.get(date)?.get('failed') ?? 0,
@@ -211,8 +250,8 @@ async function getDashboardOperationsStats(
     })),
     backgroundJobOutcomes: percentRows([...backgroundJobOutcomes].map(([name, value]) => ({ name, value }))),
     remoteDownloadOutcomes: percentRows([...remoteDownloadOutcomes].map(([name, value]) => ({ name, value }))),
-    downloaderStatus: percentRows([...downloaderStatus].map(([name, value]) => ({ name, value }))),
-    cloudReportStatus: percentRows([...cloudReportStatus].map(([name, value]) => ({ name, value }))),
+    downloaderStatus: percentRows([...(downloaderStatus ?? new Map())].map(([name, value]) => ({ name, value }))),
+    cloudReportStatus: percentRows([...(cloudReportStatus ?? new Map())].map(([name, value]) => ({ name, value }))),
   }
 }
 
@@ -221,8 +260,9 @@ async function getDashboardGrowthStats(
   now: Date,
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardGrowthStats> {
-  const previous = previousRange(range)
-  const reader = new AdminStatsHourlyReader(db, range, now)
+  const effective = effectiveRange(range, now)
+  const previous = previousRange(effective)
+  const reader = new AdminStatsHourlyReader(db, effective, now)
   const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     users,
@@ -235,45 +275,55 @@ async function getDashboardGrowthStats(
     totalsByDay,
     coverage,
     comparisonCoverage,
+    snapshotCoverage,
+    comparisonSnapshotCoverage,
   ] = await Promise.all([
     getUserInventory(reader),
     getSignupTotal(reader),
     getSignupTotal(previousReader),
     getActiveUserSnapshot(reader),
     getActiveUserSnapshot(previousReader),
-    getRollingActiveUserTrend(reader, range),
+    getRollingActiveUserTrend(reader, effective),
     getRegistrationSources(reader),
     getUserTotalsByDay(reader),
-    reader.coverage(),
-    previousReader.coverage(),
+    reader.coverage('counters'),
+    previousReader.coverage('counters'),
+    reader.coverage('snapshots'),
+    previousReader.coverage('snapshots'),
   ])
   const newUsersByDay = await getSignupsByDay(reader)
-  const userScaleTrend = createDateBuckets(range).map((date) => ({
+  const userScaleTrend = createDateBuckets(effective).map((date) => ({
     date,
     newUsers: newUsersByDay.get(date) ?? 0,
-    totalUsers: totalsByDay.get(date) ?? 0,
+    totalUsers: totalsByDay.get(date) ?? null,
   }))
 
   return {
-    ...statsFrame(now, range, coverage, comparisonCoverage),
+    ...statsFrame(now, effective, coverage, comparisonCoverage, snapshotCoverage, comparisonSnapshotCoverage),
     summary: {
-      totalUsers: users.total,
-      newUsers: delta(newUsers, previousNewUsers),
-      activeUsers: delta(activeUsers.mau, previousActiveUsers.mau),
-      verifiedUsers: users.verified,
-      bannedUsers: users.banned,
-      silentUsers: users.silent,
-      activeUserRate: nullablePercent(activeUsers.mau, users.total),
-      silentUserRate: nullablePercent(users.silent, users.total),
+      totalUsers: users?.total ?? null,
+      newUsers: delta(newUsers, previousNewUsers, comparable(coverage, comparisonCoverage)),
+      activeUsers: delta(
+        activeUsers?.mau ?? null,
+        previousActiveUsers?.mau ?? null,
+        comparable(snapshotCoverage, comparisonSnapshotCoverage),
+      ),
+      verifiedUsers: users?.verified ?? null,
+      bannedUsers: users?.banned ?? null,
+      silentUsers: users?.silent ?? null,
+      activeUserRate: nullablePercent(activeUsers?.mau ?? null, users?.total ?? null),
+      silentUserRate: nullablePercent(users?.silent ?? null, users?.total ?? null),
     },
     userScaleTrend,
     activeUserTrend: activeByDay,
-    userStatus: percentRows([
-      { name: 'normal', value: users.normal },
-      { name: 'unverified', value: users.unverified },
-      { name: 'banned', value: users.banned },
-      { name: 'silent', value: users.silent },
-    ]),
+    userStatus: users
+      ? percentRows([
+          { name: 'normal', value: users.normal },
+          { name: 'unverified', value: users.unverified },
+          { name: 'banned', value: users.banned },
+          { name: 'silent', value: users.silent },
+        ])
+      : [],
     registrationSources,
   }
 }
@@ -283,12 +333,14 @@ async function getDashboardStorageStats(
   now: Date,
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardStorageStats> {
-  const previous = previousRange(range)
-  const reader = new AdminStatsHourlyReader(db, range, now)
+  const effective = effectiveRange(range, now)
+  const previous = previousRange(effective)
+  const reader = new AdminStatsHourlyReader(db, effective, now)
   const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     quotas,
     inventory,
+    trashInventory,
     storageUsedByDay,
     typeBreakdown,
     newFiles,
@@ -297,16 +349,20 @@ async function getDashboardStorageStats(
     previousUploadBytes,
     uploadsByDay,
     uploadFilesByDay,
-    dataQuality,
+    transferDataQuality,
+    storageDataQuality,
     spaceUsage,
     quotaPressure,
     sizeBreakdown,
     ageBreakdown,
     coverage,
     comparisonCoverage,
+    snapshotCoverage,
+    comparisonSnapshotCoverage,
   ] = await Promise.all([
     getQuotaTotals(reader),
     getStorageInventory(reader),
+    getStorageTrashInventory(reader),
     getStorageUsedByDay(reader),
     getLatestInventoryBreakdown(reader, 'file_type_group'),
     getActivityMetricTotal(reader, metricSpec(['upload_confirm']), 'count'),
@@ -316,14 +372,17 @@ async function getDashboardStorageStats(
     getActivityMetricByDay(reader, metricSpec(['upload_confirm']), 'bytes'),
     getActivityMetricByDay(reader, metricSpec(['upload_confirm']), 'count'),
     getTransferDataQuality(reader, previousReader),
+    getStorageDataQuality(reader),
     getUsageBySpaceRows(db, reader),
     getLatestGaugeDimensions(reader, ADMIN_STATS_METRICS.storageQuota, 'status'),
     getLatestInventoryBreakdown(reader, 'size_bucket'),
     getLatestInventoryBreakdown(reader, 'age_bucket'),
-    reader.coverage(),
+    reader.coverage('counters'),
     previousReader.coverage('counters'),
+    reader.coverage('snapshots'),
+    previousReader.coverage('snapshots'),
   ])
-  const storageTrend = createDateBuckets(range).map((date) => {
+  const storageTrend = createDateBuckets(effective).map((date) => {
     return {
       date,
       usedBytes: storageUsedByDay.get(date) ?? null,
@@ -331,25 +390,31 @@ async function getDashboardStorageStats(
       newFiles: uploadFilesByDay.get(date) ?? 0,
     }
   })
-  const coldFileBytes = ['90-180d', '>180d'].reduce(
-    (total, bucket) => total + (ageBreakdown.find((row) => row.name === bucket)?.bytes ?? 0),
-    0,
-  )
+  const coldFileBytes = inventory
+    ? ['90-180d', '>180d'].reduce(
+        (total, bucket) => total + (ageBreakdown.find((row) => row.name === bucket)?.bytes ?? 0),
+        0,
+      )
+    : null
+  const validQuotaBytes = quotas && quotas.invalidQuotaSpaces === 0 ? quotas.quotaBytes : null
 
   return {
-    ...statsFrame(now, range, coverage, comparisonCoverage),
-    dataQuality,
+    ...statsFrame(now, effective, coverage, comparisonCoverage, snapshotCoverage, comparisonSnapshotCoverage),
+    dataQuality: { ...transferDataQuality, ...storageDataQuality },
     summary: {
-      storageUsedBytes: quotas.usedBytes,
-      quotaBytes: quotas.quotaBytes,
-      fileCount: inventory.files,
-      newFiles: delta(newFiles, previousNewFiles),
-      newBytes: delta(uploadBytes, previousUploadBytes),
+      storageUsedBytes: quotas?.usedBytes ?? null,
+      quotaBytes: validQuotaBytes,
+      fileCount: inventory?.files ?? null,
+      trashFileCount: trashInventory?.files ?? null,
+      trashBytes: trashInventory?.bytes ?? null,
+      newFiles: delta(newFiles, previousNewFiles, comparable(coverage, comparisonCoverage)),
+      newBytes: delta(uploadBytes, previousUploadBytes, comparable(coverage, comparisonCoverage)),
       coldFileBytes,
-      storageUtilization: nullablePercent(quotas.usedBytes, quotas.quotaBytes),
-      coldFilePercent: nullablePercent(coldFileBytes, quotas.usedBytes),
-      nearQuotaSpaces: quotaPressure.get('near') ?? 0,
-      overQuotaSpaces: quotaPressure.get('over') ?? 0,
+      storageUtilization: nullablePercent(quotas?.usedBytes ?? null, validQuotaBytes),
+      coldFilePercent: nullablePercent(coldFileBytes, inventory?.bytes ?? null),
+      nearQuotaSpaces: quotaPressure?.get('near') ?? null,
+      overQuotaSpaces: quotaPressure?.get('over') ?? null,
+      invalidQuotaSpaces: quotaPressure?.get('invalid') ?? null,
     },
     storageTrend,
     typeBreakdown: typeBreakdown.map(({ name, ...row }) => ({
@@ -367,8 +432,9 @@ async function getDashboardTrafficStats(
   now: Date,
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardTrafficStats> {
-  const previous = previousRange(range)
-  const reader = new AdminStatsHourlyReader(db, range, now)
+  const effective = effectiveRange(range, now)
+  const previous = previousRange(effective)
+  const reader = new AdminStatsHourlyReader(db, effective, now)
   const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     traffic,
@@ -430,13 +496,13 @@ async function getDashboardTrafficStats(
     item.value += value
     failureReasonRows.set(reason, item)
   }
-  const trafficTrend = createDateBuckets(range).map((date) => ({
+  const trafficTrend = createDateBuckets(effective).map((date) => ({
     date,
     uploadBytes: uploadByDay.get(date) ?? 0,
     downloadBytes: downloadByDay.get(date) ?? 0,
     requests: (uploadRequestsByDay.get(date) ?? 0) + (downloadRequestsByDay.get(date) ?? 0),
   }))
-  const successTrend = createDateBuckets(range).map((date) => {
+  const successTrend = createDateBuckets(effective).map((date) => {
     const uploadSuccesses = uploadSuccessByDay.get(date) ?? 0
     const uploadFailures = uploadFailureByDay.get(date) ?? 0
     const uploadRequests = uploadSuccesses + uploadFailures
@@ -454,14 +520,19 @@ async function getDashboardTrafficStats(
   const issuedDownloads = Math.max(0, traffic.downloadRequests - blockedDownloads)
 
   return {
-    ...statsFrame(now, range, coverage, comparisonCoverage),
+    ...statsFrame(now, effective, coverage, comparisonCoverage),
     dataQuality,
     summary: {
       totalBytes: delta(
         traffic.uploadBytes + traffic.downloadBytes,
         previousTraffic.uploadBytes + previousTraffic.downloadBytes,
+        comparable(coverage, comparisonCoverage),
       ),
-      requestCount: delta(totalRequests, previousTraffic.uploadRequests + previousTraffic.downloadRequests),
+      requestCount: delta(
+        totalRequests,
+        previousTraffic.uploadRequests + previousTraffic.downloadRequests,
+        comparable(coverage, comparisonCoverage),
+      ),
       issuedDownloads,
       blockedDownloads,
       downloadIssueSuccessRate: nullablePercent(issuedDownloads, issuedDownloads + blockedDownloads),
@@ -482,8 +553,9 @@ async function getDashboardSharingStats(
   now: Date,
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardSharingStats> {
-  const previous = previousRange(range)
-  const reader = new AdminStatsHourlyReader(db, range, now)
+  const effective = effectiveRange(range, now)
+  const previous = previousRange(effective)
+  const reader = new AdminStatsHourlyReader(db, effective, now)
   const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     sharing,
@@ -494,8 +566,12 @@ async function getDashboardSharingStats(
     saveCount,
     previousSaveCount,
     downloadSources,
+    dataQuality,
+    previousDataQuality,
     coverage,
     comparisonCoverage,
+    snapshotCoverage,
+    comparisonSnapshotCoverage,
   ] = await Promise.all([
     getSharingEventTotals(reader),
     getSharingComparisonTotals(previousReader),
@@ -505,17 +581,25 @@ async function getDashboardSharingStats(
     getActivityMetricTotal(reader, metricSpec(['save_from_share']), 'count'),
     getActivityMetricTotal(previousReader, metricSpec(['save_from_share']), 'count'),
     getActivityMetricDimensionTotals(reader, metricSpec(['share_download']), 'source', 'count'),
-    reader.coverage(),
+    getSharingDataQuality(reader),
+    getSharingDataQuality(previousReader),
+    reader.coverage('counters'),
     previousReader.coverage('counters'),
+    reader.coverage('snapshots'),
+    previousReader.coverage('snapshots'),
   ])
   const landingDownloads = downloadSources.get('landing_share') ?? 0
   const directDownloads = downloadSources.get('direct_share') ?? 0
+  const sharingComparable =
+    comparable(coverage, comparisonCoverage) &&
+    hasExactSharingHistory(dataQuality) &&
+    hasExactSharingHistory(previousDataQuality)
   const [viewsByDay, downloadsByDay, savesByDay] = await Promise.all([
     getActivityMetricByDay(reader, metricSpec(['share_view']), 'count'),
     getActivityMetricByDay(reader, metricSpec(['share_download']), 'count'),
     getActivityMetricByDay(reader, metricSpec(['save_from_share']), 'count'),
   ])
-  const trend = createDateBuckets(range).map((date) => ({
+  const trend = createDateBuckets(effective).map((date) => ({
     date,
     views: viewsByDay.get(date) ?? 0,
     downloads: downloadsByDay.get(date) ?? 0,
@@ -527,15 +611,18 @@ async function getDashboardSharingStats(
   })
 
   return {
-    ...statsFrame(now, range, coverage, comparisonCoverage),
+    ...statsFrame(now, effective, coverage, comparisonCoverage, snapshotCoverage, comparisonSnapshotCoverage),
+    dataQuality,
     summary: {
       activeShares: sharing.activeShares,
-      createdShares: delta(createdInRange, createdPrevious),
-      views: delta(sharing.views, previousSharing.views),
-      downloads: delta(sharing.downloads, previousSharing.downloads),
-      saves: delta(saveCount, previousSaveCount),
-      downloadsPer100Views: nullablePercent(landingDownloads, sharing.views),
-      savesPer100Views: nullablePercent(saveCount, sharing.views),
+      createdShares: delta(createdInRange, createdPrevious, comparable(coverage, comparisonCoverage)),
+      views: delta(sharing.views, previousSharing.views, sharingComparable),
+      downloads: delta(sharing.downloads, previousSharing.downloads, sharingComparable),
+      saves: delta(saveCount, previousSaveCount, comparable(coverage, comparisonCoverage)),
+      downloadsPer100Views: hasExactSharingHistory(dataQuality)
+        ? nullablePercent(landingDownloads, sharing.views)
+        : null,
+      savesPer100Views: hasExactSharingHistory(dataQuality) ? nullablePercent(saveCount, sharing.views) : null,
       passwordPasses: sharing.passwordPasses,
     },
     trend,
@@ -563,11 +650,29 @@ async function getShareCreatedKinds(reader: AdminStatsHourlyReader): Promise<Map
   return result
 }
 
+async function getSharingDataQuality(reader: AdminStatsHourlyReader): Promise<AdminSharingDataQuality> {
+  const dimensions = await getLatestGaugeDimensions(reader, ADMIN_STATS_METRICS.statsDataQualitySnapshot, 'kind')
+  if (!dimensions) return { unlocatedViews: null, unlocatedDownloads: null, unlocatedEvents: null }
+  const unlocatedViews = dimensions.get('share_views') ?? 0
+  const unlocatedDownloads = dimensions.get('share_downloads') ?? 0
+  return {
+    unlocatedViews,
+    unlocatedDownloads,
+    unlocatedEvents: unlocatedViews + unlocatedDownloads,
+  }
+}
+
+function hasExactSharingHistory(quality: AdminSharingDataQuality): boolean {
+  return quality.unlocatedEvents === 0
+}
+
 function statsFrame(
   now: Date,
   range: AdminStatsDateRange,
   coverage: Awaited<ReturnType<AdminStatsHourlyReader['coverage']>>,
   comparisonCoverage?: Awaited<ReturnType<AdminStatsHourlyReader['coverage']>>,
+  snapshotCoverage?: Awaited<ReturnType<AdminStatsHourlyReader['coverage']>>,
+  comparisonSnapshotCoverage?: Awaited<ReturnType<AdminStatsHourlyReader['coverage']>>,
 ) {
   return {
     generatedAt: now.toISOString(),
@@ -576,6 +681,8 @@ function statsFrame(
     timeZone: 'UTC' as const,
     coverage,
     comparisonCoverage,
+    snapshotCoverage,
+    comparisonSnapshotCoverage,
   }
 }
 
@@ -598,13 +705,29 @@ function previousRange(range: AdminStatsDateRange): AdminStatsDateRange {
   return { from: new Date(to.getTime() - durationMs), to, timeZone: range.timeZone }
 }
 
-function delta(value: number, previousValue: number): AdminStatsDelta {
+function effectiveRange(range: AdminStatsDateRange, now: Date): AdminStatsDateRange {
+  const closedToExclusive = Math.min(range.to.getTime() + 1, startOfHour(now).getTime())
+  return {
+    from: range.from,
+    to: new Date(Math.max(range.from.getTime(), closedToExclusive) - 1),
+    timeZone: range.timeZone,
+  }
+}
+
+function delta(value: number | null, previousValue: number | null, canCompare = true): AdminStatsDelta {
+  if (value === null || previousValue === null || !canCompare) {
+    return { value, previousValue: canCompare ? previousValue : null, change: null, changePercent: null }
+  }
   return {
     value,
     previousValue,
     change: value - previousValue,
     changePercent: nullablePercent(value - previousValue, previousValue),
   }
+}
+
+function comparable(current: { status: string }, previous: { status: string }): boolean {
+  return current.status === 'complete' && previous.status === 'complete'
 }
 
 function createDateBuckets(range: AdminStatsDateRange): string[] {
@@ -616,9 +739,9 @@ function createDateBuckets(range: AdminStatsDateRange): string[] {
   return [...dates]
 }
 
-async function getLatestGaugeTotal(reader: AdminStatsHourlyReader, metric: AdminStatsMetric): Promise<number> {
+async function getLatestGaugeTotal(reader: AdminStatsHourlyReader, metric: AdminStatsMetric): Promise<number | null> {
   const rows = await reader.latestRows(metric)
-  return rows.find((row) => row.orgId === '' && row.dimensionKey === '')?.count ?? 0
+  return rows.find((row) => row.orgId === '' && row.dimensionKey === '')?.count ?? null
 }
 
 async function getLatestGaugeDimensions(
@@ -626,7 +749,9 @@ async function getLatestGaugeDimensions(
   metric: AdminStatsMetric,
   dimensionKey: AdminStatsDimension,
   field: 'count' | 'bytes' = 'count',
-): Promise<Map<string, number>> {
+): Promise<Map<string, number> | null> {
+  const baseRows = await reader.latestRows(metric)
+  if (!baseRows.some((row) => row.orgId === '' && row.dimensionKey === '')) return null
   const result = new Map<string, number>()
   for (const row of await reader.latestRows(metric, [dimensionKey])) {
     if (row.orgId === '' && row.dimensionKey === dimensionKey) incrementMap(result, row.dimensionValue, row[field])
@@ -639,20 +764,27 @@ async function getLatestGaugeDimensionSum(
   metric: AdminStatsMetric,
   dimensionKey: AdminStatsDimension,
   values: string[],
-): Promise<number> {
+): Promise<number | null> {
   const dimensions = await getLatestGaugeDimensions(reader, metric, dimensionKey)
+  if (!dimensions) return null
   return values.reduce((sum, value) => sum + (dimensions.get(value) ?? 0), 0)
 }
 
-async function getQuotaTotals(reader: AdminStatsHourlyReader): Promise<{ usedBytes: number; quotaBytes: number }> {
+async function getQuotaTotals(
+  reader: AdminStatsHourlyReader,
+): Promise<{ usedBytes: number; quotaBytes: number; invalidQuotaSpaces: number } | null> {
   const [usedRows, quotaRows] = await Promise.all([
     reader.latestRows(ADMIN_STATS_METRICS.storageUsed),
-    reader.latestRows(ADMIN_STATS_METRICS.storageQuota),
+    reader.latestRows(ADMIN_STATS_METRICS.storageQuota, ['', 'status']),
   ])
-  return {
-    usedBytes: usedRows.find((row) => row.orgId === '' && row.dimensionKey === '')?.bytes ?? 0,
-    quotaBytes: quotaRows.find((row) => row.orgId === '' && row.dimensionKey === '')?.bytes ?? 0,
-  }
+  const usedBytes = usedRows.find((row) => row.orgId === '' && row.dimensionKey === '')?.bytes
+  const quotaBytes = quotaRows.find((row) => row.orgId === '' && row.dimensionKey === '')?.bytes
+  const invalidQuotaSpaces = quotaRows.find(
+    (row) => row.orgId === '' && row.dimensionKey === 'status' && row.dimensionValue === 'invalid',
+  )?.count
+  return usedBytes === undefined || quotaBytes === undefined
+    ? null
+    : { usedBytes, quotaBytes, invalidQuotaSpaces: invalidQuotaSpaces ?? 0 }
 }
 
 type UserInventory = {
@@ -664,13 +796,15 @@ type UserInventory = {
   verified: number
 }
 
-async function getUserInventory(reader: AdminStatsHourlyReader): Promise<UserInventory> {
+async function getUserInventory(reader: AdminStatsHourlyReader): Promise<UserInventory | null> {
   const rows = await reader.latestRows(ADMIN_STATS_METRICS.userInventory, ['', 'status'])
+  const total = rows.find((row) => row.dimensionKey === '')?.count
+  if (total === undefined) return null
   const dimensions = new Map(
     rows.filter((row) => row.dimensionKey === 'status').map((row) => [row.dimensionValue, row.count]),
   )
   return {
-    total: rows.find((row) => row.dimensionKey === '')?.count ?? 0,
+    total,
     normal: dimensions.get('normal') ?? 0,
     unverified: dimensions.get('unverified') ?? 0,
     banned: dimensions.get('banned') ?? 0,
@@ -681,8 +815,9 @@ async function getUserInventory(reader: AdminStatsHourlyReader): Promise<UserInv
 
 type ActiveUserSnapshot = { dau: number; wau: number; mau: number }
 
-async function getActiveUserSnapshot(reader: AdminStatsHourlyReader): Promise<ActiveUserSnapshot> {
+async function getActiveUserSnapshot(reader: AdminStatsHourlyReader): Promise<ActiveUserSnapshot | null> {
   const dimensions = await getLatestGaugeDimensions(reader, ADMIN_STATS_METRICS.userActiveSnapshot, 'window')
+  if (!dimensions) return null
   return { dau: dimensions.get('dau') ?? 0, wau: dimensions.get('wau') ?? 0, mau: dimensions.get('mau') ?? 0 }
 }
 
@@ -697,7 +832,7 @@ async function getUserTotalsByDay(reader: AdminStatsHourlyReader): Promise<Map<s
 async function getRollingActiveUserTrend(
   reader: AdminStatsHourlyReader,
   range: AdminStatsDateRange,
-): Promise<Array<{ date: string; dau: number; wau: number; mau: number }>> {
+): Promise<Array<{ date: string; dau: number | null; wau: number | null; mau: number | null }>> {
   const [dau, wau, mau] = await Promise.all([
     getLatestGaugeValueByDay(reader, ADMIN_STATS_METRICS.userActiveSnapshot, 'count', 'window', 'dau'),
     getLatestGaugeValueByDay(reader, ADMIN_STATS_METRICS.userActiveSnapshot, 'count', 'window', 'wau'),
@@ -705,9 +840,9 @@ async function getRollingActiveUserTrend(
   ])
   return createDateBuckets(range).map((date) => ({
     date,
-    dau: dau.get(date) ?? 0,
-    wau: wau.get(date) ?? 0,
-    mau: mau.get(date) ?? 0,
+    dau: dau.get(date) ?? null,
+    wau: wau.get(date) ?? null,
+    mau: mau.get(date) ?? null,
   }))
 }
 
@@ -836,7 +971,7 @@ async function getActivityMetricDimensionTotalsFromRollup(
   return result
 }
 
-async function getCloudReportOutcomes(reader: AdminStatsHourlyReader): Promise<Map<string, number>> {
+async function getCloudReportOutcomes(reader: AdminStatsHourlyReader): Promise<Map<string, number> | null> {
   return getLatestGaugeDimensions(reader, ADMIN_STATS_METRICS.trafficReportSnapshot, 'status')
 }
 
@@ -917,14 +1052,31 @@ async function getStorageUsedByDay(reader: AdminStatsHourlyReader): Promise<Map<
   return getLatestGaugeValueByDay(reader, ADMIN_STATS_METRICS.storageUsed, 'bytes', '', '')
 }
 
-async function getStorageInventory(reader: AdminStatsHourlyReader): Promise<{ files: number; bytes: number }> {
+async function getStorageInventory(reader: AdminStatsHourlyReader): Promise<{ files: number; bytes: number } | null> {
   const rows = await reader.latestRows(ADMIN_STATS_METRICS.storageInventory)
-  return rows
-    .filter((row) => row.orgId === '' && row.dimensionKey === '')
-    .reduce((total, row) => ({ files: total.files + row.count, bytes: total.bytes + row.bytes }), {
-      files: 0,
-      bytes: 0,
-    })
+  const row = rows.find((value) => value.orgId === '' && value.dimensionKey === '')
+  return row ? { files: row.count, bytes: row.bytes } : null
+}
+
+async function getStorageTrashInventory(
+  reader: AdminStatsHourlyReader,
+): Promise<{ files: number; bytes: number } | null> {
+  const rows = await reader.latestRows(ADMIN_STATS_METRICS.storageTrashSnapshot)
+  const row = rows.find((value) => value.orgId === '' && value.dimensionKey === '')
+  return row ? { files: row.count, bytes: row.bytes } : null
+}
+
+async function getStorageDataQuality(
+  reader: AdminStatsHourlyReader,
+): Promise<Pick<AdminStorageDataQuality, 'usageDriftSpaces' | 'usageDriftBytes'>> {
+  const rows = await reader.latestRows(ADMIN_STATS_METRICS.statsDataQualitySnapshot, ['', 'kind'])
+  if (!rows.some((row) => row.orgId === '' && row.dimensionKey === '')) {
+    return { usageDriftSpaces: null, usageDriftBytes: null }
+  }
+  const drift = rows.find(
+    (row) => row.orgId === '' && row.dimensionKey === 'kind' && row.dimensionValue === 'storage_usage_drift',
+  )
+  return { usageDriftSpaces: drift?.count ?? 0, usageDriftBytes: drift?.bytes ?? 0 }
 }
 
 async function getLatestInventoryBreakdown(
@@ -932,7 +1084,9 @@ async function getLatestInventoryBreakdown(
   dimensionKey: 'file_type_group' | 'size_bucket' | 'age_bucket',
 ): Promise<Array<{ name: string; bytes: number; files: number; percent: number }>> {
   const values = new Map<string, { name: string; bytes: number; files: number }>()
-  for (const row of await reader.latestRows(ADMIN_STATS_METRICS.storageInventory, [dimensionKey])) {
+  const rows = await reader.latestRows(ADMIN_STATS_METRICS.storageInventory, ['', dimensionKey])
+  if (!rows.some((row) => row.orgId === '' && row.dimensionKey === '')) return []
+  for (const row of rows) {
     if (row.orgId !== '' || row.dimensionKey !== dimensionKey) continue
     const value = values.get(row.dimensionValue) ?? { name: row.dimensionValue, bytes: 0, files: 0 }
     value.bytes += row.bytes
@@ -972,7 +1126,7 @@ async function getTrafficTotals(
 
 async function getSharingEventTotals(
   reader: AdminStatsHourlyReader,
-): Promise<{ activeShares: number; views: number; passwordPasses: number; downloads: number }> {
+): Promise<{ activeShares: number | null; views: number; passwordPasses: number; downloads: number }> {
   const [activeShares, views, passwordPasses, downloads] = await Promise.all([
     getLatestGaugeDimensionSum(reader, ADMIN_STATS_METRICS.shareInventory, 'lifecycle', ['usable']),
     getActivityMetricTotal(reader, metricSpec(['share_view']), 'count'),
@@ -1035,7 +1189,19 @@ async function getTopSharesByActivity(db: Database, reader: AdminStatsHourlyRead
   return topIds.flatMap((id) => {
     const row = shareById.get(id)
     const countValue = activityById.get(id)
-    if (!row || !countValue) return []
+    if (!countValue) return []
+    if (!row) {
+      return {
+        id,
+        token: '',
+        name: '已删除的分享',
+        creatorId: '',
+        creatorName: '已删除用户',
+        views: countValue.views,
+        downloads: countValue.downloads,
+        status: 'deleted',
+      }
+    }
     return {
       id: row.id,
       token: row.token,
@@ -1074,7 +1240,7 @@ async function getUsageBySpaceRows(
       ...row,
       orgName: org?.name ?? row.orgId,
       orgType: org && isPersonalOrgLike({ slug: org.slug, metadata: org.metadata }) ? 'personal' : 'team',
-      utilization: percent(row.usedBytes, row.quotaBytes),
+      utilization: row.quotaBytes > 0 ? percent(row.usedBytes, row.quotaBytes) : null,
     }
   })
 }
@@ -1123,8 +1289,8 @@ function percent(part: number, total: number): number {
   return Math.round((part / total) * 1000) / 10
 }
 
-function nullablePercent(part: number, total: number): number | null {
-  return total > 0 ? percent(part, total) : null
+function nullablePercent(part: number | null, total: number | null): number | null {
+  return part !== null && total !== null && total > 0 ? percent(part, total) : null
 }
 
 function toNumber(value: unknown): number {

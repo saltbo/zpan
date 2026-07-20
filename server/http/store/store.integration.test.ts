@@ -1377,6 +1377,35 @@ describe('Quota Store API', () => {
       trafficExtraNames: [],
       currentPlan: { trafficOveragePriceCents: 25 },
     })
+
+    const freeBaselines = await db.all<{ resourceType: string; status: string }>(sql`
+      SELECT resource_type AS resourceType, status
+      FROM org_quota_entitlements
+      WHERE org_id = ${orgId} AND source = 'free_plan'
+      ORDER BY resource_type
+    `)
+    expect(freeBaselines).toEqual([
+      { resourceType: 'storage', status: 'active' },
+      { resourceType: 'traffic', status: 'active' },
+    ])
+
+    const revoked = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-subscription-revoked',
+        cloudOrderId: subscriptionSourceId,
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 4096,
+        trafficBytes: 2048,
+        source: 'stripe_subscription',
+      }),
+    )
+    expect(revoked.status).toBe(200)
+    const fallbackRes = await app.request('/api/quotas/me', { headers })
+    const fallback = (await fallbackRes.json()) as { baseQuota: number; quota: number; storagePlanName: string }
+    expect(fallback).toMatchObject({ baseQuota: 10 * 1024 * 1024, quota: 10 * 1024 * 1024, storagePlanName: 'Free' })
   })
 
   it('renews subscription entitlements by replacing plan bytes and extending expiry [spec: quota-store/webhook-renewal]', async () => {

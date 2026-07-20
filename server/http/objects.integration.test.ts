@@ -1381,6 +1381,7 @@ describe('POST /api/objects/:id/transfers', () => {
     const userId = await getUserIdByEmail(db, 'test@example.com')
     await insertTeamOrg(db, 'team-a')
     await insertMember(db, 'team-a', userId, 'editor')
+    await insertStorageEntitlement(db, 'team-a', 10_000_000)
     await insertFile(db, orgId, { id: 'src-copy', name: 'doc.txt' })
 
     const res = await transferRequest(app, headers, 'src-copy', { targetOrgId: 'team-a', mode: 'copy' })
@@ -1403,10 +1404,12 @@ describe('POST /api/objects/:id/transfers', () => {
     const userId = await getUserIdByEmail(db, 'test@example.com')
     await insertTeamOrg(db, 'team-b')
     await insertMember(db, 'team-b', userId, 'owner')
+    await insertStorageEntitlement(db, 'team-b', 10_000_000)
     await insertFile(db, orgId, { id: 'src-move', name: 'photo.jpg', size: 1024 })
     await db.run(sql`
-      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
-      VALUES (${`q-${orgId}`}, ${orgId}, ${1024 * 1024}, 1024, 0, 0, '1970-01')
+      UPDATE org_quotas
+      SET quota = ${1024 * 1024}, used = 1024, traffic_quota = 0, traffic_used = 0, traffic_period = '1970-01'
+      WHERE org_id = ${orgId}
     `)
 
     const res = await transferRequest(app, headers, 'src-move', { targetOrgId: 'team-b', mode: 'move' })
@@ -1430,6 +1433,7 @@ describe('POST /api/objects/:id/transfers', () => {
     const userId = await getUserIdByEmail(db, 'test@example.com')
     await insertTeamOrg(db, 'team-c')
     await insertMember(db, 'team-c', userId, 'editor')
+    await insertStorageEntitlement(db, 'team-c', 10_000_000)
     await insertFolder(db, orgId, { id: 'fold-1', name: 'Album' })
     await insertFile(db, orgId, { id: 'in-fold', name: 'pic.png', parent: 'Album' })
 
@@ -1738,12 +1742,13 @@ describe('Objects API — quota enforcement', () => {
       expect(quotaRows[0].used).toBe(500) // unchanged
     })
 
-    it('returns 201 when no quota row exists (unlimited)', async () => {
+    it('returns 422 when no quota row or entitlement exists', async () => {
       const { app, db } = await createTestApp()
       const headers = await authedHeaders(app)
       await insertStorage(db)
       const orgId = await getOrgId(db)
-      // No org quota row at all — unlimited
+      await db.delete(orgQuotaEntitlements).where(eq(orgQuotaEntitlements.orgId, orgId))
+      await db.delete(orgQuotas).where(eq(orgQuotas.orgId, orgId))
       await insertFile(db, orgId, { id: 'm-copy-nolimit', name: 'nolimit.txt', size: 100 })
 
       const res = await app.request('/api/objects/m-copy-nolimit/copies', {
@@ -1751,10 +1756,10 @@ describe('Objects API — quota enforcement', () => {
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent: '' }),
       })
-      expect(res.status).toBe(201)
+      expect(res.status).toBe(422)
     })
 
-    it('returns 201 when quota is 0 (unlimited) regardless of file size', async () => {
+    it('returns 422 when effective quota is zero', async () => {
       const { app, db } = await createTestApp()
       const headers = await authedHeaders(app)
       await insertStorage(db)
@@ -1767,7 +1772,7 @@ describe('Objects API — quota enforcement', () => {
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent: '' }),
       })
-      expect(res.status).toBe(201)
+      expect(res.status).toBe(422)
     })
 
     it('returns 404 when source file does not exist', async () => {
@@ -2028,7 +2033,7 @@ describe('Objects API — quota enforcement', () => {
       expect(quotaRows[0]).toEqual({ used: 140, quota: 100 })
     })
 
-    it('enforces storage entitlements when base quota is unlimited', async () => {
+    it('enforces storage entitlements when the legacy quota column is zero', async () => {
       const { app, db } = await createTestApp()
       await seedProLicense(db)
       const headers = await authedHeaders(app)
@@ -2092,17 +2097,18 @@ describe('Objects API — quota enforcement', () => {
       expect(quotaRows[0].used).toBe(50)
     })
 
-    it('returns 200 when no quota row exists (unlimited)', async () => {
+    it('returns 422 when no quota row or entitlement exists', async () => {
       const { app, db } = await createTestApp()
       const headers = await authedHeaders(app)
       await insertStorage(db)
-      // No quota row — unlimited
+      const orgId = await getOrgId(db)
+      await db.delete(orgQuotaEntitlements).where(eq(orgQuotaEntitlements.orgId, orgId))
+      await db.delete(orgQuotas).where(eq(orgQuotas.orgId, orgId))
       const ref = await createDraft(app, headers, { name: 'nolimit.txt', size: 5000 })
 
       const res = await complete(app, headers, ref)
-      expect(res.status).toBe(200)
-      const body = (await res.json()) as Record<string, unknown>
-      expect(body.status).toBe('active')
+      expect(res.status).toBe(422)
+      await expect(res.json()).resolves.toMatchObject({ error: { details: [{ reason: 'QUOTA_EXCEEDED' }] } })
     })
 
     it('replaces a same-size file at full quota — net-neutral, incumbent purged', async () => {

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { DirType } from '../../../shared/constants'
@@ -329,7 +329,10 @@ describe('recordView', () => {
     const resolved = await resolveShareByToken(db, share.token)
     if (resolved.status !== 'ok') throw new Error('expected found')
     expect(resolved.share.views).toBe(2)
-    const events = await db.select().from(activityEvents).where(eq(activityEvents.targetId, share.id))
+    const events = await db
+      .select()
+      .from(activityEvents)
+      .where(and(eq(activityEvents.targetId, share.id), eq(activityEvents.action, 'share_view')))
     expect(events).toHaveLength(2)
     expect(events.every((event) => event.action === 'share_view')).toBe(true)
   })
@@ -355,7 +358,12 @@ describe('recordView', () => {
     const resolved = await resolveShareByToken(db, share.token)
     if (resolved.status !== 'ok') throw new Error('expected found')
     expect(resolved.share.views).toBe(0)
-    await expect(db.select().from(activityEvents).where(eq(activityEvents.targetId, share.id))).resolves.toEqual([])
+    await expect(
+      db
+        .select()
+        .from(activityEvents)
+        .where(and(eq(activityEvents.targetId, share.id), eq(activityEvents.action, 'share_view'))),
+    ).resolves.toEqual([])
   })
 })
 

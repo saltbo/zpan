@@ -1,4 +1,5 @@
-import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { organization } from '../../db/auth-schema'
 import {
   backgroundJobs,
   cloudTrafficReports,
@@ -17,9 +18,11 @@ import {
   type AdminStatsMetric,
   assertMetricDimension,
   ADMIN_STATS_METRICS as M,
+  parseAdminStatsRollupMetadata,
   ROLLUP_VERSION,
 } from '../../domain/admin-stats-metrics'
 import type { Database } from '../../platform/interface'
+import { getEffectiveQuotasByOrg } from './quota'
 
 const HOUR_MS = 3_600_000
 const D1_MAX_BOUND_PARAMS = 100
@@ -40,6 +43,21 @@ const COUNTER_METRICS: AdminStatsMetric[] = [
   M.transferDownloadIssued,
   M.transferUpload,
   M.userSignup,
+]
+const GAUGE_METRICS: AdminStatsMetric[] = [
+  M.backgroundJobSnapshot,
+  M.downloaderSnapshot,
+  M.remoteDownloadTaskSnapshot,
+  M.shareInventory,
+  M.statsDataQualitySnapshot,
+  M.storageInventory,
+  M.storageQuota,
+  M.storageTrashSnapshot,
+  M.storageUsed,
+  M.trafficReportSnapshot,
+  M.userActiveSnapshot,
+  M.userInventory,
+  M.webhookSnapshot,
 ]
 
 type RollupValue = {
@@ -66,21 +84,21 @@ export async function rebuildAdminStatsHour(
   db: Database,
   bucketStartInput: Date,
   generatedAt: Date,
-  includeSnapshots: boolean,
 ): Promise<AdminStatsHourlyRollupResult> {
   const bucketStart = startOfHour(bucketStartInput)
   if (bucketStart.getTime() !== bucketStartInput.getTime()) throw new Error('stats_bucket_must_align_to_utc_hour')
   const bucketEnd = new Date(bucketStart.getTime() + HOUR_MS)
   const rollups = new RollupAccumulator()
+  const capturedSnapshot = await compatibleSnapshotMarker(db, bucketStart)
 
   await addEventMetrics(db, rollups, bucketStart, bucketEnd)
   await addUserMetrics(db, rollups, bucketStart, bucketEnd)
   await addOperationalMetrics(db, rollups, bucketStart, bucketEnd)
-  if (includeSnapshots) await addSnapshotMetrics(db, rollups, generatedAt)
-
   const values = rollups.values()
   const lowerBoundRows = values.filter((row) => row.lowerBound).length
-  rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' })
+  rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' }, lowerBoundRows > 0)
+  const completionScope = capturedSnapshot ? 'full' : 'counters'
+  const counterQuality = lowerBoundRows > 0 ? 'lower_bound' : 'exact'
 
   const updatedAt = generatedAt
   const rows = rollups.values().map((row) => ({
@@ -93,24 +111,117 @@ export async function rebuildAdminStatsHour(
     count: row.count,
     bytes: row.bytes,
     uniqueCount: row.uniqueCount,
-    metadata: JSON.stringify({
-      version: ROLLUP_VERSION,
-      scope: includeSnapshots ? 'full' : 'counters',
-      quality: row.lowerBound ? 'lower_bound' : 'exact',
-      generatedAt: generatedAt.toISOString(),
-    }),
+    metadata: JSON.stringify(
+      row.metric === M.statsRollupRun
+        ? {
+            version: ROLLUP_VERSION,
+            scope: completionScope,
+            quality:
+              counterQuality === 'lower_bound' || capturedSnapshot?.quality === 'lower_bound' ? 'lower_bound' : 'exact',
+            counterQuality,
+            ...(capturedSnapshot
+              ? {
+                  snapshotQuality: capturedSnapshot.quality,
+                  snapshotObservedAt: capturedSnapshot.observedAt,
+                }
+              : {}),
+            generatedAt: generatedAt.toISOString(),
+          }
+        : {
+            version: ROLLUP_VERSION,
+            scope: 'counters',
+            quality: row.lowerBound ? 'lower_bound' : 'exact',
+            generatedAt: generatedAt.toISOString(),
+          },
+    ),
     updatedAt,
   }))
 
-  const deleteWhere = includeSnapshots
-    ? eq(statsRollupsHourly.bucketStart, bucketStart)
-    : and(eq(statsRollupsHourly.bucketStart, bucketStart), inArray(statsRollupsHourly.metricKey, COUNTER_METRICS))
-  const writes: AtomicQuery[] = [db.delete(statsRollupsHourly).where(deleteWhere)]
+  const writes: AtomicQuery[] = [
+    db
+      .delete(statsRollupsHourly)
+      .where(
+        and(eq(statsRollupsHourly.bucketStart, bucketStart), inArray(statsRollupsHourly.metricKey, COUNTER_METRICS)),
+      ),
+  ]
   for (let index = 0; index < rows.length; index += ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE) {
     writes.push(db.insert(statsRollupsHourly).values(rows.slice(index, index + ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE)))
   }
   await executeWriteTransaction(db, writes)
   return { bucketStart, bucketEnd, rows: rows.length, lowerBoundRows }
+}
+
+export async function captureAdminStatsSnapshot(
+  db: Database,
+  bucketStartInput: Date,
+  observedAt: Date,
+): Promise<AdminStatsHourlyRollupResult> {
+  const bucketStart = startOfHour(bucketStartInput)
+  if (bucketStart.getTime() !== bucketStartInput.getTime()) throw new Error('stats_bucket_must_align_to_utc_hour')
+  if (startOfHour(observedAt).getTime() !== bucketStart.getTime()) {
+    throw new Error('stats_snapshot_must_be_captured_in_bucket')
+  }
+  const bucketEnd = new Date(bucketStart.getTime() + HOUR_MS)
+  const rollups = new RollupAccumulator()
+  await addSnapshotMetrics(db, rollups, observedAt)
+  rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' })
+  const rows = rollups.values().map((row) => ({
+    id: rollupId(bucketStart, row),
+    bucketStart,
+    orgId: row.orgId,
+    metricKey: row.metric,
+    dimensionKey: row.dimensionKey,
+    dimensionValue: row.dimensionValue,
+    count: row.count,
+    bytes: row.bytes,
+    uniqueCount: row.uniqueCount,
+    metadata: JSON.stringify({
+      version: ROLLUP_VERSION,
+      scope: 'snapshots',
+      quality: 'exact',
+      ...(row.metric === M.statsRollupRun
+        ? { snapshotQuality: 'exact', snapshotObservedAt: observedAt.toISOString() }
+        : { observedAt: observedAt.toISOString() }),
+    }),
+    updatedAt: observedAt,
+  }))
+  const writes: AtomicQuery[] = [
+    db
+      .delete(statsRollupsHourly)
+      .where(
+        and(
+          eq(statsRollupsHourly.bucketStart, bucketStart),
+          inArray(statsRollupsHourly.metricKey, [...GAUGE_METRICS, M.statsRollupRun]),
+        ),
+      ),
+  ]
+  for (let index = 0; index < rows.length; index += ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE) {
+    writes.push(db.insert(statsRollupsHourly).values(rows.slice(index, index + ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE)))
+  }
+  await executeWriteTransaction(db, writes)
+  return { bucketStart, bucketEnd, rows: rows.length, lowerBoundRows: 0 }
+}
+
+async function compatibleSnapshotMarker(
+  db: Database,
+  bucketStart: Date,
+): Promise<{ quality: 'exact' | 'lower_bound'; observedAt: string } | null> {
+  const rows = await db
+    .select({ metadata: statsRollupsHourly.metadata })
+    .from(statsRollupsHourly)
+    .where(
+      and(
+        eq(statsRollupsHourly.bucketStart, bucketStart),
+        eq(statsRollupsHourly.orgId, ''),
+        eq(statsRollupsHourly.metricKey, M.statsRollupRun),
+        eq(statsRollupsHourly.dimensionKey, ''),
+        eq(statsRollupsHourly.dimensionValue, ''),
+      ),
+    )
+    .limit(1)
+  const metadata = parseAdminStatsRollupMetadata(rows[0]?.metadata ?? null)
+  if ((metadata?.scope !== 'snapshots' && metadata?.scope !== 'full') || !metadata.snapshotObservedAt) return null
+  return { quality: metadata.snapshotQuality ?? metadata.quality, observedAt: metadata.snapshotObservedAt }
 }
 
 async function addEventMetrics(db: Database, rollups: RollupAccumulator, from: Date, to: Date): Promise<void> {
@@ -241,70 +352,90 @@ type EventMetricGroup = {
 }
 
 async function addUserMetrics(db: Database, rollups: RollupAccumulator, from: Date, to: Date): Promise<void> {
-  const [signupRows, shareRows] = await Promise.all([
-    db.all<{ provider: string; count: number }>(sql`
-      SELECT provider, COUNT(*) AS count
-      FROM (
-        SELECT COALESCE((
-          SELECT a.provider_id FROM account a
-          WHERE a.user_id = u.id
-          ORDER BY a.created_at, a.id
-          LIMIT 1
-        ), 'direct') AS provider
-        FROM "user" u
-        WHERE u.created_at >= ${from.getTime()} AND u.created_at < ${to.getTime()}
-      ) signups
-      GROUP BY provider
-    `),
-    db
-      .select({ orgId: shares.orgId, kind: shares.kind, count: sql<number>`COUNT(*)` })
-      .from(shares)
-      .where(and(gte(shares.createdAt, from), lt(shares.createdAt, to)))
-      .groupBy(shares.orgId, shares.kind),
-  ])
+  const rows = await db.all<{
+    action: string
+    orgId: string
+    provider: string | null
+    kind: string | null
+    count: number
+    lowerBound: number
+  }>(sql`
+    SELECT
+      action,
+      org_id AS orgId,
+      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.provider') END AS provider,
+      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.kind') END AS kind,
+      COUNT(*) AS count,
+      SUM(CASE WHEN json_valid(metadata) = 1 AND json_extract(metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) AS lowerBound
+    FROM activity_events
+    WHERE created_at >= ${Math.floor(from.getTime() / 1000)}
+      AND created_at < ${Math.floor(to.getTime() / 1000)}
+      AND action IN ('stats_user_signup', 'stats_share_created')
+    GROUP BY action, org_id, provider, kind
+  `)
 
-  for (const row of signupRows) rollups.add(M.userSignup, '', Number(row.count), 0, { provider: row.provider })
-  for (const row of shareRows) rollups.add(M.shareCreated, row.orgId, Number(row.count), 0, { kind: row.kind })
+  for (const row of rows) {
+    if (row.action === 'stats_user_signup') {
+      rollups.add(M.userSignup, '', Number(row.count), 0, { provider: row.provider ?? 'unknown' }, row.lowerBound > 0)
+    } else {
+      rollups.add(M.shareCreated, row.orgId, Number(row.count), 0, { kind: row.kind ?? 'unknown' }, row.lowerBound > 0)
+    }
+  }
 }
 
 async function addOperationalMetrics(db: Database, rollups: RollupAccumulator, from: Date, to: Date): Promise<void> {
-  const [taskFinishedRows, jobRows] = await Promise.all([
-    db
-      .select({
-        orgId: downloadTasks.orgId,
-        category: downloadTasks.category,
-        downloaderId: downloadTasks.assignedDownloaderId,
-        status: downloadTasks.status,
-        count: sql<number>`COUNT(*)`,
-        bytes: sql<number>`COALESCE(SUM(${downloadTasks.billingChargedBytes}), 0)`,
-      })
-      .from(downloadTasks)
-      .where(and(gte(downloadTasks.finishedAt, from), lt(downloadTasks.finishedAt, to)))
-      .groupBy(downloadTasks.orgId, downloadTasks.category, downloadTasks.assignedDownloaderId, downloadTasks.status),
-    db
-      .select({
-        orgId: backgroundJobs.orgId,
-        type: backgroundJobs.type,
-        status: backgroundJobs.status,
-        count: sql<number>`COUNT(*)`,
-      })
-      .from(backgroundJobs)
-      .where(and(gte(backgroundJobs.finishedAt, from), lt(backgroundJobs.finishedAt, to)))
-      .groupBy(backgroundJobs.orgId, backgroundJobs.type, backgroundJobs.status),
-  ])
+  const rows = await db.all<{
+    action: string
+    orgId: string
+    category: string | null
+    downloaderId: string | null
+    jobType: string | null
+    outcome: string | null
+    count: number
+    bytes: number
+    lowerBound: number
+  }>(sql`
+    SELECT
+      action,
+      org_id AS orgId,
+      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.category') END AS category,
+      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.downloaderId') END AS downloaderId,
+      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.jobType') END AS jobType,
+      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.outcome') END AS outcome,
+      COUNT(*) AS count,
+      SUM(CASE WHEN json_valid(metadata) = 1 THEN COALESCE(json_extract(metadata, '$.bytes'), 0) ELSE 0 END) AS bytes,
+      SUM(CASE WHEN json_valid(metadata) = 1 AND json_extract(metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) AS lowerBound
+    FROM activity_events
+    WHERE created_at >= ${Math.floor(from.getTime() / 1000)}
+      AND created_at < ${Math.floor(to.getTime() / 1000)}
+      AND action IN ('stats_background_job_finished', 'stats_remote_download_finished')
+    GROUP BY action, org_id, category, downloaderId, jobType, outcome
+  `)
 
-  for (const row of taskFinishedRows) {
-    rollups.add(M.remoteDownloadTaskFinished, row.orgId, Number(row.count), Number(row.bytes), {
-      category: row.category ?? 'uncategorized',
-      downloader_id: row.downloaderId,
-      outcome: row.status,
-    })
-  }
-  for (const row of jobRows) {
-    rollups.add(M.backgroundJobFinished, row.orgId, Number(row.count), 0, {
-      job_type: row.type,
-      outcome: row.status,
-    })
+  for (const row of rows) {
+    if (row.action === 'stats_remote_download_finished') {
+      rollups.add(
+        M.remoteDownloadTaskFinished,
+        row.orgId,
+        Number(row.count),
+        Number(row.bytes),
+        {
+          category: row.category ?? 'uncategorized',
+          downloader_id: row.downloaderId,
+          outcome: row.outcome ?? 'unknown',
+        },
+        row.lowerBound > 0,
+      )
+    } else {
+      rollups.add(
+        M.backgroundJobFinished,
+        row.orgId,
+        Number(row.count),
+        0,
+        { job_type: row.jobType ?? 'unknown', outcome: row.outcome ?? 'unknown' },
+        row.lowerBound > 0,
+      )
+    }
   }
 }
 
@@ -312,12 +443,14 @@ async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now:
   const [
     userRows,
     activeUserRows,
-    quotaRows,
+    quotaBaseRows,
     inventoryRows,
     inventoryByType,
     inventoryBySize,
     inventoryByAge,
+    trashRows,
     shareRows,
+    dataQualityRows,
     jobRows,
     taskRows,
     downloaderRows,
@@ -330,17 +463,20 @@ async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now:
       'quota',
       db
         .select({
-          orgId: orgQuotas.orgId,
-          used: orgQuotas.used,
-          quota: orgQuotas.quota,
+          orgId: organization.id,
+          quotaId: orgQuotas.id,
+          used: sql<number>`COALESCE(${orgQuotas.used}, 0)`,
         })
-        .from(orgQuotas),
+        .from(organization)
+        .leftJoin(orgQuotas, eq(orgQuotas.orgId, organization.id)),
     ),
     queryStage('inventory-base', inventoryGroups(db, now, 'base')),
     queryStage('inventory-type', inventoryGroups(db, now, 'file_type_group')),
     queryStage('inventory-size', inventoryGroups(db, now, 'size_bucket')),
     queryStage('inventory-age', inventoryGroups(db, now, 'age_bucket')),
+    queryStage('trash-inventory', trashInventoryGroups(db)),
     queryStage('shares', shareSnapshotGroups(db, now)),
+    queryStage('data-quality', dataQualitySnapshot(db)),
     queryStage(
       'jobs',
       db
@@ -394,29 +530,71 @@ async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now:
     ),
   ])
 
+  const effectiveQuotas = await queryStage(
+    'effective-quota',
+    getEffectiveQuotasByOrg(
+      db,
+      quotaBaseRows.map((row) => row.orgId),
+      now,
+    ),
+  )
+
   rollups.setGauge(M.userInventory, '', userRows.total, 0)
   rollups.setGauge(M.userInventory, '', userRows.normal, 0, 'status', 'normal')
   rollups.setGauge(M.userInventory, '', userRows.verified, 0, 'status', 'verified')
   rollups.setGauge(M.userInventory, '', userRows.unverified, 0, 'status', 'unverified')
   rollups.setGauge(M.userInventory, '', userRows.banned, 0, 'status', 'banned')
   rollups.setGauge(M.userInventory, '', userRows.silent, 0, 'status', 'silent')
+  rollups.setGauge(M.userActiveSnapshot, '', activeUserRows.find((row) => row.window === 'mau')?.count ?? 0, 0)
   for (const row of activeUserRows) rollups.setGauge(M.userActiveSnapshot, '', row.count, 0, 'window', row.window)
-  for (const row of quotaRows) {
+  rollups.setGauge(M.storageUsed, '', 0, 0)
+  rollups.setGauge(M.storageQuota, '', 0, 0)
+  rollups.setGauge(M.storageInventory, '', 0, 0)
+  rollups.setGauge(M.storageTrashSnapshot, '', 0, 0)
+  rollups.setGauge(M.shareInventory, '', 0, 0)
+  rollups.setGauge(M.statsDataQualitySnapshot, '', dataQualityRows.unlocatedShareEvents, 0)
+  rollups.setGauge(M.statsDataQualitySnapshot, '', dataQualityRows.unlocatedShareViews, 0, 'kind', 'share_views')
+  rollups.setGauge(
+    M.statsDataQualitySnapshot,
+    '',
+    dataQualityRows.unlocatedShareDownloads,
+    0,
+    'kind',
+    'share_downloads',
+  )
+  rollups.setGauge(
+    M.statsDataQualitySnapshot,
+    '',
+    dataQualityRows.storageUsageDriftSpaces,
+    dataQualityRows.storageUsageDriftBytes,
+    'kind',
+    'storage_usage_drift',
+  )
+  rollups.setGauge(M.backgroundJobSnapshot, '', 0, 0)
+  rollups.setGauge(M.remoteDownloadTaskSnapshot, '', 0, 0)
+  rollups.setGauge(M.downloaderSnapshot, '', 0, 0)
+  rollups.setGauge(M.trafficReportSnapshot, '', 0, 0)
+  rollups.setGauge(M.webhookSnapshot, '', 0, 0)
+  for (const row of quotaBaseRows) {
+    const effective = effectiveQuotas.get(row.orgId)
+    if (!effective) throw new Error(`stats_effective_quota_missing:${row.orgId}`)
+    const quota = row.quotaId ? effective.quota : 0
     rollups.setGauge(M.storageUsed, row.orgId, 0, row.used)
-    rollups.setGauge(M.storageQuota, row.orgId, 0, row.quota)
+    rollups.setGauge(M.storageQuota, row.orgId, 0, quota)
     rollups.incrementGauge(M.storageUsed, '', 0, row.used)
-    rollups.incrementGauge(M.storageQuota, '', 1, row.quota)
-    const status =
-      row.quota > 0 && row.used >= row.quota
-        ? 'over'
-        : row.quota > 0 && row.used >= row.quota * 0.8
-          ? 'near'
-          : 'healthy'
+    rollups.incrementGauge(M.storageQuota, '', 1, quota)
+    const status = quota <= 0 ? 'invalid' : row.used >= quota ? 'over' : row.used >= quota * 0.8 ? 'near' : 'healthy'
     rollups.incrementGauge(M.storageQuota, '', 1, 0, 'status', status)
   }
   for (const row of [...inventoryRows, ...inventoryByType, ...inventoryBySize, ...inventoryByAge]) {
     rollups.incrementGauge(M.storageInventory, row.orgId, row.files, row.bytes, row.dimensionKey, row.dimensionValue)
     rollups.incrementGauge(M.storageInventory, '', row.files, row.bytes, row.dimensionKey, row.dimensionValue)
+  }
+  for (const row of trashRows) {
+    rollups.incrementGauge(M.storageTrashSnapshot, row.orgId, row.files, row.bytes)
+    rollups.incrementGauge(M.storageTrashSnapshot, '', row.files, row.bytes)
+    rollups.incrementGauge(M.storageTrashSnapshot, row.orgId, row.files, row.bytes, 'storage_id', row.storageId)
+    rollups.incrementGauge(M.storageTrashSnapshot, '', row.files, row.bytes, 'storage_id', row.storageId)
   }
   for (const row of shareRows) {
     rollups.incrementGauge(M.shareInventory, row.orgId, Number(row.count), 0, 'lifecycle', row.lifecycle)
@@ -459,6 +637,89 @@ async function shareSnapshotGroups(
     .select({ orgId: shares.orgId, lifecycle, count: sql<number>`COUNT(*)` })
     .from(shares)
     .groupBy(shares.orgId, lifecycle)
+}
+
+async function dataQualitySnapshot(db: Database): Promise<{
+  unlocatedShareEvents: number
+  unlocatedShareViews: number
+  unlocatedShareDownloads: number
+  storageUsageDriftSpaces: number
+  storageUsageDriftBytes: number
+}> {
+  const rows = await db.all<{
+    unlocatedShareViews: number
+    unlocatedShareDownloads: number
+    storageUsageDriftSpaces: number
+    storageUsageDriftBytes: number
+  }>(sql`
+    WITH event_counts AS (
+      SELECT
+        COALESCE(CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.shareId') END, target_id) AS share_id,
+        SUM(CASE WHEN action = 'share_view' THEN 1 ELSE 0 END) AS views,
+        SUM(CASE WHEN action = 'share_download' THEN 1 ELSE 0 END) AS downloads
+      FROM activity_events
+      WHERE action IN ('share_view', 'share_download')
+      GROUP BY share_id
+    ),
+    billable_storage AS (
+      SELECT org_id, SUM(bytes) AS bytes
+      FROM (
+        SELECT org_id, COALESCE(size, 0) AS bytes
+        FROM matters
+        WHERE status IN ('active', 'trashed') AND dirtype = 0
+        UNION ALL
+        SELECT org_id, COALESCE(size, 0) AS bytes
+        FROM image_hostings
+        WHERE status = 'active'
+      ) inventory
+      GROUP BY org_id
+    ),
+    storage_drift AS (
+      SELECT ABS(q.used - COALESCE(billable_storage.bytes, 0)) AS bytes
+      FROM org_quotas q
+      JOIN organization o ON o.id = q.org_id
+      LEFT JOIN billable_storage ON billable_storage.org_id = q.org_id
+      WHERE q.used <> COALESCE(billable_storage.bytes, 0)
+    )
+    SELECT
+      COALESCE(SUM(MAX(${shares.views} - COALESCE(event_counts.views, 0), 0)), 0) AS unlocatedShareViews,
+      COALESCE(SUM(MAX(${shares.downloads} - COALESCE(event_counts.downloads, 0), 0)), 0) AS unlocatedShareDownloads,
+      (SELECT COUNT(*) FROM storage_drift) AS storageUsageDriftSpaces,
+      (SELECT COALESCE(SUM(bytes), 0) FROM storage_drift) AS storageUsageDriftBytes
+    FROM ${shares}
+    LEFT JOIN event_counts ON event_counts.share_id = ${shares.id}
+  `)
+  const unlocatedShareViews = Number(rows[0]?.unlocatedShareViews ?? 0)
+  const unlocatedShareDownloads = Number(rows[0]?.unlocatedShareDownloads ?? 0)
+  return {
+    unlocatedShareEvents: unlocatedShareViews + unlocatedShareDownloads,
+    unlocatedShareViews,
+    unlocatedShareDownloads,
+    storageUsageDriftSpaces: Number(rows[0]?.storageUsageDriftSpaces ?? 0),
+    storageUsageDriftBytes: Number(rows[0]?.storageUsageDriftBytes ?? 0),
+  }
+}
+
+async function trashInventoryGroups(
+  db: Database,
+): Promise<Array<{ orgId: string; storageId: string; files: number; bytes: number }>> {
+  const rows = await db
+    .select({
+      orgId: matters.orgId,
+      storageId: matters.storageId,
+      files: sql<number>`COUNT(*)`,
+      bytes: sql<number>`COALESCE(SUM(${matters.size}), 0)`,
+    })
+    .from(matters)
+    .where(
+      and(
+        inArray(matters.status, ['active', 'trashed']),
+        sql`${matters.trashedAt} IS NOT NULL`,
+        eq(matters.dirtype, 0),
+      ),
+    )
+    .groupBy(matters.orgId, matters.storageId)
+  return rows.map((row) => ({ ...row, files: Number(row.files), bytes: Number(row.bytes) }))
 }
 
 type UserInventorySnapshot = {
@@ -550,7 +811,7 @@ async function inventoryGroups(
       dimensionValue: dimensionSql,
     })
     .from(matters)
-    .where(and(eq(matters.status, 'active'), eq(matters.dirtype, 0)))
+    .where(and(eq(matters.status, 'active'), isNull(matters.trashedAt), eq(matters.dirtype, 0)))
     .groupBy(matters.orgId, dimensionSql)
   const imageDimensionSql =
     dimension === 'file_type_group'

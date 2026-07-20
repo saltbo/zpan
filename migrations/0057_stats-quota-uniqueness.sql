@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `org_quotas_org_uniq` ON `org_quotas` (`org_id`);

@@ -246,7 +246,7 @@ describe('selectStorage', () => {
     return createStorageRepo(db).get(created.id)
   }
 
-  it('returns an active storage with unlimited capacity', async () => {
+  it('returns an active storage whose capacity is not reported', async () => {
     const { db } = await createTestApp()
     const created = await seedActive(db)
     const found = await createStorageRepo(db).select()

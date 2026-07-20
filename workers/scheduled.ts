@@ -34,6 +34,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
   const deps = createDeps(platform)
   const cloudBaseUrl = env.ZPAN_CLOUD_URL ?? ZPAN_CLOUD_URL_DEFAULT
   if (event.cron === TRAFFIC_SYNC_CRON) {
+    await deps.quota.reconcileFreePlanBaselines()
     await Promise.all([
       syncPendingCloudTrafficReports(deps, { cloudBaseUrl }),
       syncPendingRemoteDownloadUsageReports(deps, { cloudBaseUrl }),

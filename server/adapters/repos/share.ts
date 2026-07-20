@@ -16,6 +16,7 @@ import {
   type ShareResolution,
 } from '../../usecases/ports'
 import { activityEventValues } from './activity'
+import { adminStatsFactValues } from './admin-stats-fact'
 import { createQuotaRepo } from './quota'
 
 function buildPath(parent: string, name: string): string {
@@ -63,7 +64,22 @@ export function createShareRepo(db: Database): ShareRepo {
         createdAt: now,
       }
 
-      const queries: AtomicQuery[] = [db.insert(shares).values(share)]
+      const queries: AtomicQuery[] = [
+        db.insert(shares).values(share),
+        db
+          .insert(activityEvents)
+          .values(
+            adminStatsFactValues({
+              action: 'stats_share_created',
+              sourceId: share.id,
+              orgId: share.orgId,
+              targetType: 'share',
+              occurredAt: now,
+              metadata: { kind: share.kind },
+            }),
+          )
+          .onConflictDoNothing(),
+      ]
       if (input.recipients && input.recipients.length > 0) {
         const recipientRows = input.recipients.map((r) => ({
           id: nanoid(),

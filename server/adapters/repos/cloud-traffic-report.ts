@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { cloudTrafficReports } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -23,6 +23,8 @@ function toRecord(row: typeof cloudTrafficReports.$inferSelect): CloudTrafficRep
     creditsPerUnit: row.creditsPerUnit,
     status: row.status as CloudTrafficReportStatus,
     error: row.error,
+    attemptCount: row.attemptCount,
+    nextRetryAt: row.nextRetryAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -49,24 +51,43 @@ export function createCloudTrafficReportRepo(db: Database): CloudTrafficReportRe
         creditsPerUnit: input.creditsPerUnit,
         status: input.status,
         error: null,
+        attemptCount: 0,
+        nextRetryAt: null,
         createdAt: input.now,
         updatedAt: input.now,
       })
     },
 
-    async updateStatus(eventId, status, error, now) {
+    async updateStatus(eventId, status, error, now, retry) {
       await db
         .update(cloudTrafficReports)
-        .set({ status, error, updatedAt: now })
+        .set({
+          status,
+          error,
+          updatedAt: now,
+          ...(retry ? { attemptCount: retry.attemptCount, nextRetryAt: retry.nextRetryAt } : {}),
+        })
         .where(eq(cloudTrafficReports.eventId, eventId))
     },
 
-    async listPending(limit) {
+    async listPending(limit, now) {
       const rows = await db
         .select()
         .from(cloudTrafficReports)
-        .where(inArray(cloudTrafficReports.status, ['pending', 'failed']))
-        .orderBy(asc(cloudTrafficReports.createdAt))
+        .where(
+          or(
+            eq(cloudTrafficReports.status, 'pending'),
+            and(
+              eq(cloudTrafficReports.status, 'failed'),
+              or(isNull(cloudTrafficReports.nextRetryAt), lte(cloudTrafficReports.nextRetryAt, now)),
+            ),
+          ),
+        )
+        .orderBy(
+          asc(sql`CASE WHEN ${cloudTrafficReports.status} = 'pending' THEN 0 ELSE 1 END`),
+          asc(cloudTrafficReports.nextRetryAt),
+          asc(cloudTrafficReports.createdAt),
+        )
         .limit(limit)
       return rows.map(toRecord)
     },

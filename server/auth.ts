@@ -27,6 +27,7 @@ import {
 import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
 import { createEmailGateway } from './adapters/gateways/email'
 import { createActivityRepo } from './adapters/repos/activity'
+import { adminStatsFactValues } from './adapters/repos/admin-stats-fact'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createLicenseBindingRepo } from './adapters/repos/license-binding'
 import { createMemberCountRepo } from './adapters/repos/member-count'
@@ -35,7 +36,7 @@ import { createOrgRepo } from './adapters/repos/org'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import * as authSchema from './db/auth-schema'
-import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
+import { activityEvents, orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { executeWriteTransaction } from './db/transaction'
 import { CAPTCHA_AUTH_ENDPOINTS, type CaptchaConfig } from './domain/captcha'
 import { currentTrafficPeriod } from './domain/quota'
@@ -656,6 +657,12 @@ async function createPersonalOrg(
   const orgSlug = await generateUniqueOrgSlug(db, generateUserOrgSlug)
   const quotaValues = await createOrgQuotaValues(db, orgId, now)
   const entitlementValues = await createFreePlanEntitlementValues(db, orgId, now, false)
+  const [account] = await db
+    .select({ providerId: authSchema.account.providerId })
+    .from(authSchema.account)
+    .where(eq(authSchema.account.userId, user.id))
+    .orderBy(authSchema.account.createdAt, authSchema.account.id)
+    .limit(1)
 
   await executeWriteTransaction(db, [
     db.insert(authSchema.organization).values({
@@ -674,6 +681,19 @@ async function createPersonalOrg(
     }),
     db.insert(orgQuotas).values(quotaValues),
     ...entitlementValues.map((value) => db.insert(orgQuotaEntitlements).values(value)),
+    db
+      .insert(activityEvents)
+      .values(
+        adminStatsFactValues({
+          action: 'stats_user_signup',
+          sourceId: user.id,
+          orgId,
+          targetType: 'user',
+          occurredAt: now,
+          metadata: { provider: account?.providerId ?? 'unknown' },
+        }),
+      )
+      .onConflictDoNothing(),
   ])
 
   return orgId

@@ -46,7 +46,7 @@ export function QuotaPanel({ enabled }: { enabled: boolean }) {
         <p className="text-xs text-muted-foreground tabular-nums">
           {quota.quota > 0
             ? t('quota.usage', { used: formatSize(quota.used), total: formatSize(quota.quota) })
-            : t('quota.usageNoLimit', { used: formatSize(quota.used) })}
+            : t('quota.usageInvalid', { used: formatSize(quota.used) })}
         </p>
       ) : (
         <Skeleton className={isLoading ? 'h-3 w-24' : 'h-3 w-16 opacity-50'} />

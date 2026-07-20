@@ -34,6 +34,9 @@ const usageResponseSchema = z.object({
   eventId: z.string().min(1),
 })
 
+const MAX_TRAFFIC_REPORT_ATTEMPTS = 8
+const TERMINAL_TRAFFIC_REPORT_ERRORS = new Set(['usage_idempotency_conflict'])
+
 export async function reportTrafficEgress(
   deps: CloudTrafficMeteringDeps,
   params: {
@@ -114,16 +117,17 @@ export async function reportTrafficEgress(
 export async function syncPendingCloudTrafficReports(
   deps: CloudTrafficMeteringDeps,
   params: { cloudBaseUrl: string; limit?: number; now?: Date },
-): Promise<{ attempted: number; reported: number; blocked: number; failed: number }> {
+): Promise<{ attempted: number; reported: number; blocked: number; failed: number; deadLetter: number }> {
   const { cloudBaseUrl, limit = 100, now = new Date() } = params
   if (!hasFeature('quota_store', await loadBindingState(deps)))
-    return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
+    return { attempted: 0, reported: 0, blocked: 0, failed: 0, deadLetter: 0 }
   const binding = await deps.licenseBinding.loadActiveLicenseBinding()
-  if (!binding?.refreshToken || !binding.cloudStoreId) return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
+  if (!binding?.refreshToken || !binding.cloudStoreId)
+    return { attempted: 0, reported: 0, blocked: 0, failed: 0, deadLetter: 0 }
 
-  const reports = await deps.cloudTrafficReports.listPending(limit)
+  const reports = await deps.cloudTrafficReports.listPending(limit, now)
 
-  const result = { attempted: reports.length, reported: 0, blocked: 0, failed: 0 }
+  const result = { attempted: reports.length, reported: 0, blocked: 0, failed: 0, deadLetter: 0 }
   for (const report of reports) {
     const status = await syncTrafficReport(deps, {
       cloudBaseUrl,
@@ -132,7 +136,7 @@ export async function syncPendingCloudTrafficReports(
       report,
       now,
     })
-    result[status] += 1
+    result[status === 'dead_letter' ? 'deadLetter' : status] += 1
   }
   return result
 }
@@ -146,7 +150,7 @@ async function syncTrafficReport(
     report: CloudTrafficReportRecord
     now: Date
   },
-): Promise<'reported' | 'blocked' | 'failed'> {
+): Promise<'reported' | 'blocked' | 'failed' | 'dead_letter'> {
   const { cloudBaseUrl, refreshToken, storeId, report, now } = params
   try {
     const client = deps.licensingCloud.createBoundCloudClient(cloudBaseUrl, refreshToken)
@@ -179,17 +183,33 @@ async function syncTrafficReport(
       usageResponseSchema,
     )
     if (!response.accepted) throw new Error('cloud_usage_report_rejected')
-    await deps.cloudTrafficReports.updateStatus(report.eventId, 'reported', null, now)
+    await deps.cloudTrafficReports.updateStatus(report.eventId, 'reported', null, now, {
+      attemptCount: report.attemptCount + 1,
+      nextRetryAt: null,
+    })
     return 'reported'
   } catch (error) {
     const message = error instanceof Error ? error.message : 'cloud_usage_report_failed'
     if (message === 'insufficient_credits' || message === 'overage_cap_exceeded') {
-      await deps.cloudTrafficReports.updateStatus(report.eventId, 'blocked', message, now)
+      await deps.cloudTrafficReports.updateStatus(report.eventId, 'blocked', message, now, {
+        attemptCount: report.attemptCount + 1,
+        nextRetryAt: null,
+      })
       return 'blocked'
     }
-    await deps.cloudTrafficReports.updateStatus(report.eventId, 'failed', message, now)
-    return 'failed'
+    const attemptCount = report.attemptCount + 1
+    const terminal = TERMINAL_TRAFFIC_REPORT_ERRORS.has(message) || attemptCount >= MAX_TRAFFIC_REPORT_ATTEMPTS
+    await deps.cloudTrafficReports.updateStatus(report.eventId, terminal ? 'dead_letter' : 'failed', message, now, {
+      attemptCount,
+      nextRetryAt: terminal ? null : nextTrafficReportRetryAt(now, attemptCount),
+    })
+    return terminal ? 'dead_letter' : 'failed'
   }
+}
+
+function nextTrafficReportRetryAt(now: Date, attemptCount: number): Date {
+  const delayMinutes = Math.min(360, 2 ** Math.min(attemptCount - 1, 8))
+  return new Date(now.getTime() + delayMinutes * 60_000)
 }
 
 function assertSameReport(

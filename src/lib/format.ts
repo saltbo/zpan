@@ -13,9 +13,8 @@ export function getInitials(name: string): string {
     .join('')
 }
 
-// "used / total" with ∞ for an unlimited (0 or negative) quota.
 export function formatStorageUsage(used: number, total: number): string {
-  return `${formatSize(used)} / ${total <= 0 ? '∞' : formatSize(total)}`
+  return total > 0 ? `${formatSize(used)} / ${formatSize(total)}` : `${formatSize(used)} / —`
 }
 
 export function formatSize(bytes: number): string {

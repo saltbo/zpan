@@ -228,17 +228,17 @@ describe('computeSourceBytes', () => {
 // ─── isQuotaSufficient ────────────────────────────────────────────────────────
 
 describe('isQuotaSufficient', () => {
-  it('returns true when no quota row exists (unlimited)', async () => {
+  it('returns false when no quota row exists', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
-    expect(await isQuotaSufficient(db, orgId, 9999999)).toBe(true)
+    expect(await isQuotaSufficient(db, orgId, 9999999)).toBe(false)
   })
 
-  it('returns true when quota is 0 (unlimited)', async () => {
+  it('returns false when effective quota is zero', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     await seedOrgQuota(db, orgId, 0)
-    expect(await isQuotaSufficient(db, orgId, 9999999)).toBe(true)
+    expect(await isQuotaSufficient(db, orgId, 9999999)).toBe(false)
   })
 
   it('returns true when bytes fit within quota', async () => {
@@ -270,6 +270,7 @@ describe('saveShareToDrive', () => {
     await insertStorage(db)
     const srcOrgId = nanoid()
     const dstOrgId = nanoid()
+    await seedOrgQuota(db, dstOrgId, 1_000_000_000)
     const matter = await seedMatter(db, { orgId: srcOrgId, size: 2048 })
     const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'u1', kind: 'landing' })
 
@@ -300,6 +301,7 @@ describe('saveShareToDrive', () => {
 
     const srcOrgId = nanoid()
     const dstOrgId = nanoid()
+    await seedOrgQuota(db, dstOrgId, 1_000_000_000)
     const matter = await seedMatter(db, { orgId: srcOrgId, storageId: STORAGE_ID, size: 1024 })
     const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'u1', kind: 'landing' })
 
@@ -324,6 +326,7 @@ describe('saveShareToDrive', () => {
     await insertStorage(db)
     const srcOrgId = nanoid()
     const dstOrgId = nanoid()
+    await seedOrgQuota(db, dstOrgId, 1_000_000_000)
     const fileName = `photo-${nanoid(4)}.pdf`
     const matter = await seedMatter(db, { orgId: srcOrgId, name: fileName, size: 1024 })
     const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'u1', kind: 'landing' })
@@ -352,6 +355,7 @@ describe('saveShareToDrive', () => {
     await insertStorage(db)
     const srcOrgId = nanoid()
     const dstOrgId = nanoid()
+    await seedOrgQuota(db, dstOrgId, 1_000_000_000)
     const matter = await seedMatter(db, { orgId: srcOrgId, size: 512 })
     const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'u1', kind: 'landing' })
 
@@ -379,6 +383,7 @@ describe('saveShareToDrive', () => {
     await insertStorage(db)
     const srcOrgId = nanoid()
     const dstOrgId = nanoid()
+    await seedOrgQuota(db, dstOrgId, 1_000_000_000)
     const matter = await seedMatter(db, { orgId: srcOrgId, size: 512 })
     const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'u1', kind: 'landing' })
 
@@ -461,6 +466,7 @@ describe('saveShareToDrive', () => {
     await insertStorage(db)
     const srcOrgId = nanoid()
     const dstOrgId = nanoid()
+    await seedOrgQuota(db, dstOrgId, 1_000_000_000)
 
     // Build source tree: Photos/ → [img1.jpg, img2.jpg, Sub/ → [img3.jpg]]
     const folder = await seedMatter(db, { orgId: srcOrgId, dirtype: DirType.USER_FOLDER, name: 'Photos', size: 0 })

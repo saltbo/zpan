@@ -107,43 +107,43 @@ async function insertDraftFile(
 // ─── storage usage reservations ───────────────────────────────────────────────
 
 describe('reserveStorageUsage', () => {
-  it('reserves and increments when no quota row exists (unlimited)', async () => {
+  it('fails closed when no quota row exists', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-ul', used: 0 })
 
-    const result = await reserveStorageUsage(
-      { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
-      { orgId, storageId, bytes: 500 },
-    )
-
-    expect(result).toEqual({ orgId, storageId, bytes: 500 })
+    await expect(
+      reserveStorageUsage(
+        { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
+        { orgId, storageId, bytes: 500 },
+      ),
+    ).rejects.toThrow(StorageQuotaExceededError)
     const rows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${storageId}`)
-    expect(rows[0].used).toBe(500)
+    expect(rows[0].used).toBe(0)
   })
 
-  it('reserves and increments when quota is 0 (unlimited)', async () => {
+  it('fails closed when effective quota is zero', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-q0', used: 100 })
     await insertOrgQuota(db, orgId, 0, 5000)
 
-    const result = await reserveStorageUsage(
-      { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
-      { orgId, storageId, bytes: 999999 },
-    )
-
-    expect(result).toEqual({ orgId, storageId, bytes: 999999 })
+    await expect(
+      reserveStorageUsage(
+        { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
+        { orgId, storageId, bytes: 999999 },
+      ),
+    ).rejects.toThrow(StorageQuotaExceededError)
     const rows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${storageId}`)
-    expect(rows[0].used).toBe(1000099)
+    expect(rows[0].used).toBe(100)
   })
 
-  it('treats base quota 0 as unlimited without grant aggregation', async () => {
+  it('treats effective storage quota 0 as invalid', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     await insertOrgQuota(db, orgId, 0, 5000)
 
-    await expect(createQuotaRepo(db).hasQuotaForBytes(orgId, 10_000_000)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).hasQuotaForBytes(orgId, 10_000_000)).resolves.toBe(false)
     await expect(createQuotaRepo(db).getEffectiveQuota(orgId)).resolves.toMatchObject({ baseQuota: 0, quota: 0 })
   })
 

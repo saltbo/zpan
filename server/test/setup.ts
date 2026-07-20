@@ -186,6 +186,7 @@ const APP_SCHEMA_SQL = `
     traffic_used INTEGER NOT NULL DEFAULT 0,
     traffic_period TEXT NOT NULL DEFAULT '1970-01'
   );
+  CREATE UNIQUE INDEX IF NOT EXISTS org_quotas_org_uniq ON org_quotas(org_id);
   CREATE TABLE IF NOT EXISTS cloud_traffic_reports (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
@@ -199,12 +200,15 @@ const APP_SCHEMA_SQL = `
     credits_per_unit INTEGER,
     status TEXT NOT NULL,
     error TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    next_retry_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
   CREATE UNIQUE INDEX IF NOT EXISTS cloud_traffic_reports_event_uniq ON cloud_traffic_reports(event_id);
   CREATE INDEX IF NOT EXISTS cloud_traffic_reports_org_period_idx ON cloud_traffic_reports(org_id, period);
   CREATE INDEX IF NOT EXISTS cloud_traffic_reports_status_idx ON cloud_traffic_reports(status);
+  CREATE INDEX IF NOT EXISTS cloud_traffic_reports_retry_idx ON cloud_traffic_reports(status, next_retry_at, created_at);
   CREATE TABLE IF NOT EXISTS org_quota_entitlements (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
@@ -226,7 +230,7 @@ const APP_SCHEMA_SQL = `
     ON org_quota_entitlements(org_id, resource_type, entitlement_type, status);
   CREATE UNIQUE INDEX IF NOT EXISTS org_quota_entitlements_active_plan_uniq
     ON org_quota_entitlements(org_id, resource_type, entitlement_type)
-    WHERE status = 'active' AND entitlement_type = 'plan';
+    WHERE status = 'active' AND entitlement_type = 'plan' AND source <> 'free_plan';
   CREATE UNIQUE INDEX IF NOT EXISTS org_quota_entitlements_source_resource_uniq
     ON org_quota_entitlements(source, source_id, resource_type);
   CREATE TABLE IF NOT EXISTS webhook_events (

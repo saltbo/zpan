@@ -1997,6 +1997,17 @@ describe('Download tasks API integration', () => {
         runtime: { phase: 'completed' },
       },
     })
+    const terminalFacts = await db.all<{ outcome: string; count: number }>(sql`
+      SELECT json_extract(metadata, '$.outcome') AS outcome, COUNT(*) AS count
+      FROM activity_events
+      WHERE action = 'stats_remote_download_finished' AND target_id = ${createdTask.id}
+      GROUP BY outcome
+      ORDER BY outcome
+    `)
+    expect(terminalFacts).toEqual([
+      { outcome: 'completed', count: 1 },
+      { outcome: 'failed', count: 1 },
+    ])
 
     const seedingAfterRestartRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, {
       method: 'PATCH',

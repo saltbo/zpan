@@ -5,6 +5,7 @@ import type {
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
+  AdminSharingDataQuality,
   AdminStatsRange,
   AdminTransferDataQuality,
 } from '@shared/types'
@@ -68,7 +69,7 @@ import {
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
 } from '@/lib/api'
-import { formatSize } from '@/lib/format'
+import { formatSize as formatByteSize } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/admin/')({
@@ -681,7 +682,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
               label: '配额使用率',
               value: formatPercent(stats.summary.storageUtilization),
             },
-            { label: '文件数', value: formatNumber(stats.summary.fileCount) },
+            { label: '回收站占用', value: formatSize(stats.summary.trashBytes) },
           ]}
         />
         <StatCard
@@ -701,7 +702,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
           icon={Database}
           metrics={[
             { label: '上期新增', value: formatNumber(stats.summary.newFiles.previousValue) },
-            { label: '文件总数', value: formatNumber(stats.summary.fileCount) },
+            { label: '活跃文件总数', value: formatNumber(stats.summary.fileCount) },
           ]}
         />
         <StatCard
@@ -718,9 +719,10 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
         />
       </div>
       <TransferDataQualityNotice quality={stats.dataQuality} />
+      <StorageUsageDataQualityNotice quality={stats.dataQuality} />
       <ChartCard
         title="空间配额压力"
-        subtitle={`全部空间中 ${stats.summary.nearQuotaSpaces} 个达到 80%，${stats.summary.overQuotaSpaces} 个达到或超过配额。`}
+        subtitle={`全部空间中 ${formatNumber(stats.summary.nearQuotaSpaces)} 个达到 80%，${formatNumber(stats.summary.overQuotaSpaces)} 个达到或超过配额，${formatNumber(stats.summary.invalidQuotaSpaces)} 个额度配置异常。`}
         contentClassName="h-auto"
       >
         {stats.topSpaces.length === 0 ? (
@@ -1116,7 +1118,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           ]}
         />
         <StatCard
-          label="访问次数"
+          label="已定位访问"
           value={formatNumber(stats.summary.views.value)}
           delta={formatDelta(stats.summary.views)}
           icon={Activity}
@@ -1126,7 +1128,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           ]}
         />
         <StatCard
-          label="下载签发"
+          label="已定位下载签发"
           value={formatNumber(stats.summary.downloads.value)}
           delta={formatDelta(stats.summary.downloads)}
           icon={Download}
@@ -1149,8 +1151,9 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           ]}
         />
       </div>
+      <SharingDataQualityNotice quality={stats.dataQuality} />
       <div className="grid gap-4">
-        <ChartCard title="访问行为趋势" subtitle="这些是独立事件量，不表示同一访客完成了连续漏斗。">
+        <ChartCard title="访问行为趋势" subtitle="仅展示能定位到具体时间的独立事件，不表示同一访客完成了连续漏斗。">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={stats.trend}>
               <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
@@ -1236,7 +1239,7 @@ function OperationsSection({ stats }: { stats: AdminDashboardOperationsStats }) 
           icon={FileClock}
           metrics={[
             { label: '计量积压', value: formatNumber(stats.summary.cloudReportBacklog) },
-            { label: 'Webhook 失败', value: formatNumber(stats.summary.webhookFailures) },
+            { label: '计量死信', value: formatNumber(stats.summary.cloudReportDeadLetters) },
           ]}
         />
       </div>
@@ -1530,11 +1533,30 @@ function QueryState<T extends AdminStatsRange>({
 function StatsCoverageNotice({ stats }: { stats: AdminStatsRange }) {
   const { coverage } = stats
   const comparisonCoverage = stats.comparisonCoverage
+  const snapshotCoverage = stats.snapshotCoverage
+  const comparisonSnapshotCoverage = stats.comparisonSnapshotCoverage
   const through = coverage.dataThrough
     ? new Date(coverage.dataThrough).toISOString().replace('T', ' ').slice(0, 16)
     : null
+  const snapshotThrough = snapshotCoverage?.dataThrough
+    ? new Date(snapshotCoverage.dataThrough).toISOString().replace('T', ' ').slice(0, 16)
+    : null
   const comparisonIncomplete = comparisonCoverage ? comparisonCoverage.status !== 'complete' : false
-  const incomplete = coverage.status !== 'complete' || comparisonIncomplete
+  const lowerBound =
+    coverage.quality === 'lower_bound' ||
+    comparisonCoverage?.quality === 'lower_bound' ||
+    snapshotCoverage?.quality === 'lower_bound' ||
+    comparisonSnapshotCoverage?.quality === 'lower_bound'
+  const snapshotIncomplete = snapshotCoverage ? snapshotCoverage.status !== 'complete' : false
+  const comparisonSnapshotIncomplete = comparisonSnapshotCoverage
+    ? comparisonSnapshotCoverage.status !== 'complete'
+    : false
+  const incomplete =
+    coverage.status !== 'complete' ||
+    comparisonIncomplete ||
+    snapshotIncomplete ||
+    comparisonSnapshotIncomplete ||
+    lowerBound
   return (
     <div
       role="status"
@@ -1544,22 +1566,37 @@ function StatsCoverageNotice({ stats }: { stats: AdminStatsRange }) {
       )}
     >
       <span className={incomplete ? 'text-amber-800 dark:text-amber-200' : 'text-muted-foreground'}>
-        {coverage.status === 'empty'
-          ? '所选范围还没有可用的离线结果。'
-          : coverage.status === 'partial'
-            ? '所选范围存在缺失的小时结果，当前数据不完整。'
-            : comparisonCoverage?.status === 'empty'
-              ? '对比区间还没有可用的离线结果，环比不可对账。'
-              : comparisonCoverage?.status === 'partial'
-                ? '对比区间存在缺失的小时结果，环比数据不完整。'
-                : '所选范围的离线结果完整。'}
+        {lowerBound
+          ? '部分小时只有可验证的数据下限；页面不会把这些数值表述为完整事实。'
+          : coverage.status === 'empty'
+            ? '所选范围还没有可用的离线结果。'
+            : coverage.status === 'partial'
+              ? '所选范围存在缺失的小时结果，当前数据不完整。'
+              : comparisonCoverage?.status === 'empty'
+                ? '对比区间还没有可用的离线结果，环比不可对账。'
+                : comparisonCoverage?.status === 'partial'
+                  ? '对比区间存在缺失的小时结果，环比数据不完整。'
+                  : snapshotCoverage?.status === 'empty'
+                    ? '所选范围没有可用的状态快照；状态类指标显示为 —，不会伪装成 0。'
+                    : snapshotCoverage?.status === 'partial'
+                      ? '所选范围的事件结果完整，但状态快照仅覆盖部分小时。'
+                      : comparisonSnapshotCoverage?.status === 'empty'
+                        ? '对比区间没有状态快照，状态类环比不可对账。'
+                        : comparisonSnapshotCoverage?.status === 'partial'
+                          ? '对比区间的状态快照不完整，状态类环比不可对账。'
+                          : '所选范围的离线结果完整。'}
       </span>
       <span className="text-xs text-muted-foreground">
         {through ? `数据截至 ${through} UTC · ` : ''}
         当前 {coverage.completedBuckets}/{coverage.expectedBuckets} 小时
+        {coverage.lowerBoundBuckets > 0 ? ` · 下限 ${coverage.lowerBoundBuckets} 小时` : ''}
         {comparisonCoverage
           ? ` · 对比 ${comparisonCoverage.completedBuckets}/${comparisonCoverage.expectedBuckets} 小时`
           : ''}
+        {snapshotCoverage
+          ? ` · 快照 ${snapshotCoverage.completedBuckets}/${snapshotCoverage.expectedBuckets} 小时`
+          : ''}
+        {snapshotThrough ? ` · 快照采样于 ${snapshotThrough} UTC` : ''}
       </span>
     </div>
   )
@@ -1594,6 +1631,42 @@ function TransferDataQualityNotice({ quality }: { quality: AdminTransferDataQual
       <span className="text-muted-foreground">
         当前区间有 {formatNumber(currentMissing)} 条、对比区间有 {formatNumber(previousMissing)}
         条传输事件缺少可恢复的字节数；流量与新增容量仅代表已知下限，事件数量不受影响。
+      </span>
+    </div>
+  )
+}
+
+function SharingDataQualityNotice({ quality }: { quality: AdminSharingDataQuality }) {
+  if (quality.unlocatedEvents === null || quality.unlocatedEvents === 0) return null
+  return (
+    <div
+      role="status"
+      className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center"
+    >
+      <Badge variant="outline" className="w-fit border-amber-600/50 text-amber-700 dark:text-amber-300">
+        历史事件无法定位
+      </Badge>
+      <span className="text-muted-foreground">
+        现存分享累计计数中有 {formatNumber(quality.unlocatedViews)} 次访问和 {formatNumber(quality.unlocatedDownloads)}{' '}
+        次下载没有可信时间戳；区间值仅为已定位下限，相关环比和每百次访问比例已隐藏。
+      </span>
+    </div>
+  )
+}
+
+function StorageUsageDataQualityNotice({ quality }: { quality: AdminDashboardStorageStats['dataQuality'] }) {
+  if (quality.usageDriftSpaces === null || quality.usageDriftSpaces === 0) return null
+  return (
+    <div
+      role="status"
+      className="flex flex-col gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center"
+    >
+      <Badge variant="outline" className="w-fit border-red-600/50 text-red-700 dark:text-red-300">
+        占用账本异常
+      </Badge>
+      <span className="text-muted-foreground">
+        {formatNumber(quality.usageDriftSpaces)} 个空间的配额占用账本与可计费对象相差{' '}
+        {formatSize(quality.usageDriftBytes)}；修复前不要把配额水位作为准确事实。
       </span>
     </div>
   )
@@ -1646,8 +1719,13 @@ function normalizeDateRange(range: DateRange): DateRange {
   return { from: range.to, to: range.from }
 }
 
-function formatNumber(value: number): string {
+function formatNumber(value: number | null): string {
+  if (value === null) return '—'
   return new Intl.NumberFormat().format(value)
+}
+
+function formatSize(value: number | null): string {
+  return value === null ? '—' : formatByteSize(value)
 }
 
 function formatChartDate(value: unknown): string {
@@ -1671,9 +1749,10 @@ function formatPer100(value: number | null): string {
 }
 
 function formatDelta(
-  delta: { value: number; previousValue: number; change: number; changePercent: number | null },
+  delta: { value: number | null; previousValue: number | null; change: number | null; changePercent: number | null },
   valueFormatter: (value: number) => string = formatNumber,
 ): string {
+  if (delta.change === null) return '—'
   const sign = delta.change >= 0 ? '+' : ''
   return `${sign}${valueFormatter(delta.change)} (${formatPercent(delta.changePercent)})`
 }

@@ -152,6 +152,7 @@ function revokeExistingPlanQueries(
           eq(orgQuotaEntitlements.resourceType, value.resourceType),
           eq(orgQuotaEntitlements.entitlementType, 'plan'),
           eq(orgQuotaEntitlements.status, 'active'),
+          sql`${orgQuotaEntitlements.source} <> 'free_plan'`,
           sql`${orgQuotaEntitlements.sourceId} != ${value.sourceId}`,
         ),
       ),

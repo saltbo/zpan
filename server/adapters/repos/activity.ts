@@ -1,10 +1,11 @@
-import { and, count, desc, eq, gte, lte } from 'drizzle-orm'
+import { and, count, desc, eq, gte, lte, notInArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { organization, user } from '../../db/auth-schema'
 import { activityEvents } from '../../db/schema'
 import { assertAdminStatsEvent } from '../../domain/admin-stats-events'
 import type { Database } from '../../platform/interface'
 import type { ActivityActorType, ActivityRepo, RecordActivityInput } from '../../usecases/ports'
+import { ADMIN_STATS_FACT_ACTIONS } from './admin-stats-fact'
 
 export function activityEventValues(event: RecordActivityInput): typeof activityEvents.$inferInsert {
   assertAdminStatsEvent(event.action, event.metadata)
@@ -47,7 +48,11 @@ export function createActivityRepo(db: Database): ActivityRepo {
       const pageSize = opts.pageSize ?? 20
       const offset = (page - 1) * pageSize
 
-      const countRows = await db.select({ count: count() }).from(activityEvents).where(eq(activityEvents.orgId, orgId))
+      const visible = and(
+        eq(activityEvents.orgId, orgId),
+        notInArray(activityEvents.action, [...ADMIN_STATS_FACT_ACTIONS]),
+      )
+      const countRows = await db.select({ count: count() }).from(activityEvents).where(visible)
       const total = countRows[0]?.count ?? 0
 
       const rows = await db
@@ -68,7 +73,7 @@ export function createActivityRepo(db: Database): ActivityRepo {
         })
         .from(activityEvents)
         .leftJoin(user, eq(activityEvents.userId, user.id))
-        .where(eq(activityEvents.orgId, orgId))
+        .where(visible)
         .orderBy(desc(activityEvents.createdAt))
         .limit(pageSize)
         .offset(offset)
@@ -104,6 +109,7 @@ export function createActivityRepo(db: Database): ActivityRepo {
       const offset = (page - 1) * pageSize
 
       const filters = [
+        notInArray(activityEvents.action, [...ADMIN_STATS_FACT_ACTIONS]),
         opts.orgId ? eq(activityEvents.orgId, opts.orgId) : undefined,
         opts.userId ? eq(activityEvents.userId, opts.userId) : undefined,
         opts.action ? eq(activityEvents.action, opts.action) : undefined,
@@ -176,6 +182,7 @@ export function createActivityRepo(db: Database): ActivityRepo {
         eq(activityEvents.orgId, opts.orgId),
         eq(activityEvents.targetType, opts.targetType),
         eq(activityEvents.targetId, opts.targetId),
+        notInArray(activityEvents.action, [...ADMIN_STATS_FACT_ACTIONS]),
       )
 
       const [countRows, rows] = await Promise.all([

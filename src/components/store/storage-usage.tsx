@@ -80,6 +80,7 @@ function PlanUsageOverview({ quota }: { quota: UserQuota }) {
         label={t('storage.storageUsage')}
         used={quota.used}
         total={quota.quota}
+        allowUnlimited={false}
         detail={t('storage.storageUsageDetail', { used: formatSize(quota.used) })}
       />
       <UsageMeter
@@ -87,6 +88,7 @@ function PlanUsageOverview({ quota }: { quota: UserQuota }) {
         label={t('storage.trafficUsage')}
         used={quota.trafficUsed}
         total={quota.trafficQuota}
+        allowUnlimited
         detail={t('storage.trafficPeriodDetail', { period: quota.trafficPeriod })}
       />
     </div>
@@ -98,16 +100,19 @@ function UsageMeter({
   label,
   used,
   total,
+  allowUnlimited,
   detail,
 }: {
   icon: React.ReactNode
   label: string
   used: number
   total: number
+  allowUnlimited: boolean
   detail: string
 }) {
   const { t } = useTranslation()
-  const percent = total > 0 ? Math.min(100, (used / total) * 100) : 100
+  const invalid = total <= 0 && !allowUnlimited
+  const percent = total > 0 ? Math.min(100, (used / total) * 100) : invalid ? 0 : 100
   return (
     <div className="min-w-0 rounded-md bg-muted/20 p-4">
       <div className="flex items-center justify-between gap-3">
@@ -116,7 +121,9 @@ function UsageMeter({
           <span>{label}</span>
         </span>
         <span className="shrink-0 text-xs text-muted-foreground">
-          {total > 0 ? t('storage.usageTotal', { total: formatSize(total) }) : t('storage.usageNoLimit')}
+          {total > 0
+            ? t('storage.usageTotal', { total: formatSize(total) })
+            : t(invalid ? 'storage.usageInvalid' : 'storage.usageNoLimit')}
         </span>
       </div>
       <div className="mt-3 space-y-2">
