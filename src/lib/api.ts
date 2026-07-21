@@ -37,6 +37,7 @@ import type {
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
+  AdminOverview,
   Announcement,
   AuthProvider,
   AuthProviderList,
@@ -72,6 +73,7 @@ import type {
 import {
   adminAuditApi,
   adminDownloadersApi,
+  adminOverviewApi,
   adminQuotas,
   adminSiteInvitations,
   adminTeams,
@@ -113,6 +115,10 @@ export function getSiteConfig() {
 
 export function getSiteSettings() {
   return unwrap<SiteSettings>(siteSettingsApi.index.$get())
+}
+
+export function getAdminOverview() {
+  return unwrap<AdminOverview>(adminOverviewApi.index.$get())
 }
 
 export function updateSiteIdentity(input: UpdateSiteIdentityInput) {

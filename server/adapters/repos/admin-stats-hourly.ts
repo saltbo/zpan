@@ -109,8 +109,14 @@ export class AdminStatsHourlyReader {
     }))
   }
 
-  async topSpaceUsage(): Promise<Array<{ orgId: string; usedBytes: number; quotaBytes: number }>> {
+  async topSpaceUsage(
+    options: { limit?: number; personalOnly?: boolean } = {},
+  ): Promise<Array<{ orgId: string; usedBytes: number; quotaBytes: number }>> {
     if (this.queryFrom >= this.queryTo) return []
+    const limit = options.limit ?? DASHBOARD_RANKING_LIMIT
+    const personalFilter = options.personalOnly
+      ? sql`AND (org.slug LIKE 'personal-%' OR (json_valid(org.metadata) = 1 AND json_extract(org.metadata, '$.type') = 'personal'))`
+      : sql``
     const rows = await this.db.all<{ orgId: string; usedBytes: number; quotaBytes: number }>(sql`
       WITH latest AS (
         SELECT MAX(bucket_start) AS bucketStart
@@ -136,6 +142,7 @@ export class AdminStatsHourlyReader {
         AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.version') END = ${ROLLUP_VERSION}
         AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.scope') END IN ('snapshots', 'full')
         AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.quality') END IN ('exact', 'lower_bound')
+      INNER JOIN organization org ON org.id = used.org_id
       WHERE used.bucket_start = (SELECT bucketStart FROM latest)
         AND used.org_id <> ''
         AND used.metric_key = ${ADMIN_STATS_METRICS.storageUsed}
@@ -144,8 +151,9 @@ export class AdminStatsHourlyReader {
         AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.version') END = ${ROLLUP_VERSION}
         AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.scope') END IN ('snapshots', 'full')
         AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.quality') END IN ('exact', 'lower_bound')
+        ${personalFilter}
       ORDER BY used.bytes DESC, used.org_id
-      LIMIT ${DASHBOARD_RANKING_LIMIT}
+      LIMIT ${limit}
     `)
     return rows.map((row: { orgId: string; usedBytes: number; quotaBytes: number }) => ({
       orgId: row.orgId,

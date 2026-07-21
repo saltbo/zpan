@@ -5,6 +5,7 @@ import type {
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
+  AdminOverviewStatistics,
 } from '@shared/types'
 
 export interface AdminStatsRepo {
@@ -17,6 +18,7 @@ export interface AdminStatsRepo {
   getDashboardStorageStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardStorageStats>
   getDashboardTrafficStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardTrafficStats>
   getDashboardSharingStats(now: Date, range: AdminStatsDateRange): Promise<AdminDashboardSharingStats>
+  getOverviewStatistics(now: Date, range: AdminStatsDateRange): Promise<AdminOverviewStatistics>
 }
 
 export interface AdminStatsDateRange {

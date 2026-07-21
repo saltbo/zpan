@@ -45,6 +45,7 @@ import {
   getAdminDashboardSharingStats,
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
+  getAdminOverview,
   getAnnouncement,
   getBackgroundJob,
   getChangelog,
@@ -3880,6 +3881,49 @@ describe('api', () => {
         await expect(endpoint.fn(range)).rejects.toMatchObject({ status: 402 })
       })
     }
+  })
+
+  describe('admin runtime overview API', () => {
+    const overview = {
+      observedAt: '2026-07-20T18:00:00.000Z',
+      status: 'healthy',
+      alerts: [],
+      storages: { total: 1, writable: 1, items: [] },
+      downloaders: {
+        total: 1,
+        online: 1,
+        activeTasks: 0,
+        totalSlots: 2,
+        availableSlots: 2,
+        downloadBps: 0,
+        uploadBps: 0,
+        items: [],
+      },
+      queue: { waiting: 0, oldestCreatedAt: null },
+      license: {
+        bound: false,
+        active: false,
+        lastRefreshAt: null,
+        lastRefreshError: null,
+        certificateExpiresAt: null,
+      },
+    }
+
+    it('GETs the type-safe site overview resource', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(overview))
+
+      await expect(getAdminOverview()).resolves.toEqual(overview)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/site/overview')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws ApiError when the overview request fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'overview failed' }, false, 500))
+
+      await expect(getAdminOverview()).rejects.toMatchObject({ status: 500 })
+    })
   })
 
   describe('listAdminAuditLogs', () => {

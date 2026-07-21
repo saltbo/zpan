@@ -1,6 +1,7 @@
 import type {
   AdminAuditRoute,
   AdminInviteCodesRoute,
+  AdminOverviewRoute,
   AdminQuotasRoute,
   AdminSiteInvitationsRoute,
   AdminStatsRoute,
@@ -81,5 +82,6 @@ export const licensingApi = hc<LicensingRoute>('/api/site/licensing', opts)
 export const licensingAdminApi = hc<LicensingAdminRoute>('/api/site/licensing', opts)
 export const brandingAdminApi = hc<BrandingAdminRoute>('/api/site/branding', opts)
 export const adminAuditApi = hc<AdminAuditRoute>('/api/site/audit-events', opts)
+export const adminOverviewApi = hc<AdminOverviewRoute>('/api/site/overview', opts)
 export const siteStatsApi = hc<AdminStatsRoute>('/api/site/stats', opts)
 export const publicSiteInvitations = hc<PublicSiteInvitationsRoute>('/api/site/invitations', opts)

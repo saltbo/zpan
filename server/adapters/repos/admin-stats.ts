@@ -6,6 +6,7 @@ import type {
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
+  AdminOverviewStatistics,
   AdminSharingDataQuality,
   AdminStatsDelta,
   AdminStorageDataQuality,
@@ -13,7 +14,7 @@ import type {
   AdminTransferDataQuality,
 } from '@shared/types'
 import { and, eq, gte, inArray, lte } from 'drizzle-orm'
-import { organization, user } from '../../db/auth-schema'
+import { member, organization, user } from '../../db/auth-schema'
 import { matters, shares, statsRollupsHourly } from '../../db/schema'
 import {
   ADMIN_STATS_METRICS,
@@ -38,7 +39,88 @@ export function createAdminStatsRepo(db: Database): AdminStatsRepo {
     getDashboardStorageStats: (now, range) => getDashboardStorageStats(db, now, range),
     getDashboardTrafficStats: (now, range) => getDashboardTrafficStats(db, now, range),
     getDashboardSharingStats: (now, range) => getDashboardSharingStats(db, now, range),
+    getOverviewStatistics: (now, range) => getOverviewStatistics(db, now, range),
   }
+}
+
+async function getOverviewStatistics(
+  db: Database,
+  now: Date,
+  range: AdminStatsDateRange,
+): Promise<AdminOverviewStatistics> {
+  const effective = effectiveRange(range, now)
+  const reader = new AdminStatsHourlyReader(db, effective, now)
+  const [inventory, active, newUsersByDay, totalUsersByDay, activeByDay, storageUsedByDay, topUsage] =
+    await Promise.all([
+      getUserInventory(reader),
+      getActiveUserSnapshot(reader),
+      getSignupsByDay(reader),
+      getUserTotalsByDay(reader),
+      getRollingActiveUserTrend(reader, effective),
+      getStorageUsedByDay(reader),
+      getTopPersonalUsage(db, reader),
+    ])
+  const dates = createDateBuckets(effective)
+  const activeByDate = new Map(activeByDay.map((row) => [row.date, row]))
+  const dau = active?.dau ?? null
+  const wau = active?.wau ?? null
+  const mau = active?.mau ?? null
+
+  return {
+    users: {
+      total: inventory?.total ?? null,
+      active30Days: mau,
+      new7Days: dates.slice(-7).reduce((total, date) => total + (newUsersByDay.get(date) ?? 0), 0),
+      activity: {
+        today: dau,
+        last7Days: dau === null || wau === null ? null : Math.max(0, wau - dau),
+        last30Days: wau === null || mau === null ? null : Math.max(0, mau - wau),
+        inactive: inventory === null || mau === null ? null : Math.max(0, inventory.total - mau),
+      },
+      trend: dates.map((date) => ({
+        date,
+        totalUsers: totalUsersByDay.get(date) ?? null,
+        activeUsers: activeByDate.get(date)?.mau ?? null,
+        newUsers: newUsersByDay.get(date) ?? 0,
+      })),
+      topUsage,
+    },
+    storageTrend: dates.map((date) => ({ date, usedBytes: storageUsedByDay.get(date) ?? null })),
+  }
+}
+
+async function getTopPersonalUsage(
+  db: Database,
+  reader: AdminStatsHourlyReader,
+): Promise<AdminOverviewStatistics['users']['topUsage']> {
+  const usage = await reader.topSpaceUsage({ limit: 10, personalOnly: true })
+  if (usage.length === 0) return []
+
+  const owners = await db
+    .select({ orgId: organization.id, userId: user.id, name: user.name, email: user.email })
+    .from(organization)
+    .innerJoin(member, and(eq(member.organizationId, organization.id), eq(member.role, 'owner')))
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(
+      inArray(
+        organization.id,
+        usage.map((row) => row.orgId),
+      ),
+    )
+  const ownerByOrg = new Map(owners.map((owner) => [owner.orgId, owner]))
+
+  return usage.flatMap((row) => {
+    const owner = ownerByOrg.get(row.orgId)
+    if (!owner) return []
+    return {
+      userId: owner.userId,
+      name: owner.name || owner.email,
+      email: owner.email,
+      usedBytes: row.usedBytes,
+      quotaBytes: row.quotaBytes,
+      utilization: row.quotaBytes > 0 ? percent(row.usedBytes, row.quotaBytes) : null,
+    }
+  })
 }
 
 async function refreshHourlyRollups(db: Database, now: Date) {

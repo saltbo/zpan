@@ -35,6 +35,12 @@
   --color-input: oklch(0.92 0.003 247);
   --color-ring: var(--zpan-theme-ring);
 
+  /* ── Data visualization ────────────────────────────── */
+  --color-chart-1: var(--zpan-theme-primary);
+  --color-chart-2: var(--zpan-theme-chart-teal);
+  --color-chart-3: var(--zpan-theme-chart-violet);
+  --color-chart-muted: var(--zpan-theme-chart-muted);
+
   /* ── Sidebar ───────────────────────────────────────── */
   --color-sidebar: oklch(0.972 0.003 247.9);
   --color-sidebar-foreground: oklch(0.38 0.012 258);
@@ -55,6 +61,9 @@
   --zpan-theme-canvas: oklch(0.978 0.006 247);
   --zpan-theme-sidebar-accent: oklch(0.93 0.042 256);
   --zpan-theme-ring: oklch(0.587 0.201 258.4);
+  --zpan-theme-chart-teal: oklch(0.61 0.13 185);
+  --zpan-theme-chart-violet: oklch(0.62 0.18 292);
+  --zpan-theme-chart-muted: oklch(0.86 0.01 255);
   --zpan-scrollbar-thumb: oklch(0.66 0.028 252);
   --zpan-scrollbar-thumb-hover: var(--zpan-theme-primary);
 }
@@ -90,6 +99,9 @@
   --color-border: oklch(0.34 0.005 250);
   --color-input: oklch(0.34 0.005 250);
   --zpan-theme-ring: oklch(0.764 0.111 254.1);
+  --zpan-theme-chart-teal: oklch(0.75 0.12 185);
+  --zpan-theme-chart-violet: oklch(0.75 0.13 292);
+  --zpan-theme-chart-muted: oklch(0.43 0.01 255);
 
   /* ── Sidebar ───────────────────────────────────────── */
   --color-sidebar: oklch(0.26 0.003 250);

@@ -10,6 +10,9 @@ test.describe('Admin sidebar responsive', () => {
 
     const sidebar = page.locator('[data-slot="sidebar"]')
     await expect(sidebar).toBeVisible()
+
+    const navLinks = await sidebar.locator('a').evaluateAll((links) => links.map((link) => link.getAttribute('href')))
+    expect(navLinks.indexOf('/admin/analytics')).toBe(navLinks.indexOf('/admin/audit') + 1)
   })
 
   test('mobile: admin sidebar opens via trigger @mobile', async ({ page }) => {
@@ -22,6 +25,34 @@ test.describe('Admin sidebar responsive', () => {
     await expect(trigger).toBeVisible()
     await trigger.click()
     await expect(sidebar).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Admin overview dashboard
+// ---------------------------------------------------------------------------
+test.describe('Admin overview dashboard responsive', () => {
+  test('dashboard widgets stay inside the viewport @all', async ({ page }) => {
+    await signInAsAdmin(page)
+    await page.goto('/admin')
+    await page.waitForURL(/\/admin\/dashboard\/?$/, { timeout: 10000 })
+
+    const cards = page.locator('[data-slot="card"]')
+    await expect(cards).toHaveCount(12)
+
+    const hasHScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    )
+    expect(hasHScroll).toBe(false)
+
+    const viewport = page.viewportSize()
+    expect(viewport).not.toBeNull()
+    for (const card of await cards.all()) {
+      const box = await card.boundingBox()
+      expect(box).not.toBeNull()
+      expect(box?.x).toBeGreaterThanOrEqual(0)
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual((viewport?.width ?? 0) + 1)
+    }
   })
 })
 

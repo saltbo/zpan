@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { assertMetricDimension, ADMIN_STATS_METRICS as M, metricDefinition } from '../../domain/admin-stats-metrics'
 import { adminHeaders, createTestApp } from '../../test/setup.js'
+import { createAdminStatsRepo } from './admin-stats'
 import { AdminStatsHourlyReader } from './admin-stats-hourly'
 import {
   ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE,
@@ -268,6 +269,20 @@ describe('admin hourly stats rollup', () => {
       quality: 'exact',
       dataThrough: generatedAt.toISOString(),
     })
+
+    const overview = await createAdminStatsRepo(db).getOverviewStatistics(new Date('2026-07-10T13:30:00.000Z'), {
+      from: bucketStart,
+      to: new Date('2026-07-10T12:59:59.999Z'),
+      timeZone: 'UTC',
+    })
+    expect(overview.users).toMatchObject({
+      total: 2,
+      active30Days: 1,
+      new7Days: 2,
+      activity: { today: 1, last7Days: 0, last30Days: 0, inactive: 1 },
+    })
+    expect(overview.users.topUsage[0]).toMatchObject({ usedBytes: 1300, quotaBytes: 1000 })
+    expect(overview.storageTrend).toContainEqual({ date: '2026-07-10', usedBytes: 1300 })
 
     const second = await rebuildAdminStatsHour(db, bucketStart, generatedAt)
     const [{ count: storedRows }] = await db.all<{ count: number }>(sql`

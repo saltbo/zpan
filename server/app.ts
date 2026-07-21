@@ -6,6 +6,7 @@ import { cors } from 'hono/cors'
 import type { Auth } from './auth'
 import { createDeps } from './composition'
 import { isPotentialWebDavPublicRequest, isWebDavPublicRequest } from './domain/webdav-public-url'
+import { adminOverview } from './http/admin-overview'
 import { adminStats } from './http/admin-stats'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
@@ -236,6 +237,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/site/licensing', licensingAdmin)
   app.route('/api/site/branding', brandingAdmin)
   app.route('/api/site/audit-events', adminAudit)
+  app.route('/api/site/overview', adminOverview)
   app.route('/api/site/stats', adminStats)
   app.route('/api/downloads/downloaders', downloaders)
 
@@ -348,4 +350,5 @@ export type LicensingRoute = typeof licensing
 export type LicensingAdminRoute = typeof licensingAdmin
 export type BrandingAdminRoute = typeof brandingAdmin
 export type AdminAuditRoute = typeof adminAudit
+export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats

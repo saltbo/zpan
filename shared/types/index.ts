@@ -204,6 +204,13 @@ export interface PaginatedResponse<T> {
 }
 
 export type {
+  AdminOverview,
+  AdminOverviewDownloader,
+  AdminOverviewStatistics,
+  AdminOverviewStorage,
+  AdminOverviewUserUsage,
+} from './admin-overview'
+export type {
   AdminDashboardGrowthStats,
   AdminDashboardOperationsStats,
   AdminDashboardOverviewStats,
