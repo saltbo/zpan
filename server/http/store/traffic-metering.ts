@@ -64,6 +64,7 @@ export async function reportTrafficForDownload(
     storage: DownloadTrafficStorage
     source: TrafficReportSource
     sourceId: string
+    eventId?: string
     onRejected?: () => Promise<void>
   },
 ): Promise<Response | null> {
@@ -74,6 +75,7 @@ export async function reportTrafficForDownload(
     storage: params.storage,
     source: params.source,
     sourceId: params.sourceId,
+    eventId: params.eventId,
     onRejected: params.onRejected,
   })
   // reportDownloadEgress never consumes quota, so it cannot return quota_exceeded.

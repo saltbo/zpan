@@ -57,9 +57,10 @@ describe('admin stats backfill', () => {
         metadata TEXT, created_at INTEGER NOT NULL
       );
       CREATE TABLE cloud_traffic_reports (
-        id TEXT PRIMARY KEY, org_id TEXT NOT NULL, source TEXT NOT NULL, source_id TEXT NOT NULL,
+        id TEXT PRIMARY KEY, org_id TEXT NOT NULL, period TEXT NOT NULL, source TEXT NOT NULL, source_id TEXT NOT NULL,
         event_id TEXT NOT NULL UNIQUE, bytes INTEGER NOT NULL, storage_id TEXT, unit_bytes INTEGER,
-        credits_per_unit INTEGER, status TEXT NOT NULL, error TEXT,
+        credits_per_unit INTEGER, status TEXT NOT NULL, error TEXT, attempt_count INTEGER NOT NULL DEFAULT 0,
+        next_retry_at INTEGER, issued_at INTEGER,
         created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
       );
       CREATE TABLE download_tasks (
@@ -114,10 +115,13 @@ describe('admin stats backfill', () => {
         ('task-completed', 'o1', 'u1', 'user', NULL, 'download_task_completed', 'remote_download', 't1', 'task', NULL, ${eventSec + 2}),
         ('blocked-download', 'o1', 'u1', 'user', NULL, 'download_failed', 'file', 'f1', 'file.bin',
           '{"bytes":512,"source":"object_download","reason":"quota_exceeded","trafficEventId":"traffic-3"}', ${eventSec});
-      INSERT INTO cloud_traffic_reports VALUES
-        ('r1', 'o1', 'direct_share', 's1', 'traffic-1', 512, NULL, NULL, NULL, 'reported', NULL, ${eventMs}, ${eventMs}),
-        ('r2', 'o1', 'image_hosting', 'img1', 'traffic-2', 128, NULL, NULL, NULL, 'reported', NULL, ${eventMs}, ${eventMs}),
-        ('r3', 'o1', 'object_download', 'f1', 'traffic-3', 512, NULL, NULL, NULL, 'blocked', 'quota_exceeded', ${eventMs}, ${eventMs});
+      INSERT INTO cloud_traffic_reports (
+        id, org_id, period, source, source_id, event_id, bytes, storage_id, unit_bytes, credits_per_unit,
+        status, error, attempt_count, next_retry_at, issued_at, created_at, updated_at
+      ) VALUES
+        ('r1', 'o1', '2026-07', 'direct_share', 's1', 'traffic-1', 512, NULL, NULL, NULL, 'reported', NULL, 0, NULL, NULL, ${eventMs}, ${eventMs}),
+        ('r2', 'o1', '2026-07', 'image_hosting', 'img1', 'traffic-2', 128, NULL, NULL, NULL, 'reported', NULL, 0, NULL, NULL, ${eventMs}, ${eventMs}),
+        ('r3', 'o1', '2026-07', 'object_download', 'f1', 'traffic-3', 512, NULL, NULL, NULL, 'blocked', 'quota_exceeded', 0, NULL, NULL, ${eventMs}, ${eventMs});
       INSERT INTO download_tasks VALUES
         ('t1', 'o1', 'video', 'url', 'd1', 'completed', 512, ${eventMs}, ${eventMs}),
         ('t2', 'o1', NULL, 'url', NULL, 'canceled', 0, ${eventMs}, ${eventMs});

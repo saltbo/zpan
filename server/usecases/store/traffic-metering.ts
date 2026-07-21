@@ -54,16 +54,15 @@ export async function reportTrafficEgress(
   },
 ): Promise<{ status: CloudTrafficReportStatus; eventId: string; duplicate: boolean }> {
   const { orgId, bytes, source, sourceId, now = new Date() } = params
-  if (bytes <= 0) return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
-  if (!params.egressCreditBillingEnabled) return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
-  if (!hasFeature('quota_store', await loadBindingState(deps))) {
-    return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
-  }
-  if (!params.storageId || !params.egressCreditUnitBytes || !params.egressCreditPerUnit) {
+  if (bytes < 0) throw new Error('traffic_bytes_invalid')
+  const cloudBillingEnabled =
+    bytes > 0 && params.egressCreditBillingEnabled && hasFeature('quota_store', await loadBindingState(deps))
+  if (cloudBillingEnabled && (!params.storageId || !params.egressCreditUnitBytes || !params.egressCreditPerUnit)) {
     throw new Error('storage_egress_pricing_missing')
   }
 
   const eventId = params.eventId ?? `traffic_${nanoid()}`
+  await deps.cloudTrafficReports.ensureLedgerOpening(now)
   const existing = await deps.cloudTrafficReports.findByEventId(eventId)
   const period = existing?.period ?? currentTrafficPeriod(now)
   if (existing) {
@@ -73,10 +72,11 @@ export async function reportTrafficEgress(
       source,
       sourceId,
       bytes,
-      storageId: params.storageId,
-      unitBytes: params.egressCreditUnitBytes,
-      creditsPerUnit: params.egressCreditPerUnit,
+      storageId: params.storageId ?? null,
+      unitBytes: params.egressCreditUnitBytes ?? null,
+      creditsPerUnit: params.egressCreditPerUnit ?? null,
     })
+    if (existing.status === 'reversed') throw new Error('traffic_report_reversed')
     if (existing.status !== 'blocked') {
       return { status: existing.status, eventId, duplicate: true }
     }
@@ -89,13 +89,15 @@ export async function reportTrafficEgress(
       sourceId,
       eventId,
       bytes,
-      storageId: params.storageId,
-      unitBytes: params.egressCreditUnitBytes,
-      creditsPerUnit: params.egressCreditPerUnit,
-      status: 'pending',
+      storageId: params.storageId ?? null,
+      unitBytes: params.egressCreditUnitBytes ?? null,
+      creditsPerUnit: params.egressCreditPerUnit ?? null,
+      status: cloudBillingEnabled ? 'pending' : 'not_required',
       now,
     })
   }
+
+  if (!cloudBillingEnabled) return { status: 'not_required', eventId, duplicate: false }
 
   const binding = await deps.licenseBinding.loadActiveLicenseBinding()
   if (!binding?.refreshToken || !binding.cloudStoreId) {
@@ -220,9 +222,9 @@ function assertSameReport(
     source: TrafficReportSource
     sourceId: string
     bytes: number
-    storageId: string
-    unitBytes: number
-    creditsPerUnit: number
+    storageId: string | null
+    unitBytes: number | null
+    creditsPerUnit: number | null
   },
 ) {
   if (
@@ -237,6 +239,21 @@ function assertSameReport(
   ) {
     throw new Error('traffic_report_idempotency_conflict')
   }
+}
+
+export async function reverseDownloadTraffic(
+  deps: Pick<DownloadMeteringDeps, 'quota' | 'cloudTrafficReports'>,
+  params: { orgId: string; bytes: number; eventId: string; now?: Date },
+): Promise<void> {
+  await deps.quota.refundTraffic(params.orgId, params.bytes, params.now)
+  await deps.cloudTrafficReports.reverse(params.eventId, params.now ?? new Date())
+}
+
+export async function confirmDownloadTraffic(
+  deps: Pick<DownloadMeteringDeps, 'cloudTrafficReports'>,
+  params: { eventId: string; now?: Date },
+): Promise<void> {
+  await deps.cloudTrafficReports.markIssued(params.eventId, params.now ?? new Date())
 }
 
 // ─── Download metering (egress quota + cloud report) ─────────────────────────

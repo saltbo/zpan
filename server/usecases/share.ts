@@ -44,7 +44,7 @@ import {
   storageNotFound,
 } from './ports'
 import type { CloudTrafficMeteringDeps } from './store/traffic-metering'
-import { meterDownloadTraffic } from './store/traffic-metering'
+import { confirmDownloadTraffic, meterDownloadTraffic, reverseDownloadTraffic } from './store/traffic-metering'
 import { createTrafficEventId, recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
 
 // The ports + sub-usecase deps this resource touches. `c.get('deps')` (the full
@@ -411,7 +411,7 @@ export async function downloadShareObject(
   try {
     url = await deps.s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
   } catch (e) {
-    await deps.quota.refundTraffic(share.orgId, bytes)
+    await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
     await deps.share.decrementDownloads(share.id)
     await recordDownloadFailed(deps.activity, {
       orgId: share.orgId,
@@ -451,8 +451,9 @@ export async function downloadShareObject(
         kind: share.kind,
       },
     })
+    await confirmDownloadTraffic(deps, { eventId: trafficEventId })
   } catch (error) {
-    await deps.quota.refundTraffic(share.orgId, bytes)
+    await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
     await deps.share.decrementDownloads(share.id)
     throw error
   }

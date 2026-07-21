@@ -77,10 +77,33 @@ interface BackfillPlan {
 }
 
 export function buildBackfillSql(now = new Date()): string {
+  const trafficPeriod = now.toISOString().slice(0, 7)
   return `
+INSERT OR IGNORE INTO cloud_traffic_reports (
+  id, org_id, period, source, source_id, event_id, bytes, storage_id,
+  unit_bytes, credits_per_unit, status, error, attempt_count, next_retry_at,
+  issued_at, created_at, updated_at
+) VALUES (
+  'traffic_ledger_opening_v1', '', '${trafficPeriod}', 'object_download',
+  'traffic_ledger_opening_v1', 'traffic_ledger_opening_v1', 0, NULL,
+  NULL, NULL, 'ledger_opening', NULL, 0, NULL, NULL, ${now.getTime()}, ${now.getTime()}
+);
+
 UPDATE activity_events
 SET actor_type = CASE WHEN user_id IS NULL THEN 'anonymous' ELSE 'user' END
 WHERE actor_type IS NULL;
+
+UPDATE activity_events
+SET actor_type = 'system', actor_ref = 'legacy-download-task-worker'
+WHERE action IN (
+  'download_task_assigned', 'download_task_started', 'download_task_ingesting',
+  'download_task_completed', 'download_task_failed', 'download_task_suspended',
+  'download_task_queued', 'download_task_error', 'download_task_billing_suspended',
+  'download_resolve_started', 'download_resolve_completed', 'download_completed',
+  'download_ingest_started', 'download_ingest_completed',
+  'download_seeding_started', 'download_seeding_stopped',
+  'download_stale_control_resolved', 'download_stale_requeued'
+);
 
 UPDATE activity_events AS ae
 SET metadata = json_set(
@@ -144,7 +167,7 @@ SET metadata = json_set(
           ELSE ''
         END
       )
-      AND ctr.status <> 'blocked'
+      AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
       AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
     ORDER BY ctr.created_at, ctr.event_id
     LIMIT 1
@@ -161,7 +184,7 @@ SET metadata = json_set(
           ELSE ''
         END
       )
-      AND ctr.status <> 'blocked'
+      AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
       AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
     ORDER BY ctr.created_at, ctr.event_id
     LIMIT 1
@@ -179,7 +202,7 @@ SET metadata = json_set(
           ELSE ''
         END
       )
-      AND ctr.status <> 'blocked'
+      AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
       AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
     ORDER BY ctr.created_at, ctr.event_id
     LIMIT 1
@@ -200,8 +223,29 @@ WHERE action IN ('share_download', 'object_download', 'image_hosting_download', 
           ELSE ''
         END
       )
-      AND ctr.status <> 'blocked'
+      AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
       AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
+  );
+
+UPDATE cloud_traffic_reports AS ctr
+SET issued_at = (
+  SELECT ae.created_at * 1000
+  FROM activity_events ae
+  WHERE ae.action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
+    AND ae.id NOT LIKE 'backfill_%'
+    AND json_valid(ae.metadata) = 1
+    AND json_extract(ae.metadata, '$.trafficEventId') = ctr.event_id
+  ORDER BY ae.created_at
+  LIMIT 1
+)
+WHERE ctr.issued_at IS NULL
+  AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
+  AND EXISTS (
+    SELECT 1 FROM activity_events ae
+    WHERE ae.action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
+      AND ae.id NOT LIKE 'backfill_%'
+      AND json_valid(ae.metadata) = 1
+      AND json_extract(ae.metadata, '$.trafficEventId') = ctr.event_id
   );
 
 INSERT OR IGNORE INTO activity_events (
@@ -236,6 +280,7 @@ SELECT
   CAST(ctr.created_at / 1000 AS INTEGER)
 FROM cloud_traffic_reports ctr
 WHERE ctr.source IN ('direct_share', 'landing_share', 'image_hosting', 'object_download', 'webdav_download')
+  AND ctr.status <> 'ledger_opening'
   AND NOT EXISTS (
     SELECT 1 FROM activity_events ae
     WHERE ae.id = 'backfill_' || ctr.event_id
@@ -433,19 +478,19 @@ function buildHourlyBackfillSql(now: Date): string {
     },
     {
       metric: 'transfer.download_issued',
-      source: 'activity_events ae',
-      timestampMs: 'ae.created_at * 1000',
-      org: 'ae.org_id',
-      where: "ae.action IN ('share_download','object_download','image_hosting_download','webdav_download')",
-      bytes: "SUM(CASE WHEN json_valid(ae.metadata) = 1 THEN COALESCE(json_extract(ae.metadata, '$.bytes'), 0) ELSE 0 END)",
-      quality: `CASE WHEN
-        SUM(CASE WHEN ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL THEN 1 ELSE 0 END) > 0
-        OR (${missingShareDownloadsQuality}) = 'lower_bound'
-        THEN 'lower_bound' ELSE 'exact' END`,
+      source: 'cloud_traffic_reports ctr',
+      timestampMs: 'ctr.issued_at',
+      org: 'ctr.org_id',
+      where: "ctr.issued_at IS NOT NULL AND ctr.status <> 'reversed'",
+      bytes: 'SUM(ctr.bytes)',
+      quality: `CASE WHEN MIN(ctr.issued_at) < (
+        SELECT CAST((created_at + 3599999) / 3600000 AS INTEGER) * 3600000
+        FROM cloud_traffic_reports
+        WHERE event_id = 'traffic_ledger_opening_v1'
+      ) THEN 'lower_bound' ELSE 'exact' END`,
       dimensions: {
-        source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, CASE ae.action WHEN 'object_download' THEN 'object_download' WHEN 'image_hosting_download' THEN 'image_hosting' WHEN 'webdav_download' THEN 'webdav_download' ELSE 'landing_share' END)",
-        actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)",
-        storage_id: "CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.storageId') END",
+        source: 'ctr.source',
+        storage_id: 'ctr.storage_id',
       },
     },
     {
@@ -507,9 +552,9 @@ function buildHourlyBackfillSql(now: Date): string {
       source: 'activity_events ae',
       timestampMs: 'ae.created_at * 1000',
       org: 'ae.org_id',
-      where: "ae.action IN ('upload_confirm','share_download','object_download','image_hosting_download','webdav_download') AND (ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL)",
+      where: "ae.action = 'upload_confirm' AND (ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL)",
       dimensions: {
-        direction: "CASE WHEN ae.action = 'upload_confirm' THEN 'upload' ELSE 'download' END",
+        direction: "'upload'",
         source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, ae.action)",
       },
     },
@@ -785,6 +830,10 @@ function statsHistoryStartSql(): string {
     SELECT CAST(MIN(occurred_at) / 3600000 AS INTEGER) * 3600000 AS start_at
     FROM storage_usage_ledger
     WHERE reason = 'opening_balance_complete'
+    UNION ALL
+    SELECT CAST(MIN(issued_at) / 3600000 AS INTEGER) * 3600000 AS start_at
+    FROM cloud_traffic_reports
+    WHERE issued_at IS NOT NULL AND status <> 'reversed'
   ) history_starts WHERE start_at IS NOT NULL)`
 }
 
@@ -830,15 +879,14 @@ export function buildValidationSql(now = new Date()): string {
       AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   ),
   'rawDownloadEvents', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+    SELECT COUNT(*) FROM cloud_traffic_reports
+    WHERE issued_at IS NOT NULL AND status <> 'reversed'
+      AND issued_at >= ${MIN_VALID_TIMESTAMP_MS} AND issued_at < ${currentHour}
   ),
   'rawDownloadBytes', (
-    SELECT COALESCE(SUM(CASE WHEN json_valid(metadata) = 1 THEN COALESCE(json_extract(metadata, '$.bytes'), 0) ELSE 0 END), 0)
-    FROM activity_events
-    WHERE action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+    SELECT COALESCE(SUM(bytes), 0) FROM cloud_traffic_reports
+    WHERE issued_at IS NOT NULL AND status <> 'reversed'
+      AND issued_at >= ${MIN_VALID_TIMESTAMP_MS} AND issued_at < ${currentHour}
   ),
   'rawShareViews', (
     SELECT COUNT(*) FROM activity_events
@@ -895,7 +943,7 @@ export function buildValidationSql(now = new Date()): string {
   ),
   'rawMissingByteEvents', (
     SELECT COUNT(*) FROM activity_events
-    WHERE action IN ('upload_confirm', 'share_download', 'object_download', 'image_hosting_download', 'webdav_download')
+    WHERE action = 'upload_confirm'
       AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.bytes') IS NULL)
       AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
   )
@@ -930,7 +978,6 @@ required_dimensions(metric_key, dimension_key, check_bytes) AS (
   VALUES
     ('transfer.upload', 'source', 1),
     ('transfer.upload', 'status', 1),
-    ('transfer.download_issued', 'actor_type', 1),
     ('transfer.download_issued', 'source', 1),
     ('share.download_issued', 'actor_type', 1),
     ('share.download_issued', 'source', 1),
@@ -1172,6 +1219,7 @@ SELECT json_object(
   'cloudEventsToRecover', (
     SELECT COUNT(*) FROM cloud_traffic_reports ctr
     WHERE ctr.source IN ('direct_share', 'landing_share', 'image_hosting', 'object_download', 'webdav_download')
+      AND ctr.status <> 'ledger_opening'
       AND NOT EXISTS (
         SELECT 1 FROM activity_events ae
         WHERE ae.id = 'backfill_' || ctr.event_id

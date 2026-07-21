@@ -86,11 +86,11 @@ export interface AdminDashboardOverviewStats extends AdminStatsRange {
   }
   trends: Array<{
     date: string
-    newUsers: number
+    newUsers: number | null
     activeUsers: number | null
     storageUsedBytes: number | null
-    uploadBytes: number
-    downloadBytes: number
+    uploadBytes: number | null
+    downloadBytes: number | null
   }>
 }
 
@@ -105,7 +105,7 @@ export interface AdminDashboardGrowthStats extends AdminStatsRange {
     activeUserRate: number | null
     silentUserRate: number | null
   }
-  userScaleTrend: Array<{ date: string; newUsers: number; totalUsers: number | null }>
+  userScaleTrend: Array<{ date: string; newUsers: number | null; totalUsers: number | null }>
   activeUserTrend: Array<{ date: string; dau: number | null; wau: number | null; mau: number | null }>
   userStatus: Array<{ name: string; value: number; percent: number }>
   registrationSources: Array<{ name: string; value: number; percent: number }>
@@ -128,7 +128,7 @@ export interface AdminDashboardStorageStats extends AdminStatsRange {
     overQuotaSpaces: number | null
     invalidQuotaSpaces: number | null
   }
-  storageTrend: Array<{ date: string; usedBytes: number | null; newBytes: number; newFiles: number }>
+  storageTrend: Array<{ date: string; usedBytes: number | null; newBytes: number | null; newFiles: number | null }>
   typeBreakdown: Array<{ type: string; bytes: number; files: number; percent: number }>
   sizeBreakdown: Array<{ name: string; bytes: number; files: number; percent: number }>
   ageBreakdown: Array<{ name: string; bytes: number; files: number; percent: number }>
@@ -140,12 +140,17 @@ export interface AdminDashboardTrafficStats extends AdminStatsRange {
   summary: {
     totalBytes: AdminStatsDelta
     requestCount: AdminStatsDelta
-    issuedDownloads: number
-    blockedDownloads: number
+    issuedDownloads: number | null
+    blockedDownloads: number | null
     downloadIssueSuccessRate: number | null
-    peakDailyBytes: number
+    peakDailyBytes: number | null
   }
-  trafficTrend: Array<{ date: string; uploadBytes: number; downloadBytes: number; requests: number }>
+  trafficTrend: Array<{
+    date: string
+    uploadBytes: number | null
+    downloadBytes: number | null
+    requests: number | null
+  }>
   sourceBreakdown: Array<{ name: string; bytes: number; requests: number; percent: number }>
   issueStatus: Array<{ status: string; count: number; percent: number }>
   successTrend: Array<{ date: string; uploadSuccessRate: number | null; downloadSuccessRate: number | null }>
@@ -162,9 +167,9 @@ export interface AdminDashboardSharingStats extends AdminStatsRange {
     saves: AdminStatsDelta
     downloadsPer100Views: number | null
     savesPer100Views: number | null
-    passwordPasses: number
+    passwordPasses: number | null
   }
-  trend: Array<{ date: string; views: number; downloads: number; saves: number }>
+  trend: Array<{ date: string; views: number | null; downloads: number | null; saves: number | null }>
   typeBreakdown: Array<{ name: string; value: number; percent: number }>
   sourceBreakdown: Array<{ name: string; value: number; percent: number }>
   topShares: Array<AdminTopShare & { viewPercent: number; downloadPercent: number }>

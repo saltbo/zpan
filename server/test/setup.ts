@@ -206,6 +206,7 @@ const APP_SCHEMA_SQL = `
     error TEXT,
     attempt_count INTEGER NOT NULL DEFAULT 0,
     next_retry_at INTEGER,
+    issued_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
@@ -213,6 +214,7 @@ const APP_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS cloud_traffic_reports_org_period_idx ON cloud_traffic_reports(org_id, period);
   CREATE INDEX IF NOT EXISTS cloud_traffic_reports_status_idx ON cloud_traffic_reports(status);
   CREATE INDEX IF NOT EXISTS cloud_traffic_reports_retry_idx ON cloud_traffic_reports(status, next_retry_at, created_at);
+  CREATE INDEX IF NOT EXISTS cloud_traffic_reports_issued_idx ON cloud_traffic_reports(issued_at);
   CREATE TABLE IF NOT EXISTS org_quota_entitlements (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,

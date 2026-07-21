@@ -45,7 +45,11 @@ describe('admin hourly stats rollup', () => {
     await db.run(sql`UPDATE organization SET created_at = ${atMs}, updated_at = ${atMs} WHERE id = ${orgId}`)
     await db.run(sql`
       INSERT INTO user (id, name, email, email_verified, created_at, updated_at)
-      VALUES ('rollup-direct-user', 'Direct User', 'direct@example.com', 0, ${atMs}, ${atMs})
+      VALUES ('rollup-direct-user', 'Direct User', 'direct@example.com', 1, ${atMs}, ${atMs})
+    `)
+    await db.run(sql`
+      INSERT INTO session (id, expires_at, token, created_at, updated_at, user_id)
+      VALUES ('rollup-direct-session', ${atMs + 86_400_000}, 'rollup-direct-session', ${atMs}, ${atMs}, 'rollup-direct-user')
     `)
     await db.run(sql`
       INSERT INTO organization (id, name, slug, metadata, created_at, updated_at)
@@ -148,10 +152,13 @@ describe('admin hourly stats rollup', () => {
     `)
     await db.run(sql`
       INSERT INTO cloud_traffic_reports
-        (id, org_id, period, source, source_id, storage_id, event_id, bytes, unit_bytes, credits_per_unit, status, created_at, updated_at)
+        (id, org_id, period, source, source_id, storage_id, event_id, bytes, unit_bytes, credits_per_unit, status, issued_at, created_at, updated_at)
       VALUES
-        ('rollup-traffic-ok', ${orgId}, '2026-07', 'object_download', 'rollup-file', 'rollup-storage', 'traffic-ok', 100, 50, 2, 'reported', ${atMs}, ${atMs}),
-        ('rollup-traffic-blocked', ${orgId}, '2026-07', 'landing_share', 'rollup-share-usable', NULL, 'traffic-blocked', 200, 50, 2, 'blocked', ${atMs}, ${atMs})
+        ('rollup-traffic-share', ${orgId}, '2026-07', 'landing_share', 'rollup-share-usable', 'rollup-storage', 'traffic-share', 20, 50, 2, 'reported', ${atMs}, ${atMs}, ${atMs}),
+        ('rollup-traffic-object', ${orgId}, '2026-07', 'object_download', 'rollup-file', 'rollup-storage', 'traffic-object', 30, 50, 2, 'reported', ${atMs}, ${atMs}, ${atMs}),
+        ('rollup-traffic-image', ${orgId}, '2026-07', 'image_hosting', 'rollup-image', 'rollup-storage', 'traffic-image', 0, 50, 2, 'reported', ${atMs}, ${atMs}, ${atMs}),
+        ('rollup-traffic-webdav', ${orgId}, '2026-07', 'webdav_download', 'rollup-file', 'rollup-storage', 'traffic-webdav', 40, 50, 2, 'reported', ${atMs}, ${atMs}, ${atMs}),
+        ('rollup-traffic-blocked', ${orgId}, '2026-07', 'landing_share', 'rollup-share-usable', NULL, 'traffic-blocked', 200, 50, 2, 'blocked', NULL, ${atMs}, ${atMs})
     `)
     await db.run(sql`
       INSERT INTO downloaders
@@ -218,7 +225,7 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.transferUpload)).toMatchObject({ count: 4, bytes: 100 })
     expect(row(M.transferDownloadIssued)).toMatchObject({ count: 4, bytes: 90 })
     expect(row(M.shareDownloadIssued)).toMatchObject({ count: 1, bytes: 20 })
-    expect(row(M.statsMissingBytes)).toMatchObject({ count: 2 })
+    expect(row(M.statsMissingBytes)).toMatchObject({ count: 1 })
     expect(row(M.userSignup, '', '', '')).toMatchObject({ count: 2 })
     expect(row(M.userSignup, 'provider', 'direct', '')).toMatchObject({ count: 1 })
     expect(row(M.shareCreated)).toMatchObject({ count: 4 })
@@ -246,8 +253,9 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.remoteDownloadTaskSnapshot)).toMatchObject({ count: 1 })
     expect(row(M.downloaderSnapshot, '', '', '')).toMatchObject({ count: 2 })
     expect(row(M.userInventory, '', '', '')).toMatchObject({ count: 2 })
+    expect(row(M.userInventory, 'status', 'silent', '')).toMatchObject({ count: 1 })
     expect(row(M.userActiveSnapshot, 'window', 'mau', '')).toMatchObject({ count: 1 })
-    expect(row(M.trafficReportSnapshot, '', '', '')).toMatchObject({ count: 2, bytes: 300 })
+    expect(row(M.trafficReportSnapshot, '', '', '')).toMatchObject({ count: 5, bytes: 290 })
     expect(row(M.webhookSnapshot, 'status', 'processed', '')).toMatchObject({ count: 1 })
     expect(row(M.statsRollupRun, '', '', '')).toMatchObject({ count: 1 })
     expect(JSON.parse(row(M.transferUpload)?.metadata ?? '{}')).toMatchObject({ version: 3, quality: 'lower_bound' })

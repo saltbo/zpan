@@ -1,6 +1,7 @@
-import { sql } from 'drizzle-orm'
+import { ne, sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../../adapters/gateways/s3'
+import { TRAFFIC_LEDGER_OPENING_EVENT_ID } from '../../adapters/repos/cloud-traffic-report'
 import { createShareRepo } from '../../adapters/repos/share'
 import { cloudTrafficReports } from '../../db/schema'
 import { currentTrafficPeriod } from '../../domain/quota'
@@ -65,6 +66,10 @@ async function getUserId(db: Database): Promise<string> {
   return rows[0].id
 }
 
+function trafficReports(db: Database) {
+  return db.select().from(cloudTrafficReports).where(ne(cloudTrafficReports.eventId, TRAFFIC_LEDGER_OPENING_EVENT_ID))
+}
+
 async function insertFile(db: Database, orgId: string, id: string) {
   const now = Date.now()
   await db.run(sql`
@@ -113,7 +118,7 @@ describe('object download cloud traffic reporting', () => {
 
     expect(res.status).toBe(200)
     expect(fetch).toHaveBeenCalledTimes(1)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
+    await expect(trafficReports(db)).resolves.toMatchObject([
       { orgId, source: 'object_download', sourceId: 'm-cloud-report-ok', bytes: 100, status: 'reported' },
     ])
   })
@@ -148,9 +153,7 @@ describe('object download cloud traffic reporting', () => {
       sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
     )
     expect(rows[0].trafficUsed).toBe(25)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { status: 'blocked', error: 'insufficient_credits' },
-    ])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'blocked', error: 'insufficient_credits' }])
   })
 
   it('records a reported report without refunding local traffic when Cloud returns its own usage event id', async () => {
@@ -174,7 +177,7 @@ describe('object download cloud traffic reporting', () => {
       sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
     )
     expect(rows[0].trafficUsed).toBe(125)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported', error: null }])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'reported', error: null }])
   })
 
   it('keeps the pre-presign Cloud report and refunds local traffic when presign fails', async () => {
@@ -196,7 +199,7 @@ describe('object download cloud traffic reporting', () => {
       sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
     )
     expect(rows[0].trafficUsed).toBe(25)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'reversed', issuedAt: null }])
   })
 })
 
@@ -220,7 +223,7 @@ describe('public redirect cloud traffic reporting', () => {
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
 
     expect(res.status).toBe(302)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
+    await expect(trafficReports(db)).resolves.toMatchObject([
       { source: 'direct_share', sourceId: share.id, bytes: 100, status: 'reported' },
     ])
   })
@@ -265,9 +268,7 @@ describe('public redirect cloud traffic reporting', () => {
       WHERE s.id = ${share.id}
     `)
     expect(rows[0]).toEqual({ downloads: 0, trafficUsed: 25 })
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { status: 'blocked', error: 'insufficient_credits' },
-    ])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'blocked', error: 'insufficient_credits' }])
   })
 
   it('reports landing share downloads to Cloud', async () => {
@@ -290,7 +291,7 @@ describe('public redirect cloud traffic reporting', () => {
     const res = await app.request(`/api/shares/${share.token}/objects/${ref}?downloadUrl=1`, { redirect: 'manual' })
 
     expect(res.status).toBe(200)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
+    await expect(trafficReports(db)).resolves.toMatchObject([
       { source: 'landing_share', sourceId: share.id, bytes: 100, status: 'reported' },
     ])
   })
@@ -336,9 +337,7 @@ describe('public redirect cloud traffic reporting', () => {
       WHERE s.id = ${share.id}
     `)
     expect(rows[0]).toEqual({ downloads: 0, trafficUsed: 25 })
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { status: 'blocked', error: 'insufficient_credits' },
-    ])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'blocked', error: 'insufficient_credits' }])
   })
 
   it('fails and refunds landing share traffic when audit recording fails', async () => {
@@ -386,7 +385,7 @@ describe('public redirect cloud traffic reporting', () => {
     const res = await app.request('/r/ih_cloudtoken', { redirect: 'manual' })
 
     expect(res.status).toBe(302)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
+    await expect(trafficReports(db)).resolves.toMatchObject([
       { source: 'image_hosting', sourceId: 'ih-cloud-token', bytes: 100, status: 'reported' },
     ])
   })
@@ -424,7 +423,7 @@ describe('public redirect cloud traffic reporting', () => {
 
     expect(res.status).toBe(500)
     expect(fetch).not.toHaveBeenCalled()
-    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
+    await expect(trafficReports(db)).resolves.toHaveLength(0)
   })
 
   it('reports custom-domain image-hosting redirects to Cloud', async () => {
@@ -443,7 +442,7 @@ describe('public redirect cloud traffic reporting', () => {
     })
 
     expect(res.status).toBe(302)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
+    await expect(trafficReports(db)).resolves.toMatchObject([
       { source: 'custom_domain_image', sourceId: 'ih-cloud-domain', bytes: 100, status: 'reported' },
     ])
   })

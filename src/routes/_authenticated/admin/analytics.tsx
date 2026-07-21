@@ -1,20 +1,15 @@
 import type {
   AdminDashboardGrowthStats,
-  AdminDashboardOperationsStats,
-  AdminDashboardOverviewStats,
   AdminDashboardSharingStats,
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
-  AdminSharingDataQuality,
   AdminStatsRange,
-  AdminTransferDataQuality,
 } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { endOfDay, endOfMonth, format, startOfDay, startOfMonth, subDays, subMonths } from 'date-fns'
 import {
   Activity,
-  BarChart3,
   CalendarDays,
   ChevronDown,
   Database,
@@ -50,8 +45,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { AdminPageHeader } from '@/components/admin/admin-page-header'
+import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
@@ -63,8 +59,6 @@ import { useEntitlement } from '@/hooks/useEntitlement'
 import {
   type AdminStatsRangeFilter,
   getAdminDashboardGrowthStats,
-  getAdminDashboardOperationsStats,
-  getAdminDashboardOverviewStats,
   getAdminDashboardSharingStats,
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
@@ -76,7 +70,7 @@ export const Route = createFileRoute('/_authenticated/admin/analytics')({
   component: OverviewPage,
 })
 
-type SectionId = 'overview' | 'growth' | 'storage' | 'traffic' | 'sharing' | 'operations'
+type SectionId = 'growth' | 'storage' | 'traffic' | 'sharing'
 
 const COLORS = {
   blue: '#0369a1',
@@ -114,153 +108,103 @@ const SECTION_META: Array<{
   id: SectionId
   title: string
   description: string
-  badges: string[]
-  icon: typeof BarChart3
+  icon: typeof Users
 }> = [
-  {
-    id: 'overview',
-    title: '站点概览',
-    description: '判断站点规模、活跃、存储占用和传输流量是否健康。',
-    badges: [],
-    icon: BarChart3,
-  },
   {
     id: 'growth',
     title: '用户与增长',
     description: '观察用户规模、活跃度、账号状态和注册方式结构。',
-    badges: ['Pro+'],
     icon: Users,
   },
   {
     id: 'storage',
     title: '存储与文件',
     description: '观察容量水位、文件结构、文件年龄和大对象占用。',
-    badges: ['Pro+'],
     icon: HardDrive,
   },
   {
     id: 'traffic',
     title: '流量与传输',
     description: '观察确认上传、下载签发、失败率和计量状态。',
-    badges: ['Pro+'],
     icon: UploadCloud,
   },
   {
     id: 'sharing',
     title: '分享与访问',
     description: '观察分享创建、访问、下载签发和转存行为。',
-    badges: ['Pro+'],
     icon: Share2,
-  },
-  {
-    id: 'operations',
-    title: '运行状态',
-    description: '检查后台任务、远程下载、下载器和计量上报健康。',
-    badges: ['Pro+'],
-    icon: Network,
   },
 ]
 
 export function OverviewPage() {
   const today = useMemo(() => utcCalendarDate(new Date()), [])
-  const [openSections, setOpenSections] = useState<Set<SectionId>>(() => new Set(['overview']))
+  const [openSection, setOpenSection] = useState<SectionId | null>('growth')
   const [range, setRange] = useState<DateRange>(() => ({ from: startOfDay(subDays(today, 29)), to: endOfDay(today) }))
   const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
   const hasAnalytics = hasFeature('analytics')
 
-  const overviewQuery = useQuery({
-    queryKey: ['admin', 'dashboard', 'overview', rangeKey(range)],
-    queryFn: () => getAdminDashboardOverviewStats(toRangeFilter(range)),
-    staleTime: 30_000,
-  })
-  const growthQuery = useDashboardSectionQuery(
-    'growth',
-    range,
-    openSections,
-    hasAnalytics,
-    getAdminDashboardGrowthStats,
-  )
+  const growthQuery = useDashboardSectionQuery('growth', range, openSection, hasAnalytics, getAdminDashboardGrowthStats)
   const storageQuery = useDashboardSectionQuery(
     'storage',
     range,
-    openSections,
+    openSection,
     hasAnalytics,
     getAdminDashboardStorageStats,
   )
   const trafficQuery = useDashboardSectionQuery(
     'traffic',
     range,
-    openSections,
+    openSection,
     hasAnalytics,
     getAdminDashboardTrafficStats,
   )
   const sharingQuery = useDashboardSectionQuery(
     'sharing',
     range,
-    openSections,
+    openSection,
     hasAnalytics,
     getAdminDashboardSharingStats,
   )
-  const operationsQuery = useDashboardSectionQuery(
-    'operations',
-    range,
-    openSections,
-    hasAnalytics,
-    getAdminDashboardOperationsStats,
-  )
-
   function toggleSection(section: SectionId) {
-    if (section !== 'overview' && !hasAnalytics) return
-    setOpenSections((current) => {
-      const next = new Set(current)
-      if (next.has(section)) next.delete(section)
-      else next.add(section)
-      return next
-    })
+    if (!hasAnalytics) return
+    setOpenSection((current) => (current === section ? null : section))
   }
 
   return (
-    <div className="-m-4 min-h-[calc(100svh-3.5rem)] bg-canvas p-4">
-      <div className="mx-auto flex max-w-[1180px] flex-col gap-5">
-        <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/95 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <div>
-            <h1 className="text-lg font-semibold">站点统计</h1>
-            <p className="mt-1 text-sm text-muted-foreground">统一使用 UTC 日期与已完成的离线小时结果。</p>
-          </div>
-          <DateRangePicker value={range} onChange={setRange} />
-        </div>
-        <div className="flex flex-col gap-4">
-          {SECTION_META.map((section) => (
-            <DashboardSection
-              key={section.id}
-              section={section}
-              open={openSections.has(section.id)}
-              locked={section.id !== 'overview' && !hasAnalytics && !entitlementLoading}
-              onToggle={() => toggleSection(section.id)}
-            >
-              {section.id === 'overview' ? (
-                <QueryState query={overviewQuery}>{(data) => <OverviewSection stats={data} />}</QueryState>
-              ) : !hasAnalytics ? (
-                <UpgradeHint
-                  feature="analytics"
-                  title="解锁高级统计"
-                  description="这些下钻看板需要 ZPan Pro 或 Business。核心概览数据会继续展示。"
-                  actionLabel="打开授权"
-                />
-              ) : section.id === 'growth' ? (
-                <QueryState query={growthQuery}>{(data) => <GrowthSection stats={data} />}</QueryState>
-              ) : section.id === 'storage' ? (
-                <QueryState query={storageQuery}>{(data) => <StorageSection stats={data} />}</QueryState>
-              ) : section.id === 'traffic' ? (
-                <QueryState query={trafficQuery}>{(data) => <TrafficSection stats={data} />}</QueryState>
-              ) : section.id === 'sharing' ? (
-                <QueryState query={sharingQuery}>{(data) => <SharingSection stats={data} />}</QueryState>
-              ) : (
-                <QueryState query={operationsQuery}>{(data) => <OperationsSection stats={data} />}</QueryState>
-              )}
-            </DashboardSection>
-          ))}
-        </div>
+    <div className="space-y-4">
+      <AdminPageHeader
+        title="站点统计"
+        description="按 UTC 日期查看站点统计。"
+        badge={<ProBadge />}
+        action={<DateRangePicker value={range} onChange={setRange} />}
+      />
+      <div className="flex flex-col gap-4">
+        {SECTION_META.map((section) => (
+          <DashboardSection
+            key={section.id}
+            section={section}
+            open={openSection === section.id}
+            locked={!hasAnalytics && !entitlementLoading}
+            onToggle={() => toggleSection(section.id)}
+          >
+            {!hasAnalytics ? (
+              <UpgradeHint
+                feature="analytics"
+                title="解锁高级统计"
+                description="这些统计看板需要 ZPan Pro 或 Business。"
+                actionLabel="打开授权"
+              />
+            ) : section.id === 'growth' ? (
+              <QueryState query={growthQuery}>{(data) => <GrowthSection stats={data} />}</QueryState>
+            ) : section.id === 'storage' ? (
+              <QueryState query={storageQuery}>{(data) => <StorageSection stats={data} />}</QueryState>
+            ) : section.id === 'traffic' ? (
+              <QueryState query={trafficQuery}>{(data) => <TrafficSection stats={data} />}</QueryState>
+            ) : section.id === 'sharing' ? (
+              <QueryState query={sharingQuery}>{(data) => <SharingSection stats={data} />}</QueryState>
+            ) : null}
+          </DashboardSection>
+        ))}
       </div>
     </div>
   )
@@ -269,14 +213,14 @@ export function OverviewPage() {
 function useDashboardSectionQuery<T>(
   section: SectionId,
   range: DateRange,
-  openSections: Set<SectionId>,
+  openSection: SectionId | null,
   enabled: boolean,
   queryFn: (filter: AdminStatsRangeFilter) => Promise<T>,
 ) {
   return useQuery({
     queryKey: ['admin', 'dashboard', section, rangeKey(range)],
     queryFn: () => queryFn(toRangeFilter(range)),
-    enabled: enabled && openSections.has(section),
+    enabled: enabled && openSection === section,
     staleTime: 30_000,
   })
 }
@@ -311,11 +255,6 @@ function DashboardSection({
           <span className="min-w-0">
             <span className="flex flex-wrap items-center gap-2">
               <span className="text-[15px] font-semibold tracking-tight">{section.title}</span>
-              {section.badges.map((badge) => (
-                <Badge key={badge} variant={badge === 'Pro+' ? 'default' : 'secondary'} className="rounded-full">
-                  {badge}
-                </Badge>
-              ))}
               {locked && <Lock className="size-3.5 text-muted-foreground" />}
             </span>
             <span className="mt-1 block text-[13px] leading-5 text-muted-foreground">{section.description}</span>
@@ -411,144 +350,6 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (ran
         </div>
       </PopoverContent>
     </Popover>
-  )
-}
-
-function OverviewSection({ stats }: { stats: AdminDashboardOverviewStats }) {
-  const cards = [
-    {
-      label: '期末注册用户',
-      value: formatNumber(stats.totals.users),
-      delta: formatDelta(stats.totals.newUsers),
-      icon: Users,
-      metrics: [
-        { label: '新增用户', value: formatNumber(stats.totals.newUsers.value) },
-        { label: '30 日活跃用户', value: formatNumber(stats.totals.activeUsers.value) },
-      ],
-    },
-    {
-      label: '30 日活跃用户',
-      value: formatNumber(stats.totals.activeUsers.value),
-      delta: formatDelta(stats.totals.activeUsers),
-      icon: TrendingUp,
-      metrics: [
-        { label: '30 日活跃率', value: formatPercent(stats.totals.activeUserRate) },
-        { label: '环比人数', value: formatNumber(stats.totals.activeUsers.previousValue) },
-      ],
-    },
-    {
-      label: '期末存储占用',
-      value: formatSize(stats.totals.storageUsedBytes),
-      delta: formatDelta(stats.totals.uploadBytes, formatSize),
-      icon: Database,
-      metrics: [
-        { label: '使用率', value: formatPercent(stats.totals.storageUtilization) },
-        { label: '区间新增', value: formatSize(stats.totals.uploadBytes.value) },
-      ],
-    },
-    {
-      label: '确认/签发字节',
-      value: formatSize(stats.totals.trafficBytes.value),
-      delta: formatDelta(stats.totals.trafficBytes, formatSize),
-      icon: Network,
-      metrics: [
-        { label: '上传', value: formatSize(stats.totals.uploadBytes.value) },
-        { label: '下载', value: formatSize(stats.totals.downloadBytes.value) },
-      ],
-    },
-  ]
-
-  return (
-    <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <StatCard key={card.label} {...card} />
-        ))}
-      </div>
-      <TransferDataQualityNotice quality={stats.dataQuality} />
-      <ChartCard
-        title="用户增长与活跃趋势"
-        subtitle="新增用户和活跃用户分开编码，避免把小量级新增淹没在活跃用户曲线里。"
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={stats.trends} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              minTickGap={18}
-              tickFormatter={formatChartDate}
-            />
-            <YAxis
-              yAxisId="count"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              width={42}
-              tickFormatter={formatCompactNumber}
-            />
-            <RechartsTooltip
-              contentStyle={tooltipContentStyle}
-              labelStyle={tooltipLabelStyle}
-              formatter={chartTooltipFormatter}
-            />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="count" dataKey="newUsers" name="新增用户" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
-            <Line
-              yAxisId="count"
-              type="monotone"
-              dataKey="activeUsers"
-              name="活跃用户"
-              stroke={CHART_COLORS[0]}
-              strokeWidth={2}
-              dot={false}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
-      <ChartCard title="资源消耗趋势" subtitle="存储水位、确认上传字节和下载签发字节按 UTC 日期聚合。">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={stats.trends} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              minTickGap={18}
-              tickFormatter={formatChartDate}
-            />
-            <YAxis
-              yAxisId="bytes"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              width={56}
-              tickFormatter={formatCompactSize}
-            />
-            <RechartsTooltip
-              contentStyle={tooltipContentStyle}
-              labelStyle={tooltipLabelStyle}
-              formatter={chartTooltipFormatter}
-            />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="bytes" dataKey="uploadBytes" name="确认上传" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
-            <Bar yAxisId="bytes" dataKey="downloadBytes" name="下载签发" fill={CHART_COLORS[2]} radius={[4, 4, 0, 0]} />
-            <Line
-              yAxisId="bytes"
-              type="monotone"
-              dataKey="storageUsedBytes"
-              name="存储总量"
-              stroke={CHART_COLORS[0]}
-              strokeWidth={2}
-              dot={false}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
-    </div>
   )
 }
 
@@ -718,8 +519,6 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
           ]}
         />
       </div>
-      <TransferDataQualityNotice quality={stats.dataQuality} />
-      <StorageUsageDataQualityNotice quality={stats.dataQuality} />
       <ChartCard
         title="空间配额压力"
         subtitle={`全部空间中 ${formatNumber(stats.summary.nearQuotaSpaces)} 个达到 80%，${formatNumber(stats.summary.overQuotaSpaces)} 个达到或超过配额，${formatNumber(stats.summary.invalidQuotaSpaces)} 个额度配置异常。`}
@@ -938,7 +737,6 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
           ]}
         />
       </div>
-      <TransferDataQualityNotice quality={stats.dataQuality} />
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard
           title="传输事件趋势"
@@ -1151,7 +949,6 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           ]}
         />
       </div>
-      <SharingDataQualityNotice quality={stats.dataQuality} />
       <div className="grid gap-4">
         <ChartCard title="访问行为趋势" subtitle="仅展示能定位到具体时间的独立事件，不表示同一访客完成了连续漏斗。">
           <ResponsiveContainer width="100%" height="100%">
@@ -1198,88 +995,6 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
         <BreakdownChart title="访问来源分布" rows={stats.sourceBreakdown} valueFormatter={formatNumber} />
       </div>
       <TopSharesTable rows={stats.topShares} />
-    </div>
-  )
-}
-
-function OperationsSection({ stats }: { stats: AdminDashboardOperationsStats }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="后台任务"
-          value={formatNumber(stats.summary.activeBackgroundJobs)}
-          icon={Activity}
-          metrics={[
-            { label: '运行中', value: formatNumber(stats.summary.activeBackgroundJobs) },
-            { label: '失败率', value: formatPercent(stats.summary.backgroundJobFailureRate) },
-          ]}
-        />
-        <StatCard
-          label="远程下载"
-          value={formatNumber(stats.summary.activeRemoteDownloads)}
-          icon={Download}
-          metrics={[
-            { label: '活跃任务', value: formatNumber(stats.summary.activeRemoteDownloads) },
-            { label: '成功率', value: formatPercent(stats.summary.remoteDownloadSuccessRate) },
-          ]}
-        />
-        <StatCard
-          label="下载器在线"
-          value={formatNumber(stats.summary.onlineDownloaders)}
-          icon={Network}
-          metrics={[
-            { label: '在线', value: formatNumber(stats.summary.onlineDownloaders) },
-            { label: '离线/禁用', value: formatNumber(stats.summary.offlineDownloaders) },
-          ]}
-        />
-        <StatCard
-          label="待处理异常"
-          value={formatNumber(stats.summary.alertCount)}
-          icon={FileClock}
-          metrics={[
-            { label: '计量积压', value: formatNumber(stats.summary.cloudReportBacklog) },
-            { label: '计量死信', value: formatNumber(stats.summary.cloudReportDeadLetters) },
-          ]}
-        />
-      </div>
-      <ChartCard title="任务完成趋势" subtitle="完成与失败分别统计，快速定位后台任务或远程下载异常。">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={stats.trend}>
-            <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
-            <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
-            <RechartsTooltip
-              contentStyle={tooltipContentStyle}
-              labelStyle={tooltipLabelStyle}
-              formatter={chartTooltipFormatter}
-            />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="completedJobs" name="后台任务完成" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
-            <Bar dataKey="failedJobs" name="后台任务失败" fill={CHART_COLORS[4]} radius={[4, 4, 0, 0]} />
-            <Line
-              dataKey="completedRemoteDownloads"
-              name="远程下载完成"
-              stroke={CHART_COLORS[0]}
-              strokeWidth={2}
-              dot={false}
-            />
-            <Line
-              dataKey="failedRemoteDownloads"
-              name="远程下载失败"
-              stroke={CHART_COLORS[2]}
-              strokeWidth={2}
-              dot={false}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
-      <div className="grid gap-4 xl:grid-cols-2">
-        <BarBreakdownChart title="后台任务结果" rows={stats.backgroundJobOutcomes} valueFormatter={formatNumber} />
-        <BarBreakdownChart title="远程下载结果" rows={stats.remoteDownloadOutcomes} valueFormatter={formatNumber} />
-        <BreakdownChart title="下载器状态" rows={stats.downloaderStatus} valueFormatter={formatNumber} />
-        <BreakdownChart title="当前计量上报队列" rows={stats.cloudReportStatus} valueFormatter={formatNumber} />
-      </div>
     </div>
   )
 }
@@ -1522,84 +1237,8 @@ function QueryState<T extends AdminStatsRange>({
       </div>
     )
   if (!query.data) return <EmptyState />
-  return (
-    <div className="grid gap-4">
-      <StatsCoverageNotice stats={query.data} />
-      {children(query.data)}
-    </div>
-  )
-}
-
-function StatsCoverageNotice({ stats }: { stats: AdminStatsRange }) {
-  const { coverage } = stats
-  const comparisonCoverage = stats.comparisonCoverage
-  const snapshotCoverage = stats.snapshotCoverage
-  const comparisonSnapshotCoverage = stats.comparisonSnapshotCoverage
-  const through = coverage.dataThrough
-    ? new Date(coverage.dataThrough).toISOString().replace('T', ' ').slice(0, 16)
-    : null
-  const snapshotThrough = snapshotCoverage?.dataThrough
-    ? new Date(snapshotCoverage.dataThrough).toISOString().replace('T', ' ').slice(0, 16)
-    : null
-  const comparisonIncomplete = comparisonCoverage ? comparisonCoverage.status !== 'complete' : false
-  const lowerBound =
-    coverage.quality === 'lower_bound' ||
-    comparisonCoverage?.quality === 'lower_bound' ||
-    snapshotCoverage?.quality === 'lower_bound' ||
-    comparisonSnapshotCoverage?.quality === 'lower_bound'
-  const snapshotIncomplete = snapshotCoverage ? snapshotCoverage.status !== 'complete' : false
-  const comparisonSnapshotIncomplete = comparisonSnapshotCoverage
-    ? comparisonSnapshotCoverage.status !== 'complete'
-    : false
-  const incomplete =
-    coverage.status !== 'complete' ||
-    comparisonIncomplete ||
-    snapshotIncomplete ||
-    comparisonSnapshotIncomplete ||
-    lowerBound
-  return (
-    <div
-      role="status"
-      className={cn(
-        'flex flex-col gap-1 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between',
-        incomplete ? 'border-amber-500/40 bg-amber-500/10' : 'border-border/70 bg-muted/20',
-      )}
-    >
-      <span className={incomplete ? 'text-amber-800 dark:text-amber-200' : 'text-muted-foreground'}>
-        {lowerBound
-          ? '部分小时只有可验证的数据下限；页面不会把这些数值表述为完整事实。'
-          : coverage.status === 'empty'
-            ? '所选范围还没有可用的离线结果。'
-            : coverage.status === 'partial'
-              ? '所选范围存在缺失的小时结果，当前数据不完整。'
-              : comparisonCoverage?.status === 'empty'
-                ? '对比区间还没有可用的离线结果，环比不可对账。'
-                : comparisonCoverage?.status === 'partial'
-                  ? '对比区间存在缺失的小时结果，环比数据不完整。'
-                  : snapshotCoverage?.status === 'empty'
-                    ? '所选范围没有可用的状态快照；状态类指标显示为 —，不会伪装成 0。'
-                    : snapshotCoverage?.status === 'partial'
-                      ? '所选范围的事件结果完整，但状态快照仅覆盖部分小时。'
-                      : comparisonSnapshotCoverage?.status === 'empty'
-                        ? '对比区间没有状态快照，状态类环比不可对账。'
-                        : comparisonSnapshotCoverage?.status === 'partial'
-                          ? '对比区间的状态快照不完整，状态类环比不可对账。'
-                          : '所选范围的离线结果完整。'}
-      </span>
-      <span className="text-xs text-muted-foreground">
-        {through ? `数据截至 ${through} UTC · ` : ''}
-        当前 {coverage.completedBuckets}/{coverage.expectedBuckets} 小时
-        {coverage.lowerBoundBuckets > 0 ? ` · 下限 ${coverage.lowerBoundBuckets} 小时` : ''}
-        {comparisonCoverage
-          ? ` · 对比 ${comparisonCoverage.completedBuckets}/${comparisonCoverage.expectedBuckets} 小时`
-          : ''}
-        {snapshotCoverage
-          ? ` · 快照 ${snapshotCoverage.completedBuckets}/${snapshotCoverage.expectedBuckets} 小时`
-          : ''}
-        {snapshotThrough ? ` · 快照采样于 ${snapshotThrough} UTC` : ''}
-      </span>
-    </div>
-  )
+  if (query.data.coverage.status !== 'complete') return <EmptyState />
+  return children(query.data)
 }
 
 function SectionSkeleton() {
@@ -1611,71 +1250,6 @@ function SectionSkeleton() {
         ))}
       </div>
       <Skeleton className="h-80 rounded-lg" />
-    </div>
-  )
-}
-
-function TransferDataQualityNotice({ quality }: { quality: AdminTransferDataQuality }) {
-  const currentMissing = quality.missingBytesEvents
-  const previousMissing = quality.previousMissingBytesEvents
-  if (currentMissing === 0 && previousMissing === 0) return null
-
-  return (
-    <div
-      role="status"
-      className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center"
-    >
-      <Badge variant="outline" className="w-fit border-amber-600/50 text-amber-700 dark:text-amber-300">
-        历史数据不完整
-      </Badge>
-      <span className="text-muted-foreground">
-        当前区间有 {formatNumber(currentMissing)} 条、对比区间有 {formatNumber(previousMissing)}
-        条传输事件缺少可恢复的字节数；流量与新增容量仅代表已知下限，事件数量不受影响。
-      </span>
-    </div>
-  )
-}
-
-function SharingDataQualityNotice({ quality }: { quality: AdminSharingDataQuality }) {
-  if (quality.unlocatedEvents === null || quality.unlocatedEvents === 0) return null
-  return (
-    <div
-      role="status"
-      className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center"
-    >
-      <Badge variant="outline" className="w-fit border-amber-600/50 text-amber-700 dark:text-amber-300">
-        历史事件无法定位
-      </Badge>
-      <span className="text-muted-foreground">
-        现存分享累计计数中有 {formatNumber(quality.unlocatedViews)} 次访问和 {formatNumber(quality.unlocatedDownloads)}{' '}
-        次下载没有可信时间戳；区间值仅为已定位下限，相关环比和每百次访问比例已隐藏。
-      </span>
-    </div>
-  )
-}
-
-function StorageUsageDataQualityNotice({ quality }: { quality: AdminDashboardStorageStats['dataQuality'] }) {
-  const usageDrift = quality.usageDriftSpaces !== null && quality.usageDriftSpaces > 0
-  const ledgerDrift = quality.ledgerDriftSpaces !== null && quality.ledgerDriftSpaces > 0
-  if (!usageDrift && !ledgerDrift) return null
-  return (
-    <div
-      role="status"
-      className="flex flex-col gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center"
-    >
-      <Badge variant="outline" className="w-fit border-red-600/50 text-red-700 dark:text-red-300">
-        占用账本异常
-      </Badge>
-      <span className="text-muted-foreground">
-        {usageDrift
-          ? `${formatNumber(quality.usageDriftSpaces)} 个空间的实时占用计数与可计费对象相差 ${formatSize(quality.usageDriftBytes)}`
-          : ''}
-        {usageDrift && ledgerDrift ? '；' : ''}
-        {ledgerDrift
-          ? `${formatNumber(quality.ledgerDriftSpaces)} 个空间的存储流水与可计费对象相差 ${formatSize(quality.ledgerDriftBytes)}`
-          : ''}
-        ；修复前不要把对应的存储数据作为准确事实。
-      </span>
     </div>
   )
 }

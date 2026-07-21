@@ -129,7 +129,7 @@ function OverviewContent({ overview }: { overview: AdminOverview }) {
         <MetricCard
           icon={<UserPlus />}
           label={t('admin.overview.metrics.new7Days')}
-          value={overview.users.new7Days.toLocaleString()}
+          value={formatCount(overview.users.new7Days)}
           detail={t('admin.overview.metrics.new7DaysDetail')}
         />
         <MetricCard

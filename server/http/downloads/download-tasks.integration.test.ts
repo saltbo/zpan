@@ -1320,6 +1320,16 @@ describe('Download tasks API integration', () => {
       phase: 'metadata',
       trackerCount: 1,
     })
+    const actors = await db.all<{ action: string; actorType: string; actorRef: string | null }>(sql`
+      SELECT action, actor_type AS actorType, actor_ref AS actorRef
+      FROM activity_events
+      WHERE target_type = 'download_task' AND target_id = ${task.id}
+    `)
+    expect(actors.find((event) => event.action === 'download_task_created')).toMatchObject({ actorType: 'user' })
+    const assignedActor = actors.find((event) => event.action === 'download_task_assigned')
+    const lifecycleActor = actors.find((event) => event.action === 'download_resolve_started')
+    expect(assignedActor).toMatchObject({ actorType: 'downloader', actorRef: expect.any(String) })
+    expect(lifecycleActor).toMatchObject({ actorType: 'downloader', actorRef: assignedActor?.actorRef })
   })
 
   it('returns storage failure details when multipart upload session creation fails [spec: download-tasks/upload-session-failure]', async () => {

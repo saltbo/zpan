@@ -43,6 +43,8 @@ import { type DownloadTrafficOutcome, meterDownloadTraffic } from './store/traff
 vi.mock('./store/traffic-metering', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./store/traffic-metering')>()),
   meterDownloadTraffic: vi.fn(),
+  confirmDownloadTraffic: vi.fn(async () => {}),
+  reverseDownloadTraffic: vi.fn(async (deps, params) => deps.quota.refundTraffic(params.orgId, params.bytes)),
 }))
 vi.mock('./object', () => ({ saveShareToDrive: vi.fn() }))
 

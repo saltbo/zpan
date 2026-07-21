@@ -33,7 +33,7 @@ export interface AdminOverviewStatistics {
   users: {
     total: number | null
     active30Days: number | null
-    new7Days: number
+    new7Days: number | null
     activity: {
       today: number | null
       last7Days: number | null
@@ -44,7 +44,7 @@ export interface AdminOverviewStatistics {
       date: string
       totalUsers: number | null
       activeUsers: number | null
-      newUsers: number
+      newUsers: number | null
     }>
     topUsage: AdminOverviewUserUsage[]
   }

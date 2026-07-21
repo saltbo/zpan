@@ -40,6 +40,8 @@ vi.mock('./store/traffic-metering', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./store/traffic-metering')>()),
   meterDownloadTraffic: vi.fn(),
   reportDownloadEgress: vi.fn(),
+  confirmDownloadTraffic: vi.fn(async () => {}),
+  reverseDownloadTraffic: vi.fn(async (deps, params) => deps.quota.refundTraffic(params.orgId, params.bytes)),
 }))
 
 const PRESIGNED_DOWNLOAD = 'https://presigned-download.example.com/file'

@@ -23,6 +23,7 @@ import {
   ROLLUP_VERSION,
 } from '../../domain/admin-stats-metrics'
 import type { Database } from '../../platform/interface'
+import { createCloudTrafficReportRepo, trafficLedgerExactFrom } from './cloud-traffic-report'
 import { getEffectiveQuotasByOrg } from './quota'
 import { ensureStorageUsageOpeningBalances } from './storage-usage-ledger'
 
@@ -30,7 +31,6 @@ const HOUR_MS = 3_600_000
 const D1_MAX_BOUND_PARAMS = 100
 const ROLLUP_BOUND_PARAMS_PER_ROW = 11
 export const ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE = Math.floor(D1_MAX_BOUND_PARAMS / ROLLUP_BOUND_PARAMS_PER_ROW)
-const DOWNLOAD_ACTIONS = ['share_download', 'object_download', 'image_hosting_download', 'webdav_download']
 const COUNTER_METRICS: AdminStatsMetric[] = [
   M.backgroundJobFinished,
   M.remoteDownloadTaskFinished,
@@ -95,7 +95,9 @@ export async function rebuildAdminStatsHour(
   const capturedSnapshot = await compatibleSnapshotMarker(db, bucketStart)
 
   await ensureStorageUsageOpeningBalances(db, generatedAt)
+  await createCloudTrafficReportRepo(db).ensureLedgerOpening(generatedAt)
   await addEventMetrics(db, rollups, bucketStart, bucketEnd)
+  await addTransferDownloadMetrics(db, rollups, bucketStart, bucketEnd)
   await addUserMetrics(db, rollups, bucketStart, bucketEnd)
   await addOperationalMetrics(db, rollups, bucketStart, bucketEnd)
   await addStorageLedgerBalance(db, rollups, bucketEnd)
@@ -247,7 +249,7 @@ async function addEventMetrics(db: Database, rollups: RollupAccumulator, from: D
         CASE WHEN json_valid(metadata) = 1 THEN
           CASE WHEN json_type(metadata, '$.bytes') IN ('integer', 'real') THEN json_extract(metadata, '$.bytes') ELSE 0 END
         ELSE 0 END AS bytes,
-        CASE WHEN action IN ('upload_confirm', 'share_download', 'object_download', 'image_hosting_download', 'webdav_download')
+        CASE WHEN action = 'upload_confirm'
           THEN CASE
             WHEN json_valid(metadata) = 0 THEN 1
             WHEN json_type(metadata, '$.bytes') IN ('integer', 'real') THEN 0
@@ -295,21 +297,6 @@ async function addEventMetrics(db: Database, rollups: RollupAccumulator, from: D
       )
     }
 
-    if (DOWNLOAD_ACTIONS.includes(row.action)) {
-      rollups.add(
-        M.transferDownloadIssued,
-        row.orgId,
-        count,
-        bytes,
-        {
-          source: row.source ?? downloadSourceForAction(row.action),
-          storage_id: row.storageId,
-          actor_type: row.actorType,
-        },
-        lowerBound,
-      )
-    }
-
     if (row.action === 'download_failed') {
       rollups.add(M.transferDownloadFailed, row.orgId, count, bytes, {
         source: row.source ?? 'unknown',
@@ -340,6 +327,46 @@ async function addEventMetrics(db: Database, rollups: RollupAccumulator, from: D
         source: row.source ?? row.action,
       })
     }
+  }
+}
+
+async function addTransferDownloadMetrics(
+  db: Database,
+  rollups: RollupAccumulator,
+  from: Date,
+  to: Date,
+): Promise<void> {
+  const opening = await createCloudTrafficReportRepo(db).getLedgerOpening()
+  if (!opening) throw new Error('traffic_ledger_opening_missing')
+  const lowerBound = from < trafficLedgerExactFrom(opening)
+  const rows = await db.all<{
+    orgId: string
+    source: string
+    storageId: string | null
+    count: number
+    bytes: number
+  }>(sql`
+    SELECT
+      org_id AS orgId,
+      source,
+      storage_id AS storageId,
+      COUNT(*) AS count,
+      COALESCE(SUM(bytes), 0) AS bytes
+    FROM cloud_traffic_reports
+    WHERE issued_at >= ${from.getTime()}
+      AND issued_at < ${to.getTime()}
+      AND status <> 'reversed'
+    GROUP BY org_id, source, storage_id
+  `)
+  for (const row of rows) {
+    rollups.add(
+      M.transferDownloadIssued,
+      row.orgId,
+      Number(row.count),
+      Number(row.bytes),
+      { source: row.source, storage_id: row.storageId },
+      lowerBound,
+    )
   }
 }
 
@@ -548,6 +575,16 @@ async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now:
           bytes: sql<number>`COALESCE(SUM(${cloudTrafficReports.bytes}), 0)`,
         })
         .from(cloudTrafficReports)
+        .where(
+          inArray(cloudTrafficReports.status, [
+            'pending',
+            'reported',
+            'skipped_unbound',
+            'failed',
+            'dead_letter',
+            'blocked',
+          ]),
+        )
         .groupBy(cloudTrafficReports.status),
     ),
     queryStage(
@@ -793,8 +830,7 @@ type UserInventorySnapshot = {
 }
 
 async function userInventorySnapshot(db: Database, now: Date): Promise<UserInventorySnapshot> {
-  const activeCutoffMs = now.getTime() - 30 * 86_400_000
-  const activeCutoffSec = Math.floor(activeCutoffMs / 1000)
+  const activeCutoffSec = Math.floor((now.getTime() - 30 * 86_400_000) / 1000)
   const rows = await db.all<UserInventorySnapshot>(sql`
     SELECT
       COUNT(*) AS total,
@@ -802,8 +838,22 @@ async function userInventorySnapshot(db: Database, now: Date): Promise<UserInven
       SUM(CASE WHEN email_verified = 0 AND COALESCE(banned, 0) = 0 THEN 1 ELSE 0 END) AS unverified,
       SUM(CASE WHEN COALESCE(banned, 0) = 1 THEN 1 ELSE 0 END) AS banned,
       SUM(CASE WHEN email_verified = 1 AND COALESCE(banned, 0) = 0
-        AND NOT EXISTS (SELECT 1 FROM activity_events ae WHERE ae.user_id = user.id AND ae.created_at >= ${activeCutoffSec})
-        AND NOT EXISTS (SELECT 1 FROM session s WHERE s.user_id = user.id AND s.created_at >= ${activeCutoffMs})
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_events ae
+          WHERE ae.user_id = user.id
+            AND ae.created_at >= ${activeCutoffSec}
+            AND COALESCE(ae.actor_type, 'user') = 'user'
+            AND ae.action NOT IN (
+              'download_task_assigned', 'download_task_started', 'download_task_ingesting',
+              'download_task_completed', 'download_task_failed', 'download_task_suspended',
+              'download_task_queued', 'download_task_error', 'download_task_billing_suspended',
+              'download_resolve_started', 'download_resolve_completed', 'download_completed',
+              'download_ingest_started', 'download_ingest_completed',
+              'download_seeding_started', 'download_seeding_stopped',
+              'download_stale_control_resolved', 'download_stale_requeued'
+            )
+            AND ae.action NOT LIKE 'stats_%'
+        )
         THEN 1 ELSE 0 END) AS silent
     FROM user
   `)
@@ -827,16 +877,24 @@ async function activeUserSnapshot(
   ]
   return await Promise.all(
     windows.map(async ({ window, days }) => {
-      const cutoffMs = now.getTime() - days * 86_400_000
-      const cutoffSec = Math.floor(cutoffMs / 1000)
+      const cutoffSec = Math.floor((now.getTime() - days * 86_400_000) / 1000)
       const rows = await db.all<{ count: number }>(sql`
-        SELECT COUNT(DISTINCT user_id) AS count
-        FROM (
-          SELECT s.user_id AS user_id FROM session s JOIN user u ON u.id = s.user_id WHERE s.created_at >= ${cutoffMs}
-          UNION ALL
-          SELECT ae.user_id AS user_id FROM activity_events ae JOIN user u ON u.id = ae.user_id
-            WHERE ae.user_id IS NOT NULL AND ae.created_at >= ${cutoffSec}
-        ) active_users
+        SELECT COUNT(DISTINCT ae.user_id) AS count
+        FROM activity_events ae
+        JOIN user u ON u.id = ae.user_id
+        WHERE ae.user_id IS NOT NULL
+          AND ae.created_at >= ${cutoffSec}
+          AND COALESCE(ae.actor_type, 'user') = 'user'
+          AND ae.action NOT IN (
+            'download_task_assigned', 'download_task_started', 'download_task_ingesting',
+            'download_task_completed', 'download_task_failed', 'download_task_suspended',
+            'download_task_queued', 'download_task_error', 'download_task_billing_suspended',
+            'download_resolve_started', 'download_resolve_completed', 'download_completed',
+            'download_ingest_started', 'download_ingest_completed',
+            'download_seeding_started', 'download_seeding_stopped',
+            'download_stale_control_resolved', 'download_stale_requeued'
+          )
+          AND ae.action NOT LIKE 'stats_%'
       `)
       return { window, count: Number(rows[0]?.count ?? 0) }
     }),

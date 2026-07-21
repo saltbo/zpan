@@ -46,7 +46,7 @@ import {
   storageNotFound,
 } from './ports'
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
-import { meterDownloadTraffic } from './store/traffic-metering'
+import { confirmDownloadTraffic, meterDownloadTraffic, reverseDownloadTraffic } from './store/traffic-metering'
 import { createTrafficEventId, recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
 
 export { ObjectUploadSessionError } from './ports'
@@ -528,7 +528,7 @@ export async function getObject(
   try {
     downloadUrl = await deps.s3.presignDownload(storage, matter.object, matter.name)
   } catch (error) {
-    await deps.quota.refundTraffic(params.orgId, bytes)
+    await reverseDownloadTraffic(deps, { orgId: params.orgId, bytes, eventId: trafficEventId })
     await recordDownloadFailed(deps.activity, {
       orgId: params.orgId,
       userId: params.actorId,
@@ -556,8 +556,9 @@ export async function getObject(
       trafficEventId,
       metadata: { matterId: matter.id, storageId: matter.storageId, matterType: matter.type },
     })
+    await confirmDownloadTraffic(deps, { eventId: trafficEventId })
   } catch (error) {
-    await deps.quota.refundTraffic(params.orgId, bytes)
+    await reverseDownloadTraffic(deps, { orgId: params.orgId, bytes, eventId: trafficEventId })
     throw error
   }
   return { ok: true, matter, downloadUrl }

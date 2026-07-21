@@ -45,7 +45,11 @@ import {
 // refund); the webdav usecase only orchestrates around it. Mock it and assert
 // the wiring + outcome mapping here; cloud-traffic-metering.test.ts owns the
 // internals.
-vi.mock('./store/traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
+vi.mock('./store/traffic-metering', () => ({
+  meterDownloadTraffic: vi.fn(),
+  confirmDownloadTraffic: vi.fn(async () => {}),
+  reverseDownloadTraffic: vi.fn(async (deps, params) => deps.quota.refundTraffic(params.orgId, params.bytes)),
+}))
 
 const storage = {
   id: 'st-1',
@@ -366,7 +370,8 @@ describe('webdav usecase', () => {
   })
 
   describe('meterWebDavDownload', () => {
-    it('skips metering for zero-byte reads (HEAD / empty range)', async () => {
+    it('records zero-byte reads without consuming quota bytes', async () => {
+      vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: true })
       const deps = makeDeps()
       const out = await meterWebDavDownload(deps, {
         cloudBaseUrl: 'https://cloud',
@@ -379,7 +384,7 @@ describe('webdav usecase', () => {
         trafficEventId: 'traffic-1',
       })
       expect(out).toEqual({ ok: true })
-      expect(meterDownloadTraffic).not.toHaveBeenCalled()
+      expect(meterDownloadTraffic).toHaveBeenCalledWith(deps, expect.objectContaining({ bytes: 0 }))
     })
 
     it('meters with the webdav_download source and forwards the outcome', async () => {
@@ -446,7 +451,7 @@ describe('webdav usecase', () => {
     it('refundWebDavTraffic calls quota.refundTraffic', async () => {
       const refundTraffic = vi.fn(async () => {})
       const deps = makeDeps({ quota: { refundTraffic } })
-      await refundWebDavTraffic(deps, { orgId: 'ws-1', bytes: 250 })
+      await refundWebDavTraffic(deps, { orgId: 'ws-1', bytes: 250, trafficEventId: 'traffic-1' })
       expect(refundTraffic).toHaveBeenCalledWith('ws-1', 250)
     })
   })

@@ -1,7 +1,11 @@
+import { ne } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import { createLicensingCloudGateway } from '../../adapters/gateways/licensing-cloud'
-import { createCloudTrafficReportRepo } from '../../adapters/repos/cloud-traffic-report'
+import {
+  createCloudTrafficReportRepo,
+  TRAFFIC_LEDGER_OPENING_EVENT_ID,
+} from '../../adapters/repos/cloud-traffic-report'
 import { createLicenseBindingRepo } from '../../adapters/repos/license-binding'
 import { cloudTrafficReports } from '../../db/schema'
 import type { Database, Platform } from '../../platform/interface'
@@ -59,6 +63,10 @@ function reportTrafficEgress(params: {
 function syncPendingCloudTrafficReports(params: { db: Database; cloudBaseUrl: string; limit?: number; now?: Date }) {
   const { db, ...rest } = params
   return syncPendingCloudTrafficReportsUsecase(meteringDeps(db), rest)
+}
+
+function trafficReports(db: Database) {
+  return db.select().from(cloudTrafficReports).where(ne(cloudTrafficReports.eventId, TRAFFIC_LEDGER_OPENING_EVENT_ID))
 }
 
 function makeResponse(body: unknown, status = 200): Response {
@@ -123,7 +131,7 @@ describe('cloud traffic metering', () => {
 
     expect(result).toMatchObject({ status: 'reported', eventId: 'evt_1', duplicate: false })
     expect(fetch).toHaveBeenCalledTimes(1)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'reported' }])
   })
 
   it('syncs pending traffic reports to Cloud outside the request path', async () => {
@@ -160,10 +168,10 @@ describe('cloud traffic metering', () => {
       usageContext: { storageId: 'storage_1' },
       pricing: { unitQuantity: 100 * 1024 ** 2, creditsPerUnit: 1 },
     })
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'reported' }])
   })
 
-  it('ignores zero-byte reports without writing local state', async () => {
+  it('records zero-byte requests locally without reporting them to Cloud', async () => {
     const { db, platform } = await createTestApp()
     vi.stubGlobal('fetch', vi.fn())
 
@@ -175,9 +183,9 @@ describe('cloud traffic metering', () => {
       sourceId: 'matter_1',
     })
 
-    expect(result).toMatchObject({ status: 'reported', eventId: '', duplicate: false })
+    expect(result).toMatchObject({ status: 'not_required', duplicate: false })
     expect(fetch).not.toHaveBeenCalled()
-    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
+    await expect(trafficReports(db)).resolves.toMatchObject([{ bytes: 0, status: 'not_required' }])
   })
 
   it('keeps idempotent reports local after the first reported request', async () => {
@@ -203,7 +211,7 @@ describe('cloud traffic metering', () => {
     expect(first.duplicate).toBe(false)
     expect(second).toMatchObject({ duplicate: true, eventId: 'evt_dup', status: 'reported' })
     expect(fetch).toHaveBeenCalledTimes(1)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(1)
+    await expect(trafficReports(db)).resolves.toHaveLength(1)
   })
 
   it('rejects idempotency conflicts for reused event ids', async () => {
@@ -254,7 +262,7 @@ describe('cloud traffic metering', () => {
       }),
     ).rejects.toThrow(CloudTrafficBlockedError)
 
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
+    await expect(trafficReports(db)).resolves.toMatchObject([
       { eventId: 'evt_blocked', status: 'blocked', error: 'insufficient_credits' },
     ])
     await expect(
@@ -308,9 +316,7 @@ describe('cloud traffic metering', () => {
 
     expect(result).toEqual({ attempted: 0, reported: 0, blocked: 0, failed: 0, deadLetter: 0 })
     expect(fetch).toHaveBeenCalledTimes(2)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { status: 'reported', error: null, period: '2026-04' },
-    ])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'reported', error: null, period: '2026-04' }])
   })
 
   it('selects new pending reports before retryable failures', async () => {
@@ -356,7 +362,7 @@ describe('cloud traffic metering', () => {
         ...meteredStorage,
       }),
     ).resolves.toMatchObject({ status: 'dead_letter', eventId: 'evt_terminal' })
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
+    await expect(trafficReports(db)).resolves.toMatchObject([
       {
         eventId: 'evt_terminal',
         status: 'dead_letter',
@@ -394,7 +400,7 @@ describe('cloud traffic metering', () => {
     })
 
     expect(result).toMatchObject({ status: 'reported', eventId: 'evt_mismatch', duplicate: false })
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
+    await expect(trafficReports(db)).resolves.toMatchObject([
       { eventId: 'evt_mismatch', status: 'reported', error: null },
     ])
   })
@@ -414,9 +420,9 @@ describe('cloud traffic metering', () => {
       ...meteredStorage,
     })
 
-    expect(result.status).toBe('reported')
+    expect(result.status).toBe('not_required')
     expect(fetch).not.toHaveBeenCalled()
-    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
+    await expect(trafficReports(db)).resolves.toMatchObject([{ eventId: 'evt_unbound', status: 'not_required' }])
   })
 
   it('keeps unbound report replays local', async () => {
@@ -437,9 +443,9 @@ describe('cloud traffic metering', () => {
     const second = await reportTrafficEgress(input)
 
     expect(first.duplicate).toBe(false)
-    expect(second).toMatchObject({ status: 'reported', eventId: 'evt_unbound_dup', duplicate: false })
+    expect(second).toMatchObject({ status: 'not_required', eventId: 'evt_unbound_dup', duplicate: true })
     expect(fetch).not.toHaveBeenCalled()
-    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
+    await expect(trafficReports(db)).resolves.toHaveLength(1)
   })
 })
 
@@ -496,7 +502,7 @@ describe('download metering', () => {
 
     expect(out).toEqual({ ok: true })
     expect(refundTraffic).not.toHaveBeenCalled()
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'reported' }])
   })
 
   it('refunds the quota and runs onRejected when the egress report throws, then rethrows', async () => {

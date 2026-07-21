@@ -3,6 +3,8 @@ import { PRESIGN_TTL_SECS } from '../http/share-utils'
 import { reportTrafficForDownload } from '../http/store/traffic-metering'
 import type { Env } from '../middleware/platform'
 import { forbidden, notFound, quotaExceeded, storageNotFound } from '../usecases/ports'
+import { confirmDownloadTraffic, reverseDownloadTraffic } from '../usecases/store/traffic-metering'
+import { createTrafficEventId } from '../usecases/transfer-activity'
 
 function stripPort(host: string): string {
   const lastColon = host.lastIndexOf(':')
@@ -65,14 +67,26 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
     throw e
   }
 
+  const trafficEventId = createTrafficEventId()
   const trafficReportError = await reportTrafficForDownload(c, {
     orgId: image.orgId,
     bytes: image.size,
     storage,
     source: 'custom_domain_image',
     sourceId: image.id,
+    eventId: trafficEventId,
   })
   if (trafficReportError) return trafficReportError
+  try {
+    await confirmDownloadTraffic(c.get('deps'), { eventId: trafficEventId })
+  } catch (error) {
+    await reverseDownloadTraffic(c.get('deps'), {
+      orgId: image.orgId,
+      bytes: image.size,
+      eventId: trafficEventId,
+    })
+    throw error
+  }
 
   try {
     await c.get('deps').imageHosting.incrementAccessCount(image.id)

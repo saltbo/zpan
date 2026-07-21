@@ -766,7 +766,11 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
         })
         return new Response(fixedLengthResponseBody(body, size), { headers })
       } catch (e) {
-        await refundWebDavTraffic(c.get('deps'), { orgId: workspace.id, bytes: size })
+        await refundWebDavTraffic(c.get('deps'), {
+          orgId: workspace.id,
+          bytes: size,
+          trafficEventId: reservation.trafficEventId,
+        })
         throw e
       }
     }
@@ -794,7 +798,11 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
           trafficEventId: reservation.trafficEventId,
         })
       } catch (error) {
-        await refundWebDavTraffic(c.get('deps'), { orgId: workspace.id, bytes: trafficBytes })
+        await refundWebDavTraffic(c.get('deps'), {
+          orgId: workspace.id,
+          bytes: trafficBytes,
+          trafficEventId: reservation.trafficEventId,
+        })
         throw error
       }
       return new Response(fixedLengthResponseBody(body, contentLength), { status: 206, headers })
@@ -810,7 +818,11 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
         range: `bytes=${range.start}-${range.end}`,
       })
     } catch (e) {
-      await refundWebDavTraffic(c.get('deps'), { orgId: workspace.id, bytes: contentLength })
+      await refundWebDavTraffic(c.get('deps'), {
+        orgId: workspace.id,
+        bytes: contentLength,
+        trafficEventId: reservation.trafficEventId,
+      })
       throw e
     }
     headers.set('Content-Length', String(contentLength))
@@ -826,7 +838,11 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
         trafficEventId: reservation.trafficEventId,
       })
     } catch (error) {
-      await refundWebDavTraffic(c.get('deps'), { orgId: workspace.id, bytes: contentLength })
+      await refundWebDavTraffic(c.get('deps'), {
+        orgId: workspace.id,
+        bytes: contentLength,
+        trafficEventId: reservation.trafficEventId,
+      })
       throw error
     }
     return new Response(fixedLengthResponseBody(body, contentLength), { status: 206, headers })

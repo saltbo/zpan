@@ -916,15 +916,9 @@ describe('Objects API', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.downloadUrl).toBe('https://presigned-download.example.com')
     expect(fetch).toHaveBeenCalledTimes(1)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      {
-        orgId,
-        source: 'object_download',
-        sourceId: 'm1',
-        bytes: 100,
-        status: 'reported',
-      },
-    ])
+    await expect(
+      db.select().from(cloudTrafficReports).where(eq(cloudTrafficReports.orgId, orgId)),
+    ).resolves.toMatchObject([{ orgId, source: 'object_download', sourceId: 'm1', bytes: 100, status: 'reported' }])
   })
 })
 

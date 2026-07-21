@@ -46,7 +46,11 @@ import { meterDownloadTraffic } from './store/traffic-metering'
 // refund); object.getObject only orchestrates around it. Mock it and assert the
 // outcome mapping + presign rollback here; cloud-traffic-metering.test.ts owns
 // the metering internals.
-vi.mock('./store/traffic-metering', () => ({ meterDownloadTraffic: vi.fn() }))
+vi.mock('./store/traffic-metering', () => ({
+  meterDownloadTraffic: vi.fn(),
+  confirmDownloadTraffic: vi.fn(async () => {}),
+  reverseDownloadTraffic: vi.fn(async (deps, params) => deps.quota.refundTraffic(params.orgId, params.bytes)),
+}))
 
 const storage = {
   id: 'st-1',

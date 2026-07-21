@@ -15,6 +15,7 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import { hasFeature } from '../../domain/licensing'
 import type { Platform } from '../../platform/interface'
 import type {
+  ActivityActorType,
   ActivityEvent,
   ActivityRepo,
   DownloaderRepo,
@@ -288,6 +289,7 @@ export async function createDownloadTask(
       sourceUri: input.source.uri,
     },
     action: 'download_task_created',
+    actorType: 'user',
     metadata: { sourceType: input.source.type, targetFolder },
   })
   return deps.downloadTasks.get(orgId, id)
@@ -468,6 +470,8 @@ export async function updateDownloadTask(
     runtime: nextRuntime,
     lifecycleFields,
     billingStatus,
+    actorType: actor.downloaderId ? 'downloader' : 'user',
+    actorRef: actor.downloaderId ?? null,
   })
 
   return deps.downloadTasks.get(task.orgId, id)
@@ -512,10 +516,10 @@ export async function performDownloadTaskAction(
         }),
         updatedAt: now,
       })
-      await recordTaskActivity(deps, { task, action: 'download_task_deleted' })
+      await recordTaskActivity(deps, { task, action: 'download_task_deleted', actorType: 'user' })
       return { id, deleted: true }
     }
-    await recordTaskActivity(deps, { task, action: 'download_task_deleted' })
+    await recordTaskActivity(deps, { task, action: 'download_task_deleted', actorType: 'user' })
     await deps.downloadTasks.delete(id)
     return { id, deleted: true }
   }
@@ -534,6 +538,7 @@ export async function performDownloadTaskAction(
     await recordTaskActivity(deps, {
       task,
       action: status === 'pausing' ? 'download_task_pause_requested' : 'download_task_paused',
+      actorType: 'user',
     })
     return deps.downloadTasks.get(orgId, id)
   }
@@ -551,7 +556,7 @@ export async function performDownloadTaskAction(
       runtime: clearTaskRuntimeMessageJson(task.runtime),
       updatedAt: now,
     })
-    await recordTaskActivity(deps, { task, action: 'download_task_resume_requested' })
+    await recordTaskActivity(deps, { task, action: 'download_task_resume_requested', actorType: 'user' })
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -574,6 +579,7 @@ export async function performDownloadTaskAction(
     await recordTaskActivity(deps, {
       task,
       action: status === 'canceling' ? 'download_task_cancel_requested' : 'download_task_canceled',
+      actorType: 'user',
     })
     return deps.downloadTasks.get(orgId, id)
   }
@@ -596,7 +602,7 @@ export async function performDownloadTaskAction(
       finishedAt: null,
       updatedAt: now,
     })
-    await recordTaskActivity(deps, { task, action: 'download_task_retry_requested' })
+    await recordTaskActivity(deps, { task, action: 'download_task_retry_requested', actorType: 'user' })
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -623,7 +629,7 @@ export async function performDownloadTaskAction(
       finishedAt: null,
       updatedAt: now,
     })
-    await recordTaskActivity(deps, { task, action: 'download_task_restart_requested' })
+    await recordTaskActivity(deps, { task, action: 'download_task_restart_requested', actorType: 'user' })
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -665,6 +671,8 @@ async function claimQueuedTasksForDownloader(
       await recordTaskActivity(deps, {
         task,
         action: 'download_task_assigned',
+        actorType: 'downloader',
+        actorRef: params.id,
         metadata: { downloaderId: params.id },
       })
     }
@@ -902,6 +910,8 @@ async function recordUpdateActivity(
     runtime: DownloadTaskRuntime | null
     lifecycleFields: TaskLifecycleFields
     billingStatus: string
+    actorType: ActivityActorType
+    actorRef: string | null
   },
 ): Promise<void> {
   for (const field of LIFECYCLE_FIELDS) {
@@ -909,6 +919,8 @@ async function recordUpdateActivity(
     await recordTaskActivity(deps, {
       task,
       action: lifecycleAction(field),
+      actorType: params.actorType,
+      actorRef: params.actorRef,
       metadata: runtimeMetadata(params.runtime),
     })
   }
@@ -917,6 +929,8 @@ async function recordUpdateActivity(
     await recordTaskActivity(deps, {
       task,
       action: statusAction(params.status),
+      actorType: params.actorType,
+      actorRef: params.actorRef,
       metadata: {
         from: params.previousStatus,
         to: params.status,
@@ -929,6 +943,8 @@ async function recordUpdateActivity(
     await recordTaskActivity(deps, {
       task,
       action: 'download_task_error',
+      actorType: params.actorType,
+      actorRef: params.actorRef,
       metadata: { message: params.input.errorMessage },
     })
   }
@@ -937,6 +953,8 @@ async function recordUpdateActivity(
     await recordTaskActivity(deps, {
       task,
       action: 'download_task_billing_suspended',
+      actorType: params.actorType,
+      actorRef: params.actorRef,
       metadata: { reason: 'insufficient_credits' },
     })
   }
@@ -972,12 +990,16 @@ async function recordTaskActivity(
   input: {
     task: Pick<DownloadTaskRecord, 'id' | 'orgId' | 'createdByUserId' | 'displayName' | 'sourceUri'>
     action: string
+    actorType?: ActivityActorType
+    actorRef?: string | null
     metadata?: Record<string, unknown>
   },
 ): Promise<void> {
   await deps.activity.record({
     orgId: input.task.orgId,
     userId: input.task.createdByUserId,
+    actorType: input.actorType ?? 'system',
+    actorRef: input.actorRef ?? (input.actorType ? null : 'download-task-service'),
     action: input.action,
     targetType: DOWNLOAD_TASK_TARGET_TYPE,
     targetId: input.task.id,

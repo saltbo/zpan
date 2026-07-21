@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createAdminStatsRepo, metricSpec } from '../adapters/repos/admin-stats'
 import { captureAdminStatsSnapshot, rebuildAdminStatsHour } from '../adapters/repos/admin-stats-rollup'
+import { createCloudTrafficReportRepo } from '../adapters/repos/cloud-traffic-report'
 import { currentTrafficPeriod } from '../domain/quota'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
@@ -189,6 +190,7 @@ describe('site stats routes', () => {
     await seedProLicense(db)
     const [{ id: orgId }] = await db.all<{ id: string }>(sql`SELECT id FROM organization LIMIT 1`)
     const at = Date.UTC(2026, 6, 1, 10)
+    await createCloudTrafficReportRepo(db).ensureLedgerOpening(new Date(at - 3_600_000))
     await db.run(sql`
       INSERT INTO activity_events (
         id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at
@@ -235,6 +237,7 @@ describe('site stats routes', () => {
     await seedProLicense(db)
     const [{ id: orgId }] = await db.all<{ id: string }>(sql`SELECT id FROM organization LIMIT 1`)
     const at = Date.UTC(2026, 6, 1, 10)
+    await createCloudTrafficReportRepo(db).ensureLedgerOpening(new Date(at - 3_600_000))
     await db.run(sql`
       INSERT INTO stats_rollups_hourly
         (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
@@ -268,6 +271,7 @@ describe('site stats routes', () => {
       typeBreakdown: Array<{ name: string; value: number }>
     }
     const traffic = (await trafficRes.json()) as {
+      summary: { requestCount: { value: number } }
       sourceBreakdown: Array<{ name: string; requests: number; bytes: number }>
       failureReasons: Array<{ name: string; value: number }>
     }
@@ -279,9 +283,8 @@ describe('site stats routes', () => {
     expect(operations.backgroundJobOutcomes).toContainEqual(expect.objectContaining({ name: 'failed', value: 1 }))
     expect(sharing.summary.createdShares.value).toBe(1)
     expect(sharing.typeBreakdown).toContainEqual(expect.objectContaining({ name: 'landing', value: 1 }))
-    expect(traffic.sourceBreakdown).toContainEqual(
-      expect.objectContaining({ name: 'object_download', requests: 1, bytes: 10 }),
-    )
+    expect(traffic.summary.requestCount.value).toBe(2)
+    expect(traffic.sourceBreakdown).toEqual([])
     expect(traffic.failureReasons).toContainEqual(expect.objectContaining({ name: 'network', value: 1 }))
   })
 
@@ -478,6 +481,25 @@ describe('site stats routes', () => {
           ${bucketStart.getTime()}
         )
       `)
+      await db.run(sql`
+        INSERT INTO matters
+          (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+        VALUES (
+          ${`quota-pressure-file-${index}`},
+          ${`quota-pressure-org-${index}`},
+          ${`quota-pressure-file-${index}`},
+          ${`quota-pressure-file-${index}`},
+          'application/octet-stream',
+          ${index < 9 ? 90 : 110},
+          0,
+          '',
+          ${`quota-pressure-file-${index}`},
+          'stats-storage',
+          'active',
+          ${Math.floor(bucketStart.getTime() / 1000)},
+          ${Math.floor(bucketStart.getTime() / 1000)}
+        )
+      `)
     }
     await db.run(sql`
       INSERT INTO organization (id, name, slug, metadata, created_at, updated_at)
@@ -486,6 +508,25 @@ describe('site stats routes', () => {
     await db.run(sql`
       INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
       VALUES ('quota-invalid', 'quota-invalid-org', 0, 1000, 0, 0, '2026-07')
+    `)
+    await db.run(sql`
+      INSERT INTO matters
+        (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES (
+        'quota-invalid-file',
+        'quota-invalid-org',
+        'quota-invalid-file',
+        'quota-invalid-file',
+        'application/octet-stream',
+        1000,
+        0,
+        '',
+        'quota-invalid-file',
+        'stats-storage',
+        'active',
+        ${Math.floor(bucketStart.getTime() / 1000)},
+        ${Math.floor(bucketStart.getTime() / 1000)}
+      )
     `)
     await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
     await rebuildAdminStatsHour(db, bucketStart, new Date())
@@ -510,6 +551,34 @@ describe('site stats routes', () => {
     expect(body.summary.storageUtilization).toBeNull()
     expect(body.topSpaces).toHaveLength(8)
     expect(body.topSpaces[0]).toMatchObject({ orgId: 'quota-invalid-org', utilization: null })
+  })
+
+  it('omits quota-derived storage values when the usage counter has drifted', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const { orgId, bucketStart } = await seedStatsFixture(db)
+    await db.run(sql`UPDATE org_quotas SET used = used + 1 WHERE org_id = ${orgId}`)
+    await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
+    await rebuildAdminStatsHour(db, bucketStart, new Date())
+
+    const res = await app.request('/api/site/stats/storage', { headers })
+    const body = (await res.json()) as {
+      summary: {
+        storageUsedBytes: number | null
+        storageUtilization: number | null
+        nearQuotaSpaces: number | null
+      }
+      topSpaces: unknown[]
+      typeBreakdown: unknown[]
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.summary.storageUsedBytes).toBeNull()
+    expect(body.summary.storageUtilization).toBeNull()
+    expect(body.summary.nearQuotaSpaces).toBeNull()
+    expect(body.topSpaces).toEqual([])
+    expect(body.typeBreakdown.length).toBeGreaterThan(0)
   })
 
   it('reads historical active users from completed snapshots instead of raw activity', async () => {
@@ -572,9 +641,10 @@ describe('site stats routes', () => {
     expect(emptyBody.successTrend).toEqual([{ date: '2000-01-01', uploadSuccessRate: null, downloadSuccessRate: null }])
   })
 
-  it('reports incomplete transfer byte metadata for the selected and comparison ranges', async () => {
+  it('omits incomplete transfer bytes while preserving exact request counts', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
+    await seedProLicense(db)
     const { orgId, userId } = await seedStatsFixture(db)
     await db.run(sql`
       INSERT INTO activity_events
@@ -588,18 +658,43 @@ describe('site stats routes', () => {
     await rebuildAdminStatsHour(db, new Date('2026-07-01T12:00:00.000Z'), new Date())
     await rebuildAdminStatsHour(db, new Date('2026-06-30T12:00:00.000Z'), new Date())
 
-    const res = await app.request('/api/site/stats/overview?from=2026-07-01&to=2026-07-01', { headers })
-    const body = (await res.json()) as { dataQuality: AdminDashboardOverviewStats['dataQuality'] }
+    const [res, trafficRes, storageRes] = await Promise.all([
+      app.request('/api/site/stats/overview?from=2026-07-01&to=2026-07-01', { headers }),
+      app.request('/api/site/stats/traffic?from=2026-07-01&to=2026-07-01', { headers }),
+      app.request('/api/site/stats/storage?from=2026-07-01&to=2026-07-01', { headers }),
+    ])
+    const body = (await res.json()) as {
+      dataQuality: AdminDashboardOverviewStats['dataQuality']
+      totals: { trafficBytes: { value: number | null }; uploadBytes: { value: number | null } }
+      trends: Array<{ uploadBytes: number | null }>
+    }
+    const traffic = (await trafficRes.json()) as {
+      summary: { totalBytes: { value: number | null }; requestCount: { value: number } }
+      sourceBreakdown: unknown[]
+    }
+    const storage = (await storageRes.json()) as {
+      summary: { newBytes: { value: number | null }; newFiles: { value: number } }
+      storageTrend: Array<{ newBytes: number | null; newFiles: number }>
+    }
 
-    expect(res.status).toBe(200)
+    expect([res.status, trafficRes.status, storageRes.status]).toEqual([200, 200, 200])
     expect(body.dataQuality).toEqual({
       missingBytesEvents: 1,
-      previousMissingBytesEvents: 1,
+      previousMissingBytesEvents: 0,
       missingUploadBytesEvents: 1,
       previousMissingUploadBytesEvents: 0,
       missingDownloadBytesEvents: 0,
-      previousMissingDownloadBytesEvents: 1,
+      previousMissingDownloadBytesEvents: 0,
     })
+    expect(body.totals.trafficBytes.value).toBeNull()
+    expect(body.totals.uploadBytes.value).toBeNull()
+    expect(body.trends).toContainEqual(expect.objectContaining({ uploadBytes: null }))
+    expect(traffic.summary.totalBytes.value).toBeNull()
+    expect(traffic.summary.requestCount.value).toBe(1)
+    expect(traffic.sourceBreakdown).toEqual([])
+    expect(storage.summary.newBytes.value).toBeNull()
+    expect(storage.summary.newFiles.value).toBe(1)
+    expect(storage.storageTrend).toContainEqual(expect.objectContaining({ newBytes: null, newFiles: 1 }))
   })
 
   it('excludes expired and exhausted shares from the active-share total', async () => {
@@ -622,7 +717,7 @@ describe('site stats routes', () => {
     expect(body.summary.activeShares).toBe(1)
   })
 
-  it('returns traffic dashboard stats from audit-backed download events for Pro admins', async () => {
+  it('returns traffic dashboard stats from the confirmed traffic ledger for Pro admins', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -714,7 +809,7 @@ describe('site stats routes', () => {
     expect(mutableCounters).toBe(0)
   })
 
-  it('applies dashboard ranges to sharing drill-down data', async () => {
+  it('omits sharing metrics when historical events cannot be located', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -724,8 +819,8 @@ describe('site stats routes', () => {
     const currentSharing = (await currentSharingRes.json()) as {
       dataQuality: { unlocatedViews: number; unlocatedDownloads: number; unlocatedEvents: number }
       summary: {
-        views: { value: number; change: number | null }
-        downloads: { value: number; change: number | null }
+        views: { value: number | null; change: number | null }
+        downloads: { value: number | null; change: number | null }
         downloadsPer100Views: number | null
       }
       topShares: Array<{
@@ -738,25 +833,19 @@ describe('site stats routes', () => {
     }
     const oldSharingRes = await app.request('/api/site/stats/sharing?from=2000-01-01&to=2000-01-02', { headers })
     const oldSharing = (await oldSharingRes.json()) as {
-      summary: { views: { value: number }; downloads: { value: number } }
+      summary: { views: { value: number | null }; downloads: { value: number | null } }
       topShares: unknown[]
     }
     expect(currentSharingRes.status).toBe(200)
-    expect(currentSharing.summary.views.value).toBe(1)
-    expect(currentSharing.summary.downloads.value).toBe(1)
+    expect(currentSharing.summary.views.value).toBeNull()
+    expect(currentSharing.summary.downloads.value).toBeNull()
     expect(currentSharing.dataQuality).toEqual({ unlocatedViews: 11, unlocatedDownloads: 3, unlocatedEvents: 14 })
     expect(currentSharing.summary.views.change).toBeNull()
     expect(currentSharing.summary.downloads.change).toBeNull()
     expect(currentSharing.summary.downloadsPer100Views).toBeNull()
-    expect(currentSharing.topShares[0]).toMatchObject({
-      token: 'share-token-1',
-      views: 1,
-      downloads: 1,
-      viewPercent: 100,
-      downloadPercent: 100,
-    })
-    expect(oldSharing.summary.views.value).toBe(0)
-    expect(oldSharing.summary.downloads.value).toBe(0)
+    expect(currentSharing.topShares).toEqual([])
+    expect(oldSharing.summary.views.value).toBeNull()
+    expect(oldSharing.summary.downloads.value).toBeNull()
     expect(oldSharing.topShares).toEqual([])
   })
 
@@ -764,7 +853,8 @@ describe('site stats routes', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    await seedStatsFixture(db)
+    const { bucketStart } = await seedStatsFixture(db)
+    await makeSharingHistoryExact(db, bucketStart)
     await db.run(sql`DELETE FROM shares WHERE id = 'share-1'`)
 
     const res = await app.request('/api/site/stats/sharing', { headers })
@@ -801,7 +891,7 @@ describe('site stats routes', () => {
         ('activity-download-heavy-2', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec}),
         ('activity-download-heavy-3', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec})
     `)
-    await rebuildAdminStatsHour(db, bucketStart, new Date())
+    await makeSharingHistoryExact(db, bucketStart)
     await db.run(sql`
       INSERT INTO stats_rollups_hourly
         (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
@@ -836,7 +926,7 @@ describe('site stats routes', () => {
           '{"source":"landing_share"}', ${eventSec})
       `)
     }
-    await rebuildAdminStatsHour(db, bucketStart, new Date())
+    await makeSharingHistoryExact(db, bucketStart)
 
     const res = await app.request('/api/site/stats/sharing', { headers })
     const body = (await res.json()) as { topShares: Array<{ viewPercent: number }> }
@@ -846,6 +936,15 @@ describe('site stats routes', () => {
     expect(body.topShares.every((share) => share.viewPercent === 11.1)).toBe(true)
   })
 })
+
+async function makeSharingHistoryExact(
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  bucketStart: Date,
+): Promise<void> {
+  await db.run(sql`UPDATE shares SET views = 1, downloads = 1 WHERE id = 'share-1'`)
+  await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
+  await rebuildAdminStatsHour(db, bucketStart, new Date())
+}
 
 async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   const generatedAt = Date.now()
@@ -859,6 +958,7 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
     sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
   )
   const [{ id: userId }] = await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`)
+  await createCloudTrafficReportRepo(db).ensureLedgerOpening(new Date(generatedAt - 60 * 24 * 60 * 60 * 1000))
 
   await db.run(sql`UPDATE user SET created_at = ${now}, updated_at = ${now} WHERE id = ${userId}`)
   await db.run(sql`UPDATE account SET created_at = ${now}, updated_at = ${now} WHERE user_id = ${userId}`)
@@ -901,6 +1001,15 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
       ('stats-fixture-task-completed', ${orgId}, NULL, 'system', 'stats_remote_download_finished', 'remote_download', 'task-1', 'task-1', '{"category":"direct","outcome":"completed","bytes":0,"statsQuality":"exact"}', ${nowSec}),
       ('stats-fixture-task-failed', ${orgId}, NULL, 'system', 'stats_remote_download_finished', 'remote_download', 'task-2', 'task-2', '{"category":"direct","outcome":"failed","bytes":0,"statsQuality":"exact"}', ${nowSec}),
       ('stats-fixture-job-failed', ${orgId}, NULL, 'system', 'stats_background_job_finished', 'background_job', 'job-1', 'job-1', '{"jobType":"extract","outcome":"failed","statsQuality":"exact"}', ${nowSec})
+  `)
+  await db.run(sql`
+    INSERT INTO cloud_traffic_reports (
+      id, org_id, period, source, source_id, event_id, bytes, status, issued_at, created_at, updated_at
+    ) VALUES
+      ('stats-traffic-share', ${orgId}, ${period}, 'landing_share', 'share-1', 'stats-traffic-share', 512,
+        'not_required', ${now}, ${now}, ${now}),
+      ('stats-traffic-object', ${orgId}, ${period}, 'object_download', 'stats-file', 'stats-traffic-object', 256,
+        'not_required', ${now}, ${now}, ${now})
   `)
   await db.run(sql`
     UPDATE activity_events

@@ -112,6 +112,7 @@ export const cloudTrafficReports = sqliteTable(
     error: text('error'),
     attemptCount: integer('attempt_count').notNull().default(0),
     nextRetryAt: integer('next_retry_at', { mode: 'timestamp_ms' }),
+    issuedAt: integer('issued_at', { mode: 'timestamp_ms' }),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
@@ -120,6 +121,7 @@ export const cloudTrafficReports = sqliteTable(
     index('cloud_traffic_reports_org_period_idx').on(t.orgId, t.period),
     index('cloud_traffic_reports_status_idx').on(t.status),
     index('cloud_traffic_reports_retry_idx').on(t.status, t.nextRetryAt, t.createdAt),
+    index('cloud_traffic_reports_issued_idx').on(t.issuedAt),
     index('cloud_traffic_reports_updated_idx').on(t.updatedAt),
   ],
 )

@@ -24,7 +24,13 @@ import {
   storageNotFound,
 } from './ports'
 import { PRESIGN_TTL_SECS } from './share'
-import { type CloudTrafficMeteringDeps, meterDownloadTraffic, reportDownloadEgress } from './store/traffic-metering'
+import {
+  type CloudTrafficMeteringDeps,
+  confirmDownloadTraffic,
+  meterDownloadTraffic,
+  reportDownloadEgress,
+  reverseDownloadTraffic,
+} from './store/traffic-metering'
 import { createTrafficEventId, recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
 
 // The metering usecases need the cloud-report ports plus quota; the redirect
@@ -109,7 +115,7 @@ export async function resolveDirectShareDownload(
   try {
     url = await deps.s3.presignDownload(storage, matter.object, matter.name, PRESIGN_TTL_SECS)
   } catch (e) {
-    await deps.quota.refundTraffic(share.orgId, bytes)
+    await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
     await deps.share.decrementDownloads(share.id)
     await recordDownloadFailed(deps.activity, {
       orgId: share.orgId,
@@ -139,8 +145,9 @@ export async function resolveDirectShareDownload(
       trafficEventId,
       metadata: { shareId: share.id, matterId: matter.id, storageId: matter.storageId, kind: share.kind },
     })
+    await confirmDownloadTraffic(deps, { eventId: trafficEventId })
   } catch (error) {
-    await deps.quota.refundTraffic(share.orgId, bytes)
+    await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
     await deps.share.decrementDownloads(share.id)
     throw error
   }
@@ -256,8 +263,9 @@ export async function resolveImageHostingDownload(
       trafficEventId,
       metadata: { imageId: image.id, storageId: image.storageId, mime: image.mime },
     })
+    await confirmDownloadTraffic(deps, { eventId: trafficEventId })
   } catch (error) {
-    await deps.quota.refundTraffic(image.orgId, image.size)
+    await reverseDownloadTraffic(deps, { orgId: image.orgId, bytes: image.size, eventId: trafficEventId })
     throw error
   }
 
