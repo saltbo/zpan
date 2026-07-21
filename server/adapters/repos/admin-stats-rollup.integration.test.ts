@@ -310,6 +310,29 @@ describe('admin hourly stats rollup', () => {
     ).rejects.toThrow('stats_bucket_must_align_to_utc_hour')
   })
 
+  it('counts recent registered users live even when signup rollups are unavailable', async () => {
+    const { app, db } = await createTestApp()
+    await adminHeaders(app)
+    const now = new Date('2026-07-20T18:30:00.000Z')
+    const recentCreatedAt = new Date('2026-07-15T09:00:00.000Z').getTime()
+    const oldCreatedAt = new Date('2026-07-13T23:59:59.999Z').getTime()
+    const [{ id: seededUserId }] = await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`)
+    await db.run(sql`UPDATE user SET created_at = ${oldCreatedAt}`)
+    await db.run(sql`UPDATE user SET created_at = ${recentCreatedAt} WHERE id = ${seededUserId}`)
+    await db.run(sql`
+      INSERT INTO user (id, name, email, email_verified, created_at, updated_at)
+      VALUES ('old-overview-user', 'Old User', 'old-overview@example.com', 1, ${oldCreatedAt}, ${oldCreatedAt})
+    `)
+
+    const overview = await createAdminStatsRepo(db).getOverviewStatistics(now, {
+      from: new Date('2026-06-21T00:00:00.000Z'),
+      to: new Date('2026-07-20T17:59:59.999Z'),
+      timeZone: 'UTC',
+    })
+
+    expect(overview.users.new7Days).toBe(1)
+  })
+
   it('rolls exact storage writes and releases into the overview trend', async () => {
     const { app, db } = await createTestApp()
     await adminHeaders(app)

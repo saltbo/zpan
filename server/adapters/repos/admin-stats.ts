@@ -13,7 +13,7 @@ import type {
   AdminTopShare,
   AdminTransferDataQuality,
 } from '@shared/types'
-import { and, eq, gte, inArray, lte } from 'drizzle-orm'
+import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { member, organization, user } from '../../db/auth-schema'
 import { matters, shares, statsRollupsHourly } from '../../db/schema'
 import {
@@ -55,6 +55,7 @@ async function getOverviewStatistics(
   const [
     inventory,
     active,
+    recentRegisteredUsers,
     newUsersByDay,
     totalUsersByDay,
     activeByDay,
@@ -66,6 +67,7 @@ async function getOverviewStatistics(
   ] = await Promise.all([
     getUserInventory(reader),
     getActiveUserSnapshot(reader),
+    getRecentRegisteredUserCount(db, now),
     getSignupsByDay(reader),
     getUserTotalsByDay(reader),
     getRollingActiveUserTrend(reader, effective),
@@ -80,7 +82,6 @@ async function getOverviewStatistics(
   const dau = active?.dau ?? null
   const wau = active?.wau ?? null
   const mau = active?.mau ?? null
-  const recentSignups = dates.slice(-7).map((date) => (newUsersByDay.has(date) ? (newUsersByDay.get(date) ?? null) : 0))
   const exactUsage = storageDataQuality.usageDriftSpaces === null || storageDataQuality.usageDriftSpaces === 0
   const exactLedger = storageDataQuality.ledgerDriftSpaces === null || storageDataQuality.ledgerDriftSpaces === 0
   const storageChangesExactFrom = fullStorageChangeDayFrom(storageLedgerOpening)
@@ -89,9 +90,7 @@ async function getOverviewStatistics(
     users: {
       total: inventory?.total ?? null,
       active30Days: mau,
-      new7Days: recentSignups.some((value) => value === null)
-        ? null
-        : recentSignups.reduce<number>((total, value) => total + (value ?? 0), 0),
+      new7Days: recentRegisteredUsers,
       activity: {
         today: dau,
         last7Days: dau === null || wau === null ? null : Math.max(0, wau - dau),
@@ -118,6 +117,15 @@ async function getOverviewStatistics(
       }
     }),
   }
+}
+
+async function getRecentRegisteredUserCount(db: Database, now: Date): Promise<number> {
+  const from = utcDateStart(addCalendarDays(dayKey(now), -6))
+  const [row] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(user)
+    .where(and(gte(user.createdAt, from), lte(user.createdAt, now)))
+  return Number(row.count)
 }
 
 async function getTopPersonalUsage(
