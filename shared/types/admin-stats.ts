@@ -63,6 +63,8 @@ export interface AdminSharingDataQuality {
 export interface AdminStorageDataQuality extends AdminTransferDataQuality {
   usageDriftSpaces: number | null
   usageDriftBytes: number | null
+  ledgerDriftSpaces: number | null
+  ledgerDriftBytes: number | null
 }
 
 export interface AdminDashboardOverviewStats extends AdminStatsRange {

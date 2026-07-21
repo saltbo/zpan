@@ -1,4 +1,4 @@
-import { and, asc, count, eq, lt, or } from 'drizzle-orm'
+import { and, asc, count, eq, isNull, lt, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { matters, storages } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -88,7 +88,10 @@ export function createStorageRepo(db: Database): StorageRepo {
       const existing = await getRow(id)
       if (!existing) return 'not_found'
 
-      const refs = await db.select({ count: count() }).from(matters).where(eq(matters.storageId, id))
+      const refs = await db
+        .select({ count: count() })
+        .from(matters)
+        .where(and(eq(matters.storageId, id), isNull(matters.purgedAt)))
       if ((refs[0]?.count ?? 0) > 0) return 'in_use'
 
       await db.delete(storages).where(eq(storages.id, id))

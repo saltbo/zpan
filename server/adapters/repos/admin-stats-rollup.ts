@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { organization } from '../../db/auth-schema'
 import {
   backgroundJobs,
@@ -10,6 +10,7 @@ import {
   orgQuotas,
   shares,
   statsRollupsHourly,
+  storageUsageLedger,
   webhookEvents,
 } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
@@ -23,6 +24,7 @@ import {
 } from '../../domain/admin-stats-metrics'
 import type { Database } from '../../platform/interface'
 import { getEffectiveQuotasByOrg } from './quota'
+import { ensureStorageUsageOpeningBalances } from './storage-usage-ledger'
 
 const HOUR_MS = 3_600_000
 const D1_MAX_BOUND_PARAMS = 100
@@ -39,6 +41,7 @@ const COUNTER_METRICS: AdminStatsMetric[] = [
   M.shareView,
   M.statsMissingBytes,
   M.statsRollupRun,
+  M.storageLedgerBalance,
   M.transferDownloadFailed,
   M.transferDownloadIssued,
   M.transferUpload,
@@ -91,9 +94,11 @@ export async function rebuildAdminStatsHour(
   const rollups = new RollupAccumulator()
   const capturedSnapshot = await compatibleSnapshotMarker(db, bucketStart)
 
+  await ensureStorageUsageOpeningBalances(db, generatedAt)
   await addEventMetrics(db, rollups, bucketStart, bucketEnd)
   await addUserMetrics(db, rollups, bucketStart, bucketEnd)
   await addOperationalMetrics(db, rollups, bucketStart, bucketEnd)
+  await addStorageLedgerBalance(db, rollups, bucketEnd)
   const values = rollups.values()
   const lowerBoundRows = values.filter((row) => row.lowerBound).length
   rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' }, lowerBoundRows > 0)
@@ -163,6 +168,7 @@ export async function captureAdminStatsSnapshot(
   }
   const bucketEnd = new Date(bucketStart.getTime() + HOUR_MS)
   const rollups = new RollupAccumulator()
+  await ensureStorageUsageOpeningBalances(db, observedAt)
   await addSnapshotMetrics(db, rollups, observedAt)
   rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' })
   const rows = rollups.values().map((row) => ({
@@ -439,6 +445,29 @@ async function addOperationalMetrics(db: Database, rollups: RollupAccumulator, f
   }
 }
 
+async function addStorageLedgerBalance(db: Database, rollups: RollupAccumulator, bucketEnd: Date): Promise<void> {
+  const complete = await queryStage(
+    'storage-ledger-opening',
+    db
+      .select({ id: storageUsageLedger.id })
+      .from(storageUsageLedger)
+      .where(
+        and(eq(storageUsageLedger.reason, 'opening_balance_complete'), lt(storageUsageLedger.occurredAt, bucketEnd)),
+      )
+      .limit(1),
+  )
+  if (complete.length === 0) return
+
+  const rows = await queryStage(
+    'storage-ledger-balance',
+    db
+      .select({ bytes: sql<number>`COALESCE(SUM(${storageUsageLedger.deltaBytes}), 0)` })
+      .from(storageUsageLedger)
+      .where(lt(storageUsageLedger.occurredAt, bucketEnd)),
+  )
+  rollups.setGauge(M.storageLedgerBalance, '', 0, Number(rows[0]?.bytes ?? 0))
+}
+
 async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now: Date): Promise<void> {
   const [
     userRows,
@@ -570,6 +599,14 @@ async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now:
     'kind',
     'storage_usage_drift',
   )
+  rollups.setGauge(
+    M.statsDataQualitySnapshot,
+    '',
+    dataQualityRows.storageLedgerDriftSpaces,
+    dataQualityRows.storageLedgerDriftBytes,
+    'kind',
+    'storage_ledger_drift',
+  )
   rollups.setGauge(M.backgroundJobSnapshot, '', 0, 0)
   rollups.setGauge(M.remoteDownloadTaskSnapshot, '', 0, 0)
   rollups.setGauge(M.downloaderSnapshot, '', 0, 0)
@@ -647,12 +684,16 @@ async function dataQualitySnapshot(db: Database): Promise<{
   unlocatedShareDownloads: number
   storageUsageDriftSpaces: number
   storageUsageDriftBytes: number
+  storageLedgerDriftSpaces: number
+  storageLedgerDriftBytes: number
 }> {
   const rows = await db.all<{
     unlocatedShareViews: number
     unlocatedShareDownloads: number
     storageUsageDriftSpaces: number
     storageUsageDriftBytes: number
+    storageLedgerDriftSpaces: number
+    storageLedgerDriftBytes: number
   }>(sql`
     WITH event_counts AS (
       SELECT
@@ -668,11 +709,11 @@ async function dataQualitySnapshot(db: Database): Promise<{
       FROM (
         SELECT org_id, COALESCE(size, 0) AS bytes
         FROM matters
-        WHERE status IN ('active', 'trashed') AND dirtype = 0
+        WHERE status IN ('active', 'trashed') AND dirtype = 0 AND purged_at IS NULL
         UNION ALL
         SELECT org_id, COALESCE(size, 0) AS bytes
         FROM image_hostings
-        WHERE status = 'active'
+        WHERE status = 'active' AND purged_at IS NULL
       ) inventory
       GROUP BY org_id
     ),
@@ -682,12 +723,27 @@ async function dataQualitySnapshot(db: Database): Promise<{
       JOIN organization o ON o.id = q.org_id
       LEFT JOIN billable_storage ON billable_storage.org_id = q.org_id
       WHERE q.used <> COALESCE(billable_storage.bytes, 0)
+    ),
+    ledger_storage AS (
+      SELECT org_id, SUM(delta_bytes) AS bytes
+      FROM storage_usage_ledger
+      WHERE org_id <> ''
+      GROUP BY org_id
+    ),
+    ledger_drift AS (
+      SELECT ABS(COALESCE(ledger_storage.bytes, 0) - COALESCE(billable_storage.bytes, 0)) AS bytes
+      FROM organization o
+      LEFT JOIN billable_storage ON billable_storage.org_id = o.id
+      LEFT JOIN ledger_storage ON ledger_storage.org_id = o.id
+      WHERE COALESCE(ledger_storage.bytes, 0) <> COALESCE(billable_storage.bytes, 0)
     )
     SELECT
       COALESCE(SUM(MAX(${shares.views} - COALESCE(event_counts.views, 0), 0)), 0) AS unlocatedShareViews,
       COALESCE(SUM(MAX(${shares.downloads} - COALESCE(event_counts.downloads, 0), 0)), 0) AS unlocatedShareDownloads,
       (SELECT COUNT(*) FROM storage_drift) AS storageUsageDriftSpaces,
-      (SELECT COALESCE(SUM(bytes), 0) FROM storage_drift) AS storageUsageDriftBytes
+      (SELECT COALESCE(SUM(bytes), 0) FROM storage_drift) AS storageUsageDriftBytes,
+      (SELECT COUNT(*) FROM ledger_drift) AS storageLedgerDriftSpaces,
+      (SELECT COALESCE(SUM(bytes), 0) FROM ledger_drift) AS storageLedgerDriftBytes
     FROM ${shares}
     LEFT JOIN event_counts ON event_counts.share_id = ${shares.id}
   `)
@@ -699,6 +755,8 @@ async function dataQualitySnapshot(db: Database): Promise<{
     unlocatedShareDownloads,
     storageUsageDriftSpaces: Number(rows[0]?.storageUsageDriftSpaces ?? 0),
     storageUsageDriftBytes: Number(rows[0]?.storageUsageDriftBytes ?? 0),
+    storageLedgerDriftSpaces: Number(rows[0]?.storageLedgerDriftSpaces ?? 0),
+    storageLedgerDriftBytes: Number(rows[0]?.storageLedgerDriftBytes ?? 0),
   }
 }
 
@@ -717,6 +775,7 @@ async function trashInventoryGroups(
       and(
         inArray(matters.status, ['active', 'trashed']),
         sql`${matters.trashedAt} IS NOT NULL`,
+        isNull(matters.purgedAt),
         eq(matters.dirtype, 0),
       ),
     )
@@ -813,7 +872,9 @@ async function inventoryGroups(
       dimensionValue: dimensionSql,
     })
     .from(matters)
-    .where(and(eq(matters.status, 'active'), isNull(matters.trashedAt), eq(matters.dirtype, 0)))
+    .where(
+      and(eq(matters.status, 'active'), isNull(matters.trashedAt), isNull(matters.purgedAt), eq(matters.dirtype, 0)),
+    )
     .groupBy(matters.orgId, dimensionSql)
   const imageDimensionSql =
     dimension === 'file_type_group'
@@ -831,7 +892,7 @@ async function inventoryGroups(
       dimensionValue: imageDimensionSql,
     })
     .from(imageHostings)
-    .where(eq(imageHostings.status, 'active'))
+    .where(and(eq(imageHostings.status, 'active'), isNull(imageHostings.purgedAt)))
     .groupBy(imageHostings.orgId, imageDimensionSql)
   const result: InventoryGroup[] = matterRows.map((row) => ({
     orgId: row.orgId,

@@ -1,6 +1,7 @@
-import { and, asc, eq, gt, isNotNull, like, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, isNotNull, isNull, like, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { imageHostingConfigs, imageHostings } from '../../db/schema'
+import { executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { mimeToExt } from '../../lib/mime-utils'
 import type { Database } from '../../platform/interface'
 import type {
@@ -9,6 +10,11 @@ import type {
   ImageHostingRepo,
   ImageResolution,
 } from '../../usecases/ports'
+import {
+  imageActivationLedgerQuery,
+  imagePurgeLedgerQuery,
+  storageUsageOpeningBalanceQuery,
+} from './storage-usage-ledger'
 
 type ImageHostingRow = typeof imageHostings.$inferSelect
 
@@ -39,7 +45,7 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
     const rows = await db
       .select({ path: imageHostings.path })
       .from(imageHostings)
-      .where(and(eq(imageHostings.orgId, orgId), eq(imageHostings.path, requestedPath)))
+      .where(and(eq(imageHostings.orgId, orgId), eq(imageHostings.path, requestedPath), isNull(imageHostings.purgedAt)))
 
     if (rows.length === 0) return requestedPath
 
@@ -53,7 +59,7 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
       const conflict = await db
         .select({ path: imageHostings.path })
         .from(imageHostings)
-        .where(and(eq(imageHostings.orgId, orgId), eq(imageHostings.path, candidate)))
+        .where(and(eq(imageHostings.orgId, orgId), eq(imageHostings.path, candidate), isNull(imageHostings.purgedAt)))
       if (conflict.length === 0) return candidate
     }
 
@@ -63,7 +69,11 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
 
   return {
     async resolveActiveByToken(token): Promise<ImageResolution | null> {
-      const rows = await db.select().from(imageHostings).where(eq(imageHostings.token, token)).limit(1)
+      const rows = await db
+        .select()
+        .from(imageHostings)
+        .where(and(eq(imageHostings.token, token), isNull(imageHostings.purgedAt)))
+        .limit(1)
       const row = rows[0]
       if (!row || row.status !== 'active') return null
 
@@ -92,7 +102,14 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
       const rows = await db
         .select()
         .from(imageHostings)
-        .where(and(eq(imageHostings.orgId, orgId), eq(imageHostings.path, path), eq(imageHostings.status, 'active')))
+        .where(
+          and(
+            eq(imageHostings.orgId, orgId),
+            eq(imageHostings.path, path),
+            eq(imageHostings.status, 'active'),
+            isNull(imageHostings.purgedAt),
+          ),
+        )
         .limit(1)
       if (!rows[0]) return null
 
@@ -111,7 +128,7 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
 
     async incrementAccessCount(id) {
       await db.run(
-        sql`UPDATE image_hostings SET access_count = access_count + 1, last_accessed_at = ${Date.now()} WHERE id = ${id}`,
+        sql`UPDATE image_hostings SET access_count = access_count + 1, last_accessed_at = ${Date.now()} WHERE id = ${id} AND purged_at IS NULL`,
       )
     },
 
@@ -136,6 +153,7 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
         width: null,
         height: null,
         status: input.status,
+        purgedAt: null,
         accessCount: 0,
         lastAccessedAt: null,
         createdAt: now,
@@ -149,12 +167,16 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
       const rows = await db
         .select()
         .from(imageHostings)
-        .where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId)))
+        .where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId), isNull(imageHostings.purgedAt)))
       return rows[0] ? toRecord(rows[0]) : null
     },
 
     async list(orgId, opts) {
-      const conditions = [eq(imageHostings.orgId, orgId), eq(imageHostings.status, 'active')]
+      const conditions = [
+        eq(imageHostings.orgId, orgId),
+        eq(imageHostings.status, 'active'),
+        isNull(imageHostings.purgedAt),
+      ]
 
       if (opts.pathPrefix) {
         conditions.push(like(imageHostings.path, `${opts.pathPrefix}%`))
@@ -191,16 +213,74 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
     },
 
     async setActive(id, orgId) {
-      const updated = await db
+      const existing = await db
+        .select()
+        .from(imageHostings)
+        .where(
+          and(
+            eq(imageHostings.id, id),
+            eq(imageHostings.orgId, orgId),
+            eq(imageHostings.status, 'draft'),
+            isNull(imageHostings.purgedAt),
+          ),
+        )
+        .limit(1)
+      const row = existing[0]
+      if (!row) return false
+      const now = new Date()
+      await executeWriteTransaction(db, [storageUsageOpeningBalanceQuery(db, orgId, row.storageId, now)])
+      const activateQuery = db
         .update(imageHostings)
         .set({ status: 'active' })
-        .where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId), eq(imageHostings.status, 'draft')))
+        .where(
+          and(
+            eq(imageHostings.id, id),
+            eq(imageHostings.orgId, orgId),
+            eq(imageHostings.status, 'draft'),
+            isNull(imageHostings.purgedAt),
+          ),
+        )
         .returning({ id: imageHostings.id })
+      const results = await executeWriteTransactionWithResults(
+        db,
+        [activateQuery, imageActivationLedgerQuery(db, orgId, id, now)],
+        [0],
+      )
+      const updated = results[0] as { id: string }[]
       return updated.length > 0
     },
 
     async delete(id, orgId) {
-      await db.delete(imageHostings).where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId)))
+      const existing = await db
+        .select()
+        .from(imageHostings)
+        .where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId), isNull(imageHostings.purgedAt)))
+        .limit(1)
+      const row = existing[0]
+      if (!row) return
+      if (row.status === 'draft') {
+        await db
+          .delete(imageHostings)
+          .where(
+            and(
+              eq(imageHostings.id, id),
+              eq(imageHostings.orgId, orgId),
+              eq(imageHostings.status, 'draft'),
+              isNull(imageHostings.purgedAt),
+            ),
+          )
+        return
+      }
+
+      const now = new Date()
+      await executeWriteTransaction(db, [
+        storageUsageOpeningBalanceQuery(db, orgId, row.storageId, now),
+        imagePurgeLedgerQuery(db, orgId, id, now),
+        db
+          .update(imageHostings)
+          .set({ purgedAt: now.getTime() })
+          .where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId), isNull(imageHostings.purgedAt))),
+      ])
     },
   }
 }

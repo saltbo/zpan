@@ -169,8 +169,8 @@ describe('site stats routes', () => {
         'storage-marker-2026-01-01', ${Date.UTC(2026, 0, 1)}, '', 'stats.rollup_run', '', '',
         1, 0, 0, '{"version":3,"scope":"full","quality":"exact"}', ${Date.UTC(2026, 0, 2)}
       ), (
-        'storage-used-2026-01-01', ${Date.UTC(2026, 0, 1)}, '', 'storage.used', '', '',
-        0, 4096, 0, '{"version":3,"scope":"snapshots","quality":"exact"}', ${Date.UTC(2026, 0, 2)}
+        'storage-used-2026-01-01', ${Date.UTC(2026, 0, 1)}, '', 'storage.ledger_balance', '', '',
+        0, 4096, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${Date.UTC(2026, 0, 2)}
       )
     `)
 

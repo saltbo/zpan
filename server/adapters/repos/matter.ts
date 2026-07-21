@@ -3,6 +3,7 @@ import type { SQL } from 'drizzle-orm'
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, like, lt, ne, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { matters } from '../../db/schema'
+import { executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { suggestRenamed } from '../../domain/matter-name-conflict'
 import type { Database } from '../../platform/interface'
 import type {
@@ -19,6 +20,13 @@ import type {
 } from '../../usecases/ports'
 import { NameConflictError } from '../../usecases/ports'
 import { createActivityRepo } from './activity'
+import {
+  matterActivationLedgerQuery,
+  matterPurgeLedgerQuery,
+  matterResizeLedgerQuery,
+  storageUsageMutationQuery,
+  storageUsageOpeningBalanceQuery,
+} from './storage-usage-ledger'
 
 type MatterRow = typeof matters.$inferSelect
 
@@ -62,7 +70,7 @@ export function createMatterRepo(db: Database): MatterRepo {
     const rows = await db
       .select()
       .from(matters)
-      .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
+      .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt)))
     return rows[0] ? toMatter(rows[0]) : null
   }
 
@@ -70,14 +78,14 @@ export function createMatterRepo(db: Database): MatterRepo {
     return db
       .select()
       .from(matters)
-      .where(and(eq(matters.orgId, orgId), descendantParentCondition(folderPath)))
+      .where(and(eq(matters.orgId, orgId), isNull(matters.purgedAt), descendantParentCondition(folderPath)))
   }
 
   function getDirectChildren(orgId: string, folderPath: string): Promise<MatterRow[]> {
     return db
       .select()
       .from(matters)
-      .where(and(eq(matters.orgId, orgId), eq(matters.parent, folderPath)))
+      .where(and(eq(matters.orgId, orgId), eq(matters.parent, folderPath), isNull(matters.purgedAt)))
   }
 
   async function cascadeParentPath(orgId: string, oldPath: string, newPath: string): Promise<void> {
@@ -85,7 +93,7 @@ export function createMatterRepo(db: Database): MatterRepo {
     await db
       .update(matters)
       .set({ parent: newPath, updatedAt: new Date() })
-      .where(and(eq(matters.orgId, orgId), eq(matters.parent, oldPath)))
+      .where(and(eq(matters.orgId, orgId), eq(matters.parent, oldPath), isNull(matters.purgedAt)))
 
     // Deeper descendants: parent starts with 'oldPath/' → replace prefix.
     await db
@@ -94,7 +102,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         parent: sql`${newPath} || SUBSTR(${matters.parent}, LENGTH(${oldPath}) + 1)`,
         updatedAt: new Date(),
       })
-      .where(and(eq(matters.orgId, orgId), descendantParentCondition(oldPath)))
+      .where(and(eq(matters.orgId, orgId), isNull(matters.purgedAt), descendantParentCondition(oldPath)))
   }
 
   /**
@@ -115,6 +123,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       eq(matters.parent, parent),
       eq(matters.status, ObjectStatus.ACTIVE),
       isNull(matters.trashedAt),
+      isNull(matters.purgedAt),
       sql`lower(${matters.name}) = lower(${name})`,
     ]
     if (excludeId) conditions.push(ne(matters.id, excludeId))
@@ -178,7 +187,7 @@ export function createMatterRepo(db: Database): MatterRepo {
     await db
       .update(matters)
       .set({ trashedAt: now.getTime(), updatedAt: now })
-      .where(and(eq(matters.id, existing.id), eq(matters.orgId, orgId)))
+      .where(and(eq(matters.id, existing.id), eq(matters.orgId, orgId), isNull(matters.purgedAt)))
 
     if (userId) {
       await activity.record({
@@ -267,11 +276,34 @@ export function createMatterRepo(db: Database): MatterRepo {
         storageId: input.storageId,
         status: input.status,
         trashedAt: null,
+        purgedAt: null,
         createdAt: now,
         updatedAt: now,
       }
 
-      await db.insert(matters).values(row)
+      const isBillable = row.status === ObjectStatus.ACTIVE && row.dirtype === DirType.FILE
+      if (isBillable) {
+        await executeWriteTransaction(db, [
+          storageUsageOpeningBalanceQuery(db, row.orgId, row.storageId, now),
+          db.insert(matters).values(row),
+          ...(row.size && row.size > 0
+            ? [
+                storageUsageMutationQuery(db, {
+                  eventKey: `matter:${row.id}:activated`,
+                  orgId: row.orgId,
+                  storageId: row.storageId,
+                  resourceType: 'matter',
+                  resourceId: row.id,
+                  deltaBytes: row.size,
+                  reason: 'matter_activated',
+                  occurredAt: now,
+                }),
+              ]
+            : []),
+        ])
+      } else {
+        await db.insert(matters).values(row)
+      }
 
       if (input.userId) {
         await activity.record({
@@ -291,7 +323,12 @@ export function createMatterRepo(db: Database): MatterRepo {
       const offset = (filters.page - 1) * filters.pageSize
       // Live objects only. Trashed rows are status='active' too, so exclude them
       // by trashedAt; the recycle bin is served by listTrashedRoots.
-      const conditions = [eq(matters.orgId, orgId), eq(matters.status, ObjectStatus.ACTIVE), isNull(matters.trashedAt)]
+      const conditions = [
+        eq(matters.orgId, orgId),
+        eq(matters.status, ObjectStatus.ACTIVE),
+        isNull(matters.trashedAt),
+        isNull(matters.purgedAt),
+      ]
       const typeCond = filters.typeFilter ? typeFilterCondition(filters.typeFilter) : undefined
       if (filters.search) {
         conditions.push(like(matters.name, `%${filters.search}%`))
@@ -326,7 +363,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       const rows = await db
         .select()
         .from(matters)
-        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids)))
+        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids), isNull(matters.purgedAt)))
       return rows.map(toMatter)
     },
 
@@ -370,7 +407,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       await db
         .update(matters)
         .set({ name: newName, parent: newParent, updatedAt: now })
-        .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
+        .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt)))
 
       const updated = { ...existing, name: newName, parent: newParent, updatedAt: now }
 
@@ -435,11 +472,29 @@ export function createMatterRepo(db: Database): MatterRepo {
         storageId: source.storageId,
         status: 'active',
         trashedAt: null,
+        purgedAt: null,
         createdAt: now,
         updatedAt: now,
       }
 
-      await db.insert(matters).values(row)
+      await executeWriteTransaction(db, [
+        storageUsageOpeningBalanceQuery(db, row.orgId, row.storageId, now),
+        db.insert(matters).values(row),
+        ...(row.dirtype === DirType.FILE && row.size && row.size > 0
+          ? [
+              storageUsageMutationQuery(db, {
+                eventKey: `matter:${row.id}:activated`,
+                orgId: row.orgId,
+                storageId: row.storageId,
+                resourceType: 'matter',
+                resourceId: row.id,
+                deltaBytes: row.size,
+                reason: 'matter_activated',
+                occurredAt: now,
+              }),
+            ]
+          : []),
+      ])
 
       if (opts.userId) {
         await activity.record({
@@ -456,19 +511,13 @@ export function createMatterRepo(db: Database): MatterRepo {
       return toMatter(row)
     },
 
-    async delete(id, orgId): Promise<Matter | null> {
-      const existing = await getMatter(id, orgId)
-      if (!existing) return null
-
-      await db.delete(matters).where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
-      return existing
-    },
-
     async cancelDraft(id, orgId, userId?): Promise<Matter | null> {
       const existing = await getMatter(id, orgId)
       if (!existing || existing.status !== 'draft') return null
 
-      await db.delete(matters).where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft')))
+      await db
+        .delete(matters)
+        .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft'), isNull(matters.purgedAt)))
 
       if (userId) {
         await activity.record({
@@ -522,6 +571,7 @@ export function createMatterRepo(db: Database): MatterRepo {
               eq(matters.orgId, orgId),
               eq(matters.status, ObjectStatus.ACTIVE),
               isNull(matters.trashedAt),
+              isNull(matters.purgedAt),
             ),
           )
       }
@@ -574,7 +624,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         await db
           .update(matters)
           .set({ name: finalName, updatedAt: now })
-          .where(and(eq(matters.id, existing.id), eq(matters.orgId, orgId)))
+          .where(and(eq(matters.id, existing.id), eq(matters.orgId, orgId), isNull(matters.purgedAt)))
         if (isFolder) {
           const oldPath = buildPath(existing.parent, existing.name)
           const newPath = buildPath(existing.parent, finalName)
@@ -587,7 +637,14 @@ export function createMatterRepo(db: Database): MatterRepo {
         await db
           .update(matters)
           .set({ trashedAt: null, updatedAt: now })
-          .where(and(eq(matters.id, targetId), eq(matters.orgId, orgId), isNotNull(matters.trashedAt)))
+          .where(
+            and(
+              eq(matters.id, targetId),
+              eq(matters.orgId, orgId),
+              isNotNull(matters.trashedAt),
+              isNull(matters.purgedAt),
+            ),
+          )
       }
 
       const restored = { ...existing, name: finalName, trashedAt: null, updatedAt: now }
@@ -609,9 +666,40 @@ export function createMatterRepo(db: Database): MatterRepo {
     collectForPurge,
 
     async purge(orgId, ids): Promise<void> {
-      for (const id of ids) {
-        await db.delete(matters).where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
-      }
+      if (ids.length === 0) return
+      const rows = await db
+        .select()
+        .from(matters)
+        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids), isNull(matters.purgedAt)))
+      if (rows.length === 0) return
+
+      const now = new Date()
+      const storageIds = new Set(
+        rows
+          .filter((row) => row.dirtype === DirType.FILE && row.status === ObjectStatus.ACTIVE)
+          .map((row) => row.storageId),
+      )
+      await executeWriteTransaction(db, [
+        ...[...storageIds].map((storageId) => storageUsageOpeningBalanceQuery(db, orgId, storageId, now)),
+        ...rows.map((row) => matterPurgeLedgerQuery(db, orgId, row.id, now)),
+        db
+          .update(matters)
+          .set({
+            trashedAt: sql`COALESCE(${matters.trashedAt}, ${now.getTime()})`,
+            purgedAt: now.getTime(),
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(matters.orgId, orgId),
+              inArray(
+                matters.id,
+                rows.map((row) => row.id),
+              ),
+              isNull(matters.purgedAt),
+            ),
+          ),
+      ])
     },
 
     async listActiveDescendants(orgId, parentPath): Promise<Matter[]> {
@@ -625,6 +713,7 @@ export function createMatterRepo(db: Database): MatterRepo {
             eq(matters.orgId, orgId),
             eq(matters.status, ObjectStatus.ACTIVE),
             isNull(matters.trashedAt),
+            isNull(matters.purgedAt),
             descendantParentCondition(parentPath),
           ),
         )
@@ -636,7 +725,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       await db
         .update(matters)
         .set({ trashedAt: Date.now(), updatedAt: new Date() })
-        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids)))
+        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids), isNull(matters.purgedAt)))
     },
 
     async restoreActiveByIds(orgId, ids): Promise<void> {
@@ -644,28 +733,42 @@ export function createMatterRepo(db: Database): MatterRepo {
       await db
         .update(matters)
         .set({ trashedAt: null, updatedAt: new Date() })
-        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids)))
+        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids), isNull(matters.purgedAt)))
     },
 
     async touch(orgId, id): Promise<void> {
       await db
         .update(matters)
         .set({ updatedAt: new Date() })
-        .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
+        .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt)))
     },
 
     async applyUpload(orgId, id, fields): Promise<void> {
-      await db
-        .update(matters)
-        .set({ type: fields.type, size: fields.size, object: fields.object, updatedAt: new Date() })
-        .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
+      const existing = await getMatter(id, orgId)
+      if (!existing) return
+      const now = new Date()
+      await executeWriteTransaction(db, [
+        storageUsageOpeningBalanceQuery(db, orgId, existing.storageId, now),
+        matterResizeLedgerQuery(db, orgId, id, fields.size, now),
+        db
+          .update(matters)
+          .set({ type: fields.type, size: fields.size, object: fields.object, updatedAt: now })
+          .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
+      ])
     },
 
     async listTrashedRoots(orgId): Promise<Matter[]> {
       const all = await db
         .select()
         .from(matters)
-        .where(and(eq(matters.orgId, orgId), eq(matters.status, ObjectStatus.ACTIVE), isNotNull(matters.trashedAt)))
+        .where(
+          and(
+            eq(matters.orgId, orgId),
+            eq(matters.status, ObjectStatus.ACTIVE),
+            isNotNull(matters.trashedAt),
+            isNull(matters.purgedAt),
+          ),
+        )
 
       const trashedPaths = new Set(all.map((m) => buildPath(m.parent, m.name)))
       return all
@@ -683,7 +786,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       const rows = await db
         .selectDistinct({ orgId: matters.orgId })
         .from(matters)
-        .where(and(isNotNull(matters.trashedAt), lt(matters.trashedAt, cutoff)))
+        .where(and(isNotNull(matters.trashedAt), isNull(matters.purgedAt), lt(matters.trashedAt, cutoff)))
       return rows.map((r) => r.orgId)
     },
 
@@ -704,11 +807,20 @@ export function createMatterRepo(db: Database): MatterRepo {
     },
 
     async activateDraft(id, orgId, finalName, now): Promise<boolean> {
-      const updated = await db
+      const existing = await getMatter(id, orgId)
+      if (!existing || existing.status !== 'draft') return false
+      await executeWriteTransaction(db, [storageUsageOpeningBalanceQuery(db, orgId, existing.storageId, now)])
+      const activateQuery = db
         .update(matters)
         .set({ name: finalName, status: 'active', updatedAt: now })
-        .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft')))
+        .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft'), isNull(matters.purgedAt)))
         .returning({ id: matters.id })
+      const results = await executeWriteTransactionWithResults(
+        db,
+        [activateQuery, matterActivationLedgerQuery(db, orgId, id, now)],
+        [0],
+      )
+      const updated = results[0] as { id: string }[]
       return updated.length > 0
     },
   }

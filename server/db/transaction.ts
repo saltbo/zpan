@@ -35,3 +35,21 @@ export async function executeWriteTransaction(db: Database, queries: AtomicQuery
     }
   })
 }
+
+export async function executeWriteTransactionWithResults(
+  db: Database,
+  queries: AtomicQuery[],
+  returningQueryIndexes: readonly number[],
+): Promise<unknown[]> {
+  const batch = (db as unknown as { batch?: (queries: AtomicQuery[]) => Promise<unknown[]> }).batch
+  if (batch) return await batch.call(db, queries)
+
+  if (!isSyncDatabase(db)) throw new Error('db_transaction_unavailable')
+
+  return (db as unknown as { transaction<T>(fn: () => T): T }).transaction(() =>
+    queries.map((query, index) => {
+      if (returningQueryIndexes.includes(index)) return query.all?.()
+      return query.run?.()
+    }),
+  )
+}

@@ -297,15 +297,19 @@ describe('reserveStorageUsage', () => {
       VALUES
         ('active-file', ${orgId}, 'active-file-alias', 'active.txt', 'text/plain', 100, 0, '', 'active-key', ${storageId}, 'active', NULL, ${now}, ${now}),
         ('trashed-file', ${orgId}, 'trashed-file-alias', 'trashed.txt', 'text/plain', 200, 0, '', 'trashed-key', ${storageId}, 'active', ${now}, ${now}, ${now}),
+        ('purged-file', ${orgId}, 'purged-file-alias', 'purged.txt', 'text/plain', 999, 0, '', 'purged-key', ${storageId}, 'active', ${now}, ${now}, ${now}),
         ('draft-file', ${orgId}, 'draft-file-alias', 'draft.txt', 'text/plain', 300, 0, '', 'draft-key', ${storageId}, 'draft', NULL, ${now}, ${now}),
         ('active-folder', ${orgId}, 'active-folder-alias', 'Folder', 'folder', 400, 1, '', '', ${storageId}, 'active', NULL, ${now}, ${now})
     `)
+    await db.run(sql`UPDATE matters SET purged_at = ${now} WHERE id = 'purged-file'`)
     await db.run(sql`
       INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
       VALUES
         ('active-image', ${orgId}, 'ih_active', 'active.png', ${storageId}, 'ih/active.png', 50, 'image/png', 'active', 0, ${now}),
+        ('purged-image', ${orgId}, 'ih_purged', 'purged.png', ${storageId}, 'ih/purged.png', 888, 'image/png', 'active', 0, ${now}),
         ('draft-image', ${orgId}, 'ih_draft', 'draft.png', ${storageId}, 'ih/draft.png', 70, 'image/png', 'draft', 0, ${now})
     `)
+    await db.run(sql`UPDATE image_hostings SET purged_at = ${now} WHERE id = 'purged-image'`)
 
     await createStorageUsageRepo(db).reconcile(orgId, [storageId])
 
@@ -336,6 +340,12 @@ describe('confirmUpload', () => {
     expect(storageRows[0].used).toBe(500)
     const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
     expect(quotaRows[0].used).toBe(500)
+    const ledgerRows = await db.all<{ bytes: number; events: number }>(sql`
+      SELECT COALESCE(SUM(delta_bytes), 0) AS bytes, COUNT(*) AS events
+      FROM storage_usage_ledger
+      WHERE org_id = ${orgId} AND storage_id = ${storageId}
+    `)
+    expect(ledgerRows[0]).toEqual({ bytes: 500, events: 2 })
   })
 
   it('returns { matter } and does not increment usage when file size is 0', async () => {

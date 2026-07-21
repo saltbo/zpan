@@ -54,6 +54,7 @@ export function createWebDavPathRepo(db: Database): WebDavPathRepo {
             eq(matters.parent, parent),
             eq(matters.status, ObjectStatus.ACTIVE),
             isNull(matters.trashedAt),
+            isNull(matters.purgedAt),
           ),
         )
         .orderBy(desc(matters.dirtype), asc(matters.name))
@@ -145,6 +146,7 @@ async function findMatterByPath(db: Database, orgId: string, parent: string, nam
         eq(matters.name, name),
         eq(matters.status, ObjectStatus.ACTIVE),
         isNull(matters.trashedAt),
+        isNull(matters.purgedAt),
       ),
     )
     .limit(1)

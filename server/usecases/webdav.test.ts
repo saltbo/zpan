@@ -75,6 +75,7 @@ function file(id: string, overrides: Partial<Matter> = {}): Matter {
     storageId: 'st-1',
     status: 'active',
     trashedAt: null,
+    purgedAt: null,
     createdAt: new Date('2020-01-01'),
     updatedAt: new Date('2020-01-01'),
     ...overrides,

@@ -1655,7 +1655,9 @@ function SharingDataQualityNotice({ quality }: { quality: AdminSharingDataQualit
 }
 
 function StorageUsageDataQualityNotice({ quality }: { quality: AdminDashboardStorageStats['dataQuality'] }) {
-  if (quality.usageDriftSpaces === null || quality.usageDriftSpaces === 0) return null
+  const usageDrift = quality.usageDriftSpaces !== null && quality.usageDriftSpaces > 0
+  const ledgerDrift = quality.ledgerDriftSpaces !== null && quality.ledgerDriftSpaces > 0
+  if (!usageDrift && !ledgerDrift) return null
   return (
     <div
       role="status"
@@ -1665,8 +1667,14 @@ function StorageUsageDataQualityNotice({ quality }: { quality: AdminDashboardSto
         占用账本异常
       </Badge>
       <span className="text-muted-foreground">
-        {formatNumber(quality.usageDriftSpaces)} 个空间的配额占用账本与可计费对象相差{' '}
-        {formatSize(quality.usageDriftBytes)}；修复前不要把配额水位作为准确事实。
+        {usageDrift
+          ? `${formatNumber(quality.usageDriftSpaces)} 个空间的实时占用计数与可计费对象相差 ${formatSize(quality.usageDriftBytes)}`
+          : ''}
+        {usageDrift && ledgerDrift ? '；' : ''}
+        {ledgerDrift
+          ? `${formatNumber(quality.ledgerDriftSpaces)} 个空间的存储流水与可计费对象相差 ${formatSize(quality.ledgerDriftBytes)}`
+          : ''}
+        ；修复前不要把对应的存储数据作为准确事实。
       </span>
     </div>
   )

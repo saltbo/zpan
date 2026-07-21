@@ -128,9 +128,13 @@ const APP_SCHEMA_SQL = `
     storage_id TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'draft',
     trashed_at INTEGER,
+    purged_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE UNIQUE INDEX IF NOT EXISTS matters_active_name_uniq
+    ON matters(org_id, parent, LOWER(name))
+    WHERE status = 'active' AND trashed_at IS NULL;
   CREATE TABLE IF NOT EXISTS webdav_dead_properties (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
@@ -320,6 +324,21 @@ const APP_SCHEMA_SQL = `
 		  CREATE UNIQUE INDEX IF NOT EXISTS stats_rollups_hourly_bucket_metric_dim_uniq ON stats_rollups_hourly(bucket_start, org_id, metric_key, dimension_key, dimension_value);
 		  CREATE INDEX IF NOT EXISTS stats_rollups_hourly_metric_bucket_idx ON stats_rollups_hourly(metric_key, bucket_start);
 		  CREATE INDEX IF NOT EXISTS stats_rollups_hourly_dimension_bucket_idx ON stats_rollups_hourly(metric_key, dimension_key, bucket_start);
+	  CREATE TABLE IF NOT EXISTS storage_usage_ledger (
+	    id TEXT PRIMARY KEY NOT NULL,
+	    event_key TEXT NOT NULL UNIQUE,
+	    org_id TEXT NOT NULL,
+	    storage_id TEXT NOT NULL,
+	    resource_type TEXT NOT NULL,
+	    resource_id TEXT NOT NULL,
+	    delta_bytes INTEGER NOT NULL,
+	    reason TEXT NOT NULL,
+	    occurred_at INTEGER NOT NULL,
+	    created_at INTEGER NOT NULL
+	  );
+	  CREATE INDEX IF NOT EXISTS storage_usage_ledger_occurred_idx ON storage_usage_ledger(occurred_at);
+	  CREATE INDEX IF NOT EXISTS storage_usage_ledger_org_occurred_idx ON storage_usage_ledger(org_id, occurred_at);
+	  CREATE INDEX IF NOT EXISTS storage_usage_ledger_storage_occurred_idx ON storage_usage_ledger(storage_id, occurred_at);
 	  CREATE TABLE IF NOT EXISTS shares (
     id TEXT PRIMARY KEY,
     token TEXT NOT NULL UNIQUE,
@@ -366,11 +385,12 @@ const APP_SCHEMA_SQL = `
     width INTEGER,
     height INTEGER,
     status TEXT NOT NULL DEFAULT 'draft',
+    purged_at INTEGER,
     access_count INTEGER NOT NULL DEFAULT 0,
     last_accessed_at INTEGER,
     created_at INTEGER NOT NULL
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS image_hostings_org_path_uniq ON image_hostings(org_id, path);
+  CREATE UNIQUE INDEX IF NOT EXISTS image_hostings_org_path_uniq ON image_hostings(org_id, path) WHERE purged_at IS NULL;
   CREATE INDEX IF NOT EXISTS image_hostings_org_created_idx ON image_hostings(org_id, created_at);
   CREATE INDEX IF NOT EXISTS image_hostings_token_idx ON image_hostings(token);
   CREATE TABLE IF NOT EXISTS notifications (

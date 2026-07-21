@@ -15,13 +15,15 @@ The dashboard is read-only and does not support report or CSV export.
 
 Metrics derived from activity facts use a validated producer contract. New transfer and sharing facts fail fast when required fields such as `bytes`, `source`, `trafficEventId`, or `shareId` are missing. User signup, share creation, background-job completion, and remote-download completion each write a deterministic immutable stats fact in the same transaction as the business change. Deleting the mutable user/share/job/task row therefore does not rewrite history. Historical rows that predate this contract remain diagnosable through quality metrics.
 
+Storage accounting uses the typed `storage_usage_ledger`, not activity-event JSON. Before the first mutation, each organization/storage pair receives an exact opening balance from currently billable matter and image rows. Activating, resizing, or purging content writes a signed byte delta with the resource id and reason alongside the resource state change. Purged files and images keep a `purged_at` tombstone; normal readers exclude them, while their identity and accounting history remain available for audit.
+
 A deduplicated share view updates `shares.views` and inserts its `share_view` fact in one database transaction. Download flows record an issued fact only after quota/metering and presigning succeed; a failed fact records the stable reason and traffic event id. If the issued-fact write fails, the flow refunds the counters it already reserved.
 
 ## Result writes
 
 Metric and dimension combinations are declared in `server/domain/admin-stats-metrics.ts`:
 
-- Counters are additive event totals for a closed hour.
+- Counter-scope results are rebuilt from immutable facts for a closed hour. Most are additive event totals; `storage.ledger_balance` is the exact cumulative balance at the hour boundary.
 - Gauges are point-in-time snapshots captured during the current open hour and continuously replaced in that same bucket.
 - High-volume source rows are grouped by the database before the Worker builds result rows; the scheduler does not load a whole hour of raw events into memory.
 
@@ -62,10 +64,11 @@ Request-time work is bounded and result-only. Charts and totals read only the ag
 - Download bytes and counts mean issued downloads, not client-completed transfers.
 - Cloud traffic report status is a closed-hour snapshot of the current metering queue and belongs to Operations, not download success. Mutable report rows are never modeled as additive counters.
 - Remote-download outcomes count terminal run transitions. A failed run followed by a successful retry contributes one failure and one completion; deleting the task does not erase either outcome.
-- User, storage, share lifecycle, active job/task, downloader, report, and webhook state comes from closed-hour snapshots, not live request-time reads.
+- User, storage inventory, share lifecycle, active job/task, downloader, report, and webhook state comes from closed-hour snapshots, not live request-time reads.
 - Storage inventory includes non-trashed normal files and image-hosting objects.
 - Quota usage includes files retained in trash until purge. `storage.trash_snapshot` exposes that file and byte total separately, so active-file inventory is not expected to equal the quota waterline by itself.
-- `stats.data_quality_snapshot/storage_usage_drift` compares the quota usage ledger with all currently billable database objects. A non-zero space or byte drift is shown as an error instead of silently presenting the waterline as authoritative.
+- `storage.ledger_balance` is the exact end-of-hour sum of the opening balance and immutable byte deltas. The storage trend reads this rebuildable result; it remains empty before the opening balance instead of estimating missing history.
+- `stats.data_quality_snapshot/storage_usage_drift` compares the live quota counter with all currently billable database objects. `storage_ledger_drift` independently compares the immutable ledger with those objects. A non-zero space or byte drift is shown as an error instead of silently presenting either source as authoritative.
 - Workspace storage quota is the active paid plan, or the active Free baseline when no paid plan is valid, plus active non-plan grants. Missing or zero effective storage entitlement is invalid and always fails closed; it never means unlimited space.
 - The ten-minute maintenance cycle idempotently restores missing or accidentally revoked Free baseline entitlements before capturing quota snapshots. It preserves each existing baseline size and uses the configured finite defaults only when a baseline row is absent.
 - Files older than 90 days are an age cohort, not proven cold data; the UI labels this explicitly.
@@ -79,7 +82,7 @@ Legacy share counters can exceed the number of timestamped activity facts. The s
 
 Run `pnpm stats:backfill -- --apply ...` after the migration in each environment. The script repairs recoverable historical fact metadata, creates deterministic lower-bound facts for currently recoverable signup/share/job/task history, removes incompatible result versions, and rebuilds historical counters idempotently. It writes a continuous `scope=counters` marker for every closed UTC hour from the first available immutable fact through the latest closed hour, including hours with zero activity, and rejects missing or open-hour markers during validation. Incompatible older snapshots are removed rather than relabeled as current-version facts.
 
-The script does not fabricate historical inventory or active-user snapshots. Snapshot-backed views therefore report partial or empty coverage before full rollups began, while event-backed views can report complete historical coverage. Facts whose original byte size can no longer be recovered remain visible as `quality=lower_bound` instead of being guessed.
+The script does not fabricate historical inventory, active-user snapshots, or storage balances from before the ledger opening. Snapshot-backed views therefore report partial or empty coverage before full rollups began, while event-backed views can report complete historical coverage. After the opening balance, storage balances are rebuilt exactly from the immutable ledger. Facts whose original byte size can no longer be recovered remain visible as `quality=lower_bound` instead of being guessed.
 
 Validation must cover:
 

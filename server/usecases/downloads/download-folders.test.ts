@@ -18,6 +18,7 @@ const folder = (name: string, parent = ''): Matter => ({
   storageId: 'storage-1',
   status: 'active',
   trashedAt: null,
+  purgedAt: null,
   createdAt: new Date(0),
   updatedAt: new Date(0),
 })

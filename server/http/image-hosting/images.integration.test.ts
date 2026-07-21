@@ -1162,7 +1162,7 @@ describe('DELETE /api/image-hosting/images/:id', () => {
     expect(res.status).toBe(404)
   })
 
-  it('removes S3 object and DB row; deleteObject called once', async () => {
+  it('removes the S3 object and retains a hidden DB tombstone', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -1179,12 +1179,22 @@ describe('DELETE /api/image-hosting/images/:id', () => {
 
     expect(S3Service.prototype.deleteObject).toHaveBeenCalledTimes(1)
 
-    // Row gone — verify via GET
+    // Public reads hide the row; the tombstone and exact storage ledger remain.
     const checkRes = await app.request(`/api/image-hosting/images/${id}`, { headers })
     expect(checkRes.status).toBe(404)
+    const tombstone = await db.all<{ purgedAt: number | null }>(
+      sql`SELECT purged_at AS purgedAt FROM image_hostings WHERE id = ${id}`,
+    )
+    expect(tombstone[0]?.purgedAt).toEqual(expect.any(Number))
+    const ledger = await db.all<{ bytes: number }>(sql`
+      SELECT COALESCE(SUM(delta_bytes), 0) AS bytes
+      FROM storage_usage_ledger
+      WHERE org_id = ${orgId} AND storage_id = ${validStorage.id}
+    `)
+    expect(ledger[0].bytes).toBe(0)
   })
 
-  it('still deletes DB row when storage record is missing (S3 delete skipped)', async () => {
+  it('still tombstones the DB row when the storage record is missing (S3 delete skipped)', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -1206,7 +1216,7 @@ describe('DELETE /api/image-hosting/images/:id', () => {
     // S3 deleteObject should NOT have been called (storage was null)
     expect(S3Service.prototype.deleteObject).not.toHaveBeenCalled()
 
-    // DB row must be gone
+    // Public reads hide the retained tombstone.
     const checkRes = await app.request(`/api/image-hosting/images/${id}`, { headers })
     expect(checkRes.status).toBe(404)
   })

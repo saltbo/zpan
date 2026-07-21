@@ -17,6 +17,7 @@ export const matters = sqliteTable(
     storageId: text('storage_id').notNull(),
     status: text('status').notNull().default('draft'), // draft, active
     trashedAt: integer('trashed_at'), // null = live, epoch ms = in trash (soft delete)
+    purgedAt: integer('purged_at'), // null = retained/billable, epoch ms = content permanently removed
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
   },
@@ -505,6 +506,27 @@ export const statsRollupsHourly = sqliteTable(
   ],
 )
 
+export const storageUsageLedger = sqliteTable(
+  'storage_usage_ledger',
+  {
+    id: text('id').primaryKey(),
+    eventKey: text('event_key').notNull().unique(),
+    orgId: text('org_id').notNull(),
+    storageId: text('storage_id').notNull(),
+    resourceType: text('resource_type').notNull(),
+    resourceId: text('resource_id').notNull(),
+    deltaBytes: integer('delta_bytes').notNull(),
+    reason: text('reason').notNull(),
+    occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('storage_usage_ledger_occurred_idx').on(t.occurredAt),
+    index('storage_usage_ledger_org_occurred_idx').on(t.orgId, t.occurredAt),
+    index('storage_usage_ledger_storage_occurred_idx').on(t.storageId, t.occurredAt),
+  ],
+)
+
 export const shares = sqliteTable(
   'shares',
   {
@@ -575,12 +597,13 @@ export const imageHostings = sqliteTable(
     width: integer('width'),
     height: integer('height'),
     status: text('status').notNull().default('draft'), // 'draft' | 'active'
+    purgedAt: integer('purged_at'),
     accessCount: integer('access_count').notNull().default(0),
     lastAccessedAt: integer('last_accessed_at', { mode: 'timestamp_ms' }),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
-    uniqueIndex('image_hostings_org_path_uniq').on(t.orgId, t.path),
+    uniqueIndex('image_hostings_org_path_uniq').on(t.orgId, t.path).where(sql`${t.purgedAt} IS NULL`),
     index('image_hostings_org_created_idx').on(t.orgId, t.createdAt),
     index('image_hostings_token_idx').on(t.token),
   ],

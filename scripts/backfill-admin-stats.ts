@@ -516,7 +516,7 @@ function buildHourlyBackfillSql(now: Date): string {
   ]
 
   const statements = sources.flatMap((source) => hourlyStatements(source, currentHour))
-  statements.push(userSignupBackfillSql(currentHour), rollupMarkerBackfillSql(now))
+  statements.push(userSignupBackfillSql(currentHour), storageLedgerBalanceBackfillSql(currentHour), rollupMarkerBackfillSql(now))
   return statements.join('\n\n')
 }
 
@@ -539,7 +539,7 @@ function purgeCounterRollupsSql(): string {
 WHERE metric_key IN (
     'background_job.finished', 'remote_download.task_finished', 'share.created',
     'share.download_issued', 'share.password_passed', 'share.saved', 'share.view',
-    'stats.quality_missing_bytes', 'traffic.report_sync', 'transfer.download_failed',
+    'stats.quality_missing_bytes', 'storage.ledger_balance', 'traffic.report_sync', 'transfer.download_failed',
     'transfer.download_issued', 'transfer.upload', 'user.signup'
   )
   OR (
@@ -626,6 +626,46 @@ function userSignupBackfillSql(before: number): string {
       provider: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.provider') END, 'unknown')",
     },
   }, before).join('\n\n')
+}
+
+function storageLedgerBalanceBackfillSql(currentHour: number): string {
+  return `WITH
+digits(n) AS (VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9)),
+numbers(n) AS (
+  SELECT ones.n + tens.n * 10 + hundreds.n * 100 + thousands.n * 1000 + ten_thousands.n * 10000
+  FROM digits ones
+  CROSS JOIN digits tens
+  CROSS JOIN digits hundreds
+  CROSS JOIN digits thousands
+  CROSS JOIN digits ten_thousands
+),
+opening AS (
+  SELECT CAST(MIN(occurred_at) / 3600000 AS INTEGER) * 3600000 AS start_at
+  FROM storage_usage_ledger
+  WHERE reason = 'opening_balance_complete'
+),
+buckets AS (
+  SELECT opening.start_at + numbers.n * 3600000 AS bucket_start
+  FROM opening
+  JOIN numbers ON opening.start_at + numbers.n * 3600000 < ${currentHour}
+  WHERE opening.start_at IS NOT NULL
+)
+INSERT INTO stats_rollups_hourly (
+  id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+  count, bytes, unique_count, metadata, updated_at
+)
+SELECT
+  CAST(bucket_start AS TEXT) || ':global:storage.ledger_balance:all:all',
+  bucket_start, '', 'storage.ledger_balance', '', '', 0,
+  (SELECT COALESCE(SUM(delta_bytes), 0) FROM storage_usage_ledger WHERE occurred_at < bucket_start + 3600000),
+  0, json_object('version', 3, 'scope', 'counters', 'quality', 'exact'), bucket_start + 3600000
+FROM buckets
+WHERE true
+ON CONFLICT(bucket_start, org_id, metric_key, dimension_key, dimension_value)
+DO UPDATE SET count = excluded.count, bytes = excluded.bytes, unique_count = excluded.unique_count,
+  metadata = excluded.metadata, updated_at = excluded.updated_at
+WHERE count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excluded.unique_count
+  OR metadata <> excluded.metadata OR updated_at <> excluded.updated_at;`
 }
 
 function rollupMarkerBackfillSql(now: Date): string {
@@ -730,9 +770,8 @@ WHERE count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excl
 }
 
 function statsHistoryStartSql(): string {
-  const missing = '9223372036854775807'
-  return `NULLIF(COALESCE((
-    SELECT CAST((MIN(ae.created_at) * 1000) / 3600000 AS INTEGER) * 3600000
+  return `(SELECT MIN(start_at) FROM (
+    SELECT CAST((MIN(ae.created_at) * 1000) / 3600000 AS INTEGER) * 3600000 AS start_at
     FROM activity_events ae
     WHERE ae.created_at >= ${MIN_VALID_TIMESTAMP_SECONDS}
       AND ae.action IN (
@@ -742,7 +781,11 @@ function statsHistoryStartSql(): string {
         'stats_user_signup', 'stats_share_created',
         'stats_remote_download_finished', 'stats_background_job_finished'
       )
-  ), ${missing}), ${missing})`
+    UNION ALL
+    SELECT CAST(MIN(occurred_at) / 3600000 AS INTEGER) * 3600000 AS start_at
+    FROM storage_usage_ledger
+    WHERE reason = 'opening_balance_complete'
+  ) history_starts WHERE start_at IS NOT NULL)`
 }
 
 export function buildValidationSql(now = new Date()): string {

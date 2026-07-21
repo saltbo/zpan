@@ -25,7 +25,7 @@ async function collectCompressionPlan(
   const roots = await db
     .select()
     .from(matters)
-    .where(and(eq(matters.orgId, orgId), or(...uniqueIds.map((id) => eq(matters.id, id)))))
+    .where(and(eq(matters.orgId, orgId), isNull(matters.purgedAt), or(...uniqueIds.map((id) => eq(matters.id, id)))))
   if (roots.length !== uniqueIds.length) throw new Error('Some archive source IDs do not belong to this organization')
   if (roots.some((matter) => matter.status !== 'active' || matter.trashedAt != null))
     throw new Error('Only active matters can be archived')
@@ -97,6 +97,7 @@ async function collectRootEntries(
         eq(matters.orgId, orgId),
         eq(matters.status, 'active'),
         isNull(matters.trashedAt),
+        isNull(matters.purgedAt),
         or(eq(matters.parent, rootPath), like(matters.parent, `${rootPath}/%`)),
       ),
     )

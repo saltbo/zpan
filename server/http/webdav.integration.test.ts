@@ -1071,6 +1071,12 @@ describe('WebDAV API', () => {
     expect(update.status).toBe(204)
     const rows = await db.all<{ size: number; type: string }>(sql`SELECT size, type FROM matters WHERE id = 'existing'`)
     expect(rows[0]).toEqual({ size: 5, type: 'application/octet-stream' })
+    const ledger = await db.all<{ bytes: number }>(sql`
+      SELECT COALESCE(SUM(delta_bytes), 0) AS bytes
+      FROM storage_usage_ledger
+      WHERE org_id = ${workspace.id} AND storage_id = ${storage.id}
+    `)
+    expect(ledger[0].bytes).toBe(5)
 
     const root = await app.request(`/dav/${workspace.slug}/`, {
       method: 'PUT',

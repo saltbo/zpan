@@ -79,6 +79,11 @@ describe('admin stats backfill', () => {
         id TEXT PRIMARY KEY, status TEXT NOT NULL, created_at INTEGER NOT NULL, processed_at INTEGER
       );
       CREATE TABLE org_quotas (id TEXT PRIMARY KEY, used INTEGER NOT NULL);
+      CREATE TABLE storage_usage_ledger (
+        id TEXT PRIMARY KEY, event_key TEXT NOT NULL UNIQUE, org_id TEXT NOT NULL, storage_id TEXT NOT NULL,
+        resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, delta_bytes INTEGER NOT NULL, reason TEXT NOT NULL,
+        occurred_at INTEGER NOT NULL, created_at INTEGER NOT NULL
+      );
       CREATE TABLE stats_rollups_hourly (
         id TEXT PRIMARY KEY, bucket_start INTEGER NOT NULL, org_id TEXT NOT NULL,
         metric_key TEXT NOT NULL, dimension_key TEXT NOT NULL, dimension_value TEXT NOT NULL,

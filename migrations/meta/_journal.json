@@ -407,6 +407,13 @@
       "when": 1784572374065,
       "tag": "0058_drop-system-options-public",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1784606180765,
+      "tag": "0059_storage-usage-ledger",
+      "breakpoints": true
     }
   ]
 }

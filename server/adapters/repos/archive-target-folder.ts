@@ -20,6 +20,7 @@ async function requireTargetFolder(db: Database, orgId: string, targetFolder: st
         eq(matters.name, name),
         eq(matters.status, 'active'),
         isNull(matters.trashedAt),
+        isNull(matters.purgedAt),
       ),
     )
     .limit(1)

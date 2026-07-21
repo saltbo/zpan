@@ -41,11 +41,13 @@ export function createStorageUsageRepo(db: Database): StorageUsageRepo {
             WHERE ${matters.orgId} = ${orgId}
               AND ${matters.dirtype} = ${DirType.FILE}
               AND ${matters.status} = 'active'
+              AND ${matters.purgedAt} IS NULL
           ), 0) + COALESCE((
             SELECT SUM(${imageHostings.size})
             FROM ${imageHostings}
             WHERE ${imageHostings.orgId} = ${orgId}
               AND ${imageHostings.status} = 'active'
+              AND ${imageHostings.purgedAt} IS NULL
           ), 0)`,
         })
         .where(eq(orgQuotas.orgId, orgId))
@@ -60,11 +62,13 @@ export function createStorageUsageRepo(db: Database): StorageUsageRepo {
               WHERE ${matters.storageId} = ${storageId}
                 AND ${matters.dirtype} = ${DirType.FILE}
                 AND ${matters.status} = 'active'
+                AND ${matters.purgedAt} IS NULL
             ), 0) + COALESCE((
               SELECT SUM(${imageHostings.size})
               FROM ${imageHostings}
               WHERE ${imageHostings.storageId} = ${storageId}
                 AND ${imageHostings.status} = 'active'
+                AND ${imageHostings.purgedAt} IS NULL
             ), 0)`,
           })
           .where(eq(storages.id, storageId))

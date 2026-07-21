@@ -78,7 +78,7 @@ describe('admin hourly stats rollup', () => {
       VALUES
         ('rollup-file', ${orgId}, 'rollup-file', 'video.mp4', 'video/mp4', 200, 0, '', 'video.mp4', 'rollup-storage', 'active', NULL, ${atSec}, ${atSec}),
         ('rollup-dir', ${orgId}, 'rollup-dir', 'folder', '', 0, 1, '', '', 'rollup-storage', 'active', NULL, ${atSec}, ${atSec}),
-        ('rollup-trashed', ${orgId}, 'rollup-trashed', 'old.bin', 'application/octet-stream', 800, 0, '', 'old.bin', 'rollup-storage', 'trashed', ${atMs}, ${atSec}, ${atSec})
+        ('rollup-trashed', ${orgId}, 'rollup-trashed', 'old.bin', 'application/octet-stream', 800, 0, '', 'old.bin', 'rollup-storage', 'active', ${atMs}, ${atSec}, ${atSec})
     `)
     await db.run(sql`
       INSERT INTO image_hostings
@@ -226,6 +226,7 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.remoteDownloadTaskFinished)).toMatchObject({ count: 1, bytes: 60 })
     expect(row(M.backgroundJobFinished)).toMatchObject({ count: 1 })
     expect(row(M.storageInventory)).toMatchObject({ count: 2, bytes: 500 })
+    expect(row(M.storageLedgerBalance, '', '', '')).toMatchObject({ bytes: 1300 })
     expect(row(M.storageUsed)).toMatchObject({ bytes: 1300 })
     expect(row(M.storageQuota)).toMatchObject({ bytes: 1000 })
     expect(row(M.storageQuota, 'status', 'over', '')).toMatchObject({ count: 1 })

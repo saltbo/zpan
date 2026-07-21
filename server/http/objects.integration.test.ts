@@ -49,8 +49,12 @@ function copyMatter(
 ) {
   return createMatterRepo(db).copy(source, targetParent, newObject, opts)
 }
-function deleteMatter(db: TestDbForMatter, id: string, orgId: string) {
-  return createMatterRepo(db).delete(id, orgId)
+async function deleteMatter(db: TestDbForMatter, id: string, orgId: string) {
+  const repo = createMatterRepo(db)
+  const existing = await repo.get(id, orgId)
+  if (!existing) return null
+  await repo.purge(orgId, [id])
+  return existing
 }
 function confirmUpload(db: TestDbForMatter, id: string, orgId: string, opts: ConfirmUploadOptions = {}) {
   return confirmUploadUsecase(
@@ -600,6 +604,19 @@ describe('Objects API', () => {
 
     expect(await getMatter(db, 'movie-folder', orgId)).toBeNull()
     expect(await getMatter(db, 'movie-file', orgId)).toBeNull()
+    const tombstones = await db.all<{ id: string; purgedAt: number | null }>(sql`
+      SELECT id, purged_at AS purgedAt FROM matters
+      WHERE id IN ('movie-folder', 'movie-file')
+      ORDER BY id
+    `)
+    expect(tombstones).toHaveLength(2)
+    expect(tombstones.every((row) => typeof row.purgedAt === 'number')).toBe(true)
+    const ledger = await db.all<{ bytes: number }>(sql`
+      SELECT COALESCE(SUM(delta_bytes), 0) AS bytes
+      FROM storage_usage_ledger
+      WHERE org_id = ${orgId} AND storage_id = ${validStorage.id}
+    `)
+    expect(ledger[0].bytes).toBe(0)
   })
 
   it('DELETE /api/objects/:id is idempotent for an already-trashed object → 204', async () => {
@@ -1029,7 +1046,7 @@ describe('Matter service', () => {
     expect(result).toBeNull()
   })
 
-  it('deleteMatter removes and returns the record', async () => {
+  it('deleteMatter hides and retains the purged record', async () => {
     const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
@@ -1051,6 +1068,10 @@ describe('Matter service', () => {
 
     const check = await getMatter(db, matter.id, 'org-1')
     expect(check).toBeNull()
+    const retained = await db.all<{ purgedAt: number | null }>(
+      sql`SELECT purged_at AS purgedAt FROM matters WHERE id = ${matter.id}`,
+    )
+    expect(retained[0]?.purgedAt).toEqual(expect.any(Number))
   })
 
   it('deleteMatter returns null for missing record', async () => {
@@ -2128,9 +2149,11 @@ describe('Objects API — quota enforcement', () => {
       const completeRes = await complete(app, headers, ref)
       expect(completeRes.status).toBe(200)
 
-      // Incumbent purged (overwritten, not trashed) and usage unchanged.
-      const incumbent = await db.all(sql`SELECT id FROM matters WHERE id = 'incumbent'`)
-      expect(incumbent).toHaveLength(0)
+      // Incumbent content is purged but its tombstone is retained; usage is unchanged.
+      const incumbent = await db.all<{ purgedAt: number | null }>(
+        sql`SELECT purged_at AS purgedAt FROM matters WHERE id = 'incumbent'`,
+      )
+      expect(incumbent[0]?.purgedAt).toEqual(expect.any(Number))
       const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
       expect(quotaRows[0].used).toBe(100)
     })

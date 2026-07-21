@@ -40,7 +40,7 @@ export function createShareRepo(db: Database): ShareRepo {
       const matter = await db
         .select()
         .from(matters)
-        .where(and(eq(matters.id, input.matterId), eq(matters.orgId, input.orgId)))
+        .where(and(eq(matters.id, input.matterId), eq(matters.orgId, input.orgId), isNull(matters.purgedAt)))
         .then((rows) => rows[0] ?? null)
 
       if (!matter) throw new CreateShareError('MATTER_NOT_FOUND')
@@ -321,6 +321,7 @@ export function createShareRepo(db: Database): ShareRepo {
             eq(matters.orgId, matter.orgId),
             eq(matters.status, 'active'),
             isNull(matters.trashedAt),
+            isNull(matters.purgedAt),
             eq(matters.dirtype, DirType.FILE),
             or(eq(matters.parent, folderPath), like(matters.parent, `${folderPath}/%`)),
           ),
@@ -338,6 +339,7 @@ export function createShareRepo(db: Database): ShareRepo {
             eq(matters.parent, folderPath),
             eq(matters.status, 'active'),
             isNull(matters.trashedAt),
+            isNull(matters.purgedAt),
           ),
         )
     },
@@ -357,7 +359,11 @@ export function createShareRepo(db: Database): ShareRepo {
     },
 
     async getMatterName(matterId: string): Promise<string | null> {
-      const rows = await db.select({ name: matters.name }).from(matters).where(eq(matters.id, matterId)).limit(1)
+      const rows = await db
+        .select({ name: matters.name })
+        .from(matters)
+        .where(and(eq(matters.id, matterId), isNull(matters.purgedAt)))
+        .limit(1)
       return rows[0]?.name ?? null
     },
 
@@ -376,6 +382,7 @@ export function createShareRepo(db: Database): ShareRepo {
             eq(matters.orgId, rootMatter.orgId),
             eq(matters.status, 'active'),
             isNull(matters.trashedAt),
+            isNull(matters.purgedAt),
             or(eq(matters.parent, root), sql`${matters.parent} LIKE ${likePattern} ESCAPE '\\'`),
           ),
         )

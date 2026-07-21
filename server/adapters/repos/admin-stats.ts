@@ -1131,7 +1131,7 @@ async function getMissingTransferBytes(reader: AdminStatsHourlyReader): Promise<
 }
 
 async function getStorageUsedByDay(reader: AdminStatsHourlyReader): Promise<Map<string, number>> {
-  return getLatestGaugeValueByDay(reader, ADMIN_STATS_METRICS.storageUsed, 'bytes', '', '')
+  return getLatestGaugeValueByDay(reader, ADMIN_STATS_METRICS.storageLedgerBalance, 'bytes', '', '')
 }
 
 async function getStorageInventory(reader: AdminStatsHourlyReader): Promise<{ files: number; bytes: number } | null> {
@@ -1150,15 +1150,25 @@ async function getStorageTrashInventory(
 
 async function getStorageDataQuality(
   reader: AdminStatsHourlyReader,
-): Promise<Pick<AdminStorageDataQuality, 'usageDriftSpaces' | 'usageDriftBytes'>> {
+): Promise<
+  Pick<AdminStorageDataQuality, 'usageDriftSpaces' | 'usageDriftBytes' | 'ledgerDriftSpaces' | 'ledgerDriftBytes'>
+> {
   const rows = await reader.latestRows(ADMIN_STATS_METRICS.statsDataQualitySnapshot, ['', 'kind'])
   if (!rows.some((row) => row.orgId === '' && row.dimensionKey === '')) {
-    return { usageDriftSpaces: null, usageDriftBytes: null }
+    return { usageDriftSpaces: null, usageDriftBytes: null, ledgerDriftSpaces: null, ledgerDriftBytes: null }
   }
-  const drift = rows.find(
+  const usageDrift = rows.find(
     (row) => row.orgId === '' && row.dimensionKey === 'kind' && row.dimensionValue === 'storage_usage_drift',
   )
-  return { usageDriftSpaces: drift?.count ?? 0, usageDriftBytes: drift?.bytes ?? 0 }
+  const ledgerDrift = rows.find(
+    (row) => row.orgId === '' && row.dimensionKey === 'kind' && row.dimensionValue === 'storage_ledger_drift',
+  )
+  return {
+    usageDriftSpaces: usageDrift?.count ?? 0,
+    usageDriftBytes: usageDrift?.bytes ?? 0,
+    ledgerDriftSpaces: ledgerDrift?.count ?? 0,
+    ledgerDriftBytes: ledgerDrift?.bytes ?? 0,
+  }
 }
 
 async function getLatestInventoryBreakdown(

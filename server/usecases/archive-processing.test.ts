@@ -855,7 +855,9 @@ async function seedMatter(
 
 async function activeMatterCount(db: TestDb): Promise<number> {
   const rows = await db.all<{ count: number }>(sql`
-    SELECT COUNT(*) AS count FROM matters WHERE org_id = ${ORG_ID} AND status = 'active'
+    SELECT COUNT(*) AS count
+    FROM matters
+    WHERE org_id = ${ORG_ID} AND status = 'active' AND purged_at IS NULL
   `)
   return rows[0]?.count ?? 0
 }

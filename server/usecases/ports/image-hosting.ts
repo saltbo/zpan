@@ -4,6 +4,7 @@ import type { ImageHosting } from '@shared/types'
 // Server-side record: the shared DTO, but timestamps stay as Date until the http
 // layer serializes them. Drizzle row types never cross this boundary.
 export type ImageHostingRecord = Omit<ImageHosting, 'lastAccessedAt' | 'createdAt'> & {
+  purgedAt: number | null
   lastAccessedAt: Date | null
   createdAt: Date
 }

@@ -19,6 +19,7 @@ export interface Matter {
   storageId: string
   status: string
   trashedAt: number | null
+  purgedAt: number | null
   createdAt: Date
   updatedAt: Date
 }
@@ -105,7 +106,6 @@ export interface MatterRepo {
   getMany(orgId: string, ids: string[]): Promise<Matter[]>
   update(id: string, orgId: string, input: UpdateMatterInput, userId?: string): Promise<Matter | null>
   copy(source: Matter, targetParent: string, newObject: string, opts?: CopyMatterOptions): Promise<Matter>
-  delete(id: string, orgId: string): Promise<Matter | null>
   cancelDraft(id: string, orgId: string, userId?: string): Promise<Matter | null>
   trash(orgId: string, id: string, userId?: string): Promise<Matter | null>
   restore(orgId: string, id: string, userId?: string, onConflict?: ConflictStrategy): Promise<Matter | null>

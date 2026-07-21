@@ -85,6 +85,7 @@ async function seedMatter(
     storageId: opts.storageId ?? STORAGE_ID,
     status: opts.status ?? 'active',
     trashedAt: null,
+    purgedAt: null,
     createdAt: now,
     updatedAt: now,
   }

@@ -925,15 +925,10 @@ export type PurgeDeps = {
 
 export async function purgeRecursively(deps: PurgeDeps, orgId: string, matters: Matter[]): Promise<number> {
   const keysByStorage = new Map<string, { storage: StorageRecord | null; keys: string[] }>()
-  const bytesByStorage = new Map<string, number>()
-  let totalBytes = 0
+  const affectedStorageIds = new Set<string>()
 
   for (const m of matters) {
-    const size = m.size ?? 0
-    if (m.dirtype === DirType.FILE && size > 0) {
-      bytesByStorage.set(m.storageId, (bytesByStorage.get(m.storageId) ?? 0) + size)
-      totalBytes += size
-    }
+    if (m.dirtype === DirType.FILE) affectedStorageIds.add(m.storageId)
     if (!m.object) continue
     let entry = keysByStorage.get(m.storageId)
     if (!entry) {
@@ -956,7 +951,7 @@ export async function purgeRecursively(deps: PurgeDeps, orgId: string, matters: 
     orgId,
     matters.map((m) => m.id),
   )
-  if (totalBytes > 0) await deps.storageUsage.reconcile(orgId, bytesByStorage.keys())
+  if (affectedStorageIds.size > 0) await deps.storageUsage.reconcile(orgId, affectedStorageIds)
   return matters.length
 }
 
