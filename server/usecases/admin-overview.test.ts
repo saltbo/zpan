@@ -10,7 +10,7 @@ const statistics: AdminOverviewStatistics = {
     total: 42,
     active30Days: 18,
     new7Days: 5,
-    activity: { today: 3, last7Days: 5, last30Days: 10, inactive: 24 },
+    activity: { total: 42, today: 3, last7Days: 5, last30Days: 10, inactive: 24 },
     trend: [{ date: '2026-07-20', totalUsers: 42, activeUsers: 18, newUsers: 2 }],
     topUsage: [
       {

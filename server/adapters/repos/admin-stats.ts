@@ -13,9 +13,9 @@ import type {
   AdminTopShare,
   AdminTransferDataQuality,
 } from '@shared/types'
-import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm'
 import { member, organization, user } from '../../db/auth-schema'
-import { matters, shares, statsRollupsHourly } from '../../db/schema'
+import { matters, orgQuotas, shares, statsRollupsHourly } from '../../db/schema'
 import {
   ADMIN_STATS_METRICS,
   type AdminStatsDimension,
@@ -28,6 +28,7 @@ import type { AdminStatsDateRange, AdminStatsRepo } from '../../usecases/ports'
 import { AdminStatsHourlyReader } from './admin-stats-hourly'
 import { captureAdminStatsSnapshot, rebuildAdminStatsHour } from './admin-stats-rollup'
 import { createCloudTrafficReportRepo, trafficLedgerExactFrom } from './cloud-traffic-report'
+import { getEffectiveQuotasByOrg } from './quota'
 import { getStorageUsageLedgerOpening, storageUsageLedgerExactFrom } from './storage-usage-ledger'
 
 const DOWNLOAD_ACTIVITY_ACTIONS = ['share_download', 'object_download', 'image_hosting_download', 'webdav_download']
@@ -55,7 +56,7 @@ async function getOverviewStatistics(
   const [
     inventory,
     active,
-    recentRegisteredUsers,
+    liveUsers,
     newUsersByDay,
     totalUsersByDay,
     activeByDay,
@@ -67,14 +68,14 @@ async function getOverviewStatistics(
   ] = await Promise.all([
     getUserInventory(reader),
     getActiveUserSnapshot(reader),
-    getRecentRegisteredUserCount(db, now),
+    getLiveUserSummary(db, now),
     getSignupsByDay(reader),
     getUserTotalsByDay(reader),
     getRollingActiveUserTrend(reader, effective),
     getStorageUsedByDay(reader),
     getStorageLedgerChangesByDay(reader),
     getStorageUsageLedgerOpening(db),
-    getTopPersonalUsage(db, reader),
+    getTopPersonalUsage(db, now),
     getStorageDataQuality(reader),
   ])
   const dates = createDateBuckets(effective)
@@ -88,10 +89,11 @@ async function getOverviewStatistics(
 
   return {
     users: {
-      total: inventory?.total ?? null,
+      total: liveUsers.total,
       active30Days: mau,
-      new7Days: recentRegisteredUsers,
+      new7Days: liveUsers.new7Days,
       activity: {
+        total: inventory?.total ?? null,
         today: dau,
         last7Days: dau === null || wau === null ? null : Math.max(0, wau - dau),
         last30Days: wau === null || mau === null ? null : Math.max(0, mau - wau),
@@ -119,45 +121,49 @@ async function getOverviewStatistics(
   }
 }
 
-async function getRecentRegisteredUserCount(db: Database, now: Date): Promise<number> {
-  const from = utcDateStart(addCalendarDays(dayKey(now), -6))
+async function getLiveUserSummary(db: Database, now: Date): Promise<{ total: number; new7Days: number }> {
+  const fromMs = utcDateStart(addCalendarDays(dayKey(now), -6)).getTime()
+  const nowMs = now.getTime()
   const [row] = await db
-    .select({ count: sql<number>`COUNT(*)` })
+    .select({
+      total: sql<number>`COUNT(*)`,
+      new7Days: sql<number>`SUM(CASE WHEN ${user.createdAt} >= ${fromMs} AND ${user.createdAt} <= ${nowMs} THEN 1 ELSE 0 END)`,
+    })
     .from(user)
-    .where(and(gte(user.createdAt, from), lte(user.createdAt, now)))
-  return Number(row.count)
+  return { total: Number(row.total), new7Days: Number(row.new7Days) }
 }
 
-async function getTopPersonalUsage(
-  db: Database,
-  reader: AdminStatsHourlyReader,
-): Promise<AdminOverviewStatistics['users']['topUsage']> {
-  const usage = await reader.topSpaceUsage({ limit: 10, personalOnly: true })
-  if (usage.length === 0) return []
-
-  const owners = await db
-    .select({ orgId: organization.id, userId: user.id, name: user.name, email: user.email })
+async function getTopPersonalUsage(db: Database, now: Date): Promise<AdminOverviewStatistics['users']['topUsage']> {
+  const usedBytes = sql<number>`COALESCE(${orgQuotas.used}, 0)`
+  const usage = await db
+    .select({ orgId: organization.id, userId: user.id, name: user.name, email: user.email, usedBytes })
     .from(organization)
     .innerJoin(member, and(eq(member.organizationId, organization.id), eq(member.role, 'owner')))
     .innerJoin(user, eq(user.id, member.userId))
+    .leftJoin(orgQuotas, eq(orgQuotas.orgId, organization.id))
     .where(
-      inArray(
-        organization.id,
-        usage.map((row) => row.orgId),
+      or(
+        sql`${organization.slug} LIKE 'personal-%'`,
+        sql`json_valid(${organization.metadata}) = 1 AND json_extract(${organization.metadata}, '$.type') = 'personal'`,
       ),
     )
-  const ownerByOrg = new Map(owners.map((owner) => [owner.orgId, owner]))
+    .orderBy(desc(usedBytes), organization.id)
+    .limit(10)
+  const quotas = await getEffectiveQuotasByOrg(
+    db,
+    usage.map((row) => row.orgId),
+    now,
+  )
 
-  return usage.flatMap((row) => {
-    const owner = ownerByOrg.get(row.orgId)
-    if (!owner) return []
+  return usage.map((row) => {
+    const quotaBytes = quotas.get(row.orgId)?.quota ?? 0
     return {
-      userId: owner.userId,
-      name: owner.name || owner.email,
-      email: owner.email,
-      usedBytes: row.usedBytes,
-      quotaBytes: row.quotaBytes,
-      utilization: row.quotaBytes > 0 ? percent(row.usedBytes, row.quotaBytes) : null,
+      userId: row.userId,
+      name: row.name || row.email,
+      email: row.email,
+      usedBytes: Number(row.usedBytes),
+      quotaBytes,
+      utilization: quotaBytes > 0 ? percent(Number(row.usedBytes), quotaBytes) : null,
     }
   })
 }

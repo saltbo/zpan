@@ -111,7 +111,7 @@ export function AdminOverviewPage() {
 function OverviewContent({ overview }: { overview: AdminOverview }) {
   const { t } = useTranslation()
   const storagePercent = percent(overview.storages.used, overview.storages.capacity)
-  const activeRate = percent(overview.users.active30Days, overview.users.total)
+  const activeRate = percent(overview.users.active30Days, overview.users.activity.total)
 
   return (
     <div className="flex flex-col gap-4">
@@ -315,7 +315,7 @@ function UserActivityCard({ overview }: { overview: AdminOverview }) {
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-semibold tabular-nums">{formatCount(overview.users.total)}</span>
+              <span className="text-2xl font-semibold tabular-nums">{formatCount(activity.total)}</span>
               <span className="text-xs text-muted-foreground">{t('admin.overview.users.totalUsers')}</span>
             </div>
           </div>

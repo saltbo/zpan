@@ -288,7 +288,7 @@ describe('admin hourly stats rollup', () => {
       total: 2,
       active30Days: 1,
       new7Days: 2,
-      activity: { today: 1, last7Days: 0, last30Days: 0, inactive: 1 },
+      activity: { total: 2, today: 1, last7Days: 0, last30Days: 0, inactive: 1 },
     })
     expect(overview.users.topUsage[0]).toMatchObject({ usedBytes: 1300, quotaBytes: 1000 })
     expect(overview.storageTrend).toContainEqual(expect.objectContaining({ date: '2026-07-10', usedBytes: 1300 }))
@@ -310,7 +310,7 @@ describe('admin hourly stats rollup', () => {
     ).rejects.toThrow('stats_bucket_must_align_to_utc_hour')
   })
 
-  it('counts recent registered users live even when signup rollups are unavailable', async () => {
+  it('reads current users and top usage live even when snapshots are unavailable', async () => {
     const { app, db } = await createTestApp()
     await adminHeaders(app)
     const now = new Date('2026-07-20T18:30:00.000Z')
@@ -323,6 +323,8 @@ describe('admin hourly stats rollup', () => {
       INSERT INTO user (id, name, email, email_verified, created_at, updated_at)
       VALUES ('old-overview-user', 'Old User', 'old-overview@example.com', 1, ${oldCreatedAt}, ${oldCreatedAt})
     `)
+    await db.run(sql`UPDATE org_quotas SET used = 777`)
+    const [{ count: expectedTotal }] = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM user`)
 
     const overview = await createAdminStatsRepo(db).getOverviewStatistics(now, {
       from: new Date('2026-06-21T00:00:00.000Z'),
@@ -330,7 +332,10 @@ describe('admin hourly stats rollup', () => {
       timeZone: 'UTC',
     })
 
+    expect(overview.users.total).toBe(expectedTotal)
     expect(overview.users.new7Days).toBe(1)
+    expect(overview.users.activity.total).toBeNull()
+    expect(overview.users.topUsage[0]?.usedBytes).toBe(777)
   })
 
   it('rolls exact storage writes and releases into the overview trend', async () => {

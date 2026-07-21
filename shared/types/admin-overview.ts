@@ -35,6 +35,7 @@ export interface AdminOverviewStatistics {
     active30Days: number | null
     new7Days: number | null
     activity: {
+      total: number | null
       today: number | null
       last7Days: number | null
       last30Days: number | null

@@ -55,7 +55,7 @@ const overview: AdminOverview = {
     total: 42,
     active30Days: 18,
     new7Days: 5,
-    activity: { today: 3, last7Days: 5, last30Days: 10, inactive: 24 },
+    activity: { total: 40, today: 3, last7Days: 5, last30Days: 10, inactive: 24 },
     trend: [{ date: '2026-07-20', totalUsers: 42, activeUsers: 18, newUsers: 2 }],
     topUsage: [
       {
@@ -149,6 +149,7 @@ describe('AdminOverviewPage', () => {
     expect(screen.getByText('admin.overview.storage.written')).toBeTruthy()
     expect(screen.getByText('admin.overview.storage.released')).toBeTruthy()
     expect(screen.getByTestId('storage-area').getAttribute('data-has-dot')).toBe('true')
+    expect(screen.getByText('40')).toBeTruthy()
     expect(screen.getByText('admin.overview.storage.usageTitle')).toBeTruthy()
     expect(screen.getByText('admin.overview.topUsers.title')).toBeTruthy()
     expect(screen.getByText('admin.overview.backends.title')).toBeTruthy()
