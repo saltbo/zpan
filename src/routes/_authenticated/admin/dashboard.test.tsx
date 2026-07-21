@@ -29,15 +29,19 @@ vi.mock('@/lib/api', () => ({
 vi.mock('recharts', async () => {
   const React = await import('react')
   const Component = ({ children }: { children?: ReactNode }) => React.createElement('div', null, children)
+  const AreaComponent = ({ dot }: { dot?: unknown }) =>
+    React.createElement('div', { 'data-testid': 'storage-area', 'data-has-dot': dot ? 'true' : 'false' })
   return {
-    Area: Component,
-    AreaChart: Component,
+    Area: AreaComponent,
+    Bar: Component,
     CartesianGrid: Component,
     Cell: Component,
+    ComposedChart: Component,
     Line: Component,
     LineChart: Component,
     Pie: Component,
     PieChart: Component,
+    ReferenceLine: Component,
     ResponsiveContainer: Component,
     Tooltip: Component,
     XAxis: Component,
@@ -70,7 +74,7 @@ const overview: AdminOverview = {
     used: 400,
     capacity: 1000,
     unbounded: 0,
-    trend: [{ date: '2026-07-20', usedBytes: 400 }],
+    trend: [{ date: '2026-07-20', usedBytes: 400, writtenBytes: 120, releasedBytes: 20 }],
     items: [
       {
         id: 'storage-1',
@@ -142,6 +146,9 @@ describe('AdminOverviewPage', () => {
     expect(screen.getByText('admin.overview.users.trendTitle')).toBeTruthy()
     expect(screen.getByText('admin.overview.users.activityTitle')).toBeTruthy()
     expect(screen.getByText('admin.overview.storage.trendTitle')).toBeTruthy()
+    expect(screen.getByText('admin.overview.storage.written')).toBeTruthy()
+    expect(screen.getByText('admin.overview.storage.released')).toBeTruthy()
+    expect(screen.getByTestId('storage-area').getAttribute('data-has-dot')).toBe('true')
     expect(screen.getByText('admin.overview.storage.usageTitle')).toBeTruthy()
     expect(screen.getByText('admin.overview.topUsers.title')).toBeTruthy()
     expect(screen.getByText('admin.overview.backends.title')).toBeTruthy()

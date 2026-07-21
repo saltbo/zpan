@@ -23,7 +23,7 @@ const statistics: AdminOverviewStatistics = {
       },
     ],
   },
-  storageTrend: [{ date: '2026-07-20', usedBytes: 400 }],
+  storageTrend: [{ date: '2026-07-20', usedBytes: 400, writtenBytes: 120, releasedBytes: 20 }],
 }
 
 function storage(overrides: Partial<Storage> = {}): Storage {

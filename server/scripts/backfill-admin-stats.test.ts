@@ -34,6 +34,7 @@ describe('admin stats backfill', () => {
     const snapshotObservedAt = '2026-07-10T09:50:00.000Z'
     const eventSec = Math.floor(eventMs / 1000)
     const currentHourMs = Date.parse('2026-07-10T12:00:00.000Z')
+    const storageOpeningMs = Date.parse('2026-07-09T00:00:00.000Z')
     const currentEventSec = Math.floor(Date.parse('2026-07-10T12:10:00.000Z') / 1000)
     const latestClosedHour = Date.parse('2026-07-10T11:00:00.000Z')
     const expectedBuckets = (latestClosedHour - Math.floor(historyStartMs / 3_600_000) * 3_600_000) / 3_600_000 + 1
@@ -126,6 +127,13 @@ describe('admin stats backfill', () => {
         ('t1', 'o1', 'video', 'url', 'd1', 'completed', 512, ${eventMs}, ${eventMs}),
         ('t2', 'o1', NULL, 'url', NULL, 'canceled', 0, ${eventMs}, ${eventMs});
       INSERT INTO org_quotas VALUES ('q1', 512);
+      INSERT INTO storage_usage_ledger VALUES
+        ('ledger-opening', 'opening:complete', '', '', 'storage', 'global', 0, 'opening_balance_complete',
+          ${storageOpeningMs}, ${storageOpeningMs}),
+        ('ledger-written', 'matter:written', 'o1', 'storage-1', 'matter', 'written', 600, 'matter_activated',
+          ${eventMs}, ${eventMs}),
+        ('ledger-released', 'matter:released', 'o1', 'storage-1', 'matter', 'released', -100, 'matter_purged',
+          ${eventMs + 1000}, ${eventMs + 1000});
       INSERT INTO stats_rollups_hourly VALUES
         ('legacy-epoch', 0, '', 'stats.rollup_run', '', '', 1, 0, 0,
           '{"version":1,"scope":"counters","quality":"exact"}', 0),
@@ -199,6 +207,10 @@ describe('admin stats backfill', () => {
       rollupFinishedDownloadTasks: 3,
       rawMissingByteEvents: 0,
       rollupMissingByteEvents: 0,
+      rawStorageWrittenBytes: 600,
+      rollupStorageWrittenBytes: 600,
+      rawStorageReleasedBytes: 100,
+      rollupStorageReleasedBytes: 100,
     })
     expect(
       db.prepare("SELECT json_extract(metadata, '$.bytes') AS bytes FROM activity_events WHERE id = 'upload-1'").get(),

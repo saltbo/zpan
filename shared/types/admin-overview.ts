@@ -48,7 +48,12 @@ export interface AdminOverviewStatistics {
     }>
     topUsage: AdminOverviewUserUsage[]
   }
-  storageTrend: Array<{ date: string; usedBytes: number | null }>
+  storageTrend: Array<{
+    date: string
+    usedBytes: number | null
+    writtenBytes: number | null
+    releasedBytes: number | null
+  }>
 }
 
 export interface AdminOverview {

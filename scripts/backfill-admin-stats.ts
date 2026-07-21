@@ -36,6 +36,10 @@ interface ValidationSummary {
   rollupDownloadEvents: number
   rawDownloadBytes: number
   rollupDownloadBytes: number
+  rawStorageWrittenBytes: number
+  rollupStorageWrittenBytes: number
+  rawStorageReleasedBytes: number
+  rollupStorageReleasedBytes: number
   rawShareViews: number
   rollupShareViews: number
   rawUploadAttempts: number
@@ -494,6 +498,25 @@ function buildHourlyBackfillSql(now: Date): string {
       },
     },
     {
+      metric: 'storage.ledger_change',
+      source: 'storage_usage_ledger sul',
+      timestampMs: 'sul.occurred_at',
+      org: 'sul.org_id',
+      where: `sul.delta_bytes <> 0
+        AND sul.reason NOT IN ('opening_balance', 'opening_balance_complete')
+        AND sul.occurred_at >= (
+          SELECT CAST((MIN(opening.occurred_at) + 3599999) / 3600000 AS INTEGER) * 3600000
+          FROM storage_usage_ledger opening
+          WHERE opening.reason = 'opening_balance_complete'
+        )`,
+      bytes: 'SUM(ABS(sul.delta_bytes))',
+      dimensions: {
+        direction: "CASE WHEN sul.delta_bytes > 0 THEN 'written' ELSE 'released' END",
+        reason: 'sul.reason',
+        storage_id: 'sul.storage_id',
+      },
+    },
+    {
       metric: 'transfer.download_failed',
       source: 'activity_events ae',
       timestampMs: 'ae.created_at * 1000',
@@ -584,7 +607,7 @@ function purgeCounterRollupsSql(): string {
 WHERE metric_key IN (
     'background_job.finished', 'remote_download.task_finished', 'share.created',
     'share.download_issued', 'share.password_passed', 'share.saved', 'share.view',
-    'stats.quality_missing_bytes', 'storage.ledger_balance', 'traffic.report_sync', 'transfer.download_failed',
+    'stats.quality_missing_bytes', 'storage.ledger_balance', 'storage.ledger_change', 'traffic.report_sync', 'transfer.download_failed',
     'transfer.download_issued', 'transfer.upload', 'user.signup'
   )
   OR (
@@ -840,6 +863,8 @@ function statsHistoryStartSql(): string {
 export function buildValidationSql(now = new Date()): string {
   const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
   const latestClosedHour = currentHour - 3_600_000
+  const storageLedgerExactFrom = `(SELECT CAST((MIN(occurred_at) + 3599999) / 3600000 AS INTEGER) * 3600000
+    FROM storage_usage_ledger WHERE reason = 'opening_balance_complete')`
   const facts = `SELECT json_object(
   'activityEvents', (SELECT COUNT(*) FROM activity_events),
   'orphanUserEvents', (
@@ -946,6 +971,18 @@ export function buildValidationSql(now = new Date()): string {
     WHERE action = 'upload_confirm'
       AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.bytes') IS NULL)
       AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+  ),
+  'rawStorageWrittenBytes', (
+    SELECT COALESCE(SUM(delta_bytes), 0) FROM storage_usage_ledger
+    WHERE delta_bytes > 0
+      AND reason NOT IN ('opening_balance', 'opening_balance_complete')
+      AND occurred_at >= ${storageLedgerExactFrom} AND occurred_at < ${currentHour}
+  ),
+  'rawStorageReleasedBytes', (
+    SELECT COALESCE(SUM(-delta_bytes), 0) FROM storage_usage_ledger
+    WHERE delta_bytes < 0
+      AND reason NOT IN ('opening_balance', 'opening_balance_complete')
+      AND occurred_at >= ${storageLedgerExactFrom} AND occurred_at < ${currentHour}
   )
 ) AS summary;`
 
@@ -979,6 +1016,7 @@ required_dimensions(metric_key, dimension_key, check_bytes) AS (
     ('transfer.upload', 'source', 1),
     ('transfer.upload', 'status', 1),
     ('transfer.download_issued', 'source', 1),
+    ('storage.ledger_change', 'direction', 1),
     ('share.download_issued', 'actor_type', 1),
     ('share.download_issued', 'source', 1),
     ('user.signup', 'provider', 0),
@@ -1033,6 +1071,14 @@ SELECT json_object(
   'rollupDownloadBytes', (
     SELECT COALESCE(SUM(bytes), 0) FROM counter_rows
     WHERE metric_key = 'transfer.download_issued' AND dimension_key = ''
+  ),
+  'rollupStorageWrittenBytes', (
+    SELECT COALESCE(SUM(bytes), 0) FROM counter_rows
+    WHERE metric_key = 'storage.ledger_change' AND dimension_key = 'direction' AND dimension_value = 'written'
+  ),
+  'rollupStorageReleasedBytes', (
+    SELECT COALESCE(SUM(bytes), 0) FROM counter_rows
+    WHERE metric_key = 'storage.ledger_change' AND dimension_key = 'direction' AND dimension_value = 'released'
   ),
   'rollupShareViews', (
     SELECT COALESCE(SUM(count), 0) FROM counter_rows
@@ -1369,6 +1415,8 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
     ['upload bytes', summary.rawUploadBytes, summary.rollupUploadBytes],
     ['download events', summary.rawDownloadEvents, summary.rollupDownloadEvents],
     ['download bytes', summary.rawDownloadBytes, summary.rollupDownloadBytes],
+    ['storage written bytes', summary.rawStorageWrittenBytes, summary.rollupStorageWrittenBytes],
+    ['storage released bytes', summary.rawStorageReleasedBytes, summary.rollupStorageReleasedBytes],
     ['share views', summary.rawShareViews, summary.rollupShareViews],
     ['upload attempts', summary.rawUploadAttempts, summary.rollupUploadAttempts],
     ['user signups', summary.rawUserSignups, summary.rollupUserSignups],

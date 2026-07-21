@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, lt, ne, notInArray, sql } from 'drizzle-orm'
 import { organization } from '../../db/auth-schema'
 import {
   backgroundJobs,
@@ -25,7 +25,11 @@ import {
 import type { Database } from '../../platform/interface'
 import { createCloudTrafficReportRepo, trafficLedgerExactFrom } from './cloud-traffic-report'
 import { getEffectiveQuotasByOrg } from './quota'
-import { ensureStorageUsageOpeningBalances } from './storage-usage-ledger'
+import {
+  ensureStorageUsageOpeningBalances,
+  getStorageUsageLedgerOpening,
+  storageUsageLedgerExactFrom,
+} from './storage-usage-ledger'
 
 const HOUR_MS = 3_600_000
 const D1_MAX_BOUND_PARAMS = 100
@@ -42,6 +46,7 @@ const COUNTER_METRICS: AdminStatsMetric[] = [
   M.statsMissingBytes,
   M.statsRollupRun,
   M.storageLedgerBalance,
+  M.storageLedgerChange,
   M.transferDownloadFailed,
   M.transferDownloadIssued,
   M.transferUpload,
@@ -100,6 +105,7 @@ export async function rebuildAdminStatsHour(
   await addTransferDownloadMetrics(db, rollups, bucketStart, bucketEnd)
   await addUserMetrics(db, rollups, bucketStart, bucketEnd)
   await addOperationalMetrics(db, rollups, bucketStart, bucketEnd)
+  await addStorageLedgerChanges(db, rollups, bucketStart, bucketEnd)
   await addStorageLedgerBalance(db, rollups, bucketEnd)
   const values = rollups.values()
   const lowerBoundRows = values.filter((row) => row.lowerBound).length
@@ -493,6 +499,47 @@ async function addStorageLedgerBalance(db: Database, rollups: RollupAccumulator,
       .where(lt(storageUsageLedger.occurredAt, bucketEnd)),
   )
   rollups.setGauge(M.storageLedgerBalance, '', 0, Number(rows[0]?.bytes ?? 0))
+}
+
+async function addStorageLedgerChanges(
+  db: Database,
+  rollups: RollupAccumulator,
+  bucketStart: Date,
+  bucketEnd: Date,
+): Promise<void> {
+  const opening = await queryStage('storage-ledger-change-opening', getStorageUsageLedgerOpening(db))
+  if (!opening || bucketStart < storageUsageLedgerExactFrom(opening)) return
+
+  const direction = sql<string>`CASE WHEN ${storageUsageLedger.deltaBytes} > 0 THEN 'written' ELSE 'released' END`
+  const rows = await queryStage(
+    'storage-ledger-change',
+    db
+      .select({
+        orgId: storageUsageLedger.orgId,
+        storageId: storageUsageLedger.storageId,
+        reason: storageUsageLedger.reason,
+        direction,
+        count: sql<number>`COUNT(*)`,
+        bytes: sql<number>`SUM(ABS(${storageUsageLedger.deltaBytes}))`,
+      })
+      .from(storageUsageLedger)
+      .where(
+        and(
+          gte(storageUsageLedger.occurredAt, bucketStart),
+          lt(storageUsageLedger.occurredAt, bucketEnd),
+          ne(storageUsageLedger.deltaBytes, 0),
+          notInArray(storageUsageLedger.reason, ['opening_balance', 'opening_balance_complete']),
+        ),
+      )
+      .groupBy(storageUsageLedger.orgId, storageUsageLedger.storageId, storageUsageLedger.reason, direction),
+  )
+  for (const row of rows) {
+    rollups.add(M.storageLedgerChange, row.orgId, Number(row.count), Number(row.bytes), {
+      direction: row.direction,
+      reason: row.reason,
+      storage_id: row.storageId,
+    })
+  }
 }
 
 async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now: Date): Promise<void> {

@@ -6,14 +6,16 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Area,
-  AreaChart,
+  Bar,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Line,
   LineChart,
   Pie,
   PieChart,
   Tooltip as RechartsTooltip,
+  ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -328,7 +330,14 @@ function UserActivityCard({ overview }: { overview: AdminOverview }) {
 
 function StorageTrendCard({ overview }: { overview: AdminOverview }) {
   const { t } = useTranslation()
-  const hasData = overview.storages.trend.some((row) => row.usedBytes !== null)
+  const hasData = overview.storages.trend.some(
+    (row) => row.usedBytes !== null || row.writtenBytes !== null || row.releasedBytes !== null,
+  )
+  const usedPointCount = overview.storages.trend.filter((row) => row.usedBytes !== null).length
+  const chartData = overview.storages.trend.map((row) => ({
+    ...row,
+    releasedDeltaBytes: row.releasedBytes === null ? null : -row.releasedBytes,
+  }))
 
   return (
     <ChartCard
@@ -346,41 +355,67 @@ function StorageTrendCard({ overview }: { overview: AdminOverview }) {
             minHeight={1}
             initialDimension={TREND_CHART_INITIAL_SIZE}
           >
-            <AreaChart
-              data={overview.storages.trend}
-              margin={{ top: 8, right: 8, bottom: 0, left: 4 }}
-              accessibilityLayer
-            >
-              <defs>
-                <linearGradient id="storage-used-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={0.24} />
-                  <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
+            <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 4 }} accessibilityLayer>
               <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="date" tickFormatter={formatChartDate} tickLine={false} axisLine={false} minTickGap={28} />
-              <YAxis tickFormatter={formatAxisSize} tickLine={false} axisLine={false} width={54} />
+              <YAxis yAxisId="balance" tickFormatter={formatAxisSize} tickLine={false} axisLine={false} width={54} />
+              <YAxis
+                yAxisId="change"
+                orientation="right"
+                tickFormatter={formatAxisSize}
+                tickLine={false}
+                axisLine={false}
+                width={54}
+              />
               <RechartsTooltip
                 contentStyle={tooltipContentStyle}
                 labelFormatter={(value) => formatFullDate(String(value))}
-                formatter={(value) => [formatSize(Number(value)), t('admin.overview.storage.used')]}
+                formatter={(value, name) => [formatSize(Math.abs(Number(value))), String(name)]}
+              />
+              <ReferenceLine yAxisId="change" y={0} stroke="var(--color-border)" />
+              <Bar
+                yAxisId="change"
+                dataKey="writtenBytes"
+                name={t('admin.overview.storage.written')}
+                fill={CHART_COLORS.teal}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={18}
+              />
+              <Bar
+                yAxisId="change"
+                dataKey="releasedDeltaBytes"
+                name={t('admin.overview.storage.released')}
+                fill={CHART_COLORS.violet}
+                radius={[0, 0, 3, 3]}
+                maxBarSize={18}
               />
               <Area
+                yAxisId="balance"
                 type="monotone"
                 dataKey="usedBytes"
                 name={t('admin.overview.storage.used')}
                 stroke={CHART_COLORS.primary}
                 strokeWidth={2.5}
-                fill="url(#storage-used-fill)"
+                fill={CHART_COLORS.primary}
+                fillOpacity={0.12}
+                dot={usedPointCount === 1 ? { r: 4, fill: CHART_COLORS.primary, strokeWidth: 0 } : false}
                 connectNulls
               />
-            </AreaChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       ) : (
         <EmptyChart />
       )}
-      {hasData && <ChartLegend items={[{ label: t('admin.overview.storage.used'), color: CHART_COLORS.primary }]} />}
+      {hasData && (
+        <ChartLegend
+          items={[
+            { label: t('admin.overview.storage.used'), color: CHART_COLORS.primary },
+            { label: t('admin.overview.storage.written'), color: CHART_COLORS.teal },
+            { label: t('admin.overview.storage.released'), color: CHART_COLORS.violet },
+          ]}
+        />
+      )}
     </ChartCard>
   )
 }
@@ -833,8 +868,9 @@ function formatFullDate(value: string): string {
 function formatAxisSize(value: number): string {
   if (value === 0) return '0'
   const units = ['B', 'K', 'M', 'G', 'T']
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1)
-  return `${(value / 1024 ** index).toFixed(index > 2 ? 1 : 0)}${units[index]}`
+  const absolute = Math.abs(value)
+  const index = Math.min(Math.floor(Math.log(absolute) / Math.log(1024)), units.length - 1)
+  return `${value < 0 ? '-' : ''}${(absolute / 1024 ** index).toFixed(index > 2 ? 1 : 0)}${units[index]}`
 }
 
 function formatAge(

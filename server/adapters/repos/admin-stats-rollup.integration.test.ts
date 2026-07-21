@@ -291,7 +291,8 @@ describe('admin hourly stats rollup', () => {
       activity: { today: 1, last7Days: 0, last30Days: 0, inactive: 1 },
     })
     expect(overview.users.topUsage[0]).toMatchObject({ usedBytes: 1300, quotaBytes: 1000 })
-    expect(overview.storageTrend).toContainEqual({ date: '2026-07-10', usedBytes: 1300 })
+    expect(overview.storageTrend).toContainEqual(expect.objectContaining({ date: '2026-07-10', usedBytes: 1300 }))
+    expect(overview.storageTrend[0]).toMatchObject({ writtenBytes: null, releasedBytes: null })
 
     const second = await rebuildAdminStatsHour(db, bucketStart, generatedAt)
     const [{ count: storedRows }] = await db.all<{ count: number }>(sql`
@@ -307,6 +308,56 @@ describe('admin hourly stats rollup', () => {
     await expect(
       rebuildAdminStatsHour(db, new Date('2026-07-10T12:00:00.001Z'), new Date('2026-07-10T12:30:00Z')),
     ).rejects.toThrow('stats_bucket_must_align_to_utc_hour')
+  })
+
+  it('rolls exact storage writes and releases into the overview trend', async () => {
+    const { app, db } = await createTestApp()
+    await adminHeaders(app)
+    const [{ id: orgId }] = await db.all<{ id: string }>(
+      sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    const openingAt = Date.parse('2026-07-09T00:00:00.000Z')
+    const bucketStart = new Date('2026-07-10T11:00:00.000Z')
+    const writtenAt = bucketStart.getTime() + 5 * 60_000
+    const releasedAt = bucketStart.getTime() + 10 * 60_000
+    await db.run(sql`
+      INSERT INTO storage_usage_ledger
+        (id, event_key, org_id, storage_id, resource_type, resource_id, delta_bytes, reason, occurred_at, created_at)
+      VALUES
+        ('trend-opening', 'opening:complete', '', '', 'storage', 'global', 0, 'opening_balance_complete',
+          ${openingAt}, ${openingAt}),
+        ('trend-written', 'trend:written', ${orgId}, 'storage-1', 'matter', 'file-1', 500, 'matter_activated',
+          ${writtenAt}, ${writtenAt}),
+        ('trend-released', 'trend:released', ${orgId}, 'storage-1', 'matter', 'file-2', -120, 'matter_purged',
+          ${releasedAt}, ${releasedAt})
+    `)
+
+    await rebuildAdminStatsHour(db, bucketStart, new Date('2026-07-10T12:05:00.000Z'))
+
+    const rows = await db.all<RollupRow>(sql`
+      SELECT org_id AS orgId, metric_key AS metric, dimension_key AS dimensionKey,
+        dimension_value AS dimensionValue, count, bytes, unique_count AS uniqueCount, metadata
+      FROM stats_rollups_hourly
+      WHERE bucket_start = ${bucketStart.getTime()} AND metric_key = ${M.storageLedgerChange}
+    `)
+    expect(rows.find((row) => row.dimensionKey === '')).toMatchObject({ count: 2, bytes: 620 })
+    expect(rows.find((row) => row.dimensionKey === 'direction' && row.dimensionValue === 'written')).toMatchObject({
+      count: 1,
+      bytes: 500,
+    })
+    expect(rows.find((row) => row.dimensionKey === 'direction' && row.dimensionValue === 'released')).toMatchObject({
+      count: 1,
+      bytes: 120,
+    })
+
+    const overview = await createAdminStatsRepo(db).getOverviewStatistics(new Date('2026-07-10T12:30:00.000Z'), {
+      from: bucketStart,
+      to: new Date('2026-07-10T11:59:59.999Z'),
+      timeZone: 'UTC',
+    })
+    expect(overview.storageTrend).toEqual([
+      expect.objectContaining({ date: '2026-07-10', writtenBytes: 500, releasedBytes: 120 }),
+    ])
   })
 
   it('identifies the snapshot query stage that failed', async () => {

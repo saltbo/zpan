@@ -28,6 +28,7 @@ import type { AdminStatsDateRange, AdminStatsRepo } from '../../usecases/ports'
 import { AdminStatsHourlyReader } from './admin-stats-hourly'
 import { captureAdminStatsSnapshot, rebuildAdminStatsHour } from './admin-stats-rollup'
 import { createCloudTrafficReportRepo, trafficLedgerExactFrom } from './cloud-traffic-report'
+import { getStorageUsageLedgerOpening, storageUsageLedgerExactFrom } from './storage-usage-ledger'
 
 const DOWNLOAD_ACTIVITY_ACTIONS = ['share_download', 'object_download', 'image_hosting_download', 'webdav_download']
 const DOWNLOAD_FAILURE_ACTION = 'download_failed'
@@ -58,6 +59,8 @@ async function getOverviewStatistics(
     totalUsersByDay,
     activeByDay,
     storageUsedByDay,
+    storageChangesByDay,
+    storageLedgerOpening,
     topUsage,
     storageDataQuality,
   ] = await Promise.all([
@@ -67,6 +70,8 @@ async function getOverviewStatistics(
     getUserTotalsByDay(reader),
     getRollingActiveUserTrend(reader, effective),
     getStorageUsedByDay(reader),
+    getStorageLedgerChangesByDay(reader),
+    getStorageUsageLedgerOpening(db),
     getTopPersonalUsage(db, reader),
     getStorageDataQuality(reader),
   ])
@@ -78,6 +83,7 @@ async function getOverviewStatistics(
   const recentSignups = dates.slice(-7).map((date) => (newUsersByDay.has(date) ? (newUsersByDay.get(date) ?? null) : 0))
   const exactUsage = storageDataQuality.usageDriftSpaces === null || storageDataQuality.usageDriftSpaces === 0
   const exactLedger = storageDataQuality.ledgerDriftSpaces === null || storageDataQuality.ledgerDriftSpaces === 0
+  const storageChangesExactFrom = fullStorageChangeDayFrom(storageLedgerOpening)
 
   return {
     users: {
@@ -100,10 +106,17 @@ async function getOverviewStatistics(
       })),
       topUsage: exactUsage ? topUsage : [],
     },
-    storageTrend: dates.map((date) => ({
-      date,
-      usedBytes: exactLedger ? (storageUsedByDay.get(date) ?? null) : null,
-    })),
+    storageTrend: dates.map((date) => {
+      const changes = storageChangesByDay.get(date)
+      const exactChanges =
+        storageChangesExactFrom !== null && date >= storageChangesExactFrom && changes?.exact !== false
+      return {
+        date,
+        usedBytes: exactLedger ? (storageUsedByDay.get(date) ?? null) : null,
+        writtenBytes: exactChanges ? (changes?.writtenBytes ?? 0) : null,
+        releasedBytes: exactChanges ? (changes?.releasedBytes ?? 0) : null,
+      }
+    }),
   }
 }
 
@@ -1239,6 +1252,29 @@ async function getMissingTransferBytesByDay(
 
 async function getStorageUsedByDay(reader: AdminStatsHourlyReader): Promise<Map<string, number>> {
   return getLatestGaugeValueByDay(reader, ADMIN_STATS_METRICS.storageLedgerBalance, 'bytes', '', '')
+}
+
+async function getStorageLedgerChangesByDay(
+  reader: AdminStatsHourlyReader,
+): Promise<Map<string, { writtenBytes: number; releasedBytes: number; exact: boolean }>> {
+  const result = new Map<string, { writtenBytes: number; releasedBytes: number; exact: boolean }>()
+  for (const row of await reader.rows(ADMIN_STATS_METRICS.storageLedgerChange, ['direction'])) {
+    if (row.dimensionKey !== 'direction') continue
+    const date = reader.dayKey(row.bucketStart)
+    const values = result.get(date) ?? { writtenBytes: 0, releasedBytes: 0, exact: true }
+    if (row.dimensionValue === 'written') values.writtenBytes += row.bytes
+    if (row.dimensionValue === 'released') values.releasedBytes += row.bytes
+    values.exact &&= !row.lowerBound
+    result.set(date, values)
+  }
+  return result
+}
+
+function fullStorageChangeDayFrom(opening: Date | null): string | null {
+  if (!opening) return null
+  const exactFrom = storageUsageLedgerExactFrom(opening)
+  const exactDay = dayKey(exactFrom)
+  return exactFrom.getTime() === utcDateStart(exactDay).getTime() ? exactDay : addCalendarDays(exactDay, 1)
 }
 
 async function getStorageInventory(reader: AdminStatsHourlyReader): Promise<{ files: number; bytes: number } | null> {

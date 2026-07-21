@@ -1,5 +1,5 @@
 import { DirType } from '@shared/constants'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { imageHostings, matters, storageUsageLedger } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
@@ -25,6 +25,22 @@ export interface StorageUsageLedgerMutation {
   deltaBytes: number
   reason: StorageUsageReason
   occurredAt: Date
+}
+
+const HOUR_MS = 3_600_000
+
+export function storageUsageLedgerExactFrom(opening: Date): Date {
+  return new Date(Math.ceil(opening.getTime() / HOUR_MS) * HOUR_MS)
+}
+
+export async function getStorageUsageLedgerOpening(db: Database): Promise<Date | null> {
+  const rows = await db
+    .select({ occurredAt: storageUsageLedger.occurredAt })
+    .from(storageUsageLedger)
+    .where(eq(storageUsageLedger.reason, 'opening_balance_complete'))
+    .orderBy(asc(storageUsageLedger.occurredAt))
+    .limit(1)
+  return rows[0]?.occurredAt ?? null
 }
 
 function openingEventKey(orgId: string, storageId: string): string {
