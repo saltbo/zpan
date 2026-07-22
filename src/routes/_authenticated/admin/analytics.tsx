@@ -369,6 +369,10 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (ran
 }
 
 function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
+  const totalUserPointCount = stats.userScaleTrend.filter((row) => row.totalUsers !== null).length
+  const activePointCount = stats.activeUserTrend.filter(
+    (row) => row.dau !== null || row.wau !== null || row.mau !== null,
+  ).length
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -433,7 +437,7 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
                   name="累计用户"
                   stroke={CHART_COLORS[0]}
                   strokeWidth={2}
-                  dot={false}
+                  dot={singlePointDot(totalUserPointCount, CHART_COLORS[0])}
                 />
               </ComposedChart>
             </AnalyticsChartContainer>
@@ -461,6 +465,7 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
                   stroke={CHART_COLORS[5]}
                   fill={CHART_COLORS[5]}
                   fillOpacity={0.08}
+                  dot={singlePointDot(activePointCount, CHART_COLORS[5])}
                 />
                 <Area
                   type="monotone"
@@ -469,6 +474,7 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
                   stroke={CHART_COLORS[3]}
                   fill={CHART_COLORS[3]}
                   fillOpacity={0.12}
+                  dot={singlePointDot(activePointCount, CHART_COLORS[3])}
                 />
                 <Area
                   type="monotone"
@@ -477,6 +483,7 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
                   stroke={CHART_COLORS[0]}
                   fill={CHART_COLORS[0]}
                   fillOpacity={0.16}
+                  dot={singlePointDot(activePointCount, CHART_COLORS[0])}
                 />
               </AreaChart>
             </AnalyticsChartContainer>
@@ -494,6 +501,8 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
 }
 
 function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
+  const usedPointCount = stats.storageTrend.filter((row) => row.usedBytes !== null).length
+  const writtenPointCount = stats.storageTrend.filter((row) => row.newBytes !== null).length
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -622,7 +631,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                   name="存储占用"
                   stroke={CHART_COLORS[0]}
                   strokeWidth={2}
-                  dot={false}
+                  dot={singlePointDot(usedPointCount, CHART_COLORS[0])}
                 />
                 <Line
                   yAxisId="bytes"
@@ -631,7 +640,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                   name="确认写入字节"
                   stroke={CHART_COLORS[2]}
                   strokeWidth={2}
-                  dot={false}
+                  dot={singlePointDot(writtenPointCount, CHART_COLORS[2])}
                 />
               </ComposedChart>
             </AnalyticsChartContainer>
@@ -730,6 +739,10 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
 }
 
 function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
+  const uploadPointCount = stats.trafficTrend.filter((row) => row.uploadBytes !== null).length
+  const downloadPointCount = stats.trafficTrend.filter((row) => row.downloadBytes !== null).length
+  const uploadSuccessPointCount = stats.successTrend.filter((row) => row.uploadSuccessRate !== null).length
+  const downloadSuccessPointCount = stats.successTrend.filter((row) => row.downloadSuccessRate !== null).length
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -813,7 +826,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                   name="确认上传字节"
                   stroke={CHART_COLORS[0]}
                   strokeWidth={2}
-                  dot={false}
+                  dot={singlePointDot(uploadPointCount, CHART_COLORS[0])}
                 />
                 <Line
                   yAxisId="bytes"
@@ -822,7 +835,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                   name="下载签发字节"
                   stroke={CHART_COLORS[2]}
                   strokeWidth={2}
-                  dot={false}
+                  dot={singlePointDot(downloadPointCount, CHART_COLORS[2])}
                 />
               </ComposedChart>
             </AnalyticsChartContainer>
@@ -875,6 +888,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                   fill={CHART_COLORS[1]}
                   fillOpacity={0.08}
                   strokeWidth={2}
+                  dot={singlePointDot(uploadSuccessPointCount, CHART_COLORS[1])}
                   isAnimationActive={false}
                 />
                 <Area
@@ -885,6 +899,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                   fill={CHART_COLORS[0]}
                   fillOpacity={0.08}
                   strokeWidth={2}
+                  dot={singlePointDot(downloadSuccessPointCount, CHART_COLORS[0])}
                   isAnimationActive={false}
                 />
               </AreaChart>
@@ -945,6 +960,8 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
 }
 
 function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
+  const downloadPointCount = stats.trend.filter((row) => row.downloads !== null).length
+  const savePointCount = stats.trend.filter((row) => row.saves !== null).length
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1000,6 +1017,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
                   stroke={CHART_COLORS[2]}
                   fill={CHART_COLORS[2]}
                   fillOpacity={0.1}
+                  dot={singlePointDot(downloadPointCount, CHART_COLORS[2])}
                 />
                 <Area
                   type="monotone"
@@ -1008,6 +1026,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
                   stroke={CHART_COLORS[3]}
                   fill={CHART_COLORS[3]}
                   fillOpacity={0.08}
+                  dot={singlePointDot(savePointCount, CHART_COLORS[3])}
                 />
               </AreaChart>
             </AnalyticsChartContainer>
@@ -1023,6 +1042,10 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
       <TopSharesTable rows={stats.topShares} />
     </div>
   )
+}
+
+function singlePointDot(pointCount: number, color: string) {
+  return pointCount === 1 ? { r: 4, fill: color, strokeWidth: 0 } : false
 }
 
 function StatCard({

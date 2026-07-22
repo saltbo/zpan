@@ -190,6 +190,9 @@ function MetricCard({ icon, label, value, detail }: { icon: ReactNode; label: st
 function UserTrendCard({ overview }: { overview: AdminOverview }) {
   const { t } = useTranslation()
   const hasData = overview.users.trend.some((row) => row.totalUsers !== null || row.activeUsers !== null)
+  const totalUserPointCount = overview.users.trend.filter((row) => row.totalUsers !== null).length
+  const activeUserPointCount = overview.users.trend.filter((row) => row.activeUsers !== null).length
+  const newUserPointCount = overview.users.trend.filter((row) => row.newUsers !== null).length
 
   return (
     <ChartCard
@@ -224,7 +227,7 @@ function UserTrendCard({ overview }: { overview: AdminOverview }) {
                 name={t('admin.overview.users.totalUsers')}
                 stroke={CHART_COLORS.primary}
                 strokeWidth={2.5}
-                dot={false}
+                dot={singlePointDot(totalUserPointCount, CHART_COLORS.primary)}
                 connectNulls
               />
               <Line
@@ -234,7 +237,7 @@ function UserTrendCard({ overview }: { overview: AdminOverview }) {
                 name={t('admin.overview.users.activeUsers')}
                 stroke={CHART_COLORS.teal}
                 strokeWidth={2}
-                dot={false}
+                dot={singlePointDot(activeUserPointCount, CHART_COLORS.teal)}
                 connectNulls
               />
               <Line
@@ -245,7 +248,7 @@ function UserTrendCard({ overview }: { overview: AdminOverview }) {
                 stroke={CHART_COLORS.violet}
                 strokeWidth={2}
                 strokeDasharray="5 4"
-                dot={false}
+                dot={singlePointDot(newUserPointCount, CHART_COLORS.violet)}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -264,6 +267,10 @@ function UserTrendCard({ overview }: { overview: AdminOverview }) {
       )}
     </ChartCard>
   )
+}
+
+function singlePointDot(pointCount: number, color: string) {
+  return pointCount === 1 ? { r: 4, fill: color, strokeWidth: 0 } : false
 }
 
 function UserActivityCard({ overview }: { overview: AdminOverview }) {

@@ -354,7 +354,7 @@ describe('admin hourly stats rollup', () => {
     })
     expect(overview.users.topUsage[0]).toMatchObject({ usedBytes: 1300, quotaBytes: 1000 })
     expect(overview.storageTrend).toContainEqual(expect.objectContaining({ date: '2026-07-10', usedBytes: 1300 }))
-    expect(overview.storageTrend[0]).toMatchObject({ writtenBytes: null, releasedBytes: null })
+    expect(overview.storageTrend[0]).toMatchObject({ writtenBytes: 0, releasedBytes: 0 })
 
     const second = await rebuildAdminStatsHour(db, bucketStart, generatedAt)
     const [{ count: storedRows }] = await db.all<{ count: number }>(sql`
@@ -580,10 +580,11 @@ describe('admin hourly stats rollup', () => {
     expect(await reader.completeDayKeys('counters', M.userSignup)).toEqual(new Set(['2026-06-10']))
   })
 
-  it('marks a day complete only when every requested hour has an exact marker', async () => {
+  it('accepts exact boundary hours but rejects gaps inside the observed interval', async () => {
     const { db } = await createTestApp()
     const firstHour = Date.parse('2026-07-10T10:00:00.000Z')
     const secondHour = firstHour + 3_600_000
+    const thirdHour = secondHour + 3_600_000
     const metadata = '{"version":3,"scope":"counters","quality":"exact"}'
     await db.run(sql`
       INSERT INTO stats_rollups_hourly
@@ -594,12 +595,22 @@ describe('admin hourly stats rollup', () => {
     `)
     const range = {
       from: new Date(firstHour),
-      to: new Date(secondHour + 3_600_000 - 1),
+      to: new Date(thirdHour + 3_600_000 - 1),
       timeZone: 'UTC' as const,
     }
 
-    const partialReader = new AdminStatsHourlyReader(db, range, new Date(secondHour + 7_200_000))
-    expect(await partialReader.completeDayKeys('counters')).toEqual(new Set())
+    const boundaryReader = new AdminStatsHourlyReader(db, range, new Date(thirdHour + 7_200_000))
+    expect(await boundaryReader.completeDayKeys('counters')).toEqual(new Set(['2026-07-10']))
+
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('complete-day-third', ${thirdHour}, '', 'stats.rollup_run', '', '', 1, 0, 0, ${metadata}, ${thirdHour})
+    `)
+    const gapReader = new AdminStatsHourlyReader(db, range, new Date(thirdHour + 7_200_000))
+    expect(await gapReader.completeDayKeys('counters')).toEqual(new Set())
 
     await db.run(sql`
       INSERT INTO stats_rollups_hourly
@@ -608,7 +619,7 @@ describe('admin hourly stats rollup', () => {
       VALUES
         ('complete-day-second', ${secondHour}, '', 'stats.rollup_run', '', '', 1, 0, 0, ${metadata}, ${secondHour})
     `)
-    const completeReader = new AdminStatsHourlyReader(db, range, new Date(secondHour + 7_200_000))
+    const completeReader = new AdminStatsHourlyReader(db, range, new Date(thirdHour + 7_200_000))
     expect(await completeReader.completeDayKeys('counters')).toEqual(new Set(['2026-07-10']))
   })
 

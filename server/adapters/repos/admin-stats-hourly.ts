@@ -159,10 +159,13 @@ export class AdminStatsHourlyReader {
 
   async completeDayKeys(requiredScope: AdminStatsRollupScope, metric?: AdminStatsMetric): Promise<Set<string>> {
     const markerBuckets = await this.markerBuckets(requiredScope, metric)
+    if (markerBuckets.size === 0) return new Set()
     const queryTo = this.queryTo(requiredScope)
+    const firstCompletedBucket = Math.max(this.queryFrom.getTime(), Math.min(...markerBuckets))
+    const lastCompletedBucketExclusive = Math.min(queryTo.getTime(), Math.max(...markerBuckets) + HOUR_MS)
     const expectedByDay = new Map<string, number>()
     const completedByDay = new Map<string, number>()
-    for (let at = this.queryFrom.getTime(); at < queryTo.getTime(); at += HOUR_MS) {
+    for (let at = firstCompletedBucket; at < lastCompletedBucketExclusive; at += HOUR_MS) {
       const day = this.dayKey(new Date(at))
       expectedByDay.set(day, (expectedByDay.get(day) ?? 0) + 1)
       if (markerBuckets.has(at)) completedByDay.set(day, (completedByDay.get(day) ?? 0) + 1)

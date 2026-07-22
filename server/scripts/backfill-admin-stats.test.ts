@@ -214,6 +214,18 @@ describe('admin stats backfill', () => {
           '{"version":3,"scope":"snapshots","quality":"exact","snapshotQuality":"exact","snapshotObservedAt":"${snapshotObservedAt}"}', ${eventMs}),
         ('snapshot-gauge', ${eventHourMs}, '', 'storage.used', '', '', 0, 512, 0,
           '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"${snapshotObservedAt}"}', ${eventMs}),
+        ('preopening-full-marker', ${signupFirstHour}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":3,"scope":"full","quality":"exact","counterQuality":"exact","snapshotQuality":"exact","snapshotObservedAt":"2026-03-31T22:50:00.000Z"}', ${signupFirstHour + 3_000_000}),
+        ('preopening-storage-gauge', ${signupFirstHour}, '', 'storage.used', '', '', 0, 256, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"2026-03-31T22:50:00.000Z"}', ${signupFirstHour + 3_000_000}),
+        ('preopening-user-total', ${signupFirstHour}, '', 'user.inventory', '', '', 1, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"2026-03-31T22:50:00.000Z"}', ${signupFirstHour + 3_000_000}),
+        ('preopening-user-verified', ${signupFirstHour}, '', 'user.inventory', 'status', 'verified', 1, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"2026-03-31T22:50:00.000Z"}', ${signupFirstHour + 3_000_000}),
+        ('preopening-user-normal', ${signupFirstHour}, '', 'user.inventory', 'status', 'normal', 1, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"2026-03-31T22:50:00.000Z"}', ${signupFirstHour + 3_000_000}),
+        ('preopening-user-silent', ${signupFirstHour}, '', 'user.inventory', 'status', 'silent', 0, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"2026-03-31T22:50:00.000Z"}', ${signupFirstHour + 3_000_000}),
         ('orphan-snapshot-gauge', ${eventHourMs - 3_600_000}, '', 'storage.used', '', '', 0, 256, 0,
           '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"${snapshotObservedAt}"}', ${eventMs}),
         ('preopening-user-activity', ${historyStartMs - 3_600_000}, '', 'user.active_snapshot', 'window', 'mau', 57, 0, 0,
@@ -376,6 +388,30 @@ describe('admin stats backfill', () => {
     ).toEqual({ value: 0 })
     expect(
       db.prepare("SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE id = 'preopening-user-activity'").get(),
+    ).toEqual({ value: 0 })
+    expect(
+      db
+        .prepare(
+          "SELECT json_extract(metadata, '$.scope') AS scope, json_extract(metadata, '$.snapshotObservedAt') AS observedAt FROM stats_rollups_hourly WHERE id = 'preopening-full-marker'",
+        )
+        .get(),
+    ).toEqual({ scope: 'snapshots', observedAt: '2026-03-31T22:50:00.000Z' })
+    expect(
+      db.prepare("SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE id = 'preopening-storage-gauge'").get(),
+    ).toEqual({ value: 1 })
+    expect(
+      db
+        .prepare(
+          "SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE id IN ('preopening-user-total', 'preopening-user-verified')",
+        )
+        .get(),
+    ).toEqual({ value: 2 })
+    expect(
+      db
+        .prepare(
+          "SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE id IN ('preopening-user-normal', 'preopening-user-silent')",
+        )
+        .get(),
     ).toEqual({ value: 0 })
     expect(
       db.prepare('SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE bucket_start >= ?').get(currentHourMs),

@@ -99,7 +99,7 @@ async function getOverviewStatistics(
   const mau = active?.mau ?? null
   const exactUsage = storageDataQuality.usageDriftSpaces === null || storageDataQuality.usageDriftSpaces === 0
   const exactLedger = storageDataQuality.ledgerDriftSpaces === null || storageDataQuality.ledgerDriftSpaces === 0
-  const storageChangesExactFrom = fullStorageChangeDayFrom(storageLedgerOpening)
+  const storageChangesExactFrom = storageChangeFirstExactDay(storageLedgerOpening)
 
   return {
     users: {
@@ -277,7 +277,7 @@ async function getDashboardOverviewStats(
     signupDays,
     signupCoverage,
     previousSignupCoverage,
-    trafficFirstCompleteDay,
+    trafficFirstExactDay,
   ] = await Promise.all([
     getUserInventory(reader),
     getSignupTotal(reader),
@@ -300,7 +300,7 @@ async function getDashboardOverviewStats(
     reader.completeDayKeys('counters', ADMIN_STATS_METRICS.userSignup),
     reader.coverage('counters', ADMIN_STATS_METRICS.userSignup),
     previousReader.coverage('counters', ADMIN_STATS_METRICS.userSignup),
-    trafficLedgerFirstCompleteDay(db),
+    trafficLedgerFirstExactDay(db),
   ])
   const [trendNewUsers, activeByDay, storageUsedByDay, uploadByDay, downloadByDay, missingBytesByDay] =
     await Promise.all([
@@ -321,8 +321,8 @@ async function getDashboardOverviewStats(
       uploadBytes: counterDays.has(date) && !missingBytes?.upload ? (uploadByDay.get(date) ?? 0) : null,
       downloadBytes:
         counterDays.has(date) &&
-        trafficFirstCompleteDay !== null &&
-        date >= trafficFirstCompleteDay &&
+        trafficFirstExactDay !== null &&
+        date >= trafficFirstExactDay &&
         !missingBytes?.download
           ? (downloadByDay.get(date) ?? 0)
           : null,
@@ -534,14 +534,15 @@ async function getDashboardGrowthStats(
     },
     userScaleTrend,
     activeUserTrend: activeByDay,
-    userStatus: users
-      ? percentRows([
-          { name: 'normal', value: users.normal },
-          { name: 'unverified', value: users.unverified },
-          { name: 'banned', value: users.banned },
-          { name: 'silent', value: users.silent },
-        ])
-      : [],
+    userStatus:
+      users && hasCompleteUserStatuses(users)
+        ? percentRows([
+            { name: 'normal', value: users.normal },
+            { name: 'unverified', value: users.unverified },
+            { name: 'banned', value: users.banned },
+            { name: 'silent', value: users.silent },
+          ])
+        : [],
     registrationSources: currentCountersAvailable ? registrationSources : [],
   }
 }
@@ -695,7 +696,7 @@ async function getDashboardTrafficStats(
     trafficLedgerAvailable,
     previousTrafficLedgerAvailable,
     counterDays,
-    trafficFirstCompleteDay,
+    trafficFirstExactDay,
   ] = await Promise.all([
     getTrafficTotals(reader),
     getTrafficTotals(previousReader),
@@ -718,7 +719,7 @@ async function getDashboardTrafficStats(
     trafficLedgerAvailableInRange(db, effective),
     trafficLedgerAvailableInRange(db, previous),
     reader.completeDayKeys('counters'),
-    trafficLedgerFirstCompleteDay(db),
+    trafficLedgerFirstExactDay(db),
   ])
   const sourceRows = new Map<string, { name: string; bytes: number; requests: number }>()
   if (traffic.uploadBytes > 0 || traffic.uploadRequests > 0) {
@@ -748,13 +749,13 @@ async function getDashboardTrafficStats(
     uploadBytes: counterDays.has(date) && !missingBytesByDay.get(date)?.upload ? (uploadByDay.get(date) ?? 0) : null,
     downloadBytes:
       counterDays.has(date) &&
-      trafficFirstCompleteDay !== null &&
-      date >= trafficFirstCompleteDay &&
+      trafficFirstExactDay !== null &&
+      date >= trafficFirstExactDay &&
       !missingBytesByDay.get(date)?.download
         ? (downloadByDay.get(date) ?? 0)
         : null,
     requests:
-      counterDays.has(date) && trafficFirstCompleteDay !== null && date >= trafficFirstCompleteDay
+      counterDays.has(date) && trafficFirstExactDay !== null && date >= trafficFirstExactDay
         ? (uploadRequestsByDay.get(date) ?? 0) + (downloadRequestsByDay.get(date) ?? 0)
         : null,
   }))
@@ -772,7 +773,7 @@ async function getDashboardTrafficStats(
       date,
       uploadSuccessRate: uploadRequests > 0 ? percent(uploadSuccesses, uploadRequests) : null,
       downloadSuccessRate:
-        trafficFirstCompleteDay !== null && date >= trafficFirstCompleteDay && downloadRequests > 0
+        trafficFirstExactDay !== null && date >= trafficFirstExactDay && downloadRequests > 0
           ? percent(downloadSuccesses, downloadRequests)
           : null,
     }
@@ -1004,9 +1005,9 @@ async function trafficLedgerAvailableInRange(db: Database, range: AdminStatsDate
   return opening !== null && range.to >= trafficLedgerExactFrom(opening)
 }
 
-async function trafficLedgerFirstCompleteDay(db: Database): Promise<string | null> {
+async function trafficLedgerFirstExactDay(db: Database): Promise<string | null> {
   const opening = await createCloudTrafficReportRepo(db).getLedgerOpening()
-  return opening ? fullDayFrom(trafficLedgerExactFrom(opening)) : null
+  return opening ? dayKey(trafficLedgerExactFrom(opening)) : null
 }
 
 function delta(value: number | null, previousValue: number | null, canCompare = true): AdminStatsDelta {
@@ -1096,11 +1097,11 @@ async function getQuotaTotals(
 
 type UserInventory = {
   total: number
-  normal: number
-  unverified: number
-  banned: number
-  silent: number
-  verified: number
+  normal: number | null
+  unverified: number | null
+  banned: number | null
+  silent: number | null
+  verified: number | null
 }
 
 async function getUserInventory(reader: AdminStatsHourlyReader): Promise<UserInventory | null> {
@@ -1110,14 +1111,35 @@ async function getUserInventory(reader: AdminStatsHourlyReader): Promise<UserInv
   const dimensions = new Map(
     rows.filter((row) => row.dimensionKey === 'status').map((row) => [row.dimensionValue, row.count]),
   )
+  const normal = dimensions.get('normal')
+  const unverified = dimensions.get('unverified')
+  const banned = dimensions.get('banned')
+  const silent = dimensions.get('silent')
+  const verified = dimensions.get('verified')
   return {
     total,
-    normal: dimensions.get('normal') ?? 0,
-    unverified: dimensions.get('unverified') ?? 0,
-    banned: dimensions.get('banned') ?? 0,
-    silent: dimensions.get('silent') ?? 0,
-    verified: dimensions.get('verified') ?? 0,
+    normal: normal ?? null,
+    unverified: unverified ?? null,
+    banned: banned ?? null,
+    silent: silent ?? null,
+    verified: verified ?? null,
   }
+}
+
+function hasCompleteUserStatuses(users: UserInventory): users is UserInventory & {
+  normal: number
+  unverified: number
+  banned: number
+  silent: number
+  verified: number
+} {
+  return (
+    users.normal !== null &&
+    users.unverified !== null &&
+    users.banned !== null &&
+    users.silent !== null &&
+    users.verified !== null
+  )
 }
 
 type ActiveUserSnapshot = { dau: number; wau: number; mau: number }
@@ -1398,14 +1420,9 @@ async function getStorageLedgerChangesByDay(
   return result
 }
 
-function fullStorageChangeDayFrom(opening: Date | null): string | null {
+function storageChangeFirstExactDay(opening: Date | null): string | null {
   if (!opening) return null
-  return fullDayFrom(storageUsageLedgerExactFrom(opening))
-}
-
-function fullDayFrom(exactFrom: Date): string {
-  const exactDay = dayKey(exactFrom)
-  return exactFrom.getTime() === utcDateStart(exactDay).getTime() ? exactDay : addCalendarDays(exactDay, 1)
+  return dayKey(storageUsageLedgerExactFrom(opening))
 }
 
 async function getStorageInventory(reader: AdminStatsHourlyReader): Promise<{ files: number; bytes: number } | null> {

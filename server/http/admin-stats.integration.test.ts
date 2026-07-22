@@ -308,24 +308,22 @@ describe('site stats routes', () => {
     expect([growthRes.status, storageRes.status, trafficRes.status, sharingRes.status]).toEqual([200, 200, 200, 200])
     expect(growth.coverage.status).toBe('partial')
     expect(growth.summary.newUsers.value).toBe(2)
-    expect(growth.userScaleTrend).toEqual([{ date: '2026-07-01', newUsers: null, totalUsers: 42 }])
+    expect(growth.userScaleTrend).toEqual([{ date: '2026-07-01', newUsers: 2, totalUsers: 42 }])
     expect(growth.activeUserTrend).toEqual([{ date: '2026-07-01', dau: 3, wau: 5, mau: 7 }])
     expect(growth.registrationSources).toEqual([{ name: 'credential', value: 2, percent: 100 }])
-    expect(overview.users.trend).toEqual([{ date: '2026-07-01', totalUsers: 42, activeUsers: 7, newUsers: null }])
+    expect(overview.users.trend).toEqual([{ date: '2026-07-01', totalUsers: 42, activeUsers: 7, newUsers: 2 }])
     expect(overview.storageTrend).toEqual([
       { date: '2026-07-01', usedBytes: 4096, writtenBytes: null, releasedBytes: null },
     ])
     expect(storage.summary.newBytes.value).toBe(128)
     expect(storage.summary.newFiles.value).toBe(1)
-    expect(storage.storageTrend).toEqual([{ date: '2026-07-01', usedBytes: 4096, newBytes: null, newFiles: null }])
+    expect(storage.storageTrend).toEqual([{ date: '2026-07-01', usedBytes: 4096, newBytes: 128, newFiles: 1 }])
     expect(traffic.summary.totalBytes.value).toBe(128)
     expect(traffic.summary.requestCount.value).toBe(1)
-    expect(traffic.trafficTrend).toEqual([
-      { date: '2026-07-01', uploadBytes: null, downloadBytes: null, requests: null },
-    ])
+    expect(traffic.trafficTrend).toEqual([{ date: '2026-07-01', uploadBytes: 128, downloadBytes: 0, requests: 1 }])
     expect(sharing.summary.createdShares.value).toBe(0)
     expect(sharing.summary.saves.value).toBe(1)
-    expect(sharing.trend).toEqual([{ date: '2026-07-01', downloads: null, saves: null }])
+    expect(sharing.trend).toEqual([{ date: '2026-07-01', downloads: 0, saves: 1 }])
     expect(sharing.typeBreakdown).toEqual([])
   })
 

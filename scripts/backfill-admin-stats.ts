@@ -259,6 +259,7 @@ WHERE ctr.issued_at IS NULL
 
 ${purgeLegacyRollupsSql()}
 ${purgeIncompatibleUserSnapshotsSql()}
+${normalizePreOpeningGlobalMarkersSql()}
 ${purgeOrphanRollupsSql()}
 ${purgeOpenRollupsSql(now)}
 ${purgeCounterRollupsSql()}
@@ -322,7 +323,39 @@ WHERE CASE WHEN json_valid(metadata) = 1 THEN
 function purgeIncompatibleUserSnapshotsSql(): string {
   return `DELETE FROM stats_rollups_hourly
 WHERE bucket_start < COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})
-  AND metric_key IN ('${M.userInventory}', '${M.userActiveSnapshot}');`
+  AND (
+    metric_key = '${M.userActiveSnapshot}'
+    OR (
+      metric_key = '${M.userInventory}'
+      AND dimension_key = 'status'
+      AND dimension_value IN ('normal', 'silent')
+    )
+  );`
+}
+
+function normalizePreOpeningGlobalMarkersSql(): string {
+  return `UPDATE stats_rollups_hourly
+SET metadata = json_object(
+  'version', 3,
+  'scope', 'snapshots',
+  'quality', COALESCE(json_extract(metadata, '$.snapshotQuality'), json_extract(metadata, '$.quality')),
+  'snapshotQuality', COALESCE(json_extract(metadata, '$.snapshotQuality'), json_extract(metadata, '$.quality')),
+  'snapshotObservedAt', COALESCE(
+    json_extract(metadata, '$.snapshotObservedAt'),
+    json_extract(metadata, '$.observedAt')
+  )
+)
+WHERE metric_key = 'stats.rollup_run'
+  AND org_id = ''
+  AND dimension_key = ''
+  AND dimension_value = ''
+  AND bucket_start < COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})
+  AND json_valid(metadata) = 1
+  AND json_extract(metadata, '$.scope') = 'full'
+  AND COALESCE(
+    json_extract(metadata, '$.snapshotObservedAt'),
+    json_extract(metadata, '$.observedAt')
+  ) IS NOT NULL;`
 }
 
 function purgeOrphanRollupsSql(): string {
@@ -383,6 +416,11 @@ WHERE metric_key IN (
     AND (
       dimension_key = 'metric_key'
       OR CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') = 'counters' ELSE 0 END = 1
+      OR (
+        dimension_key = ''
+        AND bucket_start < COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})
+        AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') = 'full' ELSE 0 END = 1
+      )
     )
   );`
 }
@@ -962,7 +1000,14 @@ SELECT json_object(
   'incompatibleUserSnapshotRows', (
     SELECT COUNT(*) FROM stats_rollups_hourly
     WHERE bucket_start < COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})
-      AND metric_key IN ('${M.userInventory}', '${M.userActiveSnapshot}')
+      AND (
+        metric_key = '${M.userActiveSnapshot}'
+        OR (
+          metric_key = '${M.userInventory}'
+          AND dimension_key = 'status'
+          AND dimension_value IN ('normal', 'silent')
+        )
+      )
   )
 ) AS summary;`
 
