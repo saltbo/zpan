@@ -88,7 +88,7 @@ export function ShareLayout({ children }: ShareLayoutProps) {
                 </DropdownMenuItem>
                 {isAdmin && (
                   <DropdownMenuItem asChild>
-                    <Link to="/admin/storages">
+                    <Link to="/admin">
                       <ShieldCheck className="mr-2 h-4 w-4" />
                       {t('nav.adminPanel')}
                     </Link>
