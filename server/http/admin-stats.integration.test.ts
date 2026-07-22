@@ -176,7 +176,10 @@ describe('site stats routes', () => {
       )
     `)
 
-    const res = await app.request('/api/site/stats/storage?from=2026-01-01&to=2026-01-01', { headers })
+    const res = await app.request(
+      '/api/site/stats/storage?from=2026-01-01T00%3A00%3A00.000Z&to=2026-01-01T00%3A59%3A59.999Z&timeZone=UTC',
+      { headers },
+    )
     const body = (await res.json()) as {
       storageTrend: Array<{ date: string; usedBytes: number; newBytes: number; newFiles: number }>
     }
@@ -230,6 +233,72 @@ describe('site stats routes', () => {
     expect(rollupBody.comparisonCoverage).toMatchObject({ status: 'empty', completedBuckets: 0, expectedBuckets: 1 })
     expect(emptyRes.status).toBe(200)
     expect(emptyBody.summary.totalBytes.value).toBe(0)
+  })
+
+  it('returns null instead of zero when requested hours are missing', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const at = Date.UTC(2026, 6, 1, 10)
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly (
+        id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+        count, bytes, unique_count, metadata, updated_at
+      ) VALUES
+        ('partial-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":3,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+        ('partial-signup', ${at}, '', 'user.signup', '', '', 2, 0, 0,
+          '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000}),
+        ('partial-upload', ${at}, '', 'transfer.upload', '', '', 1, 128, 0,
+          '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000}),
+        ('partial-share-save', ${at}, '', 'share.saved', '', '', 1, 0, 0,
+          '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000})
+    `)
+    const query = 'from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T11%3A59%3A59.999Z&timeZone=UTC'
+
+    const [growthRes, storageRes, trafficRes, sharingRes] = await Promise.all([
+      app.request(`/api/site/stats/growth?${query}`, { headers }),
+      app.request(`/api/site/stats/storage?${query}`, { headers }),
+      app.request(`/api/site/stats/traffic?${query}`, { headers }),
+      app.request(`/api/site/stats/sharing?${query}`, { headers }),
+    ])
+    const growth = (await growthRes.json()) as {
+      coverage: { status: string }
+      summary: { newUsers: { value: number | null } }
+      userScaleTrend: Array<{ newUsers: number | null }>
+      registrationSources: unknown[]
+    }
+    const storage = (await storageRes.json()) as {
+      summary: { newBytes: { value: number | null }; newFiles: { value: number | null } }
+      storageTrend: Array<{ newBytes: number | null; newFiles: number | null }>
+    }
+    const traffic = (await trafficRes.json()) as {
+      summary: { totalBytes: { value: number | null }; requestCount: { value: number | null } }
+      trafficTrend: Array<{ uploadBytes: number | null; requests: number | null }>
+    }
+    const sharing = (await sharingRes.json()) as {
+      summary: { createdShares: { value: number | null }; saves: { value: number | null } }
+      trend: Array<{ downloads: number | null; saves: number | null }>
+      typeBreakdown: unknown[]
+    }
+
+    expect([growthRes.status, storageRes.status, trafficRes.status, sharingRes.status]).toEqual([200, 200, 200, 200])
+    expect(growth.coverage.status).toBe('partial')
+    expect(growth.summary.newUsers.value).toBeNull()
+    expect(growth.userScaleTrend).toEqual([{ date: '2026-07-01', newUsers: null, totalUsers: null }])
+    expect(growth.registrationSources).toEqual([])
+    expect(storage.summary.newBytes.value).toBeNull()
+    expect(storage.summary.newFiles.value).toBeNull()
+    expect(storage.storageTrend).toEqual([{ date: '2026-07-01', usedBytes: null, newBytes: null, newFiles: null }])
+    expect(traffic.summary.totalBytes.value).toBeNull()
+    expect(traffic.summary.requestCount.value).toBeNull()
+    expect(traffic.trafficTrend).toEqual([
+      { date: '2026-07-01', uploadBytes: null, downloadBytes: null, requests: null },
+    ])
+    expect(sharing.summary.createdShares.value).toBeNull()
+    expect(sharing.summary.saves.value).toBeNull()
+    expect(sharing.trend).toEqual([{ date: '2026-07-01', downloads: null, saves: null }])
+    expect(sharing.typeBreakdown).toEqual([])
   })
 
   it('hydrates completed-hour dashboard dimensions from rollups', async () => {
@@ -338,9 +407,9 @@ describe('site stats routes', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    await seedStatsFixture(db)
+    const { bucketStart } = await seedStatsFixture(db)
 
-    const res = await app.request('/api/site/stats/growth', { headers })
+    const res = await app.request(`/api/site/stats/growth?${exactHourQuery(bucketStart)}`, { headers })
     const body = (await res.json()) as {
       summary: {
         totalUsers: number
@@ -389,7 +458,10 @@ describe('site stats routes', () => {
           '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000})
     `)
 
-    const res = await app.request('/api/site/stats/growth?from=2026-01-01&to=2026-01-01', { headers })
+    const res = await app.request(
+      '/api/site/stats/growth?from=2026-01-01T10%3A00%3A00.000Z&to=2026-01-01T10%3A59%3A59.999Z&timeZone=UTC',
+      { headers },
+    )
     const body = (await res.json()) as {
       summary: { newUsers: { value: number } }
       userScaleTrend: Array<{ newUsers: number; totalUsers: number }>
@@ -630,7 +702,7 @@ describe('site stats routes', () => {
     `)
     await rebuildAdminStatsHour(db, bucketStart, new Date())
 
-    const current = await app.request('/api/site/stats/traffic', { headers })
+    const current = await app.request(`/api/site/stats/traffic?${exactHourQuery(bucketStart)}`, { headers })
     const currentBody = (await current.json()) as {
       summary: { requestCount: { changePercent: number | null } }
       successTrend: Array<{ uploadSuccessRate: number | null }>
@@ -662,10 +734,11 @@ describe('site stats routes', () => {
     await rebuildAdminStatsHour(db, new Date('2026-07-01T12:00:00.000Z'), new Date())
     await rebuildAdminStatsHour(db, new Date('2026-06-30T12:00:00.000Z'), new Date())
 
+    const query = 'from=2026-07-01T12%3A00%3A00.000Z&to=2026-07-01T12%3A59%3A59.999Z&timeZone=UTC'
     const [res, trafficRes, storageRes] = await Promise.all([
-      app.request('/api/site/stats/overview?from=2026-07-01&to=2026-07-01', { headers }),
-      app.request('/api/site/stats/traffic?from=2026-07-01&to=2026-07-01', { headers }),
-      app.request('/api/site/stats/storage?from=2026-07-01&to=2026-07-01', { headers }),
+      app.request(`/api/site/stats/overview?${query}`, { headers }),
+      app.request(`/api/site/stats/traffic?${query}`, { headers }),
+      app.request(`/api/site/stats/storage?${query}`, { headers }),
     ])
     const body = (await res.json()) as {
       dataQuality: AdminDashboardOverviewStats['dataQuality']
@@ -725,9 +798,9 @@ describe('site stats routes', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    await seedStatsFixture(db)
+    const { bucketStart } = await seedStatsFixture(db)
 
-    const res = await app.request('/api/site/stats/traffic', { headers })
+    const res = await app.request(`/api/site/stats/traffic?${exactHourQuery(bucketStart)}`, { headers })
     const body = (await res.json()) as {
       summary: {
         totalBytes: { value: number }
@@ -1051,4 +1124,9 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
   await captureAdminStatsSnapshot(db, bucketStart, new Date(now))
   await rebuildAdminStatsHour(db, bucketStart, new Date(generatedAt))
   return { orgId, userId, bucketStart, eventMs: now, eventSec: nowSec }
+}
+
+function exactHourQuery(bucketStart: Date): string {
+  const end = new Date(bucketStart.getTime() + 3_600_000 - 1)
+  return `from=${encodeURIComponent(bucketStart.toISOString())}&to=${encodeURIComponent(end.toISOString())}&timeZone=UTC`
 }

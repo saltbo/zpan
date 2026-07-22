@@ -173,7 +173,7 @@ describe('Admin overview dashboard', () => {
     expect(screen.queryByText(/部分小时|数据下限|当前 700\/700|快照采样/)).toBeNull()
   })
 
-  it('shows no module data when the selected range is incomplete', async () => {
+  it('renders available metrics when the selected range is incomplete', async () => {
     vi.mocked(useEntitlement).mockReturnValue({
       bound: true,
       active: true,
@@ -197,7 +197,8 @@ describe('Admin overview dashboard', () => {
 
     renderOverviewPage()
 
-    expect(await screen.findByText('暂无统计数据')).toBeTruthy()
-    expect(screen.queryByText('总用户数')).toBeNull()
+    expect(await screen.findByText('总用户数')).toBeTruthy()
+    expect(screen.getAllByText('暂无统计数据').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/部分小时|数据下限|当前 699\/700|快照采样/)).toBeNull()
   })
 })

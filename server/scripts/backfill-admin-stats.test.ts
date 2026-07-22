@@ -191,6 +191,8 @@ describe('admin stats backfill', () => {
         ('snapshot-gauge', ${eventHourMs}, '', 'storage.used', '', '', 0, 512, 0,
           '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"${snapshotObservedAt}"}', ${eventMs}),
         ('orphan-snapshot-gauge', ${eventHourMs - 3_600_000}, '', 'storage.used', '', '', 0, 256, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"${snapshotObservedAt}"}', ${eventMs}),
+        ('preopening-user-activity', ${historyStartMs - 3_600_000}, '', 'user.active_snapshot', 'window', 'mau', 57, 0, 0,
           '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"${snapshotObservedAt}"}', ${eventMs});
     `)
 
@@ -256,6 +258,7 @@ describe('admin stats backfill', () => {
       rawActiveShares: 1,
       validActiveShares: 1,
       legacyRollupRows: 0,
+      incompatibleUserSnapshotRows: 0,
       counterExpectedBuckets: expectedBuckets,
       counterCompletedBuckets: expectedBuckets,
       counterMissingBuckets: 0,
@@ -330,6 +333,9 @@ describe('admin stats backfill', () => {
     })
     expect(
       db.prepare("SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE id = 'orphan-snapshot-gauge'").get(),
+    ).toEqual({ value: 0 })
+    expect(
+      db.prepare("SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE id = 'preopening-user-activity'").get(),
     ).toEqual({ value: 0 })
     expect(
       db.prepare('SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE bucket_start >= ?').get(currentHourMs),

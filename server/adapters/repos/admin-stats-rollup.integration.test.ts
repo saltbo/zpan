@@ -527,6 +527,38 @@ describe('admin hourly stats rollup', () => {
     expect(await reader.coverage()).toMatchObject({ status: 'empty', completedBuckets: 0 })
   })
 
+  it('marks a day complete only when every requested hour has an exact marker', async () => {
+    const { db } = await createTestApp()
+    const firstHour = Date.parse('2026-07-10T10:00:00.000Z')
+    const secondHour = firstHour + 3_600_000
+    const metadata = '{"version":3,"scope":"counters","quality":"exact"}'
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('complete-day-first', ${firstHour}, '', 'stats.rollup_run', '', '', 1, 0, 0, ${metadata}, ${firstHour})
+    `)
+    const range = {
+      from: new Date(firstHour),
+      to: new Date(secondHour + 3_600_000 - 1),
+      timeZone: 'UTC' as const,
+    }
+
+    const partialReader = new AdminStatsHourlyReader(db, range, new Date(secondHour + 7_200_000))
+    expect(await partialReader.completeDayKeys('counters')).toEqual(new Set())
+
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('complete-day-second', ${secondHour}, '', 'stats.rollup_run', '', '', 1, 0, 0, ${metadata}, ${secondHour})
+    `)
+    const completeReader = new AdminStatsHourlyReader(db, range, new Date(secondHour + 7_200_000))
+    expect(await completeReader.completeDayKeys('counters')).toEqual(new Set(['2026-07-10']))
+  })
+
   it('never exposes the current open hour, even if rollup rows already exist', async () => {
     const { db } = await createTestApp()
     const bucketStart = Date.parse('2026-07-10T10:00:00.000Z')

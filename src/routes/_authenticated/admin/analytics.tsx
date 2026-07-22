@@ -399,67 +399,75 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="用户规模趋势" subtitle="柱形看每日新增用户，折线看累计用户规模。">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={stats.userScaleTrend}>
-              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
-              <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
-              <RechartsTooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                formatter={chartTooltipFormatter}
-              />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="newUsers" name="新增用户" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
-              <Line
-                type="monotone"
-                dataKey="totalUsers"
-                name="累计用户"
-                stroke={CHART_COLORS[0]}
-                strokeWidth={2}
-                dot={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {hasNumericData(stats.userScaleTrend, ['newUsers', 'totalUsers']) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={stats.userScaleTrend}>
+                <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+                <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
+                <RechartsTooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  formatter={chartTooltipFormatter}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="newUsers" name="新增用户" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+                <Line
+                  type="monotone"
+                  dataKey="totalUsers"
+                  name="累计用户"
+                  stroke={CHART_COLORS[0]}
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyState />
+          )}
         </ChartCard>
         <ChartCard title="活跃用户趋势" subtitle="DAU、WAU、MAU 同时展示，用于判断用户活跃基本盘。">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={stats.activeUserTrend}>
-              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
-              <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
-              <RechartsTooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                formatter={chartTooltipFormatter}
-              />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Area
-                type="monotone"
-                dataKey="mau"
-                name="MAU"
-                stroke={CHART_COLORS[5]}
-                fill={CHART_COLORS[5]}
-                fillOpacity={0.08}
-              />
-              <Area
-                type="monotone"
-                dataKey="wau"
-                name="WAU"
-                stroke={CHART_COLORS[3]}
-                fill={CHART_COLORS[3]}
-                fillOpacity={0.12}
-              />
-              <Area
-                type="monotone"
-                dataKey="dau"
-                name="DAU"
-                stroke={CHART_COLORS[0]}
-                fill={CHART_COLORS[0]}
-                fillOpacity={0.16}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {hasNumericData(stats.activeUserTrend, ['dau', 'wau', 'mau']) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={stats.activeUserTrend}>
+                <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+                <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
+                <RechartsTooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  formatter={chartTooltipFormatter}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Area
+                  type="monotone"
+                  dataKey="mau"
+                  name="MAU"
+                  stroke={CHART_COLORS[5]}
+                  fill={CHART_COLORS[5]}
+                  fillOpacity={0.08}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="wau"
+                  name="WAU"
+                  stroke={CHART_COLORS[3]}
+                  fill={CHART_COLORS[3]}
+                  fillOpacity={0.12}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="dau"
+                  name="DAU"
+                  stroke={CHART_COLORS[0]}
+                  fill={CHART_COLORS[0]}
+                  fillOpacity={0.16}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyState />
+          )}
         </ChartCard>
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
@@ -557,60 +565,64 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
       </ChartCard>
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="存储与写入趋势" subtitle="存储占用是水位；确认上传文件和字节是周期事件量，不代表净增长。">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={stats.storageTrend}>
-              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
-              <YAxis
-                yAxisId="bytes"
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                width={58}
-                tickFormatter={formatCompactSize}
-              />
-              <YAxis
-                yAxisId="files"
-                orientation="right"
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                width={48}
-                tickFormatter={formatCompactNumber}
-              />
-              <RechartsTooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                formatter={chartTooltipFormatter}
-              />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Bar
-                yAxisId="files"
-                dataKey="newFiles"
-                name="确认上传文件"
-                fill={CHART_COLORS[1]}
-                radius={[4, 4, 0, 0]}
-              />
-              <Line
-                yAxisId="bytes"
-                type="monotone"
-                dataKey="usedBytes"
-                name="存储占用"
-                stroke={CHART_COLORS[0]}
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                yAxisId="bytes"
-                type="monotone"
-                dataKey="newBytes"
-                name="确认写入字节"
-                stroke={CHART_COLORS[2]}
-                strokeWidth={2}
-                dot={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {hasNumericData(stats.storageTrend, ['usedBytes', 'newBytes', 'newFiles']) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={stats.storageTrend}>
+                <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+                <YAxis
+                  yAxisId="bytes"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  width={58}
+                  tickFormatter={formatCompactSize}
+                />
+                <YAxis
+                  yAxisId="files"
+                  orientation="right"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  width={48}
+                  tickFormatter={formatCompactNumber}
+                />
+                <RechartsTooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  formatter={chartTooltipFormatter}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Bar
+                  yAxisId="files"
+                  dataKey="newFiles"
+                  name="确认上传文件"
+                  fill={CHART_COLORS[1]}
+                  radius={[4, 4, 0, 0]}
+                />
+                <Line
+                  yAxisId="bytes"
+                  type="monotone"
+                  dataKey="usedBytes"
+                  name="存储占用"
+                  stroke={CHART_COLORS[0]}
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="bytes"
+                  type="monotone"
+                  dataKey="newBytes"
+                  name="确认写入字节"
+                  stroke={CHART_COLORS[2]}
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyState />
+          )}
         </ChartCard>
         <BreakdownChart
           title="文件类型容量占比"
@@ -620,74 +632,82 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="文件大小结构" subtitle="柱形看文件数量，折线看容量贡献，定位大对象压力。">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={stats.sizeBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tickFormatter={labelize} />
-              <YAxis
-                yAxisId="files"
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                width={46}
-                tickFormatter={formatCompactNumber}
-              />
-              <YAxis
-                yAxisId="bytes"
-                orientation="right"
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                width={58}
-                tickFormatter={formatCompactSize}
-              />
-              <RechartsTooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                formatter={chartTooltipFormatter}
-                labelFormatter={(value) => labelize(String(value))}
-              />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Bar
-                yAxisId="files"
-                dataKey="files"
-                name="文件数"
-                fill={CHART_COLORS[5]}
-                radius={[4, 4, 0, 0]}
-                isAnimationActive={false}
-              />
-              <Line
-                yAxisId="bytes"
-                type="monotone"
-                dataKey="bytes"
-                name="容量贡献"
-                stroke={CHART_COLORS[4]}
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {hasNumericData(stats.sizeBreakdown, ['files', 'bytes']) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={stats.sizeBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tickFormatter={labelize} />
+                <YAxis
+                  yAxisId="files"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  width={46}
+                  tickFormatter={formatCompactNumber}
+                />
+                <YAxis
+                  yAxisId="bytes"
+                  orientation="right"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  width={58}
+                  tickFormatter={formatCompactSize}
+                />
+                <RechartsTooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  formatter={chartTooltipFormatter}
+                  labelFormatter={(value) => labelize(String(value))}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Bar
+                  yAxisId="files"
+                  dataKey="files"
+                  name="文件数"
+                  fill={CHART_COLORS[5]}
+                  radius={[4, 4, 0, 0]}
+                  isAnimationActive={false}
+                />
+                <Line
+                  yAxisId="bytes"
+                  type="monotone"
+                  dataKey="bytes"
+                  name="容量贡献"
+                  stroke={CHART_COLORS[4]}
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyState />
+          )}
         </ChartCard>
         <ChartCard title="文件年龄分布" subtitle="仅按创建时间划分，不代表文件最近是否被访问。">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats.ageBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tickFormatter={labelize} />
-              <YAxis tickLine={false} axisLine={false} fontSize={12} width={58} tickFormatter={formatCompactSize} />
-              <RechartsTooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                formatter={(value, name) =>
-                  name === '容量' ? [formatSize(Number(value)), name] : [formatNumber(Number(value)), name]
-                }
-                labelFormatter={(value) => labelize(String(value))}
-              />
-              <Bar dataKey="bytes" name="容量" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} isAnimationActive={false}>
-                <LabelList dataKey="percent" position="top" formatter={formatPercentLabel} fontSize={11} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          {hasNumericData(stats.ageBreakdown, ['bytes']) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats.ageBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tickFormatter={labelize} />
+                <YAxis tickLine={false} axisLine={false} fontSize={12} width={58} tickFormatter={formatCompactSize} />
+                <RechartsTooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  formatter={(value, name) =>
+                    name === '容量' ? [formatSize(Number(value)), name] : [formatNumber(Number(value)), name]
+                  }
+                  labelFormatter={(value) => labelize(String(value))}
+                />
+                <Bar dataKey="bytes" name="容量" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                  <LabelList dataKey="percent" position="top" formatter={formatPercentLabel} fontSize={11} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyState />
+          )}
         </ChartCard>
       </div>
     </div>
@@ -742,54 +762,58 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
           title="传输事件趋势"
           subtitle="上传为确认完成字节，下载为链接签发对象字节，不代表客户端实际完成传输。"
         >
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={stats.trafficTrend}>
-              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
-              <YAxis
-                yAxisId="bytes"
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                width={58}
-                tickFormatter={formatCompactSize}
-              />
-              <YAxis
-                yAxisId="count"
-                orientation="right"
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                width={46}
-                tickFormatter={formatCompactNumber}
-              />
-              <RechartsTooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                formatter={chartTooltipFormatter}
-              />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Bar yAxisId="count" dataKey="requests" name="请求量" fill={CHART_COLORS[5]} radius={[4, 4, 0, 0]} />
-              <Line
-                yAxisId="bytes"
-                type="monotone"
-                dataKey="uploadBytes"
-                name="确认上传字节"
-                stroke={CHART_COLORS[0]}
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                yAxisId="bytes"
-                type="monotone"
-                dataKey="downloadBytes"
-                name="下载签发字节"
-                stroke={CHART_COLORS[2]}
-                strokeWidth={2}
-                dot={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {hasNumericData(stats.trafficTrend, ['uploadBytes', 'downloadBytes', 'requests']) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={stats.trafficTrend}>
+                <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+                <YAxis
+                  yAxisId="bytes"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  width={58}
+                  tickFormatter={formatCompactSize}
+                />
+                <YAxis
+                  yAxisId="count"
+                  orientation="right"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  width={46}
+                  tickFormatter={formatCompactNumber}
+                />
+                <RechartsTooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  formatter={chartTooltipFormatter}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Bar yAxisId="count" dataKey="requests" name="请求量" fill={CHART_COLORS[5]} radius={[4, 4, 0, 0]} />
+                <Line
+                  yAxisId="bytes"
+                  type="monotone"
+                  dataKey="uploadBytes"
+                  name="确认上传字节"
+                  stroke={CHART_COLORS[0]}
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="bytes"
+                  type="monotone"
+                  dataKey="downloadBytes"
+                  name="下载签发字节"
+                  stroke={CHART_COLORS[2]}
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyState />
+          )}
         </ChartCard>
         <BreakdownChart
           title="传输来源分布"
@@ -802,53 +826,57 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
           title="签发与确认成功率"
           subtitle="上传成功指完成确认；下载成功指成功签发链接，不代表客户端下载完成。"
         >
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={stats.successTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                minTickGap={16}
-                tickFormatter={formatChartDate}
-              />
-              <YAxis
-                domain={[0, 100]}
-                tickFormatter={(value) => `${value}%`}
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                width={46}
-              />
-              <RechartsTooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                formatter={(value, name) => [`${Number(value).toFixed(1)}%`, name]}
-              />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Area
-                type="monotone"
-                dataKey="uploadSuccessRate"
-                name="上传成功率"
-                stroke={CHART_COLORS[1]}
-                fill={CHART_COLORS[1]}
-                fillOpacity={0.08}
-                strokeWidth={2}
-                isAnimationActive={false}
-              />
-              <Area
-                type="monotone"
-                dataKey="downloadSuccessRate"
-                name="下载成功率"
-                stroke={CHART_COLORS[0]}
-                fill={CHART_COLORS[0]}
-                fillOpacity={0.08}
-                strokeWidth={2}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {hasNumericData(stats.successTrend, ['uploadSuccessRate', 'downloadSuccessRate']) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={stats.successTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  minTickGap={16}
+                  tickFormatter={formatChartDate}
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  tickFormatter={(value) => `${value}%`}
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  width={46}
+                />
+                <RechartsTooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  formatter={(value, name) => [`${Number(value).toFixed(1)}%`, name]}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Area
+                  type="monotone"
+                  dataKey="uploadSuccessRate"
+                  name="上传成功率"
+                  stroke={CHART_COLORS[1]}
+                  fill={CHART_COLORS[1]}
+                  fillOpacity={0.08}
+                  strokeWidth={2}
+                  isAnimationActive={false}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="downloadSuccessRate"
+                  name="下载成功率"
+                  stroke={CHART_COLORS[0]}
+                  fill={CHART_COLORS[0]}
+                  fillOpacity={0.08}
+                  strokeWidth={2}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyState />
+          )}
         </ChartCard>
         <ChartCard title="失败原因分布" subtitle="分类比较用横向条形图，并标出每类占比。">
           {stats.failureReasons.length === 0 ? (
@@ -938,35 +966,39 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
       </div>
       <div className="grid gap-4">
         <ChartCard title="分享下载与转存趋势" subtitle="按事件发生时间统计。">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={stats.trend}>
-              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
-              <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
-              <RechartsTooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                formatter={chartTooltipFormatter}
-              />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Area
-                type="monotone"
-                dataKey="downloads"
-                name="下载签发"
-                stroke={CHART_COLORS[2]}
-                fill={CHART_COLORS[2]}
-                fillOpacity={0.1}
-              />
-              <Area
-                type="monotone"
-                dataKey="saves"
-                name="转存"
-                stroke={CHART_COLORS[3]}
-                fill={CHART_COLORS[3]}
-                fillOpacity={0.08}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {hasNumericData(stats.trend, ['downloads', 'saves']) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={stats.trend}>
+                <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
+                <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
+                <RechartsTooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  formatter={chartTooltipFormatter}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Area
+                  type="monotone"
+                  dataKey="downloads"
+                  name="下载签发"
+                  stroke={CHART_COLORS[2]}
+                  fill={CHART_COLORS[2]}
+                  fillOpacity={0.1}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="saves"
+                  name="转存"
+                  stroke={CHART_COLORS[3]}
+                  fill={CHART_COLORS[3]}
+                  fillOpacity={0.08}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyState />
+          )}
         </ChartCard>
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
@@ -1059,38 +1091,42 @@ function BreakdownChart({
 }) {
   return (
     <ChartCard title={title}>
-      <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1fr)_230px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={rows}
-              dataKey="value"
-              nameKey="name"
-              innerRadius="56%"
-              outerRadius="78%"
-              paddingAngle={2}
-              isAnimationActive={false}
-            >
-              {rows.map((row, index) => (
-                <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-              ))}
-            </Pie>
-            <RechartsTooltip
-              contentStyle={tooltipContentStyle}
-              labelStyle={tooltipLabelStyle}
-              formatter={(value) => valueFormatter(Number(value))}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <PercentList
-          items={rows.map((row, index) => ({
-            name: labelize(row.name),
-            percent: row.percent,
-            valueLabel: valueFormatter(row.value),
-            fill: CHART_COLORS[index % CHART_COLORS.length],
-          }))}
-        />
-      </div>
+      {hasPositiveBreakdown(rows) ? (
+        <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1fr)_230px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={rows}
+                dataKey="value"
+                nameKey="name"
+                innerRadius="56%"
+                outerRadius="78%"
+                paddingAngle={2}
+                isAnimationActive={false}
+              >
+                {rows.map((row, index) => (
+                  <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                ))}
+              </Pie>
+              <RechartsTooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                formatter={(value) => valueFormatter(Number(value))}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <PercentList
+            items={rows.map((row, index) => ({
+              name: labelize(row.name),
+              percent: row.percent,
+              valueLabel: valueFormatter(row.value),
+              fill: CHART_COLORS[index % CHART_COLORS.length],
+            }))}
+          />
+        </div>
+      ) : (
+        <EmptyState />
+      )}
     </ChartCard>
   )
 }
@@ -1106,33 +1142,37 @@ function BarBreakdownChart({
 }) {
   return (
     <ChartCard title={title}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} layout="vertical" margin={{ top: 8, right: 44, left: 8, bottom: 0 }}>
-          <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" horizontal={false} />
-          <XAxis type="number" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatCompactNumber} />
-          <YAxis
-            type="category"
-            dataKey="name"
-            width={86}
-            tickLine={false}
-            axisLine={false}
-            fontSize={12}
-            tickFormatter={labelize}
-          />
-          <RechartsTooltip
-            contentStyle={tooltipContentStyle}
-            labelStyle={tooltipLabelStyle}
-            formatter={(value) => valueFormatter(Number(value))}
-            labelFormatter={(value) => labelize(String(value))}
-          />
-          <Bar dataKey="value" name="数量" radius={[0, 4, 4, 0]} isAnimationActive={false}>
-            {rows.map((row, index) => (
-              <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-            ))}
-            <LabelList dataKey="percent" position="right" formatter={formatPercentLabel} fontSize={11} />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+      {hasPositiveBreakdown(rows) ? (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} layout="vertical" margin={{ top: 8, right: 44, left: 8, bottom: 0 }}>
+            <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatCompactNumber} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={86}
+              tickLine={false}
+              axisLine={false}
+              fontSize={12}
+              tickFormatter={labelize}
+            />
+            <RechartsTooltip
+              contentStyle={tooltipContentStyle}
+              labelStyle={tooltipLabelStyle}
+              formatter={(value) => valueFormatter(Number(value))}
+              labelFormatter={(value) => labelize(String(value))}
+            />
+            <Bar dataKey="value" name="数量" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+              {rows.map((row, index) => (
+                <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+              ))}
+              <LabelList dataKey="percent" position="right" formatter={formatPercentLabel} fontSize={11} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <EmptyState />
+      )}
     </ChartCard>
   )
 }
@@ -1216,7 +1256,6 @@ function QueryState<T extends AdminStatsRange>({
       </div>
     )
   if (!query.data) return <EmptyState />
-  if (query.data.coverage.status !== 'complete') return <EmptyState />
   return children(query.data)
 }
 
@@ -1235,10 +1274,18 @@ function SectionSkeleton() {
 
 function EmptyState() {
   return (
-    <div className="rounded-lg border border-dashed border-border/70 bg-muted/10 p-8 text-center text-sm text-muted-foreground">
+    <div className="flex h-full min-h-32 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/10 p-8 text-center text-sm text-muted-foreground">
       暂无统计数据
     </div>
   )
+}
+
+function hasNumericData<T extends object>(rows: readonly T[], keys: readonly (keyof T)[]): boolean {
+  return rows.some((row) => keys.some((key) => typeof row[key] === 'number' && Number.isFinite(row[key])))
+}
+
+function hasPositiveBreakdown(rows: Array<{ value: number }>): boolean {
+  return rows.some((row) => row.value > 0)
 }
 
 function dateRangePresets(): Array<{ label: string; range: DateRange }> {

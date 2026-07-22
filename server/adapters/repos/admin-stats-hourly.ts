@@ -149,6 +149,22 @@ export class AdminStatsHourlyReader {
     }
   }
 
+  async completeDayKeys(requiredScope: AdminStatsRollupScope): Promise<Set<string>> {
+    const markerBuckets = await this.markerBuckets(requiredScope)
+    const expectedByDay = new Map<string, number>()
+    const completedByDay = new Map<string, number>()
+    for (let at = this.queryFrom.getTime(); at < this.queryTo.getTime(); at += HOUR_MS) {
+      const day = this.dayKey(new Date(at))
+      expectedByDay.set(day, (expectedByDay.get(day) ?? 0) + 1)
+      if (markerBuckets.has(at)) completedByDay.set(day, (completedByDay.get(day) ?? 0) + 1)
+    }
+    return new Set(
+      [...expectedByDay]
+        .filter(([day, expected]) => expected > 0 && completedByDay.get(day) === expected)
+        .map(([day]) => day),
+    )
+  }
+
   endExclusive(): Date {
     return this.queryTo
   }

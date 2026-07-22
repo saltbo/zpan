@@ -83,6 +83,7 @@ interface ValidationSummary {
   requiredDimensionMismatchGroups: number
   lowerBoundRollups: number
   legacyRollupRows: number
+  incompatibleUserSnapshotRows: number
   counterExpectedBuckets: number
   counterCompletedBuckets: number
   counterMissingBuckets: number
@@ -244,6 +245,7 @@ WHERE ctr.issued_at IS NULL
   );
 
 ${purgeLegacyRollupsSql()}
+${purgeIncompatibleUserSnapshotsSql()}
 ${purgeOrphanRollupsSql()}
 ${purgeOpenRollupsSql(now)}
 ${purgeCounterRollupsSql()}
@@ -267,6 +269,12 @@ WHERE CASE WHEN json_valid(metadata) = 1 THEN
     AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
     AND json_extract(metadata, '$.quality') = 'exact'
   ELSE 0 END = 0;`
+}
+
+function purgeIncompatibleUserSnapshotsSql(): string {
+  return `DELETE FROM stats_rollups_hourly
+WHERE bucket_start < COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})
+  AND metric_key IN ('${M.userInventory}', '${M.userActiveSnapshot}');`
 }
 
 function purgeOrphanRollupsSql(): string {
@@ -794,6 +802,11 @@ SELECT json_object(
         AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
         AND json_extract(metadata, '$.quality') = 'exact'
       ELSE 0 END = 0
+  ),
+  'incompatibleUserSnapshotRows', (
+    SELECT COUNT(*) FROM stats_rollups_hourly
+    WHERE bucket_start < COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})
+      AND metric_key IN ('${M.userInventory}', '${M.userActiveSnapshot}')
   )
 ) AS summary;`
 
@@ -1087,6 +1100,7 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
     summary.requiredDimensionMismatchGroups > 0 ||
     summary.lowerBoundRollups > 0 ||
     summary.legacyRollupRows > 0 ||
+    summary.incompatibleUserSnapshotRows > 0 ||
     summary.counterMissingBuckets > 0 ||
     summary.openCounterMarkers > 0
   ) {
@@ -1100,6 +1114,7 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
         requiredDimensionMismatchGroups: summary.requiredDimensionMismatchGroups,
         lowerBoundRollups: summary.lowerBoundRollups,
         legacyRollupRows: summary.legacyRollupRows,
+        incompatibleUserSnapshotRows: summary.incompatibleUserSnapshotRows,
         counterMissingBuckets: summary.counterMissingBuckets,
         openCounterMarkers: summary.openCounterMarkers,
       })}`,
