@@ -30,7 +30,7 @@ import {
   reportDownloadEgress,
   reverseDownloadTraffic,
 } from './store/traffic-metering'
-import { createTrafficEventId } from './transfer-activity'
+import { createTrafficEventId, type TransferAuditTarget } from './transfer-activity'
 
 // The metering usecases need the cloud-report ports plus quota; the redirect
 // flows additionally read shares / image-hosting / storages and presign via s3.
@@ -40,6 +40,45 @@ export type RedirectDeps = CloudTrafficMeteringDeps & {
   storages: StorageRepo
   share: ShareRepo
   imageHosting: ImageHostingRepo
+}
+
+export async function resolveRedirectDownloadAuditTarget(
+  deps: Pick<RedirectDeps, 'share' | 'imageHosting'>,
+  token: string,
+): Promise<TransferAuditTarget | null> {
+  if (token.startsWith('ds_')) {
+    const resolved = await deps.share.resolveByToken(token)
+    if (resolved.status !== 'ok' || resolved.share.kind !== 'direct') return null
+    return {
+      orgId: resolved.share.orgId,
+      targetType: 'share',
+      targetId: resolved.share.id,
+      targetName: resolved.matter.name,
+      bytes: resolved.matter.size ?? 0,
+      source: 'direct_share',
+      metadata: {
+        shareId: resolved.share.id,
+        matterId: resolved.matter.id,
+        storageId: resolved.matter.storageId,
+      },
+    }
+  }
+
+  if (token.startsWith('ih_')) {
+    const resolved = await deps.imageHosting.resolveActiveByToken(token)
+    if (!resolved) return null
+    return {
+      orgId: resolved.image.orgId,
+      targetType: 'image',
+      targetId: resolved.image.id,
+      targetName: resolved.image.path,
+      bytes: resolved.image.size,
+      source: 'image_hosting',
+      metadata: { imageId: resolved.image.id, storageId: resolved.image.storageId },
+    }
+  }
+
+  return null
 }
 
 // ─── Direct share (ds_) ──────────────────────────────────────────────────────

@@ -4,8 +4,7 @@ import { reportTrafficForDownload } from '../http/store/traffic-metering'
 import type { Env } from '../middleware/platform'
 import { forbidden, notFound, quotaExceeded, storageNotFound } from '../usecases/ports'
 import { confirmDownloadTraffic, reverseDownloadTraffic } from '../usecases/store/traffic-metering'
-import { createTrafficEventId } from '../usecases/transfer-activity'
-import { recordDownloadFailure, recordDownloadIssued } from './audit-transfers'
+import { createTrafficEventId, recordDownloadFailure, recordDownloadIssued } from '../usecases/transfer-activity'
 
 function stripPort(host: string): string {
   const lastColon = host.lastIndexOf(':')
@@ -103,7 +102,7 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
     console.error('[image-hosting-domain] incrementAccessCount failed:', error)
   }
   await recordDownloadIssued(
-    c.get('deps').audit,
+    c.get('deps'),
     { userId: null, actorType: 'anonymous', actorRef: null },
     'image_hosting_download',
     {
@@ -128,7 +127,7 @@ function recordImageDownloadFailure(
   reason: string,
 ): Promise<void> {
   return recordDownloadFailure(
-    c.get('deps').audit,
+    c.get('deps'),
     { userId: null, actorType: 'anonymous', actorRef: null },
     {
       orgId: image.orgId,

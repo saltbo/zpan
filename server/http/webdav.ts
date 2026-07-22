@@ -19,17 +19,8 @@ import {
   workspaceEntry,
   xmlResponse,
 } from '../domain/webdav-xml'
-import { recordAuditEffect } from '../lib/audit'
 import { mapDomainError } from '../lib/http-errors'
-import {
-  isDownloadFailureStatus,
-  recordDownloadFailure,
-  recordDownloadIssued,
-  recordUploadResult,
-  type TransferAuditTarget,
-  transferAuditActor,
-  transferFailureReason,
-} from '../middleware/audit-transfers'
+import { isDownloadFailureStatus, transferAuditActor, transferFailureReason } from '../middleware/audit-transfers'
 import type { Env } from '../middleware/platform'
 import {
   ApiKeyRateLimitError,
@@ -39,6 +30,13 @@ import {
   WebDavPathError,
   type WebDavTarget,
 } from '../usecases/ports'
+import {
+  recordAuditEvent,
+  recordDownloadFailure,
+  recordDownloadIssued,
+  recordUploadResult,
+  type TransferAuditTarget,
+} from '../usecases/transfer-activity'
 import {
   activeLocks,
   activeLocksForResources,
@@ -638,28 +636,28 @@ app.use('*', async (c, next) => {
   if (c.req.method === 'GET' && isDownloadFailureStatus(c.res.status)) {
     const target = await webDavDownloadAuditTarget(c, userId)
     if (target) {
-      await recordDownloadFailure(c.get('deps').audit, actor, target, transferFailureReason(c))
+      await recordDownloadFailure(c.get('deps'), actor, target, transferFailureReason(c))
     }
     return
   }
 
   if (preparedAction && c.res.status < 400) {
     const event = await resolveWebDavActionAudit(c, userId, preparedAction)
-    if (event) await recordAuditEffect(event.action, () => c.get('deps').audit.record({ ...actor, ...event }))
+    if (event) await recordAuditEvent(c.get('deps'), { ...actor, ...event })
   }
 
   if (c.req.method !== 'PUT') return
   if (c.res.status === 201 || c.res.status === 204) {
     const target = await webDavUploadedTarget(c, userId)
     if (!target) throw new Error('transfer_audit_context_missing:webdav_upload')
-    await recordUploadResult(c.get('deps').audit, actor, target)
+    await recordUploadResult(c.get('deps'), actor, target)
     return
   }
 
   if (!preparedPut || !isUploadFailureStatus(c.res.status)) return
   const bytes = exactRequestContentLength(c)
   if (bytes === null) return
-  await recordUploadResult(c.get('deps').audit, actor, { ...preparedPut, bytes }, transferFailureReason(c))
+  await recordUploadResult(c.get('deps'), actor, { ...preparedPut, bytes }, transferFailureReason(c))
 })
 
 type WebDavActionAuditContext = {
@@ -1089,7 +1087,7 @@ async function finishWebDavDownload(
 ): Promise<void> {
   await recordWebDavDownloadIssued(c.get('deps'), params)
   await recordDownloadIssued(
-    c.get('deps').audit,
+    c.get('deps'),
     transferAuditActor(c.get('principal')),
     'webdav_download',
     {

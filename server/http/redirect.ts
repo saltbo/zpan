@@ -1,14 +1,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import {
-  isDownloadFailureStatus,
-  recordDownloadFailure,
-  recordDownloadIssued,
-  type TransferAuditTarget,
-  transferAuditActor,
-  transferFailureReason,
-} from '../middleware/audit-transfers'
+import { isDownloadFailureStatus, transferAuditActor, transferFailureReason } from '../middleware/audit-transfers'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
 import {
@@ -16,7 +9,9 @@ import {
   type ImageHostingOutcome,
   resolveDirectShareDownload,
   resolveImageHostingDownload,
+  resolveRedirectDownloadAuditTarget,
 } from '../usecases/redirect'
+import { recordDownloadFailure, recordDownloadIssued } from '../usecases/transfer-activity'
 
 // Strip optional file extension from token (e.g. "ih_aB3xK9.png" → "ih_aB3xK9")
 function stripExtension(token: string): string {
@@ -39,7 +34,7 @@ async function handleDirectShare(c: Context<Env>, token: string): Promise<Respon
   })
   if (outcome.ok) {
     await recordDownloadIssued(
-      c.get('deps').audit,
+      c.get('deps'),
       transferAuditActor(c.get('principal')),
       'share_download',
       {
@@ -71,7 +66,7 @@ async function handleImageHosting(c: Context<Env>, token: string): Promise<Respo
   })
   if (outcome.ok) {
     await recordDownloadIssued(
-      c.get('deps').audit,
+      c.get('deps'),
       transferAuditActor(c.get('principal')),
       'image_hosting_download',
       {
@@ -93,15 +88,10 @@ async function handleImageHosting(c: Context<Env>, token: string): Promise<Respo
 const app = new Hono<Env>()
 
 app.use('/:token', async (c, next) => {
-  const target = await redirectDownloadAuditTarget(c, stripExtension(c.req.param('token')))
+  const target = await resolveRedirectDownloadAuditTarget(c.get('deps'), stripExtension(c.req.param('token')))
   await next()
   if (!target || !isDownloadFailureStatus(c.res.status)) return
-  await recordDownloadFailure(
-    c.get('deps').audit,
-    transferAuditActor(c.get('principal')),
-    target,
-    transferFailureReason(c),
-  )
+  await recordDownloadFailure(c.get('deps'), transferAuditActor(c.get('principal')), target, transferFailureReason(c))
 })
 
 app.get('/:token', async (c) => {
@@ -113,41 +103,5 @@ app.get('/:token', async (c) => {
 
   throw notFound()
 })
-
-async function redirectDownloadAuditTarget(c: Context<Env>, token: string): Promise<TransferAuditTarget | null> {
-  if (token.startsWith('ds_')) {
-    const resolved = await c.get('deps').share.resolveByToken(token)
-    if (resolved.status !== 'ok' || resolved.share.kind !== 'direct') return null
-    return {
-      orgId: resolved.share.orgId,
-      targetType: 'share',
-      targetId: resolved.share.id,
-      targetName: resolved.matter.name,
-      bytes: resolved.matter.size ?? 0,
-      source: 'direct_share',
-      metadata: {
-        shareId: resolved.share.id,
-        matterId: resolved.matter.id,
-        storageId: resolved.matter.storageId,
-      },
-    }
-  }
-
-  if (token.startsWith('ih_')) {
-    const resolved = await c.get('deps').imageHosting.resolveActiveByToken(token)
-    if (!resolved) return null
-    return {
-      orgId: resolved.image.orgId,
-      targetType: 'image',
-      targetId: resolved.image.id,
-      targetName: resolved.image.path,
-      bytes: resolved.image.size,
-      source: 'image_hosting',
-      metadata: { imageId: resolved.image.id, storageId: resolved.image.storageId },
-    }
-  }
-
-  return null
-}
 
 export default app

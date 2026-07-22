@@ -14,7 +14,7 @@ import {
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { recordDownloadIssued, transferAuditActor } from '../middleware/audit-transfers'
+import { transferAuditActor } from '../middleware/audit-transfers'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -34,6 +34,7 @@ import {
   updateObject,
 } from '../usecases/object'
 import { badRequest, forbidden, type Matter, unauthorized } from '../usecases/ports'
+import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
 
 // The wire shape of a file/folder — exactly what the API serializes. Timestamps
@@ -443,7 +444,7 @@ const objects = app
     if (result.ok) {
       if ('downloadUrl' in result) {
         await recordDownloadIssued(
-          c.get('deps').audit,
+          c.get('deps'),
           transferAuditActor(c.get('principal')),
           'object_download',
           {

@@ -1,23 +1,11 @@
 import { DirType } from '@shared/constants'
 import type { Context } from 'hono'
-import { recordAuditEffect } from '../lib/audit'
-import type { AuditRepo, Matter, RecordAuditEventInput } from '../usecases/ports'
+import type { Matter } from '../usecases/ports'
 import { decodeChildRef } from '../usecases/share'
+import type { TransferAuditTarget } from '../usecases/transfer-activity'
 import { type AuditActor, auditActor } from './audit-actor'
 import { type AuditRoute, type AuditRouteContext, auditRoute } from './audit-registry'
 import type { AuthPrincipal, Env } from './platform'
-
-export type TransferAuditTarget = {
-  orgId: string
-  targetType: 'file' | 'image' | 'share'
-  targetId?: string
-  targetName: string
-  bytes: number
-  source: string
-  metadata?: Record<string, unknown>
-}
-
-type DownloadIssuedAction = 'share_download' | 'object_download' | 'image_hosting_download' | 'webdav_download'
 
 const DOWNLOAD_FAILURE_STATUSES = new Set([402, 422, 500])
 const UPLOAD_FAILURE_STATUSES = new Set([404, 409, 422, 500, 502])
@@ -123,52 +111,6 @@ export function transferFailureReason(c: Context<Env>): string {
   if (c.res.status === 422) return 'quota_exceeded'
   if (c.res.status === 502) return 'storage_failure'
   return 'internal'
-}
-
-export function recordUploadResult(
-  audit: Pick<AuditRepo, 'record'>,
-  actor: AuditActor,
-  target: TransferAuditTarget,
-  reason?: string,
-): Promise<void> {
-  const event = buildUploadResultEvent(actor, target, reason)
-  return recordAuditEffect(event.action, () => audit.record(event))
-}
-
-export function recordDownloadFailure(
-  audit: Pick<AuditRepo, 'record'>,
-  actor: AuditActor,
-  target: TransferAuditTarget,
-  reason: string,
-): Promise<void> {
-  const event = buildDownloadFailureEvent(actor, target, reason)
-  return recordAuditEffect(event.action, () => audit.record(event))
-}
-
-export function recordDownloadIssued(
-  audit: Pick<AuditRepo, 'record'>,
-  actor: AuditActor,
-  action: DownloadIssuedAction,
-  target: TransferAuditTarget,
-  trafficEventId: string,
-): Promise<void> {
-  const event: RecordAuditEventInput = {
-    ...actor,
-    orgId: target.orgId,
-    action,
-    targetType: target.targetType,
-    targetId: target.targetId,
-    targetName: target.targetName,
-    metadata: {
-      ...target.metadata,
-      direction: 'download',
-      status: 'issued',
-      source: target.source,
-      bytes: target.bytes,
-      trafficEventId,
-    },
-  }
-  return recordAuditEffect(event.action, () => audit.record(event))
 }
 
 export function transferAuditActor(principal: AuthPrincipal | null): AuditActor {
@@ -313,51 +255,6 @@ function transferTargetType(context: AuditRouteContext): string {
 
 function transferTargetName(context: AuditRouteContext): string | undefined {
   return transferTarget(context)?.targetName
-}
-
-function buildUploadResultEvent(
-  actor: AuditActor,
-  target: TransferAuditTarget,
-  reason?: string,
-): RecordAuditEventInput {
-  return {
-    ...actor,
-    orgId: target.orgId,
-    action: reason ? 'upload_failed' : 'upload_confirm',
-    targetType: target.targetType,
-    targetId: target.targetId,
-    targetName: target.targetName,
-    metadata: {
-      ...target.metadata,
-      bytes: target.bytes,
-      source: target.source,
-      status: reason ? 'failed' : 'success',
-      ...(reason ? { reason } : {}),
-    },
-  }
-}
-
-function buildDownloadFailureEvent(
-  actor: AuditActor,
-  target: TransferAuditTarget,
-  reason: string,
-): RecordAuditEventInput {
-  return {
-    ...actor,
-    orgId: target.orgId,
-    action: 'download_failed',
-    targetType: target.targetType,
-    targetId: target.targetId,
-    targetName: target.targetName,
-    metadata: {
-      ...target.metadata,
-      direction: 'download',
-      status: 'failed',
-      source: target.source,
-      bytes: target.bytes,
-      reason,
-    },
-  }
 }
 
 function stringField(value: Record<string, unknown>, field: string): string | undefined {

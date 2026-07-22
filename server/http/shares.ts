@@ -4,7 +4,7 @@ import { getCookie, setCookie } from 'hono/cookie'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { pageSchema } from '../../shared/schemas'
 import { createShareRequestSchema, listSharesQuerySchema, saveShareRequestSchema } from '../../shared/schemas/share'
-import { recordDownloadIssued, transferAuditActor } from '../middleware/audit-transfers'
+import { transferAuditActor } from '../middleware/audit-transfers'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import type { Matter, ShareListItem } from '../usecases/ports'
@@ -20,6 +20,7 @@ import {
   verifySharePassword,
   viewShare,
 } from '../usecases/share'
+import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
 import { cookieName, decodeChildRef, readUserId, viewCookieName } from './share-utils'
 
@@ -242,7 +243,7 @@ pub.get('/:token/objects/:ref', async (c) => {
   })
   if (out.ok) {
     await recordDownloadIssued(
-      c.get('deps').audit,
+      c.get('deps'),
       transferAuditActor(c.get('principal')),
       'share_download',
       {

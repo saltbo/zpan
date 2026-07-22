@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { recordAuditEffect } from '../../lib/audit'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import type { RecordAuditEventInput } from '../../usecases/ports'
 import { processDeliveryWebhook } from '../../usecases/store/store'
+import { recordAuditEventOnce } from '../../usecases/transfer-activity'
 import { getCloudBaseUrl, parseJson, sha256Hex } from './helpers'
 
 export const cloudStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).post('/webhook', async (c) => {
@@ -37,10 +37,11 @@ export const cloudStoreWebhooks = new Hono<Env>().use(requireFeature('quota_stor
       packageName: event.packageName ?? null,
     },
   }
-  await recordAuditEffect(auditEvent.action, () =>
-    c
-      .get('deps')
-      .audit.recordOnce(auditEvent, `cloud-store:${event.eventId}`, new Date(event.occurredAt ?? Date.now())),
+  await recordAuditEventOnce(
+    c.get('deps'),
+    auditEvent,
+    `cloud-store:${event.eventId}`,
+    new Date(event.occurredAt ?? Date.now()),
   )
   return c.json({ success: true, duplicate: outcome.duplicate, eventId: outcome.eventId })
 })
