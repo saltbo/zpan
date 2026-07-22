@@ -314,6 +314,7 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.trafficReportSnapshot, '', '', '')).toMatchObject({ count: 5, bytes: 290 })
     expect(row(M.webhookSnapshot, 'status', 'processed', '')).toMatchObject({ count: 1 })
     expect(row(M.statsRollupRun, '', '', '')).toMatchObject({ count: 1 })
+    expect(row(M.statsRollupRun, 'metric_key', M.userSignup, '')).toMatchObject({ count: 1 })
     expect(JSON.parse(row(M.transferUpload)?.metadata ?? '{}')).toMatchObject({ version: 3, quality: 'exact' })
     expect(JSON.parse(row(M.statsRollupRun, '', '', '')?.metadata ?? '{}')).toMatchObject({
       version: 3,
@@ -322,6 +323,11 @@ describe('admin hourly stats rollup', () => {
       counterQuality: 'exact',
       snapshotQuality: 'exact',
       snapshotObservedAt: generatedAt.toISOString(),
+    })
+    expect(JSON.parse(row(M.statsRollupRun, 'metric_key', M.userSignup, '')?.metadata ?? '{}')).toMatchObject({
+      version: 3,
+      scope: 'counters',
+      quality: 'exact',
     })
 
     const reader = new AdminStatsHourlyReader(
@@ -356,6 +362,17 @@ describe('admin hourly stats rollup', () => {
     `)
     expect(second.rows).toBe(first.rows)
     expect(storedRows).toBeGreaterThan(first.rows)
+
+    await captureAdminStatsSnapshot(db, bucketStart, generatedAt)
+    const [{ count: signupMarkers }] = await db.all<{ count: number }>(sql`
+      SELECT COUNT(*) AS count
+      FROM stats_rollups_hourly
+      WHERE bucket_start = ${bucketStart.getTime()}
+        AND metric_key = ${M.statsRollupRun}
+        AND dimension_key = 'metric_key'
+        AND dimension_value = ${M.userSignup}
+    `)
+    expect(signupMarkers).toBe(1)
   })
 
   it('rejects buckets that are not aligned to a UTC hour', async () => {
@@ -525,6 +542,42 @@ describe('admin hourly stats rollup', () => {
     expect(await reader.rows(M.storageUsed)).toEqual([])
     expect(await reader.coverage('counters')).toMatchObject({ status: 'complete', completedBuckets: 1 })
     expect(await reader.coverage()).toMatchObject({ status: 'empty', completedBuckets: 0 })
+  })
+
+  it('uses metric completion markers without claiming unrelated counters are complete', async () => {
+    const { db } = await createTestApp()
+    const bucketStart = Date.parse('2026-06-10T09:00:00.000Z')
+    const metadata = '{"version":3,"scope":"counters","quality":"exact"}'
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly
+        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+          count, bytes, unique_count, metadata, updated_at)
+      VALUES
+        ('signup-marker', ${bucketStart}, '', 'stats.rollup_run', 'metric_key', 'user.signup', 1, 0, 0,
+          ${metadata}, ${bucketStart}),
+        ('signup-result', ${bucketStart}, '', 'user.signup', '', '', 2, 0, 0, ${metadata}, ${bucketStart}),
+        ('signup-provider', ${bucketStart}, '', 'user.signup', 'provider', 'github', 2, 0, 0,
+          ${metadata}, ${bucketStart}),
+        ('unmarked-upload', ${bucketStart}, '', 'transfer.upload', '', '', 1, 42, 0, ${metadata}, ${bucketStart})
+    `)
+    const reader = new AdminStatsHourlyReader(
+      db,
+      {
+        from: new Date(bucketStart),
+        to: new Date(bucketStart + 3_600_000 - 1),
+        timeZone: 'UTC',
+      },
+      new Date(bucketStart + 7_200_000),
+    )
+
+    expect(await reader.rows(M.userSignup, ['', 'provider'])).toHaveLength(2)
+    expect(await reader.rows(M.transferUpload)).toEqual([])
+    expect(await reader.coverage('counters')).toMatchObject({ status: 'empty', completedBuckets: 0 })
+    expect(await reader.coverage('counters', M.userSignup)).toMatchObject({
+      status: 'complete',
+      completedBuckets: 1,
+    })
+    expect(await reader.completeDayKeys('counters', M.userSignup)).toEqual(new Set(['2026-06-10']))
   })
 
   it('marks a day complete only when every requested hour has an exact marker', async () => {

@@ -87,6 +87,10 @@ interface ValidationSummary {
   counterExpectedBuckets: number
   counterCompletedBuckets: number
   counterMissingBuckets: number
+  signupExpectedBuckets: number
+  signupCompletedBuckets: number
+  signupMissingBuckets: number
+  userSignupProviderMismatchGroups: number
   openCounterMarkers: number
 }
 
@@ -266,10 +270,45 @@ ${buildHourlyBackfillSql(now)}
 function buildHourlyBackfillSql(now: Date): string {
   const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
   const fromMs = `MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))`
+  const signupFromMs = userSignupHistoryStartSql(currentHour)
   return [
-    ...buildAdminStatsCounterRollupInsertSqlStatements({ fromMs, toMs: currentHour }),
+    ...buildAdminStatsCounterRollupInsertSqlStatements({
+      fromMs,
+      toMs: currentHour,
+      metrics: ADMIN_STATS_FACT_COUNTER_METRICS.filter((metric) => metric !== M.userSignup),
+    }),
+    ...buildAdminStatsCounterRollupInsertSqlStatements({
+      fromMs: signupFromMs,
+      toMs: currentHour,
+      metrics: [M.userSignup],
+    }),
     rollupMarkerBackfillSql(now),
+    metricRollupMarkerBackfillSql(now, M.userSignup, signupFromMs),
   ].join(';\n\n')
+}
+
+function userSignupHistoryStartSql(currentHour: number): string {
+  return `MAX(
+    ${MIN_VALID_TIMESTAMP_MS},
+    COALESCE((
+      SELECT CAST(MIN(occurred_at) / 3600000 AS INTEGER) * 3600000
+      FROM (
+        SELECT created_at * 1000 AS occurred_at
+        FROM audit_events
+        WHERE action = 'user_register'
+          AND target_id IS NOT NULL
+          AND user_id = target_id
+          AND id = 'event:user_register:' || target_id
+          AND json_valid(metadata) = 1
+          AND json_type(metadata, '$.provider') = 'text'
+          AND length(json_extract(metadata, '$.provider')) > 0
+        UNION ALL
+        SELECT created_at AS occurred_at FROM user
+      ) registration_facts
+      WHERE occurred_at >= ${MIN_VALID_TIMESTAMP_MS}
+        AND occurred_at < ${currentHour}
+    ), ${currentHour})
+  )`
 }
 function purgeLegacyRollupsSql(): string {
   return `DELETE FROM stats_rollups_hourly
@@ -295,16 +334,28 @@ WHERE result.metric_key <> 'stats.rollup_run'
     WHERE marker.bucket_start = result.bucket_start
       AND marker.org_id = ''
       AND marker.metric_key = 'stats.rollup_run'
-      AND marker.dimension_key = ''
-      AND marker.dimension_value = ''
       AND json_valid(marker.metadata) = 1
+      AND json_extract(marker.metadata, '$.version') = 3
+      AND json_extract(marker.metadata, '$.quality') = 'exact'
       AND (
-        (json_extract(result.metadata, '$.scope') = 'counters'
-          AND json_extract(marker.metadata, '$.scope') IN ('counters', 'full'))
-        OR (json_extract(result.metadata, '$.scope') = 'snapshots'
-          AND json_extract(marker.metadata, '$.scope') IN ('snapshots', 'full'))
-        OR (json_extract(result.metadata, '$.scope') = 'full'
-          AND json_extract(marker.metadata, '$.scope') = 'full')
+        (
+          marker.dimension_key = ''
+          AND marker.dimension_value = ''
+          AND (
+            (json_extract(result.metadata, '$.scope') = 'counters'
+              AND json_extract(marker.metadata, '$.scope') IN ('counters', 'full'))
+            OR (json_extract(result.metadata, '$.scope') = 'snapshots'
+              AND json_extract(marker.metadata, '$.scope') IN ('snapshots', 'full'))
+            OR (json_extract(result.metadata, '$.scope') = 'full'
+              AND json_extract(marker.metadata, '$.scope') = 'full')
+          )
+        )
+        OR (
+          json_extract(result.metadata, '$.scope') = 'counters'
+          AND marker.dimension_key = 'metric_key'
+          AND marker.dimension_value = result.metric_key
+          AND json_extract(marker.metadata, '$.scope') IN ('counters', 'full')
+        )
       )
   );`
 }
@@ -329,8 +380,51 @@ WHERE metric_key IN (
   )
   OR (
     metric_key = 'stats.rollup_run'
-    AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') = 'counters' ELSE 0 END = 1
+    AND (
+      dimension_key = 'metric_key'
+      OR CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') = 'counters' ELSE 0 END = 1
+    )
   );`
+}
+
+function metricRollupMarkerBackfillSql(now: Date, metric: string, startAt: string): string {
+  const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
+  const latestClosedHour = currentHour - 3_600_000
+  return `WITH
+digits(n) AS (VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9)),
+numbers(n) AS (
+  SELECT ones.n + tens.n * 10 + hundreds.n * 100 + thousands.n * 1000 + ten_thousands.n * 10000
+  FROM digits ones
+  CROSS JOIN digits tens
+  CROSS JOIN digits hundreds
+  CROSS JOIN digits thousands
+  CROSS JOIN digits ten_thousands
+),
+bounds AS (
+  SELECT ${startAt} AS start_at, ${latestClosedHour} AS end_at
+),
+buckets AS (
+  SELECT start_at + numbers.n * 3600000 AS bucket_start
+  FROM bounds
+  JOIN numbers ON start_at + numbers.n * 3600000 <= end_at
+  WHERE start_at <= end_at
+)
+INSERT INTO stats_rollups_hourly (
+  id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+  count, bytes, unique_count, metadata, updated_at
+)
+SELECT
+  CAST(bucket_start AS TEXT) || ':global:stats.rollup_run:metric_key:${metric}',
+  bucket_start, '', 'stats.rollup_run', 'metric_key', '${metric}', 1, 0, 0,
+  json_object('version', 3, 'scope', 'counters', 'quality', 'exact'),
+  bucket_start + 3600000
+FROM buckets
+WHERE true
+ON CONFLICT(bucket_start, org_id, metric_key, dimension_key, dimension_value)
+DO UPDATE SET count = excluded.count, bytes = excluded.bytes, unique_count = excluded.unique_count,
+  metadata = excluded.metadata, updated_at = excluded.updated_at
+WHERE count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excluded.unique_count
+  OR metadata <> excluded.metadata OR updated_at <> excluded.updated_at;`
 }
 
 function rollupMarkerBackfillSql(now: Date): string {
@@ -533,7 +627,7 @@ export function buildValidationSql(now = new Date()): string {
       AND json_valid(metadata) = 1
       AND json_type(metadata, '$.provider') = 'text'
       AND length(json_extract(metadata, '$.provider')) > 0
-      AND created_at * 1000 >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))
+      AND created_at * 1000 >= ${MIN_VALID_TIMESTAMP_MS}
       AND created_at * 1000 < ${currentHour}
   ),
   'rawSharesCreated', (
@@ -690,11 +784,25 @@ counter_markers AS MATERIALIZED (
   FROM completion_markers
   WHERE scope IN ('counters', 'full')
 ),
+metric_counter_markers AS MATERIALIZED (
+  SELECT bucket_start, dimension_value AS metric_key
+  FROM valid_rollups
+  WHERE metric_key = 'stats.rollup_run'
+    AND org_id = ''
+    AND dimension_key = 'metric_key'
+    AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+),
 counter_rows AS MATERIALIZED (
   SELECT result.*
   FROM valid_rollups result
   WHERE result.metric_key <> 'stats.rollup_run'
-    AND EXISTS (SELECT 1 FROM counter_markers marker WHERE marker.bucket_start = result.bucket_start)
+    AND (
+      EXISTS (SELECT 1 FROM counter_markers marker WHERE marker.bucket_start = result.bucket_start)
+      OR EXISTS (
+        SELECT 1 FROM metric_counter_markers marker
+        WHERE marker.bucket_start = result.bucket_start AND marker.metric_key = result.metric_key
+      )
+    )
 ),
 required_dimensions(metric_key, dimension_key, check_bytes) AS (
   VALUES
@@ -738,6 +846,31 @@ required_dimension_keys AS MATERIALIZED (
   FROM required_dimensions required
   JOIN dimension_rows dimension
     ON dimension.metric_key = required.metric_key AND dimension.dimension_key = required.dimension_key
+),
+authoritative_registration_sources AS MATERIALIZED (
+  SELECT json_extract(metadata, '$.provider') AS provider, COUNT(*) AS count
+  FROM audit_events
+  WHERE action = 'user_register'
+    AND target_id IS NOT NULL
+    AND user_id = target_id
+    AND id = 'event:user_register:' || target_id
+    AND json_valid(metadata) = 1
+    AND json_type(metadata, '$.provider') = 'text'
+    AND length(json_extract(metadata, '$.provider')) > 0
+    AND created_at * 1000 >= ${MIN_VALID_TIMESTAMP_MS}
+    AND created_at * 1000 < ${currentHour}
+  GROUP BY 1
+),
+rollup_registration_sources AS MATERIALIZED (
+  SELECT dimension_value AS provider, SUM(count) AS count
+  FROM counter_rows
+  WHERE metric_key = 'user.signup' AND dimension_key = 'provider'
+  GROUP BY dimension_value
+),
+registration_providers AS MATERIALIZED (
+  SELECT provider FROM authoritative_registration_sources
+  UNION
+  SELECT provider FROM rollup_registration_sources
 )
 SELECT json_object(
   'rollupUploadEvents', (
@@ -778,6 +911,20 @@ SELECT json_object(
             OR (json_extract(r.metadata, '$.scope') = 'full' AND marker.scope = 'full')
           )
       )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM metric_counter_markers marker
+        WHERE marker.bucket_start = r.bucket_start
+          AND marker.metric_key = r.metric_key
+          AND json_extract(r.metadata, '$.scope') = 'counters'
+      )
+  ),
+  'userSignupProviderMismatchGroups', (
+    SELECT COUNT(*)
+    FROM registration_providers provider
+    LEFT JOIN authoritative_registration_sources authoritative USING (provider)
+    LEFT JOIN rollup_registration_sources rollup USING (provider)
+    WHERE COALESCE(authoritative.count, 0) <> COALESCE(rollup.count, 0)
   ),
   'requiredDimensionMismatchGroups', (
     SELECT COUNT(*)
@@ -833,10 +980,21 @@ counter_markers AS MATERIALIZED (
   WHERE metric_key = 'stats.rollup_run' AND org_id = '' AND dimension_key = '' AND dimension_value = ''
     AND json_extract(metadata, '$.scope') IN ('counters', 'full')
 ),
+metric_counter_markers AS MATERIALIZED (
+  SELECT bucket_start, dimension_value AS metric_key FROM valid_rollups
+  WHERE metric_key = 'stats.rollup_run' AND org_id = '' AND dimension_key = 'metric_key'
+    AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+),
 counter_rows AS MATERIALIZED (
   SELECT result.* FROM valid_rollups result
   WHERE result.metric_key <> 'stats.rollup_run'
-    AND EXISTS (SELECT 1 FROM counter_markers marker WHERE marker.bucket_start = result.bucket_start)
+    AND (
+      EXISTS (SELECT 1 FROM counter_markers marker WHERE marker.bucket_start = result.bucket_start)
+      OR EXISTS (
+        SELECT 1 FROM metric_counter_markers marker
+        WHERE marker.bucket_start = result.bucket_start AND marker.metric_key = result.metric_key
+      )
+    )
 )
 SELECT json_object(
   'rollupUploadAttempts', (
@@ -888,8 +1046,22 @@ SELECT json_object(
     ELSE 0 END = 1
     AND json_extract(metadata, '$.scope') IN ('counters', 'full')
 ),
+signup_markers AS MATERIALIZED (
+  SELECT bucket_start
+  FROM stats_rollups_hourly
+  WHERE metric_key = 'stats.rollup_run' AND org_id = ''
+    AND dimension_key = 'metric_key' AND dimension_value = '${M.userSignup}'
+    AND CASE WHEN json_valid(metadata) = 1 THEN
+      json_extract(metadata, '$.version') = 3
+      AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+      AND json_extract(metadata, '$.quality') = 'exact'
+    ELSE 0 END = 1
+),
 coverage AS MATERIALIZED (
   SELECT ${statsHistoryStartSql()} AS start_at, ${latestClosedHour} AS end_at
+),
+signup_coverage AS MATERIALIZED (
+  SELECT ${userSignupHistoryStartSql(currentHour)} AS start_at, ${latestClosedHour} AS end_at
 ),
 coverage_counts AS MATERIALIZED (
   SELECT
@@ -898,13 +1070,27 @@ coverage_counts AS MATERIALIZED (
     CASE WHEN start_at IS NULL OR start_at > end_at THEN 0
       ELSE (SELECT COUNT(*) FROM counter_markers WHERE bucket_start BETWEEN start_at AND end_at) END AS completed
   FROM coverage
+),
+signup_coverage_counts AS MATERIALIZED (
+  SELECT
+    CASE WHEN start_at IS NULL OR start_at > end_at THEN 0
+      ELSE CAST((end_at - start_at) / 3600000 AS INTEGER) + 1 END AS expected,
+    CASE WHEN start_at IS NULL OR start_at > end_at THEN 0
+      ELSE (SELECT COUNT(*) FROM signup_markers WHERE bucket_start BETWEEN start_at AND end_at) END AS completed
+  FROM signup_coverage
 )
 SELECT json_object(
   'hourlyRollups', (SELECT COUNT(*) FROM counter_markers),
   'counterExpectedBuckets', (SELECT expected FROM coverage_counts),
   'counterCompletedBuckets', (SELECT completed FROM coverage_counts),
   'counterMissingBuckets', (SELECT expected - completed FROM coverage_counts),
-  'openCounterMarkers', (SELECT COUNT(*) FROM counter_markers WHERE bucket_start >= ${currentHour})
+  'signupExpectedBuckets', (SELECT expected FROM signup_coverage_counts),
+  'signupCompletedBuckets', (SELECT completed FROM signup_coverage_counts),
+  'signupMissingBuckets', (SELECT expected - completed FROM signup_coverage_counts),
+  'openCounterMarkers', (
+    (SELECT COUNT(*) FROM counter_markers WHERE bucket_start >= ${currentHour})
+    + (SELECT COUNT(*) FROM signup_markers WHERE bucket_start >= ${currentHour})
+  )
 ) AS summary;
 `
 
@@ -1106,11 +1292,13 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
     summary.missingUserRegistrationEvents > 0 ||
     summary.invalidDownloadTaskEvents > 0 ||
     summary.orphanRollupBuckets > 0 ||
+    summary.userSignupProviderMismatchGroups > 0 ||
     summary.requiredDimensionMismatchGroups > 0 ||
     summary.lowerBoundRollups > 0 ||
     summary.legacyRollupRows > 0 ||
     summary.incompatibleUserSnapshotRows > 0 ||
     summary.counterMissingBuckets > 0 ||
+    summary.signupMissingBuckets > 0 ||
     summary.openCounterMarkers > 0
   ) {
     throw new Error(
@@ -1120,11 +1308,13 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
         missingUserRegistrationEvents: summary.missingUserRegistrationEvents,
         invalidDownloadTaskEvents: summary.invalidDownloadTaskEvents,
         orphanRollupBuckets: summary.orphanRollupBuckets,
+        userSignupProviderMismatchGroups: summary.userSignupProviderMismatchGroups,
         requiredDimensionMismatchGroups: summary.requiredDimensionMismatchGroups,
         lowerBoundRollups: summary.lowerBoundRollups,
         legacyRollupRows: summary.legacyRollupRows,
         incompatibleUserSnapshotRows: summary.incompatibleUserSnapshotRows,
         counterMissingBuckets: summary.counterMissingBuckets,
+        signupMissingBuckets: summary.signupMissingBuckets,
         openCounterMarkers: summary.openCounterMarkers,
       })}`,
     )
@@ -1139,8 +1329,9 @@ function main(): void {
   const plan = querySummary<BackfillPlan>(options.target, BACKFILL_PLAN_SQL)
   console.log(JSON.stringify({ mode: options.apply ? 'apply' : 'dry-run', before, plan }, null, 2))
   if (!options.apply) return
-  if (before.counterExpectedBuckets > MAX_BACKFILL_HOURS) {
-    throw new Error(`admin_stats_backfill_range_too_large:${before.counterExpectedBuckets}`)
+  const maxExpectedBuckets = Math.max(before.counterExpectedBuckets, before.signupExpectedBuckets)
+  if (maxExpectedBuckets > MAX_BACKFILL_HOURS) {
+    throw new Error(`admin_stats_backfill_range_too_large:${maxExpectedBuckets}`)
   }
   apply(options.target, buildBackfillSql(now))
   const after = querySummary<ValidationSummary>(options.target, validationSql)

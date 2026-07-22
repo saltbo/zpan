@@ -76,6 +76,7 @@ async function getOverviewStatistics(
     topUsage,
     storageDataQuality,
     counterDays,
+    signupDays,
   ] = await Promise.all([
     getUserInventory(reader),
     getActiveUserSnapshot(reader),
@@ -89,6 +90,7 @@ async function getOverviewStatistics(
     getTopPersonalUsage(db, now),
     getStorageDataQuality(reader),
     reader.completeDayKeys('counters'),
+    reader.completeDayKeys('counters', ADMIN_STATS_METRICS.userSignup),
   ])
   const dates = createDateBuckets(effective)
   const activeByDate = new Map(activeByDay.map((row) => [row.date, row]))
@@ -115,7 +117,7 @@ async function getOverviewStatistics(
         date,
         totalUsers: totalUsersByDay.get(date) ?? null,
         activeUsers: activeByDate.get(date)?.mau ?? null,
-        newUsers: counterDays.has(date) ? (newUsersByDay.get(date) ?? 0) : null,
+        newUsers: signupDays.has(date) ? (newUsersByDay.get(date) ?? 0) : null,
       })),
       topUsage: exactUsage ? topUsage : [],
     },
@@ -272,6 +274,9 @@ async function getDashboardOverviewStats(
     trafficLedgerAvailable,
     previousTrafficLedgerAvailable,
     counterDays,
+    signupDays,
+    signupCoverage,
+    previousSignupCoverage,
     trafficFirstCompleteDay,
   ] = await Promise.all([
     getUserInventory(reader),
@@ -292,6 +297,9 @@ async function getDashboardOverviewStats(
     trafficLedgerAvailableInRange(db, effective),
     trafficLedgerAvailableInRange(db, previous),
     reader.completeDayKeys('counters'),
+    reader.completeDayKeys('counters', ADMIN_STATS_METRICS.userSignup),
+    reader.coverage('counters', ADMIN_STATS_METRICS.userSignup),
+    previousReader.coverage('counters', ADMIN_STATS_METRICS.userSignup),
     trafficLedgerFirstCompleteDay(db),
   ])
   const [trendNewUsers, activeByDay, storageUsedByDay, uploadByDay, downloadByDay, missingBytesByDay] =
@@ -307,7 +315,7 @@ async function getDashboardOverviewStats(
     const missingBytes = missingBytesByDay.get(date)
     return {
       date,
-      newUsers: counterDays.has(date) ? (trendNewUsers.get(date) ?? 0) : null,
+      newUsers: signupDays.has(date) ? (trendNewUsers.get(date) ?? 0) : null,
       activeUsers: activeByDay.get(date) ?? null,
       storageUsedBytes: storageUsedByDay.get(date) ?? null,
       uploadBytes: counterDays.has(date) && !missingBytes?.upload ? (uploadByDay.get(date) ?? 0) : null,
@@ -343,9 +351,9 @@ async function getDashboardOverviewStats(
     totals: {
       users: users?.total ?? null,
       newUsers: delta(
-        currentCountersAvailable ? newUsers : null,
-        previousCountersAvailable ? previousNewUsers : null,
-        countersComparable,
+        hasExactCoverage(signupCoverage) ? newUsers : null,
+        hasExactCoverage(previousSignupCoverage) ? previousNewUsers : null,
+        comparable(signupCoverage, previousSignupCoverage),
       ),
       activeUsers: delta(
         activeUsers?.mau ?? null,
@@ -489,11 +497,11 @@ async function getDashboardGrowthStats(
     getRollingActiveUserTrend(reader, effective),
     getRegistrationSources(reader),
     getUserTotalsByDay(reader),
-    reader.coverage('counters'),
-    previousReader.coverage('counters'),
+    reader.coverage('counters', ADMIN_STATS_METRICS.userSignup),
+    previousReader.coverage('counters', ADMIN_STATS_METRICS.userSignup),
     reader.coverage('snapshots'),
     previousReader.coverage('snapshots'),
-    reader.completeDayKeys('counters'),
+    reader.completeDayKeys('counters', ADMIN_STATS_METRICS.userSignup),
   ])
   const newUsersByDay = await getSignupsByDay(reader)
   const userScaleTrend = createDateBuckets(effective).map((date) => ({

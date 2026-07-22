@@ -1,7 +1,8 @@
 import type { AdminStatsCoverage } from '@shared/types'
-import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, lt, or, sql } from 'drizzle-orm'
 import { statsRollupsHourly } from '../../db/schema'
 import {
+  ADMIN_STATS_DIMENSIONS,
   ADMIN_STATS_METRICS,
   type AdminStatsDimension,
   type AdminStatsMetric,
@@ -35,7 +36,7 @@ export class AdminStatsHourlyReader {
   private readonly counterQueryTo: Date
   private readonly snapshotQueryTo: Date
   private readonly metricRows = new Map<string, Promise<HourlyMetricRow[]>>()
-  private readonly markerRowsPromises = new Map<AdminStatsRollupScope, Promise<CompatibleMarkerRow[]>>()
+  private readonly markerRowsPromises = new Map<string, Promise<CompatibleMarkerRow[]>>()
 
   constructor(
     private readonly db: Database,
@@ -131,10 +132,13 @@ export class AdminStatsHourlyReader {
     }))
   }
 
-  async coverage(requiredScope: AdminStatsRollupScope = 'full'): Promise<AdminStatsCoverage> {
+  async coverage(
+    requiredScope: AdminStatsRollupScope = 'full',
+    metric?: AdminStatsMetric,
+  ): Promise<AdminStatsCoverage> {
     const queryTo = this.queryTo(requiredScope)
     const expectedBuckets = Math.max(0, Math.floor((queryTo.getTime() - this.queryFrom.getTime()) / HOUR_MS))
-    const markerRows = await this.markerRows(requiredScope)
+    const markerRows = await this.markerRows(requiredScope, metric)
     const completedBuckets = markerRows.length
     const lowerBoundBuckets = markerRows.filter(
       (row) => qualityForScope(row.metadata, requiredScope) === 'lower_bound',
@@ -153,8 +157,8 @@ export class AdminStatsHourlyReader {
     }
   }
 
-  async completeDayKeys(requiredScope: AdminStatsRollupScope): Promise<Set<string>> {
-    const markerBuckets = await this.markerBuckets(requiredScope)
+  async completeDayKeys(requiredScope: AdminStatsRollupScope, metric?: AdminStatsMetric): Promise<Set<string>> {
+    const markerBuckets = await this.markerBuckets(requiredScope, metric)
     const queryTo = this.queryTo(requiredScope)
     const expectedByDay = new Map<string, number>()
     const completedByDay = new Map<string, number>()
@@ -185,7 +189,7 @@ export class AdminStatsHourlyReader {
     const requiredScope = metricDefinition(metric).kind === 'gauge' ? 'snapshots' : 'counters'
     const queryTo = this.queryTo(requiredScope)
     if (this.queryFrom >= queryTo) return []
-    const markerBuckets = await this.markerBuckets(requiredScope)
+    const markerBuckets = await this.markerBuckets(requiredScope, metric)
     if (markerBuckets.size === 0) return []
     const rows = await this.db
       .select({
@@ -229,19 +233,23 @@ export class AdminStatsHourlyReader {
       }))
   }
 
-  private markerBuckets(requiredScope: AdminStatsRollupScope): Promise<Set<number>> {
-    return this.markerRows(requiredScope).then((rows) => new Set(rows.map((row) => row.bucketStart.getTime())))
+  private markerBuckets(requiredScope: AdminStatsRollupScope, metric?: AdminStatsMetric): Promise<Set<number>> {
+    return this.markerRows(requiredScope, metric).then((rows) => new Set(rows.map((row) => row.bucketStart.getTime())))
   }
 
-  private markerRows(requiredScope: AdminStatsRollupScope): Promise<CompatibleMarkerRow[]> {
-    const cached = this.markerRowsPromises.get(requiredScope)
+  private markerRows(requiredScope: AdminStatsRollupScope, metric?: AdminStatsMetric): Promise<CompatibleMarkerRow[]> {
+    const cacheKey = `${requiredScope}\u0000${metric ?? ''}`
+    const cached = this.markerRowsPromises.get(cacheKey)
     if (cached) return cached
-    const rows = this.loadMarkerRows(requiredScope)
-    this.markerRowsPromises.set(requiredScope, rows)
+    const rows = this.loadMarkerRows(requiredScope, metric)
+    this.markerRowsPromises.set(cacheKey, rows)
     return rows
   }
 
-  private async loadMarkerRows(requiredScope: AdminStatsRollupScope): Promise<CompatibleMarkerRow[]> {
+  private async loadMarkerRows(
+    requiredScope: AdminStatsRollupScope,
+    metric?: AdminStatsMetric,
+  ): Promise<CompatibleMarkerRow[]> {
     const queryTo = this.queryTo(requiredScope)
     if (this.queryFrom >= queryTo) return []
     const rows = await this.db
@@ -251,12 +259,20 @@ export class AdminStatsHourlyReader {
         and(
           eq(statsRollupsHourly.metricKey, ADMIN_STATS_METRICS.statsRollupRun),
           eq(statsRollupsHourly.orgId, ''),
-          eq(statsRollupsHourly.dimensionKey, ''),
+          metric
+            ? or(
+                and(eq(statsRollupsHourly.dimensionKey, ''), eq(statsRollupsHourly.dimensionValue, '')),
+                and(
+                  eq(statsRollupsHourly.dimensionKey, ADMIN_STATS_DIMENSIONS.metric),
+                  eq(statsRollupsHourly.dimensionValue, metric),
+                ),
+              )
+            : and(eq(statsRollupsHourly.dimensionKey, ''), eq(statsRollupsHourly.dimensionValue, '')),
           gte(statsRollupsHourly.bucketStart, this.queryFrom),
           lt(statsRollupsHourly.bucketStart, queryTo),
         ),
       )
-    return rows.flatMap((row) => {
+    const compatibleRows = rows.flatMap((row) => {
       const metadata = parseAdminStatsRollupMetadata(row.metadata)
       return metadata &&
         supportsScope(metadata.scope, requiredScope) &&
@@ -264,6 +280,7 @@ export class AdminStatsHourlyReader {
         ? [{ bucketStart: row.bucketStart, metadata }]
         : []
     })
+    return [...new Map(compatibleRows.map((row) => [row.bucketStart.getTime(), row])).values()]
   }
 
   private queryTo(requiredScope: AdminStatsRollupScope): Date {

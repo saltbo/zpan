@@ -40,13 +40,24 @@ describe('admin stats backfill', () => {
     expect(sql.match(/FROM audit_events ae/g)).toHaveLength(1)
     expect(sql.match(/FROM cloud_traffic_reports traffic_report/g)).toHaveLength(1)
     expect(sql.match(/FROM storage_usage_ledger storage_change/g)).toHaveLength(1)
+    expect(sql).toContain('audit_events registered_user')
     expect(statements.every((statement) => (statement.match(/UNION ALL/g) ?? []).length <= 5)).toBe(true)
+
+    const signupStatements = buildAdminStatsCounterRowsSqlStatements({
+      fromMs: 0,
+      toMs: 3_600_000,
+      metrics: ['user.signup'],
+    })
+    expect(signupStatements).toHaveLength(1)
+    expect(signupStatements[0]).toContain('audit_events registered_user')
+    expect(signupStatements[0]).not.toContain('cloud_traffic_reports')
   })
 
   it('recovers exact available facts and is idempotent', () => {
     const db = new Database(':memory:')
     const now = new Date('2026-07-10T12:00:00.000Z')
     const historyStartMs = Date.parse('2026-04-01T00:10:00.000Z')
+    const preExactSignupMs = Date.parse('2026-03-31T22:10:00.000Z')
     const eventMs = Date.parse('2026-07-10T09:10:00.000Z')
     const eventHourMs = Date.parse('2026-07-10T09:00:00.000Z')
     const sessionCreatedMs = Date.parse('2026-07-10T08:00:00.000Z')
@@ -60,6 +71,8 @@ describe('admin stats backfill', () => {
     const latestClosedHour = Date.parse('2026-07-10T11:00:00.000Z')
     const firstExactHour = Math.ceil(historyStartMs / 3_600_000) * 3_600_000
     const expectedBuckets = (latestClosedHour - firstExactHour) / 3_600_000 + 1
+    const signupFirstHour = Math.floor(preExactSignupMs / 3_600_000) * 3_600_000
+    const expectedSignupBuckets = (latestClosedHour - signupFirstHour) / 3_600_000 + 1
     db.exec(`
       CREATE TABLE user (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL DEFAULT 0, last_active_at INTEGER);
       CREATE TABLE account (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, provider_id TEXT NOT NULL, created_at INTEGER NOT NULL);
@@ -127,9 +140,11 @@ describe('admin stats backfill', () => {
 
       INSERT INTO user VALUES
         ('u0', 0, ${newerExistingActivityMs}),
+        ('u3', ${preExactSignupMs}, NULL),
         ('u1', ${firstExactHour + 600_000}, NULL),
         ('u2', ${firstExactHour + 601_000}, NULL);
       INSERT INTO account VALUES
+        ('a3', 'u3', 'google', ${preExactSignupMs}),
         ('a1', 'u1', 'github', ${firstExactHour + 600_000}),
         ('a2', 'u2', 'github', ${firstExactHour + 601_000});
       INSERT INTO session VALUES
@@ -224,12 +239,18 @@ describe('admin stats backfill', () => {
     const firstSummary = readValidationSummary()
     const firstRows = db.prepare('SELECT * FROM stats_rollups_hourly ORDER BY id').all()
     const metricList = ADMIN_STATS_FACT_COUNTER_METRICS.map((metric) => `'${metric}'`).join(', ')
-    const calculatedFactRows = buildAdminStatsCounterRowsSqlStatements({
-      fromMs: firstExactHour,
-      toMs: currentHourMs,
-    })
-      .flatMap((statement) => db.prepare(statement).all())
-      .sort(compareCounterRows)
+    const calculatedFactRows = [
+      ...buildAdminStatsCounterRowsSqlStatements({
+        fromMs: firstExactHour,
+        toMs: currentHourMs,
+        metrics: ADMIN_STATS_FACT_COUNTER_METRICS.filter((metric) => metric !== 'user.signup'),
+      }).flatMap((statement) => db.prepare(statement).all()),
+      ...buildAdminStatsCounterRowsSqlStatements({
+        fromMs: signupFirstHour,
+        toMs: currentHourMs,
+        metrics: ['user.signup'],
+      }).flatMap((statement) => db.prepare(statement).all()),
+    ].sort(compareCounterRows)
     const backfilledFactRows = db
       .prepare(
         `SELECT
@@ -271,14 +292,18 @@ describe('admin stats backfill', () => {
       counterExpectedBuckets: expectedBuckets,
       counterCompletedBuckets: expectedBuckets,
       counterMissingBuckets: 0,
+      signupExpectedBuckets: expectedSignupBuckets,
+      signupCompletedBuckets: expectedSignupBuckets,
+      signupMissingBuckets: 0,
       openCounterMarkers: 0,
       requiredDimensionMismatchGroups: 0,
+      userSignupProviderMismatchGroups: 0,
       orphanRollupBuckets: 0,
       lowerBoundRollups: 0,
       rawUploadAttempts: 1,
       rollupUploadAttempts: 1,
-      rawUserSignups: 2,
-      rollupUserSignups: 2,
+      rawUserSignups: 3,
+      rollupUserSignups: 3,
       rawSharesCreated: 1,
       rollupSharesCreated: 1,
       rawFailedDownloads: 1,
@@ -362,6 +387,13 @@ describe('admin stats backfill', () => {
         )
         .get(),
     ).toEqual({ value: 2 })
+    expect(
+      db
+        .prepare(
+          "SELECT count AS value FROM stats_rollups_hourly WHERE metric_key = 'user.signup' AND dimension_key = 'provider' AND dimension_value = 'google'",
+        )
+        .get(),
+    ).toEqual({ value: 1 })
     expect(
       db.prepare("SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE metric_key = 'traffic.report_sync'").get(),
     ).toEqual({

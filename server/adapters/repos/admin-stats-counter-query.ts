@@ -7,6 +7,7 @@ const D1_MAX_COMPOUND_SELECT_TERMS = 5
 export interface AdminStatsCounterQueryRange {
   fromMs: number | string
   toMs: number | string
+  metrics?: readonly AdminStatsMetric[]
 }
 
 type HourlySource = {
@@ -240,7 +241,11 @@ WHERE count <> excluded.count
 }
 
 function buildCounterSqlStatements(range: AdminStatsCounterQueryRange, statement: string): string[] {
-  const sources = [...HOURLY_SOURCES.map(hourlySourceRow), storageBalanceRow()]
+  const selectedMetrics = range.metrics ? new Set(range.metrics) : null
+  const sources = [
+    ...HOURLY_SOURCES.filter((source) => !selectedMetrics || selectedMetrics.has(source.metric)).map(hourlySourceRow),
+    ...(!selectedMetrics || selectedMetrics.has(M.storageLedgerBalance) ? [storageBalanceRow()] : []),
+  ]
   const statements: string[] = []
   for (let index = 0; index < sources.length; index += D1_MAX_COMPOUND_SELECT_TERMS) {
     statements.push(buildCounterSql(range, sources.slice(index, index + D1_MAX_COMPOUND_SELECT_TERMS), statement))

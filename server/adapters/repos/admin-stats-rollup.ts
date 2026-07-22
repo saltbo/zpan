@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { organization } from '../../db/auth-schema'
 import {
   backgroundJobs,
@@ -17,6 +17,7 @@ import {
   type AdminStatsDimension,
   type AdminStatsMetric,
   assertMetricDimension,
+  ADMIN_STATS_DIMENSIONS as D,
   ADMIN_STATS_METRICS as M,
   parseAdminStatsRollupMetadata,
   ROLLUP_VERSION,
@@ -120,6 +121,7 @@ export async function rebuildAdminStatsHour(
   }
   const lowerBoundRows = 0
   rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' })
+  rollups.incrementValue(M.statsRollupRun, '', 'metric_key', M.userSignup, 1, 0, 0)
   const completionScope = capturedSnapshot ? 'full' : 'counters'
   const counterQuality: 'exact' = 'exact'
 
@@ -135,7 +137,7 @@ export async function rebuildAdminStatsHour(
     bytes: row.bytes,
     uniqueCount: row.uniqueCount,
     metadata: JSON.stringify(
-      row.metric === M.statsRollupRun
+      row.metric === M.statsRollupRun && row.dimensionKey === ''
         ? {
             version: ROLLUP_VERSION,
             scope: completionScope,
@@ -215,7 +217,10 @@ export async function captureAdminStatsSnapshot(
       .where(
         and(
           eq(statsRollupsHourly.bucketStart, bucketStart),
-          inArray(statsRollupsHourly.metricKey, [...GAUGE_METRICS, M.statsRollupRun]),
+          or(
+            inArray(statsRollupsHourly.metricKey, GAUGE_METRICS),
+            and(eq(statsRollupsHourly.metricKey, M.statsRollupRun), ne(statsRollupsHourly.dimensionKey, D.metric)),
+          ),
         ),
       ),
   ]

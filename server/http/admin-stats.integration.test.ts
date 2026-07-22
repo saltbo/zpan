@@ -532,8 +532,10 @@ describe('site stats routes', () => {
         (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
           count, bytes, unique_count, metadata, updated_at)
       VALUES
-        ('growth-rollup-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
-          '{"version":3,"scope":"full","quality":"exact"}', ${at + 3_600_000}),
+        ('growth-snapshot-marker', ${at}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${at + 3_600_000}),
+        ('growth-signup-marker', ${at}, '', 'stats.rollup_run', 'metric_key', 'user.signup', 1, 0, 0,
+          '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000}),
         ('growth-rollup-total', ${at}, '', 'user.signup', '', '', 2, 0, 0,
           '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000}),
         ('growth-inventory-total', ${at}, '', 'user.inventory', '', '', 2, 0, 0,
