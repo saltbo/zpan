@@ -423,15 +423,33 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
               <ComposedChart data={stats.userScaleTrend}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
-                <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} tickFormatter={formatCompactNumber} />
+                <YAxis
+                  yAxisId="total"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  width={48}
+                  tickFormatter={formatCompactNumber}
+                />
+                <YAxis
+                  yAxisId="new"
+                  orientation="right"
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                  fontSize={12}
+                  width={40}
+                  tickFormatter={formatCompactNumber}
+                />
                 <RechartsTooltip
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
                   formatter={chartTooltipFormatter}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="newUsers" name="新增用户" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="new" dataKey="newUsers" name="新增用户" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
                 <Line
+                  yAxisId="total"
                   type="monotone"
                   dataKey="totalUsers"
                   name="累计用户"
