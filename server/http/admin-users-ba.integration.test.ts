@@ -102,7 +102,7 @@ describe('better-auth admin user endpoints (migration target)', () => {
     expect(evts).toHaveLength(0)
   })
 
-  it('POST /api/auth/admin/remove-user deletes the user but preserves immutable registration history', async () => {
+  it('POST /api/auth/admin/remove-user deletes the user but preserves immutable registration history [spec: users/delete]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminCookie(app)
     await authedHeaders(app, 'delete-me@example.com', 'password123456')
