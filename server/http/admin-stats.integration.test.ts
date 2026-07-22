@@ -327,6 +327,62 @@ describe('site stats routes', () => {
     expect(sharing.typeBreakdown).toEqual([])
   })
 
+  it('uses the traffic ledger boundary instead of the later global statistics boundary', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    const firstHour = Date.UTC(2026, 6, 1, 23)
+    const secondHour = firstHour + 3_600_000
+    const issuedAt = firstHour + 10 * 60_000
+    await db.run(sql`
+      INSERT INTO cloud_traffic_reports (
+        id, org_id, period, source, source_id, event_id, bytes, status, issued_at, created_at, updated_at
+      ) VALUES
+        ('traffic_ledger_opening_v1', '', '2026-07', 'object_download', 'traffic_ledger_opening_v1',
+          'traffic_ledger_opening_v1', 0, 'ledger_opening', NULL, ${firstHour - 3_600_000}, ${firstHour - 3_600_000}),
+        ('traffic-before-global-opening', 'org-traffic', '2026-07', 'object_download', 'file-traffic',
+          'traffic-before-global-opening', 1024, 'not_required', ${issuedAt}, ${issuedAt}, ${issuedAt})
+    `)
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly (
+        id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+        count, bytes, unique_count, metadata, updated_at
+      ) VALUES
+        ('traffic-marker-first', ${firstHour}, '', 'stats.rollup_run', 'metric_key', 'transfer.download_issued',
+          1, 0, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${firstHour + 3_600_000}),
+        ('traffic-marker-second', ${secondHour}, '', 'stats.rollup_run', 'metric_key', 'transfer.download_issued',
+          1, 0, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${secondHour + 3_600_000}),
+        ('global-marker-second', ${secondHour}, '', 'stats.rollup_run', '', '',
+          1, 0, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${secondHour + 3_600_000}),
+        ('traffic-result-first', ${firstHour}, 'org-traffic', 'transfer.download_issued', '', '',
+          1, 1024, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${firstHour + 3_600_000}),
+        ('traffic-source-first', ${firstHour}, 'org-traffic', 'transfer.download_issued', 'source', 'object_download',
+          1, 1024, 0, '{"version":3,"scope":"counters","quality":"exact"}', ${firstHour + 3_600_000})
+    `)
+
+    const res = await app.request(
+      '/api/site/stats/traffic?from=2026-07-01T23%3A00%3A00.000Z&to=2026-07-02T00%3A59%3A59.999Z&timeZone=UTC',
+      { headers },
+    )
+    const body = (await res.json()) as {
+      summary: { totalBytes: { value: number | null }; issuedDownloads: number | null }
+      trafficTrend: Array<{
+        date: string
+        uploadBytes: number | null
+        downloadBytes: number | null
+        requests: number | null
+      }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(body.summary.totalBytes.value).toBe(1024)
+    expect(body.summary.issuedDownloads).toBe(1)
+    expect(body.trafficTrend).toEqual([
+      { date: '2026-07-01', uploadBytes: null, downloadBytes: 1024, requests: null },
+      { date: '2026-07-02', uploadBytes: 0, downloadBytes: 0, requests: 0 },
+    ])
+  })
+
   it('publishes exact current-hour snapshots without treating open counters as complete', async () => {
     const { db } = await createTestApp()
     const bucketStart = Date.UTC(2026, 6, 22, 10)

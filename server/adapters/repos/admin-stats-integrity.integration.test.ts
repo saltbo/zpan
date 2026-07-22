@@ -89,6 +89,26 @@ describe('admin stats source integrity', () => {
     expect(rows).toEqual([{ events: 0, issuedAt: issuedAt.getTime() }])
   })
 
+  it('validates issued traffic from the earlier traffic-ledger boundary', async () => {
+    const { db } = await createTestApp()
+    const reports = createCloudTrafficReportRepo(db)
+    await reports.ensureLedgerOpening(new Date('2026-07-21T10:05:00.000Z'))
+    const opening = await ensureAdminStatsIntegrityOpening(db, new Date('2026-07-21T12:00:00.000Z'))
+    const issuedAt = Date.parse('2026-07-21T11:30:00.000Z')
+    await db.run(sql`
+      INSERT INTO cloud_traffic_reports (
+        id, org_id, period, source, source_id, event_id, bytes, status, issued_at, created_at, updated_at
+      ) VALUES (
+        'traffic-before-global-invalid', 'org-1', '2026-07', 'unknown', 'matter-1',
+        'traffic-before-global-invalid', 10, 'not_required', ${issuedAt}, ${issuedAt}, ${issuedAt}
+      )
+    `)
+
+    const integrity = await inspectAdminStatsSourceIntegrity(db, opening)
+
+    expect(integrity.invalidIssuedTrafficReports).toBe(1)
+  })
+
   it('rejects missing traffic reports without creating a duplicate event', async () => {
     const { db } = await createTestApp()
     const reports = createCloudTrafficReportRepo(db)

@@ -274,6 +274,7 @@ async function getDashboardOverviewStats(
     trafficLedgerAvailable,
     previousTrafficLedgerAvailable,
     counterDays,
+    downloadCounterDays,
     signupDays,
     signupCoverage,
     previousSignupCoverage,
@@ -297,6 +298,7 @@ async function getDashboardOverviewStats(
     trafficLedgerAvailableInRange(db, effective),
     trafficLedgerAvailableInRange(db, previous),
     reader.completeDayKeys('counters'),
+    reader.completeDayKeys('counters', ADMIN_STATS_METRICS.transferDownloadIssued),
     reader.completeDayKeys('counters', ADMIN_STATS_METRICS.userSignup),
     reader.coverage('counters', ADMIN_STATS_METRICS.userSignup),
     previousReader.coverage('counters', ADMIN_STATS_METRICS.userSignup),
@@ -320,7 +322,7 @@ async function getDashboardOverviewStats(
       storageUsedBytes: storageUsedByDay.get(date) ?? null,
       uploadBytes: counterDays.has(date) && !missingBytes?.upload ? (uploadByDay.get(date) ?? 0) : null,
       downloadBytes:
-        counterDays.has(date) &&
+        downloadCounterDays.has(date) &&
         trafficFirstExactDay !== null &&
         date >= trafficFirstExactDay &&
         !missingBytes?.download
@@ -696,6 +698,7 @@ async function getDashboardTrafficStats(
     trafficLedgerAvailable,
     previousTrafficLedgerAvailable,
     counterDays,
+    downloadCounterDays,
     trafficFirstExactDay,
   ] = await Promise.all([
     getTrafficTotals(reader),
@@ -719,6 +722,7 @@ async function getDashboardTrafficStats(
     trafficLedgerAvailableInRange(db, effective),
     trafficLedgerAvailableInRange(db, previous),
     reader.completeDayKeys('counters'),
+    reader.completeDayKeys('counters', ADMIN_STATS_METRICS.transferDownloadIssued),
     trafficLedgerFirstExactDay(db),
   ])
   const sourceRows = new Map<string, { name: string; bytes: number; requests: number }>()
@@ -748,7 +752,7 @@ async function getDashboardTrafficStats(
     date,
     uploadBytes: counterDays.has(date) && !missingBytesByDay.get(date)?.upload ? (uploadByDay.get(date) ?? 0) : null,
     downloadBytes:
-      counterDays.has(date) &&
+      downloadCounterDays.has(date) &&
       trafficFirstExactDay !== null &&
       date >= trafficFirstExactDay &&
       !missingBytesByDay.get(date)?.download

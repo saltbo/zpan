@@ -58,6 +58,8 @@ describe('admin stats backfill', () => {
     const now = new Date('2026-07-10T12:00:00.000Z')
     const historyStartMs = Date.parse('2026-04-01T00:10:00.000Z')
     const preExactSignupMs = Date.parse('2026-03-31T22:10:00.000Z')
+    const trafficOpeningMs = Date.parse('2026-03-31T20:10:00.000Z')
+    const trafficFirstHour = Math.ceil(trafficOpeningMs / 3_600_000) * 3_600_000
     const eventMs = Date.parse('2026-07-10T09:10:00.000Z')
     const eventHourMs = Date.parse('2026-07-10T09:00:00.000Z')
     const sessionCreatedMs = Date.parse('2026-07-10T08:00:00.000Z')
@@ -73,6 +75,7 @@ describe('admin stats backfill', () => {
     const expectedBuckets = (latestClosedHour - firstExactHour) / 3_600_000 + 1
     const signupFirstHour = Math.floor(preExactSignupMs / 3_600_000) * 3_600_000
     const expectedSignupBuckets = (latestClosedHour - signupFirstHour) / 3_600_000 + 1
+    const expectedTrafficBuckets = (latestClosedHour - trafficFirstHour) / 3_600_000 + 1
     db.exec(`
       CREATE TABLE user (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL DEFAULT 0, last_active_at INTEGER);
       CREATE TABLE account (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, provider_id TEXT NOT NULL, created_at INTEGER NOT NULL);
@@ -183,6 +186,11 @@ describe('admin stats backfill', () => {
         id, org_id, period, source, source_id, event_id, bytes, storage_id, unit_bytes, credits_per_unit,
         status, error, attempt_count, next_retry_at, issued_at, created_at, updated_at
       ) VALUES
+        ('traffic_ledger_opening_v1', '', '2026-03', 'object_download', 'traffic_ledger_opening_v1',
+          'traffic_ledger_opening_v1', 0, NULL, NULL, NULL, 'ledger_opening', NULL, 0, NULL, NULL,
+          ${trafficOpeningMs}, ${trafficOpeningMs}),
+        ('r0', 'o1', '2026-03', 'object_download', 'f1', 'traffic-0', 64, NULL, NULL, NULL,
+          'not_required', NULL, 0, NULL, ${preExactSignupMs}, ${preExactSignupMs}, ${preExactSignupMs}),
         ('r1', 'o1', '2026-07', 'direct_share', 's1', 'traffic-1', 512, NULL, NULL, NULL, 'reported', NULL, 0, NULL, NULL, ${eventMs}, ${eventMs}),
         ('r2', 'o1', '2026-07', 'image_hosting', 'img1', 'traffic-2', 128, NULL, NULL, NULL, 'reported', NULL, 0, NULL, NULL, ${eventMs}, ${eventMs}),
         ('r3', 'o1', '2026-07', 'object_download', 'f1', 'traffic-3', 512, NULL, NULL, NULL, 'blocked', 'quota_exceeded', 0, NULL, NULL, ${eventMs}, ${eventMs});
@@ -255,7 +263,14 @@ describe('admin stats backfill', () => {
       ...buildAdminStatsCounterRowsSqlStatements({
         fromMs: firstExactHour,
         toMs: currentHourMs,
-        metrics: ADMIN_STATS_FACT_COUNTER_METRICS.filter((metric) => metric !== 'user.signup'),
+        metrics: ADMIN_STATS_FACT_COUNTER_METRICS.filter(
+          (metric) => metric !== 'user.signup' && metric !== 'transfer.download_issued',
+        ),
+      }).flatMap((statement) => db.prepare(statement).all()),
+      ...buildAdminStatsCounterRowsSqlStatements({
+        fromMs: trafficFirstHour,
+        toMs: currentHourMs,
+        metrics: ['transfer.download_issued'],
       }).flatMap((statement) => db.prepare(statement).all()),
       ...buildAdminStatsCounterRowsSqlStatements({
         fromMs: signupFirstHour,
@@ -307,6 +322,9 @@ describe('admin stats backfill', () => {
       signupExpectedBuckets: expectedSignupBuckets,
       signupCompletedBuckets: expectedSignupBuckets,
       signupMissingBuckets: 0,
+      trafficExpectedBuckets: expectedTrafficBuckets,
+      trafficCompletedBuckets: expectedTrafficBuckets,
+      trafficMissingBuckets: 0,
       openCounterMarkers: 0,
       requiredDimensionMismatchGroups: 0,
       userSignupProviderMismatchGroups: 0,
@@ -314,6 +332,10 @@ describe('admin stats backfill', () => {
       lowerBoundRollups: 0,
       rawUploadAttempts: 1,
       rollupUploadAttempts: 1,
+      rawDownloadEvents: 2,
+      rollupDownloadEvents: 2,
+      rawDownloadBytes: 576,
+      rollupDownloadBytes: 576,
       rawUserSignups: 3,
       rollupUserSignups: 3,
       rawSharesCreated: 1,

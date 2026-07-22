@@ -2,6 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import { auditEvents, systemOptions } from '../../db/schema'
 import { validDownloadTaskEventPredicate } from '../../domain/download-task-events'
 import type { Database } from '../../platform/interface'
+import { createCloudTrafficReportRepo, trafficLedgerExactFrom } from './cloud-traffic-report'
 
 const OPENING_SOURCE_ID = 'v3-authoritative-sources'
 const OPENING_EVENT_ID = `audit:statistics_source_initialized:${OPENING_SOURCE_ID}`
@@ -56,6 +57,8 @@ export async function inspectAdminStatsSourceIntegrity(
   if (!exactFrom) throw new Error('admin_stats_integrity_opening_missing')
   const exactFromMs = exactFrom.getTime()
   const exactFromSec = Math.floor(exactFromMs / 1000)
+  const trafficOpening = await createCloudTrafficReportRepo(db).getLedgerOpening()
+  const trafficExactFromMs = trafficOpening ? trafficLedgerExactFrom(trafficOpening).getTime() : exactFromMs
   const validTaskEvent = sql.raw(validDownloadTaskEventPredicate('task_event.value'))
   const rows = await db.all<Omit<AdminStatsSourceIntegrity, 'exactFrom'>>(sql`
     WITH billable_storage AS (
@@ -144,7 +147,7 @@ export async function inspectAdminStatsSourceIntegrity(
       (SELECT count FROM invalid_task_events) AS invalidDownloadTaskEvents,
       (SELECT COUNT(*)
        FROM cloud_traffic_reports ctr
-       WHERE ctr.issued_at >= ${exactFromMs}
+       WHERE ctr.issued_at >= ${trafficExactFromMs}
          AND (
            ctr.status = 'reversed'
            OR ctr.bytes < 0

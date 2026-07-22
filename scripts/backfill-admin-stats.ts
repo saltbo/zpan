@@ -21,6 +21,7 @@ const MAX_BACKFILL_HOURS = 100_000
 const STATISTICS_OPENING_SOURCE_ID = 'v3-authoritative-sources'
 const STATISTICS_OPENING_EVENT_ID = `audit:statistics_source_initialized:${STATISTICS_OPENING_SOURCE_ID}`
 const STATISTICS_OPENING_OPTION_KEY = 'stats_integrity_exact_from_v3'
+const TRAFFIC_LEDGER_OPENING_EVENT_ID = 'traffic_ledger_opening_v1'
 
 const statisticsExactFromMsSql = `COALESCE(
   (SELECT unixepoch(value) * 1000 FROM system_options WHERE key = '${STATISTICS_OPENING_OPTION_KEY}'),
@@ -77,6 +78,7 @@ interface ValidationSummary {
   rawMissingByteEvents: number
   rollupMissingByteEvents: number
   invalidAuditEvents: number
+  invalidIssuedTrafficReports: number
   missingUserRegistrationEvents: number
   invalidDownloadTaskEvents: number
   orphanRollupBuckets: number
@@ -90,6 +92,9 @@ interface ValidationSummary {
   signupExpectedBuckets: number
   signupCompletedBuckets: number
   signupMissingBuckets: number
+  trafficExpectedBuckets: number
+  trafficCompletedBuckets: number
+  trafficMissingBuckets: number
   userSignupProviderMismatchGroups: number
   openCounterMarkers: number
 }
@@ -272,11 +277,19 @@ function buildHourlyBackfillSql(now: Date): string {
   const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
   const fromMs = `MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))`
   const signupFromMs = userSignupHistoryStartSql(currentHour)
+  const trafficFromMs = trafficHistoryStartSql(currentHour)
   return [
     ...buildAdminStatsCounterRollupInsertSqlStatements({
       fromMs,
       toMs: currentHour,
-      metrics: ADMIN_STATS_FACT_COUNTER_METRICS.filter((metric) => metric !== M.userSignup),
+      metrics: ADMIN_STATS_FACT_COUNTER_METRICS.filter(
+        (metric) => metric !== M.userSignup && metric !== M.transferDownloadIssued,
+      ),
+    }),
+    ...buildAdminStatsCounterRollupInsertSqlStatements({
+      fromMs: trafficFromMs,
+      toMs: currentHour,
+      metrics: [M.transferDownloadIssued],
     }),
     ...buildAdminStatsCounterRollupInsertSqlStatements({
       fromMs: signupFromMs,
@@ -284,8 +297,20 @@ function buildHourlyBackfillSql(now: Date): string {
       metrics: [M.userSignup],
     }),
     rollupMarkerBackfillSql(now),
+    metricRollupMarkerBackfillSql(now, M.transferDownloadIssued, trafficFromMs),
     metricRollupMarkerBackfillSql(now, M.userSignup, signupFromMs),
   ].join(';\n\n')
+}
+
+function trafficHistoryStartSql(currentHour: number): string {
+  return `MAX(
+    ${MIN_VALID_TIMESTAMP_MS},
+    COALESCE((
+      SELECT CAST((created_at + 3599999) / 3600000 AS INTEGER) * 3600000
+      FROM cloud_traffic_reports
+      WHERE event_id = '${TRAFFIC_LEDGER_OPENING_EVENT_ID}'
+    ), ${currentHour})
+  )`
 }
 
 function userSignupHistoryStartSql(currentHour: number): string {
@@ -628,12 +653,12 @@ export function buildValidationSql(now = new Date()): string {
   'rawDownloadEvents', (
     SELECT COUNT(*) FROM cloud_traffic_reports
     WHERE issued_at IS NOT NULL AND status <> 'reversed'
-      AND issued_at >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})) AND issued_at < ${currentHour}
+      AND issued_at >= ${trafficHistoryStartSql(currentHour)} AND issued_at < ${currentHour}
   ),
   'rawDownloadBytes', (
     SELECT COALESCE(SUM(bytes), 0) FROM cloud_traffic_reports
     WHERE issued_at IS NOT NULL AND status <> 'reversed'
-      AND issued_at >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})) AND issued_at < ${currentHour}
+      AND issued_at >= ${trafficHistoryStartSql(currentHour)} AND issued_at < ${currentHour}
   ),
   'statisticsExactFrom', ${statisticsExactFromMsSql}
 ) AS summary;`
@@ -756,6 +781,22 @@ export function buildValidationSql(now = new Date()): string {
           OR COALESCE(json_type(metadata, '$.provider') = 'text', 0) = 0
           OR COALESCE(length(json_extract(metadata, '$.provider')), 0) = 0
         ))
+      )
+  ),
+  'invalidIssuedTrafficReports', (
+    SELECT COUNT(*)
+    FROM cloud_traffic_reports ctr
+    WHERE ctr.issued_at >= ${trafficHistoryStartSql(currentHour)}
+      AND ctr.issued_at < ${currentHour}
+      AND (
+        ctr.status = 'reversed'
+        OR ctr.bytes < 0
+        OR length(ctr.org_id) = 0
+        OR length(ctr.source_id) = 0
+        OR ctr.source NOT IN (
+          'object_download', 'direct_share', 'landing_share',
+          'image_hosting', 'custom_domain_image', 'webdav_download'
+        )
       )
   ),
   'missingUserRegistrationEvents', (
@@ -1102,11 +1143,25 @@ signup_markers AS MATERIALIZED (
       AND json_extract(metadata, '$.quality') = 'exact'
     ELSE 0 END = 1
 ),
+traffic_markers AS MATERIALIZED (
+  SELECT bucket_start
+  FROM stats_rollups_hourly
+  WHERE metric_key = 'stats.rollup_run' AND org_id = ''
+    AND dimension_key = 'metric_key' AND dimension_value = '${M.transferDownloadIssued}'
+    AND CASE WHEN json_valid(metadata) = 1 THEN
+      json_extract(metadata, '$.version') = 3
+      AND json_extract(metadata, '$.scope') IN ('counters', 'full')
+      AND json_extract(metadata, '$.quality') = 'exact'
+    ELSE 0 END = 1
+),
 coverage AS MATERIALIZED (
   SELECT ${statsHistoryStartSql()} AS start_at, ${latestClosedHour} AS end_at
 ),
 signup_coverage AS MATERIALIZED (
   SELECT ${userSignupHistoryStartSql(currentHour)} AS start_at, ${latestClosedHour} AS end_at
+),
+traffic_coverage AS MATERIALIZED (
+  SELECT ${trafficHistoryStartSql(currentHour)} AS start_at, ${latestClosedHour} AS end_at
 ),
 coverage_counts AS MATERIALIZED (
   SELECT
@@ -1123,6 +1178,14 @@ signup_coverage_counts AS MATERIALIZED (
     CASE WHEN start_at IS NULL OR start_at > end_at THEN 0
       ELSE (SELECT COUNT(*) FROM signup_markers WHERE bucket_start BETWEEN start_at AND end_at) END AS completed
   FROM signup_coverage
+),
+traffic_coverage_counts AS MATERIALIZED (
+  SELECT
+    CASE WHEN start_at IS NULL OR start_at > end_at THEN 0
+      ELSE CAST((end_at - start_at) / 3600000 AS INTEGER) + 1 END AS expected,
+    CASE WHEN start_at IS NULL OR start_at > end_at THEN 0
+      ELSE (SELECT COUNT(*) FROM traffic_markers WHERE bucket_start BETWEEN start_at AND end_at) END AS completed
+  FROM traffic_coverage
 )
 SELECT json_object(
   'hourlyRollups', (SELECT COUNT(*) FROM counter_markers),
@@ -1132,9 +1195,13 @@ SELECT json_object(
   'signupExpectedBuckets', (SELECT expected FROM signup_coverage_counts),
   'signupCompletedBuckets', (SELECT completed FROM signup_coverage_counts),
   'signupMissingBuckets', (SELECT expected - completed FROM signup_coverage_counts),
+  'trafficExpectedBuckets', (SELECT expected FROM traffic_coverage_counts),
+  'trafficCompletedBuckets', (SELECT completed FROM traffic_coverage_counts),
+  'trafficMissingBuckets', (SELECT expected - completed FROM traffic_coverage_counts),
   'openCounterMarkers', (
     (SELECT COUNT(*) FROM counter_markers WHERE bucket_start >= ${currentHour})
     + (SELECT COUNT(*) FROM signup_markers WHERE bucket_start >= ${currentHour})
+    + (SELECT COUNT(*) FROM traffic_markers WHERE bucket_start >= ${currentHour})
   )
 ) AS summary;
 `
@@ -1334,6 +1401,7 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
   if (
     mismatches.length > 0 ||
     summary.invalidAuditEvents > 0 ||
+    summary.invalidIssuedTrafficReports > 0 ||
     summary.missingUserRegistrationEvents > 0 ||
     summary.invalidDownloadTaskEvents > 0 ||
     summary.orphanRollupBuckets > 0 ||
@@ -1344,12 +1412,14 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
     summary.incompatibleUserSnapshotRows > 0 ||
     summary.counterMissingBuckets > 0 ||
     summary.signupMissingBuckets > 0 ||
+    summary.trafficMissingBuckets > 0 ||
     summary.openCounterMarkers > 0
   ) {
     throw new Error(
       `admin_stats_validation_failed:${JSON.stringify({
         mismatches,
         invalidAuditEvents: summary.invalidAuditEvents,
+        invalidIssuedTrafficReports: summary.invalidIssuedTrafficReports,
         missingUserRegistrationEvents: summary.missingUserRegistrationEvents,
         invalidDownloadTaskEvents: summary.invalidDownloadTaskEvents,
         orphanRollupBuckets: summary.orphanRollupBuckets,
@@ -1360,6 +1430,7 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
         incompatibleUserSnapshotRows: summary.incompatibleUserSnapshotRows,
         counterMissingBuckets: summary.counterMissingBuckets,
         signupMissingBuckets: summary.signupMissingBuckets,
+        trafficMissingBuckets: summary.trafficMissingBuckets,
         openCounterMarkers: summary.openCounterMarkers,
       })}`,
     )
@@ -1374,7 +1445,11 @@ function main(): void {
   const plan = querySummary<BackfillPlan>(options.target, BACKFILL_PLAN_SQL)
   console.log(JSON.stringify({ mode: options.apply ? 'apply' : 'dry-run', before, plan }, null, 2))
   if (!options.apply) return
-  const maxExpectedBuckets = Math.max(before.counterExpectedBuckets, before.signupExpectedBuckets)
+  const maxExpectedBuckets = Math.max(
+    before.counterExpectedBuckets,
+    before.signupExpectedBuckets,
+    before.trafficExpectedBuckets,
+  )
   if (maxExpectedBuckets > MAX_BACKFILL_HOURS) {
     throw new Error(`admin_stats_backfill_range_too_large:${maxExpectedBuckets}`)
   }
