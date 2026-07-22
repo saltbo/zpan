@@ -116,7 +116,6 @@ export const adminSiteInvitations = new OpenAPIHono<Env>()
     if (!userId) throw unauthorized()
     const result = await createSiteInvitation(c.get('deps'), c.get('platform'), {
       userId,
-      orgId: c.get('orgId')!,
       email: c.req.valid('json').email,
       requestUrl: c.req.url,
     })
@@ -135,7 +134,7 @@ export const adminSiteInvitations = new OpenAPIHono<Env>()
     const userId = c.get('userId')
     if (!userId) throw unauthorized()
     const id = c.req.valid('param').id
-    const result = await revokeSiteInvitation(c.get('deps'), { userId, orgId: c.get('orgId')!, id })
+    const result = await revokeSiteInvitation(c.get('deps'), { userId, id })
     if (!result.ok) throw result.error
     return c.body(null, 204)
   })

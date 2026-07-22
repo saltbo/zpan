@@ -19,8 +19,8 @@ import {
   updateObject,
 } from './object'
 import {
-  type ActivityRepo,
   AppError,
+  type AuditRepo,
   type CloudTrafficReportRepo,
   type ConflictPlan,
   type DownloaderRepo,
@@ -40,7 +40,7 @@ import {
   type StorageRepo,
   type StorageUsageRepo,
 } from './ports'
-import { meterDownloadTraffic } from './store/traffic-metering'
+import { confirmDownloadTraffic, meterDownloadTraffic } from './store/traffic-metering'
 
 // Download metering is an end-to-end usecase of its own (quota + cloud report +
 // refund); object.getObject only orchestrates around it. Mock it and assert the
@@ -58,6 +58,8 @@ const storage = {
   egressCreditUnitBytes: 0,
   egressCreditPerUnit: 0,
 } as unknown as StorageRecord
+
+const confirmDownload = vi.mocked(confirmDownloadTraffic)
 
 // Fixed so two file() calls compare equal (tests deep-equal a fixture against a
 // usecase result; argless new Date() per call would flake under load).
@@ -97,7 +99,7 @@ function makeDeps(
     s3?: Partial<S3Gateway>
     quota?: Partial<QuotaRepo>
     storageUsage?: Partial<StorageUsageRepo>
-    activity?: Partial<ActivityRepo>
+    audit?: Partial<AuditRepo>
     share?: Partial<ShareRepo>
     org?: Partial<OrgRepo>
     objectUploadSessions?: Partial<ObjectUploadSessionRepo>
@@ -155,9 +157,9 @@ function makeDeps(
       rollbackReservations: async () => {},
       ...overrides.storageUsage,
     } as unknown as StorageUsageRepo,
-    activity: { record, ...overrides.activity } as unknown as ActivityRepo,
+    audit: { record, ...overrides.audit } as unknown as AuditRepo,
     share: {
-      cascadeDeleteByMatter: async () => {},
+      revokeByMatter: async () => {},
       computeSourceBytes: async () => 0,
       hasQuotaForBytes: async () => true,
       ...overrides.share,
@@ -282,7 +284,7 @@ describe('object usecase', () => {
       })
       expect(out).toEqual({ ok: true, matter: folder('f1', { name: 'My Folder' }) })
       expect(create).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'folder', size: 0, status: 'active', object: '', userId: 'u1' }),
+        expect.objectContaining({ type: 'folder', size: 0, status: 'active', object: '' }),
       )
       expect(presignUpload).not.toHaveBeenCalled()
     })
@@ -474,7 +476,7 @@ describe('object usecase', () => {
       expect(create).not.toHaveBeenCalled()
     })
 
-    it('logs an agent upload as the downloader and keys it to the task creator', async () => {
+    it('keys an agent upload to the task creator without embedding audit context', async () => {
       const create = vi.fn(async (input: Parameters<MatterRepo['create']>[0]) => file('m', input as Partial<Matter>))
       const { deps } = makeDeps({ matter: { create } })
       await createObject(deps, {
@@ -489,7 +491,7 @@ describe('object usecase', () => {
         input: { name: 'x.txt', type: 'text/plain', dirtype: DirType.FILE, parent: 'Inbox' },
       })
       const arg = create.mock.calls[0][0]
-      expect(arg.userId).toBe('downloader:d1')
+      expect(arg).not.toHaveProperty('userId')
       // object key uses the creator's uid
       expect(arg.object).toContain('o1/creator/')
     })
@@ -696,7 +698,7 @@ describe('object usecase', () => {
       await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
       expect(deleteObjectFn).toHaveBeenCalledWith(storage, 'key/d1')
       expect(setStatus).toHaveBeenCalledWith('sess-1', 'aborted')
-      expect(cancelDraft).toHaveBeenCalledWith('d1', 'o1', 'u1')
+      expect(cancelDraft).toHaveBeenCalledWith('d1', 'o1')
     })
 
     it('strict single-PUT abort fails when S3 cleanup fails', async () => {
@@ -787,7 +789,7 @@ describe('object usecase', () => {
     it('returns a folder without metering or presigning', async () => {
       const presignDownload = vi.fn()
       const { deps } = makeDeps({ matter: { get: async () => folder('f1') }, s3: { presignDownload } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'f1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'f1', cloudBaseUrl: 'https://cloud' })
       expect(out).toEqual({ ok: true, matter: folder('f1') })
       expect(meterDownloadTraffic).not.toHaveBeenCalled()
       expect(presignDownload).not.toHaveBeenCalled()
@@ -795,24 +797,24 @@ describe('object usecase', () => {
 
     it('returns not_found for a missing object', async () => {
       const { deps } = makeDeps({ matter: { get: async () => null } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'x', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'x', cloudBaseUrl: 'https://cloud' })
       expectError(out, 404, 'Not found')
     })
 
     it('returns storage_not_found when a file has no storage row', async () => {
       const { deps } = makeDeps({ matter: { get: async () => file('m1') }, storages: { get: async () => null } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
       expectError(out, 404, 'Storage not found')
     })
 
     it('meters egress then presigns the download URL for a file', async () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: true })
       const presignDownload = vi.fn(async () => 'https://signed')
-      const { deps, record } = makeDeps({
+      const { deps } = makeDeps({
         matter: { get: async () => file('m1', { size: 100 }) },
         s3: { presignDownload },
       })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
       expect(out).toMatchObject({ ok: true, downloadUrl: 'https://signed' })
       expect(meterDownloadTraffic).toHaveBeenCalledWith(
         deps,
@@ -824,38 +826,29 @@ describe('object usecase', () => {
           sourceId: 'm1',
         }),
       )
-      expect(record).toHaveBeenCalledWith({
-        orgId: 'o1',
-        userId: 'u1',
-        action: 'object_download',
-        targetType: 'file',
-        targetId: 'm1',
-        targetName: 'm1.txt',
-        metadata: expect.objectContaining({ bytes: 100, source: 'object_download', status: 'issued' }),
+      expect(confirmDownload).toHaveBeenCalledWith(deps, {
+        eventId: expect.any(String),
       })
     })
 
     it('fails when download audit recording fails', async () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: true })
-      const record = vi.fn(async () => {
-        throw new Error('audit unavailable')
-      })
+      confirmDownload.mockRejectedValueOnce(new Error('audit unavailable'))
       const { deps } = makeDeps({
         matter: { get: async () => file('m1', { size: 100 }) },
         s3: { presignDownload: async () => 'https://signed' },
-        activity: { record },
       })
-      await expect(
-        getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' }),
-      ).rejects.toThrow('audit unavailable')
-      expect(record).toHaveBeenCalledOnce()
+      await expect(getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })).rejects.toThrow(
+        'audit unavailable',
+      )
+      expect(confirmDownload).toHaveBeenCalledOnce()
     })
 
     it('maps a quota_exceeded metering outcome and never presigns', async () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: false, reason: 'quota_exceeded' })
       const presignDownload = vi.fn()
       const { deps } = makeDeps({ matter: { get: async () => file('m1') }, s3: { presignDownload } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
       expectError(out, 422, 'Traffic quota exceeded', 'QUOTA_EXCEEDED')
       expect(presignDownload).not.toHaveBeenCalled()
     })
@@ -863,7 +856,7 @@ describe('object usecase', () => {
     it('maps an insufficient_credits metering outcome', async () => {
       vi.mocked(meterDownloadTraffic).mockResolvedValue({ ok: false, reason: 'insufficient_credits' })
       const { deps } = makeDeps({ matter: { get: async () => file('m1') } })
-      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' })
+      const out = await getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })
       expectError(out, 402, 'Insufficient credits', 'INSUFFICIENT_CREDITS')
       expect((out as { ok: false; error: AppError }).error.meta.metadata).toEqual({ resource: 'storage_egress' })
     })
@@ -880,9 +873,9 @@ describe('object usecase', () => {
           },
         },
       })
-      await expect(
-        getObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', cloudBaseUrl: 'https://cloud' }),
-      ).rejects.toThrow('sign failed')
+      await expect(getObject(deps, { orgId: 'o1', objectId: 'm1', cloudBaseUrl: 'https://cloud' })).rejects.toThrow(
+        'sign failed',
+      )
       expect(refundTraffic).toHaveBeenCalledWith('o1', 250)
     })
   })
@@ -894,16 +887,10 @@ describe('object usecase', () => {
       const out = await updateObject(deps, {
         orgId: 'o1',
         objectId: 'm1',
-        actorId: 'u1',
         input: { name: 'New.txt' },
       })
       expect(out).toEqual({ ok: true, matter: file('m1', { name: 'New.txt' }) })
-      expect(update).toHaveBeenCalledWith(
-        'm1',
-        'o1',
-        { name: 'New.txt', parent: undefined, onConflict: undefined },
-        'u1',
-      )
+      expect(update).toHaveBeenCalledWith('m1', 'o1', { name: 'New.txt', parent: undefined, onConflict: undefined })
     })
 
     it('returns not_found when the matter is missing', async () => {
@@ -911,7 +898,6 @@ describe('object usecase', () => {
       const out = await updateObject(deps, {
         orgId: 'o1',
         objectId: 'x',
-        actorId: 'u1',
         input: { name: 'X' },
       })
       expectError(out, 404, 'Not found')
@@ -927,7 +913,7 @@ describe('object usecase', () => {
           trash: async () => file('m1', { status: 'active', trashedAt: 1 }),
         },
       })
-      const out = await trashObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1' })
+      const out = await trashObject(deps, { orgId: 'o1', objectId: 'm1' })
       expect(out.ok).toBe(true)
       if (out.ok) {
         expect(out.matter.status).toBe('active')
@@ -937,32 +923,32 @@ describe('object usecase', () => {
 
     it('trash returns not_found when missing', async () => {
       const { deps } = makeDeps({ matter: { trash: async () => null } })
-      expectError(await trashObject(deps, { orgId: 'o1', objectId: 'x', actorId: 'u1' }), 404, 'Not found')
+      expectError(await trashObject(deps, { orgId: 'o1', objectId: 'x' }), 404, 'Not found')
     })
 
     it('restores with the default fail strategy', async () => {
       const restore = vi.fn(async () => file('m1', { status: 'active' }))
       const { deps } = makeDeps({ matter: { restore } })
-      const out = await restoreObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1' })
+      const out = await restoreObject(deps, { orgId: 'o1', objectId: 'm1' })
       expect(out.ok).toBe(true)
-      expect(restore).toHaveBeenCalledWith('o1', 'm1', 'u1', 'fail')
+      expect(restore).toHaveBeenCalledWith('o1', 'm1', 'fail')
     })
 
     it('restore passes the given onConflict strategy', async () => {
       const restore = vi.fn(async () => file('m1', { status: 'active' }))
       const { deps } = makeDeps({ matter: { restore } })
-      await restoreObject(deps, { orgId: 'o1', objectId: 'm1', actorId: 'u1', onConflict: 'rename' })
-      expect(restore).toHaveBeenCalledWith('o1', 'm1', 'u1', 'rename')
+      await restoreObject(deps, { orgId: 'o1', objectId: 'm1', onConflict: 'rename' })
+      expect(restore).toHaveBeenCalledWith('o1', 'm1', 'rename')
     })
 
     it('restore returns not_found when missing', async () => {
       const { deps } = makeDeps({ matter: { restore: async () => null } })
-      expectError(await restoreObject(deps, { orgId: 'o1', objectId: 'x', actorId: 'u1' }), 404, 'Not found')
+      expectError(await restoreObject(deps, { orgId: 'o1', objectId: 'x' }), 404, 'Not found')
     })
   })
 
   describe('deleteObject (purge)', () => {
-    it('purges a trashed subtree and records activity', async () => {
+    it('purges a trashed subtree without writing audit events in the usecase', async () => {
       const subtree = [folder('f1', { trashedAt: 1 }), file('m1', { trashedAt: 1, parent: 'f1' })]
       const purge = vi.fn(async () => {})
       const deleteObjects = vi.fn(async () => {})
@@ -970,20 +956,18 @@ describe('object usecase', () => {
         matter: { collectForPurge: async () => subtree, purge },
         s3: { deleteObjects },
       })
-      const out = await deleteObject(deps, { orgId: 'o1', objectId: 'f1', userId: 'u1' })
+      const out = await deleteObject(deps, { orgId: 'o1', objectId: 'f1' })
       expect(out).toEqual({ ok: true, id: 'f1', purged: 2 })
       expect(purge).toHaveBeenCalledWith('o1', ['f1', 'm1'])
       expect(deleteObjects).toHaveBeenCalled()
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'object_purge', targetType: 'folder', metadata: { count: 2 } }),
-      )
+      expect(record).not.toHaveBeenCalled()
     })
 
     it('returns not_found when the object does not exist', async () => {
       const { deps } = makeDeps({
         matter: { collectForPurge: (async () => null) as unknown as MatterRepo['collectForPurge'] },
       })
-      expect(await deleteObject(deps, { orgId: 'o1', objectId: 'x', userId: 'u1' })).toEqual({
+      expect(await deleteObject(deps, { orgId: 'o1', objectId: 'x' })).toEqual({
         ok: false,
         reason: 'not_found',
       })
@@ -993,7 +977,7 @@ describe('object usecase', () => {
       const { deps, record } = makeDeps({
         matter: { collectForPurge: async () => [folder('f1', { status: 'active' })] },
       })
-      const out = await deleteObject(deps, { orgId: 'o1', objectId: 'f1', userId: 'u1' })
+      const out = await deleteObject(deps, { orgId: 'o1', objectId: 'f1' })
       expect(out).toEqual({ ok: false, reason: 'not_trashed' })
       expect(record).not.toHaveBeenCalled()
     })
@@ -1165,7 +1149,7 @@ describe('object usecase', () => {
       expect(collectForPurge).not.toHaveBeenCalled()
     })
 
-    it('moves: copies, purges the source subtree, and records moved_to_org', async () => {
+    it('moves and purges the source subtree without usecase-level audit writes', async () => {
       const source = file('m1', { status: 'active', object: 'key/m1' })
       const purge = vi.fn(async () => {})
       const { deps, record } = makeDeps({
@@ -1186,7 +1170,7 @@ describe('object usecase', () => {
       expect(out.ok).toBe(true)
       if (out.ok) expect(out.result.sourceDeleted).toBe(true)
       expect(purge).toHaveBeenCalledWith('o1', ['m1'])
-      expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'moved_to_org' }))
+      expect(record).not.toHaveBeenCalled()
     })
   })
 

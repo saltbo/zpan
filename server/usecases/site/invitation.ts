@@ -6,20 +6,11 @@
 
 import type { SiteInvitation } from '@shared/types'
 import type { Platform } from '../../platform/interface'
-import {
-  type ActivityRepo,
-  type AppError,
-  badRequest,
-  conflict,
-  type EmailGateway,
-  notFound,
-  type SiteInvitationRepo,
-} from '../ports'
+import { type AppError, badRequest, conflict, type EmailGateway, notFound, type SiteInvitationRepo } from '../ports'
 
 export type SiteInvitationDeps = {
   siteInvitations: SiteInvitationRepo
   email: EmailGateway
-  activity: ActivityRepo
 }
 
 // createSiteInvitation throws on a duplicate pending invite, rendered as a 409
@@ -75,9 +66,9 @@ export function listSiteInvitations(
 export async function createSiteInvitation(
   deps: SiteInvitationDeps,
   platform: Platform,
-  params: { userId: string; orgId: string; email: string; requestUrl: string },
+  params: { userId: string; email: string; requestUrl: string },
 ): Promise<CreateSiteInvitationOutcome> {
-  const { userId, orgId, email, requestUrl } = params
+  const { userId, email, requestUrl } = params
   // Validate email config before creating — mirrors the handler ordering so a
   // misconfigured mailer surfaces before an invitation row is written.
   await deps.email.getConfig(platform)
@@ -89,14 +80,6 @@ export async function createSiteInvitation(
     return { ok: false, error: conflict(message) }
   }
   await sendSiteInvitationEmail(deps, platform, requestUrl, invitation)
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'site_invitation_create',
-    targetType: 'site_invitation',
-    targetId: invitation.id,
-    targetName: invitation.email,
-  })
   return { ok: true, invitation }
 }
 
@@ -114,22 +97,14 @@ export async function resendSiteInvitation(
 }
 
 export async function revokeSiteInvitation(
-  deps: Pick<SiteInvitationDeps, 'siteInvitations' | 'activity'>,
-  params: { userId: string; orgId: string; id: string },
+  deps: Pick<SiteInvitationDeps, 'siteInvitations'>,
+  params: { userId: string; id: string },
 ): Promise<RevokeSiteInvitationOutcome> {
-  const { userId, orgId, id } = params
+  const { userId, id } = params
   const result = await deps.siteInvitations.revokeSiteInvitation(id, userId)
   if (result === 'not_found') return { ok: false, error: notFound('Invitation not found') }
   if (result === 'already_accepted') return { ok: false, error: badRequest('Invitation has already been used') }
   if (result === 'already_revoked') return { ok: false, error: badRequest('Invitation has already been revoked') }
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'site_invitation_revoke',
-    targetType: 'site_invitation',
-    targetId: id,
-    targetName: id,
-  })
   return { ok: true, id }
 }
 

@@ -138,8 +138,6 @@ const storages = new OpenAPIHono<Env>()
   })
   .openapi(createStorageRoute, async (c) => {
     const result = await createStorage(c.get('deps'), {
-      userId: c.get('userId')!,
-      orgId: c.get('orgId')!,
       input: c.req.valid('json'),
     })
     if (!result.ok) throw result.error
@@ -152,8 +150,6 @@ const storages = new OpenAPIHono<Env>()
   })
   .openapi(updateStorageRoute, async (c) => {
     const result = await updateStorage(c.get('deps'), {
-      userId: c.get('userId')!,
-      orgId: c.get('orgId')!,
       id: c.req.valid('param').id,
       input: c.req.valid('json'),
     })
@@ -162,8 +158,6 @@ const storages = new OpenAPIHono<Env>()
   })
   .openapi(updateStorageEgressBillingRoute, async (c) => {
     const result = await updateStorageEgressBilling(c.get('deps'), {
-      userId: c.get('userId')!,
-      orgId: c.get('orgId')!,
       id: c.req.valid('param').id,
       input: c.req.valid('json'),
     })
@@ -172,7 +166,7 @@ const storages = new OpenAPIHono<Env>()
   })
   .openapi(deleteStorageRoute, async (c) => {
     const id = c.req.valid('param').id
-    const result = await deleteStorage(c.get('deps'), { userId: c.get('userId')!, orgId: c.get('orgId')!, id })
+    const result = await deleteStorage(c.get('deps'), { id })
     if (!result.ok) throw result.error
     return c.body(null, 204)
   })

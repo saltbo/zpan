@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
@@ -76,6 +76,61 @@ describe('requireAdmin middleware', () => {
     const res = await app.request('/api/admin-only', { headers })
     const body = (await res.json()) as { ok: boolean }
     expect(body.ok).toBe(true)
+  })
+})
+
+describe('authenticated user activity', () => {
+  it('records a successful Better Auth sign-in', async () => {
+    const { app, db } = await createTestApp()
+    await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Login User', email: 'login-activity@example.com', password: 'password123456' }),
+    })
+    await db.run(sql`UPDATE user SET last_active_at = NULL WHERE email = 'login-activity@example.com'`)
+
+    const response = await app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'login-activity@example.com', password: 'password123456' }),
+    })
+    const [row] = await db
+      .select({ lastActiveAt: authSchema.user.lastActiveAt })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.email, 'login-activity@example.com'))
+
+    expect(response.status).toBe(200)
+    expect(row.lastActiveAt).not.toBeNull()
+  })
+
+  it('updates Better Auth lastActiveAt without creating an audit event', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app, 'active-user@example.com', 'password123456')
+    const oldActivity = new Date('2026-01-01T00:00:00.000Z')
+    const profileUpdatedAt = new Date('2026-02-01T00:00:00.000Z')
+    await db.run(sql`
+      UPDATE user
+      SET last_active_at = ${oldActivity.getTime()}, updated_at = ${profileUpdatedAt.getTime()}
+      WHERE email = 'active-user@example.com'
+    `)
+
+    const first = await app.request('/api/quotas/me', { headers })
+    const [afterFirst] = await db
+      .select({ lastActiveAt: authSchema.user.lastActiveAt, updatedAt: authSchema.user.updatedAt })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.email, 'active-user@example.com'))
+    const second = await app.request('/api/quotas/me', { headers })
+    const [afterSecond] = await db
+      .select({ lastActiveAt: authSchema.user.lastActiveAt, updatedAt: authSchema.user.updatedAt })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.email, 'active-user@example.com'))
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(afterFirst.lastActiveAt?.getTime()).toBeGreaterThan(oldActivity.getTime())
+    expect(afterSecond.lastActiveAt).toEqual(afterFirst.lastActiveAt)
+    expect(afterSecond.updatedAt).toEqual(profileUpdatedAt)
+    expect(await db.all(sql`SELECT id FROM audit_events WHERE action = 'user_access'`)).toEqual([])
   })
 })
 

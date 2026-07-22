@@ -3,7 +3,7 @@ import type { SQL } from 'drizzle-orm'
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, like, lt, ne, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { matters } from '../../db/schema'
-import { executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
+import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { suggestRenamed } from '../../domain/matter-name-conflict'
 import type { Database } from '../../platform/interface'
 import type {
@@ -19,7 +19,6 @@ import type {
   UpdateMatterInput,
 } from '../../usecases/ports'
 import { NameConflictError } from '../../usecases/ports'
-import { createActivityRepo } from './activity'
 import {
   matterActivationLedgerQuery,
   matterPurgeLedgerQuery,
@@ -64,8 +63,6 @@ function typeFilterCondition(typeFilter: string): SQL | undefined {
 }
 
 export function createMatterRepo(db: Database): MatterRepo {
-  const activity = createActivityRepo(db)
-
   async function getMatter(id: string, orgId: string): Promise<Matter | null> {
     const rows = await db
       .select()
@@ -182,29 +179,18 @@ export function createMatterRepo(db: Database): MatterRepo {
     return { finalName: renamed, toTrash: null }
   }
 
-  async function trashForReplace(orgId: string, existing: Matter, userId: string | undefined): Promise<void> {
+  async function trashForReplace(orgId: string, existing: Matter): Promise<void> {
     const now = new Date()
     await db
       .update(matters)
       .set({ trashedAt: now.getTime(), updatedAt: now })
       .where(and(eq(matters.id, existing.id), eq(matters.orgId, orgId), isNull(matters.purgedAt)))
-
-    if (userId) {
-      await activity.record({
-        orgId,
-        userId,
-        action: 'replace',
-        targetType: 'file',
-        targetId: existing.id,
-        targetName: existing.name,
-      })
-    }
   }
 
-  /** Execute the side effects of a plan (trash the replaced row, log activity). */
-  async function commitConflictPlan(orgId: string, plan: ConflictPlan, userId?: string): Promise<void> {
+  /** Execute the side effects of a plan (trash the replaced row). */
+  async function commitConflictPlan(orgId: string, plan: ConflictPlan): Promise<void> {
     if (plan.toTrash) {
-      await trashForReplace(orgId, plan.toTrash, userId)
+      await trashForReplace(orgId, plan.toTrash)
     }
   }
 
@@ -221,7 +207,7 @@ export function createMatterRepo(db: Database): MatterRepo {
     options: ConflictResolveOptions = {},
   ): Promise<string> {
     const plan = await planConflictResolution(orgId, parent, name, strategy, options)
-    await commitConflictPlan(orgId, plan, options.userId)
+    await commitConflictPlan(orgId, plan)
     return plan.finalName
   }
 
@@ -250,7 +236,6 @@ export function createMatterRepo(db: Database): MatterRepo {
       // conflict before the client wastes a large S3 upload.
       const plan = await planConflictResolution(input.orgId, parent, input.name, input.onConflict ?? 'fail', {
         isFolder,
-        userId: input.userId,
       })
       // Overwriting the incumbent for a draft-file 'replace' is deferred to
       // confirmUpload (which purges it after the new bytes land). That keeps a
@@ -259,7 +244,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       // rename commit their plan immediately.
       const deferOverwrite = !isFolder && input.status === 'draft' && plan.toTrash !== null
       if (!deferOverwrite) {
-        await commitConflictPlan(input.orgId, plan, input.userId)
+        await commitConflictPlan(input.orgId, plan)
       }
       const finalName = plan.finalName
 
@@ -283,7 +268,7 @@ export function createMatterRepo(db: Database): MatterRepo {
 
       const isBillable = row.status === ObjectStatus.ACTIVE && row.dirtype === DirType.FILE
       if (isBillable) {
-        await executeWriteTransaction(db, [
+        const writes: AtomicQuery[] = [
           storageUsageOpeningBalanceQuery(db, row.orgId, row.storageId, now),
           db.insert(matters).values(row),
           ...(row.size && row.size > 0
@@ -300,20 +285,10 @@ export function createMatterRepo(db: Database): MatterRepo {
                 }),
               ]
             : []),
-        ])
+        ]
+        await executeWriteTransaction(db, writes)
       } else {
         await db.insert(matters).values(row)
-      }
-
-      if (input.userId) {
-        await activity.record({
-          orgId: input.orgId,
-          userId: input.userId,
-          action: isFolder ? 'create' : 'upload',
-          targetType: isFolder ? 'folder' : 'file',
-          targetId: row.id,
-          targetName: row.name,
-        })
       }
 
       return toMatter(row)
@@ -367,7 +342,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       return rows.map(toMatter)
     },
 
-    async update(id, orgId, input: UpdateMatterInput, userId?: string): Promise<Matter | null> {
+    async update(id, orgId, input: UpdateMatterInput): Promise<Matter | null> {
       const existing = await getMatter(id, orgId)
       if (!existing) return null
 
@@ -394,7 +369,6 @@ export function createMatterRepo(db: Database): MatterRepo {
           ? await applyConflictResolution(orgId, newParent, requestedName, input.onConflict ?? 'fail', {
               excludeId: existing.id,
               isFolder,
-              userId,
             })
           : requestedName
 
@@ -410,34 +384,6 @@ export function createMatterRepo(db: Database): MatterRepo {
         .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt)))
 
       const updated = { ...existing, name: newName, parent: newParent, updatedAt: now }
-
-      if (userId) {
-        const targetType = isFolder ? 'folder' : 'file'
-        // Compare the final persisted state so auto-renames (from conflict resolution)
-        // are recorded even when the user only asked to move.
-        if (newName !== existing.name) {
-          await activity.record({
-            orgId,
-            userId,
-            action: 'rename',
-            targetType,
-            targetId: id,
-            targetName: newName,
-            metadata: { from: existing.name },
-          })
-        }
-        if (newParent !== existing.parent) {
-          await activity.record({
-            orgId,
-            userId,
-            action: 'move',
-            targetType,
-            targetId: id,
-            targetName: newName,
-            metadata: { from: existing.parent, to: newParent },
-          })
-        }
-      }
 
       return updated
     },
@@ -455,7 +401,6 @@ export function createMatterRepo(db: Database): MatterRepo {
         opts.onConflict ?? 'rename',
         {
           isFolder,
-          userId: opts.userId,
         },
       )
 
@@ -496,52 +441,23 @@ export function createMatterRepo(db: Database): MatterRepo {
           : []),
       ])
 
-      if (opts.userId) {
-        await activity.record({
-          orgId: source.orgId,
-          userId: opts.userId,
-          action: 'object_copy',
-          targetType: isFolder ? 'folder' : 'file',
-          targetId: row.id,
-          targetName: row.name,
-          metadata: { from: source.name, to: targetParent },
-        })
-      }
-
       return toMatter(row)
     },
 
-    async cancelDraft(id, orgId, userId?): Promise<Matter | null> {
+    async cancelDraft(id, orgId): Promise<Matter | null> {
       const existing = await getMatter(id, orgId)
       if (!existing || existing.status !== 'draft') return null
 
-      await db
+      const deleted = await db
         .delete(matters)
         .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft'), isNull(matters.purgedAt)))
-
-      if (userId) {
-        await activity.record({
-          orgId,
-          userId,
-          action: 'upload_cancel',
-          targetType: 'file',
-          targetId: existing.id,
-          targetName: existing.name,
-          metadata: {
-            bytes: existing.size,
-            source: 'upload',
-            status: 'canceled',
-            storageId: existing.storageId,
-            matterId: existing.id,
-            matterType: existing.type,
-          },
-        })
-      }
+        .returning({ id: matters.id })
+      if (deleted.length !== 1) return null
 
       return existing
     },
 
-    async trash(orgId, id, userId?): Promise<Matter | null> {
+    async trash(orgId, id): Promise<Matter | null> {
       const existing = await getMatter(id, orgId)
       if (!existing) return null
       if (existing.trashedAt != null) return existing // already in trash (idempotent)
@@ -577,21 +493,10 @@ export function createMatterRepo(db: Database): MatterRepo {
       }
       const trashed = { ...existing, trashedAt: nowTs, updatedAt: now }
 
-      if (userId) {
-        await activity.record({
-          orgId,
-          userId,
-          action: 'delete',
-          targetType: existing.dirtype !== DirType.FILE ? 'folder' : 'file',
-          targetId: existing.id,
-          targetName: existing.name,
-        })
-      }
-
       return trashed
     },
 
-    async restore(orgId, id, userId?, onConflict: ConflictStrategy = 'fail'): Promise<Matter | null> {
+    async restore(orgId, id, onConflict: ConflictStrategy = 'fail'): Promise<Matter | null> {
       const existing = await getMatter(id, orgId)
       if (!existing) return null
       if (existing.trashedAt == null) return existing // not in trash → no-op
@@ -603,7 +508,6 @@ export function createMatterRepo(db: Database): MatterRepo {
       const finalName = await applyConflictResolution(orgId, existing.parent, existing.name, onConflict, {
         excludeId: existing.id,
         isFolder,
-        userId,
       })
 
       const now = new Date()
@@ -648,17 +552,6 @@ export function createMatterRepo(db: Database): MatterRepo {
       }
 
       const restored = { ...existing, name: finalName, trashedAt: null, updatedAt: now }
-
-      if (userId) {
-        await activity.record({
-          orgId,
-          userId,
-          action: 'restore',
-          targetType: isFolder ? 'folder' : 'file',
-          targetId: existing.id,
-          targetName: finalName,
-        })
-      }
 
       return restored
     },
@@ -747,14 +640,15 @@ export function createMatterRepo(db: Database): MatterRepo {
       const existing = await getMatter(id, orgId)
       if (!existing) return
       const now = new Date()
-      await executeWriteTransaction(db, [
+      const writes: AtomicQuery[] = [
         storageUsageOpeningBalanceQuery(db, orgId, existing.storageId, now),
         matterResizeLedgerQuery(db, orgId, id, fields.size, now),
         db
           .update(matters)
           .set({ type: fields.type, size: fields.size, object: fields.object, updatedAt: now })
           .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
-      ])
+      ]
+      await executeWriteTransaction(db, writes)
     },
 
     async listTrashedRoots(orgId): Promise<Matter[]> {
@@ -798,8 +692,8 @@ export function createMatterRepo(db: Database): MatterRepo {
       return planConflictResolution(orgId, parent, name, strategy, options)
     },
 
-    commitConflictPlan(orgId, plan, userId) {
-      return commitConflictPlan(orgId, plan, userId)
+    commitConflictPlan(orgId, plan) {
+      return commitConflictPlan(orgId, plan)
     },
 
     applyConflictResolution(orgId, parent, name, strategy, options) {
@@ -815,11 +709,8 @@ export function createMatterRepo(db: Database): MatterRepo {
         .set({ name: finalName, status: 'active', updatedAt: now })
         .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft'), isNull(matters.purgedAt)))
         .returning({ id: matters.id })
-      const results = await executeWriteTransactionWithResults(
-        db,
-        [activateQuery, matterActivationLedgerQuery(db, orgId, id, now)],
-        [0],
-      )
+      const writes: AtomicQuery[] = [activateQuery, matterActivationLedgerQuery(db, orgId, id, now)]
+      const results = await executeWriteTransactionWithResults(db, writes, [0])
       const updated = results[0] as { id: string }[]
       return updated.length > 0
     },

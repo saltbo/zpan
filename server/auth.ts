@@ -26,8 +26,7 @@ import {
 } from '../shared/oauth-providers'
 import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
 import { createEmailGateway } from './adapters/gateways/email'
-import { createActivityRepo } from './adapters/repos/activity'
-import { adminStatsFactValues } from './adapters/repos/admin-stats-fact'
+import { createAuditRepo } from './adapters/repos/audit'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createLicenseBindingRepo } from './adapters/repos/license-binding'
 import { createMemberCountRepo } from './adapters/repos/member-count'
@@ -35,11 +34,13 @@ import { createNotificationRepo } from './adapters/repos/notification'
 import { createOrgRepo } from './adapters/repos/org'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
+import { recordUserActivity } from './adapters/repos/user-activity'
 import * as authSchema from './db/auth-schema'
-import { activityEvents, orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
+import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { executeWriteTransaction } from './db/transaction'
 import { CAPTCHA_AUTH_ENDPOINTS, type CaptchaConfig } from './domain/captcha'
 import { currentTrafficPeriod } from './domain/quota'
+import { recordAuditEffect } from './lib/audit'
 import { isLocalNetworkOrigin } from './lib/local-origin'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import { createDbProxy, createPlatformProxy } from './platform/context'
@@ -145,6 +146,102 @@ const ADMIN_USER_AUDIT: Record<string, { action: string; status?: 'active' | 'di
   '/admin/remove-user': { action: 'user_delete' },
 }
 
+const ORGANIZATION_AUDIT_ACTIONS: Record<string, string> = {
+  '/organization/create': 'team_create',
+  '/organization/update': 'team_settings_update',
+  '/organization/delete': 'team_delete',
+  '/organization/remove-member': 'team_member_remove',
+  '/organization/update-member-role': 'team_member_role_update',
+  '/organization/accept-invitation': 'team_member_join',
+}
+
+async function recordOrganizationAuthAudit(
+  db: Database,
+  ctx: { path: string; body?: unknown; context: { returned?: unknown } },
+  actorId: string,
+  action: string,
+): Promise<void> {
+  const body = recordValue(ctx.body) ?? {}
+  const returned = recordValue(ctx.context.returned) ?? {}
+  const member = recordValue(returned.member) ?? (typeof returned.userId === 'string' ? returned : null)
+  const invitation = recordValue(returned.invitation)
+  const data = recordValue(body.data)
+  const orgId =
+    stringValue(body.organizationId) ??
+    stringValue(member?.organizationId) ??
+    stringValue(invitation?.organizationId) ??
+    stringValue(returned.id)
+  if (!orgId) throw new Error(`audit_organization_context_missing:${ctx.path}`)
+
+  const metadata =
+    action === 'team_member_remove'
+      ? { removedUserId: stringValue(member?.userId) }
+      : action === 'team_member_role_update'
+        ? { targetUserId: stringValue(member?.userId), newRole: stringValue(member?.role) ?? stringValue(body.role) }
+        : action === 'team_member_join'
+          ? { targetUserId: stringValue(member?.userId) ?? actorId, role: stringValue(member?.role) }
+          : data
+            ? { changedFields: Object.keys(data).sort() }
+            : undefined
+
+  await recordAuditEffect(action, () =>
+    createAuditRepo(db).record({
+      orgId,
+      userId: actorId,
+      action,
+      targetType: 'team',
+      targetId: orgId,
+      targetName: stringValue(returned.name) ?? stringValue(data?.name) ?? stringValue(body.name) ?? orgId,
+      metadata,
+    }),
+  )
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+async function ensureUserRegistrationAudit(db: Database, userId: string, firstAccountId?: string): Promise<void> {
+  const [firstAccount] = await db
+    .select({ id: authSchema.account.id, providerId: authSchema.account.providerId })
+    .from(authSchema.account)
+    .where(eq(authSchema.account.userId, userId))
+    .orderBy(authSchema.account.createdAt, authSchema.account.id)
+    .limit(1)
+  if (firstAccountId && firstAccount?.id !== firstAccountId) return
+
+  const [registeredUser] = await db
+    .select({
+      id: authSchema.user.id,
+      name: authSchema.user.name,
+      email: authSchema.user.email,
+      createdAt: authSchema.user.createdAt,
+    })
+    .from(authSchema.user)
+    .where(eq(authSchema.user.id, userId))
+    .limit(1)
+  if (!registeredUser) throw new Error(`registered_user_missing:${userId}`)
+
+  await createAuditRepo(db).recordOnce(
+    {
+      orgId: '',
+      userId: registeredUser.id,
+      actorType: 'user',
+      action: 'user_register',
+      targetType: 'user',
+      targetId: registeredUser.id,
+      targetName: registeredUser.name || registeredUser.email,
+      metadata: { provider: firstAccount?.providerId || 'unknown' },
+    },
+    registeredUser.id,
+    registeredUser.createdAt,
+  )
+}
+
 function buildInvitationEmailHtml(data: {
   email: string
   role: string
@@ -227,6 +324,11 @@ export async function createAuth(
       // never exercise the real CSRF/origin behavior.
       disableOriginCheck: false,
     },
+    user: {
+      additionalFields: {
+        lastActiveAt: { type: 'date', required: false, input: false, returned: false },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       password: {
@@ -263,29 +365,43 @@ export async function createAuth(
       providerConfigs.builtin.map((c) => [c.providerId, { clientId: c.clientId, clientSecret: c.clientSecret }]),
     ),
     hooks: {
-      // Audit admin user disable/enable/delete (served by the admin plugin) the
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === '/delete-user') {
+          throw new APIError('FORBIDDEN', { message: 'Self-service account deletion is not available' })
+        }
+      }),
+      // Audit admin user disable/enable (served by the admin plugin) the
       // same way the old /api/users usecases did. This after-hook runs for every
       // auth endpoint, so it filters by path; it also runs when the endpoint
       // failed, so it skips anything that returned an APIError.
       after: createAuthMiddleware(async (ctx) => {
-        const audit = ADMIN_USER_AUDIT[ctx.path]
-        if (!audit) return
         if (ctx.context.returned instanceof APIError) return
-        const targetUserId = (ctx.body as { userId?: string } | undefined)?.userId
-        if (!targetUserId) return
         const session = await getSessionFromCtx(ctx)
         const actorId = session?.user?.id
-        const orgId = (session?.session as { activeOrganizationId?: string } | undefined)?.activeOrganizationId
-        if (!actorId || !orgId) return
-        await createActivityRepo(db).record({
-          orgId,
-          userId: actorId,
-          action: audit.action,
-          targetType: 'user',
-          targetId: targetUserId,
-          targetName: targetUserId,
-          metadata: audit.status ? { status: audit.status } : undefined,
-        })
+        if (!actorId) return
+        await recordUserActivity(db, actorId)
+
+        const adminAudit = ADMIN_USER_AUDIT[ctx.path]
+        if (adminAudit) {
+          const targetUserId = (ctx.body as { userId?: string } | undefined)?.userId
+          const orgId = (session?.session as { activeOrganizationId?: string } | undefined)?.activeOrganizationId
+          if (!targetUserId || !orgId) return
+          await recordAuditEffect(adminAudit.action, () =>
+            createAuditRepo(db).record({
+              orgId,
+              userId: actorId,
+              action: adminAudit.action,
+              targetType: 'user',
+              targetId: targetUserId,
+              targetName: targetUserId,
+              metadata: adminAudit.status ? { status: adminAudit.status } : undefined,
+            }),
+          )
+          return
+        }
+
+        const action = ORGANIZATION_AUDIT_ACTIONS[ctx.path]
+        if (action) await recordOrganizationAuthAudit(db, ctx, actorId, action)
       }),
     },
     plugins: [
@@ -336,16 +452,7 @@ export async function createAuth(
             const isTeam = !isPersonalOrgLike(organization)
             await createOrgQuota(db, organization.id, new Date(), isTeam)
           },
-          afterAcceptInvitation: async ({ member, user, organization }) => {
-            await createActivityRepo(db).record({
-              orgId: organization.id,
-              userId: user.id,
-              action: 'team_member_join',
-              targetType: 'team',
-              targetId: organization.id,
-              targetName: organization.name,
-              metadata: { role: member.role },
-            })
+          afterAcceptInvitation: async ({ user, organization }) => {
             await createNotificationRepo(db).create({
               userId: user.id,
               type: 'team_join',
@@ -354,53 +461,6 @@ export async function createAuth(
               refType: 'team',
               refId: organization.id,
               metadata: JSON.stringify({ teamName: organization.name }),
-            })
-          },
-          afterRemoveMember: async ({ member, organization }) => {
-            // Better Auth does not expose the actor (initiator) in this hook;
-            // member.userId is the removed user — used here as the attributed userId.
-            await createActivityRepo(db).record({
-              orgId: organization.id,
-              userId: member.userId,
-              action: 'team_member_remove',
-              targetType: 'team',
-              targetId: organization.id,
-              targetName: organization.name,
-              metadata: { removedUserId: member.userId },
-            })
-          },
-          afterUpdateMemberRole: async ({ member, previousRole, organization }) => {
-            // Better Auth does not expose the actor in this hook;
-            // member.userId is the user whose role changed.
-            await createActivityRepo(db).record({
-              orgId: organization.id,
-              userId: member.userId,
-              action: 'team_member_role_update',
-              targetType: 'team',
-              targetId: organization.id,
-              targetName: organization.name,
-              metadata: { previousRole, newRole: member.role },
-            })
-          },
-          afterUpdateOrganization: async ({ organization, user }) => {
-            if (!organization?.id || !user?.id) return
-            await createActivityRepo(db).record({
-              orgId: organization.id,
-              userId: user.id,
-              action: 'team_settings_update',
-              targetType: 'team',
-              targetId: organization.id,
-              targetName: organization.name ?? organization.id,
-            })
-          },
-          afterDeleteOrganization: async ({ organization, user }) => {
-            await createActivityRepo(db).record({
-              orgId: organization.id,
-              userId: user.id,
-              action: 'team_delete',
-              targetType: 'team',
-              targetId: organization.id,
-              targetName: organization.name,
             })
           },
         },
@@ -551,6 +611,18 @@ export async function createAuth(
             }
           },
         },
+        delete: {
+          before: async (user) => {
+            await ensureUserRegistrationAudit(db, user.id)
+          },
+        },
+      },
+      account: {
+        create: {
+          after: async (account) => {
+            await recordAuditEffect('user_register', () => ensureUserRegistrationAudit(db, account.userId, account.id))
+          },
+        },
       },
       session: {
         create: {
@@ -589,6 +661,9 @@ export async function createAuth(
               return { data: { ...session, activeOrganizationId: orgId } }
             }
             return { data: session }
+          },
+          after: async (session) => {
+            await recordUserActivity(db, session.userId)
           },
         },
       },
@@ -657,13 +732,6 @@ async function createPersonalOrg(
   const orgSlug = await generateUniqueOrgSlug(db, generateUserOrgSlug)
   const quotaValues = await createOrgQuotaValues(db, orgId, now)
   const entitlementValues = await createFreePlanEntitlementValues(db, orgId, now, false)
-  const [account] = await db
-    .select({ providerId: authSchema.account.providerId })
-    .from(authSchema.account)
-    .where(eq(authSchema.account.userId, user.id))
-    .orderBy(authSchema.account.createdAt, authSchema.account.id)
-    .limit(1)
-
   await executeWriteTransaction(db, [
     db.insert(authSchema.organization).values({
       id: orgId,
@@ -681,19 +749,6 @@ async function createPersonalOrg(
     }),
     db.insert(orgQuotas).values(quotaValues),
     ...entitlementValues.map((value) => db.insert(orgQuotaEntitlements).values(value)),
-    db
-      .insert(activityEvents)
-      .values(
-        adminStatsFactValues({
-          action: 'stats_user_signup',
-          sourceId: user.id,
-          orgId,
-          targetType: 'user',
-          occurredAt: now,
-          metadata: { provider: account?.providerId ?? 'unknown' },
-        }),
-      )
-      .onConflictDoNothing(),
   ])
 
   return orgId

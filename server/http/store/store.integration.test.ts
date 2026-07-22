@@ -1276,8 +1276,9 @@ describe('Quota Store API', () => {
       { bytes: 4096, status: 'active', sourceId: 'order-1', expiresAt: Date.parse('2099-06-01T00:00:00.000Z') },
     ])
     const audit = await db.all<{ action: string; metadata: string }>(
-      sql`SELECT action, metadata FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 1`,
+      sql`SELECT action, metadata FROM audit_events WHERE org_id = ${orgId} AND action = 'quota_order_increase'`,
     )
+    expect(audit).toHaveLength(1)
     expect(audit[0].action).toBe('quota_order_increase')
     expect(JSON.parse(audit[0].metadata)).toMatchObject({
       eventId: 'evt-1',
@@ -1795,7 +1796,7 @@ describe('Quota Store API', () => {
     ])
 
     const auditRows = await db.all<{ action: string }>(
-      sql`SELECT action FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 2`,
+      sql`SELECT action FROM audit_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 2`,
     )
     expect(auditRows.map((r) => r.action)).toContain('quota_order_decrease')
     expect(auditRows.map((r) => r.action)).toContain('quota_order_increase')
@@ -1935,7 +1936,7 @@ describe('Quota Store API', () => {
     )
 
     const audit = await db.all<{ action: string; metadata: string }>(
-      sql`SELECT action, metadata FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 1`,
+      sql`SELECT action, metadata FROM audit_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 1`,
     )
     expect(audit[0].action).toBe('quota_order_decrease')
     expect(JSON.parse(audit[0].metadata)).toMatchObject({

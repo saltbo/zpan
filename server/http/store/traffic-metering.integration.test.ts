@@ -119,8 +119,57 @@ describe('object download cloud traffic reporting', () => {
     expect(res.status).toBe(200)
     expect(fetch).toHaveBeenCalledTimes(1)
     await expect(trafficReports(db)).resolves.toMatchObject([
-      { orgId, source: 'object_download', sourceId: 'm-cloud-report-ok', bytes: 100, status: 'reported' },
+      {
+        orgId,
+        source: 'object_download',
+        sourceId: 'm-cloud-report-ok',
+        bytes: 100,
+        status: 'reported',
+        issuedAt: expect.any(Date),
+      },
     ])
+    const issuedEvents = await db.all<{ eventId: string; bytes: number }>(sql`
+      SELECT
+        json_extract(metadata, '$.trafficEventId') AS eventId,
+        json_extract(metadata, '$.bytes') AS bytes
+      FROM audit_events
+      WHERE action = 'object_download'
+    `)
+    expect(issuedEvents).toEqual([{ eventId: expect.any(String), bytes: 100 }])
+  })
+
+  it('issues traffic without writing a duplicate audit event', async () => {
+    const { app, db } = await createTestApp()
+    await seedTrafficBinding(db)
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, 'm-cloud-report-atomic')
+    await setTrafficQuota(db, orgId)
+    await db.run(sql`
+      CREATE TRIGGER reject_download_fact
+      BEFORE INSERT ON audit_events
+      WHEN NEW.action = 'object_download'
+      BEGIN
+        SELECT RAISE(ABORT, 'reject_download_fact');
+      END
+    `)
+
+    const res = await app.request('/api/objects/m-cloud-report-atomic', { headers })
+
+    expect(res.status).toBe(200)
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'reported', issuedAt: expect.any(Date) }])
+    const issuedEvents = await db.all(sql`
+      SELECT 1 FROM audit_events
+      WHERE action = 'object_download'
+        AND target_id = 'm-cloud-report-atomic'
+    `)
+    expect(issuedEvents).toHaveLength(0)
+    const quotaRows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(quotaRows).toEqual([{ trafficUsed: 125 }])
   })
 
   it('denies object downloads and refunds local traffic when Cloud rejects usage', async () => {
@@ -340,7 +389,7 @@ describe('public redirect cloud traffic reporting', () => {
     await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'blocked', error: 'insufficient_credits' }])
   })
 
-  it('fails and refunds landing share traffic when audit recording fails', async () => {
+  it('keeps authoritative landing-share traffic committed when audit recording fails afterward', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
@@ -357,11 +406,11 @@ describe('public redirect cloud traffic reporting', () => {
       kind: 'landing',
     })
     const ref = encodeChildRef(share.token, 'm-cloud-landing-audit-fail')
-    await db.run(sql`DROP TABLE activity_events`)
+    await db.run(sql`DROP TABLE audit_events`)
 
     const res = await app.request(`/api/shares/${share.token}/objects/${ref}?downloadUrl=1`, { redirect: 'manual' })
 
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(200)
     expect(consoleError).toHaveBeenCalled()
     const rows = await db.all<{ downloads: number; trafficUsed: number }>(sql`
       SELECT s.downloads, q.traffic_used AS trafficUsed
@@ -369,7 +418,8 @@ describe('public redirect cloud traffic reporting', () => {
       INNER JOIN org_quotas q ON q.org_id = s.org_id
       WHERE s.id = ${share.id}
     `)
-    expect(rows[0]).toEqual({ downloads: 0, trafficUsed: 0 })
+    expect(rows[0]).toEqual({ downloads: 1, trafficUsed: 100 })
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'reported', issuedAt: expect.any(Date) }])
   })
 
   it('reports token image-hosting redirects to Cloud', async () => {

@@ -19,11 +19,22 @@ import {
   workspaceEntry,
   xmlResponse,
 } from '../domain/webdav-xml'
+import { recordAuditEffect } from '../lib/audit'
 import { mapDomainError } from '../lib/http-errors'
+import {
+  isDownloadFailureStatus,
+  recordDownloadFailure,
+  recordDownloadIssued,
+  recordUploadResult,
+  type TransferAuditTarget,
+  transferAuditActor,
+  transferFailureReason,
+} from '../middleware/audit-transfers'
 import type { Env } from '../middleware/platform'
 import {
   ApiKeyRateLimitError,
   insufficientCredits,
+  type RecordAuditEventInput,
   type StorageRecord,
   WebDavPathError,
   type WebDavTarget,
@@ -61,7 +72,12 @@ const WRITE_METHODS = new Set(['PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY', 'PROPPA
 const WEBDAV_RESOURCE = 'webdav'
 
 type DavContext = Context<Env>
-type DavAuth = { userId: string }
+type DavAuth = {
+  userId: string
+  keyId: string
+  configId: string
+  permissions: Record<string, string[]> | null
+}
 
 const cloudBaseUrl = (c: DavContext): string => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 
@@ -88,7 +104,16 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
     return unauthorized()
   }
   c.set('userId', result.userId)
-  return { userId: result.userId }
+  c.set('principal', {
+    kind: 'api-key',
+    keyId: result.keyId,
+    configId: result.configId,
+    orgId: null,
+    userId: result.userId,
+    permissions: result.permissions,
+    authMethod: 'api-key',
+  })
+  return result
 }
 
 function unauthorized(): Response {
@@ -594,48 +619,247 @@ async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEn
   return entries
 }
 
-const app = new Hono<Env>().on(
+const app = new Hono<Env>()
+
+app.use('*', async (c, next) => {
+  const auth = await requireWebDavApiKey(c)
+  if (auth instanceof Response) return auth
+  await next()
+})
+
+app.use('*', async (c, next) => {
+  const userId = c.get('userId')
+  if (!userId) throw new Error('webdav_authenticated_user_missing')
+  const preparedPut = c.req.method === 'PUT' ? await prepareWebDavPutAudit(c, userId) : null
+  const preparedAction = await prepareWebDavActionAudit(c, userId)
+  await next()
+
+  const actor = transferAuditActor(c.get('principal'))
+  if (c.req.method === 'GET' && isDownloadFailureStatus(c.res.status)) {
+    const target = await webDavDownloadAuditTarget(c, userId)
+    if (target) {
+      await recordDownloadFailure(c.get('deps').audit, actor, target, transferFailureReason(c))
+    }
+    return
+  }
+
+  if (preparedAction && c.res.status < 400) {
+    const event = await resolveWebDavActionAudit(c, userId, preparedAction)
+    if (event) await recordAuditEffect(event.action, () => c.get('deps').audit.record({ ...actor, ...event }))
+  }
+
+  if (c.req.method !== 'PUT') return
+  if (c.res.status === 201 || c.res.status === 204) {
+    const target = await webDavUploadedTarget(c, userId)
+    if (!target) throw new Error('transfer_audit_context_missing:webdav_upload')
+    await recordUploadResult(c.get('deps').audit, actor, target)
+    return
+  }
+
+  if (!preparedPut || !isUploadFailureStatus(c.res.status)) return
+  const bytes = exactRequestContentLength(c)
+  if (bytes === null) return
+  await recordUploadResult(c.get('deps').audit, actor, { ...preparedPut, bytes }, transferFailureReason(c))
+})
+
+type WebDavActionAuditContext = {
+  method: 'MKCOL' | 'DELETE' | 'MOVE' | 'COPY'
+  source: WebDavTarget
+  destination: string | null
+}
+
+async function prepareWebDavActionAudit(c: DavContext, userId: string): Promise<WebDavActionAuditContext | null> {
+  const method = c.req.method.toUpperCase()
+  if (method !== 'MKCOL' && method !== 'DELETE' && method !== 'MOVE' && method !== 'COPY') return null
+  try {
+    const source = await resolveWebDavPath(c.get('deps'), { userId, rawPath: davPath(c) })
+    const destination = method === 'MOVE' || method === 'COPY' ? validDestinationPath(c) : null
+    return { method, source, destination }
+  } catch (error) {
+    if (error instanceof WebDavPathError) return null
+    throw error
+  }
+}
+
+async function resolveWebDavActionAudit(
+  c: DavContext,
+  userId: string,
+  prepared: WebDavActionAuditContext,
+): Promise<RecordAuditEventInput | null> {
+  const source = prepared.source
+  const workspace = source.workspace
+  if (!workspace) return null
+
+  if (prepared.method === 'MKCOL') {
+    const created = await resolveExistingWebDavPath(c.get('deps'), { userId, rawPath: davPath(c) })
+    if (!created.matter) return null
+    return {
+      orgId: workspace.id,
+      action: 'create',
+      targetType: 'folder',
+      targetId: created.matter.id,
+      targetName: created.matter.name,
+    }
+  }
+
+  const matter = source.matter
+  if (!matter) return null
+  const targetType = matter.dirtype === DirType.FILE ? 'file' : 'folder'
+  if (prepared.method === 'DELETE') {
+    return {
+      orgId: workspace.id,
+      action: 'delete',
+      targetType,
+      targetId: matter.id,
+      targetName: matter.name,
+    }
+  }
+
+  if (!prepared.destination) return null
+  const destination = await resolveExistingWebDavPath(c.get('deps'), { userId, rawPath: prepared.destination })
+  if (!destination.matter) return null
+  return {
+    orgId: workspace.id,
+    action: prepared.method === 'MOVE' ? 'object_update' : 'object_copy',
+    targetType,
+    targetId: destination.matter.id,
+    targetName: destination.matter.name,
+    metadata: {
+      sourceId: matter.id,
+      sourceName: matter.name,
+      targetParent: destination.matter.parent,
+    },
+  }
+}
+
+function validDestinationPath(c: DavContext): string | null {
+  const header = c.req.header('Destination')
+  if (!header) return null
+  const url = new URL(header, c.req.url)
+  if (url.host !== new URL(c.req.url).host) return null
+  return normalizeDavMountPath(url.pathname)
+}
+
+app.on(
   ['OPTIONS', 'PROPFIND', 'PROPPATCH', 'GET', 'HEAD', 'PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY', 'LOCK', 'UNLOCK'],
   ['/', '/*'],
   async (c) => {
-    const auth = await requireWebDavApiKey(c)
-    if (auth instanceof Response) return auth
-
-    switch (c.req.method.toUpperCase()) {
-      case 'OPTIONS':
-        return new Response(null, {
-          status: 204,
-          headers: {
-            Allow: 'OPTIONS, PROPFIND, PROPPATCH, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK',
-            DAV: '1, 2',
-          },
-        })
-      case 'PROPFIND':
-        return propfind(c, auth)
-      case 'PROPPATCH':
-        return proppatch(c, auth)
-      case 'GET':
-      case 'HEAD':
-        return readFile(c, auth)
-      case 'PUT':
-        return putFile(c, auth)
-      case 'MKCOL':
-        return makeCollection(c, auth)
-      case 'DELETE':
-        return deleteMatter(c, auth)
-      case 'MOVE':
-        return moveMatter(c, auth)
-      case 'COPY':
-        return copyMatterRoute(c, auth)
-      case 'LOCK':
-        return lockMatter(c, auth)
-      case 'UNLOCK':
-        return unlockMatter(c, auth)
-      default:
-        return c.text('Method Not Allowed', 405)
-    }
+    const principal = c.get('principal')
+    if (principal?.kind !== 'api-key' || !principal.userId) throw new Error('webdav_api_key_principal_missing')
+    return dispatchWebDavRequest(c, {
+      userId: principal.userId,
+      keyId: principal.keyId,
+      configId: principal.configId,
+      permissions: principal.permissions,
+    })
   },
 )
+
+async function prepareWebDavPutAudit(c: DavContext, userId: string | null): Promise<TransferAuditTarget | null> {
+  if (!userId) return null
+  let target: WebDavTarget
+  try {
+    target = await resolveWebDavPath(c.get('deps'), { userId, rawPath: davPath(c) })
+  } catch (error) {
+    if (error instanceof WebDavPathError) return null
+    throw error
+  }
+  if (!target.workspace || !target.name) return null
+  return {
+    orgId: target.workspace.id,
+    targetType: 'file',
+    targetId: target.matter?.id,
+    targetName: target.matter?.name ?? target.name,
+    bytes: 0,
+    source: 'webdav_upload',
+    metadata: {
+      matterId: target.matter?.id,
+      storageId: target.matter?.storageId,
+    },
+  }
+}
+
+async function webDavUploadedTarget(c: DavContext, userId: string): Promise<TransferAuditTarget | null> {
+  const target = await resolveExistingWebDavPath(c.get('deps'), { userId, rawPath: davPath(c) })
+  if (!target.workspace || !target.matter || target.matter.dirtype !== DirType.FILE) return null
+  return {
+    orgId: target.workspace.id,
+    targetType: 'file',
+    targetId: target.matter.id,
+    targetName: target.matter.name,
+    bytes: target.matter.size ?? 0,
+    source: 'webdav_upload',
+    metadata: { matterId: target.matter.id, storageId: target.matter.storageId },
+  }
+}
+
+async function webDavDownloadAuditTarget(c: DavContext, userId: string): Promise<TransferAuditTarget | null> {
+  const resolved = await resolveWebDavDownload(c.get('deps'), { userId, rawPath: davPath(c) })
+  if (!resolved.ok) return null
+  return {
+    orgId: resolved.workspace.id,
+    targetType: 'file',
+    targetId: resolved.matter.id,
+    targetName: resolved.matter.name,
+    bytes: requestedWebDavBytes(c, resolved.matter),
+    source: 'webdav_download',
+    metadata: { matterId: resolved.matter.id, storageId: resolved.storage.id },
+  }
+}
+
+function requestedWebDavBytes(c: DavContext, matter: NonNullable<WebDavTarget['matter']>): number {
+  const size = matter.size ?? 0
+  if (!ifRangeMatches(c.req.header('If-Range'), matter)) return size
+  const range = parseRangeRequest(c.req.header('Range'), size)
+  return range.action === 'serve' ? rangeContentBytes(range.ranges) : size
+}
+
+function exactRequestContentLength(c: DavContext): number | null {
+  const raw = c.req.header('Content-Length')
+  if (!raw) return null
+  const value = Number(raw)
+  return Number.isSafeInteger(value) && value >= 0 ? value : null
+}
+
+function isUploadFailureStatus(status: number): boolean {
+  return status === 409 || status === 413 || status === 422 || status >= 500
+}
+
+async function dispatchWebDavRequest(c: DavContext, auth: DavAuth): Promise<Response> {
+  switch (c.req.method.toUpperCase()) {
+    case 'OPTIONS':
+      return new Response(null, {
+        status: 204,
+        headers: {
+          Allow: 'OPTIONS, PROPFIND, PROPPATCH, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK',
+          DAV: '1, 2',
+        },
+      })
+    case 'PROPFIND':
+      return propfind(c, auth)
+    case 'PROPPATCH':
+      return proppatch(c, auth)
+    case 'GET':
+    case 'HEAD':
+      return readFile(c, auth)
+    case 'PUT':
+      return putFile(c, auth)
+    case 'MKCOL':
+      return makeCollection(c, auth)
+    case 'DELETE':
+      return deleteMatter(c, auth)
+    case 'MOVE':
+      return moveMatter(c, auth)
+    case 'COPY':
+      return copyMatterRoute(c, auth)
+    case 'LOCK':
+      return lockMatter(c, auth)
+    case 'UNLOCK':
+      return unlockMatter(c, auth)
+    default:
+      return c.text('Method Not Allowed', 405)
+  }
+}
 
 async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
   try {
@@ -755,7 +979,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       if (reservation.error) return reservation.error
       try {
         const body = await getWebDavObjectBody(c.get('deps'), { storage, object: matter.object })
-        await recordWebDavDownloadIssued(c.get('deps'), {
+        await finishWebDavDownload(c, {
           orgId: workspace.id,
           userId: auth.userId,
           matterId: matter.id,
@@ -788,7 +1012,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       headers.set('Content-Length', String(contentLength))
       headers.delete('Content-Range')
       try {
-        await recordWebDavDownloadIssued(c.get('deps'), {
+        await finishWebDavDownload(c, {
           orgId: workspace.id,
           userId: auth.userId,
           matterId: matter.id,
@@ -828,7 +1052,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     headers.set('Content-Length', String(contentLength))
     headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
     try {
-      await recordWebDavDownloadIssued(c.get('deps'), {
+      await finishWebDavDownload(c, {
         orgId: workspace.id,
         userId: auth.userId,
         matterId: matter.id,
@@ -849,6 +1073,39 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
   } catch (e) {
     return davError(c, e)
   }
+}
+
+async function finishWebDavDownload(
+  c: DavContext,
+  params: {
+    orgId: string
+    userId: string
+    matterId: string
+    matterName: string
+    storageId: string
+    bytes: number
+    trafficEventId: string
+  },
+): Promise<void> {
+  await recordWebDavDownloadIssued(c.get('deps'), params)
+  await recordDownloadIssued(
+    c.get('deps').audit,
+    transferAuditActor(c.get('principal')),
+    'webdav_download',
+    {
+      orgId: params.orgId,
+      targetType: 'file',
+      targetId: params.matterId,
+      targetName: params.matterName,
+      bytes: params.bytes,
+      source: 'webdav_download',
+      metadata: {
+        matterId: params.matterId,
+        storageId: params.storageId,
+      },
+    },
+    params.trafficEventId,
+  )
 }
 
 // Meters a WebDAV download (consume traffic quota → report egress) and renders

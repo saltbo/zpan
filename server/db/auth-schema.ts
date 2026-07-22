@@ -15,6 +15,7 @@ export const user = sqliteTable(
     banExpires: integer('ban_expires', { mode: 'timestamp_ms' }),
     username: text('username').unique(),
     displayUsername: text('display_username'),
+    lastActiveAt: integer('last_active_at', { mode: 'timestamp_ms' }),
     createdAt: integer('created_at', { mode: 'timestamp_ms' })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
@@ -23,7 +24,7 @@ export const user = sqliteTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index('user_created_idx').on(table.createdAt)],
+  (table) => [index('user_created_idx').on(table.createdAt), index('user_lastActiveAt_idx').on(table.lastActiveAt)],
 )
 
 export const session = sqliteTable(

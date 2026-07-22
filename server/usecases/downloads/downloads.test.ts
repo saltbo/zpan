@@ -69,7 +69,7 @@ function makeDeps(downloaders: Partial<DownloaderRepo> = {}) {
       licenseBinding: {},
       licensingCloud: {},
       remoteDownloadUsage: {},
-      activity: {},
+      audit: {},
     } as DownloadsDeps,
     update,
   }

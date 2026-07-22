@@ -244,7 +244,6 @@ export const users = new OpenAPIHono<Env>()
     const body = c.req.valid('json')
     const result = await grantUserEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
-      adminOrgId: c.get('orgId')!,
       targetUserId: c.req.valid('param').userId,
       resourceType: body.resourceType,
       bytes: body.bytes,
@@ -258,7 +257,6 @@ export const users = new OpenAPIHono<Env>()
     const body = c.req.valid('json')
     const result = await updateUserEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
-      adminOrgId: c.get('orgId')!,
       targetUserId: c.req.valid('param').userId,
       entitlementId: c.req.valid('param').eid,
       bytes: body.bytes,
@@ -271,7 +269,6 @@ export const users = new OpenAPIHono<Env>()
   .openapi(revokeUserEntitlementRoute, async (c) => {
     const result = await revokeUserEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
-      adminOrgId: c.get('orgId')!,
       targetUserId: c.req.valid('param').userId,
       entitlementId: c.req.valid('param').eid,
     })

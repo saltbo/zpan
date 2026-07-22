@@ -1,6 +1,6 @@
 // The storages resource usecase. Owns every business decision behind the
 // /api/admin/storages routes — the Community storage-count limit, the
-// egress-credit-billing feature gate, and activity logging — so the http
+// egress-credit-billing feature gate — so the http
 // handlers only validate input, call these functions, and serialize the result.
 // Expected failures come back as a returned AppError the handler throws.
 //
@@ -12,7 +12,6 @@ import { FREE_STORAGE_LIMIT } from '@shared/constants'
 import type { CreateStorageInput, UpdateStorageEgressBillingInput, UpdateStorageInput } from '@shared/schemas'
 import { hasFeature } from '../../domain/licensing'
 import {
-  type ActivityRepo,
   type AppError,
   conflict,
   featureBlocked,
@@ -25,7 +24,6 @@ import { loadBindingState } from './licensing'
 
 export type StorageDeps = {
   storages: StorageRepo
-  activity: ActivityRepo
   licenseBinding: LicenseBindingRepo
 }
 
@@ -68,9 +66,9 @@ export function getStorage(deps: Pick<StorageDeps, 'storages'>, id: string): Pro
 
 export async function createStorage(
   deps: StorageDeps,
-  params: { userId: string; orgId: string; input: CreateStorageInput },
+  params: { input: CreateStorageInput },
 ): Promise<CreateStorageOutcome> {
-  const { userId, orgId, input } = params
+  const { input } = params
   const [total, state] = await Promise.all([
     deps.storages.count(),
     loadBindingState({ licenseBinding: deps.licenseBinding }),
@@ -85,22 +83,14 @@ export async function createStorage(
     return { ok: false, error: featureBlockError({ feature: 'quota_store' }) }
   }
   const storage = await deps.storages.create(input)
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'storage_create',
-    targetType: 'storage',
-    targetId: storage.id,
-    targetName: storage.bucket,
-  })
   return { ok: true, storage }
 }
 
 export async function updateStorage(
   deps: StorageDeps,
-  params: { userId: string; orgId: string; id: string; input: UpdateStorageInput },
+  params: { id: string; input: UpdateStorageInput },
 ): Promise<UpdateStorageOutcome> {
-  const { userId, orgId, id, input } = params
+  const { id, input } = params
   // Feature gate before the existence check — preserves 402-over-404 ordering.
   if (
     enablesEgressCreditBilling(input) &&
@@ -110,22 +100,14 @@ export async function updateStorage(
   }
   const storage = await deps.storages.update(id, input)
   if (!storage) return { ok: false, error: storageNotFound() }
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'storage_update',
-    targetType: 'storage',
-    targetId: storage.id,
-    targetName: storage.bucket,
-  })
   return { ok: true, storage }
 }
 
 export async function updateStorageEgressBilling(
   deps: StorageDeps,
-  params: { userId: string; orgId: string; id: string; input: UpdateStorageEgressBillingInput },
+  params: { id: string; input: UpdateStorageEgressBillingInput },
 ): Promise<UpdateStorageOutcome> {
-  const { userId, orgId, id, input } = params
+  const { id, input } = params
   const existing = await deps.storages.get(id)
   if (!existing) return { ok: false, error: storageNotFound() }
   if (input.enabled && !hasFeature('quota_store', await loadBindingState({ licenseBinding: deps.licenseBinding }))) {
@@ -137,33 +119,15 @@ export async function updateStorageEgressBilling(
     egressCreditPerUnit: input.creditsPerUnit,
   })
   if (!storage) return { ok: false, error: storageNotFound() }
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'storage_update',
-    targetType: 'storage',
-    targetId: storage.id,
-    targetName: storage.bucket,
-  })
   return { ok: true, storage }
 }
 
-export async function deleteStorage(
-  deps: StorageDeps,
-  params: { userId: string; orgId: string; id: string },
-): Promise<DeleteStorageOutcome> {
-  const { userId, orgId, id } = params
+export async function deleteStorage(deps: StorageDeps, params: { id: string }): Promise<DeleteStorageOutcome> {
+  const { id } = params
   const existing = await deps.storages.get(id)
+  if (!existing) return { ok: false, error: storageNotFound() }
   const result = await deps.storages.delete(id)
   if (result === 'not_found') return { ok: false, error: storageNotFound() }
   if (result === 'in_use') return { ok: false, error: conflict('Storage is referenced by existing files') }
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'storage_delete',
-    targetType: 'storage',
-    targetId: id,
-    targetName: existing?.bucket ?? id,
-  })
   return { ok: true }
 }

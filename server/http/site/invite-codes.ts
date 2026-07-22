@@ -110,12 +110,12 @@ export const adminInviteCodes = new OpenAPIHono<Env>()
     const userId = c.get('userId')
     if (!userId) throw unauthorized()
     const { count, expiresInDays } = c.req.valid('json')
-    const result = await generateInviteCodes(c.get('deps'), { userId, orgId: c.get('orgId')!, count, expiresInDays })
+    const result = await generateInviteCodes(c.get('deps'), { userId, count, expiresInDays })
     return c.json({ codes: result.codes.map(toInviteCodeDTO) }, 201)
   })
   .openapi(deleteRoute, async (c) => {
     const id = c.req.valid('param').id
-    const result = await deleteInviteCode(c.get('deps'), { userId: c.get('userId')!, orgId: c.get('orgId')!, id })
+    const result = await deleteInviteCode(c.get('deps'), { id })
     if (!result.ok) throw result.error
     return c.body(null, 204)
   })

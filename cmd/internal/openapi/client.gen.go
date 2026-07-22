@@ -18,33 +18,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for ActivityEventActorType.
-const (
-	ActivityEventActorTypeAnonymous  ActivityEventActorType = "anonymous"
-	ActivityEventActorTypeDownloader ActivityEventActorType = "downloader"
-	ActivityEventActorTypeSystem     ActivityEventActorType = "system"
-	ActivityEventActorTypeUser       ActivityEventActorType = "user"
-)
-
-// Valid indicates whether the value is a known member of the ActivityEventActorType enum.
-func (e ActivityEventActorType) Valid() bool {
-	switch e {
-	case ActivityEventActorTypeAnonymous:
-		return true
-	case ActivityEventActorTypeDownloader:
-		return true
-	case ActivityEventActorTypeSystem:
-		return true
-	case ActivityEventActorTypeUser:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AuditEventActorType.
 const (
 	AuditEventActorTypeAnonymous  AuditEventActorType = "anonymous"
+	AuditEventActorTypeApiKey     AuditEventActorType = "api_key"
 	AuditEventActorTypeDownloader AuditEventActorType = "downloader"
 	AuditEventActorTypeSystem     AuditEventActorType = "system"
 	AuditEventActorTypeUser       AuditEventActorType = "user"
@@ -54,6 +31,8 @@ const (
 func (e AuditEventActorType) Valid() bool {
 	switch e {
 	case AuditEventActorTypeAnonymous:
+		return true
+	case AuditEventActorTypeApiKey:
 		return true
 	case AuditEventActorTypeDownloader:
 		return true
@@ -108,6 +87,21 @@ func (e CaptchaProvider) Valid() bool {
 	case GoogleRecaptcha:
 		return true
 	case Hcaptcha:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DownloadTaskControlAction.
+const (
+	Delete DownloadTaskControlAction = "delete"
+)
+
+// Valid indicates whether the value is a known member of the DownloadTaskControlAction enum.
+func (e DownloadTaskControlAction) Valid() bool {
+	switch e {
+	case Delete:
 		return true
 	default:
 		return false
@@ -876,6 +870,21 @@ func (e CreateDownloadTaskJSONBodySourceType) Valid() bool {
 	}
 }
 
+// Defines values for UpdateDownloadTaskJSONBodyCleanupCompleted.
+const (
+	UpdateDownloadTaskJSONBodyCleanupCompletedTrue UpdateDownloadTaskJSONBodyCleanupCompleted = true
+)
+
+// Valid indicates whether the value is a known member of the UpdateDownloadTaskJSONBodyCleanupCompleted enum.
+func (e UpdateDownloadTaskJSONBodyCleanupCompleted) Valid() bool {
+	switch e {
+	case UpdateDownloadTaskJSONBodyCleanupCompletedTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateDownloadTaskJSONBodyRuntimeEngine.
 const (
 	UpdateDownloadTaskJSONBodyRuntimeEngineAria2       UpdateDownloadTaskJSONBodyRuntimeEngine = "aria2"
@@ -1430,13 +1439,13 @@ func (e CreateTeamInviteLinkJSONBodyRole) Valid() bool {
 
 // Defines values for JoinTeam200JSONResponseBodyOk.
 const (
-	JoinTeam200JSONResponseBodyOkTrue JoinTeam200JSONResponseBodyOk = true
+	True JoinTeam200JSONResponseBodyOk = true
 )
 
 // Valid indicates whether the value is a known member of the JoinTeam200JSONResponseBodyOk enum.
 func (e JoinTeam200JSONResponseBodyOk) Valid() bool {
 	switch e {
-	case JoinTeam200JSONResponseBodyOkTrue:
+	case True:
 		return true
 	default:
 		return false
@@ -1479,35 +1488,12 @@ func (e GrantUserEntitlementJSONBodyResourceType) Valid() bool {
 	}
 }
 
-// ActivityEvent defines model for ActivityEvent.
-type ActivityEvent struct {
-	Action     string                 `json:"action"`
-	ActorRef   *string                `json:"actorRef"`
-	ActorType  ActivityEventActorType `json:"actorType"`
-	CreatedAt  string                 `json:"createdAt"`
-	Id         string                 `json:"id"`
-	Metadata   *string                `json:"metadata"`
-	OrgId      string                 `json:"orgId"`
-	TargetId   *string                `json:"targetId"`
-	TargetName string                 `json:"targetName"`
-	TargetType string                 `json:"targetType"`
-	User       struct {
-		Id    *string `json:"id"`
-		Image *string `json:"image"`
-		Name  string  `json:"name"`
-	} `json:"user"`
-	UserId *string `json:"userId"`
-}
-
-// ActivityEventActorType defines model for ActivityEvent.ActorType.
-type ActivityEventActorType string
-
 // ActivityPage defines model for ActivityPage.
 type ActivityPage struct {
-	Items    []ActivityEvent `json:"items"`
-	Page     int             `json:"page"`
-	PageSize int             `json:"pageSize"`
-	Total    int             `json:"total"`
+	Items    []AuditEvent `json:"items"`
+	Page     int          `json:"page"`
+	PageSize int          `json:"pageSize"`
+	Total    int          `json:"total"`
 }
 
 // AdminUserQuota defines model for AdminUserQuota.
@@ -1548,7 +1534,6 @@ type AuditEvent struct {
 	Id         string              `json:"id"`
 	Metadata   *string             `json:"metadata"`
 	OrgId      string              `json:"orgId"`
-	OrgName    *string             `json:"orgName"`
 	TargetId   *string             `json:"targetId"`
 	TargetName string              `json:"targetName"`
 	TargetType string              `json:"targetType"`
@@ -1690,6 +1675,10 @@ type CreatedShare struct {
 
 // DownloadTask defines model for DownloadTask.
 type DownloadTask struct {
+	Control *struct {
+		Action      DownloadTaskControlAction `json:"action"`
+		RequestedAt string                    `json:"requestedAt"`
+	} `json:"control,omitempty"`
 	CreatedAt string  `json:"createdAt"`
 	CreatedBy *string `json:"createdBy,omitempty"`
 	Id        string  `json:"id"`
@@ -1813,6 +1802,9 @@ type DownloadTask struct {
 		UpdatedAt        string                  `json:"updatedAt"`
 	} `json:"status"`
 }
+
+// DownloadTaskControlAction defines model for DownloadTask.Control.Action.
+type DownloadTaskControlAction string
 
 // DownloadTaskSpecSourceType defines model for DownloadTask.Spec.Source.Type.
 type DownloadTaskSpecSourceType string
@@ -2655,6 +2647,7 @@ type User struct {
 	EmailVerified   *bool      `json:"emailVerified,omitempty"`
 	Id              *string    `json:"id,omitempty"`
 	Image           *string    `json:"image,omitempty"`
+	LastActiveAt    *time.Time `json:"lastActiveAt,omitempty"`
 	Name            string     `json:"name"`
 	Role            *string    `json:"role,omitempty"`
 	UpdatedAt       time.Time  `json:"updatedAt"`
@@ -3531,8 +3524,9 @@ type CreateDownloadTaskJSONBodySourceType string
 
 // UpdateDownloadTaskJSONBody defines parameters for UpdateDownloadTask.
 type UpdateDownloadTaskJSONBody struct {
-	ErrorMessage *string `json:"errorMessage,omitempty"`
-	Progress     *struct {
+	CleanupCompleted *UpdateDownloadTaskJSONBodyCleanupCompleted `json:"cleanupCompleted,omitempty"`
+	ErrorMessage     *string                                     `json:"errorMessage,omitempty"`
+	Progress         *struct {
 		Download *struct {
 			Bytes          int64  `json:"bytes"`
 			BytesPerSecond int64  `json:"bytesPerSecond"`
@@ -3607,6 +3601,9 @@ type UpdateDownloadTaskJSONBody struct {
 	} `json:"runtime,omitempty"`
 	Status *UpdateDownloadTaskJSONBodyStatus `json:"status,omitempty"`
 }
+
+// UpdateDownloadTaskJSONBodyCleanupCompleted defines parameters for UpdateDownloadTask.
+type UpdateDownloadTaskJSONBodyCleanupCompleted bool
 
 // UpdateDownloadTaskJSONBodyRuntimeEngine defines parameters for UpdateDownloadTask.
 type UpdateDownloadTaskJSONBodyRuntimeEngine string

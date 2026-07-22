@@ -85,12 +85,12 @@ export function mapDomainError(error: unknown): DomainErrorMapping | null {
   }
   if (error instanceof ObjectUploadSessionError) {
     if (error.code === 'storage_failure') {
-      return mapping(502, error.message, { reason: 'STORAGE_FAILURE' })
+      return mapping(502, error.message, { reason: error.reason.toUpperCase() })
     }
     if (error.code === 'not_found') {
-      return mapping(404, 'Not found')
+      return mapping(404, 'Not found', { reason: error.reason.toUpperCase() })
     }
-    return mapping(409, 'Invalid upload session state', { reason: 'INVALID_STATE' })
+    return mapping(409, 'Invalid upload session state', { reason: error.reason.toUpperCase() })
   }
   if (error instanceof WebDavPathError) {
     return mapping(error.status as ContentfulStatusCode, error.message)

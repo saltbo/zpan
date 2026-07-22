@@ -49,7 +49,6 @@ describe('download target folders', () => {
       ensureDownloadFolderPath(ensureDeps({ findActiveConflict, select }), {
         orgId: 'org-1',
         folderPath: '',
-        actorId: 'user-1',
       }),
     ).resolves.toBe('')
     expect(findActiveConflict).not.toHaveBeenCalled()
@@ -66,7 +65,6 @@ describe('download target folders', () => {
       ensureDownloadFolderPath(ensureDeps({ findActiveConflict, create }), {
         orgId: 'org-1',
         folderPath: 'Downloads',
-        actorId: 'user-1',
       }),
     ).resolves.toBe('Downloads')
   })
@@ -81,7 +79,6 @@ describe('download target folders', () => {
       ensureDownloadFolderPath(ensureDeps({ findActiveConflict, create }), {
         orgId: 'org-1',
         folderPath: 'Downloads',
-        actorId: 'user-1',
       }),
     ).resolves.toBe('Downloads')
   })
@@ -98,7 +95,6 @@ describe('download target folders', () => {
         {
           orgId: 'org-1',
           folderPath: 'Downloads',
-          actorId: 'user-1',
         },
       ),
     ).rejects.toBe(unexpected)
@@ -114,7 +110,6 @@ describe('download target folders', () => {
         {
           orgId: 'org-1',
           folderPath: 'Downloads',
-          actorId: 'user-1',
         },
       ),
     ).rejects.toBe(conflict)
@@ -126,7 +121,6 @@ describe('download target folders', () => {
       ensureDownloadFolderPath(ensureDeps({ findActiveConflict: async () => file }), {
         orgId: 'org-1',
         folderPath: 'Downloads/Movies',
-        actorId: 'user-1',
       }),
     ).rejects.toMatchObject({
       httpStatus: 409,

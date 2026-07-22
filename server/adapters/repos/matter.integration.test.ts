@@ -10,7 +10,6 @@ import {
   StorageQuotaExceededError,
   withStorageUsageReservation,
 } from '../../usecases/storage-usage.js'
-import { createActivityRepo } from './activity.js'
 import { createMatterRepo } from './matter.js'
 import { createQuotaRepo } from './quota.js'
 import { createStorageUsageRepo } from './storage-usage.js'
@@ -24,7 +23,6 @@ function confirmUpload(db: TestDbForRepo, id: string, orgId: string, opts: Confi
       matter: createMatterRepo(db),
       quota: createQuotaRepo(db),
       storageUsage: createStorageUsageRepo(db),
-      activity: createActivityRepo(db),
     },
     id,
     orgId,
@@ -34,8 +32,8 @@ function confirmUpload(db: TestDbForRepo, id: string, orgId: string, opts: Confi
 function listTrashedRoots(db: TestDbForRepo, orgId: string) {
   return createMatterRepo(db).listTrashedRoots(orgId)
 }
-function updateMatter(db: TestDbForRepo, id: string, orgId: string, input: UpdateMatterInput, userId?: string) {
-  return createMatterRepo(db).update(id, orgId, input, userId)
+function updateMatter(db: TestDbForRepo, id: string, orgId: string, input: UpdateMatterInput) {
+  return createMatterRepo(db).update(id, orgId, input)
 }
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -346,6 +344,43 @@ describe('confirmUpload', () => {
       WHERE org_id = ${orgId} AND storage_id = ${storageId}
     `)
     expect(ledgerRows[0]).toEqual({ bytes: 500, events: 2 })
+    const activityRows = await db.all<{ id: string; bytes: number; matterId: string }>(sql`
+      SELECT id, json_extract(metadata, '$.bytes') AS bytes, json_extract(metadata, '$.matterId') AS matterId
+      FROM audit_events
+      WHERE action = 'upload_confirm'
+    `)
+    expect(activityRows).toEqual([])
+  })
+
+  it('does not couple matter activation and storage ledger to upload audit writes', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const storageId = await insertStorage(db, { id: 'st-conf-atomic', used: 0 })
+    await insertOrgQuota(db, orgId, 10000, 0)
+    const matterId = await insertDraftFile(db, orgId, { id: 'matter-atomic', size: 500, storageId })
+    await db.run(sql`
+      CREATE TRIGGER reject_upload_fact
+      BEFORE INSERT ON audit_events
+      WHEN NEW.action = 'upload_confirm'
+      BEGIN
+        SELECT RAISE(ABORT, 'reject_upload_fact');
+      END
+    `)
+
+    await expect(confirmUpload(db, matterId, orgId)).resolves.toMatchObject({
+      matter: { id: matterId, status: 'active' },
+    })
+
+    const matterRows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = ${matterId}`)
+    expect(matterRows).toEqual([{ status: 'active' }])
+    const ledgerRows = await db.all<{ events: number }>(sql`
+      SELECT COUNT(*) AS events
+      FROM storage_usage_ledger
+      WHERE event_key = ${`matter:${matterId}:activated`}
+    `)
+    expect(ledgerRows).toEqual([{ events: 1 }])
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(quotaRows).toEqual([{ used: 500 }])
   })
 
   it('returns { matter } and does not increment usage when file size is 0', async () => {
@@ -410,6 +445,21 @@ describe('confirmUpload', () => {
 
     const rows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = ${matterId}`)
     expect(rows[0].status).toBe('draft')
+  })
+})
+
+describe('cancelDraft', () => {
+  it('deletes the draft without writing a duplicate cancel fact', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const storageId = await insertStorage(db, { id: 'st-cancel-atomic', used: 0 })
+    const matterId = await insertDraftFile(db, orgId, { id: 'matter-cancel-atomic', size: 500, storageId })
+    await expect(createMatterRepo(db).cancelDraft(matterId, orgId)).resolves.toMatchObject({ id: matterId })
+
+    const matterRows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = ${matterId}`)
+    expect(matterRows).toEqual([])
+    const eventRows = await db.all(sql`SELECT id FROM audit_events WHERE action = 'upload_cancel'`)
+    expect(eventRows).toEqual([])
   })
 })
 

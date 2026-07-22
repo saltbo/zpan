@@ -73,42 +73,6 @@ export class AdminStatsHourlyReader {
     return rows.filter((row) => row.bucketStart.getTime() === latest)
   }
 
-  async topShareActivity(): Promise<Array<{ shareId: string; views: number; downloads: number }>> {
-    if (this.queryFrom >= this.queryTo) return []
-    const rows = await this.db.all<{ shareId: string; views: number; downloads: number }>(sql`
-      SELECT
-        result.dimension_value AS shareId,
-        SUM(CASE WHEN result.metric_key = ${ADMIN_STATS_METRICS.shareView} THEN result.count ELSE 0 END) AS views,
-        SUM(CASE WHEN result.metric_key = ${ADMIN_STATS_METRICS.shareDownloadIssued} THEN result.count ELSE 0 END) AS downloads
-      FROM stats_rollups_hourly result
-      INNER JOIN stats_rollups_hourly marker
-        ON marker.bucket_start = result.bucket_start
-        AND marker.org_id = ''
-        AND marker.metric_key = ${ADMIN_STATS_METRICS.statsRollupRun}
-        AND marker.dimension_key = ''
-        AND marker.dimension_value = ''
-      WHERE result.metric_key IN (${ADMIN_STATS_METRICS.shareView}, ${ADMIN_STATS_METRICS.shareDownloadIssued})
-        AND result.dimension_key = 'share_id'
-        AND result.dimension_value <> ''
-        AND result.bucket_start >= ${this.queryFrom.getTime()}
-        AND result.bucket_start < ${this.queryTo.getTime()}
-        AND CASE WHEN json_valid(result.metadata) = 1 THEN json_extract(result.metadata, '$.version') END = ${ROLLUP_VERSION}
-        AND CASE WHEN json_valid(result.metadata) = 1 THEN json_extract(result.metadata, '$.scope') END IN ('counters', 'full')
-        AND CASE WHEN json_valid(result.metadata) = 1 THEN json_extract(result.metadata, '$.quality') END IN ('exact', 'lower_bound')
-        AND CASE WHEN json_valid(marker.metadata) = 1 THEN json_extract(marker.metadata, '$.version') END = ${ROLLUP_VERSION}
-        AND CASE WHEN json_valid(marker.metadata) = 1 THEN json_extract(marker.metadata, '$.scope') END IN ('counters', 'full')
-        AND CASE WHEN json_valid(marker.metadata) = 1 THEN json_extract(marker.metadata, '$.quality') END IN ('exact', 'lower_bound')
-      GROUP BY result.dimension_value
-      ORDER BY views DESC, downloads DESC, result.dimension_value
-      LIMIT ${DASHBOARD_RANKING_LIMIT}
-    `)
-    return rows.map((row: { shareId: string; views: number; downloads: number }) => ({
-      shareId: row.shareId,
-      views: Number(row.views),
-      downloads: Number(row.downloads),
-    }))
-  }
-
   async topSpaceUsage(
     options: { limit?: number; personalOnly?: boolean } = {},
   ): Promise<Array<{ orgId: string; usedBytes: number; quotaBytes: number }>> {
@@ -129,7 +93,9 @@ export class AdminStatsHourlyReader {
           AND bucket_start < ${this.queryTo.getTime()}
           AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.version') END = ${ROLLUP_VERSION}
           AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') END IN ('snapshots', 'full')
-          AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.quality') END IN ('exact', 'lower_bound')
+          AND CASE WHEN json_valid(metadata) = 1 THEN
+            COALESCE(json_extract(metadata, '$.snapshotQuality'), json_extract(metadata, '$.quality'))
+          END = 'exact'
       )
       SELECT used.org_id AS orgId, used.bytes AS usedBytes, quota.bytes AS quotaBytes
       FROM stats_rollups_hourly used
@@ -141,7 +107,7 @@ export class AdminStatsHourlyReader {
         AND quota.dimension_value = ''
         AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.version') END = ${ROLLUP_VERSION}
         AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.scope') END IN ('snapshots', 'full')
-        AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.quality') END IN ('exact', 'lower_bound')
+        AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.quality') END = 'exact'
       INNER JOIN organization org ON org.id = used.org_id
       WHERE used.bucket_start = (SELECT bucketStart FROM latest)
         AND used.org_id <> ''
@@ -150,7 +116,7 @@ export class AdminStatsHourlyReader {
         AND used.dimension_value = ''
         AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.version') END = ${ROLLUP_VERSION}
         AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.scope') END IN ('snapshots', 'full')
-        AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.quality') END IN ('exact', 'lower_bound')
+        AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.quality') END = 'exact'
         ${personalFilter}
       ORDER BY used.bytes DESC, used.org_id
       LIMIT ${limit}
@@ -221,7 +187,7 @@ export class AdminStatsHourlyReader {
           requiredScope === 'snapshots'
             ? sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.scope') END IN ('snapshots', 'full')`
             : sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.scope') END IN ('counters', 'full')`,
-          sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.quality') END IN ('exact', 'lower_bound')`,
+          sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.quality') END = 'exact'`,
         ),
       )
     return rows
@@ -237,7 +203,7 @@ export class AdminStatsHourlyReader {
         count: row.count,
         bytes: row.bytes,
         uniqueCount: row.uniqueCount,
-        lowerBound: parseAdminStatsRollupMetadata(row.metadata)?.quality === 'lower_bound',
+        lowerBound: false,
       }))
   }
 
@@ -269,7 +235,9 @@ export class AdminStatsHourlyReader {
       )
     return rows.flatMap((row) => {
       const metadata = parseAdminStatsRollupMetadata(row.metadata)
-      return metadata && supportsScope(metadata.scope, requiredScope)
+      return metadata &&
+        supportsScope(metadata.scope, requiredScope) &&
+        qualityForScope(metadata, requiredScope) === 'exact'
         ? [{ bucketStart: row.bucketStart, metadata }]
         : []
     })

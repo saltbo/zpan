@@ -6,6 +6,10 @@ import {
   buildValidationSql,
   splitSqlStatements,
 } from '../../scripts/backfill-admin-stats'
+import {
+  ADMIN_STATS_FACT_COUNTER_METRICS,
+  buildAdminStatsCounterRowsSql,
+} from '../adapters/repos/admin-stats-counter-query'
 
 describe('admin stats backfill', () => {
   it('splits SQL batches without breaking quoted semicolons', () => {
@@ -37,9 +41,10 @@ describe('admin stats backfill', () => {
     const storageOpeningMs = Date.parse('2026-07-09T00:00:00.000Z')
     const currentEventSec = Math.floor(Date.parse('2026-07-10T12:10:00.000Z') / 1000)
     const latestClosedHour = Date.parse('2026-07-10T11:00:00.000Z')
-    const expectedBuckets = (latestClosedHour - Math.floor(historyStartMs / 3_600_000) * 3_600_000) / 3_600_000 + 1
+    const firstExactHour = Math.ceil(historyStartMs / 3_600_000) * 3_600_000
+    const expectedBuckets = (latestClosedHour - firstExactHour) / 3_600_000 + 1
     db.exec(`
-      CREATE TABLE user (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE user (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL DEFAULT 0, last_active_at INTEGER);
       CREATE TABLE account (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, provider_id TEXT NOT NULL, created_at INTEGER NOT NULL);
       CREATE TABLE session (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL);
       CREATE TABLE organization (id TEXT PRIMARY KEY, metadata TEXT, created_at INTEGER NOT NULL);
@@ -50,13 +55,14 @@ describe('admin stats backfill', () => {
       CREATE TABLE shares (
         id TEXT PRIMARY KEY, kind TEXT NOT NULL, matter_id TEXT NOT NULL, org_id TEXT NOT NULL,
         status TEXT NOT NULL, expires_at INTEGER, download_limit INTEGER, views INTEGER NOT NULL, downloads INTEGER NOT NULL,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL, creator_id TEXT
       );
-      CREATE TABLE activity_events (
+      CREATE TABLE audit_events (
         id TEXT PRIMARY KEY, org_id TEXT NOT NULL, user_id TEXT, actor_type TEXT, actor_ref TEXT,
         action TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT, target_name TEXT NOT NULL,
         metadata TEXT, created_at INTEGER NOT NULL
       );
+      CREATE TABLE system_options (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');
       CREATE TABLE cloud_traffic_reports (
         id TEXT PRIMARY KEY, org_id TEXT NOT NULL, period TEXT NOT NULL, source TEXT NOT NULL, source_id TEXT NOT NULL,
         event_id TEXT NOT NULL UNIQUE, bytes INTEGER NOT NULL, storage_id TEXT, unit_bytes INTEGER,
@@ -64,14 +70,20 @@ describe('admin stats backfill', () => {
         next_retry_at INTEGER, issued_at INTEGER,
         created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
       );
+      CREATE TABLE object_upload_sessions (
+        id TEXT PRIMARY KEY, org_id TEXT NOT NULL, storage_id TEXT NOT NULL,
+        status TEXT NOT NULL, updated_at INTEGER NOT NULL
+      );
       CREATE TABLE download_tasks (
         id TEXT PRIMARY KEY, org_id TEXT NOT NULL, category TEXT, source_type TEXT NOT NULL,
         assigned_downloader_id TEXT, status TEXT NOT NULL, billing_charged_bytes INTEGER NOT NULL DEFAULT 0,
-        created_at INTEGER NOT NULL, finished_at INTEGER
+        created_at INTEGER NOT NULL, finished_at INTEGER, attempt INTEGER NOT NULL DEFAULT 1,
+        created_by_user_id TEXT, runtime TEXT, events TEXT NOT NULL DEFAULT '[]',
+        error_code TEXT, error_message TEXT, deleted_at INTEGER
       );
       CREATE TABLE background_jobs (
         id TEXT PRIMARY KEY, org_id TEXT NOT NULL, type TEXT NOT NULL, status TEXT NOT NULL,
-        created_at INTEGER NOT NULL, finished_at INTEGER
+        created_at INTEGER NOT NULL, finished_at INTEGER, user_id TEXT
       );
       CREATE TABLE remote_download_usage_reports (
         id TEXT PRIMARY KEY, org_id TEXT NOT NULL, downloader_id TEXT NOT NULL, status TEXT NOT NULL,
@@ -94,10 +106,13 @@ describe('admin stats backfill', () => {
         UNIQUE(bucket_start, org_id, metric_key, dimension_key, dimension_value)
       );
 
-      INSERT INTO user VALUES ('u0', 0), ('u1', ${historyStartMs}), ('u2', ${historyStartMs + 1000});
+      INSERT INTO user VALUES
+        ('u0', 0, NULL),
+        ('u1', ${firstExactHour + 600_000}, NULL),
+        ('u2', ${firstExactHour + 601_000}, NULL);
       INSERT INTO account VALUES
-        ('a1', 'u1', 'github', ${historyStartMs}),
-        ('a2', 'u2', 'github', ${historyStartMs + 1000});
+        ('a1', 'u1', 'github', ${firstExactHour + 600_000}),
+        ('a2', 'u2', 'github', ${firstExactHour + 601_000});
       INSERT INTO organization VALUES
         ('o1', '{"type":"personal"}', ${historyStartMs}),
         ('o2', '{"type":"personal"}', ${historyStartMs + 1000});
@@ -105,17 +120,27 @@ describe('admin stats backfill', () => {
         ('m1', 'o1', 'u1', ${historyStartMs}),
         ('m2', 'o2', 'u2', ${historyStartMs + 1000});
       INSERT INTO matters VALUES ('f1', 512, 0);
-      INSERT INTO shares VALUES ('s1', 'landing', 'f1', 'o1', 'active', NULL, 10, 0, 1, ${eventSec});
-      INSERT INTO activity_events VALUES
-        ('upload-1', 'o1', 'u1', NULL, NULL, 'upload_confirm', 'file', 'f1', 'file.bin', NULL, ${eventSec}),
+      INSERT INTO shares VALUES ('s1', 'landing', 'f1', 'o1', 'active', NULL, 10, 0, 1, ${eventSec}, 'u1');
+      INSERT INTO audit_events VALUES
+        ('audit:statistics_source_initialized:v3-authoritative-sources', '', NULL, 'system', 'statistics-integrity', 'statistics_source_initialized', 'statistics', 'v3-authoritative-sources', 'statistics source', '{"schemaVersion":3}', ${Math.floor(historyStartMs / 1000)}),
+        ('upload-1', 'o1', 'u1', NULL, NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
+          '{"bytes":512,"source":"upload","status":"success"}', ${eventSec}),
+        ('legacy-incomplete-upload', 'o1', 'u1', NULL, NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
+          NULL, ${Math.floor(historyStartMs / 1000) - 60}),
+        ('legacy-user-access', 'o1', 'u1', 'user', NULL, 'user_access', 'user', 'u1', 'u1',
+          '{"bucketStart":${eventHourMs}}', ${eventSec}),
         ('open-upload', 'o1', 'u1', 'user', NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
           '{"bytes":512,"source":"upload","status":"success"}', ${currentEventSec}),
-        ('share-1', 'o1', NULL, NULL, NULL, 'share_download', 'share', 's1', 'file.bin', '{"anonymous":true}', ${eventSec}),
+        ('share-1', 'o1', NULL, NULL, NULL, 'share_download', 'share', 's1', 'file.bin',
+          '{"bytes":512,"shareId":"s1","source":"direct_share","trafficEventId":"traffic-1","anonymous":true}', ${eventSec}),
         ('image-1', 'o1', NULL, NULL, NULL, 'image_hosting_download', 'image', 'img1', 'image.png', NULL, ${eventSec}),
-        ('task-failed', 'o1', 'u1', 'user', NULL, 'download_task_failed', 'remote_download', 't1', 'task', NULL, ${eventSec + 1}),
-        ('task-completed', 'o1', 'u1', 'user', NULL, 'download_task_completed', 'remote_download', 't1', 'task', NULL, ${eventSec + 2}),
         ('blocked-download', 'o1', 'u1', 'user', NULL, 'download_failed', 'file', 'f1', 'file.bin',
-          '{"bytes":512,"source":"object_download","reason":"quota_exceeded","trafficEventId":"traffic-3"}', ${eventSec});
+          '{"bytes":512,"source":"object_download","reason":"quota_exceeded","trafficEventId":"traffic-3"}', ${eventSec}),
+        ('legacy-downloader', 'o1', 'downloader:d1', 'user', NULL, 'create', 'file', 'f1', 'file.bin', NULL, ${eventSec}),
+        ('legacy-api-key', 'o1', 'api-key:k1', 'user', NULL, 'download_task_created', 'remote_download', 't1', 'task', NULL, ${eventSec}),
+        ('legacy-task-completed', 'o1', NULL, 'system', 'legacy-download-task-worker', 'download_task_completed', 'remote_download', 't1', 'task',
+          '{"category":"video","outcome":"completed","bytes":512}', ${eventSec}),
+        ('legacy-cloud-customer', 'o1', 'cloud-customer-1', 'user', NULL, 'quota_order_increase', 'quota', 'o1', 'o1', NULL, ${eventSec});
       INSERT INTO cloud_traffic_reports (
         id, org_id, period, source, source_id, event_id, bytes, storage_id, unit_bytes, credits_per_unit,
         status, error, attempt_count, next_retry_at, issued_at, created_at, updated_at
@@ -123,7 +148,7 @@ describe('admin stats backfill', () => {
         ('r1', 'o1', '2026-07', 'direct_share', 's1', 'traffic-1', 512, NULL, NULL, NULL, 'reported', NULL, 0, NULL, NULL, ${eventMs}, ${eventMs}),
         ('r2', 'o1', '2026-07', 'image_hosting', 'img1', 'traffic-2', 128, NULL, NULL, NULL, 'reported', NULL, 0, NULL, NULL, ${eventMs}, ${eventMs}),
         ('r3', 'o1', '2026-07', 'object_download', 'f1', 'traffic-3', 512, NULL, NULL, NULL, 'blocked', 'quota_exceeded', 0, NULL, NULL, ${eventMs}, ${eventMs});
-      INSERT INTO download_tasks VALUES
+      INSERT INTO download_tasks (id, org_id, category, source_type, assigned_downloader_id, status, billing_charged_bytes, created_at, finished_at) VALUES
         ('t1', 'o1', 'video', 'url', 'd1', 'completed', 512, ${eventMs}, ${eventMs}),
         ('t2', 'o1', NULL, 'url', NULL, 'canceled', 0, ${eventMs}, ${eventMs});
       INSERT INTO org_quotas VALUES ('q1', 512);
@@ -169,6 +194,28 @@ describe('admin stats backfill', () => {
     )()
     const firstSummary = readValidationSummary()
     const firstRows = db.prepare('SELECT * FROM stats_rollups_hourly ORDER BY id').all()
+    const metricList = ADMIN_STATS_FACT_COUNTER_METRICS.map((metric) => `'${metric}'`).join(', ')
+    const calculatedFactRows = db
+      .prepare(buildAdminStatsCounterRowsSql({ fromMs: firstExactHour, toMs: currentHourMs }))
+      .all()
+    const backfilledFactRows = db
+      .prepare(
+        `SELECT
+          bucket_start AS bucketStart,
+          org_id AS orgId,
+          metric_key AS metricKey,
+          dimension_key AS dimensionKey,
+          dimension_value AS dimensionValue,
+          count,
+          bytes,
+          unique_count AS uniqueCount
+        FROM stats_rollups_hourly
+        WHERE metric_key IN (${metricList})
+        ORDER BY bucket_start, org_id, metric_key, dimension_key, dimension_value`,
+      )
+      .all()
+
+    expect(backfilledFactRows).toEqual(calculatedFactRows)
 
     db.transaction(() =>
       statements.forEach((statement) => {
@@ -180,9 +227,9 @@ describe('admin stats backfill', () => {
     expect(firstRows.length).toBeGreaterThan(0)
     expect(secondRows).toEqual(firstRows)
     expect(firstSummary).toMatchObject({
-      orphanUserEvents: 0,
       missingUploadBytes: 0,
       missingDownloadBytes: 0,
+      invalidAuditEvents: 0,
       trafficEvents: 3,
       hourlyRollups: expectedBuckets,
       rawActiveShares: 1,
@@ -203,8 +250,8 @@ describe('admin stats backfill', () => {
       rollupFailedDownloads: 1,
       rawShareDownloads: 1,
       rollupShareDownloads: 1,
-      rawFinishedDownloadTasks: 3,
-      rollupFinishedDownloadTasks: 3,
+      rawFinishedDownloadTasks: 2,
+      rollupFinishedDownloadTasks: 2,
       rawMissingByteEvents: 0,
       rollupMissingByteEvents: 0,
       rawStorageWrittenBytes: 600,
@@ -212,15 +259,37 @@ describe('admin stats backfill', () => {
       rawStorageReleasedBytes: 100,
       rollupStorageReleasedBytes: 100,
     })
-    expect(
-      db.prepare("SELECT json_extract(metadata, '$.bytes') AS bytes FROM activity_events WHERE id = 'upload-1'").get(),
-    ).toEqual({ bytes: 512 })
-    expect(db.prepare("SELECT COUNT(*) AS value FROM activity_events WHERE target_id = 'img1'").get()).toEqual({
+    expect(db.prepare("SELECT metadata FROM audit_events WHERE id = 'legacy-incomplete-upload'").get()).toEqual({
+      metadata: null,
+    })
+    expect(db.prepare("SELECT issued_at AS issuedAt FROM cloud_traffic_reports WHERE id = 'r1'").get()).toEqual({
+      issuedAt: eventMs,
+    })
+    expect(db.prepare("SELECT issued_at AS issuedAt FROM cloud_traffic_reports WHERE id = 'r2'").get()).toEqual({
+      issuedAt: null,
+    })
+    expect(db.prepare("SELECT COUNT(*) AS value FROM audit_events WHERE target_id = 'img1'").get()).toEqual({
       value: 1,
     })
-    expect(db.prepare("SELECT COUNT(*) AS value FROM activity_events WHERE id = 'backfill_traffic-3'").get()).toEqual({
+    expect(db.prepare("SELECT COUNT(*) AS value FROM audit_events WHERE id = 'backfill_traffic-3'").get()).toEqual({
       value: 0,
     })
+    expect(db.prepare("SELECT last_active_at AS lastActiveAt FROM user WHERE id = 'u1'").get()).toEqual({
+      lastActiveAt: eventSec * 1000,
+    })
+    expect(db.prepare("SELECT COUNT(*) AS value FROM audit_events WHERE action = 'user_access'").get()).toEqual({
+      value: 0,
+    })
+    expect(
+      db.prepare("SELECT COUNT(*) AS value FROM audit_events WHERE action = 'download_task_completed'").get(),
+    ).toEqual({ value: 0 })
+    expect(
+      db
+        .prepare(
+          "SELECT json_extract(task_event.value, '$.to') AS status FROM download_tasks task JOIN json_each(task.events) task_event WHERE task.id = 't1'",
+        )
+        .get(),
+    ).toEqual({ status: 'completed' })
     expect(
       db
         .prepare("SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE json_extract(metadata, '$.scope') = 'full'")
@@ -232,7 +301,7 @@ describe('admin stats backfill', () => {
           "SELECT json_extract(metadata, '$.counterQuality') AS counterQuality, json_extract(metadata, '$.snapshotQuality') AS snapshotQuality, json_extract(metadata, '$.snapshotObservedAt') AS snapshotObservedAt FROM stats_rollups_hourly WHERE id = 'snapshot-marker'",
         )
         .get(),
-    ).toEqual({ counterQuality: 'lower_bound', snapshotQuality: 'exact', snapshotObservedAt })
+    ).toEqual({ counterQuality: 'exact', snapshotQuality: 'exact', snapshotObservedAt })
     expect(db.prepare('SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE bucket_start = 0').get()).toEqual({
       value: 0,
     })
@@ -254,14 +323,10 @@ describe('admin stats backfill', () => {
     expect(
       db
         .prepare(
-          "SELECT json_extract(metadata, '$.outcome') AS outcome, json_extract(metadata, '$.bytes') AS bytes, COUNT(*) AS value FROM activity_events WHERE action = 'stats_remote_download_finished' GROUP BY outcome, bytes ORDER BY outcome",
+          "SELECT COUNT(*) AS value FROM audit_events WHERE actor_ref IN ('stats-backfill', 'statistics-backfill')",
         )
-        .all(),
-    ).toEqual([
-      { outcome: 'canceled', bytes: 0, value: 1 },
-      { outcome: 'completed', bytes: 512, value: 1 },
-      { outcome: 'failed', bytes: 0, value: 1 },
-    ])
+        .get(),
+    ).toEqual({ value: 0 })
 
     db.exec(`
       INSERT INTO stats_rollups_hourly VALUES
@@ -314,6 +379,7 @@ describe('admin stats backfill', () => {
     db.prepare("DELETE FROM stats_rollups_hourly WHERE id = 'current-snapshot-marker'").run()
     const missingMarkerSummary = readValidationSummary()
     expect(missingMarkerSummary.orphanRollupBuckets).toBe(1)
+
     db.close()
   })
 })

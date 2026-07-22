@@ -1,5 +1,4 @@
 import type { CreateShareInput } from '@shared/schemas/share'
-import type { RecordActivityInput } from './activity'
 import type { Matter } from './matter'
 
 // ─── DTOs ──────────────────────────────────────────────────────────────────
@@ -67,12 +66,12 @@ export class CreateShareError extends Error {
 export interface ShareRepo {
   create(input: CreateShareInput): Promise<ShareRecord>
   resolveByToken(token: string): Promise<ShareResolution>
-  recordView(shareId: string, activity: RecordActivityInput): Promise<void>
+  incrementViews(shareId: string): Promise<void>
   hasDownloadsAvailable(shareId: string): Promise<boolean>
   incrementDownloadsAtomic(shareId: string): Promise<{ ok: boolean; downloads: number }>
   decrementDownloads(shareId: string): Promise<void>
   listRecipientUserIds(shareId: string): Promise<string[]>
-  cascadeDeleteByMatter(matterId: string): Promise<void>
+  revokeByMatter(matterId: string): Promise<void>
   revokeByToken(token: string, creatorId: string): Promise<boolean>
   listForApi(
     creatorId: string,

@@ -10,7 +10,6 @@ import { z } from 'zod'
 import { getTrustedPublicKeys } from '../../domain/license-keys'
 import { effectiveFeatures, hasFeature } from '../../domain/licensing'
 import {
-  type ActivityRepo,
   AppError,
   type CloudInstanceInfo,
   CloudInvalidResponseError,
@@ -419,15 +418,12 @@ export type PollPairingDeps = {
   instance: InstanceRepo
   licensingCloud: LicensingCloudGateway
   licenseBinding: LicenseBindingRepo
-  activity: ActivityRepo
 }
 
 export interface PollPairingParams {
   baseUrl: string
   code: string
   currentHost: string
-  userId: string
-  orgId: string
 }
 
 export type PollPairingOutcome =
@@ -449,8 +445,8 @@ function invalidCertificate(
 }
 
 // Polls a pairing code. On approval it verifies the returned certificate, and on
-// success persists the binding, best-effort confirms with the cloud, and records
-// the activity. If the certificate can't be accepted (untrusted key, claim
+// success persists the binding and best-effort confirms with the cloud. If the
+// certificate can't be accepted (untrusted key, claim
 // mismatch, missing/incomplete fields) it best-effort rolls back the orphaned
 // cloud binding and reports the rejection — ZPan stores nothing.
 export async function pollPairing(deps: PollPairingDeps, params: PollPairingParams): Promise<PollPairingOutcome> {
@@ -499,15 +495,6 @@ export async function pollPairing(deps: PollPairingDeps, params: PollPairingPara
     // ignore — binding works regardless; cloud page falls back to its timeout state
   }
 
-  await deps.activity.record({
-    orgId: params.orgId,
-    userId: params.userId,
-    action: 'license_pair',
-    targetType: 'license',
-    targetName: result.account.email ?? result.account.id,
-    metadata: { edition: assertion.edition, cloudAccountId: result.account.id },
-  })
-
   return { ok: true, status: 'approved', edition: assertion.edition, cloudStoreId: result.binding.storeId }
 }
 
@@ -515,19 +502,16 @@ export type TriggerRefreshDeps = {
   instance: InstanceRepo
   licensingCloud: LicensingCloudGateway
   licenseBinding: LicenseBindingRepo
-  activity: ActivityRepo
 }
 
 export interface TriggerRefreshParams {
   baseUrl: string
   instanceUrl: string
   runtime: RuntimeInfo
-  userId: string
-  orgId: string
 }
 
-// Manual (admin-triggered) refresh: runs the cloud refresh cycle, records the
-// activity, and returns the resulting last-refresh timestamp. performRefresh
+// Manual (admin-triggered) refresh: runs the cloud refresh cycle and returns the
+// resulting last-refresh timestamp. performRefresh
 // owns the network/cert handling and never throws for the unbound case, so this
 // always resolves.
 export async function triggerRefresh(
@@ -539,32 +523,21 @@ export async function triggerRefresh(
 
   const state = await deps.licenseBinding.loadLicenseState()
 
-  await deps.activity.record({
-    orgId: params.orgId,
-    userId: params.userId,
-    action: 'license_refresh',
-    targetType: 'license',
-    targetName: 'license binding',
-  })
-
   return { lastRefreshAt: state.lastRefreshAt }
 }
 
 export type UnbindLicenseDeps = {
   licensingCloud: LicensingCloudGateway
   licenseBinding: LicenseBindingRepo
-  activity: ActivityRepo
 }
 
 export interface UnbindLicenseParams {
   baseUrl: string
-  userId: string
-  orgId: string
 }
 
 // Disconnects the license: best-effort releases the cloud binding (capturing any
-// failure for diagnostics), then always clears the local binding and records the
-// activity. Clearing locally regardless keeps ZPan unbound even if the cloud
+// failure for diagnostics), then always clears the local binding. Clearing
+// locally regardless keeps ZPan unbound even if the cloud
 // call fails.
 export async function unbindLicense(
   deps: UnbindLicenseDeps,
@@ -584,15 +557,6 @@ export async function unbindLicense(
   // The local binding is always cleared — the resource is gone regardless of
   // whether the cloud could be notified.
   await deps.licenseBinding.clearLicenseBinding()
-
-  await deps.activity.record({
-    orgId: params.orgId,
-    userId: params.userId,
-    action: 'license_disconnect',
-    targetType: 'license',
-    targetName: 'license binding',
-    metadata: cloudUnbindError ? { cloudUnbindError } : undefined,
-  })
 
   // A best-effort cloud unbind that failed is still a partial failure: surface it
   // as a 502 (local binding gone, cloud left dangling) rather than swallowing it.

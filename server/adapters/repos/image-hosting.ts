@@ -1,7 +1,7 @@
 import { and, asc, eq, gt, isNotNull, isNull, like, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { imageHostingConfigs, imageHostings } from '../../db/schema'
-import { executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
+import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { mimeToExt } from '../../lib/mime-utils'
 import type { Database } from '../../platform/interface'
 import type {
@@ -241,11 +241,8 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
           ),
         )
         .returning({ id: imageHostings.id })
-      const results = await executeWriteTransactionWithResults(
-        db,
-        [activateQuery, imageActivationLedgerQuery(db, orgId, id, now)],
-        [0],
-      )
+      const writes: AtomicQuery[] = [activateQuery, imageActivationLedgerQuery(db, orgId, id, now)]
+      const results = await executeWriteTransactionWithResults(db, writes, [0])
       const updated = results[0] as { id: string }[]
       return updated.length > 0
     },

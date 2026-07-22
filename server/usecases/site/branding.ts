@@ -5,11 +5,10 @@ import {
   type BrandingThemeMode,
   isBrandingThemePresetId,
 } from '@shared/types'
-import type { ActivityRepo, SystemOptionsRepo } from '../ports'
+import type { SystemOptionsRepo } from '../ports'
 
 export type BrandingDeps = {
   systemOptions: SystemOptionsRepo
-  activity: ActivityRepo
 }
 
 const LOGO_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'] as const
@@ -53,8 +52,6 @@ export type BrandingUploadResult = { ok: true; url: string } | { ok: false; stat
 // receives the extracted Files and primitive values and owns every write +
 // the audit decision.
 export type BrandingUpdateInput = {
-  userId: string
-  orgId: string
   logoFile: File | null
   faviconFile: File | null
   wordmarkText: string | null
@@ -66,7 +63,7 @@ export type BrandingUpdateInput = {
 // response (400 invalid type, 413 too large). On success the freshly-read config
 // is returned for serialization.
 export type BrandingUpdateOutcome =
-  | { ok: true; config: BrandingConfig }
+  | { ok: true; config: BrandingConfig; changedFields: string[] }
   | { ok: false; status: 400 | 413; error: string }
 
 export async function readBranding(deps: Pick<BrandingDeps, 'systemOptions'>): Promise<BrandingConfig> {
@@ -99,7 +96,7 @@ export async function applyBrandingUpdate(
   deps: BrandingDeps,
   input: BrandingUpdateInput,
 ): Promise<BrandingUpdateOutcome> {
-  const { userId, orgId, logoFile, faviconFile, wordmarkText, hidePoweredBy, theme } = input
+  const { logoFile, faviconFile, wordmarkText, hidePoweredBy, theme } = input
   const changedFields: string[] = []
 
   if (logoFile) {
@@ -129,42 +126,20 @@ export async function applyBrandingUpdate(
     changedFields.push(field)
   }
 
-  if (changedFields.length > 0) {
-    await deps.activity.record({
-      orgId,
-      userId,
-      action: 'branding_update',
-      targetType: 'branding',
-      targetName: 'branding',
-      metadata: { fields: changedFields },
-    })
-  }
-
-  return { ok: true, config: await readBranding(deps) }
+  return { ok: true, config: await readBranding(deps), changedFields }
 }
 
 // Resets one branding field and audits it. A `theme*` field clears the entire
 // theme (mode + preset + every custom color) — resetting any single theme knob
 // returns the workspace to the unconfigured default. `field` is already
 // validated against the allow-list by the http layer.
-export async function resetBranding(
-  deps: BrandingDeps,
-  params: { userId: string; orgId: string; field: BrandingField },
-): Promise<void> {
-  const { userId, orgId, field } = params
+export async function resetBranding(deps: BrandingDeps, params: { field: BrandingField }): Promise<void> {
+  const { field } = params
   if (field.startsWith('theme')) {
     await resetBrandingTheme(deps)
   } else {
     await resetBrandingField(deps, field as keyof typeof BRANDING_KEYS)
   }
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'branding_reset',
-    targetType: 'branding',
-    targetName: field,
-    metadata: { field },
-  })
 }
 
 // Encodes the uploaded file as a `data:` URI and stores it in the branding

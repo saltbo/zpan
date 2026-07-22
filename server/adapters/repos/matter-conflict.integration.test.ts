@@ -17,7 +17,6 @@ import type {
   UpdateMatterInput,
 } from '../../usecases/ports'
 import { NameConflictError } from '../../usecases/ports'
-import { createActivityRepo } from './activity.js'
 import { createMatterRepo } from './matter.js'
 import { createQuotaRepo } from './quota.js'
 import { createStorageUsageRepo } from './storage-usage.js'
@@ -30,17 +29,17 @@ type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 function createMatter(db: TestDb, input: CreateMatterInput): Promise<Matter> {
   return createMatterRepo(db).create(input)
 }
-function updateMatter(db: TestDb, id: string, orgId: string, input: UpdateMatterInput, userId?: string) {
-  return createMatterRepo(db).update(id, orgId, input, userId)
+function updateMatter(db: TestDb, id: string, orgId: string, input: UpdateMatterInput) {
+  return createMatterRepo(db).update(id, orgId, input)
 }
 function copyMatter(db: TestDb, source: Matter, targetParent: string, newObject: string, opts?: CopyMatterOptions) {
   return createMatterRepo(db).copy(source, targetParent, newObject, opts)
 }
-function restoreMatter(db: TestDb, orgId: string, id: string, userId?: string, onConflict?: ConflictStrategy) {
-  return createMatterRepo(db).restore(orgId, id, userId, onConflict)
+function restoreMatter(db: TestDb, orgId: string, id: string, onConflict?: ConflictStrategy) {
+  return createMatterRepo(db).restore(orgId, id, onConflict)
 }
-function cancelDraftMatter(db: TestDb, id: string, orgId: string, userId?: string) {
-  return createMatterRepo(db).cancelDraft(id, orgId, userId)
+function cancelDraftMatter(db: TestDb, id: string, orgId: string) {
+  return createMatterRepo(db).cancelDraft(id, orgId)
 }
 function confirmUpload(db: TestDb, id: string, orgId: string, opts: ConfirmUploadOptions = {}) {
   return confirmUploadUsecase(
@@ -48,7 +47,6 @@ function confirmUpload(db: TestDb, id: string, orgId: string, opts: ConfirmUploa
       matter: createMatterRepo(db),
       quota: createQuotaRepo(db),
       storageUsage: createStorageUsageRepo(db),
-      activity: createActivityRepo(db),
     },
     id,
     orgId,
@@ -477,7 +475,7 @@ describe('restoreMatter — name conflict', () => {
     const trashedId = await makeFile(db, orgId, 'note.txt', { trashedAt: Date.now() })
     await makeFile(db, orgId, 'note.txt') // active sibling
 
-    const result = await restoreMatter(db, orgId, trashedId, undefined, 'rename')
+    const result = await restoreMatter(db, orgId, trashedId, 'rename')
     expect(result?.name).toBe('note (1).txt')
     expect(result?.status).toBe(ObjectStatus.ACTIVE)
   })
@@ -610,7 +608,7 @@ describe('restoreMatter — rename-before-activate ordering', () => {
     // Active folder also named "A" — restore will rename the trashed one to "A (1)"
     await makeFolder(db, orgId, 'A')
 
-    const result = await restoreMatter(db, orgId, folderId, undefined, 'rename')
+    const result = await restoreMatter(db, orgId, folderId, 'rename')
 
     expect(result?.name).toBe('A (1)')
     expect(result?.status).toBe(ObjectStatus.ACTIVE)

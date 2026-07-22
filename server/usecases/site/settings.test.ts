@@ -1,7 +1,7 @@
 import { DEFAULT_ORG_QUOTA, DEFAULT_ORG_TRAFFIC_QUOTA, SignupMode } from '@shared/constants'
 import type { BindingState } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ActivityRepo, LicenseBindingRepo, SystemOptionsRepo } from '../ports'
+import type { LicenseBindingRepo, SystemOptionsRepo } from '../ports'
 import { AppError } from '../ports'
 import { loadBindingState, resolveEffectiveSignupMode } from './licensing'
 import {
@@ -18,8 +18,6 @@ vi.mock('./licensing', () => ({ loadBindingState: vi.fn(), resolveEffectiveSignu
 
 const COMMUNITY: BindingState = { bound: false }
 const PRO: BindingState = { bound: true, active: true, edition: 'pro' }
-const actor = { userId: 'user-1', orgId: 'org-1' }
-
 function makeDeps(entries: Array<[string, string]> = []) {
   const values = new Map(entries)
   const set = vi.fn(async (key: string, value: string) => {
@@ -28,7 +26,6 @@ function makeDeps(entries: Array<[string, string]> = []) {
   const setMany = vi.fn(async (rows: Array<{ key: string; value: string }>) => {
     for (const row of rows) values.set(row.key, row.value)
   })
-  const record = vi.fn(async () => {})
   const systemOptions: SystemOptionsRepo = {
     get: async (key) => (values.has(key) ? { key, value: values.get(key)! } : null),
     getValue: async (key) => values.get(key) ?? null,
@@ -44,9 +41,8 @@ function makeDeps(entries: Array<[string, string]> = []) {
   const deps: SiteSettingsDeps = {
     systemOptions,
     licenseBinding: {} as LicenseBindingRepo,
-    activity: { record } as unknown as ActivityRepo,
   }
-  return { deps, values, set, setMany, record }
+  return { deps, values, set, setMany }
 }
 
 beforeEach(() => {
@@ -88,8 +84,8 @@ describe('site settings usecase', () => {
   })
 
   it('updates Public URL without requiring white-label and normalizes the trailing slash', async () => {
-    const { deps, setMany, record } = makeDeps()
-    const result = await updateSiteIdentity(deps, actor, {
+    const { deps, setMany } = makeDeps()
+    const result = await updateSiteIdentity(deps, {
       name: 'ZPan',
       description: '',
       publicUrl: 'https://files.example.com/',
@@ -100,7 +96,6 @@ describe('site settings usecase', () => {
     expect(setMany).toHaveBeenCalledWith(
       expect.arrayContaining([{ key: 'site_public_origin', value: 'https://files.example.com' }]),
     )
-    expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'site_identity_update' }))
     expect(setMany).toHaveBeenCalledWith(
       expect.arrayContaining([
         { key: 'webdav_verified_origin', value: '' },
@@ -114,19 +109,19 @@ describe('site settings usecase', () => {
     const { deps, setMany } = makeDeps()
 
     await expect(
-      updateSiteIdentity(deps, actor, { name: 'Custom', description: '', publicUrl: 'https://files.example.com' }),
+      updateSiteIdentity(deps, { name: 'Custom', description: '', publicUrl: 'https://files.example.com' }),
     ).rejects.toMatchObject({ httpStatus: 402, meta: { reason: 'FEATURE_NOT_AVAILABLE' } })
     expect(setMany).not.toHaveBeenCalled()
 
     vi.mocked(loadBindingState).mockResolvedValue(PRO)
     await expect(
-      updateSiteIdentity(deps, actor, { name: 'Custom', description: '', publicUrl: 'https://files.example.com' }),
+      updateSiteIdentity(deps, { name: 'Custom', description: '', publicUrl: 'https://files.example.com' }),
     ).resolves.toMatchObject({ name: 'Custom' })
   })
 
   it('preserves the configured signup mode while returning the effective mode', async () => {
     const { deps, set } = makeDeps()
-    const result = await updateSiteRegistration(deps, actor, { mode: SignupMode.CLOSED })
+    const result = await updateSiteRegistration(deps, { mode: SignupMode.CLOSED })
 
     expect(set).toHaveBeenCalledWith('auth_signup_mode', SignupMode.CLOSED)
     expect(result).toEqual({ configuredMode: SignupMode.CLOSED, effectiveMode: SignupMode.CLOSED })
@@ -134,16 +129,16 @@ describe('site settings usecase', () => {
 
   it('gates open registration by entitlement', async () => {
     const { deps, set } = makeDeps()
-    await expect(updateSiteRegistration(deps, actor, { mode: SignupMode.OPEN })).rejects.toBeInstanceOf(AppError)
+    await expect(updateSiteRegistration(deps, { mode: SignupMode.OPEN })).rejects.toBeInstanceOf(AppError)
     expect(set).not.toHaveBeenCalled()
 
     vi.mocked(loadBindingState).mockResolvedValue(PRO)
-    await expect(updateSiteRegistration(deps, actor, { mode: SignupMode.OPEN })).resolves.toBeDefined()
+    await expect(updateSiteRegistration(deps, { mode: SignupMode.OPEN })).resolves.toBeDefined()
   })
 
   it('preserves an existing captcha secret when omitted and exposes only its configured state', async () => {
     const { deps, values, setMany } = makeDeps([['captcha_secret_key', 'existing-secret']])
-    const result = await updateSiteCaptcha(deps, actor, {
+    const result = await updateSiteCaptcha(deps, {
       enabled: true,
       provider: 'hcaptcha',
       siteKey: 'site-key',
@@ -165,7 +160,7 @@ describe('site settings usecase', () => {
   it('rejects enabling captcha without a complete configuration', async () => {
     const { deps, setMany } = makeDeps()
     await expect(
-      updateSiteCaptcha(deps, actor, {
+      updateSiteCaptcha(deps, {
         enabled: true,
         provider: 'hcaptcha',
         siteKey: '',
@@ -180,7 +175,7 @@ describe('site settings usecase', () => {
     const { deps, setMany } = makeDeps()
     const input = { defaultOrgBytes: 1024, defaultTeamBytes: 2048, defaultMonthlyTrafficBytes: 4096 }
 
-    await expect(updateSiteQuotas(deps, actor, input)).resolves.toEqual(input)
+    await expect(updateSiteQuotas(deps, input)).resolves.toEqual(input)
     expect(setMany).toHaveBeenCalledWith([
       { key: 'default_org_quota', value: '1024' },
       { key: 'default_team_quota', value: '2048' },
@@ -189,7 +184,7 @@ describe('site settings usecase', () => {
   })
 
   it('verifies and records the derived WebDAV origin', async () => {
-    const { deps, values, record } = makeDeps([['site_public_origin', 'https://files.example.com']])
+    const { deps, values } = makeDeps([['site_public_origin', 'https://files.example.com']])
     const fetcher = vi.fn(
       async () =>
         new Response('Unauthorized', {
@@ -200,7 +195,6 @@ describe('site settings usecase', () => {
 
     const result = await verifySiteWebDav(
       deps,
-      actor,
       'https://files.example.com/api/site/settings/webdav/verification',
       fetcher,
     )
@@ -216,7 +210,6 @@ describe('site settings usecase', () => {
     })
     expect(result.lastVerifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
     expect(values.get('webdav_verified_origin')).toBe('https://dav.files.example.com')
-    expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'site_webdav_verify' }))
   })
 
   it('stores a failed verification and keeps the path URL available', async () => {
@@ -225,7 +218,6 @@ describe('site settings usecase', () => {
 
     const result = await verifySiteWebDav(
       deps,
-      actor,
       'https://files.example.com/api/site/settings/webdav/verification',
       fetcher,
     )

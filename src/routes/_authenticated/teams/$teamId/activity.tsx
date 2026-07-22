@@ -1,4 +1,4 @@
-import type { ActivityEvent } from '@shared/types'
+import type { AuditEvent } from '@shared/types'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -37,7 +37,7 @@ function userInitials(name: string): string {
     .slice(0, 2)
 }
 
-function ActivityItem({ event }: { event: ActivityEvent }) {
+function ActivityItem({ event }: { event: AuditEvent }) {
   const { t } = useTranslation()
 
   const actionLabel = t(`activity.action.${event.action}`, { defaultValue: event.action })
@@ -77,7 +77,7 @@ function ActivityItem({ event }: { event: ActivityEvent }) {
   )
 }
 
-function formatActor(event: ActivityEvent): string {
+function formatActor(event: AuditEvent): string {
   if (event.userId) return event.userId
   if (event.actorType === 'anonymous') return 'Anonymous'
   if (event.actorType === 'system') return event.actorRef ? `System:${event.actorRef}` : 'System'

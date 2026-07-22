@@ -1,7 +1,7 @@
 import type { SiteInvitation } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Platform } from '../../platform/interface'
-import type { ActivityRepo, EmailGateway, SiteInvitationRepo } from '../ports'
+import type { EmailGateway, SiteInvitationRepo } from '../ports'
 import {
   createSiteInvitation,
   getSiteInvitationByToken,
@@ -22,7 +22,6 @@ const sampleInvitation: SiteInvitation = {
 } as SiteInvitation
 
 function makeDeps(overrides: { siteInvitations?: Partial<SiteInvitationRepo>; email?: Partial<EmailGateway> } = {}) {
-  const record = vi.fn(async () => {})
   const getConfig = vi.fn(async () => ({ provider: 'http', from: 'a@b.c', http: { url: 'u', apiKey: 'k' } }))
   const send = vi.fn(async (_platform: Platform, _message: { to: string; subject: string; html: string }) => {})
   const getSiteName = vi.fn(async () => 'ZPan Test')
@@ -49,9 +48,8 @@ function makeDeps(overrides: { siteInvitations?: Partial<SiteInvitationRepo>; em
   const deps: SiteInvitationDeps = {
     siteInvitations,
     email,
-    activity: { record } as unknown as ActivityRepo,
   }
-  return { deps, record, getConfig, send, getSiteName }
+  return { deps, getConfig, send, getSiteName }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -72,14 +70,13 @@ describe('site-invitation usecase', () => {
   })
 
   describe('createSiteInvitation', () => {
-    it('validates email config, creates, sends the invite, and records activity', async () => {
+    it('validates email config, creates, and sends the invite', async () => {
       const create = vi.fn(async () => sampleInvitation)
-      const { deps, record, getConfig, send, getSiteName } = makeDeps({
+      const { deps, getConfig, send, getSiteName } = makeDeps({
         siteInvitations: { createSiteInvitation: create },
       })
       const out = await createSiteInvitation(deps, platform, {
         userId: 'u1',
-        orgId: 'o1',
         email: 'invitee@example.com',
         requestUrl: 'https://app.example.com/api/admin/site-invitations',
       })
@@ -97,20 +94,10 @@ describe('site-invitation usecase', () => {
       // Invite link is rooted at the request origin and carries the token.
       const sentHtml = send.mock.calls[0]![1].html as string
       expect(sentHtml).toContain('https://app.example.com/sign-up?invite=tok-1')
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'site_invitation_create',
-          targetType: 'site_invitation',
-          targetId: 'inv-1',
-          targetName: 'invitee@example.com',
-          orgId: 'o1',
-          userId: 'u1',
-        }),
-      )
     })
 
-    it('returns conflict with the thrown message on a duplicate, without sending or recording', async () => {
-      const { deps, record, send } = makeDeps({
+    it('returns conflict with the thrown message on a duplicate without sending', async () => {
+      const { deps, send } = makeDeps({
         siteInvitations: {
           createSiteInvitation: async () => {
             throw new Error('Invitation already exists')
@@ -119,7 +106,6 @@ describe('site-invitation usecase', () => {
       })
       const out = await createSiteInvitation(deps, platform, {
         userId: 'u1',
-        orgId: 'o1',
         email: 'dupe@example.com',
         requestUrl: 'https://app.example.com/api/admin/site-invitations',
       })
@@ -128,7 +114,6 @@ describe('site-invitation usecase', () => {
       expect(out.error.httpStatus).toBe(409)
       expect(out.error.message).toBe('Invitation already exists')
       expect(send).not.toHaveBeenCalled()
-      expect(record).not.toHaveBeenCalled()
     })
 
     it('falls back to a default message when a non-Error is thrown', async () => {
@@ -141,7 +126,6 @@ describe('site-invitation usecase', () => {
       })
       const out = await createSiteInvitation(deps, platform, {
         userId: 'u1',
-        orgId: 'o1',
         email: 'dupe@example.com',
         requestUrl: 'https://app.example.com/api/admin/site-invitations',
       })
@@ -164,7 +148,6 @@ describe('site-invitation usecase', () => {
       await expect(
         createSiteInvitation(deps, platform, {
           userId: 'u1',
-          orgId: 'o1',
           email: 'invitee@example.com',
           requestUrl: 'https://app.example.com/api/admin/site-invitations',
         }),
@@ -218,52 +201,39 @@ describe('site-invitation usecase', () => {
   })
 
   describe('revokeSiteInvitation', () => {
-    it('revokes and records activity', async () => {
+    it('revokes the invitation', async () => {
       const revoke = vi.fn(async () => 'ok' as const)
-      const { deps, record } = makeDeps({ siteInvitations: { revokeSiteInvitation: revoke } })
-      const out = await revokeSiteInvitation(deps, { userId: 'u1', orgId: 'o1', id: 'inv-1' })
+      const { deps } = makeDeps({ siteInvitations: { revokeSiteInvitation: revoke } })
+      const out = await revokeSiteInvitation(deps, { userId: 'u1', id: 'inv-1' })
       expect(out).toEqual({ ok: true, id: 'inv-1' })
       expect(revoke).toHaveBeenCalledWith('inv-1', 'u1')
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'site_invitation_revoke',
-          targetType: 'site_invitation',
-          targetId: 'inv-1',
-          targetName: 'inv-1',
-          orgId: 'o1',
-          userId: 'u1',
-        }),
-      )
     })
 
-    it('returns not_found without recording', async () => {
-      const { deps, record } = makeDeps({ siteInvitations: { revokeSiteInvitation: async () => 'not_found' } })
-      const out = await revokeSiteInvitation(deps, { userId: 'u1', orgId: 'o1', id: 'x' })
+    it('returns not_found', async () => {
+      const { deps } = makeDeps({ siteInvitations: { revokeSiteInvitation: async () => 'not_found' } })
+      const out = await revokeSiteInvitation(deps, { userId: 'u1', id: 'x' })
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(404)
       expect(out.error.message).toBe('Invitation not found')
-      expect(record).not.toHaveBeenCalled()
     })
 
-    it('returns already_accepted without recording', async () => {
-      const { deps, record } = makeDeps({ siteInvitations: { revokeSiteInvitation: async () => 'already_accepted' } })
-      const out = await revokeSiteInvitation(deps, { userId: 'u1', orgId: 'o1', id: 'inv-1' })
+    it('returns already_accepted', async () => {
+      const { deps } = makeDeps({ siteInvitations: { revokeSiteInvitation: async () => 'already_accepted' } })
+      const out = await revokeSiteInvitation(deps, { userId: 'u1', id: 'inv-1' })
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(400)
       expect(out.error.message).toBe('Invitation has already been used')
-      expect(record).not.toHaveBeenCalled()
     })
 
-    it('returns already_revoked without recording', async () => {
-      const { deps, record } = makeDeps({ siteInvitations: { revokeSiteInvitation: async () => 'already_revoked' } })
-      const out = await revokeSiteInvitation(deps, { userId: 'u1', orgId: 'o1', id: 'inv-1' })
+    it('returns already_revoked', async () => {
+      const { deps } = makeDeps({ siteInvitations: { revokeSiteInvitation: async () => 'already_revoked' } })
+      const out = await revokeSiteInvitation(deps, { userId: 'u1', id: 'inv-1' })
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(400)
       expect(out.error.message).toBe('Invitation has already been revoked')
-      expect(record).not.toHaveBeenCalled()
     })
   })
 

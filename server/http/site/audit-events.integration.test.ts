@@ -8,7 +8,7 @@ import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../../adapters/gateways/s3.js'
 import { createShareRepo } from '../../adapters/repos/share'
-import { activityEvents } from '../../db/schema.js'
+import { auditEvents } from '../../db/schema.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../../test/setup.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -54,7 +54,7 @@ async function getPersonalOrgId(db: TestDb): Promise<string> {
 }
 
 async function getLatestActivity(db: TestDb, action: string) {
-  const rows = await db.select().from(activityEvents).all()
+  const rows = await db.select().from(auditEvents).all()
   return rows.filter((r) => r.action === action).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]
 }
 
@@ -716,8 +716,8 @@ describe('Org/team lifecycle audit events (Better Auth hooks)', () => {
     const evt = await getLatestActivity(db, 'team_member_role_update')
     expect(evt).toBeDefined()
     expect(evt?.orgId).toBe(org.id)
+    expect(evt?.userId).not.toBe(memberId)
     const md = JSON.parse(evt?.metadata ?? '{}') as Record<string, unknown>
-    expect(md.previousRole).toBe('viewer')
     expect(md.newRole).toBe('editor')
     assertNoSecrets(evt?.metadata ?? null)
   })

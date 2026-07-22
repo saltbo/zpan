@@ -24,9 +24,15 @@ type Page[T any] struct {
 }
 
 type DownloadTask struct {
-	ID     string             `json:"id"`
-	Spec   DownloadTaskSpec   `json:"spec"`
-	Status DownloadTaskStatus `json:"status"`
+	ID      string               `json:"id"`
+	Spec    DownloadTaskSpec     `json:"spec"`
+	Status  DownloadTaskStatus   `json:"status"`
+	Control *DownloadTaskControl `json:"control,omitempty"`
+}
+
+type DownloadTaskControl struct {
+	Action      string `json:"action"`
+	RequestedAt string `json:"requestedAt"`
 }
 
 func (t DownloadTask) SourceType() string {
@@ -70,6 +76,10 @@ func (t DownloadTask) UploadToken() string {
 		return ""
 	}
 	return t.Status.Assignment.UploadToken
+}
+
+func (t DownloadTask) DeleteRequested() bool {
+	return t.Control != nil && t.Control.Action == "delete"
 }
 
 type DownloadTaskSpec struct {
@@ -215,11 +225,12 @@ type HeartbeatResult struct {
 }
 
 type TaskPatch struct {
-	Status         string                     `json:"status,omitempty"`
-	Progress       *DownloadTaskProgressPatch `json:"progress,omitempty"`
-	ErrorMessage   *string                    `json:"errorMessage,omitempty"`
-	ResultObjectID *string                    `json:"resultObjectId,omitempty"`
-	Runtime        *DownloadTaskRuntime       `json:"runtime,omitempty"`
+	Status           string                     `json:"status,omitempty"`
+	Progress         *DownloadTaskProgressPatch `json:"progress,omitempty"`
+	ErrorMessage     *string                    `json:"errorMessage,omitempty"`
+	ResultObjectID   *string                    `json:"resultObjectId,omitempty"`
+	Runtime          *DownloadTaskRuntime       `json:"runtime,omitempty"`
+	CleanupCompleted bool                       `json:"cleanupCompleted,omitempty"`
 }
 
 func (p TaskPatch) State() string {

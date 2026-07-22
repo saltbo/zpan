@@ -38,14 +38,13 @@ import {
   reverseDownloadTraffic,
   type TrafficReportSource,
 } from './store/traffic-metering'
-import { recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
 
 // ─── Auth resolution ──────────────────────────────────────────────────────────
 // The middleware parses the Authorization header (http) and renders the 401 / 429;
 // this resolves identity via the api-key gateway + the username match (deps).
 
 export type WebDavAuthOutcome =
-  | { ok: true; userId: string }
+  | { ok: true; userId: string; keyId: string; configId: string; permissions: Record<string, string[]> | null }
   | { ok: false; reason: 'unauthorized' }
   | { ok: false; reason: 'rate_limited'; retryAfterMs?: number; message: string }
 
@@ -74,7 +73,13 @@ export async function resolveWebDavAuth(
     if (!(await deps.userAdmin.matchesUsername(key.referenceId, params.username))) {
       return { ok: false, reason: 'unauthorized' }
     }
-    return { ok: true, userId: key.referenceId }
+    return {
+      ok: true,
+      userId: key.referenceId,
+      keyId: key.id,
+      configId: key.configId,
+      permissions: key.permissions,
+    }
   } catch (error) {
     if (error instanceof ApiKeyRateLimitError)
       return { ok: false, reason: 'rate_limited', retryAfterMs: error.retryAfterMs, message: error.message }
@@ -186,9 +191,7 @@ export type WebDavTrafficOutcome =
   | { ok: false; reason: 'quota_exceeded' }
   | { ok: false; reason: 'insufficient_credits' }
 
-type WebDavTrafficDeps = Pick<Deps, 'quota' | 'licenseBinding' | 'licensingCloud' | 'cloudTrafficReports'> & {
-  activity: Pick<Deps['activity'], 'record'>
-}
+type WebDavTrafficDeps = Pick<Deps, 'quota' | 'licenseBinding' | 'licensingCloud' | 'cloudTrafficReports'>
 
 // Meters a download: consume the org's traffic quota, then report egress to
 // Cloud (refunding the quota on a block). The handler renders the 422 / 402.
@@ -214,27 +217,13 @@ export async function meterWebDavDownload(
     sourceId: params.matterId,
     eventId: params.trafficEventId,
   })
-  if (!outcome.ok) {
-    await recordDownloadFailed(deps.activity, {
-      orgId: params.orgId,
-      userId: params.userId,
-      targetType: 'file',
-      targetId: params.matterId,
-      targetName: params.matterName,
-      source: WEBDAV_DOWNLOAD_SOURCE,
-      bytes: params.bytes,
-      trafficEventId: params.trafficEventId,
-      reason: outcome.reason,
-      metadata: { matterId: params.matterId, storageId: params.storage.id },
-    })
-  }
   return outcome
 }
 
 const WEBDAV_DOWNLOAD_SOURCE: TrafficReportSource = 'webdav_download'
 
 export async function recordWebDavDownloadIssued(
-  deps: Pick<Deps, 'activity' | 'cloudTrafficReports'>,
+  deps: Pick<Deps, 'cloudTrafficReports'>,
   params: {
     orgId: string
     userId: string
@@ -245,18 +234,6 @@ export async function recordWebDavDownloadIssued(
     trafficEventId: string
   },
 ): Promise<void> {
-  await recordDownloadIssued(deps.activity, {
-    orgId: params.orgId,
-    userId: params.userId,
-    action: 'webdav_download',
-    targetType: 'file',
-    targetId: params.matterId,
-    targetName: params.matterName,
-    source: WEBDAV_DOWNLOAD_SOURCE,
-    bytes: params.bytes,
-    trafficEventId: params.trafficEventId,
-    metadata: { matterId: params.matterId, storageId: params.storageId },
-  })
   await confirmDownloadTraffic(deps, { eventId: params.trafficEventId })
 }
 
@@ -335,7 +312,6 @@ export async function putWebDavFile(
         return withStorageUsageReservation(deps, { orgId, storageId: storage.id, bytes: sizeDelta }, () =>
           persistWebDavUpload(deps, {
             orgId,
-            userId,
             target,
             fileName,
             parent,
@@ -349,7 +325,6 @@ export async function putWebDavFile(
 
       const result = await persistWebDavUpload(deps, {
         orgId,
-        userId,
         target,
         fileName,
         parent,
@@ -369,7 +344,6 @@ async function persistWebDavUpload(
   deps: Pick<Deps, 'matter' | 's3'>,
   params: {
     orgId: string
-    userId: string
     target: WebDavTarget
     fileName: string
     parent: string
@@ -379,7 +353,7 @@ async function persistWebDavUpload(
     uploadedSize: number
   },
 ): Promise<201 | 204> {
-  const { orgId, userId, target, fileName, parent, storage, objectKey, contentType, uploadedSize } = params
+  const { orgId, target, fileName, parent, storage, objectKey, contentType, uploadedSize } = params
   if (target.matter) {
     await deps.matter.applyUpload(orgId, target.matter.id, { type: contentType, size: uploadedSize, object: objectKey })
     if (objectKey !== target.matter.object) await deps.s3.deleteObject(storage, target.matter.object)
@@ -388,7 +362,6 @@ async function persistWebDavUpload(
 
   await deps.matter.create({
     orgId,
-    userId,
     name: fileName,
     type: contentType,
     size: uploadedSize,
@@ -410,7 +383,6 @@ export async function createWebDavCollection(
   const storage = await deps.storages.select()
   await deps.matter.create({
     orgId: params.orgId,
-    userId: params.userId,
     name: params.name,
     type: 'folder',
     size: 0,
@@ -431,7 +403,7 @@ export async function deleteWebDavMatter(
   const matter = await deps.matter.get(params.matterId, params.orgId)
   if (matter) await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: matter })
   await deps.webdavState.deleteWebDavState(params.orgId, params.resourcePath)
-  await deps.matter.trash(params.orgId, params.matterId, params.userId)
+  await deps.matter.trash(params.orgId, params.matterId)
 }
 
 // ─── MOVE ──────────────────────────────────────────────────────────────────────
@@ -460,14 +432,12 @@ export async function moveWebDavMatter(
     const replaced = await deps.matter.get(params.replacedMatterId, params.orgId)
     if (replaced) await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: replaced })
     await deps.webdavState.deleteWebDavState(params.orgId, params.targetResourcePath)
-    await deps.matter.trash(params.orgId, params.replacedMatterId, params.userId)
+    await deps.matter.trash(params.orgId, params.replacedMatterId)
   }
-  await deps.matter.update(
-    params.sourceMatterId,
-    params.orgId,
-    { name: params.targetName, parent: params.targetParent },
-    params.userId,
-  )
+  await deps.matter.update(params.sourceMatterId, params.orgId, {
+    name: params.targetName,
+    parent: params.targetParent,
+  })
   await deps.webdavState.moveWebDavState(params.orgId, params.sourceResourcePath, newPath)
 }
 
@@ -515,11 +485,10 @@ export async function copyWebDavFile(
 
     if (params.replacedMatterId) {
       await deps.webdavState.deleteWebDavState(orgId, params.targetResourcePath)
-      await deps.matter.trash(orgId, params.replacedMatterId, userId)
+      await deps.matter.trash(orgId, params.replacedMatterId)
     }
     const copy = await deps.matter.copy({ ...sourceMatter, name: params.targetName }, params.targetParent, newObject, {
       onConflict: 'fail',
-      userId,
     })
     const copyPath = joinMatterPath(copy.parent, copy.name)
     await deps.webdavState.copyDeadProperties(orgId, params.sourceResourcePath, copyPath)
@@ -602,12 +571,11 @@ export async function copyWebDavCollection(
 
       if (targetMatter) {
         await deps.webdavState.deleteWebDavState(orgId, params.targetResourcePath)
-        await deps.matter.trash(orgId, targetMatter.id, userId)
+        await deps.matter.trash(orgId, targetMatter.id)
       }
 
       const rootCopy = await deps.matter.copy({ ...sourceMatter, name: params.targetName }, params.targetParent, '', {
         onConflict: 'fail',
-        userId,
       })
       createdIds.push(rootCopy.id)
       await deps.webdavState.copyDeadProperties(orgId, sourceRoot, joinMatterPath(rootCopy.parent, rootCopy.name))
@@ -615,7 +583,6 @@ export async function copyWebDavCollection(
       for (const prepared of preparedCopies) {
         const copy = await deps.matter.copy(prepared.item, prepared.targetParent, prepared.objectKey, {
           onConflict: 'fail',
-          userId,
         })
         createdIds.push(copy.id)
         await deps.webdavState.copyDeadProperties(
@@ -690,7 +657,6 @@ export async function createWebDavLock(
     await deps.s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
     await deps.matter.create({
       orgId,
-      userId,
       name: target.name,
       type: 'application/octet-stream',
       size: 0,

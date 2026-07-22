@@ -97,24 +97,12 @@ const verifyWebDavRoute = createRoute({
   responses: { 200: jsonContent(siteWebDavSettingsSchema, 'Current WebDAV verification status') },
 })
 
-function actor(c: { get(key: 'userId' | 'orgId'): string | null }) {
-  return { userId: c.get('userId')!, orgId: c.get('orgId')! }
-}
-
 export const siteSettings = new OpenAPIHono<Env>()
   .openapi(getRoute, async (c) => c.json(await getSiteSettings(c.get('deps'), c.req.url), 200))
-  .openapi(updateIdentityRoute, async (c) =>
-    c.json(await updateSiteIdentity(c.get('deps'), actor(c), c.req.valid('json')), 200),
-  )
+  .openapi(updateIdentityRoute, async (c) => c.json(await updateSiteIdentity(c.get('deps'), c.req.valid('json')), 200))
   .openapi(updateRegistrationRoute, async (c) =>
-    c.json(await updateSiteRegistration(c.get('deps'), actor(c), c.req.valid('json')), 200),
+    c.json(await updateSiteRegistration(c.get('deps'), c.req.valid('json')), 200),
   )
-  .openapi(updateCaptchaRoute, async (c) =>
-    c.json(await updateSiteCaptcha(c.get('deps'), actor(c), c.req.valid('json')), 200),
-  )
-  .openapi(updateQuotasRoute, async (c) =>
-    c.json(await updateSiteQuotas(c.get('deps'), actor(c), c.req.valid('json')), 200),
-  )
-  .openapi(verifyWebDavRoute, async (c) =>
-    c.json(await verifySiteWebDav(c.get('deps'), actor(c), c.req.url, fetch), 200),
-  )
+  .openapi(updateCaptchaRoute, async (c) => c.json(await updateSiteCaptcha(c.get('deps'), c.req.valid('json')), 200))
+  .openapi(updateQuotasRoute, async (c) => c.json(await updateSiteQuotas(c.get('deps'), c.req.valid('json')), 200))
+  .openapi(verifyWebDavRoute, async (c) => c.json(await verifySiteWebDav(c.get('deps'), c.req.url, fetch), 200))

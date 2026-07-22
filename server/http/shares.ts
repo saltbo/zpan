@@ -4,6 +4,7 @@ import { getCookie, setCookie } from 'hono/cookie'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { pageSchema } from '../../shared/schemas'
 import { createShareRequestSchema, listSharesQuerySchema, saveShareRequestSchema } from '../../shared/schemas/share'
+import { recordDownloadIssued, transferAuditActor } from '../middleware/audit-transfers'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import type { Matter, ShareListItem } from '../usecases/ports'
@@ -240,6 +241,27 @@ pub.get('/:token/objects/:ref', async (c) => {
     cloudBaseUrl: cloudBaseUrl(c),
   })
   if (out.ok) {
+    await recordDownloadIssued(
+      c.get('deps').audit,
+      transferAuditActor(c.get('principal')),
+      'share_download',
+      {
+        orgId: out.receipt.orgId,
+        targetType: 'share',
+        targetId: out.receipt.shareId,
+        targetName: out.receipt.matterName,
+        bytes: out.receipt.bytes,
+        source: 'landing_share',
+        metadata: {
+          shareId: out.receipt.shareId,
+          creatorId: out.receipt.creatorId,
+          anonymous: !c.get('principal'),
+          matterId: out.receipt.matterId,
+          storageId: out.receipt.storageId,
+        },
+      },
+      out.receipt.trafficEventId,
+    )
     if (returnUrl) {
       const res = c.json({ downloadUrl: out.url })
       res.headers.set('Cache-Control', 'no-store')
@@ -407,7 +429,6 @@ export const authedShares = authedApp
     const out = await revokeShare(c.get('deps'), {
       token: c.req.valid('param').token,
       userId: c.get('userId')!,
-      orgId: c.get('orgId')!,
     })
     if (out.ok) return c.json(toShareViewDTO(out.dto), 200)
     throw out.error

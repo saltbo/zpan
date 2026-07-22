@@ -1,13 +1,11 @@
-// Plain, framework-free DTOs and the repository port for activity/audit events.
-// No drizzle here — the port is what usecases and http see; the adapter maps rows
-// into these shapes.
+// Plain, framework-free DTOs and the repository port for audit events.
 
-export type ActivityActorType = 'user' | 'anonymous' | 'system' | 'downloader'
+export type AuditActorType = 'user' | 'api_key' | 'anonymous' | 'system' | 'downloader'
 
-export interface RecordActivityInput {
+export interface RecordAuditEventInput {
   orgId: string
   userId?: string | null
-  actorType?: ActivityActorType
+  actorType?: AuditActorType
   actorRef?: string | null
   action: string
   targetType: string
@@ -16,11 +14,11 @@ export interface RecordActivityInput {
   metadata?: Record<string, unknown>
 }
 
-export interface ActivityEvent {
+export interface AuditEvent {
   id: string
   orgId: string
   userId: string | null
-  actorType: ActivityActorType
+  actorType: AuditActorType
   actorRef: string | null
   action: string
   targetType: string
@@ -30,11 +28,11 @@ export interface ActivityEvent {
   createdAt: Date
 }
 
-export interface ActivityEventWithUser extends ActivityEvent {
+export interface AuditEventWithUser extends AuditEvent {
   user: { id: string | null; name: string; image: string | null }
 }
 
-export interface AdminAuditEventWithOrg extends ActivityEventWithUser {
+export interface AdminAuditEventWithOrg extends AuditEventWithUser {
   orgName: string | null
 }
 
@@ -49,7 +47,7 @@ export interface ListAdminAuditOpts {
   createdTo?: Date
 }
 
-export interface ListActivityByTargetOpts {
+export interface ListAuditByTargetOpts {
   orgId: string
   targetType: string
   targetId: string
@@ -57,16 +55,17 @@ export interface ListActivityByTargetOpts {
   pageSize?: number
 }
 
-export interface ActivityRepo {
-  record(event: RecordActivityInput): Promise<void>
+export interface AuditRepo {
+  record(event: RecordAuditEventInput): Promise<void>
+  recordOnce(event: RecordAuditEventInput, idempotencyKey: string, occurredAt?: Date): Promise<void>
   list(
     orgId: string,
     opts: { page?: number; pageSize?: number },
-  ): Promise<{ items: ActivityEventWithUser[]; total: number }>
+  ): Promise<{ items: AuditEventWithUser[]; total: number }>
   listAdminAudit(
     opts: ListAdminAuditOpts,
   ): Promise<{ items: AdminAuditEventWithOrg[]; total: number; page: number; pageSize: number }>
   listByTarget(
-    opts: ListActivityByTargetOpts,
-  ): Promise<{ items: ActivityEvent[]; total: number; page: number; pageSize: number }>
+    opts: ListAuditByTargetOpts,
+  ): Promise<{ items: AuditEvent[]; total: number; page: number; pageSize: number }>
 }

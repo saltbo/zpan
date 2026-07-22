@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirType } from '../../shared/constants'
 import type { CreateShareInput } from '../../shared/schemas/share'
 import { S3Service } from '../adapters/gateways/s3'
-import { createActivityRepo } from '../adapters/repos/activity'
+import { createAuditRepo } from '../adapters/repos/audit'
 import { createMatterRepo } from '../adapters/repos/matter'
 import { createQuotaRepo } from '../adapters/repos/quota'
 import { createShareRepo } from '../adapters/repos/share'
@@ -30,7 +30,7 @@ function saveToDriveDeps(db: Database): SaveToDriveDeps {
     storages: createStorageRepo(db),
     storageUsage: createStorageUsageRepo(db),
     quota: createQuotaRepo(db),
-    activity: createActivityRepo(db),
+    audit: createAuditRepo(db),
     share: createShareRepo(db),
     matter: createMatterRepo(db),
   }

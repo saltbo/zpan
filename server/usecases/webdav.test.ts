@@ -161,7 +161,7 @@ function makeDeps(
     cloudTrafficReports: {} as unknown as CloudTrafficReportRepo,
     licenseBinding: {} as unknown as LicenseBindingRepo,
     licensingCloud: {} as unknown as LicensingCloudGateway,
-    activity: { record: async () => {} },
+    audit: { record: async () => {} },
     quota: {
       refundTraffic: async () => {},
       incrementUsageIfEffectiveQuotaAllows: async () => true,
@@ -224,7 +224,7 @@ describe('webdav usecase', () => {
       }))
       const deps = makeDeps({ apiKeys: { verifyApiKeyForPermission } })
       const out = await resolveWebDavAuth(deps, authParams)
-      expect(out).toEqual({ ok: true, userId: 'u9' })
+      expect(out).toEqual({ ok: true, userId: 'u9', keyId: 'k1', configId: 'webdav', permissions: null })
       expect(verifyApiKeyForPermission).toHaveBeenCalledWith({}, {}, 'secret', 'webdav', 'read', 'webdav')
     })
 
@@ -580,7 +580,7 @@ describe('webdav usecase', () => {
       const deps = makeDeps({ webdavState: { deleteWebDavState }, matter: { trash } })
       await deleteWebDavMatter(deps, { orgId: 'ws-1', resourcePath: 'gone.txt', matterId: 'm1', userId: 'u1' })
       expect(deleteWebDavState).toHaveBeenCalledWith('ws-1', 'gone.txt')
-      expect(trash).toHaveBeenCalledWith('ws-1', 'm1', 'u1')
+      expect(trash).toHaveBeenCalledWith('ws-1', 'm1')
       expect(order).toEqual(['state', 'trash'])
     })
 
@@ -631,7 +631,7 @@ describe('webdav usecase', () => {
         targetResourcePath: 'Docs/dst.txt',
         replacedMatterId: null,
       })
-      expect(update).toHaveBeenCalledWith('m1', 'ws-1', { name: 'dst.txt', parent: 'Docs' }, 'u1')
+      expect(update).toHaveBeenCalledWith('m1', 'ws-1', { name: 'dst.txt', parent: 'Docs' })
       expect(moveWebDavState).toHaveBeenCalledWith('ws-1', 'src.txt', 'Docs/dst.txt')
       expect(trash).not.toHaveBeenCalled()
     })
@@ -651,7 +651,7 @@ describe('webdav usecase', () => {
         replacedMatterId: 't1',
       })
       expect(deleteWebDavState).toHaveBeenCalledWith('ws-1', 'dst.txt')
-      expect(trash).toHaveBeenCalledWith('ws-1', 't1', 'u1')
+      expect(trash).toHaveBeenCalledWith('ws-1', 't1')
     })
   })
 
@@ -687,7 +687,7 @@ describe('webdav usecase', () => {
       const deps = makeDeps({ matter: { trash } })
       const out = await copyWebDavFile(deps, copyParams({ replacedMatterId: 't1', replacingTarget: true }))
       expect(out).toEqual({ ok: true, status: 204, location: 'dst.txt' })
-      expect(trash).toHaveBeenCalledWith('ws-1', 't1', 'u1')
+      expect(trash).toHaveBeenCalledWith('ws-1', 't1')
     })
 
     it('returns storage_not_found when an object-backed source has no storage', async () => {

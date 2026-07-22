@@ -3,12 +3,12 @@
 // context (`c.get('deps')`). It is assembled in composition.ts.
 
 import type {
-  ActivityRepo,
   AdminStatsRepo,
   AnnouncementRepo,
   ApiKeyGateway,
   ArchiveJobsGateway,
   ArchiveTargetFolderRepo,
+  AuditRepo,
   BackgroundJobRepo,
   CfHostnamesProvider,
   ChangelogProvider,
@@ -50,7 +50,7 @@ import type {
 } from './ports'
 
 export interface Deps {
-  activity: ActivityRepo
+  audit: AuditRepo
   adminStats: AdminStatsRepo
   announcements: AnnouncementRepo
   apiKeys: ApiKeyGateway

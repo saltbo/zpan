@@ -1,6 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { pageQuerySchema, pageSchema, restoreObjectSchema } from '@shared/schemas'
-import type { Context } from 'hono'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deleteObject, getTrashObject, listTrashedObjects, restoreObject } from '../usecases/object'
@@ -51,10 +50,6 @@ function toMatterDTO(m: Matter): MatterDTO {
 
 const trashPageSchema = pageSchema(matterSchema, 'TrashObjectPage')
 const idParam = z.object({ id: z.string() })
-
-function actorId(c: Context<Env>): string {
-  return c.get('userId') ?? 'system'
-}
 
 const listTrashRoute = createRoute({
   operationId: 'listTrashObjects',
@@ -142,7 +137,6 @@ const trash = app
     const result = await restoreObject(c.get('deps'), {
       orgId,
       objectId: c.req.valid('param').id,
-      actorId: actorId(c),
       onConflict: c.req.valid('json').onConflict,
     })
     if (!result.ok) throw result.error
@@ -154,7 +148,6 @@ const trash = app
     const result = await deleteObject(c.get('deps'), {
       orgId,
       objectId: c.req.valid('param').id,
-      userId: c.get('userId')!,
     })
     if (!result.ok) throw notFound()
     return c.body(null, 204)

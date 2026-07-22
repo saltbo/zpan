@@ -46,6 +46,7 @@ vi.mock('react-i18next', () => ({
       }
       if (key === 'admin.audit.upgradeButton') return 'Upgrade to Pro'
       if (key === 'activity.action.upload') return 'uploaded'
+      if (key === 'activity.action.object_copy') return 'copied'
       if (key === 'activity.action.rename') return 'renamed'
       if (key === 'activity.action.delete') return 'deleted'
       if (key === 'activity.target.file') return 'file'
@@ -306,12 +307,12 @@ describe('Admin user detail activity', () => {
 
     expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
     await user.click(screen.getByRole('combobox', { name: 'Event type' }))
-    await user.click(await screen.findByRole('option', { name: 'renamed' }))
+    await user.click(await screen.findByRole('option', { name: 'copied' }))
 
     await waitFor(() =>
       expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, {
         userId: 'route-user-1',
-        action: 'rename',
+        action: 'object_copy',
       }),
     )
 
@@ -324,7 +325,7 @@ describe('Admin user detail activity', () => {
         20,
         expect.objectContaining({
           userId: 'route-user-1',
-          action: 'rename',
+          action: 'object_copy',
           createdFrom: expect.any(String),
           createdTo: expect.any(String),
         }),

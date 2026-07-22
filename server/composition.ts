@@ -12,11 +12,11 @@ import { S3Service } from './adapters/gateways/s3'
 import { createZipGateway } from './adapters/gateways/zip'
 import { createCfClient } from './adapters/providers/cf-custom-hostnames'
 import { createChangelogProvider } from './adapters/providers/changelog'
-import { createActivityRepo } from './adapters/repos/activity'
 import { createAdminStatsRepo } from './adapters/repos/admin-stats'
 import { createAnnouncementRepo } from './adapters/repos/announcement'
 import { createApiKeyGateway } from './adapters/repos/api-keys'
 import { createArchiveTargetFolderRepo } from './adapters/repos/archive-target-folder'
+import { createAuditRepo } from './adapters/repos/audit'
 import { createBackgroundJobRepo } from './adapters/repos/background-job'
 import { createCloudStoreRepo } from './adapters/repos/cloud-store'
 import { createCloudTrafficReportRepo } from './adapters/repos/cloud-traffic-report'
@@ -60,7 +60,7 @@ export function createDeps(platform: Platform): Deps {
   const licenseBinding = createLicenseBindingRepo(db)
   const licensingCloud = createLicensingCloudGateway()
   return {
-    activity: createActivityRepo(db),
+    audit: createAuditRepo(db),
     adminStats: createAdminStatsRepo(db),
     announcements: createAnnouncementRepo(db),
     apiKeys: createApiKeyGateway(),

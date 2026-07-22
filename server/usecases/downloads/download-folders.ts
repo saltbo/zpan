@@ -16,7 +16,7 @@ function targetIsFile(path: string): AppError {
 
 export async function ensureDownloadFolderPath(
   deps: Pick<Deps, 'matter' | 'storages'>,
-  params: { orgId: string; folderPath: string; actorId: string },
+  params: { orgId: string; folderPath: string },
 ): Promise<string> {
   const parts = params.folderPath.split('/').filter(Boolean)
   if (parts.length === 0) return ''
@@ -31,7 +31,6 @@ export async function ensureDownloadFolderPath(
       try {
         existing = await deps.matter.create({
           orgId: params.orgId,
-          userId: params.actorId,
           name,
           type: 'folder',
           size: 0,

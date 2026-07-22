@@ -27,13 +27,7 @@ const ADMIN_USERS_KEYS = [
   'admin.users.selectUser',
   'admin.users.batchDisable',
   'admin.users.batchEnable',
-  'admin.users.batchDelete',
-  'admin.users.batchDeleteConfirm',
   'admin.users.batchStatusUpdated',
-  'admin.users.batchDeleted',
-  'admin.users.deleteTitle',
-  'admin.users.deleteConfirm',
-  'admin.users.userDeleted',
   'admin.users.noUsers',
   'admin.users.prevPage',
   'admin.users.nextPage',
@@ -72,10 +66,7 @@ const INTERPOLATED_KEYS: Record<string, string[]> = {
   'admin.users.selectedCount': ['{{count}}'],
   'admin.users.selectedUsers': ['{{count}}'],
   'admin.users.selectUser': ['{{name}}'],
-  'admin.users.batchDeleteConfirm': ['{{count}}'],
   'admin.users.batchStatusUpdated': ['{{count}}'],
-  'admin.users.batchDeleted': ['{{count}}'],
-  'admin.users.deleteConfirm': ['{{name}}'],
   'admin.users.pageInfo': ['{{page}}', '{{total}}'],
   'admin.users.pageSizeOption': ['{{count}}'],
   'admin.users.inviteDialogDescription': ['{{count}}'],
@@ -144,14 +135,6 @@ describe('admin.users locale keys — English values contract', () => {
     expect(enLocale['admin.users.statusUpdated']).toBe('User status updated')
   })
 
-  it('admin.users.deleteTitle is "Delete User"', () => {
-    expect(enLocale['admin.users.deleteTitle']).toBe('Delete User')
-  })
-
-  it('admin.users.userDeleted is "User deleted"', () => {
-    expect(enLocale['admin.users.userDeleted']).toBe('User deleted')
-  })
-
   it('admin.users.noUsers is "No users found"', () => {
     expect(enLocale['admin.users.noUsers']).toBe('No users found')
   })
@@ -206,14 +189,6 @@ describe('admin.users locale keys — i18n runtime translation', () => {
     expect(i18n.t('admin.users.disabled')).toBe('已禁用')
   })
 
-  it('interpolates admin.users.deleteConfirm with name in English', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('en')
-    const result = i18n.t('admin.users.deleteConfirm', { name: 'Bob' })
-    expect(result).toContain('Bob')
-    expect(result).toContain('cannot be undone')
-  })
-
   it('interpolates admin.users.pageInfo with page and total in English', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('en')
@@ -224,23 +199,5 @@ describe('admin.users locale keys — i18n runtime translation', () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
     expect(i18n.t('admin.users.pageInfo', { page: 2, total: 5 })).toBe('第 2 页，共 5 页')
-  })
-
-  it('translates admin.users.deleteTitle to English', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('en')
-    expect(i18n.t('admin.users.deleteTitle')).toBe('Delete User')
-  })
-
-  it('translates admin.users.deleteTitle to Chinese', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.users.deleteTitle')).toBe('删除用户')
-  })
-
-  it('translates admin.users.userDeleted to Chinese', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.users.userDeleted')).toBe('用户已删除')
   })
 })

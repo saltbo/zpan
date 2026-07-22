@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNull, lt, ne, notInArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { organization } from '../../db/auth-schema'
 import {
   backgroundJobs,
@@ -10,7 +10,6 @@ import {
   orgQuotas,
   shares,
   statsRollupsHourly,
-  storageUsageLedger,
   webhookEvents,
 } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
@@ -23,35 +22,17 @@ import {
   ROLLUP_VERSION,
 } from '../../domain/admin-stats-metrics'
 import type { Database } from '../../platform/interface'
-import { createCloudTrafficReportRepo, trafficLedgerExactFrom } from './cloud-traffic-report'
+import { ADMIN_STATS_FACT_COUNTER_METRICS, buildAdminStatsCounterRowsSql } from './admin-stats-counter-query'
+import { ensureAdminStatsIntegrityOpening, inspectAdminStatsSourceIntegrity } from './admin-stats-integrity'
+import { createCloudTrafficReportRepo } from './cloud-traffic-report'
 import { getEffectiveQuotasByOrg } from './quota'
-import {
-  ensureStorageUsageOpeningBalances,
-  getStorageUsageLedgerOpening,
-  storageUsageLedgerExactFrom,
-} from './storage-usage-ledger'
+import { ensureStorageUsageOpeningBalances } from './storage-usage-ledger'
 
 const HOUR_MS = 3_600_000
 const D1_MAX_BOUND_PARAMS = 100
 const ROLLUP_BOUND_PARAMS_PER_ROW = 11
 export const ADMIN_STATS_ROLLUP_WRITE_BATCH_SIZE = Math.floor(D1_MAX_BOUND_PARAMS / ROLLUP_BOUND_PARAMS_PER_ROW)
-const COUNTER_METRICS: AdminStatsMetric[] = [
-  M.backgroundJobFinished,
-  M.remoteDownloadTaskFinished,
-  M.shareCreated,
-  M.shareDownloadIssued,
-  M.sharePasswordPassed,
-  M.shareSaved,
-  M.shareView,
-  M.statsMissingBytes,
-  M.statsRollupRun,
-  M.storageLedgerBalance,
-  M.storageLedgerChange,
-  M.transferDownloadFailed,
-  M.transferDownloadIssued,
-  M.transferUpload,
-  M.userSignup,
-]
+const COUNTER_METRICS: AdminStatsMetric[] = [...ADMIN_STATS_FACT_COUNTER_METRICS, M.statsMissingBytes, M.statsRollupRun]
 const GAUGE_METRICS: AdminStatsMetric[] = [
   M.backgroundJobSnapshot,
   M.downloaderSnapshot,
@@ -79,6 +60,17 @@ type RollupValue = {
   lowerBound: boolean
 }
 
+type CounterQueryRow = {
+  bucketStart: number
+  orgId: string
+  metricKey: string
+  dimensionKey: string
+  dimensionValue: string
+  count: number
+  bytes: number
+  uniqueCount: number
+}
+
 type DimensionValues = Partial<Record<AdminStatsDimension, string | null | undefined>>
 
 export interface AdminStatsHourlyRollupResult {
@@ -101,17 +93,35 @@ export async function rebuildAdminStatsHour(
 
   await ensureStorageUsageOpeningBalances(db, generatedAt)
   await createCloudTrafficReportRepo(db).ensureLedgerOpening(generatedAt)
-  await addEventMetrics(db, rollups, bucketStart, bucketEnd)
-  await addTransferDownloadMetrics(db, rollups, bucketStart, bucketEnd)
-  await addUserMetrics(db, rollups, bucketStart, bucketEnd)
-  await addOperationalMetrics(db, rollups, bucketStart, bucketEnd)
-  await addStorageLedgerChanges(db, rollups, bucketStart, bucketEnd)
-  await addStorageLedgerBalance(db, rollups, bucketEnd)
-  const values = rollups.values()
-  const lowerBoundRows = values.filter((row) => row.lowerBound).length
-  rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' }, lowerBoundRows > 0)
+  const counterRows = await queryStage<CounterQueryRow[]>(
+    'counters',
+    db.all<CounterQueryRow>(
+      sql.raw(
+        buildAdminStatsCounterRowsSql({
+          fromMs: bucketStart.getTime(),
+          toMs: bucketEnd.getTime(),
+        }),
+      ),
+    ),
+  )
+  for (const row of counterRows) {
+    const metric = row.metricKey as AdminStatsMetric
+    const dimensionKey = row.dimensionKey as AdminStatsDimension | ''
+    if (dimensionKey) assertMetricDimension(metric, dimensionKey)
+    rollups.incrementValue(
+      metric,
+      row.orgId,
+      dimensionKey,
+      row.dimensionValue,
+      Number(row.count),
+      Number(row.bytes),
+      Number(row.uniqueCount),
+    )
+  }
+  const lowerBoundRows = 0
+  rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' })
   const completionScope = capturedSnapshot ? 'full' : 'counters'
-  const counterQuality = lowerBoundRows > 0 ? 'lower_bound' : 'exact'
+  const counterQuality: 'exact' = 'exact'
 
   const updatedAt = generatedAt
   const rows = rollups.values().map((row) => ({
@@ -129,8 +139,7 @@ export async function rebuildAdminStatsHour(
         ? {
             version: ROLLUP_VERSION,
             scope: completionScope,
-            quality:
-              counterQuality === 'lower_bound' || capturedSnapshot?.quality === 'lower_bound' ? 'lower_bound' : 'exact',
+            quality: capturedSnapshot?.quality === 'lower_bound' ? 'lower_bound' : 'exact',
             counterQuality,
             ...(capturedSnapshot
               ? {
@@ -176,6 +185,7 @@ export async function captureAdminStatsSnapshot(
   }
   const bucketEnd = new Date(bucketStart.getTime() + HOUR_MS)
   const rollups = new RollupAccumulator()
+  await ensureAdminStatsIntegrityOpening(db)
   await ensureStorageUsageOpeningBalances(db, observedAt)
   await addSnapshotMetrics(db, rollups, observedAt)
   rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' })
@@ -238,310 +248,6 @@ async function compatibleSnapshotMarker(
   return { quality: metadata.snapshotQuality ?? metadata.quality, observedAt: metadata.snapshotObservedAt }
 }
 
-async function addEventMetrics(db: Database, rollups: RollupAccumulator, from: Date, to: Date): Promise<void> {
-  const rows = await db.all<EventMetricGroup>(sql`
-    WITH facts AS (
-      SELECT
-        org_id AS orgId,
-        action,
-        COALESCE(actor_type, CASE WHEN user_id IS NULL THEN 'anonymous' ELSE 'user' END) AS actorType,
-        CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.source') END AS source,
-        CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.storageId') END AS storageId,
-        CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.reason') END AS reason,
-        CASE WHEN action IN ('share_view', 'share_download', 'save_from_share', 'share_password_passed')
-          THEN COALESCE(CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.shareId') END, target_id)
-        END AS shareId,
-        CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.kind') END AS kind,
-        CASE WHEN json_valid(metadata) = 1 THEN
-          CASE WHEN json_type(metadata, '$.bytes') IN ('integer', 'real') THEN json_extract(metadata, '$.bytes') ELSE 0 END
-        ELSE 0 END AS bytes,
-        CASE WHEN action = 'upload_confirm'
-          THEN CASE
-            WHEN json_valid(metadata) = 0 THEN 1
-            WHEN json_type(metadata, '$.bytes') IN ('integer', 'real') THEN 0
-            ELSE 1
-          END
-          ELSE 0
-        END AS missingBytes
-      FROM activity_events
-      WHERE created_at >= ${Math.floor(from.getTime() / 1000)}
-        AND created_at < ${Math.floor(to.getTime() / 1000)}
-        AND action IN (
-          'upload_confirm', 'upload_cancel', 'upload_failed',
-          'share_download', 'object_download', 'image_hosting_download', 'webdav_download', 'download_failed',
-          'share_view', 'save_from_share', 'share_password_passed'
-        )
-    )
-    SELECT
-      orgId, action, actorType, source, storageId, reason, shareId, kind,
-      COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes, SUM(missingBytes) AS missingBytes
-    FROM facts
-    GROUP BY orgId, action, actorType, source, storageId, reason, shareId, kind
-  `)
-
-  for (const row of rows) {
-    const count = Number(row.count)
-    const bytes = Number(row.bytes)
-    const missingBytes = Number(row.missingBytes)
-    const lowerBound = missingBytes > 0
-
-    if (row.action === 'upload_confirm' || row.action === 'upload_cancel' || row.action === 'upload_failed') {
-      const status =
-        row.action === 'upload_confirm' ? 'success' : row.action === 'upload_cancel' ? 'canceled' : 'failed'
-      const reason =
-        row.action === 'upload_confirm'
-          ? null
-          : (row.reason ?? (row.action === 'upload_cancel' ? 'upload_canceled' : 'upload_failed'))
-      const confirmedBytes = row.action === 'upload_confirm' ? bytes : 0
-      rollups.add(
-        M.transferUpload,
-        row.orgId,
-        count,
-        confirmedBytes,
-        { source: row.source ?? 'upload', status, reason, storage_id: row.storageId },
-        lowerBound,
-      )
-    }
-
-    if (row.action === 'download_failed') {
-      rollups.add(M.transferDownloadFailed, row.orgId, count, bytes, {
-        source: row.source ?? 'unknown',
-        reason: row.reason ?? 'unknown',
-      })
-    }
-
-    if (row.action === 'share_view') {
-      rollups.add(M.shareView, row.orgId, count, 0, { share_id: row.shareId, actor_type: row.actorType })
-    }
-    if (row.action === 'share_download') {
-      rollups.add(M.shareDownloadIssued, row.orgId, count, bytes, {
-        share_id: row.shareId,
-        kind: row.kind,
-        source: row.source ?? downloadSourceForAction(row.action),
-        actor_type: row.actorType,
-      })
-    }
-    if (row.action === 'save_from_share') {
-      rollups.add(M.shareSaved, row.orgId, count, bytes, { share_id: row.shareId, actor_type: row.actorType })
-    }
-    if (row.action === 'share_password_passed') {
-      rollups.add(M.sharePasswordPassed, row.orgId, count, 0, { share_id: row.shareId })
-    }
-    if (lowerBound) {
-      rollups.add(M.statsMissingBytes, row.orgId, missingBytes, 0, {
-        direction: row.action === 'upload_confirm' ? 'upload' : 'download',
-        source: row.source ?? row.action,
-      })
-    }
-  }
-}
-
-async function addTransferDownloadMetrics(
-  db: Database,
-  rollups: RollupAccumulator,
-  from: Date,
-  to: Date,
-): Promise<void> {
-  const opening = await createCloudTrafficReportRepo(db).getLedgerOpening()
-  if (!opening) throw new Error('traffic_ledger_opening_missing')
-  const lowerBound = from < trafficLedgerExactFrom(opening)
-  const rows = await db.all<{
-    orgId: string
-    source: string
-    storageId: string | null
-    count: number
-    bytes: number
-  }>(sql`
-    SELECT
-      org_id AS orgId,
-      source,
-      storage_id AS storageId,
-      COUNT(*) AS count,
-      COALESCE(SUM(bytes), 0) AS bytes
-    FROM cloud_traffic_reports
-    WHERE issued_at >= ${from.getTime()}
-      AND issued_at < ${to.getTime()}
-      AND status <> 'reversed'
-    GROUP BY org_id, source, storage_id
-  `)
-  for (const row of rows) {
-    rollups.add(
-      M.transferDownloadIssued,
-      row.orgId,
-      Number(row.count),
-      Number(row.bytes),
-      { source: row.source, storage_id: row.storageId },
-      lowerBound,
-    )
-  }
-}
-
-type EventMetricGroup = {
-  orgId: string
-  action: string
-  actorType: string
-  source: string | null
-  storageId: string | null
-  reason: string | null
-  shareId: string | null
-  kind: string | null
-  count: number
-  bytes: number
-  missingBytes: number
-}
-
-async function addUserMetrics(db: Database, rollups: RollupAccumulator, from: Date, to: Date): Promise<void> {
-  const rows = await db.all<{
-    action: string
-    orgId: string
-    provider: string | null
-    kind: string | null
-    count: number
-    lowerBound: number
-  }>(sql`
-    SELECT
-      action,
-      org_id AS orgId,
-      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.provider') END AS provider,
-      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.kind') END AS kind,
-      COUNT(*) AS count,
-      SUM(CASE WHEN json_valid(metadata) = 1 AND json_extract(metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) AS lowerBound
-    FROM activity_events
-    WHERE created_at >= ${Math.floor(from.getTime() / 1000)}
-      AND created_at < ${Math.floor(to.getTime() / 1000)}
-      AND action IN ('stats_user_signup', 'stats_share_created')
-    GROUP BY action, org_id, provider, kind
-  `)
-
-  for (const row of rows) {
-    if (row.action === 'stats_user_signup') {
-      rollups.add(M.userSignup, '', Number(row.count), 0, { provider: row.provider ?? 'unknown' }, row.lowerBound > 0)
-    } else {
-      rollups.add(M.shareCreated, row.orgId, Number(row.count), 0, { kind: row.kind ?? 'unknown' }, row.lowerBound > 0)
-    }
-  }
-}
-
-async function addOperationalMetrics(db: Database, rollups: RollupAccumulator, from: Date, to: Date): Promise<void> {
-  const rows = await db.all<{
-    action: string
-    orgId: string
-    category: string | null
-    downloaderId: string | null
-    jobType: string | null
-    outcome: string | null
-    count: number
-    bytes: number
-    lowerBound: number
-  }>(sql`
-    SELECT
-      action,
-      org_id AS orgId,
-      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.category') END AS category,
-      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.downloaderId') END AS downloaderId,
-      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.jobType') END AS jobType,
-      CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.outcome') END AS outcome,
-      COUNT(*) AS count,
-      SUM(CASE WHEN json_valid(metadata) = 1 THEN COALESCE(json_extract(metadata, '$.bytes'), 0) ELSE 0 END) AS bytes,
-      SUM(CASE WHEN json_valid(metadata) = 1 AND json_extract(metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) AS lowerBound
-    FROM activity_events
-    WHERE created_at >= ${Math.floor(from.getTime() / 1000)}
-      AND created_at < ${Math.floor(to.getTime() / 1000)}
-      AND action IN ('stats_background_job_finished', 'stats_remote_download_finished')
-    GROUP BY action, org_id, category, downloaderId, jobType, outcome
-  `)
-
-  for (const row of rows) {
-    if (row.action === 'stats_remote_download_finished') {
-      rollups.add(
-        M.remoteDownloadTaskFinished,
-        row.orgId,
-        Number(row.count),
-        Number(row.bytes),
-        {
-          category: row.category ?? 'uncategorized',
-          downloader_id: row.downloaderId,
-          outcome: row.outcome ?? 'unknown',
-        },
-        row.lowerBound > 0,
-      )
-    } else {
-      rollups.add(
-        M.backgroundJobFinished,
-        row.orgId,
-        Number(row.count),
-        0,
-        { job_type: row.jobType ?? 'unknown', outcome: row.outcome ?? 'unknown' },
-        row.lowerBound > 0,
-      )
-    }
-  }
-}
-
-async function addStorageLedgerBalance(db: Database, rollups: RollupAccumulator, bucketEnd: Date): Promise<void> {
-  const complete = await queryStage(
-    'storage-ledger-opening',
-    db
-      .select({ id: storageUsageLedger.id })
-      .from(storageUsageLedger)
-      .where(
-        and(eq(storageUsageLedger.reason, 'opening_balance_complete'), lt(storageUsageLedger.occurredAt, bucketEnd)),
-      )
-      .limit(1),
-  )
-  if (complete.length === 0) return
-
-  const rows = await queryStage(
-    'storage-ledger-balance',
-    db
-      .select({ bytes: sql<number>`COALESCE(SUM(${storageUsageLedger.deltaBytes}), 0)` })
-      .from(storageUsageLedger)
-      .where(lt(storageUsageLedger.occurredAt, bucketEnd)),
-  )
-  rollups.setGauge(M.storageLedgerBalance, '', 0, Number(rows[0]?.bytes ?? 0))
-}
-
-async function addStorageLedgerChanges(
-  db: Database,
-  rollups: RollupAccumulator,
-  bucketStart: Date,
-  bucketEnd: Date,
-): Promise<void> {
-  const opening = await queryStage('storage-ledger-change-opening', getStorageUsageLedgerOpening(db))
-  if (!opening || bucketStart < storageUsageLedgerExactFrom(opening)) return
-
-  const direction = sql<string>`CASE WHEN ${storageUsageLedger.deltaBytes} > 0 THEN 'written' ELSE 'released' END`
-  const rows = await queryStage(
-    'storage-ledger-change',
-    db
-      .select({
-        orgId: storageUsageLedger.orgId,
-        storageId: storageUsageLedger.storageId,
-        reason: storageUsageLedger.reason,
-        direction,
-        count: sql<number>`COUNT(*)`,
-        bytes: sql<number>`SUM(ABS(${storageUsageLedger.deltaBytes}))`,
-      })
-      .from(storageUsageLedger)
-      .where(
-        and(
-          gte(storageUsageLedger.occurredAt, bucketStart),
-          lt(storageUsageLedger.occurredAt, bucketEnd),
-          ne(storageUsageLedger.deltaBytes, 0),
-          notInArray(storageUsageLedger.reason, ['opening_balance', 'opening_balance_complete']),
-        ),
-      )
-      .groupBy(storageUsageLedger.orgId, storageUsageLedger.storageId, storageUsageLedger.reason, direction),
-  )
-  for (const row of rows) {
-    rollups.add(M.storageLedgerChange, row.orgId, Number(row.count), Number(row.bytes), {
-      direction: row.direction,
-      reason: row.reason,
-      storage_id: row.storageId,
-    })
-  }
-}
-
 async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now: Date): Promise<void> {
   const [
     userRows,
@@ -594,15 +300,18 @@ async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now:
         .select({ orgId: downloadTasks.orgId, count: sql<number>`COUNT(*)` })
         .from(downloadTasks)
         .where(
-          inArray(downloadTasks.status, [
-            'queued',
-            'assigned',
-            'downloading',
-            'uploading',
-            'suspended',
-            'paused',
-            'interrupted',
-          ]),
+          and(
+            isNull(downloadTasks.deletedAt),
+            inArray(downloadTasks.status, [
+              'queued',
+              'assigned',
+              'downloading',
+              'uploading',
+              'suspended',
+              'paused',
+              'interrupted',
+            ]),
+          ),
         )
         .groupBy(downloadTasks.orgId),
     ),
@@ -665,8 +374,7 @@ async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now:
   rollups.setGauge(M.storageInventory, '', 0, 0)
   rollups.setGauge(M.storageTrashSnapshot, '', 0, 0)
   rollups.setGauge(M.shareInventory, '', 0, 0)
-  rollups.setGauge(M.statsDataQualitySnapshot, '', dataQualityRows.unlocatedShareEvents, 0)
-  rollups.setGauge(M.statsDataQualitySnapshot, '', dataQualityRows.unlocatedShareViews, 0, 'kind', 'share_views')
+  rollups.setGauge(M.statsDataQualitySnapshot, '', dataQualityRows.unlocatedShareDownloads, 0)
   rollups.setGauge(
     M.statsDataQualitySnapshot,
     '',
@@ -690,6 +398,54 @@ async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now:
     dataQualityRows.storageLedgerDriftBytes,
     'kind',
     'storage_ledger_drift',
+  )
+  rollups.setGauge(
+    M.statsDataQualitySnapshot,
+    '',
+    dataQualityRows.backgroundJobsMissingFinishedAt,
+    0,
+    'kind',
+    'background_jobs_missing_finished_at',
+  )
+  rollups.setGauge(
+    M.statsDataQualitySnapshot,
+    '',
+    dataQualityRows.missingDownloadTaskTerminalEvents,
+    0,
+    'kind',
+    'missing_download_task_terminal_events',
+  )
+  rollups.setGauge(
+    M.statsDataQualitySnapshot,
+    '',
+    dataQualityRows.invalidDownloadTaskEvents,
+    0,
+    'kind',
+    'invalid_download_task_events',
+  )
+  rollups.setGauge(
+    M.statsDataQualitySnapshot,
+    '',
+    dataQualityRows.invalidIssuedTrafficReports,
+    0,
+    'kind',
+    'invalid_issued_traffic_reports',
+  )
+  rollups.setGauge(
+    M.statsDataQualitySnapshot,
+    '',
+    dataQualityRows.invalidAuditEvents,
+    0,
+    'kind',
+    'invalid_audit_events',
+  )
+  rollups.setGauge(
+    M.statsDataQualitySnapshot,
+    '',
+    dataQualityRows.missingUserRegistrationEvents,
+    0,
+    'kind',
+    'missing_user_registration_events',
   )
   rollups.setGauge(M.backgroundJobSnapshot, '', 0, 0)
   rollups.setGauge(M.remoteDownloadTaskSnapshot, '', 0, 0)
@@ -763,30 +519,33 @@ async function shareSnapshotGroups(
 }
 
 async function dataQualitySnapshot(db: Database): Promise<{
-  unlocatedShareEvents: number
-  unlocatedShareViews: number
   unlocatedShareDownloads: number
   storageUsageDriftSpaces: number
   storageUsageDriftBytes: number
   storageLedgerDriftSpaces: number
   storageLedgerDriftBytes: number
+  missingDownloadTaskTerminalEvents: number
+  invalidDownloadTaskEvents: number
+  backgroundJobsMissingFinishedAt: number
+  invalidIssuedTrafficReports: number
+  invalidAuditEvents: number
+  missingUserRegistrationEvents: number
 }> {
-  const rows = await db.all<{
-    unlocatedShareViews: number
-    unlocatedShareDownloads: number
-    storageUsageDriftSpaces: number
-    storageUsageDriftBytes: number
-    storageLedgerDriftSpaces: number
-    storageLedgerDriftBytes: number
-  }>(sql`
-    WITH event_counts AS (
-      SELECT
-        COALESCE(CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.shareId') END, target_id) AS share_id,
-        SUM(CASE WHEN action = 'share_view' THEN 1 ELSE 0 END) AS views,
-        SUM(CASE WHEN action = 'share_download' THEN 1 ELSE 0 END) AS downloads
-      FROM activity_events
-      WHERE action IN ('share_view', 'share_download')
-      GROUP BY share_id
+  const [rows, sourceIntegrity] = await Promise.all([
+    db.all<{
+      unlocatedShareDownloads: number
+      storageUsageDriftSpaces: number
+      storageUsageDriftBytes: number
+      storageLedgerDriftSpaces: number
+      storageLedgerDriftBytes: number
+    }>(sql`
+    WITH share_download_counts AS (
+      SELECT source_id AS share_id, COUNT(*) AS downloads
+      FROM cloud_traffic_reports
+      WHERE source IN ('landing_share', 'direct_share')
+        AND issued_at IS NOT NULL
+        AND status <> 'reversed'
+      GROUP BY source_id
     ),
     billable_storage AS (
       SELECT org_id, SUM(bytes) AS bytes
@@ -822,25 +581,29 @@ async function dataQualitySnapshot(db: Database): Promise<{
       WHERE COALESCE(ledger_storage.bytes, 0) <> COALESCE(billable_storage.bytes, 0)
     )
     SELECT
-      COALESCE(SUM(MAX(${shares.views} - COALESCE(event_counts.views, 0), 0)), 0) AS unlocatedShareViews,
-      COALESCE(SUM(MAX(${shares.downloads} - COALESCE(event_counts.downloads, 0), 0)), 0) AS unlocatedShareDownloads,
+      COALESCE(SUM(MAX(${shares.downloads} - COALESCE(share_download_counts.downloads, 0), 0)), 0) AS unlocatedShareDownloads,
       (SELECT COUNT(*) FROM storage_drift) AS storageUsageDriftSpaces,
       (SELECT COALESCE(SUM(bytes), 0) FROM storage_drift) AS storageUsageDriftBytes,
       (SELECT COUNT(*) FROM ledger_drift) AS storageLedgerDriftSpaces,
       (SELECT COALESCE(SUM(bytes), 0) FROM ledger_drift) AS storageLedgerDriftBytes
     FROM ${shares}
-    LEFT JOIN event_counts ON event_counts.share_id = ${shares.id}
-  `)
-  const unlocatedShareViews = Number(rows[0]?.unlocatedShareViews ?? 0)
+    LEFT JOIN share_download_counts ON share_download_counts.share_id = ${shares.id}
+    `),
+    inspectAdminStatsSourceIntegrity(db),
+  ])
   const unlocatedShareDownloads = Number(rows[0]?.unlocatedShareDownloads ?? 0)
   return {
-    unlocatedShareEvents: unlocatedShareViews + unlocatedShareDownloads,
-    unlocatedShareViews,
     unlocatedShareDownloads,
     storageUsageDriftSpaces: Number(rows[0]?.storageUsageDriftSpaces ?? 0),
     storageUsageDriftBytes: Number(rows[0]?.storageUsageDriftBytes ?? 0),
     storageLedgerDriftSpaces: Number(rows[0]?.storageLedgerDriftSpaces ?? 0),
     storageLedgerDriftBytes: Number(rows[0]?.storageLedgerDriftBytes ?? 0),
+    missingDownloadTaskTerminalEvents: sourceIntegrity.missingDownloadTaskTerminalEvents,
+    invalidDownloadTaskEvents: sourceIntegrity.invalidDownloadTaskEvents,
+    backgroundJobsMissingFinishedAt: sourceIntegrity.backgroundJobsMissingFinishedAt,
+    invalidIssuedTrafficReports: sourceIntegrity.invalidIssuedTrafficReports,
+    invalidAuditEvents: sourceIntegrity.invalidAuditEvents,
+    missingUserRegistrationEvents: sourceIntegrity.missingUserRegistrationEvents,
   }
 }
 
@@ -877,7 +640,7 @@ type UserInventorySnapshot = {
 }
 
 async function userInventorySnapshot(db: Database, now: Date): Promise<UserInventorySnapshot> {
-  const activeCutoffSec = Math.floor((now.getTime() - 30 * 86_400_000) / 1000)
+  const activeCutoffMs = now.getTime() - 30 * 86_400_000
   const rows = await db.all<UserInventorySnapshot>(sql`
     SELECT
       COUNT(*) AS total,
@@ -885,22 +648,7 @@ async function userInventorySnapshot(db: Database, now: Date): Promise<UserInven
       SUM(CASE WHEN email_verified = 0 AND COALESCE(banned, 0) = 0 THEN 1 ELSE 0 END) AS unverified,
       SUM(CASE WHEN COALESCE(banned, 0) = 1 THEN 1 ELSE 0 END) AS banned,
       SUM(CASE WHEN email_verified = 1 AND COALESCE(banned, 0) = 0
-        AND NOT EXISTS (
-          SELECT 1 FROM activity_events ae
-          WHERE ae.user_id = user.id
-            AND ae.created_at >= ${activeCutoffSec}
-            AND COALESCE(ae.actor_type, 'user') = 'user'
-            AND ae.action NOT IN (
-              'download_task_assigned', 'download_task_started', 'download_task_ingesting',
-              'download_task_completed', 'download_task_failed', 'download_task_suspended',
-              'download_task_queued', 'download_task_error', 'download_task_billing_suspended',
-              'download_resolve_started', 'download_resolve_completed', 'download_completed',
-              'download_ingest_started', 'download_ingest_completed',
-              'download_seeding_started', 'download_seeding_stopped',
-              'download_stale_control_resolved', 'download_stale_requeued'
-            )
-            AND ae.action NOT LIKE 'stats_%'
-        )
+        AND (last_active_at IS NULL OR last_active_at < ${activeCutoffMs})
         THEN 1 ELSE 0 END) AS silent
     FROM user
   `)
@@ -924,24 +672,11 @@ async function activeUserSnapshot(
   ]
   return await Promise.all(
     windows.map(async ({ window, days }) => {
-      const cutoffSec = Math.floor((now.getTime() - days * 86_400_000) / 1000)
+      const cutoffMs = now.getTime() - days * 86_400_000
       const rows = await db.all<{ count: number }>(sql`
-        SELECT COUNT(DISTINCT ae.user_id) AS count
-        FROM activity_events ae
-        JOIN user u ON u.id = ae.user_id
-        WHERE ae.user_id IS NOT NULL
-          AND ae.created_at >= ${cutoffSec}
-          AND COALESCE(ae.actor_type, 'user') = 'user'
-          AND ae.action NOT IN (
-            'download_task_assigned', 'download_task_started', 'download_task_ingesting',
-            'download_task_completed', 'download_task_failed', 'download_task_suspended',
-            'download_task_queued', 'download_task_error', 'download_task_billing_suspended',
-            'download_resolve_started', 'download_resolve_completed', 'download_completed',
-            'download_ingest_started', 'download_ingest_completed',
-            'download_seeding_started', 'download_seeding_stopped',
-            'download_stale_control_resolved', 'download_stale_requeued'
-          )
-          AND ae.action NOT LIKE 'stats_%'
+        SELECT COUNT(*) AS count
+        FROM user
+        WHERE last_active_at >= ${cutoffMs}
       `)
       return { window, count: Number(rows[0]?.count ?? 0) }
     }),
@@ -1070,6 +805,18 @@ class RollupAccumulator {
     this.increment(metric, orgId, dimensionKey, dimensionValue, count, bytes, 0, false)
   }
 
+  incrementValue(
+    metric: AdminStatsMetric,
+    orgId: string,
+    dimensionKey: AdminStatsDimension | '',
+    dimensionValue: string,
+    count: number,
+    bytes: number,
+    uniqueCount: number,
+  ): void {
+    this.increment(metric, orgId, dimensionKey, dimensionValue, count, bytes, uniqueCount, false)
+  }
+
   values(): RollupValue[] {
     return [...this.rows.values()]
   }
@@ -1113,13 +860,6 @@ function key(metric: AdminStatsMetric, orgId: string, dimensionKey: string, dime
 
 function rollupId(bucketStart: Date, row: RollupValue): string {
   return `${bucketStart.getTime()}:${row.orgId || 'global'}:${row.metric}:${row.dimensionKey || 'all'}:${row.dimensionValue || 'all'}`
-}
-
-function downloadSourceForAction(action: string): string {
-  if (action === 'object_download') return 'object_download'
-  if (action === 'image_hosting_download') return 'image_hosting'
-  if (action === 'webdav_download') return 'webdav_download'
-  return 'landing_share'
 }
 
 async function queryStage<T>(name: string, query: PromiseLike<T>): Promise<T> {

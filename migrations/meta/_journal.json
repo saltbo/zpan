@@ -421,6 +421,34 @@
       "when": 1784614533084,
       "tag": "0060_traffic-issued-at",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "6",
+      "when": 1784661577715,
+      "tag": "0061_rename-audit-events",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "6",
+      "when": 1784675805400,
+      "tag": "0062_remove-audit-event-category",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "6",
+      "when": 1784682279012,
+      "tag": "0063_user-last-active-at",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "6",
+      "when": 1784684944405,
+      "tag": "0064_download-task-events-soft-delete",
+      "breakpoints": true
     }
   ]
 }

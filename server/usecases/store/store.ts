@@ -16,6 +16,7 @@
 
 import {
   type CheckoutInput,
+  type CloudOrderQuotaChange,
   cloudCreditBalanceResponseSchema,
   cloudCreditLedgerResponseSchema,
   cloudOrderQuotaChangeSchema,
@@ -467,7 +468,9 @@ export async function cancelOrder(
 // renders 401 (`INVALID_EVENT_TOKEN`); a non-JSON or non-quota-change body renders
 // 400 (`INVALID_PAYLOAD`); a fulfillment failure renders 400 carrying the error
 // message.
-export type WebhookOutcome = { ok: true; duplicate: boolean; eventId: string } | { ok: false; error: AppError }
+export type WebhookOutcome =
+  | { ok: true; duplicate: boolean; eventId: string; receipt: CloudOrderQuotaChange }
+  | { ok: false; error: AppError }
 
 const invalidEventToken = () => new AppError(401, 'Invalid event token', { reason: 'INVALID_EVENT_TOKEN' })
 
@@ -504,7 +507,7 @@ export async function processDeliveryWebhook(
       params.rawPayload,
       params.payloadHash,
     )
-    return { ok: true, duplicate: result.duplicate, eventId: result.eventId }
+    return { ok: true, duplicate: result.duplicate, eventId: result.eventId, receipt: parsed.data }
   } catch (error) {
     return { ok: false, error: badRequest((error as Error).message) }
   }

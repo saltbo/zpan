@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { createShareRepo } from '../adapters/repos/share'
-import { shareRecipients, shares } from '../db/schema.js'
+import { auditEvents, shareRecipients, shares } from '../db/schema.js'
 import { currentTrafficPeriod } from '../domain/quota.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
@@ -1327,6 +1327,9 @@ describe('Public share routes', () => {
       const cookieHeader = res.headers.get('set-cookie')
       expect(cookieHeader).toContain(`sharetk_${share.token}=ok`)
       expect(cookieHeader).toContain('HttpOnly')
+
+      const events = await db.select().from(auditEvents).where(eq(auditEvents.action, 'share_password_passed'))
+      expect(events).toHaveLength(0)
     })
 
     it('returns 403 on wrong password', async () => {
@@ -1353,6 +1356,8 @@ describe('Public share routes', () => {
       const body = (await res.json()) as { error: { message: string; status: string } }
       expect(body.error.message).toBe('Invalid password')
       expect(body.error.status).toBe('PERMISSION_DENIED')
+      const events = await db.select().from(auditEvents).where(eq(auditEvents.action, 'share_password_passed'))
+      expect(events).toHaveLength(0)
     })
 
     it('returns 404 when verifying a password for an unknown token', async () => {
@@ -1416,6 +1421,18 @@ describe('Public share routes', () => {
         sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
       )
       expect(rows[0].trafficUsed).toBe(1280)
+      const events = await db.all<{ actorType: string; bytes: number; source: string; trafficEventId: string }>(sql`
+        SELECT
+          actor_type AS actorType,
+          json_extract(metadata, '$.bytes') AS bytes,
+          json_extract(metadata, '$.source') AS source,
+          json_extract(metadata, '$.trafficEventId') AS trafficEventId
+        FROM audit_events
+        WHERE action = 'share_download' AND target_id = ${share.id}
+      `)
+      expect(events).toEqual([
+        { actorType: 'anonymous', bytes: 1024, source: 'landing_share', trafficEventId: expect.any(String) },
+      ])
     })
 
     it('returns JSON downloadUrl for public share when requested by preview', async () => {
@@ -1493,6 +1510,12 @@ describe('Public share routes', () => {
 
       const shareRows = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
       expect(shareRows[0].downloads).toBe(0)
+      const failures = await db.all<{ reason: string; source: string }>(sql`
+        SELECT json_extract(metadata, '$.reason') AS reason, json_extract(metadata, '$.source') AS source
+        FROM audit_events
+        WHERE action = 'download_failed' AND target_id = ${share.id}
+      `)
+      expect(failures).toEqual([{ reason: 'internal', source: 'landing_share' }])
     })
 
     it('returns 422 when public share traffic quota is exhausted', async () => {
@@ -1530,6 +1553,12 @@ describe('Public share routes', () => {
 
       const shareRows = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
       expect(shareRows[0].downloads).toBe(0)
+      const failures = await db.all<{ reason: string; source: string }>(sql`
+        SELECT json_extract(metadata, '$.reason') AS reason, json_extract(metadata, '$.source') AS source
+        FROM audit_events
+        WHERE action = 'download_failed' AND target_id = ${share.id}
+      `)
+      expect(failures).toEqual([{ reason: 'quota_exceeded', source: 'landing_share' }])
     })
 
     it('returns 401 when password required and no cookie', async () => {

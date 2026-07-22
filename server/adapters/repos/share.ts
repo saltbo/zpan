@@ -1,9 +1,9 @@
 import { DirType } from '@shared/constants'
 import type { CreateShareInput } from '@shared/schemas/share'
-import { and, count, desc, eq, inArray, isNotNull, isNull, like, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, isNotNull, isNull, like, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { user } from '../../db/auth-schema'
-import { activityEvents, matters, shareRecipients, shares } from '../../db/schema'
+import { matters, shareRecipients, shares } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
 import { hashPassword } from '../../lib/password'
 import type { Database } from '../../platform/interface'
@@ -15,8 +15,6 @@ import {
   type ShareRepo,
   type ShareResolution,
 } from '../../usecases/ports'
-import { activityEventValues } from './activity'
-import { adminStatsFactValues } from './admin-stats-fact'
 import { createQuotaRepo } from './quota'
 
 function buildPath(parent: string, name: string): string {
@@ -64,22 +62,7 @@ export function createShareRepo(db: Database): ShareRepo {
         createdAt: now,
       }
 
-      const queries: AtomicQuery[] = [
-        db.insert(shares).values(share),
-        db
-          .insert(activityEvents)
-          .values(
-            adminStatsFactValues({
-              action: 'stats_share_created',
-              sourceId: share.id,
-              orgId: share.orgId,
-              targetType: 'share',
-              occurredAt: now,
-              metadata: { kind: share.kind },
-            }),
-          )
-          .onConflictDoNothing(),
-      ]
+      const queries: AtomicQuery[] = [db.insert(shares).values(share)]
       if (input.recipients && input.recipients.length > 0) {
         const recipientRows = input.recipients.map((r) => ({
           id: nanoid(),
@@ -114,14 +97,11 @@ export function createShareRepo(db: Database): ShareRepo {
       return { status: 'ok', share: row.share, matter: row.matter, recipients }
     },
 
-    async recordView(shareId, activity): Promise<void> {
-      await executeWriteTransaction(db, [
-        db
-          .update(shares)
-          .set({ views: sql`${shares.views} + 1` })
-          .where(eq(shares.id, shareId)),
-        db.insert(activityEvents).values(activityEventValues(activity)),
-      ])
+    async incrementViews(shareId): Promise<void> {
+      await db
+        .update(shares)
+        .set({ views: sql`${shares.views} + 1` })
+        .where(eq(shares.id, shareId))
     },
 
     async hasDownloadsAvailable(shareId: string): Promise<boolean> {
@@ -181,15 +161,8 @@ export function createShareRepo(db: Database): ShareRepo {
       return rows.map((r) => r.userId as string)
     },
 
-    async cascadeDeleteByMatter(matterId: string): Promise<void> {
-      const shareRows = await db.select({ id: shares.id }).from(shares).where(eq(shares.matterId, matterId))
-      if (shareRows.length === 0) return
-
-      const shareIds = shareRows.map((r) => r.id)
-      await executeWriteTransaction(db, [
-        db.delete(shareRecipients).where(inArray(shareRecipients.shareId, shareIds)),
-        db.delete(shares).where(inArray(shares.id, shareIds)),
-      ])
+    async revokeByMatter(matterId: string): Promise<void> {
+      await db.update(shares).set({ status: 'revoked' }).where(eq(shares.matterId, matterId))
     },
 
     async revokeByToken(token: string, creatorId: string): Promise<boolean> {

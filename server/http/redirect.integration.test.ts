@@ -118,6 +118,18 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_PRESIGN_URL)
     expect(res.headers.get('cache-control')).toContain('no-store')
+    const events = await db.all<{ actorType: string; bytes: number; source: string; trafficEventId: string }>(sql`
+      SELECT
+        actor_type AS actorType,
+        json_extract(metadata, '$.bytes') AS bytes,
+        json_extract(metadata, '$.source') AS source,
+        json_extract(metadata, '$.trafficEventId') AS trafficEventId
+      FROM audit_events
+      WHERE action = 'share_download' AND target_id = ${share.id}
+    `)
+    expect(events).toEqual([
+      { actorType: 'anonymous', bytes: 1024, source: 'direct_share', trafficEventId: expect.any(String) },
+    ])
   })
 
   it('returns 404 for unknown ds_ token [spec: redirect/unknown-ds-token]', async () => {
@@ -171,6 +183,12 @@ describe('GET /r/:token (ds_ direct shares)', () => {
 
     const shares = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
     expect(shares[0].downloads).toBe(0)
+    const failures = await db.all<{ reason: string; source: string }>(sql`
+      SELECT json_extract(metadata, '$.reason') AS reason, json_extract(metadata, '$.source') AS source
+      FROM audit_events
+      WHERE action = 'download_failed' AND target_id = ${share.id}
+    `)
+    expect(failures).toEqual([{ reason: 'quota_exceeded', source: 'direct_share' }])
   })
 
   it('consumes traffic quota on successful direct share redirect [spec: redirect/ds-consumes-quota]', async () => {
@@ -282,6 +300,18 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
     const cc = res.headers.get('cache-control') ?? ''
     expect(cc).toContain('no-store')
+    const events = await db.all<{ actorType: string; bytes: number; source: string; trafficEventId: string }>(sql`
+      SELECT
+        actor_type AS actorType,
+        json_extract(metadata, '$.bytes') AS bytes,
+        json_extract(metadata, '$.source') AS source,
+        json_extract(metadata, '$.trafficEventId') AS trafficEventId
+      FROM audit_events
+      WHERE action = 'image_hosting_download' AND target_id = 'ih-img1'
+    `)
+    expect(events).toEqual([
+      { actorType: 'anonymous', bytes: 1024, source: 'image_hosting', trafficEventId: expect.any(String) },
+    ])
   })
 
   it('strips .png extension and resolves same image [spec: redirect/image-strip-ext]', async () => {

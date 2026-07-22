@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ActivityRepo, InviteCodeRecord, InviteRepo } from '../ports'
+import type { InviteCodeRecord, InviteRepo } from '../ports'
 import {
   deleteInviteCode,
   generateInviteCodes,
@@ -19,7 +19,6 @@ const sampleCode = {
 } as InviteCodeRecord
 
 function makeDeps(invites: Partial<InviteRepo> = {}) {
-  const record = vi.fn(async () => {})
   const repo: InviteRepo = {
     generate: async () => [sampleCode],
     validate: async () => ({ valid: true }),
@@ -30,9 +29,8 @@ function makeDeps(invites: Partial<InviteRepo> = {}) {
   }
   const deps: InviteCodeDeps = {
     invites: repo,
-    activity: { record } as unknown as ActivityRepo,
   }
-  return { deps, record }
+  return { deps }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -63,20 +61,12 @@ describe('invite-code usecase', () => {
   })
 
   describe('generateInviteCodes', () => {
-    it('generates without an expiry and records activity', async () => {
+    it('generates without an expiry', async () => {
       const generate = vi.fn(async () => [sampleCode, sampleCode])
-      const { deps, record } = makeDeps({ generate })
-      const out = await generateInviteCodes(deps, { userId: 'u1', orgId: 'o1', count: 2 })
+      const { deps } = makeDeps({ generate })
+      const out = await generateInviteCodes(deps, { userId: 'u1', count: 2 })
       expect(out).toEqual({ codes: [sampleCode, sampleCode] })
       expect(generate).toHaveBeenCalledWith('u1', 2, undefined)
-      expect(record).toHaveBeenCalledWith({
-        orgId: 'o1',
-        userId: 'u1',
-        action: 'invite_code_generate',
-        targetType: 'invite_code',
-        targetName: '2 codes',
-        metadata: { count: 2, expiresInDays: undefined },
-      })
     })
 
     it('translates expiresInDays into an absolute expiry Date', async () => {
@@ -84,52 +74,39 @@ describe('invite-code usecase', () => {
       vi.useFakeTimers()
       vi.setSystemTime(now)
       const generate = vi.fn(async () => [sampleCode])
-      const { deps, record } = makeDeps({ generate })
-      await generateInviteCodes(deps, { userId: 'u1', orgId: 'o1', count: 1, expiresInDays: 7 })
+      const { deps } = makeDeps({ generate })
+      await generateInviteCodes(deps, { userId: 'u1', count: 1, expiresInDays: 7 })
       const expectedExpiry = new Date(now.getTime() + 7 * 86400000)
       expect(generate).toHaveBeenCalledWith('u1', 1, expectedExpiry)
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'invite_code_generate', metadata: { count: 1, expiresInDays: 7 } }),
-      )
       vi.useRealTimers()
     })
   })
 
   describe('deleteInviteCode', () => {
-    it('deletes an unused code and records activity', async () => {
+    it('deletes an unused code', async () => {
       const del = vi.fn(async () => 'ok' as const)
-      const { deps, record } = makeDeps({ delete: del })
-      const out = await deleteInviteCode(deps, { userId: 'u1', orgId: 'o1', id: 'ic-1' })
+      const { deps } = makeDeps({ delete: del })
+      const out = await deleteInviteCode(deps, { id: 'ic-1' })
       expect(out).toEqual({ ok: true })
       expect(del).toHaveBeenCalledWith('ic-1')
-      expect(record).toHaveBeenCalledWith({
-        orgId: 'o1',
-        userId: 'u1',
-        action: 'invite_code_delete',
-        targetType: 'invite_code',
-        targetId: 'ic-1',
-        targetName: 'ic-1',
-      })
     })
 
-    it('returns not_found for a missing code and records no activity', async () => {
-      const { deps, record } = makeDeps({ delete: async () => 'not_found' })
-      const out = await deleteInviteCode(deps, { userId: 'u1', orgId: 'o1', id: 'x' })
+    it('returns not_found for a missing code', async () => {
+      const { deps } = makeDeps({ delete: async () => 'not_found' })
+      const out = await deleteInviteCode(deps, { id: 'x' })
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(404)
       expect(out.error.message).toBe('Invite code not found')
-      expect(record).not.toHaveBeenCalled()
     })
 
-    it('returns already_used for a redeemed code and records no activity', async () => {
-      const { deps, record } = makeDeps({ delete: async () => 'already_used' })
-      const out = await deleteInviteCode(deps, { userId: 'u1', orgId: 'o1', id: 'ic-1' })
+    it('returns already_used for a redeemed code', async () => {
+      const { deps } = makeDeps({ delete: async () => 'already_used' })
+      const out = await deleteInviteCode(deps, { id: 'ic-1' })
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(400)
       expect(out.error.message).toBe('Cannot delete a used invite code')
-      expect(record).not.toHaveBeenCalled()
     })
   })
 })

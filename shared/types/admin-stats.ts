@@ -55,9 +55,7 @@ export interface AdminTransferDataQuality {
 }
 
 export interface AdminSharingDataQuality {
-  unlocatedViews: number | null
   unlocatedDownloads: number | null
-  unlocatedEvents: number | null
 }
 
 export interface AdminStorageDataQuality extends AdminTransferDataQuality {
@@ -81,7 +79,6 @@ export interface AdminDashboardOverviewStats extends AdminStatsRange {
     uploadBytes: AdminStatsDelta
     downloadBytes: AdminStatsDelta
     activeShares: number | null
-    shareViews: AdminStatsDelta
     shareDownloads: AdminStatsDelta
   }
   trends: Array<{
@@ -162,14 +159,11 @@ export interface AdminDashboardSharingStats extends AdminStatsRange {
   summary: {
     activeShares: number | null
     createdShares: AdminStatsDelta
-    views: AdminStatsDelta
+    views: number | null
     downloads: AdminStatsDelta
     saves: AdminStatsDelta
-    downloadsPer100Views: number | null
-    savesPer100Views: number | null
-    passwordPasses: number | null
   }
-  trend: Array<{ date: string; views: number | null; downloads: number | null; saves: number | null }>
+  trend: Array<{ date: string; downloads: number | null; saves: number | null }>
   typeBreakdown: Array<{ name: string; value: number; percent: number }>
   sourceBreakdown: Array<{ name: string; value: number; percent: number }>
   topShares: Array<AdminTopShare & { viewPercent: number; downloadPercent: number }>

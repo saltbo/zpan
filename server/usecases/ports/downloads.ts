@@ -68,6 +68,7 @@ export interface DownloadTaskRecord {
   errorMessage: string | null
   resultObjectId: string | null
   runtime: string | null
+  events: string
   resolveStartedAt: Date | null
   resolveCompletedAt: Date | null
   downloadCompletedAt: Date | null
@@ -80,6 +81,7 @@ export interface DownloadTaskRecord {
   assignedAt: Date | null
   startedAt: Date | null
   finishedAt: Date | null
+  deletedAt: Date | null
 }
 
 export interface CreateDownloaderRecordInput {
@@ -188,11 +190,13 @@ export interface DownloadTaskRepo {
   /** Raw record scoped to org; throws DownloadError('not_found') when missing. */
   getRecord(orgId: string, id: string): Promise<DownloadTaskRecord>
   findRecord(id: string): Promise<DownloadTaskRecord | null>
+  listPendingCleanup(downloaderId: string, limit: number): Promise<DownloadTask[]>
+  completeCleanup(id: string, downloaderId: string, now: Date): Promise<DownloadTaskRecord>
   /** Active task whose target is `folderPath` or a descendant of it. */
   findActiveTargetWithin(orgId: string, folderPath: string): Promise<DownloadTaskRecord | null>
   setFields(id: string, fields: UpdateDownloadTaskFields): Promise<void>
   claimQueued(id: string, downloaderId: string, now: Date): Promise<boolean>
-  delete(id: string): Promise<void>
+  delete(id: string, now: Date): Promise<void>
   /** Oldest queued tasks awaiting assignment. */
   listQueued(limit: number): Promise<DownloadTaskRecord[]>
   /** Re-queue a downloader's in-flight tasks (delete-downloader requeue). */

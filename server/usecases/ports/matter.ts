@@ -26,7 +26,6 @@ export interface Matter {
 
 export interface CreateMatterInput {
   orgId: string
-  userId?: string
   name: string
   type: string
   size?: number
@@ -64,7 +63,6 @@ export interface UpdateMatterInput {
 
 export interface CopyMatterOptions {
   onConflict?: ConflictStrategy
-  userId?: string
 }
 
 export interface ConflictResolveOptions {
@@ -72,8 +70,6 @@ export interface ConflictResolveOptions {
   excludeId?: string
   /** Incoming item is a folder — replace is disabled for folders. */
   isFolder?: boolean
-  /** Activity log will record a 'replace' event for this user when replace trashes a row. */
-  userId?: string
 }
 
 /**
@@ -104,11 +100,11 @@ export interface MatterRepo {
   list(orgId: string, filters: MatterListFilters): Promise<MatterListResult>
   get(id: string, orgId: string): Promise<Matter | null>
   getMany(orgId: string, ids: string[]): Promise<Matter[]>
-  update(id: string, orgId: string, input: UpdateMatterInput, userId?: string): Promise<Matter | null>
+  update(id: string, orgId: string, input: UpdateMatterInput): Promise<Matter | null>
   copy(source: Matter, targetParent: string, newObject: string, opts?: CopyMatterOptions): Promise<Matter>
-  cancelDraft(id: string, orgId: string, userId?: string): Promise<Matter | null>
-  trash(orgId: string, id: string, userId?: string): Promise<Matter | null>
-  restore(orgId: string, id: string, userId?: string, onConflict?: ConflictStrategy): Promise<Matter | null>
+  cancelDraft(id: string, orgId: string): Promise<Matter | null>
+  trash(orgId: string, id: string): Promise<Matter | null>
+  restore(orgId: string, id: string, onConflict?: ConflictStrategy): Promise<Matter | null>
   collectForPurge(orgId: string, idOrMatter: string): Promise<Matter[] | null>
   collectForPurge(orgId: string, idOrMatter: Matter): Promise<Matter[]>
   purge(orgId: string, ids: string[]): Promise<void>
@@ -135,7 +131,7 @@ export interface MatterRepo {
     strategy: ConflictStrategy,
     options?: ConflictResolveOptions,
   ): Promise<ConflictPlan>
-  commitConflictPlan(orgId: string, plan: ConflictPlan, userId?: string): Promise<void>
+  commitConflictPlan(orgId: string, plan: ConflictPlan): Promise<void>
   applyConflictResolution(
     orgId: string,
     parent: string,

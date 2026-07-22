@@ -34,8 +34,8 @@ function planConflictResolution(
 ) {
   return createMatterRepo(db).planConflictResolution(orgId, parent, name, strategy, options)
 }
-function commitConflictPlan(db: TestDb, orgId: string, plan: ConflictPlan, userId?: string) {
-  return createMatterRepo(db).commitConflictPlan(orgId, plan, userId)
+function commitConflictPlan(db: TestDb, orgId: string, plan: ConflictPlan) {
+  return createMatterRepo(db).commitConflictPlan(orgId, plan)
 }
 
 async function insertStorage(db: TestDb, id = 'st-1') {
@@ -295,19 +295,19 @@ describe('applyConflictResolution — strategy: replace', () => {
     expect(rows[0].trashed_at).not.toBeNull()
   })
 
-  it('records a replace activity when userId is provided', async () => {
+  it('does not write audit events from conflict resolution', async () => {
     const { db } = await createTestApp()
     await insertStorage(db)
     const orgId = nanoid()
     const userId = nanoid()
     await insertMatter(db, { orgId, name: 'report.pdf' })
 
-    await applyConflictResolution(db, orgId, '', 'report.pdf', 'replace', { isFolder: false, userId })
+    await applyConflictResolution(db, orgId, '', 'report.pdf', 'replace', { isFolder: false })
 
     const rows = await db.all<{ action: string }>(
-      sql`SELECT action FROM activity_events WHERE org_id = ${orgId} AND user_id = ${userId}`,
+      sql`SELECT action FROM audit_events WHERE org_id = ${orgId} AND user_id = ${userId}`,
     )
-    expect(rows[0].action).toBe('replace')
+    expect(rows).toEqual([])
   })
 
   it('does not record activity when userId is omitted', async () => {
@@ -318,7 +318,7 @@ describe('applyConflictResolution — strategy: replace', () => {
 
     await applyConflictResolution(db, orgId, '', 'report.pdf', 'replace', { isFolder: false })
 
-    const rows = await db.all<{ action: string }>(sql`SELECT action FROM activity_events WHERE org_id = ${orgId}`)
+    const rows = await db.all<{ action: string }>(sql`SELECT action FROM audit_events WHERE org_id = ${orgId}`)
     expect(rows).toHaveLength(0)
   })
 

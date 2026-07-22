@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ActivityRepo } from '../ports'
+import type { AuditRepo } from '../ports'
 import { listAuditEvents } from './audit'
 
 describe('audit usecase', () => {
@@ -7,7 +7,7 @@ describe('audit usecase', () => {
     const result = { items: [], total: 0, page: 1, pageSize: 20 }
     const listAdminAudit = vi.fn(async () => result)
     const out = await listAuditEvents(
-      { activity: { listAdminAudit } as Pick<ActivityRepo, 'listAdminAudit'> },
+      { audit: { listAdminAudit } as Pick<AuditRepo, 'listAdminAudit'> },
       {
         page: 1,
         pageSize: 20,

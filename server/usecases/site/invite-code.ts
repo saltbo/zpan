@@ -4,18 +4,10 @@
 // logging — so the http handlers only validate input, call these functions, and
 // serialize the result.
 
-import {
-  type ActivityRepo,
-  type AppError,
-  badRequest,
-  type InviteCodeRecord,
-  type InviteRepo,
-  notFound,
-} from '../ports'
+import { type AppError, badRequest, type InviteCodeRecord, type InviteRepo, notFound } from '../ports'
 
 export type InviteCodeDeps = {
   invites: InviteRepo
-  activity: ActivityRepo
 }
 
 export type DeleteInviteCodeOutcome = { ok: true } | { ok: false; error: AppError }
@@ -36,37 +28,18 @@ export function validateInviteCode(
 
 export async function generateInviteCodes(
   deps: InviteCodeDeps,
-  params: { userId: string; orgId: string; count: number; expiresInDays?: number },
+  params: { userId: string; count: number; expiresInDays?: number },
 ): Promise<{ codes: InviteCodeRecord[] }> {
-  const { userId, orgId, count, expiresInDays } = params
+  const { userId, count, expiresInDays } = params
   const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 86400000) : undefined
   const codes = await deps.invites.generate(userId, count, expiresAt)
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'invite_code_generate',
-    targetType: 'invite_code',
-    targetName: `${codes.length} codes`,
-    metadata: { count: codes.length, expiresInDays },
-  })
   return { codes }
 }
 
-export async function deleteInviteCode(
-  deps: InviteCodeDeps,
-  params: { userId: string; orgId: string; id: string },
-): Promise<DeleteInviteCodeOutcome> {
-  const { userId, orgId, id } = params
+export async function deleteInviteCode(deps: InviteCodeDeps, params: { id: string }): Promise<DeleteInviteCodeOutcome> {
+  const { id } = params
   const result = await deps.invites.delete(id)
   if (result === 'not_found') return { ok: false, error: notFound('Invite code not found') }
   if (result === 'already_used') return { ok: false, error: badRequest('Cannot delete a used invite code') }
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'invite_code_delete',
-    targetType: 'invite_code',
-    targetId: id,
-    targetName: id,
-  })
   return { ok: true }
 }

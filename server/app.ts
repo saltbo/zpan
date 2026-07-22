@@ -39,6 +39,7 @@ import trash from './http/trash'
 import { users } from './http/users'
 import webdav from './http/webdav'
 import { formatError } from './lib/errors'
+import { auditMiddleware } from './middleware/audit'
 import { authMiddleware } from './middleware/auth'
 import { isHandledError, jsonError } from './middleware/error-handler'
 import { imageHostingDomain } from './middleware/image-hosting-domain'
@@ -185,6 +186,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   // or a shared-secret/signature check) do the gating. Running it ahead of every
   // /api route lets one router per resource mix public and authed endpoints.
   app.use('/api/*', authMiddleware)
+  app.use('/api/*', auditMiddleware)
 
   // Public routes — no per-route auth guard.
   // /api/shares/:token endpoints are covered by run_worker_first=["/api/*"] in wrangler.toml.

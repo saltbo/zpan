@@ -25,7 +25,6 @@ import type { Deps } from './deps'
 import { assertFolderNotUsedByDownload, ensureDownloadFolderPath } from './downloads/download-folders'
 import { assertTaskUploadAllowed } from './downloads/downloads'
 import {
-  type ActivityRepo,
   type AppError,
   badRequest,
   forbidden,
@@ -47,7 +46,7 @@ import {
 } from './ports'
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 import { confirmDownloadTraffic, meterDownloadTraffic, reverseDownloadTraffic } from './store/traffic-metering'
-import { createTrafficEventId, recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
+import { createTrafficEventId } from './transfer-activity'
 
 export { ObjectUploadSessionError } from './ports'
 
@@ -175,7 +174,6 @@ export async function createObject(
     parent = await ensureDownloadFolderPath(deps, {
       orgId,
       folderPath: parent,
-      actorId: actor.createdByUserId,
     })
   }
 
@@ -210,7 +208,6 @@ export async function createObject(
     storageId: storage.id,
     status: isFolder ? 'active' : 'draft',
     onConflict,
-    userId: actorLogId(actor),
   })
 
   if (isFolder) return { ok: true, matter }
@@ -343,7 +340,7 @@ export type CompleteUploadOutcome =
 export async function completeUpload(
   deps: Pick<
     Deps,
-    'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'quota' | 'storageUsage' | 'activity' | 'share'
+    'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'quota' | 'storageUsage' | 'audit' | 'share'
   >,
   params: {
     orgId: string
@@ -353,7 +350,7 @@ export async function completeUpload(
     actorId: string
   },
 ): Promise<CompleteUploadOutcome> {
-  const { matter: uploadMatter, storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
+  const { storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
   const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
   if (!record) throw new ObjectUploadSessionError('not_found')
   if (record.status !== 'active') throw new ObjectUploadSessionError('invalid_state')
@@ -364,19 +361,20 @@ export async function completeUpload(
     try {
       head = await deps.s3.headObject(storage, record.storageKey)
     } catch (error) {
-      await recordUploadFailure(deps.activity, uploadMatter, params.actorId, params.sessionId, 'object_not_found')
-      throw new ObjectUploadSessionError('invalid_state', `Uploaded object not found: ${(error as Error).message}`)
+      throw new ObjectUploadSessionError(
+        'invalid_state',
+        `Uploaded object not found: ${(error as Error).message}`,
+        'object_not_found',
+      )
     }
     const reported = params.parts[0]?.etag.replace(/"/g, '')
     if (!reported || reported !== head.etag) {
-      await recordUploadFailure(deps.activity, uploadMatter, params.actorId, params.sessionId, 'etag_mismatch')
-      throw new ObjectUploadSessionError('invalid_state', 'Uploaded object ETag does not match')
+      throw new ObjectUploadSessionError('invalid_state', 'Uploaded object ETag does not match', 'etag_mismatch')
     }
   } else {
     try {
       await deps.s3.completeMultipartUpload(storage, record.storageKey, record.uploadId, params.parts)
     } catch (error) {
-      await recordUploadFailure(deps.activity, uploadMatter, params.actorId, params.sessionId, 'storage_failure')
       throw new ObjectUploadSessionError(
         'storage_failure',
         `Storage multipart upload complete failed: ${(error as Error).message}`,
@@ -388,45 +386,15 @@ export async function completeUpload(
   // Draft → live: reserve quota, apply the stored conflict strategy, activate.
   const { matter, quotaExceeded: exceeded } = await confirmUpload(deps, params.objectId, params.orgId, {
     onConflict: record.onConflict,
-    userId: params.actorId,
     purgeReplaced: (incumbent) => purgeRecursively(deps, params.orgId, [incumbent]).then(() => undefined),
   })
   if (exceeded) {
-    await recordUploadFailure(deps.activity, uploadMatter, params.actorId, params.sessionId, 'quota_exceeded')
     return { ok: false, error: quotaExceeded() }
   }
   if (!matter) {
-    await recordUploadFailure(deps.activity, uploadMatter, params.actorId, params.sessionId, 'confirm_race')
     return { ok: false, reason: 'not_found' }
   }
   return { ok: true, matter }
-}
-
-function recordUploadFailure(
-  activity: ActivityRepo,
-  matter: Matter,
-  actorId: string,
-  sessionId: string,
-  reason: string,
-): Promise<void> {
-  return activity.record({
-    orgId: matter.orgId,
-    userId: actorId,
-    action: 'upload_failed',
-    targetType: 'file',
-    targetId: matter.id,
-    targetName: matter.name,
-    metadata: {
-      bytes: matter.size ?? 0,
-      source: 'upload',
-      status: 'failed',
-      reason,
-      sessionId,
-      storageId: matter.storageId,
-      matterId: matter.id,
-      matterType: matter.type,
-    },
-  })
 }
 
 // Aborts an in-progress upload and discards the draft. Idempotent for an
@@ -462,14 +430,19 @@ export async function abortUpload(
     }
   }
   await deps.objectUploadSessions.setStatus(record.id, 'aborted')
-  await deps.matter.cancelDraft(params.objectId, params.orgId, params.actorId)
+  await deps.matter.cancelDraft(params.objectId, params.orgId)
 }
 
 // ─── Detail / download ────────────────────────────────────────────────────────
 
 export type GetObjectOutcome =
   | { ok: true; matter: Matter }
-  | { ok: true; matter: Matter; downloadUrl: string }
+  | {
+      ok: true
+      matter: Matter
+      downloadUrl: string
+      receipt: { bytes: number; storageId: string; trafficEventId: string }
+    }
   | { ok: false; error: AppError }
 
 // Loads an object; for files it meters egress (consume traffic quota → report to
@@ -479,9 +452,9 @@ export type GetObjectOutcome =
 export async function getObject(
   deps: Pick<
     Deps,
-    'matter' | 'storages' | 's3' | 'quota' | 'licenseBinding' | 'licensingCloud' | 'cloudTrafficReports' | 'activity'
+    'matter' | 'storages' | 's3' | 'quota' | 'licenseBinding' | 'licensingCloud' | 'cloudTrafficReports'
   >,
-  params: { orgId: string; objectId: string; actorId: string; cloudBaseUrl: string },
+  params: { orgId: string; objectId: string; cloudBaseUrl: string },
 ): Promise<GetObjectOutcome> {
   const matter = await deps.matter.get(params.objectId, params.orgId)
   // Live objects only — a trashed object is fetched via GET /trash/objects/{id}.
@@ -503,18 +476,6 @@ export async function getObject(
     eventId: trafficEventId,
   })
   if (!metered.ok) {
-    await recordDownloadFailed(deps.activity, {
-      orgId: params.orgId,
-      userId: params.actorId,
-      targetType: 'file',
-      targetId: matter.id,
-      targetName: matter.name,
-      source: 'object_download',
-      bytes,
-      trafficEventId,
-      reason: metered.reason,
-      metadata: { matterId: matter.id, storageId: matter.storageId },
-    })
     return {
       ok: false,
       error:
@@ -529,39 +490,15 @@ export async function getObject(
     downloadUrl = await deps.s3.presignDownload(storage, matter.object, matter.name)
   } catch (error) {
     await reverseDownloadTraffic(deps, { orgId: params.orgId, bytes, eventId: trafficEventId })
-    await recordDownloadFailed(deps.activity, {
-      orgId: params.orgId,
-      userId: params.actorId,
-      targetType: 'file',
-      targetId: matter.id,
-      targetName: matter.name,
-      source: 'object_download',
-      bytes,
-      trafficEventId,
-      reason: 'presign_failed',
-      metadata: { matterId: matter.id, storageId: matter.storageId },
-    })
     throw error
   }
   try {
-    await recordDownloadIssued(deps.activity, {
-      orgId: params.orgId,
-      userId: params.actorId,
-      action: 'object_download',
-      targetType: 'file',
-      targetId: matter.id,
-      targetName: matter.name,
-      source: 'object_download',
-      bytes,
-      trafficEventId,
-      metadata: { matterId: matter.id, storageId: matter.storageId, matterType: matter.type },
-    })
     await confirmDownloadTraffic(deps, { eventId: trafficEventId })
   } catch (error) {
     await reverseDownloadTraffic(deps, { orgId: params.orgId, bytes, eventId: trafficEventId })
     throw error
   }
-  return { ok: true, matter, downloadUrl }
+  return { ok: true, matter, downloadUrl, receipt: { bytes, storageId: storage.id, trafficEventId } }
 }
 
 // ─── Trash listing / detail ─────────────────────────────────────────────────
@@ -602,7 +539,7 @@ export type UpdateObjectOutcome = { ok: true; matter: Matter } | { ok: false; er
 
 export async function updateObject(
   deps: Pick<Deps, 'matter' | 'downloadTasks'>,
-  params: { orgId: string; objectId: string; actorId: string; input: PatchMatterInput },
+  params: { orgId: string; objectId: string; input: PatchMatterInput },
 ): Promise<UpdateObjectOutcome> {
   const { name, parent, onConflict } = params.input
   const existing = await deps.matter.get(params.objectId, params.orgId)
@@ -610,7 +547,7 @@ export async function updateObject(
   if ((name !== undefined && name !== existing.name) || (parent !== undefined && parent !== existing.parent)) {
     await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: existing })
   }
-  const matter = await deps.matter.update(params.objectId, params.orgId, { name, parent, onConflict }, params.actorId)
+  const matter = await deps.matter.update(params.objectId, params.orgId, { name, parent, onConflict })
   return matter ? { ok: true, matter } : { ok: false, error: notFound() }
 }
 
@@ -618,12 +555,12 @@ export type TrashObjectOutcome = { ok: true; matter: Matter } | { ok: false; err
 
 export async function trashObject(
   deps: Pick<Deps, 'matter' | 'downloadTasks'>,
-  params: { orgId: string; objectId: string; actorId: string },
+  params: { orgId: string; objectId: string },
 ): Promise<TrashObjectOutcome> {
   const existing = await deps.matter.get(params.objectId, params.orgId)
   if (!existing) return { ok: false, error: notFound() }
   await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: existing })
-  const matter = await deps.matter.trash(params.orgId, params.objectId, params.actorId)
+  const matter = await deps.matter.trash(params.orgId, params.objectId)
   return matter ? { ok: true, matter } : { ok: false, error: notFound() }
 }
 
@@ -631,9 +568,9 @@ export type RestoreObjectOutcome = { ok: true; matter: Matter } | { ok: false; e
 
 export async function restoreObject(
   deps: Pick<Deps, 'matter'>,
-  params: { orgId: string; objectId: string; actorId: string; onConflict?: ConflictStrategy },
+  params: { orgId: string; objectId: string; onConflict?: ConflictStrategy },
 ): Promise<RestoreObjectOutcome> {
-  const matter = await deps.matter.restore(params.orgId, params.objectId, params.actorId, params.onConflict ?? 'fail')
+  const matter = await deps.matter.restore(params.orgId, params.objectId, params.onConflict ?? 'fail')
   return matter ? { ok: true, matter } : { ok: false, error: notFound() }
 }
 
@@ -668,23 +605,14 @@ export type DeleteObjectOutcome =
   | { ok: false; reason: 'not_trashed' }
 
 export async function deleteObject(
-  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'storageUsage' | 'share' | 'activity'>,
-  params: { orgId: string; objectId: string; userId: string },
+  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'storageUsage' | 'share'>,
+  params: { orgId: string; objectId: string },
 ): Promise<DeleteObjectOutcome> {
   const ms = await deps.matter.collectForPurge(params.orgId, params.objectId)
   if (!ms) return { ok: false, reason: 'not_found' }
   // Only a trashed object can be permanently purged.
   if (ms[0].trashedAt == null) return { ok: false, reason: 'not_trashed' }
   const purged = await purgeRecursively(deps, params.orgId, ms)
-  await deps.activity.record({
-    orgId: params.orgId,
-    userId: params.userId,
-    action: 'object_purge',
-    targetType: ms[0].dirtype !== DirType.FILE ? 'folder' : 'file',
-    targetId: ms[0].id,
-    targetName: ms[0].name,
-    metadata: { count: purged },
-  })
   return { ok: true, id: ms[0].id, purged }
 }
 
@@ -718,7 +646,7 @@ export async function copyObject(
         await deps.s3.copyObject(objectStorage, source.object, objectStorage, newObject)
         ctx.onRollback(() => deps.s3.deleteObject(objectStorage, newObject))
       }
-      return deps.matter.copy(source, parent, newObject, { onConflict, userId })
+      return deps.matter.copy(source, parent, newObject, { onConflict })
     },
   )
   return { ok: true, matter: copy }
@@ -731,10 +659,7 @@ export type TransferObjectResult = Awaited<ReturnType<typeof copyMatterToOrg>> &
 export type TransferObjectOutcome = { ok: true; result: TransferObjectResult } | { ok: false; error: AppError }
 
 export async function transferObject(
-  deps: Pick<
-    Deps,
-    'matter' | 'storages' | 's3' | 'quota' | 'storageUsage' | 'share' | 'org' | 'activity' | 'downloadTasks'
-  >,
+  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'quota' | 'storageUsage' | 'share' | 'org' | 'downloadTasks'>,
   params: { orgId: string; userId: string; objectId: string; input: TransferMatterInput },
 ): Promise<TransferObjectOutcome> {
   const { orgId, userId, objectId, input } = params
@@ -764,10 +689,6 @@ export async function transferObject(
     currentUserId: userId,
     targetOrgId,
     targetParent,
-    activity: {
-      action: mode === 'move' ? 'moved_from_org' : 'copied_from_org',
-      metadata: { sourceOrgId: orgId, sourceMatterId: source.id },
-    },
   })
 
   // Move = copy + delete source. Only delete when every file copied — a partial
@@ -780,15 +701,6 @@ export async function transferObject(
     const subtree = await deps.matter.collectForPurge(orgId, source)
     await purgeRecursively(deps, orgId, subtree)
     sourceDeleted = true
-    await deps.activity.record({
-      orgId,
-      userId,
-      action: 'moved_to_org',
-      targetType: source.dirtype === DirType.FILE ? 'file' : 'folder',
-      targetId: source.id,
-      targetName: source.name,
-      metadata: { targetOrgId },
-    })
   }
 
   return { ok: true, result: { ...result, sourceDeleted } }
@@ -803,12 +715,10 @@ export type ConfirmUploadDeps = {
   matter: MatterRepo
   quota: QuotaRepo
   storageUsage: StorageUsageRepo
-  activity: ActivityRepo
 }
 
 export interface ConfirmUploadOptions {
   onConflict?: ConflictStrategy
-  userId?: string
   teamQuotaEnabled?: boolean
   /**
    * Overwrites the file being replaced: hard-purge it (delete row, S3 object,
@@ -839,7 +749,7 @@ export async function confirmUpload(
       existing.parent,
       existing.name,
       opts.onConflict ?? 'fail',
-      { excludeId: existing.id, isFolder: false, userId: opts.userId },
+      { excludeId: existing.id, isFolder: false },
     )
 
     const bytes = existing.size ?? 0
@@ -855,18 +765,8 @@ export async function confirmUpload(
         // Quota reserved — now safe to execute the overwrite (if any).
         if (plan.toTrash && opts.purgeReplaced) {
           await opts.purgeReplaced(plan.toTrash)
-          if (opts.userId) {
-            await deps.activity.record({
-              orgId,
-              userId: opts.userId,
-              action: 'replace',
-              targetType: 'file',
-              targetId: plan.toTrash.id,
-              targetName: plan.toTrash.name,
-            })
-          }
         } else {
-          await deps.matter.commitConflictPlan(orgId, plan, opts.userId)
+          await deps.matter.commitConflictPlan(orgId, plan)
         }
 
         const now = new Date()
@@ -880,26 +780,6 @@ export async function confirmUpload(
         if (overwrites) await deps.storageUsage.reconcile(orgId, [existing.storageId])
 
         const confirmed = { ...existing, name: plan.finalName, status: 'active', updatedAt: now }
-
-        if (opts.userId) {
-          await deps.activity.record({
-            orgId,
-            userId: opts.userId,
-            action: 'upload_confirm',
-            targetType: 'file',
-            targetId: confirmed.id,
-            targetName: confirmed.name,
-            metadata: {
-              bytes,
-              source: 'upload',
-              status: 'success',
-              storageId: confirmed.storageId,
-              matterId: confirmed.id,
-              matterType: confirmed.type,
-              onConflict: opts.onConflict ?? 'fail',
-            },
-          })
-        }
 
         return { matter: confirmed }
       },
@@ -945,7 +825,7 @@ export async function purgeRecursively(deps: PurgeDeps, orgId: string, matters: 
   }
 
   for (const m of matters) {
-    await deps.share.cascadeDeleteByMatter(m.id)
+    await deps.share.revokeByMatter(m.id)
   }
 
   await deps.matter.purge(
@@ -999,13 +879,11 @@ export type SaveToDriveDeps = {
   storages: StorageRepo
   storageUsage: StorageUsageRepo
   quota: QuotaRepo
-  activity: ActivityRepo
   share: ShareRepo
   matter: MatterRepo
 }
 
 export interface SaveShareInput {
-  share: { id: string; creatorId: string }
   matter: Matter
   currentUserId: string
   targetOrgId: string
@@ -1018,17 +896,11 @@ export interface SaveShareResult {
   skipped: Array<{ name: string; reason: string }>
 }
 
-interface CopyActivity {
-  action: string
-  metadata: Record<string, unknown>
-}
-
 export interface CopyMatterToOrgInput {
   sourceMatter: Matter
   currentUserId: string
   targetOrgId: string
   targetParent: string
-  activity: CopyActivity
   teamQuotaEnabled?: boolean
 }
 
@@ -1044,7 +916,6 @@ async function saveFile(
   currentUserId: string,
   targetOrgId: string,
   targetParent: string,
-  activity: CopyActivity,
   teamQuotaEnabled = true,
 ): Promise<Matter> {
   const bytes = sourceMatter.size ?? 0
@@ -1074,16 +945,6 @@ async function saveFile(
         onConflict: 'rename',
       })
 
-      await deps.activity.record({
-        orgId: targetOrgId,
-        userId: currentUserId,
-        action: activity.action,
-        targetType: 'file',
-        targetId: newMatter.id,
-        targetName: newMatter.name,
-        metadata: activity.metadata,
-      })
-
       return newMatter
     },
   )
@@ -1097,7 +958,6 @@ async function saveFolderRecursive(
   currentUserId: string,
   targetOrgId: string,
   targetParent: string,
-  activity: CopyActivity,
   teamQuotaEnabled = true,
 ): Promise<SaveShareResult> {
   const saved: Matter[] = []
@@ -1139,7 +999,6 @@ async function saveFolderRecursive(
             currentUserId,
             targetOrgId,
             targetPath,
-            activity,
             teamQuotaEnabled,
           )
           saved.push(newFile)
@@ -1175,7 +1034,7 @@ async function saveFolderRecursive(
 // target org per file; files that fail (e.g. quota) are reported in `skipped`
 // rather than failing the whole operation.
 export async function copyMatterToOrg(deps: SaveToDriveDeps, input: CopyMatterToOrgInput): Promise<SaveShareResult> {
-  const { sourceMatter, currentUserId, targetOrgId, targetParent, activity, teamQuotaEnabled = true } = input
+  const { sourceMatter, currentUserId, targetOrgId, targetParent, teamQuotaEnabled = true } = input
 
   const sourceStorage = await deps.storages.get(sourceMatter.storageId)
   if (!sourceStorage) throw new Error('Source storage not found')
@@ -1191,7 +1050,6 @@ export async function copyMatterToOrg(deps: SaveToDriveDeps, input: CopyMatterTo
       currentUserId,
       targetOrgId,
       targetParent,
-      activity,
       teamQuotaEnabled,
     )
     return { saved: [newMatter], skipped: [] }
@@ -1205,24 +1063,14 @@ export async function copyMatterToOrg(deps: SaveToDriveDeps, input: CopyMatterTo
     currentUserId,
     targetOrgId,
     targetParent,
-    activity,
     teamQuotaEnabled,
   )
 }
 
 export async function saveShareToDrive(deps: SaveToDriveDeps, input: SaveShareInput): Promise<SaveShareResult> {
-  const { share, matter: sourceMatter, ...rest } = input
+  const { matter: sourceMatter, ...rest } = input
   return copyMatterToOrg(deps, {
     ...rest,
     sourceMatter,
-    activity: {
-      action: 'save_from_share',
-      metadata: {
-        shareId: share.id,
-        sourceMatterId: sourceMatter.id,
-        creatorId: share.creatorId,
-        bytes: sourceMatter.size ?? 0,
-      },
-    },
   })
 }

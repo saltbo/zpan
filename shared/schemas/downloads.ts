@@ -21,6 +21,24 @@ export const downloadTaskActionSchema = z.enum(['pause', 'resume', 'cancel', 're
 export const downloadSourceTypeSchema = z.enum(['http', 'magnet', 'torrent_url'])
 export const downloadTaskPhaseSchema = z.enum(['metadata', 'downloading', 'uploading', 'seeding', 'completed', 'error'])
 
+export const downloadTaskEventSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(['status_changed', 'error_reported', 'cleanup_requested', 'cleanup_completed']),
+  occurredAt: z.number().int().min(0),
+  attempt: z.number().int().min(1),
+  from: downloadTaskStatusSchema.nullable().optional(),
+  to: downloadTaskStatusSchema.optional(),
+  reason: z.string().min(1).nullable().optional(),
+  category: z.string().min(1),
+  downloaderId: z.string().min(1).nullable(),
+  transferredBytes: z.number().int().min(0).nullable(),
+  billedBytes: z.number().int().min(0),
+  errorCode: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+})
+
+export type DownloadTaskEvent = z.infer<typeof downloadTaskEventSchema>
+
 const int64Schema = () => z.number().int().min(0).openapi({ type: 'integer', format: 'int64' })
 const nullableInt64Schema = () =>
   z
@@ -156,6 +174,13 @@ export const downloadTaskSchema = z
       finishedAt: z.string().nullable(),
       updatedAt: z.string(),
     }),
+    control: z
+      .object({
+        action: z.literal('delete'),
+        requestedAt: z.string(),
+      })
+      .nullable()
+      .optional(),
     createdAt: z.string(),
   })
   .openapi('DownloadTask')
@@ -329,13 +354,25 @@ export const createDownloadTaskSchema = z.object({
   tags: downloadTaskTagsSchema.optional(),
 })
 
-export const updateDownloadTaskSchema = z.object({
-  status: downloadTaskStatusSchema.optional(),
-  progress: downloadTaskProgressSchema.partial().optional(),
-  errorMessage: z.string().max(1000).nullable().optional(),
-  resultObjectId: z.string().min(1).nullable().optional(),
-  runtime: downloadTaskRuntimeSchema.nullable().optional(),
-})
+export const updateDownloadTaskSchema = z
+  .object({
+    status: downloadTaskStatusSchema.optional(),
+    progress: downloadTaskProgressSchema.partial().optional(),
+    errorMessage: z.string().max(1000).nullable().optional(),
+    resultObjectId: z.string().min(1).nullable().optional(),
+    runtime: downloadTaskRuntimeSchema.nullable().optional(),
+    cleanupCompleted: z.literal(true).optional(),
+  })
+  .refine(
+    (input) =>
+      input.cleanupCompleted !== true ||
+      (input.status === undefined &&
+        input.progress === undefined &&
+        input.errorMessage === undefined &&
+        input.resultObjectId === undefined &&
+        input.runtime === undefined),
+    { message: 'Cleanup acknowledgment cannot include task updates' },
+  )
 
 export const downloadTaskActionInputSchema = z.object({
   action: downloadTaskActionSchema,

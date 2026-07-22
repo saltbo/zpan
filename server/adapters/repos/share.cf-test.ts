@@ -14,7 +14,7 @@ const incrementDownloadsAtomic = (db: Database, shareId: string) =>
   createShareRepo(db).incrementDownloadsAtomic(shareId)
 const revokeShareByToken = (db: Database, token: string, creatorId: string) =>
   createShareRepo(db).revokeByToken(token, creatorId)
-const cascadeDeleteByMatter = (db: Database, matterId: string) => createShareRepo(db).cascadeDeleteByMatter(matterId)
+const revokeByMatter = (db: Database, matterId: string) => createShareRepo(db).revokeByMatter(matterId)
 
 function buildDb() {
   return createCloudflarePlatform(env).db
@@ -100,10 +100,10 @@ describe('[CF] incrementDownloadsAtomic — race conditions on D1', () => {
   })
 })
 
-// ─── cascadeDeleteByMatter on D1 ─────────────────────────────────────────────
+// ─── revokeByMatter on D1 ────────────────────────────────────────────────────
 
-describe('[CF] cascadeDeleteByMatter on D1', () => {
-  it('removes shares and recipients atomically', async () => {
+describe('[CF] revokeByMatter on D1', () => {
+  it('revokes shares without deleting their history', async () => {
     const db = buildDb()
     const orgId = `org-${nanoid(6)}`
     const matter = await seedMatter(db, orgId)
@@ -116,9 +116,8 @@ describe('[CF] cascadeDeleteByMatter on D1', () => {
       recipients: [{ recipientEmail: 'cascade@example.com' }],
     })
 
-    await cascadeDeleteByMatter(db, matter.id)
+    await revokeByMatter(db, matter.id)
 
-    // Share should be gone after cascade deletion
-    expect((await resolveShareByToken(db, share.token)).status).toBe('not_found')
+    expect((await resolveShareByToken(db, share.token)).status).toBe('revoked')
   })
 })

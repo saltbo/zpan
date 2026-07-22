@@ -912,45 +912,32 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
           icon={Share2}
           metrics={[
             { label: '区间创建', value: formatNumber(stats.summary.createdShares.value) },
-            { label: '每百次访问下载', value: formatPer100(stats.summary.downloadsPer100Views) },
+            { label: '上期创建', value: formatNumber(stats.summary.createdShares.previousValue) },
           ]}
         />
         <StatCard
-          label="已定位访问"
-          value={formatNumber(stats.summary.views.value)}
-          delta={formatDelta(stats.summary.views)}
+          label="累计访问"
+          value={formatNumber(stats.summary.views)}
           icon={Activity}
-          metrics={[
-            { label: '下载请求', value: formatNumber(stats.summary.downloads.value) },
-            { label: '密码通过', value: formatNumber(stats.summary.passwordPasses) },
-          ]}
+          metrics={[{ label: '来自分享表的精确累计值', value: formatNumber(stats.summary.views) }]}
         />
         <StatCard
           label="已定位下载签发"
           value={formatNumber(stats.summary.downloads.value)}
           delta={formatDelta(stats.summary.downloads)}
           icon={Download}
-          metrics={[
-            { label: '每百次访问下载', value: formatPer100(stats.summary.downloadsPer100Views) },
-            { label: '上期下载', value: formatNumber(stats.summary.downloads.previousValue) },
-          ]}
+          metrics={[{ label: '上期下载', value: formatNumber(stats.summary.downloads.previousValue) }]}
         />
         <StatCard
           label="转存到网盘"
           value={formatNumber(stats.summary.saves.value)}
           delta={formatDelta(stats.summary.saves)}
           icon={Link2}
-          metrics={[
-            {
-              label: '每百次访问转存',
-              value: formatPer100(stats.summary.savesPer100Views),
-            },
-            { label: '上期转存', value: formatNumber(stats.summary.saves.previousValue) },
-          ]}
+          metrics={[{ label: '上期转存', value: formatNumber(stats.summary.saves.previousValue) }]}
         />
       </div>
       <div className="grid gap-4">
-        <ChartCard title="访问行为趋势" subtitle="仅展示能定位到具体时间的独立事件，不表示同一访客完成了连续漏斗。">
+        <ChartCard title="分享下载与转存趋势" subtitle="按事件发生时间统计。">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={stats.trend}>
               <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
@@ -962,14 +949,6 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
                 formatter={chartTooltipFormatter}
               />
               <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Area
-                type="monotone"
-                dataKey="views"
-                name="访问"
-                stroke={CHART_COLORS[0]}
-                fill={CHART_COLORS[0]}
-                fillOpacity={0.12}
-              />
               <Area
                 type="monotone"
                 dataKey="downloads"
@@ -992,7 +971,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <BarBreakdownChart title="分享类型分布" rows={stats.typeBreakdown} valueFormatter={formatNumber} />
-        <BreakdownChart title="访问来源分布" rows={stats.sourceBreakdown} valueFormatter={formatNumber} />
+        <BreakdownChart title="分享行为来源" rows={stats.sourceBreakdown} valueFormatter={formatNumber} />
       </div>
       <TopSharesTable rows={stats.topShares} />
     </div>
@@ -1326,10 +1305,6 @@ function formatPercentLabel(value: unknown): string {
   return `${value}%`
 }
 
-function formatPer100(value: number | null): string {
-  return value === null ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: 1 })
-}
-
 function formatDelta(
   delta: { value: number | null; previousValue: number | null; change: number | null; changePercent: number | null },
   valueFormatter: (value: number) => string = formatNumber,
@@ -1371,7 +1346,6 @@ function labelize(value: string): string {
     landing: '落地页分享',
     direct_share: '直链分享',
     views: '访问分享',
-    password_passed: '密码通过',
     downloads: '下载签发',
     saved_to_drive: '转存到网盘',
     landing_share: '分享下载',

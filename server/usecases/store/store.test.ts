@@ -443,7 +443,7 @@ describe('cloud-store usecase', () => {
       verified('evt-1')
       const { deps, processCloudOrderQuotaChange } = makeDeps({ processResult: { duplicate: false, eventId: 'evt-1' } })
       const out = await processDeliveryWebhook(deps, params(validEvent))
-      expect(out).toEqual({ ok: true, duplicate: false, eventId: 'evt-1' })
+      expect(out).toMatchObject({ ok: true, duplicate: false, eventId: 'evt-1' })
       expect(processCloudOrderQuotaChange).toHaveBeenCalledWith(
         expect.objectContaining({ eventId: 'evt-1', direction: 'increase' }),
         JSON.stringify(validEvent),
@@ -455,7 +455,7 @@ describe('cloud-store usecase', () => {
       verified('evt-1')
       const { deps } = makeDeps({ processResult: { duplicate: true, eventId: 'evt-1' } })
       const out = await processDeliveryWebhook(deps, params(validEvent))
-      expect(out).toEqual({ ok: true, duplicate: true, eventId: 'evt-1' })
+      expect(out).toMatchObject({ ok: true, duplicate: true, eventId: 'evt-1' })
     })
 
     it('surfaces a fulfillment failure as processing_failed', async () => {

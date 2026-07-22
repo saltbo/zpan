@@ -369,10 +369,10 @@ func TestTaskRunnerIntervalsAndControlBranches(t *testing.T) {
 	runner.ackStoppedControlTask(context.Background(), task)
 	runner.ackStoppedControlTask(context.Background(), clientTaskWithStatus("task-2", "pausing"))
 
-	runner.cleanupDeletedTask(context.Background(), runner.logger, clientTaskWithStatus("task-1", "canceling"))
+	runner.cleanupDeletedTask(context.Background(), runner.logger, clientTaskWithStatus("task-1", "completed"))
 	errEngine := &recordingEngine{resetErr: errors.New("reset failed")}
 	runner.downloader = NewManagerWithDownloader(errEngine)
-	runner.cleanupDeletedTask(context.Background(), runner.logger, withRuntime(clientTaskWithStatus("task-3", "canceling"), &client.DownloadTaskRuntime{State: deleteRequestedRuntimeState}))
+	runner.cleanupDeletedTask(context.Background(), runner.logger, withDeleteControl(clientTaskWithStatus("task-3", "completed")))
 
 	_, ok := runner.startTask(context.Background(), "busy")
 	if !ok {

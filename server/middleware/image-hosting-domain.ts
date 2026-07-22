@@ -5,6 +5,7 @@ import type { Env } from '../middleware/platform'
 import { forbidden, notFound, quotaExceeded, storageNotFound } from '../usecases/ports'
 import { confirmDownloadTraffic, reverseDownloadTraffic } from '../usecases/store/traffic-metering'
 import { createTrafficEventId } from '../usecases/transfer-activity'
+import { recordDownloadFailure, recordDownloadIssued } from './audit-transfers'
 
 function stripPort(host: string): string {
   const lastColon = host.lastIndexOf(':')
@@ -57,13 +58,17 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
   if (!storage) throw storageNotFound('Storage not found')
 
   const trafficAllowed = await c.get('deps').quota.consumeTrafficIfQuotaAllows(image.orgId, image.size)
-  if (!trafficAllowed) throw quotaExceeded('Traffic quota exceeded')
+  if (!trafficAllowed) {
+    await recordImageDownloadFailure(c, image, 'quota_exceeded')
+    throw quotaExceeded('Traffic quota exceeded')
+  }
 
   let url: string
   try {
     url = await c.get('deps').s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
   } catch (e) {
     await c.get('deps').quota.refundTraffic(image.orgId, image.size)
+    await recordImageDownloadFailure(c, image, 'presign_failed')
     throw e
   }
 
@@ -76,7 +81,10 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
     sourceId: image.id,
     eventId: trafficEventId,
   })
-  if (trafficReportError) return trafficReportError
+  if (trafficReportError) {
+    await recordImageDownloadFailure(c, image, 'insufficient_credits')
+    return trafficReportError
+  }
   try {
     await confirmDownloadTraffic(c.get('deps'), { eventId: trafficEventId })
   } catch (error) {
@@ -85,6 +93,7 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
       bytes: image.size,
       eventId: trafficEventId,
     })
+    await recordImageDownloadFailure(c, image, 'internal')
     throw error
   }
 
@@ -93,9 +102,45 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
   } catch (error) {
     console.error('[image-hosting-domain] incrementAccessCount failed:', error)
   }
+  await recordDownloadIssued(
+    c.get('deps').audit,
+    { userId: null, actorType: 'anonymous', actorRef: null },
+    'image_hosting_download',
+    {
+      orgId: image.orgId,
+      targetType: 'image',
+      targetId: image.id,
+      targetName: image.path,
+      bytes: image.size,
+      source: 'custom_domain_image',
+      metadata: { imageId: image.id, storageId: image.storageId },
+    },
+    trafficEventId,
+  )
   const res = c.redirect(url, 302)
   res.headers.set('Cache-Control', 'no-store')
   return res
+}
+
+function recordImageDownloadFailure(
+  c: Context<Env>,
+  image: { id: string; orgId: string; path: string; size: number; storageId: string },
+  reason: string,
+): Promise<void> {
+  return recordDownloadFailure(
+    c.get('deps').audit,
+    { userId: null, actorType: 'anonymous', actorRef: null },
+    {
+      orgId: image.orgId,
+      targetType: 'image',
+      targetId: image.id,
+      targetName: image.path,
+      bytes: image.size,
+      source: 'custom_domain_image',
+      metadata: { imageId: image.id, storageId: image.storageId },
+    },
+    reason,
+  )
 }
 
 // biome-ignore lint/suspicious/noConfusingVoidType: Next returns void; union with Response is intentional

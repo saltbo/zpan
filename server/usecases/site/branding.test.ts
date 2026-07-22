@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ActivityRepo, SystemOptionsRepo } from '../ports'
+import type { SystemOptionsRepo } from '../ports'
 import {
   applyBrandingUpdate,
   BRANDING_KEYS,
@@ -26,17 +26,12 @@ function makeDeps(overrides: { options?: Map<string, string> } = {}) {
   const listByPrefix = vi.fn(async (_prefix: string) => [...store].map(([key, value]) => ({ key, value })))
   const systemOptions = { set, delete: del, listByPrefix } as unknown as SystemOptionsRepo
 
-  const record = vi.fn(async () => {})
-  const activity = { record } as unknown as ActivityRepo
-
-  const deps: BrandingDeps = { systemOptions, activity }
-  return { deps, store, set, del, listByPrefix, record }
+  const deps: BrandingDeps = { systemOptions }
+  return { deps, store, set, del, listByPrefix }
 }
 
 function baseUpdate(over: Partial<BrandingUpdateInput> = {}): BrandingUpdateInput {
   return {
-    userId: 'u1',
-    orgId: 'o1',
     logoFile: null,
     faviconFile: null,
     wordmarkText: null,
@@ -241,24 +236,13 @@ describe('setBrandingField / resetBrandingField / resetBrandingTheme', () => {
 })
 
 describe('applyBrandingUpdate', () => {
-  it('saves wordmark + hide_powered_by, records one audit event, returns fresh config', async () => {
-    const { deps, set, record } = makeDeps()
+  it('saves wordmark + hide_powered_by and returns fresh config', async () => {
+    const { deps, set } = makeDeps()
     const out = await applyBrandingUpdate(deps, baseUpdate({ wordmarkText: 'MyCloud', hidePoweredBy: true }))
     expect(out.ok).toBe(true)
     if (out.ok) expect(out.config).toMatchObject({ wordmark_text: 'MyCloud', hide_powered_by: true })
     expect(set).toHaveBeenCalledWith(BRANDING_KEYS.wordmark_text, 'MyCloud')
     expect(set).toHaveBeenCalledWith(BRANDING_KEYS.hide_powered_by, 'true')
-    expect(record).toHaveBeenCalledTimes(1)
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'branding_update',
-        targetType: 'branding',
-        targetName: 'branding',
-        orgId: 'o1',
-        userId: 'u1',
-        metadata: { fields: ['wordmark_text', 'hide_powered_by'] },
-      }),
-    )
   })
 
   it('writes hide_powered_by = "false" when the parsed flag is false', async () => {
@@ -274,18 +258,15 @@ describe('applyBrandingUpdate', () => {
   })
 
   it('persists each provided theme field', async () => {
-    const { deps, set, record } = makeDeps()
+    const { deps, set } = makeDeps()
     const out = await applyBrandingUpdate(deps, baseUpdate({ theme: { theme_mode: 'preset', theme_preset: 'ocean' } }))
     expect(out.ok).toBe(true)
     expect(set).toHaveBeenCalledWith(BRANDING_KEYS.theme_mode, 'preset')
     expect(set).toHaveBeenCalledWith(BRANDING_KEYS.theme_preset, 'ocean')
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: { fields: ['theme_mode', 'theme_preset'] } }),
-    )
   })
 
   it('stores logo then favicon as data URIs and lists both as changed', async () => {
-    const { deps, store, record } = makeDeps()
+    const { deps, store } = makeDeps()
     const logoBytes = new Uint8Array([10, 20, 30])
     const faviconBytes = new Uint8Array([40, 50, 60, 70])
     const out = await applyBrandingUpdate(
@@ -298,11 +279,10 @@ describe('applyBrandingUpdate', () => {
     expect(out.ok).toBe(true)
     expect(store.get(BRANDING_KEYS.logo)).toBe(dataUri('image/png', logoBytes))
     expect(store.get(BRANDING_KEYS.favicon)).toBe(dataUri('image/x-icon', faviconBytes))
-    expect(record).toHaveBeenCalledWith(expect.objectContaining({ metadata: { fields: ['logo', 'favicon'] } }))
   })
 
-  it('short-circuits on a logo upload failure without touching favicon or recording activity', async () => {
-    const { deps, store, record } = makeDeps()
+  it('short-circuits on a logo upload failure without touching favicon', async () => {
+    const { deps, store } = makeDeps()
     const out = await applyBrandingUpdate(
       deps,
       baseUpdate({ logoFile: imageFile('application/pdf'), faviconFile: imageFile('image/png') }),
@@ -310,11 +290,10 @@ describe('applyBrandingUpdate', () => {
     expect(out).toEqual({ ok: false, status: 400, error: expect.stringContaining('Invalid file type for logo') })
     expect(store.has(BRANDING_KEYS.logo)).toBe(false)
     expect(store.has(BRANDING_KEYS.favicon)).toBe(false)
-    expect(record).not.toHaveBeenCalled()
   })
 
   it('propagates a 413 from the favicon upload after the logo succeeded', async () => {
-    const { deps, store, record } = makeDeps()
+    const { deps, store } = makeDeps()
     const out = await applyBrandingUpdate(
       deps,
       baseUpdate({
@@ -324,70 +303,40 @@ describe('applyBrandingUpdate', () => {
     )
     expect(out).toEqual({ ok: false, status: 413, error: 'Favicon too large. Max 64 KB.' })
     expect(store.has(BRANDING_KEYS.favicon)).toBe(false)
-    expect(record).not.toHaveBeenCalled()
   })
 
-  it('does not record an audit event when nothing changed', async () => {
-    const { deps, record, set } = makeDeps()
+  it('does not write settings when nothing changed', async () => {
+    const { deps, set } = makeDeps()
     const out = await applyBrandingUpdate(deps, baseUpdate())
     expect(out.ok).toBe(true)
-    expect(record).not.toHaveBeenCalled()
     expect(set).not.toHaveBeenCalled()
-  })
-
-  it('records the full changed-field list across files, scalars, and theme', async () => {
-    const { deps, record } = makeDeps()
-    await applyBrandingUpdate(
-      deps,
-      baseUpdate({
-        logoFile: imageFile('image/png'),
-        wordmarkText: 'Hi',
-        hidePoweredBy: true,
-        theme: { theme_mode: 'preset' },
-      }),
-    )
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: { fields: ['logo', 'wordmark_text', 'hide_powered_by', 'theme_mode'] } }),
-    )
   })
 })
 
 describe('resetBranding', () => {
-  it('resets a single scalar field and records the reset', async () => {
-    const { deps, del, record } = makeDeps()
-    await resetBranding(deps, { userId: 'u1', orgId: 'o1', field: 'wordmark_text' })
+  it('resets a single scalar field', async () => {
+    const { deps, del } = makeDeps()
+    await resetBranding(deps, { field: 'wordmark_text' })
     expect(del).toHaveBeenCalledWith(BRANDING_KEYS.wordmark_text)
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'branding_reset',
-        targetType: 'branding',
-        targetName: 'wordmark_text',
-        metadata: { field: 'wordmark_text' },
-        orgId: 'o1',
-        userId: 'u1',
-      }),
-    )
   })
 
   it('resets the whole theme for the umbrella "theme" field', async () => {
     const { deps, del } = makeDeps()
-    await resetBranding(deps, { userId: 'u1', orgId: 'o1', field: 'theme' })
+    await resetBranding(deps, { field: 'theme' })
     expect(del.mock.calls.length).toBe(7) // every theme key
     expect(del).toHaveBeenCalledWith(BRANDING_KEYS.theme_mode)
     expect(del).toHaveBeenCalledWith(BRANDING_KEYS.theme_ring_color)
   })
 
   it('resets the whole theme even for an individual theme knob (theme_preset)', async () => {
-    const { deps, del, record } = makeDeps()
-    await resetBranding(deps, { userId: 'u1', orgId: 'o1', field: 'theme_preset' })
+    const { deps, del } = makeDeps()
+    await resetBranding(deps, { field: 'theme_preset' })
     expect(del.mock.calls.length).toBe(7)
-    expect(record).toHaveBeenCalledWith(expect.objectContaining({ targetName: 'theme_preset' }))
   })
 
-  it('records the reset for an image field', async () => {
-    const { deps, del, record } = makeDeps()
-    await resetBranding(deps, { userId: 'u1', orgId: 'o1', field: 'logo' })
+  it('resets an image field', async () => {
+    const { deps, del } = makeDeps()
+    await resetBranding(deps, { field: 'logo' })
     expect(del).toHaveBeenCalledWith(BRANDING_KEYS.logo)
-    expect(record).toHaveBeenCalledWith(expect.objectContaining({ targetName: 'logo' }))
   })
 })

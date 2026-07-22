@@ -141,10 +141,10 @@ export async function adminGetUser(userId: string): Promise<AdminUser> {
   return toAdminUser(data)
 }
 
-export async function adminSetUserBanned(userId: string, banned: boolean): Promise<void> {
-  unwrapAuthFetch(banned ? await authClient.admin.banUser({ userId }) : await authClient.admin.unbanUser({ userId }))
-}
-
 export async function adminRemoveUser(userId: string): Promise<void> {
   unwrapAuthFetch(await authClient.admin.removeUser({ userId }))
+}
+
+export async function adminSetUserBanned(userId: string, banned: boolean): Promise<void> {
+  unwrapAuthFetch(banned ? await authClient.admin.banUser({ userId }) : await authClient.admin.unbanUser({ userId }))
 }

@@ -24,9 +24,11 @@ const AUTH_SCHEMA_SQL = `
     ban_expires INTEGER,
     username TEXT UNIQUE,
     display_username TEXT,
+    last_active_at INTEGER,
     created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
     updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
   );
+  CREATE INDEX IF NOT EXISTS user_lastActiveAt_idx ON user(last_active_at);
   CREATE TABLE IF NOT EXISTS session (
     id TEXT PRIMARY KEY,
     expires_at INTEGER NOT NULL,
@@ -293,7 +295,7 @@ const APP_SCHEMA_SQL = `
     created_at INTEGER NOT NULL
   );
   CREATE UNIQUE INDEX IF NOT EXISTS team_invite_links_token_unique ON team_invite_links(token);
-	  CREATE TABLE IF NOT EXISTS activity_events (
+	  CREATE TABLE IF NOT EXISTS audit_events (
 		    id TEXT PRIMARY KEY,
 		    org_id TEXT NOT NULL,
 		    user_id TEXT,
@@ -306,10 +308,10 @@ const APP_SCHEMA_SQL = `
 		    actor_type TEXT,
 		    actor_ref TEXT
 		  );
-	  CREATE INDEX IF NOT EXISTS activity_events_org_created_idx ON activity_events(org_id, created_at);
-	  CREATE INDEX IF NOT EXISTS activity_events_user_created_idx ON activity_events(user_id, created_at);
-	  CREATE INDEX IF NOT EXISTS activity_events_action_created_idx ON activity_events(action, created_at);
-	  CREATE INDEX IF NOT EXISTS activity_events_target_created_idx ON activity_events(target_type, target_id, created_at);
+	  CREATE INDEX IF NOT EXISTS audit_events_org_created_idx ON audit_events(org_id, created_at);
+	  CREATE INDEX IF NOT EXISTS audit_events_user_created_idx ON audit_events(user_id, created_at);
+	  CREATE INDEX IF NOT EXISTS audit_events_action_created_idx ON audit_events(action, created_at);
+	  CREATE INDEX IF NOT EXISTS audit_events_target_created_idx ON audit_events(target_type, target_id, created_at);
 		  CREATE TABLE IF NOT EXISTS stats_rollups_hourly (
 		    id TEXT PRIMARY KEY NOT NULL,
 		    bucket_start INTEGER NOT NULL,
@@ -487,6 +489,7 @@ const APP_SCHEMA_SQL = `
     error_message TEXT,
     result_object_id TEXT,
     runtime TEXT,
+    events TEXT NOT NULL DEFAULT '[]',
     resolve_started_at INTEGER,
     resolve_completed_at INTEGER,
     download_completed_at INTEGER,
@@ -498,13 +501,15 @@ const APP_SCHEMA_SQL = `
     updated_at INTEGER NOT NULL,
     assigned_at INTEGER,
     started_at INTEGER,
-    finished_at INTEGER
+    finished_at INTEGER,
+    deleted_at INTEGER
   );
   CREATE INDEX IF NOT EXISTS download_tasks_org_created_idx ON download_tasks(org_id, created_at);
   CREATE INDEX IF NOT EXISTS download_tasks_org_status_idx ON download_tasks(org_id, status);
   CREATE INDEX IF NOT EXISTS download_tasks_org_category_idx ON download_tasks(org_id, category);
   CREATE INDEX IF NOT EXISTS download_tasks_org_tags_idx ON download_tasks(org_id, tags);
   CREATE INDEX IF NOT EXISTS download_tasks_downloader_idx ON download_tasks(assigned_downloader_id, status);
+  CREATE INDEX IF NOT EXISTS download_tasks_org_deleted_created_idx ON download_tasks(org_id, deleted_at, created_at);
   CREATE TABLE IF NOT EXISTS object_upload_sessions (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,

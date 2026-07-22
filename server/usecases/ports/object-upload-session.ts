@@ -31,6 +31,7 @@ export class ObjectUploadSessionError extends Error {
   constructor(
     readonly code: 'not_found' | 'invalid_state' | 'storage_failure',
     message?: string,
+    readonly reason: string = code,
   ) {
     super(message ?? code)
     this.name = 'ObjectUploadSessionError'

@@ -243,7 +243,7 @@ async function getUserId(db: DbType, email = 'test@example.com'): Promise<string
   return rows[0].id
 }
 
-async function insertActivityEvent(
+async function insertAuditEvent(
   db: DbType,
   opts: {
     id: string
@@ -258,7 +258,7 @@ async function insertActivityEvent(
   },
 ) {
   await db.run(sql`
-    INSERT INTO activity_events (id, org_id, user_id, action, target_type, target_id, target_name, metadata, created_at)
+    INSERT INTO audit_events (id, org_id, user_id, action, target_type, target_id, target_name, metadata, created_at)
     VALUES (
       ${opts.id},
       ${opts.orgId},
@@ -385,7 +385,7 @@ describe('GET /api/teams/:teamId/activity — happy path', () => {
     const orgId = await getOrgId(db)
     const userId = await getUserId(db)
 
-    await insertActivityEvent(db, { id: 'evt-1', orgId, userId, targetName: 'document.pdf' })
+    await insertAuditEvent(db, { id: 'evt-1', orgId, userId, targetName: 'document.pdf' })
 
     const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
     expect(res.status).toBe(200)
@@ -406,7 +406,7 @@ describe('GET /api/teams/:teamId/activity — happy path', () => {
     const orgId = await getOrgId(db)
     const userId = await getUserId(db)
 
-    await insertActivityEvent(db, {
+    await insertAuditEvent(db, {
       id: 'evt-fields',
       orgId,
       userId,
@@ -443,7 +443,7 @@ describe('GET /api/teams/:teamId/activity — happy path', () => {
     const orgId = await getOrgId(db)
     const userId = await getUserId(db)
 
-    await insertActivityEvent(db, { id: 'evt-img', orgId, userId })
+    await insertAuditEvent(db, { id: 'evt-img', orgId, userId })
 
     const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
     const body = (await res.json()) as { items: Array<{ user: { image: string | null } }> }
@@ -484,7 +484,7 @@ describe('GET /api/teams/:teamId/activity — pagination', () => {
 
     const now = Date.now()
     for (let i = 1; i <= 7; i++) {
-      await insertActivityEvent(db, { id: `evt-total-${i}`, orgId, userId, createdAt: now + i })
+      await insertAuditEvent(db, { id: `evt-total-${i}`, orgId, userId, createdAt: now + i })
     }
 
     const res = await app.request(`/api/teams/${orgId}/activity?page=1&pageSize=3`, { headers })
@@ -501,7 +501,7 @@ describe('GET /api/teams/:teamId/activity — pagination', () => {
 
     const now = Date.now()
     for (let i = 1; i <= 5; i++) {
-      await insertActivityEvent(db, {
+      await insertAuditEvent(db, {
         id: `evt-page-${i}`,
         orgId,
         userId,
@@ -523,7 +523,7 @@ describe('GET /api/teams/:teamId/activity — pagination', () => {
     const orgId = await getOrgId(db)
     const userId = await getUserId(db)
 
-    await insertActivityEvent(db, { id: 'evt-single', orgId, userId })
+    await insertAuditEvent(db, { id: 'evt-single', orgId, userId })
 
     const res = await app.request(`/api/teams/${orgId}/activity?page=99&pageSize=20`, { headers })
     const body = (await res.json()) as { items: unknown[]; total: number }
@@ -542,8 +542,8 @@ describe('GET /api/teams/:teamId/activity — ordering', () => {
     const userId = await getUserId(db)
 
     const base = Date.now()
-    await insertActivityEvent(db, { id: 'evt-old', orgId, userId, targetName: 'old.pdf', createdAt: base })
-    await insertActivityEvent(db, { id: 'evt-new', orgId, userId, targetName: 'new.pdf', createdAt: base + 1000 })
+    await insertAuditEvent(db, { id: 'evt-old', orgId, userId, targetName: 'old.pdf', createdAt: base })
+    await insertAuditEvent(db, { id: 'evt-new', orgId, userId, targetName: 'new.pdf', createdAt: base + 1000 })
 
     const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
     const body = (await res.json()) as { items: Array<{ id: string }> }
@@ -561,7 +561,7 @@ describe('GET /api/teams/:teamId/activity — metadata', () => {
     const orgId = await getOrgId(db)
     const userId = await getUserId(db)
 
-    await insertActivityEvent(db, {
+    await insertAuditEvent(db, {
       id: 'evt-meta',
       orgId,
       userId,
@@ -579,7 +579,7 @@ describe('GET /api/teams/:teamId/activity — metadata', () => {
     const orgId = await getOrgId(db)
     const userId = await getUserId(db)
 
-    await insertActivityEvent(db, { id: 'evt-nometa', orgId, userId, metadata: null })
+    await insertAuditEvent(db, { id: 'evt-nometa', orgId, userId, metadata: null })
 
     const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
     const body = (await res.json()) as { items: Array<{ metadata: string | null }> }
@@ -622,8 +622,8 @@ describe('GET /api/teams/:teamId/activity — isolation', () => {
     if (!org2) throw new Error('personal org for user2 not found')
     const orgId2 = org2.id
 
-    await insertActivityEvent(db, { id: 'evt-org1', orgId: orgId1, userId: userId1, targetName: 'user1-file.pdf' })
-    await insertActivityEvent(db, { id: 'evt-org2', orgId: orgId2, userId: userId2, targetName: 'user2-file.pdf' })
+    await insertAuditEvent(db, { id: 'evt-org1', orgId: orgId1, userId: userId1, targetName: 'user1-file.pdf' })
+    await insertAuditEvent(db, { id: 'evt-org2', orgId: orgId2, userId: userId2, targetName: 'user2-file.pdf' })
 
     const res = await app.request(`/api/teams/${orgId1}/activity`, { headers: headers1 })
     const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
@@ -637,7 +637,7 @@ describe('GET /api/teams/:teamId/activity — isolation', () => {
     const orgId = await getOrgId(db)
     const userId = await getUserId(db)
 
-    await insertActivityEvent(db, {
+    await insertAuditEvent(db, {
       id: 'evt-fields',
       orgId,
       userId,

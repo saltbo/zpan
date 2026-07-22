@@ -187,6 +187,12 @@ describe('POST /api/image-hosting/images (content type handling)', () => {
     const body = (await res.json()) as Record<string, unknown>
     const data = body.data as Record<string, unknown>
     expect(data.url).toBeDefined()
+    const uploads = await db.all<{ bytes: number; source: string }>(sql`
+      SELECT json_extract(metadata, '$.bytes') AS bytes, json_extract(metadata, '$.source') AS source
+      FROM audit_events
+      WHERE action = 'upload_confirm'
+    `)
+    expect(uploads).toEqual([{ bytes: 70, source: 'image_hosting_upload' }])
   })
 
   it('accepts explicit path in JSON base64 upload [spec: image-hosting/json-explicit-path]', async () => {
@@ -939,6 +945,13 @@ describe('PUT /api/image-hosting/images/:id/status (confirm)', () => {
     expect(patchRes.status).toBe(200)
     const body = (await patchRes.json()) as Record<string, unknown>
     expect(body.status).toBe('active')
+    const uploads = await db.all<{ bytes: number; imageId: string }>(sql`
+      SELECT json_extract(metadata, '$.bytes') AS bytes,
+        json_extract(metadata, '$.imageId') AS imageId
+      FROM audit_events
+      WHERE action = 'upload_confirm' AND target_id = ${id}
+    `)
+    expect(uploads).toEqual([{ bytes: 512, imageId: id }])
   })
 
   it('returns 404 for already-active row (idempotency: no re-confirm)', async () => {

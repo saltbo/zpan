@@ -17,7 +17,6 @@ import { verifyPassword as verifyPasswordHash } from '../lib/password'
 import type { Platform } from '../platform/interface'
 import { type SaveToDriveDeps, saveShareToDrive } from './object'
 import {
-  type ActivityRepo,
   AppError,
   badRequest,
   CreateShareError,
@@ -45,7 +44,7 @@ import {
 } from './ports'
 import type { CloudTrafficMeteringDeps } from './store/traffic-metering'
 import { confirmDownloadTraffic, meterDownloadTraffic, reverseDownloadTraffic } from './store/traffic-metering'
-import { createTrafficEventId, recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
+import { createTrafficEventId } from './transfer-activity'
 
 // The ports + sub-usecase deps this resource touches. `c.get('deps')` (the full
 // Deps) structurally satisfies this, so the handler passes it whole. The
@@ -59,7 +58,6 @@ export type ShareDeps = SaveToDriveDeps &
     storages: StorageRepo
     s3: S3Gateway
     quota: QuotaRepo
-    activity: ActivityRepo
     org: OrgRepo
   }
 
@@ -175,24 +173,7 @@ export async function viewShare(deps: ShareDeps, params: ViewShareParams): Promi
   // handler sets the cookie when setViewCookie is true.
   const setViewCookie = !isCreator && viewCookie !== 'seen'
   if (setViewCookie) {
-    await deps.share.recordView(share.id, {
-      orgId: share.orgId,
-      userId: viewerId,
-      actorType: viewerId ? 'user' : 'anonymous',
-      action: 'share_view',
-      targetType: 'share',
-      targetId: share.id,
-      targetName: matter.name,
-      metadata: {
-        shareId: share.id,
-        matterId: matter.id,
-        creatorId: share.creatorId,
-        kind: share.kind,
-        requiresPassword: !!share.passwordHash,
-        matterType: matter.type,
-        bytes: matter.size ?? 0,
-      },
-    })
+    await deps.share.incrementViews(share.id)
   }
 
   const dto = await composeShareView(deps, { share, matter, recipients }, { viewerId, accessCookie, now })
@@ -209,12 +190,12 @@ export async function verifySharePassword(
   deps: ShareDeps,
   params: VerifySharePasswordParams,
 ): Promise<VerifySharePasswordOutcome> {
-  const { token, password, viewerId = null, now = new Date() } = params
+  const { token, password, now = new Date() } = params
 
   const resolved = await deps.share.resolveByToken(token)
   if (resolved.status !== 'ok') return { ok: false, error: notFound('Share not found or revoked') }
 
-  const { share, matter } = resolved
+  const { share } = resolved
   if (share.kind !== 'landing') return { ok: false, error: notFound('Share not found or revoked') }
 
   if (!share.passwordHash || !verifyPasswordHash(share.passwordHash, password))
@@ -225,22 +206,6 @@ export async function verifySharePassword(
   const setAccessCookieExpiry = share.expiresAt
     ? new Date(Math.min(share.expiresAt.getTime(), now.getTime() + oneDayMs))
     : new Date(now.getTime() + oneDayMs)
-
-  await deps.activity.record({
-    orgId: share.orgId,
-    userId: viewerId,
-    actorType: viewerId ? 'user' : 'anonymous',
-    action: 'share_password_passed',
-    targetType: 'share',
-    targetId: share.id,
-    targetName: matter.name,
-    metadata: {
-      shareId: share.id,
-      matterId: matter.id,
-      creatorId: share.creatorId,
-      kind: share.kind,
-    },
-  })
 
   return { ok: true, setAccessCookieExpiry }
 }
@@ -327,7 +292,22 @@ export type DownloadShareObjectParams = {
   cloudBaseUrl: string
 }
 
-export type DownloadShareObjectOutcome = { ok: true; url: string } | { ok: false; error: AppError }
+export type DownloadShareObjectOutcome =
+  | {
+      ok: true
+      url: string
+      receipt: {
+        orgId: string
+        creatorId: string
+        shareId: string
+        matterId: string
+        matterName: string
+        storageId: string
+        bytes: number
+        trafficEventId: string
+      }
+    }
+  | { ok: false; error: AppError }
 
 export async function downloadShareObject(
   deps: ShareDeps,
@@ -383,19 +363,6 @@ export async function downloadShareObject(
     onRejected: () => deps.share.decrementDownloads(share.id),
   })
   if (!metered.ok) {
-    await recordDownloadFailed(deps.activity, {
-      orgId: share.orgId,
-      userId: viewerId,
-      actorType: viewerId ? 'user' : 'anonymous',
-      targetType: 'share',
-      targetId: share.id,
-      targetName: targetMatter.name,
-      source: 'landing_share',
-      bytes,
-      trafficEventId,
-      reason: metered.reason,
-      metadata: { shareId: share.id, matterId: targetMatter.id, storageId: targetMatter.storageId },
-    })
     return {
       ok: false,
       error:
@@ -411,54 +378,39 @@ export async function downloadShareObject(
   try {
     url = await deps.s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
   } catch (e) {
-    await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
-    await deps.share.decrementDownloads(share.id)
-    await recordDownloadFailed(deps.activity, {
-      orgId: share.orgId,
-      userId: viewerId,
-      actorType: viewerId ? 'user' : 'anonymous',
-      targetType: 'share',
-      targetId: share.id,
-      targetName: targetMatter.name,
-      source: 'landing_share',
-      bytes,
-      trafficEventId,
-      reason: 'presign_failed',
-      metadata: { shareId: share.id, matterId: targetMatter.id, storageId: targetMatter.storageId },
-    })
+    try {
+      await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
+    } finally {
+      await deps.share.decrementDownloads(share.id)
+    }
     throw e
   }
 
   try {
-    await recordDownloadIssued(deps.activity, {
-      orgId: share.orgId,
-      userId: viewerId,
-      actorType: viewerId ? 'user' : 'anonymous',
-      action: 'share_download',
-      targetType: 'share',
-      targetId: share.id,
-      targetName: targetMatter.name,
-      source: 'landing_share',
-      bytes,
-      trafficEventId,
-      metadata: {
-        anonymous: !viewerId,
-        shareId: share.id,
-        matterId: targetMatter.id,
-        rootMatterId: matter.id,
-        creatorId: share.creatorId,
-        storageId: targetMatter.storageId,
-        kind: share.kind,
-      },
-    })
     await confirmDownloadTraffic(deps, { eventId: trafficEventId })
   } catch (error) {
-    await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
-    await deps.share.decrementDownloads(share.id)
+    try {
+      await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
+    } finally {
+      await deps.share.decrementDownloads(share.id)
+    }
     throw error
   }
 
-  return { ok: true, url }
+  return {
+    ok: true,
+    url,
+    receipt: {
+      orgId: share.orgId,
+      creatorId: share.creatorId,
+      shareId: share.id,
+      matterId: targetMatter.id,
+      matterName: targetMatter.name,
+      storageId: storage.id,
+      bytes,
+      trafficEventId,
+    },
+  }
 }
 
 // ─── GET / — list shares (received / sent) ───────────────────────────────────
@@ -558,16 +510,6 @@ export async function createShare(
     ).catch((err) => console.error('[shares] dispatchShareCreated failed:', err))
   }
 
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'share_create',
-    targetType: 'share',
-    targetId: share.id,
-    targetName: resolvedMatterName,
-    metadata: { kind: share.kind, hasPassword: !!input.password, hasExpiry: !!input.expiresAt },
-  })
-
   return {
     ok: true,
     share: { token: share.token, kind: share.kind, expiresAt: share.expiresAt, downloadLimit: share.downloadLimit },
@@ -576,12 +518,12 @@ export async function createShare(
 
 // ─── PUT /:token/status — revoke (ownership-scoped) ──────────────────────────
 
-export type RevokeShareParams = { token: string; userId: string; orgId: string; now?: Date }
+export type RevokeShareParams = { token: string; userId: string; now?: Date }
 
 export type RevokeShareOutcome = { ok: true; dto: ShareViewerDto | ShareCreatorDto } | { ok: false; error: AppError }
 
 export async function revokeShare(deps: ShareDeps, params: RevokeShareParams): Promise<RevokeShareOutcome> {
-  const { token, userId, orgId, now = new Date() } = params
+  const { token, userId, now = new Date() } = params
 
   // Resolve before revoking: once the status flips to 'revoked', resolveByToken
   // no longer returns the record, so we capture the share here to build the
@@ -598,14 +540,6 @@ export async function revokeShare(deps: ShareDeps, params: RevokeShareParams): P
   // translate to not_found at the boundary.
   const revoked = await deps.share.revokeByToken(token, userId)
   if (!revoked) return { ok: false, error: notFound() }
-
-  await deps.activity.record({
-    orgId,
-    userId,
-    action: 'share_revoke',
-    targetType: 'share',
-    targetName: token,
-  })
 
   // Return the creator view reflecting the post-revoke state.
   const dto = await composeShareView(
@@ -656,7 +590,7 @@ export async function saveShare(deps: ShareDeps, params: SaveShareParams): Promi
   const totalBytes = await deps.share.computeSourceBytes(matter)
   if (!(await deps.share.hasQuotaForBytes(targetOrgId, totalBytes))) return { ok: false, error: quotaExceeded() }
 
-  const result = await saveShareToDrive(deps, { share, matter, currentUserId, targetOrgId, targetParent })
+  const result = await saveShareToDrive(deps, { matter, currentUserId, targetOrgId, targetParent })
   return { ok: true, result }
 }
 

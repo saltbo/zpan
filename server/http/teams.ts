@@ -3,7 +3,7 @@ import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
-  type ActivityEventWithUser,
+  type AuditEventWithUser,
   badRequest,
   conflict,
   expired,
@@ -75,7 +75,7 @@ const activityEventSchema = z
     id: z.string(),
     orgId: z.string(),
     userId: z.string().nullable(),
-    actorType: z.enum(['user', 'anonymous', 'system', 'downloader']),
+    actorType: z.enum(['user', 'api_key', 'anonymous', 'system', 'downloader']),
     actorRef: z.string().nullable(),
     action: z.string(),
     targetType: z.string(),
@@ -85,9 +85,9 @@ const activityEventSchema = z
     createdAt: z.string(),
     user: z.object({ id: z.string().nullable(), name: z.string(), image: z.string().nullable() }),
   })
-  .openapi('ActivityEvent')
+  .openapi('AuditEvent')
 
-function toActivityEventDTO(e: ActivityEventWithUser): z.infer<typeof activityEventSchema> {
+function toAuditEventDTO(e: AuditEventWithUser): z.infer<typeof activityEventSchema> {
   return { ...e, createdAt: e.createdAt.toISOString() }
 }
 
@@ -299,10 +299,7 @@ export const teams = teamsApp
       pageSize,
     })
     if (!result.ok) throw forbidden()
-    return c.json(
-      { items: result.result.items.map(toActivityEventDTO), total: result.result.total, page, pageSize },
-      200,
-    )
+    return c.json({ items: result.result.items.map(toAuditEventDTO), total: result.result.total, page, pageSize }, 200)
   })
   .openapi(setLogoRoute, async (c) => {
     const teamId = c.req.valid('param').teamId
@@ -436,7 +433,6 @@ export const adminTeams = new OpenAPIHono<Env>()
     const body = c.req.valid('json')
     const result = await grantTeamEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
-      adminOrgId: c.get('orgId')!,
       targetOrgId: c.req.valid('param').teamId,
       resourceType: body.resourceType,
       bytes: body.bytes,
@@ -450,7 +446,6 @@ export const adminTeams = new OpenAPIHono<Env>()
     const body = c.req.valid('json')
     const result = await updateTeamEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
-      adminOrgId: c.get('orgId')!,
       targetOrgId: c.req.valid('param').teamId,
       entitlementId: c.req.valid('param').eid,
       bytes: body.bytes,
@@ -463,7 +458,6 @@ export const adminTeams = new OpenAPIHono<Env>()
   .openapi(revokeEntitlementRoute, async (c) => {
     const result = await revokeTeamEntitlement(c.get('deps'), {
       adminUserId: c.get('userId')!,
-      adminOrgId: c.get('orgId')!,
       targetOrgId: c.req.valid('param').teamId,
       entitlementId: c.req.valid('param').eid,
     })

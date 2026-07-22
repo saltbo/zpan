@@ -144,7 +144,6 @@ async function runCompressionJob(
         ctx.onRollback(() => s3.deleteObject(targetStorage, key))
         const matter = await deps.matter.create({
           orgId,
-          userId,
           name: plan.outputName,
           type: ZIP_MIME,
           size: outputBytes,
@@ -235,7 +234,6 @@ async function runExtractionJob(
           writtenKeys.push(key)
           const matter = await deps.matter.create({
             orgId,
-            userId,
             name: file.name,
             type: DEFAULT_FILE_MIME,
             size,
@@ -277,7 +275,6 @@ async function runExtractionJob(
     const parent = parentPath ? await ensureExtractedFolder(parentPath) : targetFolder
     const folder = await deps.matter.create({
       orgId,
-      userId,
       name: parts[parts.length - 1],
       type: 'folder',
       size: 0,

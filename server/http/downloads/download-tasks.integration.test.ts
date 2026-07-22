@@ -295,6 +295,17 @@ describe('Download tasks API integration', () => {
     const taskRes = await app.request(`/api/downloads/tasks/${task.id}`, { headers: user })
     expect(taskRes.status).toBe(200)
     await expect(taskRes.json()).resolves.toMatchObject({ status: { state: 'queued', assignment: null } })
+    const [requeueEvent] = await db.all<{ fromState: string; toState: string; reason: string }>(sql`
+      SELECT
+        json_extract(task_event.value, '$.from') AS fromState,
+        json_extract(task_event.value, '$.to') AS toState,
+        json_extract(task_event.value, '$.reason') AS reason
+      FROM download_tasks task
+      JOIN json_each(task.events) AS task_event
+      WHERE task.id = ${task.id}
+        AND json_extract(task_event.value, '$.reason') = 'downloader_deleted'
+    `)
+    expect(requeueEvent).toEqual({ fromState: 'assigned', toState: 'queued', reason: 'downloader_deleted' })
   })
 
   it('does not assign new tasks to downloaders with stale heartbeats [spec: download-tasks/stale-no-assign]', async () => {
@@ -1311,25 +1322,18 @@ describe('Download tasks API integration', () => {
         'download_resolve_completed',
         'download_completed',
         'download_ingest_started',
-        'download_task_ingesting',
       ]),
     )
     expect(body.items[0]?.time).toBeTruthy()
-    expect(body.items.find((item) => item.action === 'download_resolve_started')?.metadata).toMatchObject({
-      engine: 'aria2',
-      phase: 'metadata',
-      trackerCount: 1,
-    })
+    expect(body.items.find((item) => item.action === 'download_resolve_started')?.metadata).toBeNull()
     const actors = await db.all<{ action: string; actorType: string; actorRef: string | null }>(sql`
       SELECT action, actor_type AS actorType, actor_ref AS actorRef
-      FROM activity_events
+      FROM audit_events
       WHERE target_type = 'download_task' AND target_id = ${task.id}
     `)
     expect(actors.find((event) => event.action === 'download_task_created')).toMatchObject({ actorType: 'user' })
-    const assignedActor = actors.find((event) => event.action === 'download_task_assigned')
-    const lifecycleActor = actors.find((event) => event.action === 'download_resolve_started')
-    expect(assignedActor).toMatchObject({ actorType: 'downloader', actorRef: expect.any(String) })
-    expect(lifecycleActor).toMatchObject({ actorType: 'downloader', actorRef: assignedActor?.actorRef })
+    expect(actors.find((event) => event.action === 'download_task_assigned')).toBeUndefined()
+    expect(actors.find((event) => event.action === 'download_resolve_started')).toBeUndefined()
   })
 
   it('returns storage failure details when multipart upload session creation fails [spec: download-tasks/upload-session-failure]', async () => {
@@ -1715,29 +1719,72 @@ describe('Download tasks API integration', () => {
       headers: { ...user, 'Content-Type': 'application/json' },
     })
     expect(deleteRes.status).toBe(204)
+    const immediatelyDeletedTaskRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, { headers: user })
+    expect(immediatelyDeletedTaskRes.status).toBe(404)
 
-    const deleteControlRes = await app.request('/api/downloads/tasks?assignedTo=me&status=canceling', {
-      headers: { Authorization: `Bearer ${createdDownloader.token}` },
+    const deleteControlRes = await app.request('/api/downloads/downloaders/me/heartbeats', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
     })
     expect(deleteControlRes.status).toBe(200)
-    const deleteControl = (await deleteControlRes.json()) as DownloadTaskList
-    const deleteControlTask = deleteControl.items.find((item) => item.id === createdTask.id)
+    const deleteControl = (await deleteControlRes.json()) as { controls: DownloadTask[] }
+    const deleteControlTask = deleteControl.controls.find((item) => item.id === createdTask.id)
     expect(deleteControlTask).toMatchObject({
-      status: {
-        state: 'canceling',
-        runtime: { state: 'delete_requested' },
-      },
+      status: { state: 'canceled' },
+      control: { action: 'delete', requestedAt: expect.any(String) },
     })
 
     const deleteAckRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
-      body: JSON.stringify({ status: 'canceled' }),
+      body: JSON.stringify({ cleanupCompleted: true }),
     })
     expect(deleteAckRes.status).toBe(200)
+    await expect(deleteAckRes.json()).resolves.toMatchObject({ status: { state: 'canceled' } })
+    const repeatedAckRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ cleanupCompleted: true }),
+    })
+    expect(repeatedAckRes.status).toBe(200)
+
+    const afterAckRes = await app.request('/api/downloads/downloaders/me/heartbeats', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+    })
+    expect(afterAckRes.status).toBe(200)
+    const afterAck = (await afterAckRes.json()) as { controls: DownloadTask[] }
+    expect(afterAck.controls.some((item) => item.id === createdTask.id)).toBe(false)
 
     const deletedTaskRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, { headers: user })
     expect(deletedTaskRes.status).toBe(404)
+    const [deletedTask] = await db.all<{ status: string; deletedAt: number | null }>(sql`
+      SELECT status, deleted_at AS deletedAt
+      FROM download_tasks
+      WHERE id = ${createdTask.id}
+    `)
+    expect(deletedTask).toMatchObject({ status: 'canceled', deletedAt: expect.any(Number) })
+    const deletionEvents = await db.all<{ type: string; toState: string | null }>(sql`
+      SELECT
+        json_extract(task_event.value, '$.type') AS type,
+        json_extract(task_event.value, '$.to') AS toState
+      FROM download_tasks task
+      JOIN json_each(task.events) AS task_event
+      WHERE task.id = ${createdTask.id}
+      ORDER BY CAST(task_event.key AS INTEGER)
+    `)
+    expect(deletionEvents).toEqual(
+      expect.arrayContaining([
+        { type: 'status_changed', toState: 'queued' },
+        { type: 'cleanup_requested', toState: null },
+        { type: 'cleanup_completed', toState: null },
+      ]),
+    )
+    expect(deletionEvents.filter((event) => event.toState === 'canceling')).toHaveLength(1)
+    expect(deletionEvents.filter((event) => event.toState === 'canceled')).toHaveLength(1)
+    expect(deletionEvents.filter((event) => event.type === 'cleanup_completed')).toHaveLength(1)
   })
 
   it('lets the assigned downloader recover interrupted tasks without resuming user-paused tasks [spec: download-tasks/recover-interrupted]', async () => {
@@ -2008,9 +2055,12 @@ describe('Download tasks API integration', () => {
       },
     })
     const terminalFacts = await db.all<{ outcome: string; count: number }>(sql`
-      SELECT json_extract(metadata, '$.outcome') AS outcome, COUNT(*) AS count
-      FROM activity_events
-      WHERE action = 'stats_remote_download_finished' AND target_id = ${createdTask.id}
+      SELECT json_extract(task_event.value, '$.to') AS outcome, COUNT(*) AS count
+      FROM download_tasks task
+      JOIN json_each(task.events) AS task_event
+      WHERE task.id = ${createdTask.id}
+        AND json_extract(task_event.value, '$.type') = 'status_changed'
+        AND json_extract(task_event.value, '$.to') IN ('completed', 'failed', 'canceled')
       GROUP BY outcome
       ORDER BY outcome
     `)
@@ -2018,6 +2068,13 @@ describe('Download tasks API integration', () => {
       { outcome: 'completed', count: 1 },
       { outcome: 'failed', count: 1 },
     ])
+    const [systemAuditFacts] = await db.all<{ count: number }>(sql`
+      SELECT COUNT(*) AS count
+      FROM audit_events
+      WHERE target_id = ${createdTask.id}
+        AND action IN ('download_task_completed', 'download_task_failed', 'download_task_canceled')
+    `)
+    expect(systemAuditFacts.count).toBe(0)
 
     const seedingAfterRestartRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, {
       method: 'PATCH',
@@ -2134,6 +2191,26 @@ describe('Download tasks API integration', () => {
     })
     expect(canceledRes.status).toBe(200)
     await expect(canceledRes.json()).resolves.toMatchObject({ status: { state: 'canceled' } })
+
+    const commandEvents = await db.all<{ action: string; userId: string; actorType: string }>(sql`
+      SELECT action, user_id AS userId, actor_type AS actorType
+      FROM audit_events
+      WHERE target_type = 'download_task'
+        AND target_id = ${createdTask.id}
+        AND action IN (
+          'download_task_pause_requested',
+          'download_task_resume_requested',
+          'download_task_cancel_requested'
+        )
+      ORDER BY created_at, action
+    `)
+    expect(commandEvents).toEqual(
+      expect.arrayContaining([
+        { action: 'download_task_pause_requested', userId: createdTask.createdBy, actorType: 'user' },
+        { action: 'download_task_resume_requested', userId: createdTask.createdBy, actorType: 'user' },
+        { action: 'download_task_cancel_requested', userId: createdTask.createdBy, actorType: 'user' },
+      ]),
+    )
   })
 
   it('rejects pause for billing-paused and uploading tasks [spec: download-tasks/reject-invalid-pause]', async () => {

@@ -2,6 +2,7 @@ import type { AdminDashboardOverviewStats } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createAdminStatsRepo, metricSpec } from '../adapters/repos/admin-stats'
+import { ensureAdminStatsIntegrityOpening } from '../adapters/repos/admin-stats-integrity'
 import { captureAdminStatsSnapshot, rebuildAdminStatsHour } from '../adapters/repos/admin-stats-rollup'
 import { createCloudTrafficReportRepo } from '../adapters/repos/cloud-traffic-report'
 import { currentTrafficPeriod } from '../domain/quota'
@@ -192,7 +193,7 @@ describe('site stats routes', () => {
     const at = Date.UTC(2026, 6, 1, 10)
     await createCloudTrafficReportRepo(db).ensureLedgerOpening(new Date(at - 3_600_000))
     await db.run(sql`
-      INSERT INTO activity_events (
+      INSERT INTO audit_events (
         id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at
       ) VALUES (
         'hourly-reader-raw', ${orgId}, NULL, 'system', 'upload_confirm', 'file', 'old-file', 'old.bin',
@@ -588,7 +589,7 @@ describe('site stats routes', () => {
     const [{ id: userId }] = await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`)
     const created = Math.floor(Date.UTC(2026, 0, 2, 12) / 1000)
     await db.run(sql`
-      INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_name, created_at)
+      INSERT INTO audit_events (id, org_id, user_id, actor_type, action, target_type, target_name, created_at)
       VALUES
         ('valid-historical-activity', ${orgId}, ${userId}, 'user', 'login', 'user', 'valid', ${created}),
         ('orphan-historical-activity', ${orgId}, 'deleted-user', 'user', 'login', 'user', 'orphan', ${created})
@@ -620,9 +621,12 @@ describe('site stats routes', () => {
     await seedProLicense(db)
     const { orgId, userId, bucketStart, eventSec } = await seedStatsFixture(db)
     await db.run(sql`
-      INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_name, metadata, created_at)
-      VALUES ('upload-cancel-rate', ${orgId}, ${userId}, 'user', 'upload_cancel', 'file', 'cancel.bin',
-        '{', ${eventSec})
+      INSERT INTO object_upload_sessions
+        (id, org_id, object_id, storage_id, storage_key, upload_id, part_size, on_conflict, status,
+          created_by, expires_at, created_at, updated_at)
+      VALUES
+        ('upload-cancel-rate', ${orgId}, 'stats-file', 'stats-storage', 'files/cancel.bin', NULL, 5242880,
+          'fail', 'aborted', ${userId}, ${eventSec * 1000 + 3600000}, ${eventSec * 1000}, ${eventSec * 1000})
     `)
     await rebuildAdminStatsHour(db, bucketStart, new Date())
 
@@ -641,13 +645,13 @@ describe('site stats routes', () => {
     expect(emptyBody.successTrend).toEqual([{ date: '2000-01-01', uploadSuccessRate: null, downloadSuccessRate: null }])
   })
 
-  it('omits incomplete transfer bytes while preserving exact request counts', async () => {
+  it('excludes invalid transfer facts instead of presenting partial values', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
     const { orgId, userId } = await seedStatsFixture(db)
     await db.run(sql`
-      INSERT INTO activity_events
+      INSERT INTO audit_events
         (id, org_id, user_id, actor_type, action, target_type, target_name, metadata, created_at)
       VALUES
         ('missing-current-upload-bytes', ${orgId}, ${userId}, 'user', 'upload_confirm', 'file', 'current.bin', '{}',
@@ -679,22 +683,22 @@ describe('site stats routes', () => {
 
     expect([res.status, trafficRes.status, storageRes.status]).toEqual([200, 200, 200])
     expect(body.dataQuality).toEqual({
-      missingBytesEvents: 1,
+      missingBytesEvents: 0,
       previousMissingBytesEvents: 0,
-      missingUploadBytesEvents: 1,
+      missingUploadBytesEvents: 0,
       previousMissingUploadBytesEvents: 0,
       missingDownloadBytesEvents: 0,
       previousMissingDownloadBytesEvents: 0,
     })
-    expect(body.totals.trafficBytes.value).toBeNull()
-    expect(body.totals.uploadBytes.value).toBeNull()
-    expect(body.trends).toContainEqual(expect.objectContaining({ uploadBytes: null }))
-    expect(traffic.summary.totalBytes.value).toBeNull()
-    expect(traffic.summary.requestCount.value).toBe(1)
+    expect(body.totals.trafficBytes.value).toBe(0)
+    expect(body.totals.uploadBytes.value).toBe(0)
+    expect(body.trends).toContainEqual(expect.objectContaining({ uploadBytes: 0 }))
+    expect(traffic.summary.totalBytes.value).toBe(0)
+    expect(traffic.summary.requestCount.value).toBe(0)
     expect(traffic.sourceBreakdown).toEqual([])
-    expect(storage.summary.newBytes.value).toBeNull()
-    expect(storage.summary.newFiles.value).toBe(1)
-    expect(storage.storageTrend).toContainEqual(expect.objectContaining({ newBytes: null, newFiles: 1 }))
+    expect(storage.summary.newBytes.value).toBe(0)
+    expect(storage.summary.newFiles.value).toBe(0)
+    expect(storage.storageTrend).toContainEqual(expect.objectContaining({ newBytes: 0, newFiles: 0 }))
   })
 
   it('excludes expired and exhausted shares from the active-share total', async () => {
@@ -809,7 +813,7 @@ describe('site stats routes', () => {
     expect(mutableCounters).toBe(0)
   })
 
-  it('omits sharing metrics when historical events cannot be located', async () => {
+  it('keeps cumulative views exact while omitting incomplete download history', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -817,11 +821,10 @@ describe('site stats routes', () => {
 
     const currentSharingRes = await app.request('/api/site/stats/sharing', { headers })
     const currentSharing = (await currentSharingRes.json()) as {
-      dataQuality: { unlocatedViews: number; unlocatedDownloads: number; unlocatedEvents: number }
+      dataQuality: { unlocatedDownloads: number }
       summary: {
-        views: { value: number | null; change: number | null }
+        views: number | null
         downloads: { value: number | null; change: number | null }
-        downloadsPer100Views: number | null
       }
       topShares: Array<{
         token: string
@@ -833,23 +836,21 @@ describe('site stats routes', () => {
     }
     const oldSharingRes = await app.request('/api/site/stats/sharing?from=2000-01-01&to=2000-01-02', { headers })
     const oldSharing = (await oldSharingRes.json()) as {
-      summary: { views: { value: number | null }; downloads: { value: number | null } }
+      summary: { views: number | null; downloads: { value: number | null } }
       topShares: unknown[]
     }
     expect(currentSharingRes.status).toBe(200)
-    expect(currentSharing.summary.views.value).toBeNull()
+    expect(currentSharing.summary.views).toBe(12)
     expect(currentSharing.summary.downloads.value).toBeNull()
-    expect(currentSharing.dataQuality).toEqual({ unlocatedViews: 11, unlocatedDownloads: 3, unlocatedEvents: 14 })
-    expect(currentSharing.summary.views.change).toBeNull()
+    expect(currentSharing.dataQuality).toEqual({ unlocatedDownloads: 3 })
     expect(currentSharing.summary.downloads.change).toBeNull()
-    expect(currentSharing.summary.downloadsPer100Views).toBeNull()
-    expect(currentSharing.topShares).toEqual([])
-    expect(oldSharing.summary.views.value).toBeNull()
+    expect(currentSharing.topShares[0]).toMatchObject({ token: 'share-token-1', views: 12, downloads: 4 })
+    expect(oldSharing.summary.views).toBe(12)
     expect(oldSharing.summary.downloads.value).toBeNull()
-    expect(oldSharing.topShares).toEqual([])
+    expect(oldSharing.topShares).toHaveLength(1)
   })
 
-  it('keeps deleted shares in historical rankings without reading their counters live', async () => {
+  it('excludes deleted shares from the live cumulative ranking', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
@@ -863,14 +864,7 @@ describe('site stats routes', () => {
     }
 
     expect(res.status).toBe(200)
-    expect(body.topShares[0]).toMatchObject({
-      id: 'share-1',
-      token: '',
-      name: '已删除的分享',
-      status: 'deleted',
-      views: 1,
-      downloads: 1,
-    })
+    expect(body.topShares).toEqual([])
   })
 
   it('orders top share rankings by views before downloads', async () => {
@@ -885,22 +879,17 @@ describe('site stats routes', () => {
       VALUES ('share-download-heavy', 'share-download-heavy', 'landing', 'stats-file', ${orgId}, ${userId}, ${futureSec}, 10, 0, 3, 'active', ${eventSec})
     `)
     await db.run(sql`
-      INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
+      INSERT INTO cloud_traffic_reports
+        (id, org_id, period, source, source_id, event_id, bytes, status, issued_at, created_at, updated_at)
       VALUES
-        ('activity-download-heavy-1', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec}),
-        ('activity-download-heavy-2', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec}),
-        ('activity-download-heavy-3', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-download-heavy', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${eventSec})
+        ('ranking-download-1', ${orgId}, (SELECT period FROM cloud_traffic_reports LIMIT 1), 'landing_share',
+          'share-download-heavy', 'ranking-download-1', 512, 'not_required', ${eventSec * 1000}, ${eventSec * 1000}, ${eventSec * 1000}),
+        ('ranking-download-2', ${orgId}, (SELECT period FROM cloud_traffic_reports LIMIT 1), 'landing_share',
+          'share-download-heavy', 'ranking-download-2', 512, 'not_required', ${eventSec * 1000}, ${eventSec * 1000}, ${eventSec * 1000}),
+        ('ranking-download-3', ${orgId}, (SELECT period FROM cloud_traffic_reports LIMIT 1), 'landing_share',
+          'share-download-heavy', 'ranking-download-3', 512, 'not_required', ${eventSec * 1000}, ${eventSec * 1000}, ${eventSec * 1000})
     `)
     await makeSharingHistoryExact(db, bucketStart)
-    await db.run(sql`
-      INSERT INTO stats_rollups_hourly
-        (id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
-          count, bytes, unique_count, metadata, updated_at)
-      VALUES
-        ('ranking-invalid-quality', ${bucketStart.getTime()}, ${orgId}, 'share.view', 'share_id',
-          'share-download-heavy', 1000, 0, 0, '{"version":3,"scope":"counters"}', ${bucketStart.getTime()})
-    `)
-
     const res = await app.request('/api/site/stats/sharing', { headers })
     const body = (await res.json()) as { topShares: Array<{ token: string; views: number; downloads: number }> }
 
@@ -919,11 +908,6 @@ describe('site stats routes', () => {
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, expires_at, download_limit, views, downloads, status, created_at)
         VALUES (${id}, ${id}, 'landing', 'stats-file', ${orgId}, ${userId}, NULL, NULL, 1, 0, 'active', ${eventSec})
-      `)
-      await db.run(sql`
-        INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
-        VALUES (${`view-percent-${index}`}, ${orgId}, NULL, 'anonymous', 'share_view', 'share', ${id}, 'report.pdf',
-          '{"source":"landing_share"}', ${eventSec})
       `)
     }
     await makeSharingHistoryExact(db, bucketStart)
@@ -958,11 +942,19 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
     sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
   )
   const [{ id: userId }] = await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`)
+  await ensureAdminStatsIntegrityOpening(db, new Date(generatedAt - 60 * 24 * 60 * 60 * 1000))
   await createCloudTrafficReportRepo(db).ensureLedgerOpening(new Date(generatedAt - 60 * 24 * 60 * 60 * 1000))
 
-  await db.run(sql`UPDATE user SET created_at = ${now}, updated_at = ${now} WHERE id = ${userId}`)
+  await db.run(
+    sql`UPDATE user SET created_at = ${now}, updated_at = ${now}, last_active_at = ${now} WHERE id = ${userId}`,
+  )
   await db.run(sql`UPDATE account SET created_at = ${now}, updated_at = ${now} WHERE user_id = ${userId}`)
   await db.run(sql`UPDATE session SET created_at = ${now}, updated_at = ${now} WHERE user_id = ${userId}`)
+  await db.run(sql`
+    UPDATE audit_events
+    SET created_at = ${nowSec}
+    WHERE id = ${`event:user_register:${userId}`}
+  `)
 
   await db.run(sql`
     UPDATE org_quotas
@@ -986,21 +978,17 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
     VALUES ('invite-1', 'new@example.com', 'invite-token', ${userId}, NULL, NULL, NULL, NULL, ${futureSec}, ${nowSec}, ${nowSec})
   `)
   await db.run(sql`
-    INSERT INTO activity_events (id, org_id, user_id, action, target_type, target_id, target_name, metadata, created_at)
+    INSERT INTO audit_events (id, org_id, user_id, action, target_type, target_id, target_name, metadata, created_at)
     VALUES ('activity-1', ${orgId}, ${userId}, 'upload', 'file', 'stats-file', 'report.pdf', NULL, ${nowSec})
   `)
   await db.run(sql`
-    INSERT INTO activity_events (id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
+    INSERT INTO audit_events (id, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
     VALUES
       ('activity-upload-confirm', ${orgId}, ${userId}, 'user', 'upload_confirm', 'file', 'stats-file', 'report.pdf', '{"bytes":128,"source":"upload"}', ${nowSec}),
-      ('activity-share-view', ${orgId}, NULL, 'anonymous', 'share_view', 'share', 'share-1', 'report.pdf', '{"source":"landing_share","anonymous":true}', ${nowSec}),
-      ('activity-share-password', ${orgId}, NULL, 'anonymous', 'share_password_passed', 'share', 'share-1', 'report.pdf', '{"source":"landing_share","anonymous":true}', ${nowSec}),
-      ('activity-share-download', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-1', 'report.pdf', '{"bytes":512,"source":"landing_share","anonymous":true}', ${nowSec}),
-      ('activity-object-download', ${orgId}, ${userId}, 'user', 'object_download', 'file', 'stats-file', 'report.pdf', '{"bytes":256,"source":"object_download"}', ${nowSec}),
-      ('stats-fixture-share-created', ${orgId}, NULL, 'system', 'stats_share_created', 'share', 'share-1', 'share-1', '{"kind":"landing","statsQuality":"exact"}', ${nowSec}),
-      ('stats-fixture-task-completed', ${orgId}, NULL, 'system', 'stats_remote_download_finished', 'remote_download', 'task-1', 'task-1', '{"category":"direct","outcome":"completed","bytes":0,"statsQuality":"exact"}', ${nowSec}),
-      ('stats-fixture-task-failed', ${orgId}, NULL, 'system', 'stats_remote_download_finished', 'remote_download', 'task-2', 'task-2', '{"category":"direct","outcome":"failed","bytes":0,"statsQuality":"exact"}', ${nowSec}),
-      ('stats-fixture-job-failed', ${orgId}, NULL, 'system', 'stats_background_job_finished', 'background_job', 'job-1', 'job-1', '{"jobType":"extract","outcome":"failed","statsQuality":"exact"}', ${nowSec})
+      ('activity-share-download', ${orgId}, NULL, 'anonymous', 'share_download', 'share', 'share-1', 'report.pdf', '{"bytes":512,"shareId":"share-1","source":"landing_share","trafficEventId":"stats-traffic-share","anonymous":true}', ${nowSec}),
+      ('activity-object-download', ${orgId}, ${userId}, 'user', 'object_download', 'file', 'stats-file', 'report.pdf', '{"bytes":256,"source":"object_download","trafficEventId":"stats-traffic-object"}', ${nowSec}),
+      ('event:share_create:share-1', ${orgId}, ${userId}, 'user', 'share_create', 'share', 'share-1', 'share-1', '{"kind":"landing"}', ${nowSec}),
+      ('event-fixture-job-failed', ${orgId}, NULL, 'system', 'background_job_failed', 'background_job', 'job-1', 'job-1', '{"jobType":"extract","outcome":"failed"}', ${nowSec})
   `)
   await db.run(sql`
     INSERT INTO cloud_traffic_reports (
@@ -1012,19 +1000,48 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
         'not_required', ${now}, ${now}, ${now})
   `)
   await db.run(sql`
-    UPDATE activity_events
-    SET created_at = ${nowSec}, metadata = '{"provider":"credential","statsQuality":"exact"}'
-    WHERE action = 'stats_user_signup' AND target_id = ${userId}
-  `)
-  await db.run(sql`
     INSERT INTO downloaders (id, name, token_hash, token_jti, status, enabled, version, hostname, platform, arch, engine, capabilities, max_concurrent_tasks, current_tasks, download_bps, upload_bps, free_disk_bytes, created_by, last_heartbeat_at, created_at, updated_at)
     VALUES ('downloader-1', 'Downloader One', 'hash', 'jti', 'online', 1, '1.0.0', 'host', 'linux', 'x64', 'http', '[]', 2, 0, 0, 0, 1000, ${userId}, ${now}, ${now}, ${now})
   `)
   await db.run(sql`
-    INSERT INTO download_tasks (id, org_id, created_by_user_id, source_type, source_uri, display_name, target_folder, category, tags, assigned_downloader_id, status, error_code, error_message, created_at, updated_at)
+    INSERT INTO download_tasks (id, org_id, created_by_user_id, source_type, source_uri, display_name, target_folder, category, tags, assigned_downloader_id, status, error_code, error_message, events, created_at, updated_at, finished_at)
     VALUES
-      ('task-1', ${orgId}, ${userId}, 'http', 'https://example.com/ok.bin', 'ok.bin', '', 'direct', '[]', 'downloader-1', 'completed', NULL, NULL, ${now}, ${now}),
-      ('task-2', ${orgId}, ${userId}, 'http', 'https://example.com/bad.bin', 'bad.bin', '', 'direct', '[]', 'downloader-1', 'failed', 'network', 'Network error', ${now}, ${now})
+      ('task-1', ${orgId}, ${userId}, 'http', 'https://example.com/ok.bin', 'ok.bin', '', 'direct', '[]', 'downloader-1', 'completed', NULL, NULL,
+        ${JSON.stringify([
+          {
+            id: 'task-1-completed',
+            type: 'status_changed',
+            occurredAt: now,
+            attempt: 1,
+            from: 'uploading',
+            to: 'completed',
+            reason: null,
+            category: 'direct',
+            downloaderId: 'downloader-1',
+            transferredBytes: null,
+            billedBytes: 0,
+            errorCode: null,
+            errorMessage: null,
+          },
+        ])}, ${now}, ${now}, ${now}),
+      ('task-2', ${orgId}, ${userId}, 'http', 'https://example.com/bad.bin', 'bad.bin', '', 'direct', '[]', 'downloader-1', 'failed', 'network', 'Network error',
+        ${JSON.stringify([
+          {
+            id: 'task-2-failed',
+            type: 'status_changed',
+            occurredAt: now,
+            attempt: 1,
+            from: 'downloading',
+            to: 'failed',
+            reason: null,
+            category: 'direct',
+            downloaderId: 'downloader-1',
+            transferredBytes: null,
+            billedBytes: 0,
+            errorCode: 'network',
+            errorMessage: 'Network error',
+          },
+        ])}, ${now}, ${now}, ${now})
   `)
   await db.run(sql`
     INSERT INTO background_jobs (id, org_id, user_id, type, status, target_folder, target_path, metadata, input_bytes, output_bytes, processed_bytes, file_count, current_filename, error_message, result_metadata, retryable, cancelable, retried_from_job_id, created_at, updated_at, started_at, finished_at)

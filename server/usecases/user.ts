@@ -2,7 +2,7 @@
 // the surviving /api/users routes — the authenticated user's own avatar
 // (PUT/DELETE /api/users/me/avatar), the read-only public profile lookup
 // (GET /api/users/:username), and the admin personal-org storage-entitlement
-// grants (with their activity logging) — so the http handlers only validate
+// grants — so the http handlers only validate
 // input, call these functions, and serialize the result.
 //
 // Admin user management (list / disable-enable / delete) is no longer served
@@ -15,7 +15,6 @@
 
 import type { Platform } from '../platform/interface'
 import {
-  type ActivityRepo,
   AVATAR_PREFIX,
   type EntitlementResult,
   type ImageUpload,
@@ -28,7 +27,6 @@ import {
 
 export type UserDeps = {
   userAdmin: UserAdminRepo
-  activity: ActivityRepo
 }
 
 // Entitlement operations defer to the repo for the rule that may reject them;
@@ -56,7 +54,6 @@ export async function grantUserEntitlement(
   deps: UserDeps,
   params: {
     adminUserId: string
-    adminOrgId: string
     targetUserId: string
     resourceType: 'storage'
     bytes: number
@@ -64,7 +61,7 @@ export async function grantUserEntitlement(
     note?: string | null
   },
 ): Promise<EntitlementOutcome> {
-  const { adminUserId, adminOrgId, targetUserId, resourceType, bytes, expiresAt, note } = params
+  const { adminUserId, targetUserId, resourceType, bytes, expiresAt, note } = params
   const result = await deps.userAdmin.grantUserPersonalEntitlement({
     adminUserId,
     targetUserId,
@@ -74,21 +71,6 @@ export async function grantUserEntitlement(
     note,
   })
   if ('error' in result) return { ok: false, failure: result }
-  await deps.activity.record({
-    orgId: adminOrgId,
-    userId: adminUserId,
-    action: 'quota_entitlement_grant',
-    targetType: 'quota',
-    targetId: result.orgId,
-    targetName: targetUserId,
-    metadata: {
-      targetUserId,
-      entitlementId: result.entitlement.id,
-      resourceType: result.entitlement.resourceType,
-      bytes: result.entitlement.bytes,
-      expiresAt: result.entitlement.expiresAt?.toISOString() ?? null,
-    },
-  })
   return { ok: true, result }
 }
 
@@ -96,7 +78,6 @@ export async function updateUserEntitlement(
   deps: UserDeps,
   params: {
     adminUserId: string
-    adminOrgId: string
     targetUserId: string
     entitlementId: string
     bytes?: number
@@ -104,7 +85,7 @@ export async function updateUserEntitlement(
     note?: string | null
   },
 ): Promise<EntitlementOutcome> {
-  const { adminUserId, adminOrgId, targetUserId, entitlementId, bytes, expiresAt, note } = params
+  const { adminUserId, targetUserId, entitlementId, bytes, expiresAt, note } = params
   const result = await deps.userAdmin.updateUserPersonalEntitlement({
     adminUserId,
     targetUserId,
@@ -114,43 +95,16 @@ export async function updateUserEntitlement(
     note,
   })
   if ('error' in result) return { ok: false, failure: result }
-  await deps.activity.record({
-    orgId: adminOrgId,
-    userId: adminUserId,
-    action: 'quota_entitlement_update',
-    targetType: 'quota',
-    targetId: result.orgId,
-    targetName: targetUserId,
-    metadata: {
-      targetUserId,
-      entitlementId: result.entitlement.id,
-      bytes: result.entitlement.bytes,
-      expiresAt: result.entitlement.expiresAt?.toISOString() ?? null,
-    },
-  })
   return { ok: true, result }
 }
 
 export async function revokeUserEntitlement(
   deps: UserDeps,
-  params: { adminUserId: string; adminOrgId: string; targetUserId: string; entitlementId: string },
+  params: { adminUserId: string; targetUserId: string; entitlementId: string },
 ): Promise<EntitlementOutcome> {
-  const { adminUserId, adminOrgId, targetUserId, entitlementId } = params
+  const { adminUserId, targetUserId, entitlementId } = params
   const result = await deps.userAdmin.revokeUserPersonalEntitlement({ adminUserId, targetUserId, entitlementId })
   if ('error' in result) return { ok: false, failure: result }
-  await deps.activity.record({
-    orgId: adminOrgId,
-    userId: adminUserId,
-    action: 'quota_entitlement_revoke',
-    targetType: 'quota',
-    targetId: result.orgId,
-    targetName: targetUserId,
-    metadata: {
-      targetUserId,
-      entitlementId: result.entitlement.id,
-      bytes: result.entitlement.bytes,
-    },
-  })
   return { ok: true, result }
 }
 

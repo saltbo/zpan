@@ -35,6 +35,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'activity.action.upload') return 'uploaded'
       if (key === 'activity.action.delete') return 'deleted'
       if (key === 'activity.action.replace') return 'replaced'
+      if (key === 'activity.action.share_download') return 'downloaded via share'
       if (key === 'activity.target.file') return 'file'
       return key
     },
@@ -136,9 +137,9 @@ describe('AuditLogsPage filters and pagination', () => {
     expect(screen.queryByRole('button', { name: 'admin.audit.loadMore' })).toBeNull()
 
     await user.click(screen.getByRole('combobox', { name: 'Event type' }))
-    await user.click(await screen.findByRole('option', { name: 'replaced' }))
+    await user.click(await screen.findByRole('option', { name: 'downloaded via share' }))
 
-    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, { action: 'replace' }))
+    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, { action: 'share_download' }))
 
     await user.click(screen.getByRole('combobox', { name: 'Time range' }))
     await user.click(await screen.findByRole('option', { name: 'Last 30 days' }))
@@ -148,7 +149,7 @@ describe('AuditLogsPage filters and pagination', () => {
         1,
         20,
         expect.objectContaining({
-          action: 'replace',
+          action: 'share_download',
           createdFrom: expect.any(String),
           createdTo: expect.any(String),
         }),
@@ -162,7 +163,7 @@ describe('AuditLogsPage filters and pagination', () => {
         2,
         20,
         expect.objectContaining({
-          action: 'replace',
+          action: 'share_download',
           createdFrom: expect.any(String),
           createdTo: expect.any(String),
         }),
@@ -177,7 +178,7 @@ describe('AuditLogsPage filters and pagination', () => {
         1,
         50,
         expect.objectContaining({
-          action: 'replace',
+          action: 'share_download',
           createdFrom: expect.any(String),
           createdTo: expect.any(String),
         }),

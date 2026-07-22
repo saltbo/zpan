@@ -4,8 +4,8 @@ import { hashPassword } from '../lib/password'
 import type { Platform } from '../platform/interface'
 import { saveShareToDrive } from './object'
 import {
-  type ActivityRepo,
   AppError,
+  type AuditRepo,
   CreateShareError,
   type Matter,
   type MatterListResult,
@@ -32,7 +32,7 @@ import {
   verifySharePassword,
   viewShare,
 } from './share'
-import { type DownloadTrafficOutcome, meterDownloadTraffic } from './store/traffic-metering'
+import { confirmDownloadTraffic, type DownloadTrafficOutcome, meterDownloadTraffic } from './store/traffic-metering'
 
 // The end-to-end metering (quota consume → cloud egress report → refund) is
 // covered by cloud-traffic-metering.test.ts; the recipient fan-out and the copy
@@ -72,6 +72,7 @@ function expectError(
 }
 
 const meter = vi.mocked(meterDownloadTraffic)
+const confirmDownload = vi.mocked(confirmDownloadTraffic)
 const saveToDrive = vi.mocked(saveShareToDrive)
 
 const platform = {} as Platform
@@ -131,7 +132,7 @@ const trashedResolution = (
 function makeShareRepo(over: Partial<ShareRepo> = {}): ShareRepo {
   return {
     resolveByToken: async () => okResolution(),
-    recordView: async () => {},
+    incrementViews: async () => {},
     hasDownloadsAvailable: async () => true,
     incrementDownloadsAtomic: async () => ({ ok: true, downloads: 3 }),
     decrementDownloads: async () => {},
@@ -147,7 +148,7 @@ function makeShareRepo(over: Partial<ShareRepo> = {}): ShareRepo {
     findShareChildMatter: async () => childMatter,
     create: async () => landingShare,
     listRecipientUserIds: async () => [],
-    cascadeDeleteByMatter: async () => {},
+    revokeByMatter: async () => {},
     ...over,
   } as ShareRepo
 }
@@ -165,7 +166,7 @@ function makeDeps(
   } = {},
 ) {
   const record = vi.fn(async () => {})
-  const recordView = vi.fn(async () => {})
+  const incrementViews = vi.fn(async () => {})
   const decrementDownloads = vi.fn(async () => {})
   const refundTraffic = vi.fn(async () => {})
   const presignDownload = vi.fn(async () => PRESIGNED_URL)
@@ -177,13 +178,13 @@ function makeDeps(
   const isEmailConfigured = vi.fn(async () => true)
 
   const deps = {
-    share: makeShareRepo({ recordView, decrementDownloads, ...over.share }),
+    share: makeShareRepo({ incrementViews, decrementDownloads, ...over.share }),
     matter: { list: async () => emptyMatterList, ...over.matter } as MatterRepo,
     storages: { get: async () => sampleStorage, ...over.storages } as StorageRepo,
     s3: { presignDownload, ...over.s3 } as S3Gateway,
     quota: { consumeTrafficIfQuotaAllows: async () => true, refundTraffic, ...over.quota } as QuotaRepo,
     org: { canWriteToOrg: async () => true, ...over.org } as OrgRepo,
-    activity: { record } as unknown as ActivityRepo,
+    audit: { record } as unknown as AuditRepo,
     notifications: { create: createNotification } as unknown as ShareDeps['notifications'],
     email: { isConfigured: isEmailConfigured, send: sendEmail } as unknown as ShareDeps['email'],
     shareNotifications: { getUserEmail: async () => null } as unknown as ShareDeps['shareNotifications'],
@@ -197,7 +198,7 @@ function makeDeps(
   return {
     deps,
     record,
-    recordView,
+    incrementViews,
     decrementDownloads,
     refundTraffic,
     presignDownload,
@@ -253,7 +254,7 @@ describe('viewShare', () => {
   })
 
   it('returns the viewer DTO and signals the view cookie for an anonymous viewer', async () => {
-    const { deps, recordView } = makeDeps()
+    const { deps, incrementViews } = makeDeps()
     const out = await viewShare(deps, {
       token: 'sk_token1',
       viewerId: null,
@@ -263,14 +264,7 @@ describe('viewShare', () => {
     expect(out.ok).toBe(true)
     if (!out.ok) throw new Error('expected ok')
     expect(out.setViewCookie).toBe(true)
-    expect(recordView).toHaveBeenCalledWith(
-      's-1',
-      expect.objectContaining({
-        action: 'share_view',
-        targetId: 's-1',
-        metadata: expect.objectContaining({ bytes: 1024 }),
-      }),
-    )
+    expect(incrementViews).toHaveBeenCalledWith('s-1')
     expect(out.dto).toMatchObject({
       token: 'sk_token1',
       kind: 'landing',
@@ -286,7 +280,7 @@ describe('viewShare', () => {
   })
 
   it('does not increment views (no cookie) when already seen', async () => {
-    const { deps, recordView } = makeDeps()
+    const { deps, incrementViews } = makeDeps()
     const out = await viewShare(deps, {
       token: 'sk_token1',
       viewerId: null,
@@ -295,11 +289,11 @@ describe('viewShare', () => {
     })
     if (!out.ok) throw new Error('expected ok')
     expect(out.setViewCookie).toBe(false)
-    expect(recordView).not.toHaveBeenCalled()
+    expect(incrementViews).not.toHaveBeenCalled()
   })
 
   it('returns the richer creator DTO and never bumps views for the creator', async () => {
-    const { deps, recordView } = makeDeps()
+    const { deps, incrementViews } = makeDeps()
     const out = await viewShare(deps, {
       token: 'sk_token1',
       viewerId: 'creator-1',
@@ -308,7 +302,7 @@ describe('viewShare', () => {
     })
     if (!out.ok) throw new Error('expected ok')
     expect(out.setViewCookie).toBe(false)
-    expect(recordView).not.toHaveBeenCalled()
+    expect(incrementViews).not.toHaveBeenCalled()
     expect(out.dto).toMatchObject({
       id: 's-1',
       matterId: 'm-1',
@@ -541,7 +535,11 @@ describe('downloadShareObject', () => {
   it('presigns and returns the URL on the happy path (root file)', async () => {
     const { deps, presignDownload } = makeDeps()
     const out = await downloadShareObject(deps, baseParams)
-    expect(out).toEqual({ ok: true, url: PRESIGNED_URL })
+    expect(out).toMatchObject({
+      ok: true,
+      url: PRESIGNED_URL,
+      receipt: { orgId: 'o-1', shareId: 's-1', matterId: 'm-1', bytes: 1024 },
+    })
     expect(presignDownload).toHaveBeenCalledWith(sampleStorage, 'some/key.bin', 'file.bin', expect.any(Number))
   })
 
@@ -565,40 +563,21 @@ describe('downloadShareObject', () => {
     expect(decrementDownloads).toHaveBeenCalledWith('s-1')
   })
 
-  it('records a share_download activity attributed to the viewer', async () => {
-    const { deps, record } = makeDeps()
+  it('marks the viewer download traffic as issued', async () => {
+    const { deps } = makeDeps()
     await downloadShareObject(deps, { ...baseParams, viewerId: 'viewer-9' })
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orgId: 'o-1',
-        userId: 'viewer-9',
-        actorType: 'user',
-        action: 'share_download',
-        targetId: 's-1',
-        targetName: 'file.bin',
-        metadata: expect.objectContaining({ anonymous: false, source: 'landing_share', status: 'issued', bytes: 1024 }),
-      }),
-    )
+    expect(confirmDownload).toHaveBeenCalledWith(deps, { eventId: expect.any(String) })
   })
 
-  it('records anonymous downloads without attributing them to the creator', async () => {
-    const { deps, record } = makeDeps()
+  it('marks anonymous download traffic as issued', async () => {
+    const { deps } = makeDeps()
     await downloadShareObject(deps, { ...baseParams, viewerId: null })
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: null,
-        actorType: 'anonymous',
-        metadata: expect.objectContaining({ anonymous: true, creatorId: 'creator-1', source: 'landing_share' }),
-      }),
-    )
+    expect(confirmDownload).toHaveBeenCalledWith(deps, { eventId: expect.any(String) })
   })
 
   it('fails when the activity record throws', async () => {
-    const record = vi.fn(async () => {
-      throw new Error('audit down')
-    })
+    confirmDownload.mockRejectedValueOnce(new Error('audit down'))
     const { deps } = makeDeps()
-    deps.activity = { record } as unknown as ActivityRepo
     await expect(downloadShareObject(deps, baseParams)).rejects.toThrow('audit down')
   })
 
@@ -643,7 +622,7 @@ describe('downloadShareObject', () => {
       share: { resolveByToken: async () => okResolution({ matter: folderMatter }), findShareChildMatter },
     })
     const out = await downloadShareObject(deps, { ...baseParams, matterId: 'm-child' })
-    expect(out).toEqual({ ok: true, url: PRESIGNED_URL })
+    expect(out).toMatchObject({ ok: true, url: PRESIGNED_URL, receipt: { matterId: 'm-child' } })
     expect(findShareChildMatter).toHaveBeenCalledWith(folderMatter, 'm-child')
     expect(presignDownload).toHaveBeenCalledWith(sampleStorage, childMatter.object, 'child.txt', expect.any(Number))
   })
@@ -774,9 +753,9 @@ describe('listShares', () => {
 describe('createShare', () => {
   const baseInput = { matterId: 'm-1', kind: 'landing' as const }
 
-  it('creates the share, records activity, and returns the wire DTO', async () => {
+  it('creates the share and returns the wire DTO', async () => {
     const create = vi.fn(async () => landingShare)
-    const { deps, record } = makeDeps({ share: { create, getMatterName: async () => 'file.bin' } })
+    const { deps } = makeDeps({ share: { create, getMatterName: async () => 'file.bin' } })
     const out = await createShare(deps, platform, {
       orgId: 'o-1',
       userId: 'creator-1',
@@ -795,14 +774,6 @@ describe('createShare', () => {
         password: 'pw',
         expiresAt: new Date('2030-01-01T00:00:00Z'),
         downloadLimit: 5,
-      }),
-    )
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'share_create',
-        targetId: 's-1',
-        targetName: 'file.bin',
-        metadata: { kind: 'landing', hasPassword: true, hasExpiry: true },
       }),
     )
   })
@@ -841,7 +812,7 @@ describe('createShare', () => {
   })
 
   it('falls back to Unknown creator / empty matter name', async () => {
-    const { deps, record, sendEmail } = makeDeps({
+    const { deps, sendEmail } = makeDeps({
       share: { getCreatorName: async () => null, getMatterName: async () => null },
     })
     await createShare(deps, platform, {
@@ -850,7 +821,6 @@ describe('createShare', () => {
       input: { ...baseInput, recipients: [{ recipientEmail: 'b@example.com' }] },
     })
     await flushDispatch()
-    expect(record).toHaveBeenCalledWith(expect.objectContaining({ targetName: '' }))
     expect(sendEmail).toHaveBeenCalledWith(
       platform,
       expect.objectContaining({ to: 'b@example.com', subject: 'Unknown shared "" with you' }),
@@ -891,61 +861,45 @@ describe('createShare', () => {
 describe('revokeShare', () => {
   it('returns not_found when the token does not resolve', async () => {
     const { deps, record } = makeDeps({ share: { resolveByToken: async () => ({ status: 'not_found' }) } })
-    expectError(await revokeShare(deps, { token: 't', userId: 'creator-1', orgId: 'o-1' }), 404, undefined, 'Not found')
+    expectError(await revokeShare(deps, { token: 't', userId: 'creator-1' }), 404, undefined, 'Not found')
     expect(record).not.toHaveBeenCalled()
   })
 
   it('returns not_found when the share is already revoked', async () => {
     const { deps, record } = makeDeps({ share: { resolveByToken: async () => ({ status: 'revoked' }) } })
-    expectError(await revokeShare(deps, { token: 't', userId: 'creator-1', orgId: 'o-1' }), 404, undefined, 'Not found')
+    expectError(await revokeShare(deps, { token: 't', userId: 'creator-1' }), 404, undefined, 'Not found')
     expect(record).not.toHaveBeenCalled()
   })
 
   it('returns forbidden when the requester is not the creator', async () => {
     const { deps } = makeDeps()
-    expectError(
-      await revokeShare(deps, { token: 't', userId: 'someone-else', orgId: 'o-1' }),
-      403,
-      undefined,
-      'Forbidden',
-    )
+    expectError(await revokeShare(deps, { token: 't', userId: 'someone-else' }), 403, undefined, 'Forbidden')
   })
 
   it('returns not_found when the scoped revoke loses the race', async () => {
     const { deps } = makeDeps({ share: { revokeByToken: async () => false } })
-    expectError(
-      await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1', orgId: 'o-1' }),
-      404,
-      undefined,
-      'Not found',
-    )
+    expectError(await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1' }), 404, undefined, 'Not found')
   })
 
   it('still revokes a share whose matter is trashed (trashing does not cascade)', async () => {
     const revokeByToken = vi.fn(async () => true)
-    const { deps, record } = makeDeps({ share: { resolveByToken: async () => trashedResolution(), revokeByToken } })
-    const out = await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1', orgId: 'o-1' })
+    const { deps } = makeDeps({ share: { resolveByToken: async () => trashedResolution(), revokeByToken } })
+    const out = await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1' })
     expect(out.ok).toBe(true)
     if (!out.ok) throw new Error('expected ok')
     expect(out.dto).toMatchObject({ token: 'sk_token1', status: 'revoked', id: 's-1', creatorId: 'creator-1' })
     expect(revokeByToken).toHaveBeenCalledWith('sk_token1', 'creator-1')
-    expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'share_revoke', targetName: 'sk_token1' }))
   })
 
   it('returns forbidden for a non-creator even when the matter is trashed', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => trashedResolution() } })
-    expectError(
-      await revokeShare(deps, { token: 'sk_token1', userId: 'someone-else', orgId: 'o-1' }),
-      403,
-      undefined,
-      'Forbidden',
-    )
+    expectError(await revokeShare(deps, { token: 'sk_token1', userId: 'someone-else' }), 403, undefined, 'Forbidden')
   })
 
-  it('revokes, records activity, and returns the revoked creator view', async () => {
+  it('revokes and returns the revoked creator view', async () => {
     const revokeByToken = vi.fn(async () => true)
-    const { deps, record } = makeDeps({ share: { revokeByToken } })
-    const out = await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1', orgId: 'o-1' })
+    const { deps } = makeDeps({ share: { revokeByToken } })
+    const out = await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1' })
     expect(out.ok).toBe(true)
     if (!out.ok) throw new Error('expected ok')
     expect(out.dto).toMatchObject({
@@ -956,9 +910,6 @@ describe('revokeShare', () => {
       recipients: [],
     })
     expect(revokeByToken).toHaveBeenCalledWith('sk_token1', 'creator-1')
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'share_revoke', targetName: 'sk_token1', orgId: 'o-1', userId: 'creator-1' }),
-    )
   })
 })
 
@@ -1033,7 +984,6 @@ describe('saveShare', () => {
     const out = await saveShare(deps, { ...baseParams, targetParent: 'dest' })
     expect(out).toEqual({ ok: true, result: { saved, skipped: [{ name: 'x', reason: 'quota' }] } })
     expect(saveToDrive).toHaveBeenCalledWith(deps, {
-      share: landingShare,
       matter: fileMatter,
       currentUserId: 'u1',
       targetOrgId: 'o-2',

@@ -1,8 +1,7 @@
 import type { BackgroundJob, BackgroundJobStatus } from '@shared/types'
 import { and, count, desc, eq, type SQL } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { activityEvents, backgroundJobs } from '../../db/schema'
-import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
+import { backgroundJobs } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import {
   BackgroundJobError,
@@ -10,7 +9,6 @@ import {
   type BackgroundJobRepo,
   type ListBackgroundJobsOptions,
 } from '../../usecases/ports'
-import { adminStatsFactValues } from './admin-stats-fact'
 
 type BackgroundJobRow = typeof backgroundJobs.$inferSelect
 
@@ -155,25 +153,7 @@ export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
         finishedAt: input.finishedAt === undefined ? finishedAtFor(nextStatus, row.finishedAt, now) : input.finishedAt,
         updatedAt: now,
       }
-      const writes: AtomicQuery[] = [db.update(backgroundJobs).set(values).where(eq(backgroundJobs.id, id))]
-      if (!row.finishedAt && values.finishedAt && ['completed', 'failed', 'canceled'].includes(nextStatus)) {
-        writes.push(
-          db
-            .insert(activityEvents)
-            .values(
-              adminStatsFactValues({
-                action: 'stats_background_job_finished',
-                sourceId: row.id,
-                orgId: row.orgId,
-                targetType: 'background_job',
-                occurredAt: values.finishedAt,
-                metadata: { jobType: row.type, outcome: nextStatus },
-              }),
-            )
-            .onConflictDoNothing(),
-        )
-      }
-      await executeWriteTransaction(db, writes)
+      await db.update(backgroundJobs).set(values).where(eq(backgroundJobs.id, id))
       return repo.get(orgId, id)
     },
 
@@ -184,25 +164,10 @@ export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
         throw new BackgroundJobError('not_cancelable')
       }
       const now = new Date()
-      await executeWriteTransaction(db, [
-        db
-          .update(backgroundJobs)
-          .set({ status: 'canceled', updatedAt: now, finishedAt: now })
-          .where(eq(backgroundJobs.id, id)),
-        db
-          .insert(activityEvents)
-          .values(
-            adminStatsFactValues({
-              action: 'stats_background_job_finished',
-              sourceId: row.id,
-              orgId: row.orgId,
-              targetType: 'background_job',
-              occurredAt: now,
-              metadata: { jobType: row.type, outcome: 'canceled' },
-            }),
-          )
-          .onConflictDoNothing(),
-      ])
+      await db
+        .update(backgroundJobs)
+        .set({ status: 'canceled', updatedAt: now, finishedAt: now })
+        .where(eq(backgroundJobs.id, id))
       return repo.get(orgId, id)
     },
 

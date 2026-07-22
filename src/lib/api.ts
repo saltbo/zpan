@@ -29,7 +29,6 @@ import type {
   UpdateStorageInput,
 } from '@shared/schemas'
 import type {
-  ActivityEvent,
   AdminAuditEvent,
   AdminDashboardGrowthStats,
   AdminDashboardOperationsStats,
@@ -39,6 +38,7 @@ import type {
   AdminDashboardTrafficStats,
   AdminOverview,
   Announcement,
+  AuditEvent,
   AuthProvider,
   AuthProviderList,
   BackgroundJob,
@@ -850,7 +850,7 @@ export function getProfile(username: string) {
 // Teams Activity API
 
 export function listTeamActivities(teamId: string, page = 1, pageSize = 20) {
-  return unwrap<PaginatedResponse<ActivityEvent>>(
+  return unwrap<PaginatedResponse<AuditEvent>>(
     teamsApi[':teamId'].activity.$get({ param: { teamId }, query: { page: String(page), pageSize: String(pageSize) } }),
   )
 }

@@ -14,6 +14,7 @@ import {
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import { recordDownloadIssued, transferAuditActor } from '../middleware/audit-transfers'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -437,12 +438,27 @@ const objects = app
     const result = await getObject(c.get('deps'), {
       orgId,
       objectId: c.req.valid('param').id,
-      actorId: actorId(c),
       cloudBaseUrl: cloudBaseUrl(c),
     })
     if (result.ok) {
-      if ('downloadUrl' in result)
+      if ('downloadUrl' in result) {
+        await recordDownloadIssued(
+          c.get('deps').audit,
+          transferAuditActor(c.get('principal')),
+          'object_download',
+          {
+            orgId,
+            targetType: 'file',
+            targetId: result.matter.id,
+            targetName: result.matter.name,
+            bytes: result.receipt.bytes,
+            source: 'object_download',
+            metadata: { matterId: result.matter.id, storageId: result.receipt.storageId },
+          },
+          result.receipt.trafficEventId,
+        )
         return c.json({ ...toMatterDTO(result.matter), downloadUrl: result.downloadUrl }, 200)
+      }
       return c.json(toMatterDTO(result.matter), 200)
     }
     throw result.error
@@ -453,7 +469,6 @@ const objects = app
     const result = await updateObject(c.get('deps'), {
       orgId,
       objectId: c.req.valid('param').id,
-      actorId: actorId(c),
       input: c.req.valid('json'),
     })
     if (!result.ok) throw result.error
@@ -467,7 +482,6 @@ const objects = app
     const result = await trashObject(c.get('deps'), {
       orgId,
       objectId: c.req.valid('param').id,
-      actorId: actorId(c),
     })
     if (!result.ok) throw result.error
     return c.body(null, 204)

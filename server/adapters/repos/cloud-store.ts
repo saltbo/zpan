@@ -4,7 +4,7 @@ import type { CloudStoreTarget } from '@shared/types'
 import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../../db/auth-schema'
-import { activityEvents, orgQuotaEntitlements, orgQuotas, webhookEvents } from '../../db/schema'
+import { orgQuotaEntitlements, orgQuotas, webhookEvents } from '../../db/schema'
 import { type AtomicQuery, executeRows, executeWriteTransaction } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
 import type { CloudStoreBinding, CloudStoreRepo } from '../../usecases/ports'
@@ -77,7 +77,6 @@ async function processQuotaChangeTransaction(
 
   await executeWriteTransaction(db, [
     ...quotaChangeQueries(db, event, now),
-    db.insert(activityEvents).values(quotaChangeAuditValues(event)),
     db
       .update(webhookEvents)
       .set({ status: 'processed', error: null, processedAt: new Date() })
@@ -89,31 +88,6 @@ function quotaChangeQueries(db: Database, event: CloudOrderQuotaChange, now: Dat
   return event.direction === 'increase'
     ? insertQuotaEntitlementQueries(db, event, now)
     : revokeQuotaEntitlementQueries(db, event, now)
-}
-
-function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEvents.$inferInsert {
-  return {
-    id: nanoid(),
-    orgId: event.targetOrgId,
-    userId: null,
-    actorType: 'system',
-    actorRef: 'cloud-store',
-    action: `quota_order_${event.direction}`,
-    targetType: 'quota',
-    targetId: event.targetOrgId,
-    targetName: event.targetOrgId,
-    metadata: JSON.stringify({
-      eventId: event.eventId,
-      eventType: event.eventType,
-      customerId: event.customerId ?? null,
-      direction: event.direction,
-      storageBytes: event.storageBytes,
-      trafficBytes: event.trafficBytes,
-      cloudOrderId: event.cloudOrderId ?? null,
-      packageName: event.packageName ?? null,
-    }),
-    createdAt: new Date(),
-  }
 }
 
 async function requireTargetQuota(db: Database, orgId: string): Promise<void> {

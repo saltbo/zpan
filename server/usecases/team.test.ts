@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
-  ActivityRepo,
+  AuditRepo,
   EntitlementResult,
   ImageUpload,
   ImageUploadResult,
@@ -82,9 +82,8 @@ function makeDeps(
     userAdmin?: Partial<UserAdminRepo>
   } = {},
 ) {
-  const record = vi.fn(async () => {})
   const deps: TeamDeps = {
-    activity: { record, list: async () => ({ items: [], total: 0 }) } as unknown as ActivityRepo,
+    audit: { record: async () => {}, list: async () => ({ items: [], total: 0 }) } as unknown as AuditRepo,
     org: {
       findPersonalOrg: async () => null,
       getMemberRole: async () => null,
@@ -119,7 +118,7 @@ function makeDeps(
       ...overrides.userAdmin,
     } as unknown as UserAdminRepo,
   }
-  return { deps, record }
+  return { deps }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -145,30 +144,26 @@ describe('team usecase', () => {
   })
 
   describe('createInviteLink', () => {
-    it('creates and records activity when caller is owner', async () => {
+    it('creates when caller is owner', async () => {
       const create = vi.fn(async () => inviteLink)
-      const { deps, record } = makeDeps({
+      const { deps } = makeDeps({
         org: { getMemberRole: async () => 'owner' },
         teamInvites: { createInviteLink: create },
       })
       const out = await createInviteLink(deps, { teamId: 'team-1', userId: 'u1', role: 'editor', expiresIn: 1000 })
       expect(out).toEqual({ ok: true, token: 'tok-1', expiresAt: inviteLink.expiresAt })
       expect(create).toHaveBeenCalledWith('team-1', 'u1', 'editor', 1000)
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'team_invite_link_create', orgId: 'team-1', userId: 'u1' }),
-      )
     })
 
-    it('forbids a non-owner and records nothing', async () => {
+    it('forbids a non-owner', async () => {
       const create = vi.fn(async () => inviteLink)
-      const { deps, record } = makeDeps({
+      const { deps } = makeDeps({
         org: { getMemberRole: async () => 'member' },
         teamInvites: { createInviteLink: create },
       })
       const out = await createInviteLink(deps, { teamId: 'team-1', userId: 'u1', role: 'viewer' })
       expect(out).toEqual({ ok: false, reason: 'forbidden' })
       expect(create).not.toHaveBeenCalled()
-      expect(record).not.toHaveBeenCalled()
     })
   })
 
@@ -194,20 +189,16 @@ describe('team usecase', () => {
 
   // ─── joining ───────────────────────────────────────────────────────────────
   describe('joinTeam', () => {
-    it('joins and records activity on a valid token', async () => {
-      const { deps, record } = makeDeps({ teamInvites: { acceptInviteLink: async () => 'ok' } })
+    it('joins on a valid token', async () => {
+      const { deps } = makeDeps({ teamInvites: { acceptInviteLink: async () => 'ok' } })
       const out = await joinTeam(deps, { teamId: 'team-1', userId: 'u1', token: 'tok' })
       expect(out).toEqual({ ok: true })
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'team_member_join', orgId: 'team-1', userId: 'u1' }),
-      )
     })
 
-    it.each(['invalid', 'expired', 'already_member'] as const)('maps %s and records nothing', async (reason) => {
-      const { deps, record } = makeDeps({ teamInvites: { acceptInviteLink: async () => reason } })
+    it.each(['invalid', 'expired', 'already_member'] as const)('maps %s', async (reason) => {
+      const { deps } = makeDeps({ teamInvites: { acceptInviteLink: async () => reason } })
       const out = await joinTeam(deps, { teamId: 'team-1', userId: 'u1', token: 'tok' })
       expect(out).toEqual({ ok: false, reason })
-      expect(record).not.toHaveBeenCalled()
     })
   })
 
@@ -216,7 +207,7 @@ describe('team usecase', () => {
     it('lists for a member of any role', async () => {
       const list = vi.fn(async () => ({ items: [], total: 3 }))
       const { deps } = makeDeps({ org: { getMemberRole: async () => 'viewer' } })
-      deps.activity.list = list
+      deps.audit.list = list
       const out = await listActivity(deps, { teamId: 'team-1', userId: 'u1', page: 1, pageSize: 20 })
       expect(out).toEqual({ ok: true, result: { items: [], total: 3 } })
       expect(list).toHaveBeenCalledWith('team-1', { page: 1, pageSize: 20 })
@@ -239,10 +230,10 @@ describe('team usecase', () => {
   describe('setTeamLogo', () => {
     const file = new File([new Uint8Array(8)], 'logo.png', { type: 'image/png' })
 
-    it.each(['owner', 'admin'] as const)('uploads, sets logo, records activity for %s', async (role) => {
+    it.each(['owner', 'admin'] as const)('uploads and sets logo for %s', async (role) => {
       const setLogo = vi.fn(async () => {})
       const upload = vi.fn(async () => ({ ok: true, url: 'https://cdn/x.png' }) as ImageUploadResult)
-      const { deps, record } = makeDeps({
+      const { deps } = makeDeps({
         org: { getMemberRole: async () => role },
         teams: { setLogo },
         imageUpload: { uploadPublicImage: upload },
@@ -251,24 +242,22 @@ describe('team usecase', () => {
       expect(out).toEqual({ ok: true, url: 'https://cdn/x.png' })
       expect(upload).toHaveBeenCalledWith(platform, '_system/org-logos', 'team-1', file)
       expect(setLogo).toHaveBeenCalledWith('team-1', 'https://cdn/x.png')
-      expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'team_logo_update' }))
     })
 
     it('forbids a member and skips upload', async () => {
       const upload = vi.fn(async () => ({ ok: true, url: 'x' }) as ImageUploadResult)
-      const { deps, record } = makeDeps({
+      const { deps } = makeDeps({
         org: { getMemberRole: async () => 'member' },
         imageUpload: { uploadPublicImage: upload },
       })
       const out = await setTeamLogo(deps, { platform, teamId: 'team-1', userId: 'u1', file })
       expect(out).toEqual({ ok: false, reason: 'forbidden' })
       expect(upload).not.toHaveBeenCalled()
-      expect(record).not.toHaveBeenCalled()
     })
 
-    it.each([400, 413, 503] as const)('threads upload status %d outward without recording', async (status) => {
+    it.each([400, 413, 503] as const)('threads upload status %d outward', async (status) => {
       const setLogo = vi.fn(async () => {})
-      const { deps, record } = makeDeps({
+      const { deps } = makeDeps({
         org: { getMemberRole: async () => 'owner' },
         teams: { setLogo },
         imageUpload: { uploadPublicImage: async () => ({ ok: false, status, error: 'bad' }) },
@@ -276,15 +265,14 @@ describe('team usecase', () => {
       const out = await setTeamLogo(deps, { platform, teamId: 'team-1', userId: 'u1', file })
       expect(out).toEqual({ ok: false, reason: 'upload_failed', status, error: 'bad' })
       expect(setLogo).not.toHaveBeenCalled()
-      expect(record).not.toHaveBeenCalled()
     })
   })
 
   describe('deleteTeamLogo', () => {
-    it.each(['owner', 'admin'] as const)('clears logo + deletes variants + records for %s', async (role) => {
+    it.each(['owner', 'admin'] as const)('clears logo and deletes variants for %s', async (role) => {
       const setLogo = vi.fn(async () => {})
       const del = vi.fn(async () => {})
-      const { deps, record } = makeDeps({
+      const { deps } = makeDeps({
         org: { getMemberRole: async () => role },
         teams: { setLogo },
         imageUpload: { deletePublicImageVariants: del },
@@ -293,13 +281,12 @@ describe('team usecase', () => {
       expect(out).toEqual({ ok: true })
       expect(setLogo).toHaveBeenCalledWith('team-1', null)
       expect(del).toHaveBeenCalledWith(platform, '_system/org-logos', 'team-1')
-      expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'team_logo_delete' }))
     })
 
     it('forbids a member and touches nothing', async () => {
       const setLogo = vi.fn(async () => {})
       const del = vi.fn(async () => {})
-      const { deps, record } = makeDeps({
+      const { deps } = makeDeps({
         org: { getMemberRole: async () => 'member' },
         teams: { setLogo },
         imageUpload: { deletePublicImageVariants: del },
@@ -308,7 +295,6 @@ describe('team usecase', () => {
       expect(out).toEqual({ ok: false, reason: 'forbidden' })
       expect(setLogo).not.toHaveBeenCalled()
       expect(del).not.toHaveBeenCalled()
-      expect(record).not.toHaveBeenCalled()
     })
   })
 
@@ -354,12 +340,11 @@ describe('team usecase', () => {
   })
 
   describe('grantTeamEntitlement', () => {
-    it('grants and records activity', async () => {
+    it('grants an entitlement', async () => {
       const grant = vi.fn(async () => sampleResult)
-      const { deps, record } = makeDeps({ userAdmin: { grantOrgEntitlement: grant } })
+      const { deps } = makeDeps({ userAdmin: { grantOrgEntitlement: grant } })
       const out = await grantTeamEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'admin-org',
         targetOrgId: 'team-1',
         resourceType: 'storage',
         bytes: 1024,
@@ -375,32 +360,26 @@ describe('team usecase', () => {
         expiresAt: null,
         note: 'starter',
       })
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'quota_entitlement_grant', targetId: 'team-1', orgId: 'admin-org' }),
-      )
     })
 
-    it('threads a repo failure and records nothing', async () => {
-      const { deps, record } = makeDeps({ userAdmin: { grantOrgEntitlement: async () => failure } })
+    it('threads a repo failure', async () => {
+      const { deps } = makeDeps({ userAdmin: { grantOrgEntitlement: async () => failure } })
       const out = await grantTeamEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'admin-org',
         targetOrgId: 'nope',
         resourceType: 'storage',
         bytes: 1024,
       })
       expect(out).toEqual({ ok: false, failure })
-      expect(record).not.toHaveBeenCalled()
     })
   })
 
   describe('updateTeamEntitlement', () => {
-    it('updates and records activity', async () => {
+    it('updates an entitlement', async () => {
       const update = vi.fn(async () => sampleResult)
-      const { deps, record } = makeDeps({ userAdmin: { updateOrgEntitlement: update } })
+      const { deps } = makeDeps({ userAdmin: { updateOrgEntitlement: update } })
       const out = await updateTeamEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'admin-org',
         targetOrgId: 'team-1',
         entitlementId: 'ent-1',
         bytes: 4096,
@@ -409,47 +388,40 @@ describe('team usecase', () => {
       expect(update).toHaveBeenCalledWith(
         expect.objectContaining({ orgId: 'team-1', entitlementId: 'ent-1', bytes: 4096 }),
       )
-      expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'quota_entitlement_update' }))
     })
 
     it('threads a repo failure', async () => {
-      const { deps, record } = makeDeps({ userAdmin: { updateOrgEntitlement: async () => failure } })
+      const { deps } = makeDeps({ userAdmin: { updateOrgEntitlement: async () => failure } })
       const out = await updateTeamEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'admin-org',
         targetOrgId: 'team-1',
         entitlementId: 'ent-x',
       })
       expect(out).toEqual({ ok: false, failure })
-      expect(record).not.toHaveBeenCalled()
     })
   })
 
   describe('revokeTeamEntitlement', () => {
-    it('revokes and records activity', async () => {
+    it('revokes an entitlement', async () => {
       const revoke = vi.fn(async () => sampleResult)
-      const { deps, record } = makeDeps({ userAdmin: { revokeOrgEntitlement: revoke } })
+      const { deps } = makeDeps({ userAdmin: { revokeOrgEntitlement: revoke } })
       const out = await revokeTeamEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'admin-org',
         targetOrgId: 'team-1',
         entitlementId: 'ent-1',
       })
       expect(out).toEqual({ ok: true, result: sampleResult })
       expect(revoke).toHaveBeenCalledWith({ adminUserId: 'admin', orgId: 'team-1', entitlementId: 'ent-1' })
-      expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'quota_entitlement_revoke' }))
     })
 
     it('threads a repo failure', async () => {
-      const { deps, record } = makeDeps({ userAdmin: { revokeOrgEntitlement: async () => failure } })
+      const { deps } = makeDeps({ userAdmin: { revokeOrgEntitlement: async () => failure } })
       const out = await revokeTeamEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'admin-org',
         targetOrgId: 'team-1',
         entitlementId: 'ent-x',
       })
       expect(out).toEqual({ ok: false, failure })
-      expect(record).not.toHaveBeenCalled()
     })
   })
 })

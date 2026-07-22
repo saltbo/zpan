@@ -5,10 +5,29 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
+import {
+  downloadTaskEventTimestampSql,
+  downloadTaskTerminalEventPredicate,
+  validDownloadTaskEventPredicate,
+} from '../server/domain/download-task-events'
+import {
+  ADMIN_STATS_FACT_COUNTER_METRICS,
+  buildAdminStatsCounterRollupInsertSql,
+} from '../server/adapters/repos/admin-stats-counter-query'
+import { ADMIN_STATS_METRICS as M } from '../server/domain/admin-stats-metrics'
 
 const MIN_VALID_TIMESTAMP_MS = Date.UTC(2000, 0, 1)
-const MIN_VALID_TIMESTAMP_SECONDS = Math.floor(MIN_VALID_TIMESTAMP_MS / 1000)
 const MAX_BACKFILL_HOURS = 100_000
+const STATISTICS_OPENING_SOURCE_ID = 'v3-authoritative-sources'
+const STATISTICS_OPENING_EVENT_ID = `audit:statistics_source_initialized:${STATISTICS_OPENING_SOURCE_ID}`
+const STATISTICS_OPENING_OPTION_KEY = 'stats_integrity_exact_from_v3'
+
+const statisticsExactFromMsSql = `COALESCE(
+  (SELECT unixepoch(value) * 1000 FROM system_options WHERE key = '${STATISTICS_OPENING_OPTION_KEY}'),
+  (SELECT created_at * 1000 FROM audit_events WHERE id = '${STATISTICS_OPENING_EVENT_ID}'),
+  (unixepoch() + 1) * 1000
+)`
+const statisticsFirstFullHourMsSql = `CAST((${statisticsExactFromMsSql} + 3599999) / 3600000 AS INTEGER) * 3600000`
 
 type Target =
   | { kind: 'sqlite'; path: string }
@@ -20,8 +39,7 @@ interface Options {
 }
 
 interface ValidationSummary {
-  activityEvents: number
-  orphanUserEvents: number
+  auditEvents: number
   missingUploadBytes: number
   missingDownloadBytes: number
   trafficEvents: number
@@ -40,8 +58,6 @@ interface ValidationSummary {
   rollupStorageWrittenBytes: number
   rawStorageReleasedBytes: number
   rollupStorageReleasedBytes: number
-  rawShareViews: number
-  rollupShareViews: number
   rawUploadAttempts: number
   rollupUploadAttempts: number
   rawUserSignups: number
@@ -52,8 +68,6 @@ interface ValidationSummary {
   rollupShareDownloads: number
   rawShareSaves: number
   rollupShareSaves: number
-  rawSharePasswordPasses: number
-  rollupSharePasswordPasses: number
   rawFailedDownloads: number
   rollupFailedDownloads: number
   rawFinishedDownloadTasks: number
@@ -62,6 +76,9 @@ interface ValidationSummary {
   rollupFinishedBackgroundJobs: number
   rawMissingByteEvents: number
   rollupMissingByteEvents: number
+  invalidAuditEvents: number
+  missingUserRegistrationEvents: number
+  invalidDownloadTaskEvents: number
   orphanRollupBuckets: number
   requiredDimensionMismatchGroups: number
   lowerBoundRollups: number
@@ -73,16 +90,26 @@ interface ValidationSummary {
 }
 
 interface BackfillPlan {
-  recoverableUploadBytes: number
-  skippedUploadBytesMissingMatter: number
-  recoverableShareBytes: number
-  skippedShareBytesMissingCurrentFile: number
-  cloudEventsToRecover: number
+  invalidAuditEvents: number
+  issuedTrafficReportsToRecover: number
+  userRegistrationEventsToRecover: number
 }
 
 export function buildBackfillSql(now = new Date()): string {
   const trafficPeriod = now.toISOString().slice(0, 7)
+  const openingAt = new Date((Math.floor(now.getTime() / 1000) + 1) * 1000).toISOString()
   return `
+INSERT OR IGNORE INTO system_options (key, value)
+VALUES (
+  '${STATISTICS_OPENING_OPTION_KEY}',
+  COALESCE(
+    (SELECT strftime('%Y-%m-%dT%H:%M:%fZ', created_at, 'unixepoch') FROM audit_events WHERE id = '${STATISTICS_OPENING_EVENT_ID}'),
+    '${openingAt}'
+  )
+);
+
+DELETE FROM audit_events WHERE id = '${STATISTICS_OPENING_EVENT_ID}';
+
 INSERT OR IGNORE INTO cloud_traffic_reports (
   id, org_id, period, source, source_id, event_id, bytes, storage_id,
   unit_bytes, credits_per_unit, status, error, attempt_count, next_retry_at,
@@ -93,15 +120,101 @@ INSERT OR IGNORE INTO cloud_traffic_reports (
   NULL, NULL, 'ledger_opening', NULL, 0, NULL, NULL, ${now.getTime()}, ${now.getTime()}
 );
 
-UPDATE activity_events
+UPDATE audit_events
 SET actor_type = CASE WHEN user_id IS NULL THEN 'anonymous' ELSE 'user' END
 WHERE actor_type IS NULL;
 
-UPDATE activity_events
-SET actor_type = 'system', actor_ref = 'legacy-download-task-worker'
+INSERT OR IGNORE INTO audit_events (
+  id, org_id, user_id, actor_type, actor_ref, action, target_type,
+  target_id, target_name, metadata, created_at
+)
+SELECT
+  'event:user_register:' || registered_user.id,
+  '',
+  registered_user.id,
+  'user',
+  NULL,
+  'user_register',
+  'user',
+  registered_user.id,
+  registered_user.id,
+  json_object(
+    'provider',
+    COALESCE(
+      NULLIF((
+        SELECT account.provider_id
+        FROM account
+        WHERE account.user_id = registered_user.id
+        ORDER BY account.created_at, account.id
+        LIMIT 1
+      ), ''),
+      'unknown'
+    )
+  ),
+  CAST(registered_user.created_at / 1000 AS INTEGER)
+FROM user registered_user;
+
+UPDATE user
+SET last_active_at = (
+  SELECT MAX(ae.created_at * 1000)
+  FROM audit_events ae
+  WHERE ae.action = 'user_access' AND ae.user_id = user.id
+)
+WHERE EXISTS (
+  SELECT 1 FROM audit_events ae
+  WHERE ae.action = 'user_access' AND ae.user_id = user.id
+)
+AND (
+  last_active_at IS NULL
+  OR last_active_at < (
+    SELECT MAX(ae.created_at * 1000)
+    FROM audit_events ae
+    WHERE ae.action = 'user_access' AND ae.user_id = user.id
+  )
+);
+
+DELETE FROM audit_events WHERE action = 'user_access';
+
+UPDATE download_tasks
+SET events = json_insert(
+  events,
+  '$[#]',
+  json_object(
+    'id', 'backfill:status:' || id || ':' || attempt || ':' || finished_at || ':' || status,
+    'type', 'status_changed',
+    'occurredAt', finished_at,
+    'attempt', attempt,
+    'from', NULL,
+    'to', status,
+    'reason', NULL,
+    'category', COALESCE(category, 'uncategorized'),
+    'downloaderId', assigned_downloader_id,
+    'transferredBytes', CASE
+      WHEN json_valid(runtime) = 1 AND json_type(runtime, '$.progress.download.bytes') = 'integer'
+        THEN json_extract(runtime, '$.progress.download.bytes')
+      ELSE NULL
+    END,
+    'billedBytes', billing_charged_bytes,
+    'errorCode', error_code,
+    'errorMessage', error_message
+  )
+)
+WHERE finished_at IS NOT NULL
+  AND status IN ('completed', 'failed', 'canceled')
+  AND NOT EXISTS (
+    SELECT 1
+    FROM json_each(download_tasks.events) task_event
+    WHERE json_extract(task_event.value, '$.type') = 'status_changed'
+      AND json_extract(task_event.value, '$.attempt') = download_tasks.attempt
+      AND json_extract(task_event.value, '$.to') = download_tasks.status
+      AND json_extract(task_event.value, '$.occurredAt') = download_tasks.finished_at
+  );
+
+DELETE FROM audit_events
 WHERE action IN (
   'download_task_assigned', 'download_task_started', 'download_task_ingesting',
-  'download_task_completed', 'download_task_failed', 'download_task_suspended',
+  'download_task_completed', 'download_task_failed', 'download_task_canceled',
+  'download_task_suspended', 'download_task_paused', 'download_task_interrupted',
   'download_task_queued', 'download_task_error', 'download_task_billing_suspended',
   'download_resolve_started', 'download_resolve_completed', 'download_completed',
   'download_ingest_started', 'download_ingest_completed',
@@ -109,132 +222,10 @@ WHERE action IN (
   'download_stale_control_resolved', 'download_stale_requeued'
 );
 
-UPDATE activity_events AS ae
-SET metadata = json_set(
-  CASE WHEN metadata IS NULL OR metadata = '' OR json_valid(metadata) = 0 THEN '{}' ELSE metadata END,
-  '$.bytes', (SELECT COALESCE(m.size, 0) FROM matters m WHERE m.id = ae.target_id),
-  '$.source', 'upload',
-  '$.status', 'success',
-  '$.matterId', target_id,
-  '$.quality', 'recovered_from_current_matter'
-)
-WHERE action = 'upload_confirm'
-  AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.bytes') IS NULL)
-  AND EXISTS (SELECT 1 FROM matters m WHERE m.id = ae.target_id);
-
-UPDATE activity_events AS ae
-SET metadata = json_set(
-  CASE WHEN metadata IS NULL OR metadata = '' OR json_valid(metadata) = 0 THEN '{}' ELSE metadata END,
-  '$.source', 'upload',
-  '$.status', 'canceled',
-  '$.quality', 'historical_bytes_unrecoverable'
-)
-WHERE action = 'upload_cancel'
-  AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.status') IS NULL);
-
-UPDATE activity_events AS ae
-SET metadata = json_set(
-  CASE WHEN metadata IS NULL OR metadata = '' OR json_valid(metadata) = 0 THEN '{}' ELSE metadata END,
-  '$.bytes', (
-    SELECT COALESCE(m.size, 0)
-    FROM shares s
-    JOIN matters m ON m.id = s.matter_id
-    WHERE s.id = ae.target_id AND m.dirtype = 0
-  ),
-  '$.source', (
-    SELECT CASE WHEN s.kind = 'direct' THEN 'direct_share' ELSE 'landing_share' END
-    FROM shares s WHERE s.id = ae.target_id
-  ),
-  '$.status', 'issued',
-  '$.shareId', target_id,
-  '$.quality', 'recovered_from_current_share_root'
-)
-WHERE action = 'share_download'
-  AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.bytes') IS NULL)
-  AND EXISTS (
-    SELECT 1 FROM shares s JOIN matters m ON m.id = s.matter_id
-    WHERE s.id = ae.target_id AND m.dirtype = 0
-  );
-
-UPDATE activity_events AS ae
-SET metadata = json_set(
-  CASE WHEN metadata IS NULL OR metadata = '' OR json_valid(metadata) = 0 THEN '{}' ELSE metadata END,
-  '$.bytes', (
-    SELECT ctr.bytes FROM cloud_traffic_reports ctr
-    WHERE ctr.source_id = ae.target_id
-      AND (
-        (ae.action = 'share_download' AND ctr.source IN ('direct_share', 'landing_share'))
-        OR ctr.source = CASE ae.action
-          WHEN 'object_download' THEN 'object_download'
-          WHEN 'image_hosting_download' THEN 'image_hosting'
-          WHEN 'webdav_download' THEN 'webdav_download'
-          ELSE ''
-        END
-      )
-      AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
-      AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
-    ORDER BY ctr.created_at, ctr.event_id
-    LIMIT 1
-  ),
-  '$.source', (
-    SELECT ctr.source FROM cloud_traffic_reports ctr
-    WHERE ctr.source_id = ae.target_id
-      AND (
-        (ae.action = 'share_download' AND ctr.source IN ('direct_share', 'landing_share'))
-        OR ctr.source = CASE ae.action
-          WHEN 'object_download' THEN 'object_download'
-          WHEN 'image_hosting_download' THEN 'image_hosting'
-          WHEN 'webdav_download' THEN 'webdav_download'
-          ELSE ''
-        END
-      )
-      AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
-      AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
-    ORDER BY ctr.created_at, ctr.event_id
-    LIMIT 1
-  ),
-  '$.status', 'issued',
-  '$.trafficEventId', (
-    SELECT ctr.event_id FROM cloud_traffic_reports ctr
-    WHERE ctr.source_id = ae.target_id
-      AND (
-        (ae.action = 'share_download' AND ctr.source IN ('direct_share', 'landing_share'))
-        OR ctr.source = CASE ae.action
-          WHEN 'object_download' THEN 'object_download'
-          WHEN 'image_hosting_download' THEN 'image_hosting'
-          WHEN 'webdav_download' THEN 'webdav_download'
-          ELSE ''
-        END
-      )
-      AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
-      AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
-    ORDER BY ctr.created_at, ctr.event_id
-    LIMIT 1
-  ),
-  '$.quality', 'recovered_from_matched_cloud_traffic_report'
-)
-WHERE action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
-  AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.trafficEventId') IS NULL)
-  AND EXISTS (
-    SELECT 1 FROM cloud_traffic_reports ctr
-    WHERE ctr.source_id = ae.target_id
-      AND (
-        (ae.action = 'share_download' AND ctr.source IN ('direct_share', 'landing_share'))
-        OR ctr.source = CASE ae.action
-          WHEN 'object_download' THEN 'object_download'
-          WHEN 'image_hosting_download' THEN 'image_hosting'
-          WHEN 'webdav_download' THEN 'webdav_download'
-          ELSE ''
-        END
-      )
-      AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
-      AND ABS(CAST(ctr.created_at / 1000 AS INTEGER) - ae.created_at) <= 5
-  );
-
 UPDATE cloud_traffic_reports AS ctr
 SET issued_at = (
   SELECT ae.created_at * 1000
-  FROM activity_events ae
+  FROM audit_events ae
   WHERE ae.action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
     AND ae.id NOT LIKE 'backfill_%'
     AND json_valid(ae.metadata) = 1
@@ -245,63 +236,12 @@ SET issued_at = (
 WHERE ctr.issued_at IS NULL
   AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
   AND EXISTS (
-    SELECT 1 FROM activity_events ae
+    SELECT 1 FROM audit_events ae
     WHERE ae.action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
       AND ae.id NOT LIKE 'backfill_%'
       AND json_valid(ae.metadata) = 1
       AND json_extract(ae.metadata, '$.trafficEventId') = ctr.event_id
   );
-
-INSERT OR IGNORE INTO activity_events (
-  id, org_id, user_id, actor_type, actor_ref, action, target_type,
-  target_id, target_name, metadata, created_at
-)
-SELECT
-  'backfill_' || ctr.event_id,
-  ctr.org_id,
-  NULL,
-  'system',
-  'stats-backfill',
-  CASE
-    WHEN ctr.status = 'blocked' THEN 'download_failed'
-    WHEN ctr.source IN ('direct_share', 'landing_share') THEN 'share_download'
-    WHEN ctr.source = 'image_hosting' THEN 'image_hosting_download'
-    WHEN ctr.source = 'object_download' THEN 'object_download'
-    ELSE 'webdav_download'
-  END,
-  CASE WHEN ctr.source IN ('direct_share', 'landing_share') THEN 'share' WHEN ctr.source = 'image_hosting' THEN 'image' ELSE 'file' END,
-  ctr.source_id,
-  ctr.source_id,
-  json_object(
-    'direction', 'download',
-    'status', CASE WHEN ctr.status = 'blocked' THEN 'failed' ELSE 'issued' END,
-    'reason', CASE WHEN ctr.status = 'blocked' THEN COALESCE(ctr.error, 'blocked') ELSE NULL END,
-    'source', ctr.source,
-    'bytes', ctr.bytes,
-    'trafficEventId', ctr.event_id,
-    'quality', 'recovered_from_cloud_traffic_report'
-  ),
-  CAST(ctr.created_at / 1000 AS INTEGER)
-FROM cloud_traffic_reports ctr
-WHERE ctr.source IN ('direct_share', 'landing_share', 'image_hosting', 'object_download', 'webdav_download')
-  AND ctr.status <> 'ledger_opening'
-  AND NOT EXISTS (
-    SELECT 1 FROM activity_events ae
-    WHERE ae.id = 'backfill_' || ctr.event_id
-      OR (
-        ae.target_id = ctr.source_id
-        AND ae.action = CASE
-          WHEN ctr.status = 'blocked' THEN 'download_failed'
-          WHEN ctr.source IN ('direct_share', 'landing_share') THEN 'share_download'
-          WHEN ctr.source = 'image_hosting' THEN 'image_hosting_download'
-          WHEN ctr.source = 'object_download' THEN 'object_download'
-          ELSE 'webdav_download'
-        END
-        AND ABS(ae.created_at - CAST(ctr.created_at / 1000 AS INTEGER)) <= 5
-      )
-  );
-
-${buildImmutableFactBackfillSql()}
 
 ${purgeLegacyRollupsSql()}
 ${purgeOpenRollupsSql(now)}
@@ -311,289 +251,20 @@ ${buildHourlyBackfillSql(now)}
 `
 }
 
-function buildImmutableFactBackfillSql(): string {
-  return `INSERT OR IGNORE INTO activity_events (
-  id, org_id, user_id, actor_type, actor_ref, action, target_type,
-  target_id, target_name, metadata, created_at
-)
-SELECT
-  'stats:stats_share_created:' || ae.target_id,
-  ae.org_id, NULL, 'system', 'stats-backfill', 'stats_share_created', 'share',
-  ae.target_id, ae.target_id,
-  json_object(
-    'kind', COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.kind') END, 'unknown'),
-    'statsQuality', 'lower_bound'
-  ),
-  ae.created_at
-FROM activity_events ae
-WHERE ae.action = 'share_create' AND ae.target_id IS NOT NULL;
-
-INSERT OR IGNORE INTO activity_events (
-  id, org_id, user_id, actor_type, actor_ref, action, target_type,
-  target_id, target_name, metadata, created_at
-)
-SELECT
-  'stats:stats_share_created:' || s.id,
-  s.org_id, NULL, 'system', 'stats-backfill', 'stats_share_created', 'share',
-  s.id, s.id, json_object('kind', s.kind, 'statsQuality', 'lower_bound'), s.created_at
-FROM shares s;
-
-INSERT OR IGNORE INTO activity_events (
-  id, org_id, user_id, actor_type, actor_ref, action, target_type,
-  target_id, target_name, metadata, created_at
-)
-SELECT
-  'stats:stats_user_signup:' || u.id,
-  COALESCE((
-    SELECT m.organization_id
-    FROM member m
-    JOIN organization o ON o.id = m.organization_id
-    WHERE m.user_id = u.id AND o.metadata LIKE '%"type":"personal"%'
-    ORDER BY m.created_at, m.id
-    LIMIT 1
-  ), ''),
-  NULL, 'system', 'stats-backfill', 'stats_user_signup', 'user',
-  u.id, u.id,
-  json_object(
-    'provider', COALESCE((
-      SELECT a.provider_id FROM account a WHERE a.user_id = u.id ORDER BY a.created_at, a.id LIMIT 1
-    ), 'direct'),
-    'statsQuality', 'lower_bound'
-  ),
-  CAST(u.created_at / 1000 AS INTEGER)
-FROM user u;
-
-INSERT OR IGNORE INTO activity_events (
-  id, org_id, user_id, actor_type, actor_ref, action, target_type,
-  target_id, target_name, metadata, created_at
-)
-SELECT
-  'stats:stats_background_job_finished:' || bj.id,
-  bj.org_id, NULL, 'system', 'stats-backfill', 'stats_background_job_finished', 'background_job',
-  bj.id, bj.id,
-  json_object('jobType', bj.type, 'outcome', bj.status, 'statsQuality', 'lower_bound'),
-  CAST(bj.finished_at / 1000 AS INTEGER)
-FROM background_jobs bj
-WHERE bj.finished_at IS NOT NULL;
-
-INSERT OR IGNORE INTO activity_events (
-  id, org_id, user_id, actor_type, actor_ref, action, target_type,
-  target_id, target_name, metadata, created_at
-)
-SELECT
-  'stats:stats_remote_download_finished:event:' || ae.id,
-  ae.org_id, NULL, 'system', 'stats-backfill', 'stats_remote_download_finished', 'remote_download',
-  ae.target_id, ae.target_id,
-  json_object(
-    'category', COALESCE(dt.category, 'uncategorized'),
-    'downloaderId', dt.assigned_downloader_id,
-    'outcome', CASE ae.action
-      WHEN 'download_task_completed' THEN 'completed'
-      WHEN 'download_task_failed' THEN 'failed'
-      ELSE 'canceled'
-    END,
-    'bytes', CASE WHEN ae.action = 'download_task_completed' THEN COALESCE(dt.billing_charged_bytes, 0) ELSE 0 END,
-    'statsQuality', 'lower_bound'
-  ),
-  ae.created_at
-FROM activity_events ae
-LEFT JOIN download_tasks dt ON dt.id = ae.target_id
-WHERE ae.action IN ('download_task_completed', 'download_task_failed', 'download_task_canceled')
-  AND ae.target_id IS NOT NULL;
-
-INSERT OR IGNORE INTO activity_events (
-  id, org_id, user_id, actor_type, actor_ref, action, target_type,
-  target_id, target_name, metadata, created_at
-)
-SELECT
-  'stats:stats_remote_download_finished:' || dt.id,
-  dt.org_id, NULL, 'system', 'stats-backfill', 'stats_remote_download_finished', 'remote_download',
-  dt.id, dt.id,
-  json_object(
-    'category', COALESCE(dt.category, 'uncategorized'),
-    'downloaderId', dt.assigned_downloader_id,
-    'outcome', dt.status,
-    'bytes', dt.billing_charged_bytes,
-    'statsQuality', 'lower_bound'
-  ),
-  CAST(dt.finished_at / 1000 AS INTEGER)
-FROM download_tasks dt
-WHERE dt.finished_at IS NOT NULL
-  AND dt.status IN ('completed', 'failed', 'canceled')
-  AND NOT EXISTS (
-    SELECT 1 FROM activity_events ae
-    WHERE ae.target_id = dt.id
-      AND ae.action = CASE dt.status
-        WHEN 'completed' THEN 'download_task_completed'
-        WHEN 'failed' THEN 'download_task_failed'
-        WHEN 'canceled' THEN 'download_task_canceled'
-        ELSE ''
-      END
-  );`
-}
-
-type HourlySource = {
-  metric: string
-  source: string
-  timestampMs: string
-  org: string
-  where?: string
-  count?: string
-  bytes?: string
-  uniqueCount?: string
-  quality?: string
-  scope?: 'counters' | 'full'
-  dimensions?: Record<string, string>
-}
-
 function buildHourlyBackfillSql(now: Date): string {
   const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
-  const missingShareViewsQuality = `CASE WHEN EXISTS (
-    SELECT 1 FROM shares s
-    WHERE s.views > (
-      SELECT COUNT(*) FROM activity_events history
-      WHERE history.action = 'share_view'
-        AND COALESCE(CASE WHEN json_valid(history.metadata) = 1 THEN json_extract(history.metadata, '$.shareId') END, history.target_id) = s.id
-    )
-  ) THEN 'lower_bound' ELSE 'exact' END`
-  const missingShareDownloadsQuality = `CASE WHEN EXISTS (
-    SELECT 1 FROM shares s
-    WHERE s.downloads > (
-      SELECT COUNT(*) FROM activity_events history
-      WHERE history.action = 'share_download'
-        AND COALESCE(CASE WHEN json_valid(history.metadata) = 1 THEN json_extract(history.metadata, '$.shareId') END, history.target_id) = s.id
-    )
-  ) THEN 'lower_bound' ELSE 'exact' END`
-  const sources: HourlySource[] = [
-    {
-      metric: 'transfer.upload',
-      source: 'activity_events ae',
-      timestampMs: 'ae.created_at * 1000',
-      org: 'ae.org_id',
-      where: "ae.action IN ('upload_confirm','upload_cancel','upload_failed')",
-      bytes: "SUM(CASE WHEN ae.action = 'upload_confirm' AND json_valid(ae.metadata) = 1 THEN COALESCE(json_extract(ae.metadata, '$.bytes'), 0) ELSE 0 END)",
-      quality: "CASE WHEN SUM(CASE WHEN ae.action = 'upload_confirm' AND (ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL) THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
-      dimensions: {
-        source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, 'upload')",
-        status: "CASE ae.action WHEN 'upload_confirm' THEN 'success' WHEN 'upload_cancel' THEN 'canceled' ELSE 'failed' END",
-        reason: "CASE WHEN ae.action = 'upload_confirm' THEN NULL WHEN json_valid(ae.metadata) = 1 AND json_type(ae.metadata, '$.reason') IS NOT NULL THEN json_extract(ae.metadata, '$.reason') WHEN ae.action = 'upload_cancel' THEN 'upload_canceled' ELSE 'upload_failed' END",
-        storage_id: "CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.storageId') END",
-      },
-    },
-    {
-      metric: 'transfer.download_issued',
-      source: 'cloud_traffic_reports ctr',
-      timestampMs: 'ctr.issued_at',
-      org: 'ctr.org_id',
-      where: "ctr.issued_at IS NOT NULL AND ctr.status <> 'reversed'",
-      bytes: 'SUM(ctr.bytes)',
-      quality: `CASE WHEN MIN(ctr.issued_at) < (
-        SELECT CAST((created_at + 3599999) / 3600000 AS INTEGER) * 3600000
-        FROM cloud_traffic_reports
-        WHERE event_id = 'traffic_ledger_opening_v1'
-      ) THEN 'lower_bound' ELSE 'exact' END`,
-      dimensions: {
-        source: 'ctr.source',
-        storage_id: 'ctr.storage_id',
-      },
-    },
-    {
-      metric: 'storage.ledger_change',
-      source: 'storage_usage_ledger sul',
-      timestampMs: 'sul.occurred_at',
-      org: 'sul.org_id',
-      where: `sul.delta_bytes <> 0
-        AND sul.reason NOT IN ('opening_balance', 'opening_balance_complete')
-        AND sul.occurred_at >= (
-          SELECT CAST((MIN(opening.occurred_at) + 3599999) / 3600000 AS INTEGER) * 3600000
-          FROM storage_usage_ledger opening
-          WHERE opening.reason = 'opening_balance_complete'
-        )`,
-      bytes: 'SUM(ABS(sul.delta_bytes))',
-      dimensions: {
-        direction: "CASE WHEN sul.delta_bytes > 0 THEN 'written' ELSE 'released' END",
-        reason: 'sul.reason',
-        storage_id: 'sul.storage_id',
-      },
-    },
-    {
-      metric: 'transfer.download_failed',
-      source: 'activity_events ae',
-      timestampMs: 'ae.created_at * 1000',
-      org: 'ae.org_id',
-      where: "ae.action = 'download_failed'",
-      bytes: "SUM(CASE WHEN json_valid(ae.metadata) = 1 THEN COALESCE(json_extract(ae.metadata, '$.bytes'), 0) ELSE 0 END)",
-      dimensions: {
-        source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, 'unknown')",
-        reason: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.reason') END, 'unknown')",
-      },
-    },
-    {
-      metric: 'share.created',
-      source: 'activity_events ae',
-      timestampMs: 'ae.created_at * 1000',
-      org: 'ae.org_id',
-      where: "ae.action = 'stats_share_created'",
-      quality:
-        "CASE WHEN SUM(CASE WHEN json_valid(ae.metadata) = 1 AND json_extract(ae.metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
-      dimensions: { kind: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.kind') END, 'unknown')" },
-    },
-    activitySource('share.view', "ae.action = 'share_view'", { share_id: 'ae.target_id', actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)" }, false, missingShareViewsQuality),
-    activitySource('share.download_issued', "ae.action = 'share_download'", { share_id: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.shareId') END, ae.target_id)", kind: "CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.kind') END", source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, 'landing_share')", actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)" }, true, missingShareDownloadsQuality),
-    activitySource('share.saved', "ae.action = 'save_from_share'", { share_id: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.shareId') END, ae.target_id)", actor_type: "COALESCE(ae.actor_type, CASE WHEN ae.user_id IS NULL THEN 'anonymous' ELSE 'user' END)" }, true),
-    activitySource('share.password_passed', "ae.action = 'share_password_passed'", { share_id: 'ae.target_id' }),
-    {
-      metric: 'remote_download.task_finished',
-      source: 'activity_events ae',
-      timestampMs: 'ae.created_at * 1000',
-      org: 'ae.org_id',
-      where: "ae.action = 'stats_remote_download_finished'",
-      bytes: "SUM(CASE WHEN json_valid(ae.metadata) = 1 THEN COALESCE(json_extract(ae.metadata, '$.bytes'), 0) ELSE 0 END)",
-      quality:
-        "CASE WHEN SUM(CASE WHEN json_valid(ae.metadata) = 1 AND json_extract(ae.metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
-      dimensions: {
-        category: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.category') END, 'uncategorized')",
-        downloader_id: "CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.downloaderId') END",
-        outcome: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.outcome') END, 'unknown')",
-      },
-    },
-    {
-      metric: 'background_job.finished',
-      source: 'activity_events ae',
-      timestampMs: 'ae.created_at * 1000',
-      org: 'ae.org_id',
-      where: "ae.action = 'stats_background_job_finished'",
-      quality:
-        "CASE WHEN SUM(CASE WHEN json_valid(ae.metadata) = 1 AND json_extract(ae.metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
-      dimensions: {
-        job_type: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.jobType') END, 'unknown')",
-        outcome: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.outcome') END, 'unknown')",
-      },
-    },
-    {
-      metric: 'stats.quality_missing_bytes',
-      source: 'activity_events ae',
-      timestampMs: 'ae.created_at * 1000',
-      org: 'ae.org_id',
-      where: "ae.action = 'upload_confirm' AND (ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL)",
-      dimensions: {
-        direction: "'upload'",
-        source: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.source') END, ae.action)",
-      },
-    },
-  ]
-
-  const statements = sources.flatMap((source) => hourlyStatements(source, currentHour))
-  statements.push(userSignupBackfillSql(currentHour), storageLedgerBalanceBackfillSql(currentHour), rollupMarkerBackfillSql(now))
-  return statements.join('\n\n')
+  const fromMs = `MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))`
+  return [
+    buildAdminStatsCounterRollupInsertSql({ fromMs, toMs: currentHour }),
+    rollupMarkerBackfillSql(now),
+  ].join(';\n\n')
 }
-
 function purgeLegacyRollupsSql(): string {
   return `DELETE FROM stats_rollups_hourly
 WHERE CASE WHEN json_valid(metadata) = 1 THEN
     json_extract(metadata, '$.version') = 3
     AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
-    AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
+    AND json_extract(metadata, '$.quality') = 'exact'
   ELSE 0 END = 0;`
 }
 
@@ -603,137 +274,22 @@ function purgeOpenRollupsSql(now: Date): string {
 }
 
 function purgeCounterRollupsSql(): string {
+  const metricKeys = [
+    ...ADMIN_STATS_FACT_COUNTER_METRICS,
+    M.statsMissingBytes,
+    'share.password_passed',
+    'traffic.report_sync',
+  ]
+    .map((metric) => `'${metric}'`)
+    .join(', ')
   return `DELETE FROM stats_rollups_hourly
 WHERE metric_key IN (
-    'background_job.finished', 'remote_download.task_finished', 'share.created',
-    'share.download_issued', 'share.password_passed', 'share.saved', 'share.view',
-    'stats.quality_missing_bytes', 'storage.ledger_balance', 'storage.ledger_change', 'traffic.report_sync', 'transfer.download_failed',
-    'transfer.download_issued', 'transfer.upload', 'user.signup'
+    ${metricKeys}
   )
   OR (
     metric_key = 'stats.rollup_run'
     AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') = 'counters' ELSE 0 END = 1
   );`
-}
-
-function activitySource(
-  metric: string,
-  where: string,
-  dimensions: Record<string, string>,
-  bytes = false,
-  quality?: string,
-): HourlySource {
-  return {
-    metric,
-    source: 'activity_events ae',
-    timestampMs: 'ae.created_at * 1000',
-    org: 'ae.org_id',
-    where,
-    bytes: bytes ? "SUM(CASE WHEN json_valid(ae.metadata) = 1 THEN COALESCE(json_extract(ae.metadata, '$.bytes'), 0) ELSE 0 END)" : undefined,
-    quality,
-    dimensions,
-  }
-}
-
-function hourlyStatements(source: HourlySource, before: number): string[] {
-  return [
-    hourlyInsert(source, '', "''", before),
-    ...Object.entries(source.dimensions ?? {}).map(([key, value]) => hourlyInsert(source, key, value, before)),
-  ]
-}
-
-function hourlyInsert(source: HourlySource, dimensionKey = '', dimensionExpression = "''", before?: number): string {
-  const bucket = `CAST((${source.timestampMs}) / 3600000 AS INTEGER) * 3600000`
-  const where = [
-    source.where,
-    `(${source.timestampMs}) >= ${MIN_VALID_TIMESTAMP_MS}`,
-    before === undefined ? null : `(${source.timestampMs}) < ${before}`,
-    dimensionKey ? `(${dimensionExpression}) IS NOT NULL AND CAST((${dimensionExpression}) AS TEXT) <> ''` : null,
-  ]
-    .filter(Boolean)
-    .join(' AND ')
-  const dimension = dimensionKey ? `CAST((${dimensionExpression}) AS TEXT)` : "''"
-  const count = source.count ?? 'COUNT(*)'
-  const bytes = source.bytes ?? '0'
-  const uniqueCount = source.uniqueCount ?? '0'
-  const quality = source.quality ?? "'exact'"
-  return `INSERT INTO stats_rollups_hourly (
-  id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
-  count, bytes, unique_count, metadata, updated_at
-)
-SELECT
-  CAST(bucket_start AS TEXT) || ':' || COALESCE(NULLIF(org_id, ''), 'global') || ':${source.metric}:${dimensionKey || 'all'}:' || hex(dimension_value),
-  bucket_start, org_id, '${source.metric}', '${dimensionKey}', dimension_value,
-  count_value, bytes_value, unique_value,
-  json_object('version', 3, 'scope', '${source.scope ?? 'counters'}', 'quality', quality_value),
-  bucket_start + 3600000
-FROM (
-  SELECT ${bucket} AS bucket_start, ${source.org} AS org_id, ${dimension} AS dimension_value,
-    ${count} AS count_value, ${bytes} AS bytes_value, ${uniqueCount} AS unique_value, ${quality} AS quality_value
-  FROM ${source.source}
-  ${where ? `WHERE ${where}` : ''}
-  GROUP BY 1, 2${dimensionKey ? ', 3' : ''}
-) rollup
-WHERE true
-ON CONFLICT(bucket_start, org_id, metric_key, dimension_key, dimension_value)
-DO UPDATE SET count = excluded.count, bytes = excluded.bytes, unique_count = excluded.unique_count,
-  metadata = excluded.metadata, updated_at = excluded.updated_at
-WHERE count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excluded.unique_count OR metadata <> excluded.metadata;`
-}
-
-function userSignupBackfillSql(before: number): string {
-  return hourlyStatements({
-    metric: 'user.signup',
-    source: 'activity_events ae',
-    timestampMs: 'ae.created_at * 1000',
-    org: "''",
-    where: "ae.action = 'stats_user_signup'",
-    quality:
-      "CASE WHEN SUM(CASE WHEN json_valid(ae.metadata) = 1 AND json_extract(ae.metadata, '$.statsQuality') = 'lower_bound' THEN 1 ELSE 0 END) > 0 THEN 'lower_bound' ELSE 'exact' END",
-    dimensions: {
-      provider: "COALESCE(CASE WHEN json_valid(ae.metadata) = 1 THEN json_extract(ae.metadata, '$.provider') END, 'unknown')",
-    },
-  }, before).join('\n\n')
-}
-
-function storageLedgerBalanceBackfillSql(currentHour: number): string {
-  return `WITH
-digits(n) AS (VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9)),
-numbers(n) AS (
-  SELECT ones.n + tens.n * 10 + hundreds.n * 100 + thousands.n * 1000 + ten_thousands.n * 10000
-  FROM digits ones
-  CROSS JOIN digits tens
-  CROSS JOIN digits hundreds
-  CROSS JOIN digits thousands
-  CROSS JOIN digits ten_thousands
-),
-opening AS (
-  SELECT CAST(MIN(occurred_at) / 3600000 AS INTEGER) * 3600000 AS start_at
-  FROM storage_usage_ledger
-  WHERE reason = 'opening_balance_complete'
-),
-buckets AS (
-  SELECT opening.start_at + numbers.n * 3600000 AS bucket_start
-  FROM opening
-  JOIN numbers ON opening.start_at + numbers.n * 3600000 < ${currentHour}
-  WHERE opening.start_at IS NOT NULL
-)
-INSERT INTO stats_rollups_hourly (
-  id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
-  count, bytes, unique_count, metadata, updated_at
-)
-SELECT
-  CAST(bucket_start AS TEXT) || ':global:storage.ledger_balance:all:all',
-  bucket_start, '', 'storage.ledger_balance', '', '', 0,
-  (SELECT COALESCE(SUM(delta_bytes), 0) FROM storage_usage_ledger WHERE occurred_at < bucket_start + 3600000),
-  0, json_object('version', 3, 'scope', 'counters', 'quality', 'exact'), bucket_start + 3600000
-FROM buckets
-WHERE true
-ON CONFLICT(bucket_start, org_id, metric_key, dimension_key, dimension_value)
-DO UPDATE SET count = excluded.count, bytes = excluded.bytes, unique_count = excluded.unique_count,
-  metadata = excluded.metadata, updated_at = excluded.updated_at
-WHERE count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excluded.unique_count
-  OR metadata <> excluded.metadata OR updated_at <> excluded.updated_at;`
 }
 
 function rollupMarkerBackfillSql(now: Date): string {
@@ -838,51 +394,34 @@ WHERE count <> excluded.count OR bytes <> excluded.bytes OR unique_count <> excl
 }
 
 function statsHistoryStartSql(): string {
-  return `(SELECT MIN(start_at) FROM (
-    SELECT CAST((MIN(ae.created_at) * 1000) / 3600000 AS INTEGER) * 3600000 AS start_at
-    FROM activity_events ae
-    WHERE ae.created_at >= ${MIN_VALID_TIMESTAMP_SECONDS}
-      AND ae.action IN (
-        'upload_confirm', 'upload_cancel', 'upload_failed',
-        'share_download', 'object_download', 'image_hosting_download', 'webdav_download', 'download_failed',
-        'share_view', 'save_from_share', 'share_password_passed',
-        'stats_user_signup', 'stats_share_created',
-        'stats_remote_download_finished', 'stats_background_job_finished'
-      )
-    UNION ALL
-    SELECT CAST(MIN(occurred_at) / 3600000 AS INTEGER) * 3600000 AS start_at
-    FROM storage_usage_ledger
-    WHERE reason = 'opening_balance_complete'
-    UNION ALL
-    SELECT CAST(MIN(issued_at) / 3600000 AS INTEGER) * 3600000 AS start_at
-    FROM cloud_traffic_reports
-    WHERE issued_at IS NOT NULL AND status <> 'reversed'
-  ) history_starts WHERE start_at IS NOT NULL)`
+  return `(SELECT ${statisticsFirstFullHourMsSql})`
 }
 
 export function buildValidationSql(now = new Date()): string {
   const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
   const latestClosedHour = currentHour - 3_600_000
+  const taskEventValue = 'task_event.value'
+  const taskEventTimestamp = downloadTaskEventTimestampSql(taskEventValue)
+  const terminalTaskEvent = downloadTaskTerminalEventPredicate(taskEventValue)
+  const validTaskEvent = validDownloadTaskEventPredicate(taskEventValue)
   const storageLedgerExactFrom = `(SELECT CAST((MIN(occurred_at) + 3599999) / 3600000 AS INTEGER) * 3600000
     FROM storage_usage_ledger WHERE reason = 'opening_balance_complete')`
   const facts = `SELECT json_object(
-  'activityEvents', (SELECT COUNT(*) FROM activity_events),
-  'orphanUserEvents', (
-    SELECT COUNT(*) FROM activity_events ae
-    WHERE ae.user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM user u WHERE u.id = ae.user_id)
-  ),
+  'auditEvents', (SELECT COUNT(*) FROM audit_events),
   'missingUploadBytes', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action = 'upload_confirm'
+    SELECT COUNT(*) FROM audit_events
+    WHERE action IN ('upload_confirm', 'upload_failed')
       AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.bytes') IS NULL)
+      AND created_at * 1000 >= COALESCE(${statisticsExactFromMsSql}, ${MIN_VALID_TIMESTAMP_MS})
   ),
   'missingDownloadBytes', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
+    SELECT COUNT(*) FROM audit_events
+    WHERE action = 'download_failed'
       AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.bytes') IS NULL)
+      AND created_at * 1000 >= COALESCE(${statisticsExactFromMsSql}, ${MIN_VALID_TIMESTAMP_MS})
   ),
   'trafficEvents', (
-    SELECT COUNT(*) FROM activity_events
+    SELECT COUNT(*) FROM audit_events
     WHERE action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download', 'download_failed')
   ),
   'rawActiveShares', (SELECT COUNT(*) FROM shares WHERE status = 'active'),
@@ -893,95 +432,192 @@ export function buildValidationSql(now = new Date()): string {
       AND (download_limit IS NULL OR downloads < download_limit)
   ),
   'rawUploadEvents', (
-    SELECT COUNT(*) FROM activity_events
+    SELECT COUNT(*) FROM audit_events
     WHERE action = 'upload_confirm'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+      AND json_valid(metadata) = 1
+      AND json_type(metadata, '$.bytes') IN ('integer', 'real')
+      AND json_extract(metadata, '$.bytes') >= 0
+      AND json_type(metadata, '$.source') = 'text'
+      AND length(json_extract(metadata, '$.source')) > 0
+      AND created_at * 1000 >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})) AND created_at * 1000 < ${currentHour}
   ),
   'rawUploadBytes', (
     SELECT COALESCE(SUM(CASE WHEN json_valid(metadata) = 1 THEN COALESCE(json_extract(metadata, '$.bytes'), 0) ELSE 0 END), 0)
-    FROM activity_events
+    FROM audit_events
     WHERE action = 'upload_confirm'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+      AND json_valid(metadata) = 1
+      AND json_type(metadata, '$.bytes') IN ('integer', 'real')
+      AND json_extract(metadata, '$.bytes') >= 0
+      AND json_type(metadata, '$.source') = 'text'
+      AND length(json_extract(metadata, '$.source')) > 0
+      AND created_at * 1000 >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})) AND created_at * 1000 < ${currentHour}
   ),
   'rawDownloadEvents', (
     SELECT COUNT(*) FROM cloud_traffic_reports
     WHERE issued_at IS NOT NULL AND status <> 'reversed'
-      AND issued_at >= ${MIN_VALID_TIMESTAMP_MS} AND issued_at < ${currentHour}
+      AND issued_at >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})) AND issued_at < ${currentHour}
   ),
   'rawDownloadBytes', (
     SELECT COALESCE(SUM(bytes), 0) FROM cloud_traffic_reports
     WHERE issued_at IS NOT NULL AND status <> 'reversed'
-      AND issued_at >= ${MIN_VALID_TIMESTAMP_MS} AND issued_at < ${currentHour}
+      AND issued_at >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})) AND issued_at < ${currentHour}
   ),
-  'rawShareViews', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action = 'share_view'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
-  )
+  'statisticsExactFrom', ${statisticsExactFromMsSql}
 ) AS summary;`
 
   const additionalFacts = `SELECT json_object(
   'rawUploadAttempts', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action IN ('upload_confirm', 'upload_cancel', 'upload_failed')
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+    SELECT
+      (SELECT COUNT(*) FROM audit_events
+       WHERE action IN ('upload_confirm', 'upload_failed')
+         AND json_valid(metadata) = 1
+         AND json_type(metadata, '$.bytes') IN ('integer', 'real')
+         AND json_extract(metadata, '$.bytes') >= 0
+         AND json_type(metadata, '$.source') = 'text'
+         AND length(json_extract(metadata, '$.source')) > 0
+         AND created_at * 1000 >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))
+         AND created_at * 1000 < ${currentHour})
+      +
+      (SELECT COUNT(*) FROM object_upload_sessions
+       WHERE status = 'aborted'
+         AND updated_at >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))
+         AND updated_at < ${currentHour})
   ),
   'rawUserSignups', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action = 'stats_user_signup'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+    SELECT COUNT(*) FROM audit_events
+    WHERE action = 'user_register'
+      AND target_id IS NOT NULL
+      AND user_id = target_id
+      AND id = 'event:user_register:' || target_id
+      AND json_valid(metadata) = 1
+      AND json_type(metadata, '$.provider') = 'text'
+      AND length(json_extract(metadata, '$.provider')) > 0
+      AND created_at * 1000 >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))
+      AND created_at * 1000 < ${currentHour}
   ),
   'rawSharesCreated', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action = 'stats_share_created'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+    SELECT COUNT(*) FROM shares
+    WHERE created_at * 1000 >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))
+      AND created_at * 1000 < ${currentHour}
   ),
   'rawShareDownloads', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action = 'share_download'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+    SELECT COUNT(*) FROM cloud_traffic_reports
+    WHERE source IN ('landing_share', 'direct_share')
+      AND issued_at IS NOT NULL
+      AND status <> 'reversed'
+      AND issued_at >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))
+      AND issued_at < ${currentHour}
   ),
   'rawShareSaves', (
-    SELECT COUNT(*) FROM activity_events
+    SELECT COUNT(*) FROM audit_events
     WHERE action = 'save_from_share'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
-  ),
-  'rawSharePasswordPasses', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action = 'share_password_passed'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+      AND json_valid(metadata) = 1
+      AND json_type(metadata, '$.shareId') = 'text'
+      AND length(json_extract(metadata, '$.shareId')) > 0
+      AND json_type(metadata, '$.bytes') IN ('integer', 'real')
+      AND json_extract(metadata, '$.bytes') >= 0
+      AND created_at * 1000 >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})) AND created_at * 1000 < ${currentHour}
   ),
   'rawFailedDownloads', (
-    SELECT COUNT(*) FROM activity_events
+    SELECT COUNT(*) FROM audit_events
     WHERE action = 'download_failed'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+      AND json_valid(metadata) = 1
+      AND json_type(metadata, '$.bytes') IN ('integer', 'real')
+      AND json_extract(metadata, '$.bytes') >= 0
+      AND json_type(metadata, '$.source') = 'text'
+      AND length(json_extract(metadata, '$.source')) > 0
+      AND created_at * 1000 >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})) AND created_at * 1000 < ${currentHour}
   ),
   'rawFinishedDownloadTasks', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action = 'stats_remote_download_finished'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+    SELECT COUNT(*)
+    FROM download_tasks dt
+    JOIN json_each(dt.events) AS task_event
+    WHERE ${terminalTaskEvent}
+      AND ${taskEventTimestamp} >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))
+      AND ${taskEventTimestamp} < ${currentHour}
   ),
   'rawFinishedBackgroundJobs', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action = 'stats_background_job_finished'
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+    SELECT COUNT(*) FROM background_jobs
+    WHERE status IN ('completed', 'failed', 'canceled')
+      AND finished_at IS NOT NULL
+      AND finished_at >= MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))
+      AND finished_at < ${currentHour}
   ),
   'rawMissingByteEvents', (
-    SELECT COUNT(*) FROM activity_events
-    WHERE action = 'upload_confirm'
+    SELECT COUNT(*) FROM audit_events
+    WHERE action IN ('upload_confirm', 'upload_failed', 'download_failed', 'save_from_share')
       AND (metadata IS NULL OR json_valid(metadata) = 0 OR json_type(metadata, '$.bytes') IS NULL)
-      AND created_at >= ${MIN_VALID_TIMESTAMP_SECONDS} AND created_at * 1000 < ${currentHour}
+      AND created_at * 1000 >= COALESCE(${statisticsExactFromMsSql}, ${MIN_VALID_TIMESTAMP_MS})
+      AND created_at * 1000 < ${currentHour}
+  ),
+  'invalidAuditEvents', (
+    SELECT COUNT(*) FROM audit_events
+    WHERE created_at * 1000 >= COALESCE(${statisticsExactFromMsSql}, ${MIN_VALID_TIMESTAMP_MS})
+      AND (
+        (action IN ('upload_confirm', 'upload_failed') AND (
+          json_valid(metadata) = 0
+          OR COALESCE(json_type(metadata, '$.bytes') IN ('integer', 'real'), 0) = 0
+          OR json_extract(metadata, '$.bytes') < 0
+          OR COALESCE(json_type(metadata, '$.source') = 'text', 0) = 0
+          OR COALESCE(length(json_extract(metadata, '$.source')), 0) = 0
+        ))
+        OR (action = 'download_failed' AND (
+          json_valid(metadata) = 0
+          OR COALESCE(json_type(metadata, '$.bytes') IN ('integer', 'real'), 0) = 0
+          OR json_extract(metadata, '$.bytes') < 0
+          OR COALESCE(json_type(metadata, '$.source') = 'text', 0) = 0
+          OR COALESCE(length(json_extract(metadata, '$.source')), 0) = 0
+        ))
+        OR (action = 'save_from_share' AND (
+          json_valid(metadata) = 0
+          OR COALESCE(json_type(metadata, '$.shareId') = 'text', 0) = 0
+          OR COALESCE(length(json_extract(metadata, '$.shareId')), 0) = 0
+          OR COALESCE(json_type(metadata, '$.bytes') IN ('integer', 'real'), 0) = 0
+          OR json_extract(metadata, '$.bytes') < 0
+        ))
+        OR (action = 'user_register' AND (
+          json_valid(metadata) = 0
+          OR target_id IS NULL
+          OR user_id <> target_id
+          OR id <> 'event:user_register:' || target_id
+          OR COALESCE(json_type(metadata, '$.provider') = 'text', 0) = 0
+          OR COALESCE(length(json_extract(metadata, '$.provider')), 0) = 0
+        ))
+      )
+  ),
+  'missingUserRegistrationEvents', (
+    SELECT COUNT(*)
+    FROM user registered_user
+    WHERE registered_user.created_at >= COALESCE(${statisticsExactFromMsSql}, ${MIN_VALID_TIMESTAMP_MS})
+      AND NOT EXISTS (
+        SELECT 1
+        FROM audit_events registration_event
+        WHERE registration_event.action = 'user_register'
+          AND registration_event.id = 'event:user_register:' || registered_user.id
+          AND registration_event.user_id = registered_user.id
+          AND registration_event.target_id = registered_user.id
+          AND registration_event.created_at = CAST(registered_user.created_at / 1000 AS INTEGER)
+          AND json_valid(registration_event.metadata) = 1
+          AND json_type(registration_event.metadata, '$.provider') = 'text'
+          AND length(json_extract(registration_event.metadata, '$.provider')) > 0
+      )
+  ),
+  'invalidDownloadTaskEvents', (
+    SELECT COUNT(*)
+    FROM download_tasks dt
+    JOIN json_each(dt.events) AS task_event
+    WHERE NOT (${validTaskEvent})
   ),
   'rawStorageWrittenBytes', (
     SELECT COALESCE(SUM(delta_bytes), 0) FROM storage_usage_ledger
     WHERE delta_bytes > 0
-      AND reason NOT IN ('opening_balance', 'opening_balance_complete')
+      AND reason NOT IN ('opening_balance', 'opening_balance_complete', 'integrity_opening_balance')
       AND occurred_at >= ${storageLedgerExactFrom} AND occurred_at < ${currentHour}
   ),
   'rawStorageReleasedBytes', (
     SELECT COALESCE(SUM(-delta_bytes), 0) FROM storage_usage_ledger
     WHERE delta_bytes < 0
-      AND reason NOT IN ('opening_balance', 'opening_balance_complete')
+      AND reason NOT IN ('opening_balance', 'opening_balance_complete', 'integrity_opening_balance')
       AND occurred_at >= ${storageLedgerExactFrom} AND occurred_at < ${currentHour}
   )
 ) AS summary;`
@@ -992,7 +628,7 @@ export function buildValidationSql(now = new Date()): string {
   WHERE CASE WHEN json_valid(metadata) = 1 THEN
       json_extract(metadata, '$.version') = 3
       AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
-      AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
+      AND json_extract(metadata, '$.quality') = 'exact'
     ELSE 0 END = 1
 ),
 completion_markers AS MATERIALIZED (
@@ -1017,12 +653,11 @@ required_dimensions(metric_key, dimension_key, check_bytes) AS (
     ('transfer.upload', 'status', 1),
     ('transfer.download_issued', 'source', 1),
     ('storage.ledger_change', 'direction', 1),
-    ('share.download_issued', 'actor_type', 1),
     ('share.download_issued', 'source', 1),
     ('user.signup', 'provider', 0),
     ('share.created', 'kind', 0),
-    ('remote_download.task_finished', 'category', 1),
-    ('remote_download.task_finished', 'outcome', 1),
+    ('remote_download.task_finished', 'category', 0),
+    ('remote_download.task_finished', 'outcome', 0),
     ('background_job.finished', 'job_type', 0),
     ('background_job.finished', 'outcome', 0),
     ('storage.inventory', 'file_type_group', 1),
@@ -1080,10 +715,6 @@ SELECT json_object(
     SELECT COALESCE(SUM(bytes), 0) FROM counter_rows
     WHERE metric_key = 'storage.ledger_change' AND dimension_key = 'direction' AND dimension_value = 'released'
   ),
-  'rollupShareViews', (
-    SELECT COALESCE(SUM(count), 0) FROM counter_rows
-    WHERE metric_key = 'share.view' AND dimension_key = ''
-  ),
   'orphanRollupBuckets', (
     SELECT COUNT(DISTINCT r.bucket_start)
     FROM valid_rollups r
@@ -1129,7 +760,7 @@ SELECT json_object(
     WHERE CASE WHEN json_valid(metadata) = 1 THEN
         json_extract(metadata, '$.version') = 3
         AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
-        AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
+        AND json_extract(metadata, '$.quality') = 'exact'
       ELSE 0 END = 0
   )
 ) AS summary;`
@@ -1140,7 +771,7 @@ SELECT json_object(
   WHERE CASE WHEN json_valid(metadata) = 1 THEN
       json_extract(metadata, '$.version') = 3
       AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
-      AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
+      AND json_extract(metadata, '$.quality') = 'exact'
     ELSE 0 END = 1
 ),
 counter_markers AS MATERIALIZED (
@@ -1174,10 +805,6 @@ SELECT json_object(
     SELECT COALESCE(SUM(count), 0) FROM counter_rows
     WHERE metric_key = 'share.saved' AND dimension_key = ''
   ),
-  'rollupSharePasswordPasses', (
-    SELECT COALESCE(SUM(count), 0) FROM counter_rows
-    WHERE metric_key = 'share.password_passed' AND dimension_key = ''
-  ),
   'rollupFailedDownloads', (
     SELECT COALESCE(SUM(count), 0) FROM counter_rows
     WHERE metric_key = 'transfer.download_failed' AND dimension_key = ''
@@ -1203,7 +830,7 @@ SELECT json_object(
     AND CASE WHEN json_valid(metadata) = 1 THEN
       json_extract(metadata, '$.version') = 3
       AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
-      AND json_extract(metadata, '$.quality') IN ('exact', 'lower_bound')
+      AND json_extract(metadata, '$.quality') = 'exact'
     ELSE 0 END = 1
     AND json_extract(metadata, '$.scope') IN ('counters', 'full')
 ),
@@ -1232,54 +859,46 @@ SELECT json_object(
 
 export const BACKFILL_PLAN_SQL = `
 SELECT json_object(
-  'recoverableUploadBytes', (
-    SELECT COUNT(*) FROM activity_events ae
-    WHERE ae.action = 'upload_confirm'
-      AND (ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL)
-      AND EXISTS (SELECT 1 FROM matters m WHERE m.id = ae.target_id)
-  ),
-  'skippedUploadBytesMissingMatter', (
-    SELECT COUNT(*) FROM activity_events ae
-    WHERE ae.action = 'upload_confirm'
-      AND (ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL)
-      AND NOT EXISTS (SELECT 1 FROM matters m WHERE m.id = ae.target_id)
-  ),
-  'recoverableShareBytes', (
-    SELECT COUNT(*) FROM activity_events ae
-    WHERE ae.action = 'share_download'
-      AND (ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL)
-      AND EXISTS (
-        SELECT 1 FROM shares s JOIN matters m ON m.id = s.matter_id
-        WHERE s.id = ae.target_id AND m.dirtype = 0
+  'invalidAuditEvents', (
+    SELECT COUNT(*) FROM audit_events ae
+    WHERE ae.created_at * 1000 >= COALESCE(${statisticsExactFromMsSql}, ${MIN_VALID_TIMESTAMP_MS})
+      AND (
+        ae.metadata IS NULL
+        OR json_valid(ae.metadata) = 0
+        OR (ae.action IN ('upload_confirm', 'upload_failed', 'download_failed', 'save_from_share')
+          AND COALESCE(json_type(ae.metadata, '$.bytes') IN ('integer', 'real'), 0) = 0)
+        OR (ae.action = 'save_from_share'
+          AND COALESCE(json_type(ae.metadata, '$.shareId') = 'text', 0) = 0)
+        OR (ae.action = 'user_register'
+          AND (
+            ae.target_id IS NULL
+            OR ae.user_id <> ae.target_id
+            OR ae.id <> 'event:user_register:' || ae.target_id
+            OR
+            COALESCE(json_type(ae.metadata, '$.provider') = 'text', 0) = 0
+            OR COALESCE(length(json_extract(ae.metadata, '$.provider')), 0) = 0
+          ))
       )
   ),
-  'skippedShareBytesMissingCurrentFile', (
-    SELECT COUNT(*) FROM activity_events ae
-    WHERE ae.action = 'share_download'
-      AND (ae.metadata IS NULL OR json_valid(ae.metadata) = 0 OR json_type(ae.metadata, '$.bytes') IS NULL)
-      AND NOT EXISTS (
-        SELECT 1 FROM shares s JOIN matters m ON m.id = s.matter_id
-        WHERE s.id = ae.target_id AND m.dirtype = 0
-      )
+  'userRegistrationEventsToRecover', (
+    SELECT COUNT(*)
+    FROM user registered_user
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM audit_events registration_event
+      WHERE registration_event.id = 'event:user_register:' || registered_user.id
+    )
   ),
-  'cloudEventsToRecover', (
+  'issuedTrafficReportsToRecover', (
     SELECT COUNT(*) FROM cloud_traffic_reports ctr
-    WHERE ctr.source IN ('direct_share', 'landing_share', 'image_hosting', 'object_download', 'webdav_download')
-      AND ctr.status <> 'ledger_opening'
-      AND NOT EXISTS (
-        SELECT 1 FROM activity_events ae
-        WHERE ae.id = 'backfill_' || ctr.event_id
-          OR (
-            ae.target_id = ctr.source_id
-            AND ae.action = CASE
-              WHEN ctr.status = 'blocked' THEN 'download_failed'
-              WHEN ctr.source IN ('direct_share', 'landing_share') THEN 'share_download'
-              WHEN ctr.source = 'image_hosting' THEN 'image_hosting_download'
-              WHEN ctr.source = 'object_download' THEN 'object_download'
-              ELSE 'webdav_download'
-            END
-            AND ABS(ae.created_at - CAST(ctr.created_at / 1000 AS INTEGER)) <= 5
-          )
+    WHERE ctr.issued_at IS NULL
+      AND ctr.status NOT IN ('blocked', 'reversed', 'ledger_opening')
+      AND EXISTS (
+        SELECT 1 FROM audit_events ae
+        WHERE ae.action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
+          AND ae.id NOT LIKE 'backfill_%'
+          AND json_valid(ae.metadata) = 1
+          AND json_extract(ae.metadata, '$.trafficEventId') = ctr.event_id
       )
   )
 ) AS summary;
@@ -1417,13 +1036,11 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
     ['download bytes', summary.rawDownloadBytes, summary.rollupDownloadBytes],
     ['storage written bytes', summary.rawStorageWrittenBytes, summary.rollupStorageWrittenBytes],
     ['storage released bytes', summary.rawStorageReleasedBytes, summary.rollupStorageReleasedBytes],
-    ['share views', summary.rawShareViews, summary.rollupShareViews],
     ['upload attempts', summary.rawUploadAttempts, summary.rollupUploadAttempts],
     ['user signups', summary.rawUserSignups, summary.rollupUserSignups],
     ['shares created', summary.rawSharesCreated, summary.rollupSharesCreated],
     ['share downloads', summary.rawShareDownloads, summary.rollupShareDownloads],
     ['share saves', summary.rawShareSaves, summary.rollupShareSaves],
-    ['share password passes', summary.rawSharePasswordPasses, summary.rollupSharePasswordPasses],
     ['failed downloads', summary.rawFailedDownloads, summary.rollupFailedDownloads],
     ['finished download tasks', summary.rawFinishedDownloadTasks, summary.rollupFinishedDownloadTasks],
     ['finished background jobs', summary.rawFinishedBackgroundJobs, summary.rollupFinishedBackgroundJobs],
@@ -1431,6 +1048,9 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
   ].filter(([, raw, rollup]) => raw !== rollup)
   if (
     mismatches.length > 0 ||
+    summary.invalidAuditEvents > 0 ||
+    summary.missingUserRegistrationEvents > 0 ||
+    summary.invalidDownloadTaskEvents > 0 ||
     summary.orphanRollupBuckets > 0 ||
     summary.requiredDimensionMismatchGroups > 0 ||
     summary.legacyRollupRows > 0 ||
@@ -1440,6 +1060,9 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
     throw new Error(
       `admin_stats_validation_failed:${JSON.stringify({
         mismatches,
+        invalidAuditEvents: summary.invalidAuditEvents,
+        missingUserRegistrationEvents: summary.missingUserRegistrationEvents,
+        invalidDownloadTaskEvents: summary.invalidDownloadTaskEvents,
         orphanRollupBuckets: summary.orphanRollupBuckets,
         requiredDimensionMismatchGroups: summary.requiredDimensionMismatchGroups,
         legacyRollupRows: summary.legacyRollupRows,
@@ -1471,14 +1094,8 @@ function main(): void {
         before,
         after,
         recovered: {
-          activityEvents: after.activityEvents - before.activityEvents,
-          uploadMetadata: before.missingUploadBytes - after.missingUploadBytes,
-          downloadMetadata: before.missingDownloadBytes - after.missingDownloadBytes,
+          auditEvents: after.auditEvents - before.auditEvents,
           hourlyRollups: after.hourlyRollups - before.hourlyRollups,
-        },
-        skipped: {
-          uploadBytes: { count: after.missingUploadBytes, reason: 'historical matter no longer exists' },
-          downloadBytes: { count: after.missingDownloadBytes, reason: 'historical target size is unavailable' },
         },
       },
       null,

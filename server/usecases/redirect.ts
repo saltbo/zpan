@@ -9,7 +9,6 @@
 // route-specific Responses from the discriminated outcomes below.
 
 import {
-  type ActivityRepo,
   type AppError,
   expired as expiredError,
   forbidden,
@@ -31,7 +30,7 @@ import {
   reportDownloadEgress,
   reverseDownloadTraffic,
 } from './store/traffic-metering'
-import { createTrafficEventId, recordDownloadFailed, recordDownloadIssued } from './transfer-activity'
+import { createTrafficEventId } from './transfer-activity'
 
 // The metering usecases need the cloud-report ports plus quota; the redirect
 // flows additionally read shares / image-hosting / storages and presign via s3.
@@ -41,12 +40,25 @@ export type RedirectDeps = CloudTrafficMeteringDeps & {
   storages: StorageRepo
   share: ShareRepo
   imageHosting: ImageHostingRepo
-  activity: Pick<ActivityRepo, 'record'>
 }
 
 // ─── Direct share (ds_) ──────────────────────────────────────────────────────
 
-export type DirectShareOutcome = { ok: true; url: string } | { ok: false; error: AppError }
+export type DirectShareOutcome =
+  | {
+      ok: true
+      url: string
+      receipt: {
+        orgId: string
+        shareId: string
+        matterId: string
+        matterName: string
+        storageId: string
+        bytes: number
+        trafficEventId: string
+      }
+    }
+  | { ok: false; error: AppError }
 
 // Resolve a ds_ token to a presigned download URL, running the share gates,
 // atomically reserving a download, metering traffic, and presigning. On a
@@ -90,18 +102,6 @@ export async function resolveDirectShareDownload(
     onRejected: () => deps.share.decrementDownloads(share.id),
   })
   if (!metered.ok) {
-    await recordDownloadFailed(deps.activity, {
-      orgId: share.orgId,
-      actorType: 'anonymous',
-      targetType: 'share',
-      targetId: share.id,
-      targetName: matter.name,
-      source: 'direct_share',
-      bytes,
-      trafficEventId,
-      reason: metered.reason,
-      metadata: { shareId: share.id, matterId: matter.id, storageId: matter.storageId },
-    })
     return {
       ok: false,
       error:
@@ -115,49 +115,56 @@ export async function resolveDirectShareDownload(
   try {
     url = await deps.s3.presignDownload(storage, matter.object, matter.name, PRESIGN_TTL_SECS)
   } catch (e) {
-    await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
-    await deps.share.decrementDownloads(share.id)
-    await recordDownloadFailed(deps.activity, {
-      orgId: share.orgId,
-      actorType: 'anonymous',
-      targetType: 'share',
-      targetId: share.id,
-      targetName: matter.name,
-      source: 'direct_share',
-      bytes,
-      trafficEventId,
-      reason: 'presign_failed',
-      metadata: { shareId: share.id, matterId: matter.id, storageId: matter.storageId },
-    })
+    try {
+      await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
+    } finally {
+      await deps.share.decrementDownloads(share.id)
+    }
     throw e
   }
 
   try {
-    await recordDownloadIssued(deps.activity, {
-      orgId: share.orgId,
-      actorType: 'anonymous',
-      action: 'share_download',
-      targetType: 'share',
-      targetId: share.id,
-      targetName: matter.name,
-      source: 'direct_share',
-      bytes,
-      trafficEventId,
-      metadata: { shareId: share.id, matterId: matter.id, storageId: matter.storageId, kind: share.kind },
-    })
     await confirmDownloadTraffic(deps, { eventId: trafficEventId })
   } catch (error) {
-    await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
-    await deps.share.decrementDownloads(share.id)
+    try {
+      await reverseDownloadTraffic(deps, { orgId: share.orgId, bytes, eventId: trafficEventId })
+    } finally {
+      await deps.share.decrementDownloads(share.id)
+    }
     throw error
   }
 
-  return { ok: true, url }
+  return {
+    ok: true,
+    url,
+    receipt: {
+      orgId: share.orgId,
+      shareId: share.id,
+      matterId: matter.id,
+      matterName: matter.name,
+      storageId: storage.id,
+      bytes,
+      trafficEventId,
+    },
+  }
 }
 
 // ─── Image hosting (ih_) ─────────────────────────────────────────────────────
 
-export type ImageHostingOutcome = { ok: true; url: string } | { ok: false; error: AppError }
+export type ImageHostingOutcome =
+  | {
+      ok: true
+      url: string
+      receipt: {
+        orgId: string
+        imageId: string
+        imagePath: string
+        storageId: string
+        bytes: number
+        trafficEventId: string
+      }
+    }
+  | { ok: false; error: AppError }
 
 // Resolve an ih_ token to a presigned inline URL. Order matters and mirrors the
 // historical flow: enforce the referer allowlist, consume traffic quota, presign
@@ -186,18 +193,6 @@ export async function resolveImageHostingDownload(
   const trafficEventId = createTrafficEventId()
   const trafficAllowed = await deps.quota.consumeTrafficIfQuotaAllows(image.orgId, image.size)
   if (!trafficAllowed) {
-    await recordDownloadFailed(deps.activity, {
-      orgId: image.orgId,
-      actorType: 'anonymous',
-      targetType: 'image',
-      targetId: image.id,
-      targetName: image.storageKey,
-      source: 'image_hosting',
-      bytes: image.size,
-      trafficEventId,
-      reason: 'quota_exceeded',
-      metadata: { imageId: image.id, storageId: image.storageId },
-    })
     return { ok: false, error: quotaExceeded('Traffic quota exceeded') }
   }
 
@@ -206,18 +201,6 @@ export async function resolveImageHostingDownload(
     url = await deps.s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
   } catch (e) {
     await deps.quota.refundTraffic(image.orgId, image.size)
-    await recordDownloadFailed(deps.activity, {
-      orgId: image.orgId,
-      actorType: 'anonymous',
-      targetType: 'image',
-      targetId: image.id,
-      targetName: image.storageKey,
-      source: 'image_hosting',
-      bytes: image.size,
-      trafficEventId,
-      reason: 'presign_failed',
-      metadata: { imageId: image.id, storageId: image.storageId },
-    })
     throw e
   }
 
@@ -232,18 +215,6 @@ export async function resolveImageHostingDownload(
   })
   // reportDownloadEgress never consumes quota, so it cannot return quota_exceeded.
   if (!reported.ok) {
-    await recordDownloadFailed(deps.activity, {
-      orgId: image.orgId,
-      actorType: 'anonymous',
-      targetType: 'image',
-      targetId: image.id,
-      targetName: image.storageKey,
-      source: 'image_hosting',
-      bytes: image.size,
-      trafficEventId,
-      reason: reported.reason,
-      metadata: { imageId: image.id, storageId: image.storageId },
-    })
     return {
       ok: false,
       error: insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
@@ -251,18 +222,6 @@ export async function resolveImageHostingDownload(
   }
 
   try {
-    await recordDownloadIssued(deps.activity, {
-      orgId: image.orgId,
-      actorType: 'anonymous',
-      action: 'image_hosting_download',
-      targetType: 'image',
-      targetId: image.id,
-      targetName: image.storageKey,
-      source: 'image_hosting',
-      bytes: image.size,
-      trafficEventId,
-      metadata: { imageId: image.id, storageId: image.storageId, mime: image.mime },
-    })
     await confirmDownloadTraffic(deps, { eventId: trafficEventId })
   } catch (error) {
     await reverseDownloadTraffic(deps, { orgId: image.orgId, bytes: image.size, eventId: trafficEventId })
@@ -275,7 +234,18 @@ export async function resolveImageHostingDownload(
     console.error('[redirect] incrementAccessCount failed:', error)
   }
 
-  return { ok: true, url }
+  return {
+    ok: true,
+    url,
+    receipt: {
+      orgId: image.orgId,
+      imageId: image.id,
+      imagePath: image.path,
+      storageId: storage.id,
+      bytes: image.size,
+      trafficEventId,
+    },
+  }
 }
 
 // ─── Referer allowlist (pure) ────────────────────────────────────────────────

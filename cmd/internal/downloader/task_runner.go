@@ -20,7 +20,6 @@ import (
 const Version = "0.1.0"
 const maxTaskErrorMessageLength = 1000
 const localResultRemovedRuntimeState = "local_result_removed"
-const deleteRequestedRuntimeState = "delete_requested"
 
 var errTaskPausing = errors.New("task pausing")
 var errTaskCanceling = errors.New("task canceling")
@@ -187,6 +186,10 @@ func (w *TaskRunner) tickAndNextPoll(ctx context.Context) (time.Duration, error)
 		return 0, err
 	}
 	for _, task := range heartbeat.Controls {
+		if task.DeleteRequested() {
+			w.ackStoppedControlTask(ctx, task)
+			continue
+		}
 		if w.cancelRunning(task) {
 			continue
 		}
@@ -487,18 +490,17 @@ func (w *TaskRunner) resetRuntimeTask(ctx context.Context, task client.DownloadT
 	return nil
 }
 
-func (w *TaskRunner) cleanupDeletedTask(ctx context.Context, log *slog.Logger, task client.DownloadTask) {
+func (w *TaskRunner) cleanupDeletedTask(ctx context.Context, log *slog.Logger, task client.DownloadTask) error {
 	reason := "deleted"
 	w.seeds.CleanupTask(ctx, task.ID, reason)
 	if w.downloader == nil {
-		log.Warn("downloader engine is unavailable for terminal cleanup", "reason", reason)
-		return
+		return errors.New("downloader engine is unavailable for terminal cleanup")
 	}
 	if err := w.downloader.ResetTask(ctx, downloadTask(task)); err != nil {
-		log.Warn("failed to clean terminal downloader task", "reason", reason, "error", err)
-		return
+		return fmt.Errorf("clean terminal downloader task: %w", err)
 	}
 	log.Info("cleaned terminal downloader task", "reason", reason)
+	return nil
 }
 
 func (w *TaskRunner) uploadAndComplete(
@@ -731,6 +733,18 @@ func (w *TaskRunner) cancelRunning(task client.DownloadTask) bool {
 
 func (w *TaskRunner) ackStoppedControlTask(ctx context.Context, task client.DownloadTask) {
 	log := w.taskLogger(task)
+	if task.DeleteRequested() {
+		if err := w.cleanupDeletedTask(ctx, log, task); err != nil {
+			log.Error("failed to clean deleted task", "error", err)
+			return
+		}
+		if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{CleanupCompleted: true}); err != nil {
+			log.Error("failed to acknowledge deleted task cleanup", "error", err)
+			return
+		}
+		log.Info("acknowledged deleted task cleanup")
+		return
+	}
 	if task.State() == "pausing" {
 		if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "paused"}); err != nil {
 			log.Error("failed to acknowledge paused task without local process", "error", err)
@@ -740,9 +754,6 @@ func (w *TaskRunner) ackStoppedControlTask(ctx context.Context, task client.Down
 		return
 	}
 	if task.State() == "canceling" {
-		if runtime := task.Runtime(); runtime != nil && runtime.State == deleteRequestedRuntimeState {
-			w.cleanupDeletedTask(ctx, log, task)
-		}
 		if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "canceled"}); err != nil {
 			log.Error("failed to acknowledge canceled task without local process", "error", err)
 			return

@@ -1,7 +1,7 @@
 // The team resource usecase. Owns every business decision behind both team
 // surfaces — the user-facing /api/teams routes (invite links, joining, the
 // activity feed, the org logo) and the admin /api/admin/teams routes (team
-// listing/detail and per-team quota entitlements) — plus the activity logging
+// listing/detail and per-team quota entitlements)
 // that accompanies the mutating operations, so the http handlers only validate
 // input, call these functions, and serialize the result.
 //
@@ -17,8 +17,8 @@
 
 import type { Platform } from '../platform/interface'
 import {
-  type ActivityEventWithUser,
-  type ActivityRepo,
+  type AuditEventWithUser,
+  type AuditRepo,
   type EntitlementResult,
   type ImageUpload,
   type ImageUploadResult,
@@ -38,7 +38,7 @@ export type TeamDeps = {
   teams: TeamRepo
   teamInvites: TeamInviteRepo
   org: OrgRepo
-  activity: ActivityRepo
+  audit: AuditRepo
   imageUpload: ImageUpload
   userAdmin: UserAdminRepo
 }
@@ -57,7 +57,7 @@ export function getInviteLinkInfo(deps: Pick<TeamDeps, 'teamInvites'>, token: st
 export type CreateInviteLinkOutcome = { ok: true; token: string; expiresAt: Date } | { ok: false; reason: 'forbidden' }
 
 export async function createInviteLink(
-  deps: Pick<TeamDeps, 'teamInvites' | 'org' | 'activity'>,
+  deps: Pick<TeamDeps, 'teamInvites' | 'org'>,
   params: { teamId: string; userId: string; role: 'editor' | 'viewer'; expiresIn?: number },
 ): Promise<CreateInviteLinkOutcome> {
   const { teamId, userId, role, expiresIn } = params
@@ -65,15 +65,6 @@ export async function createInviteLink(
   if (memberRole !== 'owner') return { ok: false, reason: 'forbidden' }
 
   const link = await deps.teamInvites.createInviteLink(teamId, userId, role, expiresIn)
-  await deps.activity.record({
-    orgId: teamId,
-    userId,
-    action: 'team_invite_link_create',
-    targetType: 'team',
-    targetId: teamId,
-    targetName: teamId,
-    metadata: { role, expiresIn },
-  })
   return { ok: true, token: link.token, expiresAt: link.expiresAt }
 }
 
@@ -94,21 +85,13 @@ export async function listInvitations(
 export type JoinTeamOutcome = { ok: true } | { ok: false; reason: 'invalid' | 'expired' | 'already_member' }
 
 export async function joinTeam(
-  deps: Pick<TeamDeps, 'teamInvites' | 'activity'>,
+  deps: Pick<TeamDeps, 'teamInvites'>,
   params: { teamId: string; userId: string; token: string },
 ): Promise<JoinTeamOutcome> {
-  const { teamId, userId, token } = params
+  const { userId, token } = params
   const result = await deps.teamInvites.acceptInviteLink(token, userId)
   if (result !== 'ok') return { ok: false, reason: result }
 
-  await deps.activity.record({
-    orgId: teamId,
-    userId,
-    action: 'team_member_join',
-    targetType: 'team',
-    targetId: teamId,
-    targetName: teamId,
-  })
   return { ok: true }
 }
 
@@ -118,11 +101,11 @@ export async function joinTeam(
 // user may read a *personal* org's feed (personal orgs are public to auth users).
 // A non-member of a non-personal org is forbidden.
 export type ListActivityOutcome =
-  | { ok: true; result: { items: ActivityEventWithUser[]; total: number } }
+  | { ok: true; result: { items: AuditEventWithUser[]; total: number } }
   | { ok: false; reason: 'forbidden' }
 
 export async function listActivity(
-  deps: Pick<TeamDeps, 'org' | 'activity'>,
+  deps: Pick<TeamDeps, 'org' | 'audit'>,
   params: { teamId: string; userId: string; page: number; pageSize: number },
 ): Promise<ListActivityOutcome> {
   const { teamId, userId, page, pageSize } = params
@@ -130,7 +113,7 @@ export async function listActivity(
   if (role === null && !(await deps.org.isPersonalOrg(teamId))) {
     return { ok: false, reason: 'forbidden' }
   }
-  const result = await deps.activity.list(teamId, { page, pageSize })
+  const result = await deps.audit.list(teamId, { page, pageSize })
   return { ok: true, result }
 }
 
@@ -146,7 +129,7 @@ export type SetTeamLogoOutcome =
   | { ok: false; reason: 'upload_failed'; status: 400 | 403 | 413 | 500 | 503; error: string }
 
 export async function setTeamLogo(
-  deps: Pick<TeamDeps, 'org' | 'teams' | 'imageUpload' | 'activity'>,
+  deps: Pick<TeamDeps, 'org' | 'teams' | 'imageUpload'>,
   params: { platform: Platform; teamId: string; userId: string; file: File },
 ): Promise<SetTeamLogoOutcome> {
   const { platform, teamId, userId, file } = params
@@ -157,21 +140,13 @@ export async function setTeamLogo(
   if (!result.ok) return { ok: false, reason: 'upload_failed', status: result.status, error: result.error }
 
   await deps.teams.setLogo(teamId, result.url)
-  await deps.activity.record({
-    orgId: teamId,
-    userId,
-    action: 'team_logo_update',
-    targetType: 'team',
-    targetId: teamId,
-    targetName: teamId,
-  })
   return { ok: true, url: result.url }
 }
 
 export type DeleteTeamLogoOutcome = { ok: true } | { ok: false; reason: 'forbidden' }
 
 export async function deleteTeamLogo(
-  deps: Pick<TeamDeps, 'org' | 'teams' | 'imageUpload' | 'activity'>,
+  deps: Pick<TeamDeps, 'org' | 'teams' | 'imageUpload'>,
   params: { platform: Platform; teamId: string; userId: string },
 ): Promise<DeleteTeamLogoOutcome> {
   const { platform, teamId, userId } = params
@@ -180,14 +155,6 @@ export async function deleteTeamLogo(
 
   await deps.teams.setLogo(teamId, null)
   await deps.imageUpload.deletePublicImageVariants(platform, LOGO_PREFIX, teamId)
-  await deps.activity.record({
-    orgId: teamId,
-    userId,
-    action: 'team_logo_delete',
-    targetType: 'team',
-    targetId: teamId,
-    targetName: teamId,
-  })
   return { ok: true }
 }
 
@@ -219,10 +186,9 @@ export async function listTeamEntitlements(
 export type TeamEntitlementOutcome = { ok: true; result: EntitlementResult } | RepoFailure
 
 export async function grantTeamEntitlement(
-  deps: Pick<TeamDeps, 'userAdmin' | 'activity'>,
+  deps: Pick<TeamDeps, 'userAdmin'>,
   params: {
     adminUserId: string
-    adminOrgId: string
     targetOrgId: string
     resourceType: 'storage'
     bytes: number
@@ -230,7 +196,7 @@ export async function grantTeamEntitlement(
     note?: string | null
   },
 ): Promise<TeamEntitlementOutcome> {
-  const { adminUserId, adminOrgId, targetOrgId, resourceType, bytes, expiresAt, note } = params
+  const { adminUserId, targetOrgId, resourceType, bytes, expiresAt, note } = params
   const result = await deps.userAdmin.grantOrgEntitlement({
     adminUserId,
     orgId: targetOrgId,
@@ -241,29 +207,13 @@ export async function grantTeamEntitlement(
   })
   if ('error' in result) return { ok: false, failure: result }
 
-  await deps.activity.record({
-    orgId: adminOrgId,
-    userId: adminUserId,
-    action: 'quota_entitlement_grant',
-    targetType: 'quota',
-    targetId: targetOrgId,
-    targetName: targetOrgId,
-    metadata: {
-      targetOrgId,
-      entitlementId: result.entitlement.id,
-      resourceType: result.entitlement.resourceType,
-      bytes: result.entitlement.bytes,
-      expiresAt: result.entitlement.expiresAt?.toISOString() ?? null,
-    },
-  })
   return { ok: true, result }
 }
 
 export async function updateTeamEntitlement(
-  deps: Pick<TeamDeps, 'userAdmin' | 'activity'>,
+  deps: Pick<TeamDeps, 'userAdmin'>,
   params: {
     adminUserId: string
-    adminOrgId: string
     targetOrgId: string
     entitlementId: string
     bytes?: number
@@ -271,7 +221,7 @@ export async function updateTeamEntitlement(
     note?: string | null
   },
 ): Promise<TeamEntitlementOutcome> {
-  const { adminUserId, adminOrgId, targetOrgId, entitlementId, bytes, expiresAt, note } = params
+  const { adminUserId, targetOrgId, entitlementId, bytes, expiresAt, note } = params
   const result = await deps.userAdmin.updateOrgEntitlement({
     adminUserId,
     orgId: targetOrgId,
@@ -282,43 +232,16 @@ export async function updateTeamEntitlement(
   })
   if ('error' in result) return { ok: false, failure: result }
 
-  await deps.activity.record({
-    orgId: adminOrgId,
-    userId: adminUserId,
-    action: 'quota_entitlement_update',
-    targetType: 'quota',
-    targetId: targetOrgId,
-    targetName: targetOrgId,
-    metadata: {
-      targetOrgId,
-      entitlementId: result.entitlement.id,
-      bytes: result.entitlement.bytes,
-      expiresAt: result.entitlement.expiresAt?.toISOString() ?? null,
-    },
-  })
   return { ok: true, result }
 }
 
 export async function revokeTeamEntitlement(
-  deps: Pick<TeamDeps, 'userAdmin' | 'activity'>,
-  params: { adminUserId: string; adminOrgId: string; targetOrgId: string; entitlementId: string },
+  deps: Pick<TeamDeps, 'userAdmin'>,
+  params: { adminUserId: string; targetOrgId: string; entitlementId: string },
 ): Promise<TeamEntitlementOutcome> {
-  const { adminUserId, adminOrgId, targetOrgId, entitlementId } = params
+  const { adminUserId, targetOrgId, entitlementId } = params
   const result = await deps.userAdmin.revokeOrgEntitlement({ adminUserId, orgId: targetOrgId, entitlementId })
   if ('error' in result) return { ok: false, failure: result }
 
-  await deps.activity.record({
-    orgId: adminOrgId,
-    userId: adminUserId,
-    action: 'quota_entitlement_revoke',
-    targetType: 'quota',
-    targetId: targetOrgId,
-    targetName: targetOrgId,
-    metadata: {
-      targetOrgId,
-      entitlementId: result.entitlement.id,
-      bytes: result.entitlement.bytes,
-    },
-  })
   return { ok: true, result }
 }

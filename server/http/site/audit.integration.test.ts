@@ -29,12 +29,12 @@ describe('GET /api/site/audit-events — auth guards', () => {
 })
 
 describe('GET /api/site/audit-events — licensed admin', () => {
-  it('returns empty list when no events exist [spec: audit/empty]', async () => {
+  it('returns an empty list when no events match the filter [spec: audit/empty]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/audit-events', { headers })
+    const res = await app.request('/api/site/audit-events?action=does_not_exist', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
     expect(body.items).toEqual([])
@@ -52,7 +52,7 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     const earlier = new Date('2026-01-01T00:00:00Z')
     const later = new Date('2026-06-01T00:00:00Z')
 
-    await db.insert((await import('../../db/schema.js')).activityEvents).values([
+    await db.insert((await import('../../db/schema.js')).auditEvents).values([
       {
         id: 'evt-a',
         orgId: 'org-a',
@@ -77,7 +77,7 @@ describe('GET /api/site/audit-events — licensed admin', () => {
       },
     ])
 
-    const res = await app.request('/api/site/audit-events', { headers })
+    const res = await app.request('/api/site/audit-events?targetType=file', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
     expect(body.total).toBe(2)
@@ -91,8 +91,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../../db/schema.js')
-    await db.insert(activityEvents).values([
+    const { auditEvents } = await import('../../db/schema.js')
+    await db.insert(auditEvents).values([
       {
         id: 'evt-1',
         orgId: 'org-x',
@@ -129,8 +129,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../../db/schema.js')
-    await db.insert(activityEvents).values([
+    const { auditEvents } = await import('../../db/schema.js')
+    await db.insert(auditEvents).values([
       {
         id: 'evt-3',
         orgId: 'org-z',
@@ -166,8 +166,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../../db/schema.js')
-    await db.insert(activityEvents).values([
+    const { auditEvents } = await import('../../db/schema.js')
+    await db.insert(auditEvents).values([
       {
         id: 'evt-5',
         orgId: 'org-1',
@@ -203,8 +203,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../../db/schema.js')
-    await db.insert(activityEvents).values([
+    const { auditEvents } = await import('../../db/schema.js')
+    await db.insert(auditEvents).values([
       {
         id: 'evt-range-match',
         orgId: 'org-1',
@@ -282,8 +282,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../../db/schema.js')
-    await db.insert(activityEvents).values([
+    const { auditEvents } = await import('../../db/schema.js')
+    await db.insert(auditEvents).values([
       {
         id: 'evt-7',
         orgId: 'org-1',
@@ -319,9 +319,9 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const { activityEvents } = await import('../../db/schema.js')
+    const { auditEvents } = await import('../../db/schema.js')
     // Insert 3 events
-    await db.insert(activityEvents).values(
+    await db.insert(auditEvents).values(
       [1, 2, 3].map((i) => ({
         id: `pg-evt-${i}`,
         orgId: 'org-pg',
@@ -362,8 +362,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     const session = (await signInRes.json()) as { user?: { id: string } }
     const userId = session.user?.id ?? 'unknown'
 
-    const { activityEvents } = await import('../../db/schema.js')
-    await db.insert(activityEvents).values({
+    const { auditEvents } = await import('../../db/schema.js')
+    await db.insert(auditEvents).values({
       id: 'actor-evt-1',
       orgId: 'some-org',
       userId,
@@ -375,7 +375,7 @@ describe('GET /api/site/audit-events — licensed admin', () => {
       createdAt: new Date(),
     })
 
-    const res = await app.request('/api/site/audit-events', { headers })
+    const res = await app.request('/api/site/audit-events?action=upload', { headers })
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.total).toBe(1)
     const item = body.items[0]

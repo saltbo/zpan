@@ -4,7 +4,6 @@ import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../adapters/gateways/s3.js'
-import { createActivityRepo } from '../adapters/repos/activity.js'
 import { createMatterRepo } from '../adapters/repos/matter.js'
 import { createQuotaRepo } from '../adapters/repos/quota.js'
 import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
@@ -37,8 +36,8 @@ function getMatters(db: TestDbForMatter, orgId: string, ids: string[]) {
 function listMatters(db: TestDbForMatter, orgId: string, filters: MatterListFilters) {
   return createMatterRepo(db).list(orgId, filters)
 }
-function updateMatter(db: TestDbForMatter, id: string, orgId: string, input: UpdateMatterInput, userId?: string) {
-  return createMatterRepo(db).update(id, orgId, input, userId)
+function updateMatter(db: TestDbForMatter, id: string, orgId: string, input: UpdateMatterInput) {
+  return createMatterRepo(db).update(id, orgId, input)
 }
 function copyMatter(
   db: TestDbForMatter,
@@ -62,7 +61,6 @@ function confirmUpload(db: TestDbForMatter, id: string, orgId: string, opts: Con
       matter: createMatterRepo(db),
       quota: createQuotaRepo(db),
       storageUsage: createStorageUsageRepo(db),
-      activity: createActivityRepo(db),
     },
     id,
     orgId,
@@ -437,7 +435,7 @@ describe('Objects API', () => {
     // ETag mismatch surfaces as an invalid upload-session state → 409.
     expect(res.status).toBe(409)
     const events = await db.all<{ metadata: string }>(sql`
-      SELECT metadata FROM activity_events
+      SELECT metadata FROM audit_events
       WHERE action = 'upload_failed' AND target_id = ${created.id}
     `)
     expect(events).toHaveLength(1)
@@ -889,6 +887,31 @@ describe('Objects API', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.downloadUrl).toBe('https://presigned-download.example.com')
+    const events = await db.all<{
+      userId: string
+      actorType: string
+      bytes: number
+      source: string
+      trafficEventId: string
+    }>(sql`
+      SELECT
+        user_id AS userId,
+        actor_type AS actorType,
+        json_extract(metadata, '$.bytes') AS bytes,
+        json_extract(metadata, '$.source') AS source,
+        json_extract(metadata, '$.trafficEventId') AS trafficEventId
+      FROM audit_events
+      WHERE action = 'object_download' AND target_id = 'm1'
+    `)
+    expect(events).toEqual([
+      {
+        userId: expect.any(String),
+        actorType: 'user',
+        bytes: 100,
+        source: 'object_download',
+        trafficEventId: expect.any(String),
+      },
+    ])
   })
 
   it('GET /api/objects/:id reports Cloud traffic for bound instances before returning the URL [spec: objects/download-traffic]', async () => {
@@ -1973,6 +1996,14 @@ describe('Objects API — quota enforcement', () => {
         sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
       )
       expect(rows[0].trafficUsed).toBe(0)
+      const failures = await db.all<{ bytes: number; reason: string; source: string }>(sql`
+        SELECT json_extract(metadata, '$.bytes') AS bytes,
+          json_extract(metadata, '$.reason') AS reason,
+          json_extract(metadata, '$.source') AS source
+        FROM audit_events
+        WHERE action = 'download_failed' AND target_id = 'm-download-over'
+      `)
+      expect(failures).toEqual([{ bytes: 100, reason: 'quota_exceeded', source: 'object_download' }])
     })
   })
 

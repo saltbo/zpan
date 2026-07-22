@@ -29,13 +29,7 @@ import { readCaptchaConfig } from '../../domain/captcha'
 import { hasFeature } from '../../domain/licensing'
 import { normalizePublicOrigin, SITE_PUBLIC_ORIGIN_KEY } from '../../domain/site-public-origin'
 import { WEBDAV_AUTH_CHALLENGE, webDavPathUrl, webDavPublicUrl } from '../../domain/webdav-public-url'
-import {
-  type ActivityRepo,
-  badRequest,
-  featureBlocked,
-  type LicenseBindingRepo,
-  type SystemOptionsRepo,
-} from '../ports'
+import { badRequest, featureBlocked, type LicenseBindingRepo, type SystemOptionsRepo } from '../ports'
 import { loadBindingState, resolveEffectiveSignupMode } from './licensing'
 import { resetSitePublicOriginCache } from './public-origin'
 
@@ -62,7 +56,6 @@ const ALL_SETTING_KEYS = Object.values(SITE_SETTING_KEYS)
 export type SiteSettingsDeps = {
   systemOptions: SystemOptionsRepo
   licenseBinding: LicenseBindingRepo
-  activity: ActivityRepo
 }
 
 function optionMap(rows: Array<{ key: string; value: string }>): Map<string, string> {
@@ -170,24 +163,8 @@ export async function getSiteSettings(
   }
 }
 
-async function recordUpdate(
-  deps: Pick<SiteSettingsDeps, 'activity'>,
-  actor: { userId: string; orgId: string },
-  action: string,
-  fields: string[],
-): Promise<void> {
-  await deps.activity.record({
-    ...actor,
-    action,
-    targetType: 'site_settings',
-    targetName: action,
-    metadata: { fields },
-  })
-}
-
 export async function updateSiteIdentity(
   deps: SiteSettingsDeps,
-  actor: { userId: string; orgId: string },
   input: UpdateSiteIdentityInput,
 ): Promise<SiteIdentitySettings> {
   const publicUrl = normalizePublicOrigin(input.publicUrl)
@@ -226,13 +203,11 @@ export async function updateSiteIdentity(
       : []),
   ])
   resetSitePublicOriginCache()
-  await recordUpdate(deps, actor, 'site_identity_update', ['name', 'description', 'publicUrl'])
   return { ...input, publicUrl }
 }
 
 export async function verifySiteWebDav(
-  deps: Pick<SiteSettingsDeps, 'systemOptions' | 'activity'>,
-  actor: { userId: string; orgId: string },
+  deps: Pick<SiteSettingsDeps, 'systemOptions'>,
   requestUrl: string,
   fetcher: typeof fetch,
 ): Promise<SiteWebDavSettings> {
@@ -269,15 +244,12 @@ export async function verifySiteWebDav(
     { key: SITE_SETTING_KEYS.webdavVerifiedAt, value: verifiedAt },
     { key: SITE_SETTING_KEYS.webdavVerificationError, value: error ?? '' },
   ])
-  await recordUpdate(deps, actor, 'site_webdav_verify', ['status'])
-
   const updatedValues = optionMap(await deps.systemOptions.getMany(ALL_SETTING_KEYS))
   return webdavFrom(updatedValues, requestUrl)
 }
 
 export async function updateSiteRegistration(
   deps: SiteSettingsDeps,
-  actor: { userId: string; orgId: string },
   input: UpdateSiteRegistrationInput,
 ): Promise<SiteRegistrationSettings> {
   if (input.mode === SignupMode.OPEN) {
@@ -289,7 +261,6 @@ export async function updateSiteRegistration(
     }
   }
   await deps.systemOptions.set(SITE_SETTING_KEYS.signupMode, input.mode)
-  await recordUpdate(deps, actor, 'site_registration_update', ['mode'])
   return {
     configuredMode: input.mode,
     effectiveMode: await resolveEffectiveSignupMode(deps, input.mode),
@@ -298,7 +269,6 @@ export async function updateSiteRegistration(
 
 export async function updateSiteCaptcha(
   deps: SiteSettingsDeps,
-  actor: { userId: string; orgId: string },
   input: UpdateSiteCaptchaInput,
 ): Promise<SiteCaptchaSettings> {
   const existingSecret = await deps.systemOptions.getValue(SITE_SETTING_KEYS.captchaSecretKey)
@@ -317,24 +287,17 @@ export async function updateSiteCaptcha(
   }
 
   await deps.systemOptions.setMany(Object.entries(values).map(([key, value]) => ({ key, value })))
-  await recordUpdate(deps, actor, 'site_captcha_update', ['enabled', 'provider', 'siteKey', 'secretKey', 'minScore'])
   return captchaFrom(optionMap(Object.entries(values).map(([key, value]) => ({ key, value }))))
 }
 
 export async function updateSiteQuotas(
   deps: SiteSettingsDeps,
-  actor: { userId: string; orgId: string },
   input: UpdateSiteQuotasInput,
 ): Promise<SiteQuotaSettings> {
   await deps.systemOptions.setMany([
     { key: SITE_SETTING_KEYS.defaultOrgQuota, value: String(input.defaultOrgBytes) },
     { key: SITE_SETTING_KEYS.defaultTeamQuota, value: String(input.defaultTeamBytes) },
     { key: SITE_SETTING_KEYS.defaultMonthlyTrafficQuota, value: String(input.defaultMonthlyTrafficBytes) },
-  ])
-  await recordUpdate(deps, actor, 'site_quotas_update', [
-    'defaultOrgBytes',
-    'defaultTeamBytes',
-    'defaultMonthlyTrafficBytes',
   ])
   return input
 }

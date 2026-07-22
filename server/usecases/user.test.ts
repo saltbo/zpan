@@ -34,10 +34,8 @@ const sampleResult: EntitlementResult = { orgId: 'org-1', entitlement: sampleEnt
 
 const failure: UserOperationFailure = { error: 'User not found: missing', status: 404 }
 
-// Every UserAdminRepo method is stubbed so a usecase can override just the one it
-// exercises; the activity recorder is a spy each test asserts was/was not called.
+// Every UserAdminRepo method is stubbed so a usecase can override just the one it exercises.
 function makeDeps(userAdmin: Partial<UserAdminRepo> = {}) {
-  const record = vi.fn(async () => {})
   const repo: UserAdminRepo = {
     isBanned: async () => false,
     matchesUsername: async () => false,
@@ -52,8 +50,8 @@ function makeDeps(userAdmin: Partial<UserAdminRepo> = {}) {
     revokeOrgEntitlement: async () => sampleResult,
     ...userAdmin,
   }
-  const deps: UserDeps = { userAdmin: repo, activity: { record } as unknown as UserDeps['activity'] }
-  return { deps, record }
+  const deps: UserDeps = { userAdmin: repo }
+  return { deps }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -73,13 +71,12 @@ describe('user usecase', () => {
   })
 
   describe('grantUserEntitlement', () => {
-    it('grants, forwards input, and records activity', async () => {
+    it('grants and forwards input', async () => {
       const grant = vi.fn(async () => sampleResult)
-      const { deps, record } = makeDeps({ grantUserPersonalEntitlement: grant })
+      const { deps } = makeDeps({ grantUserPersonalEntitlement: grant })
       const expiresAt = new Date('2030-01-01T00:00:00.000Z')
       const out = await grantUserEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'o1',
         targetUserId: 'u-1',
         resourceType: 'storage',
         bytes: 1000,
@@ -95,59 +92,26 @@ describe('user usecase', () => {
         expiresAt,
         note: 'bonus',
       })
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'quota_entitlement_grant',
-          targetType: 'quota',
-          targetId: 'org-1',
-          targetName: 'u-1',
-          metadata: {
-            targetUserId: 'u-1',
-            entitlementId: 'ent-1',
-            resourceType: 'storage',
-            bytes: 1000,
-            expiresAt: '2030-01-01T00:00:00.000Z',
-          },
-        }),
-      )
     })
 
-    it('records null expiresAt when the entitlement has none', async () => {
-      const result = { orgId: 'org-1', entitlement: { ...sampleEntitlement, expiresAt: null } } as EntitlementResult
-      const { deps, record } = makeDeps({ grantUserPersonalEntitlement: async () => result })
-      await grantUserEntitlement(deps, {
-        adminUserId: 'admin',
-        adminOrgId: 'o1',
-        targetUserId: 'u-1',
-        resourceType: 'storage',
-        bytes: 1000,
-      })
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({ metadata: expect.objectContaining({ expiresAt: null }) }),
-      )
-    })
-
-    it('threads the repo failure outward without recording', async () => {
-      const { deps, record } = makeDeps({ grantUserPersonalEntitlement: async () => failure })
+    it('threads the repo failure outward', async () => {
+      const { deps } = makeDeps({ grantUserPersonalEntitlement: async () => failure })
       const out = await grantUserEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'o1',
         targetUserId: 'x',
         resourceType: 'storage',
         bytes: 1000,
       })
       expect(out).toEqual({ ok: false, failure })
-      expect(record).not.toHaveBeenCalled()
     })
   })
 
   describe('updateUserEntitlement', () => {
-    it('updates, forwards input, and records activity', async () => {
+    it('updates and forwards input', async () => {
       const update = vi.fn(async () => sampleResult)
-      const { deps, record } = makeDeps({ updateUserPersonalEntitlement: update })
+      const { deps } = makeDeps({ updateUserPersonalEntitlement: update })
       const out = await updateUserEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'o1',
         targetUserId: 'u-1',
         entitlementId: 'ent-1',
         bytes: 5000,
@@ -163,68 +127,40 @@ describe('user usecase', () => {
         expiresAt: undefined,
         note: 'bumped',
       })
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'quota_entitlement_update',
-          targetType: 'quota',
-          targetId: 'org-1',
-          targetName: 'u-1',
-          metadata: {
-            targetUserId: 'u-1',
-            entitlementId: 'ent-1',
-            bytes: 1000,
-            expiresAt: '2030-01-01T00:00:00.000Z',
-          },
-        }),
-      )
     })
 
-    it('threads the repo failure outward without recording', async () => {
-      const { deps, record } = makeDeps({ updateUserPersonalEntitlement: async () => failure })
+    it('threads the repo failure outward', async () => {
+      const { deps } = makeDeps({ updateUserPersonalEntitlement: async () => failure })
       const out = await updateUserEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'o1',
         targetUserId: 'x',
         entitlementId: 'ent-x',
       })
       expect(out).toEqual({ ok: false, failure })
-      expect(record).not.toHaveBeenCalled()
     })
   })
 
   describe('revokeUserEntitlement', () => {
-    it('revokes, forwards input, and records activity', async () => {
+    it('revokes and forwards input', async () => {
       const revoke = vi.fn(async () => sampleResult)
-      const { deps, record } = makeDeps({ revokeUserPersonalEntitlement: revoke })
+      const { deps } = makeDeps({ revokeUserPersonalEntitlement: revoke })
       const out = await revokeUserEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'o1',
         targetUserId: 'u-1',
         entitlementId: 'ent-1',
       })
       expect(out).toEqual({ ok: true, result: sampleResult })
       expect(revoke).toHaveBeenCalledWith({ adminUserId: 'admin', targetUserId: 'u-1', entitlementId: 'ent-1' })
-      expect(record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'quota_entitlement_revoke',
-          targetType: 'quota',
-          targetId: 'org-1',
-          targetName: 'u-1',
-          metadata: { targetUserId: 'u-1', entitlementId: 'ent-1', bytes: 1000 },
-        }),
-      )
     })
 
-    it('threads the repo failure outward without recording', async () => {
-      const { deps, record } = makeDeps({ revokeUserPersonalEntitlement: async () => failure })
+    it('threads the repo failure outward', async () => {
+      const { deps } = makeDeps({ revokeUserPersonalEntitlement: async () => failure })
       const out = await revokeUserEntitlement(deps, {
         adminUserId: 'admin',
-        adminOrgId: 'o1',
         targetUserId: 'x',
         entitlementId: 'ent-x',
       })
       expect(out).toEqual({ ok: false, failure })
-      expect(record).not.toHaveBeenCalled()
     })
   })
 })

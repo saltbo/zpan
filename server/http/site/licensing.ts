@@ -194,8 +194,6 @@ export const licensingAdmin = adminApp
       baseUrl: getCloudBaseUrl(c),
       code: c.req.valid('param').code,
       currentHost: await getRequestHost(c),
-      userId: c.get('userId')!,
-      orgId: c.get('orgId')!,
     })
     if (!result.ok) throw result.error
     if (result.status === 'approved') {
@@ -208,16 +206,12 @@ export const licensingAdmin = adminApp
       baseUrl: getCloudBaseUrl(c),
       instanceUrl: await requireInstanceOrigin(c),
       runtime: runtimeInfo(c.get('platform')),
-      userId: c.get('userId')!,
-      orgId: c.get('orgId')!,
     })
     return c.json({ success: true, last_refresh_at: lastRefreshAt }, 200)
   })
   .openapi(unbindRoute, async (c) => {
     const result = await unbindLicense(c.get('deps'), {
       baseUrl: getCloudBaseUrl(c),
-      userId: c.get('userId')!,
-      orgId: c.get('orgId')!,
     })
     if (!result.ok) throw result.error
     return c.body(null, 204)

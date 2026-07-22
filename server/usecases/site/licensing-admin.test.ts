@@ -13,7 +13,6 @@ import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PUBLIC_KEYS } from '../../domain/license-keys'
 import {
-  type ActivityRepo,
   AppError,
   type CloudInstanceInfo,
   type InstanceRepo,
@@ -88,12 +87,6 @@ function makeInstanceRepo(): InstanceRepo {
     getOrCreateInstanceId: vi.fn(async () => INSTANCE_ID),
     getInstanceDisplayName: vi.fn(async () => 'My ZPan'),
   }
-}
-
-function makeActivityRepo() {
-  const record = vi.fn(async () => {})
-  const activity = { record } as unknown as ActivityRepo
-  return { activity, record }
 }
 
 // A LicenseBindingRepo whose loadLicenseState returns the given state and whose
@@ -186,14 +179,12 @@ describe('pollPairing', () => {
   const params = { baseUrl: BASE_URL, code: 'CODE-1', currentHost: HOST, userId: 'u1', orgId: 'o1' }
 
   function makeDeps(cloud: LicensingCloudGateway, binding = makeBindingRepo()) {
-    const activity = makeActivityRepo()
     const deps = {
       instance: makeInstanceRepo(),
       licensingCloud: cloud,
       licenseBinding: binding.licenseBinding,
-      activity: activity.activity,
     }
-    return { deps, ...binding, ...activity }
+    return { deps, ...binding }
   }
 
   it('returns the status unchanged when the cloud reports pending', async () => {
@@ -216,7 +207,7 @@ describe('pollPairing', () => {
     expect(createLicenseBinding).not.toHaveBeenCalled()
   })
 
-  it('persists the binding, confirms with cloud, records activity, and returns approved on a valid cert', async () => {
+  it('persists the binding, confirms with cloud, and returns approved on a valid cert', async () => {
     const certificate = signCert()
     const cloud = makeCloud({
       pollPairing: vi.fn(async () => ({
@@ -227,7 +218,7 @@ describe('pollPairing', () => {
         account: { id: 'acct-1', email: 'acct@example.com' },
       })),
     })
-    const { deps, createLicenseBinding, record } = makeDeps(cloud)
+    const { deps, createLicenseBinding } = makeDeps(cloud)
 
     const out = await pollPairing(deps, params)
 
@@ -242,9 +233,6 @@ describe('pollPairing', () => {
       }),
     )
     expect(cloud.confirmCloudLicense).toHaveBeenCalledWith(BASE_URL, 'bind-1', 'rt-secret')
-    expect(record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'license_pair', targetName: 'acct@example.com' }),
-    )
   })
 
   it('still succeeds when the best-effort cloud confirm throws', async () => {
@@ -268,23 +256,6 @@ describe('pollPairing', () => {
     expect(createLicenseBinding).toHaveBeenCalled()
   })
 
-  it('falls back to the account id for activity when the email is absent', async () => {
-    const cloud = makeCloud({
-      pollPairing: vi.fn(async () => ({
-        status: 'approved',
-        refreshToken: 'rt-secret',
-        certificate: signCert(),
-        binding: { id: 'bind-1', instanceId: INSTANCE_ID, storeId: 'store-1', authorizedHosts: [HOST] },
-        account: { id: 'acct-1' },
-      })),
-    })
-    const { deps, record } = makeDeps(cloud)
-
-    await pollPairing(deps, params)
-
-    expect(record).toHaveBeenCalledWith(expect.objectContaining({ targetName: 'acct-1' }))
-  })
-
   it('rejects an untrusted-key cert and rolls back the orphaned cloud binding', async () => {
     const cloud = makeCloud({
       pollPairing: vi.fn(async () => ({
@@ -295,14 +266,13 @@ describe('pollPairing', () => {
         account: { id: 'acct-1', email: 'owner@example.com' },
       })),
     })
-    const { deps, createLicenseBinding, record } = makeDeps(cloud)
+    const { deps, createLicenseBinding } = makeDeps(cloud)
 
     const out = await pollPairing(deps, params)
 
     expectInvalidCertificate(out, { certificateReason: 'signature' })
     expect(cloud.unbindCloudLicense).toHaveBeenCalledWith(BASE_URL, 'cb-1', 'rt-secret')
     expect(createLicenseBinding).not.toHaveBeenCalled()
-    expect(record).not.toHaveBeenCalled()
   })
 
   it('surfaces the specific claim rejection reason (wrong instance)', async () => {
@@ -369,9 +339,9 @@ describe('pollPairing', () => {
 })
 
 describe('triggerRefresh', () => {
-  const params = { baseUrl: BASE_URL, instanceUrl: 'http://localhost', runtime: RUNTIME, userId: 'u1', orgId: 'o1' }
+  const params = { baseUrl: BASE_URL, instanceUrl: 'http://localhost', runtime: RUNTIME }
 
-  it('runs the refresh, records activity, and returns the resulting last_refresh_at', async () => {
+  it('runs the refresh and returns the resulting last_refresh_at', async () => {
     const cert = signCert()
     const refreshAt = nowSec()
     const refreshEntitlement = vi.fn(async () => ({
@@ -382,70 +352,57 @@ describe('triggerRefresh', () => {
     }))
     const binding = makeBindingRepo({ refreshToken: 'old-token', lastRefreshAt: refreshAt })
     const cloud = makeCloud({ refreshEntitlement })
-    const activity = makeActivityRepo()
     const deps = {
       instance: makeInstanceRepo(),
       licensingCloud: cloud,
       licenseBinding: binding.licenseBinding,
-      activity: activity.activity,
     }
 
     const out = await triggerRefresh(deps, params)
 
     expect(refreshEntitlement).toHaveBeenCalledTimes(1)
     expect(out).toEqual({ lastRefreshAt: refreshAt })
-    expect(activity.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'license_refresh', targetName: 'license binding' }),
-    )
   })
 
   it('returns last_refresh_at null and skips the cloud call when unbound', async () => {
     const binding = makeBindingRepo({ refreshToken: null, lastRefreshAt: null })
     const cloud = makeCloud()
-    const activity = makeActivityRepo()
     const deps = {
       instance: makeInstanceRepo(),
       licensingCloud: cloud,
       licenseBinding: binding.licenseBinding,
-      activity: activity.activity,
     }
 
     const out = await triggerRefresh(deps, params)
 
     expect(out).toEqual({ lastRefreshAt: null })
     expect(cloud.refreshEntitlement).not.toHaveBeenCalled()
-    expect(activity.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'license_refresh' }))
   })
 })
 
 describe('unbindLicense', () => {
-  const params = { baseUrl: BASE_URL, userId: 'u1', orgId: 'o1' }
+  const params = { baseUrl: BASE_URL }
 
-  it('unbinds from cloud, clears the local binding, and records activity', async () => {
+  it('unbinds from cloud and clears the local binding', async () => {
     const binding = makeBindingRepo({ refreshToken: 'old-token', cloudBindingId: 'bind-1' })
     const cloud = makeCloud()
-    const activity = makeActivityRepo()
-    const deps = { licensingCloud: cloud, licenseBinding: binding.licenseBinding, activity: activity.activity }
+    const deps = { licensingCloud: cloud, licenseBinding: binding.licenseBinding }
 
     const out = await unbindLicense(deps, params)
 
     expect(out).toEqual({ ok: true })
     expect(cloud.unbindCloudLicense).toHaveBeenCalledWith(BASE_URL, 'bind-1', 'old-token')
     expect(binding.clearLicenseBinding).toHaveBeenCalledTimes(1)
-    expect(activity.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'license_disconnect', metadata: undefined }),
-    )
   })
 
-  it('still clears locally and records the error when the cloud unbind fails', async () => {
+  it('still clears locally and returns the error when the cloud unbind fails', async () => {
     const binding = makeBindingRepo({ refreshToken: 'old-token', cloudBindingId: 'bind-1' })
     const cloud = makeCloud({
       unbindCloudLicense: vi.fn(async () => {
         throw new Error('Cloud unbind failed: 401')
       }),
     })
-    const activity = makeActivityRepo()
-    const deps = { licensingCloud: cloud, licenseBinding: binding.licenseBinding, activity: activity.activity }
+    const deps = { licensingCloud: cloud, licenseBinding: binding.licenseBinding }
 
     const out = await unbindLicense(deps, params)
 
@@ -456,25 +413,17 @@ describe('unbindLicense', () => {
       expect(out.error.meta.metadata).toEqual({ cloudUnbindError: 'Cloud unbind failed: 401' })
     }
     expect(binding.clearLicenseBinding).toHaveBeenCalledTimes(1)
-    expect(activity.record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'license_disconnect',
-        metadata: { cloudUnbindError: 'Cloud unbind failed: 401' },
-      }),
-    )
   })
 
-  it('skips the cloud call but still clears and records when no binding exists', async () => {
+  it('skips the cloud call but still clears when no binding exists', async () => {
     const binding = makeBindingRepo({ refreshToken: null })
     const cloud = makeCloud()
-    const activity = makeActivityRepo()
-    const deps = { licensingCloud: cloud, licenseBinding: binding.licenseBinding, activity: activity.activity }
+    const deps = { licensingCloud: cloud, licenseBinding: binding.licenseBinding }
 
     const out = await unbindLicense(deps, params)
 
     expect(out).toEqual({ ok: true })
     expect(cloud.unbindCloudLicense).not.toHaveBeenCalled()
     expect(binding.clearLicenseBinding).toHaveBeenCalledTimes(1)
-    expect(activity.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'license_disconnect' }))
   })
 })

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { downloaders, downloadTasks } from '../../db/schema'
 import { constantTimeEqual } from '../../lib/constant-time'
@@ -96,7 +96,7 @@ export function createDownloadTokenGateway(): DownloadTokenGateway {
           createdByUserId: downloadTasks.createdByUserId,
         })
         .from(downloadTasks)
-        .where(eq(downloadTasks.id, claims.taskId))
+        .where(and(eq(downloadTasks.id, claims.taskId), isNull(downloadTasks.deletedAt)))
         .limit(1)
       const task = rows[0]
       if (!task) return null

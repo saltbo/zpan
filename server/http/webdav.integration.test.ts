@@ -160,6 +160,25 @@ async function folder(db: TestApp['db'], orgId: string, opts: { id: string; name
 }
 
 describe('WebDAV API', () => {
+  it('does not count API-key WebDAV requests as Better Auth session activity', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    const account = await userAccount(db)
+    const previousActivity = Date.parse('2026-01-01T00:00:00.000Z')
+    await db.run(sql`UPDATE user SET last_active_at = ${previousActivity} WHERE id = ${account.id}`)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const headers = basicHeaders(account.email, key)
+
+    const rejected = await app.request('/dav/', { method: 'PROPFIND', headers: { ...headers, Depth: 'infinity' } })
+    expect(rejected.status).toBe(403)
+
+    const accepted = await app.request('/dav/', { method: 'OPTIONS', headers })
+    expect(accepted.status).toBe(204)
+    expect(await db.all(sql`SELECT last_active_at AS lastActiveAt FROM user WHERE id = ${account.id}`)).toEqual([
+      { lastActiveAt: previousActivity },
+    ])
+  })
+
   it('rejects missing and insufficient API keys without accepting session cookies [spec: webdav/auth]', async () => {
     const { app, db, auth } = await createTestApp()
     const headers = await authedHeaders(app)
@@ -568,7 +587,7 @@ describe('WebDAV API', () => {
     )
     expect(S3Service.prototype.getObjectBytes).not.toHaveBeenCalled()
     const events = await db.all<{ metadata: string }>(sql`
-      SELECT metadata FROM activity_events
+      SELECT metadata FROM audit_events
       WHERE action = 'webdav_download' AND target_id = 'readme'
     `)
     expect(events).toHaveLength(1)
@@ -643,6 +662,14 @@ describe('WebDAV API', () => {
     expect(over.status).toBe(422)
     await expect(over.text()).resolves.toBe('Traffic quota exceeded')
     expect(S3Service.prototype.getObjectBody).toHaveBeenCalledTimes(1)
+    const failures = await db.all<{ bytes: number; reason: string; source: string }>(sql`
+      SELECT json_extract(metadata, '$.bytes') AS bytes,
+        json_extract(metadata, '$.reason') AS reason,
+        json_extract(metadata, '$.source') AS source
+      FROM audit_events
+      WHERE action = 'download_failed' AND target_id = 'traffic-range'
+    `)
+    expect(failures).toEqual([{ bytes: 2, reason: 'quota_exceeded', source: 'webdav_download' }])
 
     const invalid = await app.request(`/dav/${workspace.slug}/range-traffic.txt`, {
       method: 'GET',
@@ -1023,6 +1050,12 @@ describe('WebDAV API', () => {
       sql`SELECT name, size, status FROM matters WHERE org_id = ${workspace.id} AND name = 'upload.txt'`,
     )
     expect(rows[0]).toEqual({ name: 'upload.txt', size: 9, status: 'active' })
+    const uploads = await db.all<{ bytes: number; source: string }>(sql`
+      SELECT json_extract(metadata, '$.bytes') AS bytes, json_extract(metadata, '$.source') AS source
+      FROM audit_events
+      WHERE action = 'upload_confirm' AND target_name = 'upload.txt'
+    `)
+    expect(uploads).toEqual([{ bytes: 9, source: 'webdav_upload' }])
   })
 
   it('PUT accepts requests without Content-Length and stores the measured size', async () => {
@@ -1073,6 +1106,12 @@ describe('WebDAV API', () => {
     expect(update.status).toBe(204)
     const rows = await db.all<{ size: number; type: string }>(sql`SELECT size, type FROM matters WHERE id = 'existing'`)
     expect(rows[0]).toEqual({ size: 5, type: 'application/octet-stream' })
+    const uploads = await db.all<{ bytes: number; matterId: string }>(sql`
+      SELECT json_extract(metadata, '$.bytes') AS bytes, json_extract(metadata, '$.matterId') AS matterId
+      FROM audit_events
+      WHERE action = 'upload_confirm' AND target_id = 'existing'
+    `)
+    expect(uploads).toEqual([{ bytes: 5, matterId: 'existing' }])
     const ledger = await db.all<{ bytes: number }>(sql`
       SELECT COALESCE(SUM(delta_bytes), 0) AS bytes
       FROM storage_usage_ledger

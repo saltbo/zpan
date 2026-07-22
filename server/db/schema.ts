@@ -365,6 +365,7 @@ export const downloadTasks = sqliteTable(
     errorMessage: text('error_message'),
     resultObjectId: text('result_object_id'),
     runtime: text('runtime'),
+    events: text('events').notNull().default('[]'),
     resolveStartedAt: integer('resolve_started_at', { mode: 'timestamp_ms' }),
     resolveCompletedAt: integer('resolve_completed_at', { mode: 'timestamp_ms' }),
     downloadCompletedAt: integer('download_completed_at', { mode: 'timestamp_ms' }),
@@ -377,6 +378,7 @@ export const downloadTasks = sqliteTable(
     assignedAt: integer('assigned_at', { mode: 'timestamp_ms' }),
     startedAt: integer('started_at', { mode: 'timestamp_ms' }),
     finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
   },
   (t) => [
     index('download_tasks_org_created_idx').on(t.orgId, t.createdAt),
@@ -386,6 +388,7 @@ export const downloadTasks = sqliteTable(
     index('download_tasks_downloader_idx').on(t.assignedDownloaderId, t.status),
     index('download_tasks_created_idx').on(t.createdAt),
     index('download_tasks_finished_idx').on(t.finishedAt),
+    index('download_tasks_org_deleted_created_idx').on(t.orgId, t.deletedAt, t.createdAt),
   ],
 )
 
@@ -456,8 +459,8 @@ export const announcements = sqliteTable(
   ],
 )
 
-export const activityEvents = sqliteTable(
-  'activity_events',
+export const auditEvents = sqliteTable(
+  'audit_events',
   {
     id: text('id').primaryKey(),
     orgId: text('org_id').notNull(),
@@ -472,11 +475,11 @@ export const activityEvents = sqliteTable(
     actorRef: text('actor_ref'),
   },
   (t) => [
-    index('activity_events_org_created_idx').on(t.orgId, t.createdAt),
-    index('activity_events_user_created_idx').on(t.userId, t.createdAt),
-    index('activity_events_action_created_idx').on(t.action, t.createdAt),
-    index('activity_events_target_created_idx').on(t.targetType, t.targetId, t.createdAt),
-    index('activity_events_created_idx').on(t.createdAt),
+    index('audit_events_org_created_idx').on(t.orgId, t.createdAt),
+    index('audit_events_user_created_idx').on(t.userId, t.createdAt),
+    index('audit_events_action_created_idx').on(t.action, t.createdAt),
+    index('audit_events_target_created_idx').on(t.targetType, t.targetId, t.createdAt),
+    index('audit_events_created_idx').on(t.createdAt),
   ],
 )
 

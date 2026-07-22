@@ -4,13 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirType } from '../../shared/constants'
 import type { CreateShareInput } from '../../shared/schemas/share'
 import { S3Service } from '../adapters/gateways/s3.js'
-import { createActivityRepo } from '../adapters/repos/activity.js'
 import { createMatterRepo } from '../adapters/repos/matter.js'
 import { createQuotaRepo } from '../adapters/repos/quota.js'
 import { createShareRepo } from '../adapters/repos/share.js'
 import { createStorageRepo } from '../adapters/repos/storage.js'
 import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
-import { activityEvents, matters, orgQuotaEntitlements, orgQuotas, shares } from '../db/schema'
+import { auditEvents, matters, orgQuotaEntitlements, orgQuotas, shares } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 import {
@@ -36,7 +35,6 @@ function saveToDriveDeps(db: Database): SaveToDriveDeps {
     storages: createStorageRepo(db),
     storageUsage: createStorageUsageRepo(db),
     quota: createQuotaRepo(db),
-    activity: createActivityRepo(db),
     share: createShareRepo(db),
     matter: createMatterRepo(db),
   }
@@ -129,7 +127,7 @@ async function getShare(db: TestDb, shareId: string) {
 }
 
 async function getActivities(db: TestDb, orgId: string) {
-  return db.select().from(activityEvents).where(sql`org_id = ${orgId}`)
+  return db.select().from(auditEvents).where(sql`org_id = ${orgId}`)
 }
 
 async function getMattersInOrg(db: TestDb, orgId: string) {
@@ -278,7 +276,6 @@ describe('saveShareToDrive', () => {
     if (share.status === 'revoked') throw new Error('test setup failed')
 
     const result = await saveShareToDrive(db, {
-      share,
       matter,
       currentUserId: 'u2',
       targetOrgId: dstOrgId,
@@ -311,7 +308,6 @@ describe('saveShareToDrive', () => {
     if (share.status === 'revoked') throw new Error('test setup failed')
 
     await saveShareToDrive(db, {
-      share,
       matter,
       currentUserId: 'u2',
       targetOrgId: dstOrgId,
@@ -338,7 +334,6 @@ describe('saveShareToDrive', () => {
     if (share.status === 'revoked') throw new Error('test setup failed')
 
     const result = await saveShareToDrive(db, {
-      share,
       matter,
       currentUserId: 'u2',
       targetOrgId: dstOrgId,
@@ -351,7 +346,7 @@ describe('saveShareToDrive', () => {
     expect(result.saved[0].name).toContain('photo-')
   })
 
-  it('records activity with save_from_share action', async () => {
+  it('leaves audit recording to the HTTP boundary', async () => {
     const { db } = await createTestApp()
     await insertStorage(db)
     const srcOrgId = nanoid()
@@ -363,7 +358,6 @@ describe('saveShareToDrive', () => {
     if (share.status === 'revoked') throw new Error('test setup failed')
 
     await saveShareToDrive(db, {
-      share,
       matter,
       currentUserId: 'u2',
       targetOrgId: dstOrgId,
@@ -371,12 +365,7 @@ describe('saveShareToDrive', () => {
     })
 
     const activities = await getActivities(db, dstOrgId)
-    expect(activities).toHaveLength(1)
-    expect(activities[0].action).toBe('save_from_share')
-    expect(activities[0].userId).toBe('u2')
-
-    const metadata = JSON.parse(activities[0].metadata ?? '{}')
-    expect(metadata.shareId).toBe(share.id)
+    expect(activities).toEqual([])
   })
 
   it('does NOT increment share downloads counter', async () => {
@@ -393,7 +382,6 @@ describe('saveShareToDrive', () => {
     const downloadsBefore = share.downloads
 
     await saveShareToDrive(db, {
-      share,
       matter,
       currentUserId: 'u2',
       targetOrgId: dstOrgId,
@@ -419,7 +407,6 @@ describe('saveShareToDrive', () => {
     if (share.status === 'revoked') throw new Error('test setup failed')
 
     await saveShareToDrive(db, {
-      share,
       matter,
       currentUserId: 'u2',
       targetOrgId: dstOrgId,
@@ -446,7 +433,6 @@ describe('saveShareToDrive', () => {
 
     await expect(
       saveShareToDrive(db, {
-        share,
         matter,
         currentUserId: 'u2',
         targetOrgId: dstOrgId,
@@ -487,7 +473,6 @@ describe('saveShareToDrive', () => {
     if (share.status === 'revoked' || !sub) throw new Error('test setup failed')
 
     const result = await saveShareToDrive(db, {
-      share,
       matter: folder,
       currentUserId: 'u2',
       targetOrgId: dstOrgId,
@@ -521,7 +506,6 @@ describe('saveShareToDrive', () => {
     // The service's atomic increment will catch quota exceeded
     await expect(
       saveShareToDrive(db, {
-        share,
         matter,
         currentUserId: 'u2',
         targetOrgId: dstOrgId,
@@ -798,7 +782,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(updatedShare?.downloads).toBe(downloadsBefore)
   })
 
-  it('activity_events row created with save_from_share and shareId metadata', async () => {
+  it('audit_events row created with save_from_share and shareId metadata', async () => {
     const { app, db, share, headers, personalOrgId } = await setup()
 
     await app.request(`/api/shares/${share.token}/objects`, {

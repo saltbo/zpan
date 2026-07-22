@@ -154,10 +154,10 @@ func TestTickUsesHeartbeatNextPollInterval(t *testing.T) {
 	}
 }
 
-func TestDeleteRequestedControlTaskCleansRuntimeAndAcksCanceled(t *testing.T) {
+func TestDeleteRequestedControlTaskCleansRuntimeAndAcknowledgesCleanup(t *testing.T) {
 	api := &recordingAPI{
 		controlTasks: []client.DownloadTask{
-			withRuntime(clientTaskWithStatus("task-1", "canceling"), &client.DownloadTaskRuntime{State: deleteRequestedRuntimeState}),
+			withDeleteControl(clientTaskWithStatus("task-1", "completed")),
 		},
 	}
 	eng := &recordingEngine{}
@@ -171,9 +171,30 @@ func TestDeleteRequestedControlTaskCleansRuntimeAndAcksCanceled(t *testing.T) {
 	if eng.resetCalls != 1 {
 		t.Fatalf("expected delete-requested task to clean runtime once, got %d reset calls", eng.resetCalls)
 	}
-	patch := lastPatchWithStatus(t, api.patches, "canceled")
-	if patch.State() != "canceled" {
-		t.Fatalf("expected delete-requested cleanup to ack canceled, got %#v", patch)
+	if len(api.patches) != 1 || !api.patches[0].CleanupCompleted || api.patches[0].State() != "" {
+		t.Fatalf("expected delete-requested cleanup acknowledgment without a status change, got %#v", api.patches)
+	}
+}
+
+func TestDeleteRequestedCleanupFailureIsNotAcknowledged(t *testing.T) {
+	api := &recordingAPI{
+		controlTasks: []client.DownloadTask{
+			withDeleteControl(clientTaskWithStatus("task-1", "completed")),
+		},
+	}
+	eng := &recordingEngine{resetErr: errors.New("reset failed")}
+	w := NewTaskRunnerWithAPI(config.Config{}, api)
+	w.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	w.downloader = NewManagerWithDownloader(eng)
+
+	if err := w.tick(context.Background()); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected cleanup to be attempted once, got %d reset calls", eng.resetCalls)
+	}
+	if len(api.patches) != 0 {
+		t.Fatalf("cleanup failure must remain pending, got acknowledgments %#v", api.patches)
 	}
 }
 
@@ -1868,6 +1889,11 @@ func withDownloadCheckpoint(task client.DownloadTask, bytes int64, total *int64)
 
 func withRuntime(task client.DownloadTask, runtime *client.DownloadTaskRuntime) client.DownloadTask {
 	task.Status.Runtime = runtime
+	return task
+}
+
+func withDeleteControl(task client.DownloadTask) client.DownloadTask {
+	task.Control = &client.DownloadTaskControl{Action: "delete", RequestedAt: time.Now().UTC().Format(time.RFC3339)}
 	return task
 }
 

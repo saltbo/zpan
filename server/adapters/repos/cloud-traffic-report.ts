@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { cloudTrafficReports } from '../../db/schema'
 import { currentTrafficPeriod } from '../../domain/quota'
@@ -105,8 +105,8 @@ export function createCloudTrafficReportRepo(db: Database): CloudTrafficReportRe
     async markIssued(eventId, now) {
       const rows = await db
         .update(cloudTrafficReports)
-        .set({ issuedAt: now, updatedAt: now })
-        .where(eq(cloudTrafficReports.eventId, eventId))
+        .set({ issuedAt: sql`COALESCE(${cloudTrafficReports.issuedAt}, ${now.getTime()})`, updatedAt: now })
+        .where(and(eq(cloudTrafficReports.eventId, eventId), ne(cloudTrafficReports.status, 'reversed')))
         .returning({ eventId: cloudTrafficReports.eventId })
       if (rows.length !== 1) throw new Error(`traffic_report_not_found:${eventId}`)
     },

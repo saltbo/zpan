@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Search, ShieldCheck, Trash2, UserX } from 'lucide-react'
+import { Search, ShieldCheck, UserX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,8 +24,6 @@ function UsersPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 20
-
-  const [deleteDialogUser, setDeleteDialogUser] = useState<{ id: string; name: string } | null>(null)
 
   const usersQuery = useQuery({
     queryKey: ['admin', 'users', page, pageSize],
@@ -123,7 +120,6 @@ function UsersPage() {
                 isToggling={toggleStatusMutation.isPending}
                 onOpenUser={() => navigate({ to: '/admin/users/$userId', params: { userId: user.id } })}
                 onToggleStatus={() => toggleStatusMutation.mutate({ userId: user.id, banned: !user.banned })}
-                onDelete={() => setDeleteDialogUser({ id: user.id, name: user.name })}
               />
             ))}
             {filtered.length === 0 && (
@@ -150,12 +146,6 @@ function UsersPage() {
           </Button>
         </div>
       )}
-
-      <DeleteUserDialog
-        open={deleteDialogUser !== null}
-        onOpenChange={(open) => !open && setDeleteDialogUser(null)}
-        user={deleteDialogUser}
-      />
     </div>
   )
 }
@@ -165,13 +155,11 @@ function UserTableRow({
   isToggling,
   onOpenUser,
   onToggleStatus,
-  onDelete,
 }: {
   user: UserRow
   isToggling: boolean
   onOpenUser: () => void
   onToggleStatus: () => void
-  onDelete: () => void
 }) {
   const { t } = useTranslation()
 
@@ -225,9 +213,6 @@ function UserTableRow({
             title={user.banned ? t('admin.users.enable') : t('admin.users.disable')}
           >
             {user.banned ? <ShieldCheck /> : <UserX />}
-          </Button>
-          <Button variant="ghost" size="icon-xs" onClick={onDelete} title={t('common.delete')}>
-            <Trash2 className="text-destructive" />
           </Button>
         </div>
       </td>

@@ -64,7 +64,7 @@ describe('better-auth admin user endpoints (migration target)', () => {
 
     // The disable is audited with the acting admin as the actor.
     const disableEvt = await db.all<{ user_id: string; target_id: string }>(
-      sql`SELECT user_id, target_id FROM activity_events WHERE action = 'user_disable' AND target_id = ${userId}`,
+      sql`SELECT user_id, target_id FROM audit_events WHERE action = 'user_disable' AND target_id = ${userId}`,
     )
     expect(disableEvt).toEqual([{ user_id: adminId, target_id: userId }])
 
@@ -82,7 +82,7 @@ describe('better-auth admin user endpoints (migration target)', () => {
     const restored = await db.all<{ banned: number }>(sql`SELECT banned FROM user WHERE id = ${userId}`)
     expect(restored[0].banned).toBe(0)
     const enableEvt = await db.all<{ user_id: string }>(
-      sql`SELECT user_id FROM activity_events WHERE action = 'user_enable' AND target_id = ${userId}`,
+      sql`SELECT user_id FROM audit_events WHERE action = 'user_enable' AND target_id = ${userId}`,
     )
     expect(enableEvt).toEqual([{ user_id: adminId }])
   })
@@ -98,19 +98,25 @@ describe('better-auth admin user endpoints (migration target)', () => {
     })
     expect(res.status).toBe(404)
 
-    const evts = await db.all(sql`SELECT 1 FROM activity_events WHERE action = 'user_disable'`)
+    const evts = await db.all(sql`SELECT 1 FROM audit_events WHERE action = 'user_disable'`)
     expect(evts).toHaveLength(0)
   })
 
-  it('POST /api/auth/admin/remove-user deletes the user [spec: users/delete]', async () => {
+  it('POST /api/auth/admin/remove-user deletes the user but preserves immutable registration history', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminCookie(app)
     await authedHeaders(app, 'delete-me@example.com', 'password123456')
     const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'delete-me@example.com'`)
     const userId = rows[0].id
-
     const adminRows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'admin@example.com'`)
     const adminId = adminRows[0].id
+
+    const registrationBefore = await db.all<{ provider: string }>(sql`
+      SELECT json_extract(metadata, '$.provider') AS provider
+      FROM audit_events
+      WHERE id = ${`event:user_register:${userId}`}
+    `)
+    expect(registrationBefore).toEqual([{ provider: 'credential' }])
 
     const res = await app.request('/api/auth/admin/remove-user', {
       method: 'POST',
@@ -122,9 +128,35 @@ describe('better-auth admin user endpoints (migration target)', () => {
     const remaining = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE id = ${userId}`)
     expect(remaining).toHaveLength(0)
 
-    const deleteEvt = await db.all<{ user_id: string; target_id: string }>(
-      sql`SELECT user_id, target_id FROM activity_events WHERE action = 'user_delete' AND target_id = ${userId}`,
+    const deleteEvents = await db.all<{ user_id: string; target_id: string }>(sql`
+      SELECT user_id, target_id
+      FROM audit_events
+      WHERE action = 'user_delete' AND target_id = ${userId}
+    `)
+    expect(deleteEvents).toEqual([{ user_id: adminId, target_id: userId }])
+
+    const registrationAfter = await db.all<{ provider: string }>(sql`
+      SELECT json_extract(metadata, '$.provider') AS provider
+      FROM audit_events
+      WHERE id = ${`event:user_register:${userId}`}
+    `)
+    expect(registrationAfter).toEqual(registrationBefore)
+  })
+
+  it('blocks self-service account deletion', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app, 'self-delete@example.com', 'password123456')
+    const [{ id: userId }] = await db.all<{ id: string }>(
+      sql`SELECT id FROM user WHERE email = 'self-delete@example.com'`,
     )
-    expect(deleteEvt).toEqual([{ user_id: adminId, target_id: userId }])
+
+    const res = await app.request('/api/auth/delete-user', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json', Origin: 'http://localhost:3000' },
+      body: JSON.stringify({ callbackURL: '/' }),
+    })
+
+    expect(res.status).toBe(403)
+    expect(await db.all(sql`SELECT id FROM user WHERE id = ${userId}`)).toEqual([{ id: userId }])
   })
 })

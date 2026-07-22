@@ -9,15 +9,21 @@ import type {
   UpdateDownloadTaskInput,
 } from '@shared/schemas'
 import { downloadTaskRuntimeSchema } from '@shared/schemas'
-import type { Downloader, DownloadTask, DownloadTaskRuntime, DownloadTaskTimelineItem } from '@shared/types'
+import type {
+  Downloader,
+  DownloadTask,
+  DownloadTaskEvent,
+  DownloadTaskRuntime,
+  DownloadTaskTimelineItem,
+} from '@shared/types'
 import { nanoid } from 'nanoid'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
+import { parseDownloadTaskEvents } from '../../domain/download-task-events'
 import { hasFeature } from '../../domain/licensing'
 import type { Platform } from '../../platform/interface'
 import type {
-  ActivityActorType,
-  ActivityEvent,
-  ActivityRepo,
+  AuditEvent,
+  AuditRepo,
   DownloaderRepo,
   DownloadTaskRecord,
   DownloadTaskRepo,
@@ -48,7 +54,7 @@ export type DownloadsDeps = {
   licenseBinding: LicenseBindingRepo
   licensingCloud: LicensingCloudGateway
   remoteDownloadUsage: RemoteDownloadUsageRepo
-  activity: ActivityRepo
+  audit: AuditRepo
   matter: MatterRepo
   storages: StorageRepo
 }
@@ -87,7 +93,6 @@ const RESTARTABLE_TASK_STATUSES = [
   'completed',
 ] as const
 const DOWNLOADER_TOKEN_TASK_STATUSES = ['assigned', 'downloading', 'uploading', 'interrupted'] as const
-const DELETE_REQUESTED_RUNTIME_STATE = 'delete_requested'
 const DELETE_DOWNLOADER_REQUEUE_STATUSES = [
   'queued',
   'assigned',
@@ -100,17 +105,14 @@ const DELETE_DOWNLOADER_REQUEUE_STATUSES = [
   'canceling',
 ]
 const STALE_REQUEUE_STATUSES = ['assigned', 'downloading', 'uploading', 'interrupted']
-const LIFECYCLE_FIELDS = [
-  'resolveStartedAt',
-  'resolveCompletedAt',
-  'downloadCompletedAt',
-  'ingestStartedAt',
-  'ingestCompletedAt',
-  'seedingStartedAt',
-  'seedingStoppedAt',
-] as const
-
-type LifecycleField = (typeof LIFECYCLE_FIELDS)[number]
+type LifecycleField =
+  | 'resolveStartedAt'
+  | 'resolveCompletedAt'
+  | 'downloadCompletedAt'
+  | 'ingestStartedAt'
+  | 'ingestCompletedAt'
+  | 'seedingStartedAt'
+  | 'seedingStoppedAt'
 type TaskLifecycleFields = Partial<Pick<UpdateDownloadTaskFields, LifecycleField>>
 
 // ─── Downloader registration / admin CRUD ───────────────────────────────────
@@ -222,7 +224,7 @@ export async function recordDownloaderHeartbeat(
       now,
     })
   }
-  const [updated, assignments, controls] = await Promise.all([
+  const [updated, assignments, controls, cleanupControls] = await Promise.all([
     deps.downloaders.get(downloaderId),
     listDownloadTasks(deps, platform, {
       downloaderId,
@@ -238,13 +240,17 @@ export async function recordDownloaderHeartbeat(
       pageSize: CONTROL_TASK_PAGE_SIZE,
       includeUploadToken: true,
     }),
+    deps.downloadTasks.listPendingCleanup(downloaderId, CONTROL_TASK_PAGE_SIZE),
   ])
   return {
     ...updated,
     assignments: assignments.items,
-    controls: controls.items,
+    controls: [...controls.items, ...cleanupControls],
     nextPollAfterSeconds:
-      assignments.items.length > 0 || controls.items.length > 0 || heartbeat.currentTasks > 0
+      assignments.items.length > 0 ||
+      controls.items.length > 0 ||
+      cleanupControls.length > 0 ||
+      heartbeat.currentTasks > 0
         ? DOWNLOADER_ACTIVE_NEXT_POLL_SECONDS
         : DOWNLOADER_IDLE_NEXT_POLL_SECONDS,
   }
@@ -261,7 +267,6 @@ export async function createDownloadTask(
   const targetFolder = await ensureDownloadFolderPath(deps, {
     orgId,
     folderPath: input.targetFolder,
-    actorId: userId,
   })
   const now = new Date()
   const id = nanoid()
@@ -279,18 +284,6 @@ export async function createDownloadTask(
     status: 'queued',
     assignedAt: null,
     now,
-  })
-  await recordTaskActivity(deps, {
-    task: {
-      id,
-      orgId,
-      createdByUserId: userId,
-      displayName: input.name ?? null,
-      sourceUri: input.source.uri,
-    },
-    action: 'download_task_created',
-    actorType: 'user',
-    metadata: { sourceType: input.source.type, targetFolder },
   })
   return deps.downloadTasks.get(orgId, id)
 }
@@ -318,7 +311,7 @@ export async function getDownloadTaskTimeline(
   id: string,
 ): Promise<{ items: DownloadTaskTimelineItem[] }> {
   const task = await deps.downloadTasks.getRecord(orgId, id)
-  const activity = await deps.activity.listByTarget({
+  const activity = await deps.audit.listByTarget({
     orgId,
     targetType: DOWNLOAD_TASK_TARGET_TYPE,
     targetId: id,
@@ -326,9 +319,12 @@ export async function getDownloadTaskTimeline(
     pageSize: TASK_EVENT_PAGE_SIZE,
   })
   const activityItems = activity.items.map((event) => activityTimelineItem(task.id, event))
-  const activityActions = new Set(activityItems.map((item) => item.action))
-  const taskItems = taskLifecycleTimelineItems(task).filter((item) => !activityActions.has(item.action))
-  return { items: [...activityItems, ...taskItems].sort((a, b) => Date.parse(b.time) - Date.parse(a.time)) }
+  const eventItems = parseDownloadTaskEvents(task.events).map((event) => taskEventTimelineItem(task.id, event))
+  const recordedActions = new Set([...activityItems, ...eventItems].map((item) => item.action))
+  const lifecycleItems = taskLifecycleTimelineItems(task).filter((item) => !recordedActions.has(item.action))
+  return {
+    items: [...activityItems, ...eventItems, ...lifecycleItems].sort((a, b) => Date.parse(b.time) - Date.parse(a.time)),
+  }
 }
 
 export async function updateDownloadTask(
@@ -338,6 +334,11 @@ export async function updateDownloadTask(
   input: UpdateDownloadTaskInput,
   actor: { orgId?: string; downloaderId?: string },
 ): Promise<DownloadTask> {
+  if (input.cleanupCompleted === true) {
+    if (!actor.downloaderId) throw new DownloadError('forbidden')
+    const task = await deps.downloadTasks.completeCleanup(id, actor.downloaderId, new Date())
+    return downloadTaskFromRecord(task)
+  }
   const task = await deps.downloadTasks.findRecord(id)
   if (!task) throw new DownloadError('not_found')
   if (actor.orgId && task.orgId !== actor.orgId) throw new DownloadError('not_found')
@@ -353,16 +354,6 @@ export async function updateDownloadTask(
     return deps.downloadTasks.get(task.orgId, id)
   }
   if (actor.downloaderId && task.status === 'canceling' && input.status === 'canceled') {
-    if (parseTaskRuntime(task.runtime)?.state === DELETE_REQUESTED_RUNTIME_STATE) {
-      await deps.downloadTasks.delete(id)
-      return downloadTaskFromRecord({
-        ...task,
-        status: 'canceled',
-        runtime: null,
-        finishedAt: task.finishedAt ?? now,
-        updatedAt: now,
-      })
-    }
     await deps.downloadTasks.setFields(id, {
       status: 'canceled',
       runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
@@ -463,16 +454,6 @@ export async function updateDownloadTask(
   }
 
   await deps.downloadTasks.setFields(id, fields)
-  await recordUpdateActivity(deps, task, {
-    input,
-    status,
-    previousStatus: task.status,
-    runtime: nextRuntime,
-    lifecycleFields,
-    billingStatus,
-    actorType: actor.downloaderId ? 'downloader' : 'user',
-    actorRef: actor.downloaderId ?? null,
-  })
 
   return deps.downloadTasks.get(task.orgId, id)
 }
@@ -507,20 +488,7 @@ export async function performDownloadTaskAction(
     if (!TERMINAL_TASK_STATUSES.includes(task.status as (typeof TERMINAL_TASK_STATUSES)[number])) {
       throw new DownloadError('invalid_state', 'Only completed, failed, or canceled tasks can be deleted')
     }
-    if (task.assignedDownloaderId) {
-      await deps.downloadTasks.setFields(id, {
-        status: 'canceling',
-        runtime: serializeTaskRuntime({
-          ...(parseTaskRuntime(task.runtime) ?? {}),
-          state: DELETE_REQUESTED_RUNTIME_STATE,
-        }),
-        updatedAt: now,
-      })
-      await recordTaskActivity(deps, { task, action: 'download_task_deleted', actorType: 'user' })
-      return { id, deleted: true }
-    }
-    await recordTaskActivity(deps, { task, action: 'download_task_deleted', actorType: 'user' })
-    await deps.downloadTasks.delete(id)
+    await deps.downloadTasks.delete(id, now)
     return { id, deleted: true }
   }
 
@@ -534,11 +502,6 @@ export async function performDownloadTaskAction(
       status,
       runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
       updatedAt: now,
-    })
-    await recordTaskActivity(deps, {
-      task,
-      action: status === 'pausing' ? 'download_task_pause_requested' : 'download_task_paused',
-      actorType: 'user',
     })
     return deps.downloadTasks.get(orgId, id)
   }
@@ -556,7 +519,6 @@ export async function performDownloadTaskAction(
       runtime: clearTaskRuntimeMessageJson(task.runtime),
       updatedAt: now,
     })
-    await recordTaskActivity(deps, { task, action: 'download_task_resume_requested', actorType: 'user' })
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -575,11 +537,6 @@ export async function performDownloadTaskAction(
       runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
       finishedAt: status === 'canceled' ? (task.finishedAt ?? now) : task.finishedAt,
       updatedAt: now,
-    })
-    await recordTaskActivity(deps, {
-      task,
-      action: status === 'canceling' ? 'download_task_cancel_requested' : 'download_task_canceled',
-      actorType: 'user',
     })
     return deps.downloadTasks.get(orgId, id)
   }
@@ -602,7 +559,6 @@ export async function performDownloadTaskAction(
       finishedAt: null,
       updatedAt: now,
     })
-    await recordTaskActivity(deps, { task, action: 'download_task_retry_requested', actorType: 'user' })
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -629,7 +585,6 @@ export async function performDownloadTaskAction(
       finishedAt: null,
       updatedAt: now,
     })
-    await recordTaskActivity(deps, { task, action: 'download_task_restart_requested', actorType: 'user' })
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -640,7 +595,6 @@ async function ensureTaskTargetFolder(deps: DownloadsDeps, task: DownloadTaskRec
   return ensureDownloadFolderPath(deps, {
     orgId: task.orgId,
     folderPath: task.targetFolder,
-    actorId: task.createdByUserId,
   })
 }
 
@@ -668,13 +622,6 @@ async function claimQueuedTasksForDownloader(
     if (!canDownloaderRunSource(params.capabilities, task.sourceType)) continue
     if (await deps.downloadTasks.claimQueued(task.id, params.id, params.now)) {
       remaining -= 1
-      await recordTaskActivity(deps, {
-        task,
-        action: 'download_task_assigned',
-        actorType: 'downloader',
-        actorRef: params.id,
-        metadata: { downloaderId: params.id },
-      })
     }
   }
 }
@@ -696,47 +643,14 @@ async function recoverStaleDownloaderAssignments(deps: DownloadsDeps): Promise<v
   await deps.downloadTasks.clearStaleSeedingRuntime(leaseCutoff, now)
   const unreachableIds = await deps.downloaders.listUnreachableIds(leaseCutoff)
   if (unreachableIds.length > 0) {
-    const controls = await listTasksForDownloaders(deps, unreachableIds, ['canceling', 'pausing'])
     await deps.downloadTasks.resolveControlAssignedToMany(unreachableIds, now)
-    await Promise.all(
-      controls.map((task) =>
-        recordTaskActivity(deps, {
-          task,
-          action: 'download_stale_control_resolved',
-          metadata: { previousStatus: task.status, downloaderId: task.assignedDownloaderId },
-        }),
-      ),
-    )
   }
   // Requeue in-flight work and flip status to offline only on the online→offline
   // transition, so already-handled tasks are not re-queued repeatedly.
   const staleIds = await deps.downloaders.listStaleIds(leaseCutoff)
   if (staleIds.length === 0) return
-  const requeued = await listTasksForDownloaders(deps, staleIds, STALE_REQUEUE_STATUSES)
   await deps.downloadTasks.requeueAssignedToMany(staleIds, STALE_REQUEUE_STATUSES, now)
   await deps.downloaders.markStaleOffline(staleIds, now)
-  await Promise.all(
-    requeued.map((task) =>
-      recordTaskActivity(deps, {
-        task,
-        action: 'download_stale_requeued',
-        metadata: { previousStatus: task.status, downloaderId: task.assignedDownloaderId },
-      }),
-    ),
-  )
-}
-
-async function listTasksForDownloaders(
-  deps: DownloadsDeps,
-  downloaderIds: string[],
-  statuses: readonly string[],
-): Promise<DownloadTaskRecord[]> {
-  const pages = await Promise.all(
-    downloaderIds.map((downloaderId) =>
-      deps.downloadTasks.list({ downloaderId, statuses: [...statuses], page: 1, pageSize: CONTROL_TASK_PAGE_SIZE }),
-    ),
-  )
-  return pages.flatMap((page) => page.rows)
 }
 
 // ─── Upload-token minting ────────────────────────────────────────────────────
@@ -900,76 +814,6 @@ function taskLifecycleFields(
   return fields
 }
 
-async function recordUpdateActivity(
-  deps: DownloadsDeps,
-  task: DownloadTaskRecord,
-  params: {
-    input: UpdateDownloadTaskInput
-    status: string
-    previousStatus: string
-    runtime: DownloadTaskRuntime | null
-    lifecycleFields: TaskLifecycleFields
-    billingStatus: string
-    actorType: ActivityActorType
-    actorRef: string | null
-  },
-): Promise<void> {
-  for (const field of LIFECYCLE_FIELDS) {
-    if (!params.lifecycleFields[field]) continue
-    await recordTaskActivity(deps, {
-      task,
-      action: lifecycleAction(field),
-      actorType: params.actorType,
-      actorRef: params.actorRef,
-      metadata: runtimeMetadata(params.runtime),
-    })
-  }
-
-  if (params.previousStatus !== params.status) {
-    await recordTaskActivity(deps, {
-      task,
-      action: statusAction(params.status),
-      actorType: params.actorType,
-      actorRef: params.actorRef,
-      metadata: {
-        from: params.previousStatus,
-        to: params.status,
-        ...runtimeMetadata(params.runtime),
-      },
-    })
-  }
-
-  if (params.input.errorMessage) {
-    await recordTaskActivity(deps, {
-      task,
-      action: 'download_task_error',
-      actorType: params.actorType,
-      actorRef: params.actorRef,
-      metadata: { message: params.input.errorMessage },
-    })
-  }
-
-  if (params.billingStatus === 'insufficient_credits' && task.billingStatus !== 'insufficient_credits') {
-    await recordTaskActivity(deps, {
-      task,
-      action: 'download_task_billing_suspended',
-      actorType: params.actorType,
-      actorRef: params.actorRef,
-      metadata: { reason: 'insufficient_credits' },
-    })
-  }
-}
-
-function lifecycleAction(field: LifecycleField): string {
-  if (field === 'resolveStartedAt') return 'download_resolve_started'
-  if (field === 'resolveCompletedAt') return 'download_resolve_completed'
-  if (field === 'downloadCompletedAt') return 'download_completed'
-  if (field === 'ingestStartedAt') return 'download_ingest_started'
-  if (field === 'ingestCompletedAt') return 'download_ingest_completed'
-  if (field === 'seedingStartedAt') return 'download_seeding_started'
-  return 'download_seeding_stopped'
-}
-
 function statusAction(status: string): string {
   if (status === 'downloading') return 'download_task_started'
   if (status === 'uploading') return 'download_task_ingesting'
@@ -983,45 +827,6 @@ function statusAction(status: string): string {
   if (status === 'queued') return 'download_task_queued'
   if (status === 'assigned') return 'download_task_assigned'
   return `download_task_${status}`
-}
-
-async function recordTaskActivity(
-  deps: DownloadsDeps,
-  input: {
-    task: Pick<DownloadTaskRecord, 'id' | 'orgId' | 'createdByUserId' | 'displayName' | 'sourceUri'>
-    action: string
-    actorType?: ActivityActorType
-    actorRef?: string | null
-    metadata?: Record<string, unknown>
-  },
-): Promise<void> {
-  await deps.activity.record({
-    orgId: input.task.orgId,
-    userId: input.task.createdByUserId,
-    actorType: input.actorType ?? 'system',
-    actorRef: input.actorRef ?? (input.actorType ? null : 'download-task-service'),
-    action: input.action,
-    targetType: DOWNLOAD_TASK_TARGET_TYPE,
-    targetId: input.task.id,
-    targetName: taskTargetName(input.task),
-    metadata: input.metadata,
-  })
-}
-
-function taskTargetName(task: Pick<DownloadTaskRecord, 'displayName' | 'sourceUri'>): string {
-  return task.displayName || task.sourceUri
-}
-
-function runtimeMetadata(runtime: DownloadTaskRuntime | null): Record<string, unknown> {
-  return {
-    ...(runtime?.engine ? { engine: runtime.engine } : {}),
-    ...(runtime?.phase ? { phase: runtime.phase } : {}),
-    ...(runtime?.state ? { engineState: runtime.state } : {}),
-    ...(runtime?.torrent?.infoHash ? { infoHash: runtime.torrent.infoHash } : {}),
-    ...(runtime?.trackers ? { trackerCount: runtime.trackers.length } : {}),
-    ...(runtime?.torrent?.seeders !== undefined ? { seeders: runtime.torrent.seeders } : {}),
-    ...(runtime?.torrent?.peers !== undefined ? { peers: runtime.torrent.peers } : {}),
-  }
 }
 
 function taskLifecycleTimelineItems(task: DownloadTaskRecord): DownloadTaskTimelineItem[] {
@@ -1055,7 +860,41 @@ function lifecycleTimelineItem(task: DownloadTaskRecord, action: string, time: D
   }
 }
 
-function activityTimelineItem(taskId: string, event: ActivityEvent): DownloadTaskTimelineItem {
+function taskEventTimelineItem(taskId: string, event: DownloadTaskEvent): DownloadTaskTimelineItem {
+  const action =
+    event.type === 'status_changed' && event.to
+      ? statusAction(event.to)
+      : event.type === 'cleanup_requested'
+        ? 'download_task_cleanup_requested'
+        : event.type === 'cleanup_completed'
+          ? 'download_task_cleanup_completed'
+          : 'download_task_error'
+  const metadata = {
+    attempt: event.attempt,
+    from: event.from,
+    to: event.to,
+    reason: event.reason,
+    category: event.category,
+    downloaderId: event.downloaderId,
+    transferredBytes: event.transferredBytes,
+    billedBytes: event.billedBytes,
+    errorCode: event.errorCode,
+    errorMessage: event.errorMessage,
+  }
+  return {
+    id: event.id,
+    taskId,
+    time: new Date(event.occurredAt).toISOString(),
+    source: 'task',
+    action,
+    title: actionTitle(action),
+    detail: event.errorMessage ?? event.reason ?? null,
+    severity: actionSeverity(action),
+    metadata,
+  }
+}
+
+function activityTimelineItem(taskId: string, event: AuditEvent): DownloadTaskTimelineItem {
   const metadata = parseActivityMetadata(event.metadata)
   return {
     id: event.id,
@@ -1099,7 +938,8 @@ function actionTitle(action: string): string {
     download_task_restart_requested: 'Restart requested',
     download_task_deleted: 'Task deleted',
     download_task_error: 'Error reported',
-    download_task_billing_suspended: 'Billing suspended',
+    download_task_cleanup_requested: 'Downloader cleanup requested',
+    download_task_cleanup_completed: 'Downloader cleanup completed',
     download_resolve_started: 'Resolving source',
     download_resolve_completed: 'Source resolved',
     download_completed: 'Download completed',
@@ -1107,8 +947,6 @@ function actionTitle(action: string): string {
     download_ingest_completed: 'Ingest completed',
     download_seeding_started: 'Seeding started',
     download_seeding_stopped: 'Seeding stopped',
-    download_stale_requeued: 'Requeued after downloader went offline',
-    download_stale_control_resolved: 'Resolved after downloader went offline',
   }
   return titles[action] ?? action.replace(/_/g, ' ')
 }

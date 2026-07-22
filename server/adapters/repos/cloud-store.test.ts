@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityEvents, orgQuotaEntitlements, orgQuotas, webhookEvents } from '../../db/schema'
+import { auditEvents, orgQuotaEntitlements, orgQuotas, webhookEvents } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import { createCloudStoreRepo } from './cloud-store'
 
@@ -36,7 +36,7 @@ function createAsyncDb(
       values: (values: Record<string, unknown>) => {
         const apply = () => {
           if (table === webhookEvents) state.webhookStatus = String(values.status)
-          if (table === activityEvents) state.audits += 1
+          if (table === auditEvents) state.audits += 1
           if (table === orgQuotaEntitlements) state.entitlementInserts += Array.isArray(values) ? values.length : 1
         }
         if (table === orgQuotaEntitlements) return { onConflictDoUpdate: async () => apply() }
@@ -102,7 +102,7 @@ function createUniqueConflictDb(existing: { id: string; payloadHash: string; sta
     insert: (table: unknown) => ({
       values: async (values: Record<string, unknown>) => {
         if (table === webhookEvents) throw new Error('UNIQUE constraint failed: webhook_events.source, event_id')
-        if (table === activityEvents) state.audits += 1
+        if (table === auditEvents) state.audits += 1
         if (table === orgQuotaEntitlements) state.entitlementInserts += Array.isArray(values) ? values.length : 1
         return values
       },
@@ -157,7 +157,7 @@ function createSyncDb(
         values: (values: Record<string, unknown>) => {
           const apply = () => {
             if (table === webhookEvents) state.webhookStatus = String(values.status)
-            if (table === activityEvents) state.audits += 1
+            if (table === auditEvents) state.audits += 1
             if (table === orgQuotaEntitlements) state.entitlementInserts += Array.isArray(values) ? values.length : 1
           }
           return {
@@ -231,7 +231,7 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: false,
       eventId: 'evt-async',
     })
-    expect(state).toMatchObject({ audits: 1, batches: 1, webhookStatus: 'processed', entitlementInserts: 1 })
+    expect(state).toMatchObject({ audits: 0, batches: 1, webhookStatus: 'processed', entitlementInserts: 1 })
   })
 
   it('processes quota change with a sync transaction database', async () => {
@@ -250,7 +250,7 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: false,
       eventId: 'evt-sync',
     })
-    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', entitlementRevokes: 1 })
+    expect(state).toMatchObject({ audits: 0, webhookStatus: 'processed', entitlementRevokes: 1 })
   })
 
   it('applies legacy base quota decrease with a sync transaction database', async () => {
@@ -269,7 +269,7 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: false,
       eventId: 'evt-sync-legacy',
     })
-    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', legacyQuotaUpdates: 1 })
+    expect(state).toMatchObject({ audits: 0, webhookStatus: 'processed', legacyQuotaUpdates: 1 })
   })
 
   it('does not apply sync legacy base decrease when a matching entitlement already exists', async () => {
@@ -290,7 +290,7 @@ describe('processCloudOrderQuotaChange', () => {
         eventId: 'evt-sync-existing',
       },
     )
-    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', legacyQuotaUpdates: 0 })
+    expect(state).toMatchObject({ audits: 0, webhookStatus: 'processed', legacyQuotaUpdates: 0 })
   })
 
   it('applies legacy base quota decrease when no entitlement exists for the Cloud order', async () => {
@@ -309,7 +309,7 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: false,
       eventId: 'evt-legacy-decrease',
     })
-    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', legacyQuotaUpdates: 1 })
+    expect(state).toMatchObject({ audits: 0, webhookStatus: 'processed', legacyQuotaUpdates: 1 })
   })
 
   it('does not apply legacy base decrease when a matching entitlement already exists', async () => {
@@ -328,7 +328,7 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: false,
       eventId: 'evt-existing-entitlement-decrease',
     })
-    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', legacyQuotaUpdates: 0 })
+    expect(state).toMatchObject({ audits: 0, webhookStatus: 'processed', legacyQuotaUpdates: 0 })
   })
 
   it('marks async quota change failed when the target quota is missing', async () => {
@@ -429,6 +429,6 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: false,
       eventId: 'evt-retry',
     })
-    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', entitlementRevokes: 2 })
+    expect(state).toMatchObject({ audits: 0, webhookStatus: 'processed', entitlementRevokes: 2 })
   })
 })

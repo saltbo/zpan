@@ -3,13 +3,13 @@
 // line per resource keeps `usecases/ports` the single import surface while each
 // resource owns its own file under ports/.
 
-export * from './ports/activity'
 export * from './ports/admin-stats'
 export * from './ports/announcement'
 export * from './ports/api-keys'
 export * from './ports/app-error'
 export * from './ports/archive-jobs'
 export * from './ports/archive-target-folder'
+export * from './ports/audit'
 export * from './ports/background-job'
 export * from './ports/cf-hostnames'
 export * from './ports/changelog'

@@ -143,8 +143,6 @@ export const brandingAdmin = new OpenAPIHono<Env>()
     const faviconFile = form.get('favicon')
 
     const result = await applyBrandingUpdate(c.get('deps'), {
-      userId: c.get('userId')!,
-      orgId: c.get('orgId')!,
       logoFile: logoFile instanceof File && logoFile.size > 0 ? logoFile : null,
       faviconFile: faviconFile instanceof File && faviconFile.size > 0 ? faviconFile : null,
       wordmarkText: typeof wordmarkRaw === 'string' ? wordmarkRaw : null,
@@ -163,8 +161,6 @@ export const brandingAdmin = new OpenAPIHono<Env>()
       throw badRequest(`Invalid field. Valid fields: ${[...VALID_RESET_FIELDS].join(', ')}`)
     }
     await resetBranding(c.get('deps'), {
-      userId: c.get('userId')!,
-      orgId: c.get('orgId')!,
       field: rawField as BrandingField,
     })
     return c.body(null, 204)

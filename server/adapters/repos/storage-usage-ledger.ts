@@ -10,6 +10,7 @@ export type StorageUsageResourceType = 'matter' | 'image_hosting' | 'storage'
 export type StorageUsageReason =
   | 'opening_balance'
   | 'opening_balance_complete'
+  | 'integrity_opening_balance'
   | 'matter_activated'
   | 'matter_resized'
   | 'matter_purged'
@@ -34,6 +35,13 @@ export function storageUsageLedgerExactFrom(opening: Date): Date {
 }
 
 export async function getStorageUsageLedgerOpening(db: Database): Promise<Date | null> {
+  const integrityRows = await db
+    .select({ occurredAt: storageUsageLedger.occurredAt })
+    .from(storageUsageLedger)
+    .where(eq(storageUsageLedger.reason, 'integrity_opening_balance'))
+    .orderBy(asc(storageUsageLedger.occurredAt))
+    .limit(1)
+  if (integrityRows[0]) return integrityRows[0].occurredAt
   const rows = await db
     .select({ occurredAt: storageUsageLedger.occurredAt })
     .from(storageUsageLedger)
@@ -243,4 +251,70 @@ export async function ensureStorageUsageOpeningBalances(db: Database, occurredAt
       occurredAt,
     }),
   ])
+}
+
+export async function ensureStorageUsageIntegrityOpeningBalances(db: Database, occurredAt: Date): Promise<void> {
+  const [matterPairs, imagePairs, ledgerPairs] = await Promise.all([
+    db
+      .selectDistinct({ orgId: matters.orgId, storageId: matters.storageId })
+      .from(matters)
+      .where(and(eq(matters.dirtype, DirType.FILE), eq(matters.status, 'active'), isNull(matters.purgedAt))),
+    db
+      .selectDistinct({ orgId: imageHostings.orgId, storageId: imageHostings.storageId })
+      .from(imageHostings)
+      .where(and(eq(imageHostings.status, 'active'), isNull(imageHostings.purgedAt))),
+    db
+      .selectDistinct({ orgId: storageUsageLedger.orgId, storageId: storageUsageLedger.storageId })
+      .from(storageUsageLedger),
+  ])
+  const pairs = new Map<string, { orgId: string; storageId: string }>()
+  for (const pair of [...matterPairs, ...imagePairs, ...ledgerPairs]) {
+    if (!pair.orgId || !pair.storageId) continue
+    pairs.set(`${pair.orgId}\u0000${pair.storageId}`, pair)
+  }
+
+  const queries = [...pairs.values()].map(({ orgId, storageId }) => {
+    const eventKey = `integrity-opening:v1:${orgId}:${storageId}`
+    return db
+      .insert(storageUsageLedger)
+      .values({
+        id: eventKey,
+        eventKey,
+        orgId,
+        storageId,
+        resourceType: 'storage',
+        resourceId: storageId,
+        deltaBytes: sql<number>`
+          COALESCE((
+            SELECT SUM(${matters.size})
+            FROM ${matters}
+            WHERE ${matters.orgId} = ${orgId}
+              AND ${matters.storageId} = ${storageId}
+              AND ${matters.dirtype} = ${DirType.FILE}
+              AND ${matters.status} = 'active'
+              AND ${matters.purgedAt} IS NULL
+          ), 0)
+          + COALESCE((
+            SELECT SUM(${imageHostings.size})
+            FROM ${imageHostings}
+            WHERE ${imageHostings.orgId} = ${orgId}
+              AND ${imageHostings.storageId} = ${storageId}
+              AND ${imageHostings.status} = 'active'
+              AND ${imageHostings.purgedAt} IS NULL
+          ), 0)
+          - COALESCE((
+            SELECT SUM(${storageUsageLedger.deltaBytes})
+            FROM ${storageUsageLedger}
+            WHERE ${storageUsageLedger.orgId} = ${orgId}
+              AND ${storageUsageLedger.storageId} = ${storageId}
+          ), 0)`,
+        reason: 'integrity_opening_balance',
+        occurredAt,
+        createdAt: occurredAt,
+      })
+      .onConflictDoNothing({ target: storageUsageLedger.eventKey })
+  })
+  for (let offset = 0; offset < queries.length; offset += 50) {
+    await executeWriteTransaction(db, queries.slice(offset, offset + 50))
+  }
 }

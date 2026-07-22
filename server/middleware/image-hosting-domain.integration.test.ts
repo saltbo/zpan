@@ -190,6 +190,23 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
     expect(res.headers.get('cache-control')).toBe('no-store')
+    const events = await db.all<{ actorType: string; bytes: number; source: string; trafficEventId: string }>(sql`
+      SELECT
+        actor_type AS actorType,
+        json_extract(metadata, '$.bytes') AS bytes,
+        json_extract(metadata, '$.source') AS source,
+        json_extract(metadata, '$.trafficEventId') AS trafficEventId
+      FROM audit_events
+      WHERE action = 'image_hosting_download' AND target_id = 'dm-img1'
+    `)
+    expect(events).toEqual([
+      {
+        actorType: 'anonymous',
+        bytes: 1024,
+        source: 'custom_domain_image',
+        trafficEventId: expect.any(String),
+      },
+    ])
   })
 
   it('verified custom domain consumes traffic quota when inline URL is issued', async () => {
@@ -247,6 +264,12 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
     expect(quotaBody.error.details[0].reason).toBe('QUOTA_EXCEEDED')
     expect(S3Service.prototype.presignInline).not.toHaveBeenCalled()
     expect(await getAccessCount(db, 'dm-quota-over')).toBe(0)
+    const failures = await db.all<{ reason: string; source: string }>(sql`
+      SELECT json_extract(metadata, '$.reason') AS reason, json_extract(metadata, '$.source') AS source
+      FROM audit_events
+      WHERE action = 'download_failed' AND target_id = 'dm-quota-over'
+    `)
+    expect(failures).toEqual([{ reason: 'quota_exceeded', source: 'custom_domain_image' }])
   })
 
   it('verified custom domain refunds traffic when inline URL signing fails', async () => {

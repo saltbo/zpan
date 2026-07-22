@@ -258,7 +258,12 @@ export type DownloadTaskBillingState = 'none' | 'ok' | 'insufficient_credits'
 // shared/schemas/downloads.ts — one source of truth for the OpenAPI document,
 // the generated SDKs, the backend, and the frontend. The sub-interfaces below
 // stay as named building blocks the schema mirrors field-for-field.
-export type { DownloadTask, DownloadTaskTimeline, DownloadTaskTimelineItem } from '../schemas/downloads'
+export type {
+  DownloadTask,
+  DownloadTaskEvent,
+  DownloadTaskTimeline,
+  DownloadTaskTimelineItem,
+} from '../schemas/downloads'
 
 export interface DownloadTaskSpec {
   source: {
@@ -537,13 +542,13 @@ export interface Announcement {
   updatedAt: string
 }
 
-export type ActivityActorType = 'user' | 'anonymous' | 'system' | 'downloader'
+export type AuditActorType = 'user' | 'api_key' | 'anonymous' | 'system' | 'downloader'
 
-export interface ActivityEvent {
+export interface AuditEvent {
   id: string
   orgId: string
   userId: string | null
-  actorType: ActivityActorType
+  actorType: AuditActorType
   actorRef: string | null
   action: string
   targetType: string
@@ -558,7 +563,7 @@ export interface ActivityEvent {
   }
 }
 
-export interface AdminAuditEvent extends ActivityEvent {
+export interface AdminAuditEvent extends AuditEvent {
   orgName: string | null
 }
 
