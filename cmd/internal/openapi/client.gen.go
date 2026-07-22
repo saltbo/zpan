@@ -1958,9 +1958,10 @@ type EffectiveQuota struct {
 
 // EmailSettings defines model for EmailSettings.
 type EmailSettings struct {
-	Enabled  bool    `json:"enabled"`
-	From     *string `json:"from,omitempty"`
-	Provider *string `json:"provider,omitempty"`
+	Enabled                  bool    `json:"enabled"`
+	From                     *string `json:"from,omitempty"`
+	Provider                 *string `json:"provider,omitempty"`
+	RequireEmailVerification bool    `json:"requireEmailVerification"`
 }
 
 // EntitlementList defines model for EntitlementList.
@@ -3884,10 +3885,11 @@ type SaveEmailConfigJSONBody struct {
 
 // SaveEmailConfigJSONBody0 defines parameters for SaveEmailConfig.
 type SaveEmailConfigJSONBody0 struct {
-	Enabled  bool                             `json:"enabled"`
-	From     openapi_types.Email              `json:"from"`
-	Provider SaveEmailConfigJSONBody0Provider `json:"provider"`
-	Smtp     struct {
+	Enabled                  bool                             `json:"enabled"`
+	From                     openapi_types.Email              `json:"from"`
+	Provider                 SaveEmailConfigJSONBody0Provider `json:"provider"`
+	RequireEmailVerification bool                             `json:"requireEmailVerification"`
+	Smtp                     struct {
 		Host   string `json:"host"`
 		Pass   string `json:"pass"`
 		Port   int    `json:"port"`
@@ -3907,7 +3909,8 @@ type SaveEmailConfigJSONBody1 struct {
 		ApiKey string `json:"apiKey"`
 		Url    string `json:"url"`
 	} `json:"http"`
-	Provider SaveEmailConfigJSONBody1Provider `json:"provider"`
+	Provider                 SaveEmailConfigJSONBody1Provider `json:"provider"`
+	RequireEmailVerification bool                             `json:"requireEmailVerification"`
 }
 
 // SaveEmailConfigJSONBody1Provider defines parameters for SaveEmailConfig.
@@ -3915,9 +3918,10 @@ type SaveEmailConfigJSONBody1Provider string
 
 // SaveEmailConfigJSONBody2 defines parameters for SaveEmailConfig.
 type SaveEmailConfigJSONBody2 struct {
-	Enabled  bool                             `json:"enabled"`
-	From     openapi_types.Email              `json:"from"`
-	Provider SaveEmailConfigJSONBody2Provider `json:"provider"`
+	Enabled                  bool                             `json:"enabled"`
+	From                     openapi_types.Email              `json:"from"`
+	Provider                 SaveEmailConfigJSONBody2Provider `json:"provider"`
+	RequireEmailVerification bool                             `json:"requireEmailVerification"`
 }
 
 // SaveEmailConfigJSONBody2Provider defines parameters for SaveEmailConfig.
@@ -26156,6 +26160,7 @@ type SaveEmailConfigResponse struct {
 	JSON200      *struct {
 		Success bool `json:"success"`
 	}
+	JSON400 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -40831,6 +40836,13 @@ func ParseSaveEmailConfigResponse(rsp *http.Response) (*SaveEmailConfigResponse,
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 
