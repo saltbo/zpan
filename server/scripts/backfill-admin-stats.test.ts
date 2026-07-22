@@ -8,7 +8,7 @@ import {
 } from '../../scripts/backfill-admin-stats'
 import {
   ADMIN_STATS_FACT_COUNTER_METRICS,
-  buildAdminStatsCounterRowsSql,
+  buildAdminStatsCounterRowsSqlStatements,
 } from '../adapters/repos/admin-stats-counter-query'
 
 describe('admin stats backfill', () => {
@@ -33,12 +33,14 @@ describe('admin stats backfill', () => {
   })
 
   it('builds one compound branch per authoritative counter source', () => {
-    const sql = buildAdminStatsCounterRowsSql({ fromMs: 0, toMs: 3_600_000 })
+    const statements = buildAdminStatsCounterRowsSqlStatements({ fromMs: 0, toMs: 3_600_000 })
+    const sql = statements.join('\n')
 
+    expect(statements).toHaveLength(3)
     expect(sql.match(/FROM audit_events ae/g)).toHaveLength(1)
     expect(sql.match(/FROM cloud_traffic_reports traffic_report/g)).toHaveLength(1)
     expect(sql.match(/FROM storage_usage_ledger storage_change/g)).toHaveLength(1)
-    expect(sql.match(/UNION ALL/g)).toHaveLength(11)
+    expect(statements.every((statement) => (statement.match(/UNION ALL/g) ?? []).length <= 5)).toBe(true)
   })
 
   it('recovers exact available facts and is idempotent', () => {
@@ -211,9 +213,12 @@ describe('admin stats backfill', () => {
     const firstSummary = readValidationSummary()
     const firstRows = db.prepare('SELECT * FROM stats_rollups_hourly ORDER BY id').all()
     const metricList = ADMIN_STATS_FACT_COUNTER_METRICS.map((metric) => `'${metric}'`).join(', ')
-    const calculatedFactRows = db
-      .prepare(buildAdminStatsCounterRowsSql({ fromMs: firstExactHour, toMs: currentHourMs }))
-      .all()
+    const calculatedFactRows = buildAdminStatsCounterRowsSqlStatements({
+      fromMs: firstExactHour,
+      toMs: currentHourMs,
+    })
+      .flatMap((statement) => db.prepare(statement).all())
+      .sort(compareCounterRows)
     const backfilledFactRows = db
       .prepare(
         `SELECT
@@ -404,3 +409,14 @@ describe('admin stats backfill', () => {
     db.close()
   })
 })
+
+function compareCounterRows(left: unknown, right: unknown): number {
+  const keys = ['bucketStart', 'orgId', 'metricKey', 'dimensionKey', 'dimensionValue'] as const
+  const leftRow = left as Record<(typeof keys)[number], string | number>
+  const rightRow = right as Record<(typeof keys)[number], string | number>
+  for (const key of keys) {
+    const comparison = String(leftRow[key]).localeCompare(String(rightRow[key]))
+    if (comparison !== 0) return comparison
+  }
+  return 0
+}

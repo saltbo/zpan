@@ -22,7 +22,7 @@ import {
   ROLLUP_VERSION,
 } from '../../domain/admin-stats-metrics'
 import type { Database } from '../../platform/interface'
-import { ADMIN_STATS_FACT_COUNTER_METRICS, buildAdminStatsCounterRowsSql } from './admin-stats-counter-query'
+import { ADMIN_STATS_FACT_COUNTER_METRICS, buildAdminStatsCounterRowsSqlStatements } from './admin-stats-counter-query'
 import { ensureAdminStatsIntegrityOpening, inspectAdminStatsSourceIntegrity } from './admin-stats-integrity'
 import { createCloudTrafficReportRepo } from './cloud-traffic-report'
 import { getEffectiveQuotasByOrg } from './quota'
@@ -93,17 +93,17 @@ export async function rebuildAdminStatsHour(
 
   await ensureStorageUsageOpeningBalances(db, generatedAt)
   await createCloudTrafficReportRepo(db).ensureLedgerOpening(generatedAt)
-  const counterRows = await queryStage<CounterQueryRow[]>(
-    'counters',
-    db.all<CounterQueryRow>(
-      sql.raw(
-        buildAdminStatsCounterRowsSql({
+  const counterRows = (
+    await queryStage(
+      'counters',
+      Promise.all(
+        buildAdminStatsCounterRowsSqlStatements({
           fromMs: bucketStart.getTime(),
           toMs: bucketEnd.getTime(),
-        }),
+        }).map((statement) => db.all<CounterQueryRow>(sql.raw(statement))),
       ),
-    ),
-  )
+    )
+  ).flat()
   for (const row of counterRows) {
     const metric = row.metricKey as AdminStatsMetric
     const dimensionKey = row.dimensionKey as AdminStatsDimension | ''

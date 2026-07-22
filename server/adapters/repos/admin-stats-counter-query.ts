@@ -2,6 +2,7 @@ import { type AdminStatsMetric, ADMIN_STATS_METRICS as M, ROLLUP_VERSION } from 
 import { downloadTaskEventTimestampSql, downloadTaskTerminalEventPredicate } from '../../domain/download-task-events'
 
 const HOUR_MS = 3_600_000
+const D1_MAX_COMPOUND_SELECT_TERMS = 5
 
 export interface AdminStatsCounterQueryRange {
   fromMs: number | string
@@ -189,8 +190,8 @@ export const ADMIN_STATS_FACT_COUNTER_METRICS: readonly AdminStatsMetric[] = [
   ...new Set([...HOURLY_SOURCES.map((source) => source.metric), M.storageLedgerBalance]),
 ]
 
-export function buildAdminStatsCounterRowsSql(range: AdminStatsCounterQueryRange): string {
-  return buildCounterSql(
+export function buildAdminStatsCounterRowsSqlStatements(range: AdminStatsCounterQueryRange): string[] {
+  return buildCounterSqlStatements(
     range,
     `SELECT
   bucket_start AS bucketStart,
@@ -206,8 +207,8 @@ ORDER BY bucket_start, org_id, metric_key, dimension_key, dimension_value`,
   )
 }
 
-export function buildAdminStatsCounterRollupInsertSql(range: AdminStatsCounterQueryRange): string {
-  return buildCounterSql(
+export function buildAdminStatsCounterRollupInsertSqlStatements(range: AdminStatsCounterQueryRange): string[] {
+  return buildCounterSqlStatements(
     range,
     `INSERT INTO stats_rollups_hourly (
   id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
@@ -238,8 +239,16 @@ WHERE count <> excluded.count
   )
 }
 
-function buildCounterSql(range: AdminStatsCounterQueryRange, statement: string): string {
-  const sourceRows = HOURLY_SOURCES.map(hourlySourceRow).join('\nUNION ALL\n')
+function buildCounterSqlStatements(range: AdminStatsCounterQueryRange, statement: string): string[] {
+  const sources = [...HOURLY_SOURCES.map(hourlySourceRow), storageBalanceRow()]
+  const statements: string[] = []
+  for (let index = 0; index < sources.length; index += D1_MAX_COMPOUND_SELECT_TERMS) {
+    statements.push(buildCounterSql(range, sources.slice(index, index + D1_MAX_COMPOUND_SELECT_TERMS), statement))
+  }
+  return statements
+}
+
+function buildCounterSql(range: AdminStatsCounterQueryRange, sources: string[], statement: string): string {
   return `WITH
 bounds AS (
   SELECT (${range.fromMs}) AS from_ms, (${range.toMs}) AS to_ms
@@ -259,9 +268,26 @@ buckets AS (
   JOIN numbers ON bounds.from_ms + numbers.n * ${HOUR_MS} < bounds.to_ms
 ),
 source_rows AS (
-${indent(sourceRows, 2)}
-  UNION ALL
+${indent(sources.join('\nUNION ALL\n'), 2)}
+),
+aggregated_rows AS (
   SELECT
+    bucket_start,
+    org_id,
+    metric_key,
+    dimension_key,
+    dimension_value,
+    SUM(count) AS count,
+    SUM(bytes) AS bytes,
+    SUM(unique_count) AS unique_count
+  FROM source_rows
+  GROUP BY bucket_start, org_id, metric_key, dimension_key, dimension_value
+)
+${statement}`
+}
+
+function storageBalanceRow(): string {
+  return `SELECT
     bucket.bucket_start,
     '' AS org_id,
     '${M.storageLedgerBalance}' AS metric_key,
@@ -278,22 +304,7 @@ ${indent(sourceRows, 2)}
     FROM storage_usage_ledger opening
     WHERE opening.reason = 'opening_balance_complete'
       AND opening.occurred_at < bucket.bucket_start + ${HOUR_MS}
-  )
-),
-aggregated_rows AS (
-  SELECT
-    bucket_start,
-    org_id,
-    metric_key,
-    dimension_key,
-    dimension_value,
-    SUM(count) AS count,
-    SUM(bytes) AS bytes,
-    SUM(unique_count) AS unique_count
-  FROM source_rows
-  GROUP BY bucket_start, org_id, metric_key, dimension_key, dimension_value
-)
-${statement}`
+  )`
 }
 
 function hourlySourceRow(source: HourlySource): string {

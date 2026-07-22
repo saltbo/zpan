@@ -12,7 +12,7 @@ import {
 } from '../server/domain/download-task-events'
 import {
   ADMIN_STATS_FACT_COUNTER_METRICS,
-  buildAdminStatsCounterRollupInsertSql,
+  buildAdminStatsCounterRollupInsertSqlStatements,
 } from '../server/adapters/repos/admin-stats-counter-query'
 import { ADMIN_STATS_METRICS as M } from '../server/domain/admin-stats-metrics'
 
@@ -256,7 +256,7 @@ function buildHourlyBackfillSql(now: Date): string {
   const currentHour = Math.floor(now.getTime() / 3_600_000) * 3_600_000
   const fromMs = `MAX(${MIN_VALID_TIMESTAMP_MS}, COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS}))`
   return [
-    buildAdminStatsCounterRollupInsertSql({ fromMs, toMs: currentHour }),
+    ...buildAdminStatsCounterRollupInsertSqlStatements({ fromMs, toMs: currentHour }),
     rollupMarkerBackfillSql(now),
   ].join(';\n\n')
 }
