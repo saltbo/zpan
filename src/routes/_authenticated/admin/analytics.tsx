@@ -93,6 +93,7 @@ const CHART_COLORS = [
   COLORS.green,
 ]
 const CHART_GRID_COLOR = 'var(--color-border)'
+const CHART_INITIAL_DIMENSION = { width: 640, height: 288 }
 const tooltipContentStyle: CSSProperties = {
   border: '1px solid var(--color-border)',
   borderRadius: 10,
@@ -223,6 +224,20 @@ function useDashboardSectionQuery<T>(
     enabled: enabled && openSection === section,
     staleTime: 30_000,
   })
+}
+
+function AnalyticsChartContainer({ children }: { children: ReactNode }) {
+  return (
+    <ResponsiveContainer
+      width="100%"
+      height="100%"
+      minWidth={0}
+      minHeight={1}
+      initialDimension={CHART_INITIAL_DIMENSION}
+    >
+      {children}
+    </ResponsiveContainer>
+  )
 }
 
 function DashboardSection({
@@ -400,7 +415,7 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="用户规模趋势" subtitle="柱形看每日新增用户，折线看累计用户规模。">
           {hasNumericData(stats.userScaleTrend, ['newUsers', 'totalUsers']) ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <AnalyticsChartContainer>
               <ComposedChart data={stats.userScaleTrend}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
@@ -421,14 +436,14 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
                   dot={false}
                 />
               </ComposedChart>
-            </ResponsiveContainer>
+            </AnalyticsChartContainer>
           ) : (
             <EmptyState />
           )}
         </ChartCard>
         <ChartCard title="活跃用户趋势" subtitle="DAU、WAU、MAU 同时展示，用于判断用户活跃基本盘。">
           {hasNumericData(stats.activeUserTrend, ['dau', 'wau', 'mau']) ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <AnalyticsChartContainer>
               <AreaChart data={stats.activeUserTrend}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
@@ -464,7 +479,7 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
                   fillOpacity={0.16}
                 />
               </AreaChart>
-            </ResponsiveContainer>
+            </AnalyticsChartContainer>
           ) : (
             <EmptyState />
           )}
@@ -566,7 +581,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="存储与写入趋势" subtitle="存储占用是水位；确认上传文件和字节是周期事件量，不代表净增长。">
           {hasNumericData(stats.storageTrend, ['usedBytes', 'newBytes', 'newFiles']) ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <AnalyticsChartContainer>
               <ComposedChart data={stats.storageTrend}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
@@ -619,7 +634,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                   dot={false}
                 />
               </ComposedChart>
-            </ResponsiveContainer>
+            </AnalyticsChartContainer>
           ) : (
             <EmptyState />
           )}
@@ -633,7 +648,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="文件大小结构" subtitle="柱形看文件数量，折线看容量贡献，定位大对象压力。">
           {hasNumericData(stats.sizeBreakdown, ['files', 'bytes']) ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <AnalyticsChartContainer>
               <ComposedChart data={stats.sizeBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tickFormatter={labelize} />
@@ -680,14 +695,14 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                   isAnimationActive={false}
                 />
               </ComposedChart>
-            </ResponsiveContainer>
+            </AnalyticsChartContainer>
           ) : (
             <EmptyState />
           )}
         </ChartCard>
         <ChartCard title="文件年龄分布" subtitle="仅按创建时间划分，不代表文件最近是否被访问。">
           {hasNumericData(stats.ageBreakdown, ['bytes']) ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <AnalyticsChartContainer>
               <BarChart data={stats.ageBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tickFormatter={labelize} />
@@ -704,7 +719,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                   <LabelList dataKey="percent" position="top" formatter={formatPercentLabel} fontSize={11} />
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+            </AnalyticsChartContainer>
           ) : (
             <EmptyState />
           )}
@@ -763,7 +778,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
           subtitle="上传为确认完成字节，下载为链接签发对象字节，不代表客户端实际完成传输。"
         >
           {hasNumericData(stats.trafficTrend, ['uploadBytes', 'downloadBytes', 'requests']) ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <AnalyticsChartContainer>
               <ComposedChart data={stats.trafficTrend}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
@@ -810,7 +825,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                   dot={false}
                 />
               </ComposedChart>
-            </ResponsiveContainer>
+            </AnalyticsChartContainer>
           ) : (
             <EmptyState />
           )}
@@ -827,7 +842,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
           subtitle="上传成功指完成确认；下载成功指成功签发链接，不代表客户端下载完成。"
         >
           {hasNumericData(stats.successTrend, ['uploadSuccessRate', 'downloadSuccessRate']) ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <AnalyticsChartContainer>
               <AreaChart data={stats.successTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
                 <XAxis
@@ -873,7 +888,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                   isAnimationActive={false}
                 />
               </AreaChart>
-            </ResponsiveContainer>
+            </AnalyticsChartContainer>
           ) : (
             <EmptyState />
           )}
@@ -882,7 +897,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
           {stats.failureReasons.length === 0 ? (
             <EmptyState />
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <AnalyticsChartContainer>
               <BarChart
                 data={stats.failureReasons}
                 layout="vertical"
@@ -921,7 +936,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                   <LabelList dataKey="percent" position="right" formatter={formatPercentLabel} fontSize={11} />
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+            </AnalyticsChartContainer>
           )}
         </ChartCard>
       </div>
@@ -967,7 +982,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
       <div className="grid gap-4">
         <ChartCard title="分享下载与转存趋势" subtitle="按事件发生时间统计。">
           {hasNumericData(stats.trend, ['downloads', 'saves']) ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <AnalyticsChartContainer>
               <AreaChart data={stats.trend}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatChartDate} />
@@ -995,7 +1010,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
                   fillOpacity={0.08}
                 />
               </AreaChart>
-            </ResponsiveContainer>
+            </AnalyticsChartContainer>
           ) : (
             <EmptyState />
           )}
@@ -1093,7 +1108,7 @@ function BreakdownChart({
     <ChartCard title={title}>
       {hasPositiveBreakdown(rows) ? (
         <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1fr)_230px]">
-          <ResponsiveContainer width="100%" height="100%">
+          <AnalyticsChartContainer>
             <PieChart>
               <Pie
                 data={rows}
@@ -1114,7 +1129,7 @@ function BreakdownChart({
                 formatter={(value) => valueFormatter(Number(value))}
               />
             </PieChart>
-          </ResponsiveContainer>
+          </AnalyticsChartContainer>
           <PercentList
             items={rows.map((row, index) => ({
               name: labelize(row.name),
@@ -1143,7 +1158,7 @@ function BarBreakdownChart({
   return (
     <ChartCard title={title}>
       {hasPositiveBreakdown(rows) ? (
-        <ResponsiveContainer width="100%" height="100%">
+        <AnalyticsChartContainer>
           <BarChart data={rows} layout="vertical" margin={{ top: 8, right: 44, left: 8, bottom: 0 }}>
             <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" horizontal={false} />
             <XAxis type="number" tickLine={false} axisLine={false} fontSize={12} tickFormatter={formatCompactNumber} />
@@ -1169,7 +1184,7 @@ function BarBreakdownChart({
               <LabelList dataKey="percent" position="right" formatter={formatPercentLabel} fontSize={11} />
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
+        </AnalyticsChartContainer>
       ) : (
         <EmptyState />
       )}

@@ -84,6 +84,12 @@ const growth: AdminDashboardGrowthStats = {
 }
 
 test('admin dashboard and analytics render chart geometry @desktop', async ({ page }) => {
+  const invalidChartDimensions: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'warning' && message.text().includes('width(-1) and height(-1)')) {
+      invalidChartDimensions.push(message.text())
+    }
+  })
   await page.route('**/api/site/overview', (route) => route.fulfill({ json: overview }))
   await page.route('**/api/site/licensing/status', (route) =>
     route.fulfill({
@@ -105,4 +111,5 @@ test('admin dashboard and analytics render chart geometry @desktop', async ({ pa
   await expect(page.locator('.recharts-line-curve')).toHaveCount(1)
   await expect(page.locator('.recharts-area-area')).toHaveCount(3)
   await expect(page.locator('.recharts-sector')).toHaveCount(3)
+  expect(invalidChartDimensions).toEqual([])
 })
