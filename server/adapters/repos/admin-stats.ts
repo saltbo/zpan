@@ -76,7 +76,6 @@ async function getOverviewStatistics(
     topUsage,
     storageDataQuality,
     counterDays,
-    snapshotDays,
   ] = await Promise.all([
     getUserInventory(reader),
     getActiveUserSnapshot(reader),
@@ -90,7 +89,6 @@ async function getOverviewStatistics(
     getTopPersonalUsage(db, now),
     getStorageDataQuality(reader),
     reader.completeDayKeys('counters'),
-    reader.completeDayKeys('snapshots'),
   ])
   const dates = createDateBuckets(effective)
   const activeByDate = new Map(activeByDay.map((row) => [row.date, row]))
@@ -115,8 +113,8 @@ async function getOverviewStatistics(
       },
       trend: dates.map((date) => ({
         date,
-        totalUsers: snapshotDays.has(date) ? (totalUsersByDay.get(date) ?? null) : null,
-        activeUsers: snapshotDays.has(date) ? (activeByDate.get(date)?.mau ?? null) : null,
+        totalUsers: totalUsersByDay.get(date) ?? null,
+        activeUsers: activeByDate.get(date)?.mau ?? null,
         newUsers: counterDays.has(date) ? (newUsersByDay.get(date) ?? 0) : null,
       })),
       topUsage: exactUsage ? topUsage : [],
@@ -130,7 +128,7 @@ async function getOverviewStatistics(
         changes?.exact !== false
       return {
         date,
-        usedBytes: exactLedger && snapshotDays.has(date) ? (storageUsedByDay.get(date) ?? null) : null,
+        usedBytes: exactLedger ? (storageUsedByDay.get(date) ?? null) : null,
         writtenBytes: exactChanges ? (changes?.writtenBytes ?? 0) : null,
         releasedBytes: exactChanges ? (changes?.releasedBytes ?? 0) : null,
       }
@@ -274,7 +272,6 @@ async function getDashboardOverviewStats(
     trafficLedgerComplete,
     previousTrafficLedgerComplete,
     counterDays,
-    snapshotDays,
     trafficFirstCompleteDay,
   ] = await Promise.all([
     getUserInventory(reader),
@@ -295,7 +292,6 @@ async function getDashboardOverviewStats(
     trafficLedgerCoversRange(db, effective),
     trafficLedgerCoversRange(db, previous),
     reader.completeDayKeys('counters'),
-    reader.completeDayKeys('snapshots'),
     trafficLedgerFirstCompleteDay(db),
   ])
   const [trendNewUsers, activeByDay, storageUsedByDay, uploadByDay, downloadByDay, missingBytesByDay] =
@@ -312,8 +308,8 @@ async function getDashboardOverviewStats(
     return {
       date,
       newUsers: counterDays.has(date) ? (trendNewUsers.get(date) ?? 0) : null,
-      activeUsers: snapshotDays.has(date) ? (activeByDay.get(date) ?? null) : null,
-      storageUsedBytes: snapshotDays.has(date) ? (storageUsedByDay.get(date) ?? null) : null,
+      activeUsers: activeByDay.get(date) ?? null,
+      storageUsedBytes: storageUsedByDay.get(date) ?? null,
       uploadBytes: counterDays.has(date) && !missingBytes?.upload ? (uploadByDay.get(date) ?? 0) : null,
       downloadBytes:
         counterDays.has(date) &&
@@ -483,7 +479,6 @@ async function getDashboardGrowthStats(
     snapshotCoverage,
     comparisonSnapshotCoverage,
     counterDays,
-    snapshotDays,
   ] = await Promise.all([
     getUserInventory(reader),
     getSignupTotal(reader),
@@ -498,13 +493,12 @@ async function getDashboardGrowthStats(
     reader.coverage('snapshots'),
     previousReader.coverage('snapshots'),
     reader.completeDayKeys('counters'),
-    reader.completeDayKeys('snapshots'),
   ])
   const newUsersByDay = await getSignupsByDay(reader)
   const userScaleTrend = createDateBuckets(effective).map((date) => ({
     date,
     newUsers: counterDays.has(date) ? (newUsersByDay.get(date) ?? 0) : null,
-    totalUsers: snapshotDays.has(date) ? (totalsByDay.get(date) ?? null) : null,
+    totalUsers: totalsByDay.get(date) ?? null,
   }))
   const currentCountersComplete = completeCoverage(coverage)
   const previousCountersComplete = completeCoverage(comparisonCoverage)
@@ -530,9 +524,7 @@ async function getDashboardGrowthStats(
       silentUserRate: nullablePercent(users?.silent ?? null, users?.total ?? null),
     },
     userScaleTrend,
-    activeUserTrend: activeByDay.map((row) =>
-      snapshotDays.has(row.date) ? row : { ...row, dau: null, wau: null, mau: null },
-    ),
+    activeUserTrend: activeByDay,
     userStatus: users
       ? percentRows([
           { name: 'normal', value: users.normal },
@@ -578,7 +570,6 @@ async function getDashboardStorageStats(
     comparisonSnapshotCoverage,
     missingBytesByDay,
     counterDays,
-    snapshotDays,
   ] = await Promise.all([
     getQuotaTotals(reader),
     getStorageInventory(reader),
@@ -603,14 +594,13 @@ async function getDashboardStorageStats(
     previousReader.coverage('snapshots'),
     getMissingTransferBytesByDay(reader),
     reader.completeDayKeys('counters'),
-    reader.completeDayKeys('snapshots'),
   ])
   const exactUsage = storageDataQuality.usageDriftSpaces === null || storageDataQuality.usageDriftSpaces === 0
   const exactLedger = storageDataQuality.ledgerDriftSpaces === null || storageDataQuality.ledgerDriftSpaces === 0
   const storageTrend = createDateBuckets(effective).map((date) => {
     return {
       date,
-      usedBytes: exactLedger && snapshotDays.has(date) ? (storageUsedByDay.get(date) ?? null) : null,
+      usedBytes: exactLedger ? (storageUsedByDay.get(date) ?? null) : null,
       newBytes: counterDays.has(date) && !missingBytesByDay.get(date)?.upload ? (uploadsByDay.get(date) ?? 0) : null,
       newFiles: counterDays.has(date) ? (uploadFilesByDay.get(date) ?? 0) : null,
     }

@@ -252,6 +252,18 @@ describe('site stats routes', () => {
         ('partial-upload', ${at}, '', 'transfer.upload', '', '', 1, 128, 0,
           '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000}),
         ('partial-share-save', ${at}, '', 'share.saved', '', '', 1, 0, 0,
+          '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000}),
+        ('partial-user-inventory', ${at}, '', 'user.inventory', '', '', 42, 0, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${at + 3_600_000}),
+        ('partial-active-base', ${at}, '', 'user.active_snapshot', '', '', 7, 0, 7,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${at + 3_600_000}),
+        ('partial-active-dau', ${at}, '', 'user.active_snapshot', 'window', 'dau', 3, 0, 3,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${at + 3_600_000}),
+        ('partial-active-wau', ${at}, '', 'user.active_snapshot', 'window', 'wau', 5, 0, 5,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${at + 3_600_000}),
+        ('partial-active-mau', ${at}, '', 'user.active_snapshot', 'window', 'mau', 7, 0, 7,
+          '{"version":3,"scope":"snapshots","quality":"exact"}', ${at + 3_600_000}),
+        ('partial-storage-balance', ${at}, '', 'storage.ledger_balance', '', '', 0, 4096, 0,
           '{"version":3,"scope":"counters","quality":"exact"}', ${at + 3_600_000})
     `)
     const query = 'from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T11%3A59%3A59.999Z&timeZone=UTC'
@@ -262,10 +274,16 @@ describe('site stats routes', () => {
       app.request(`/api/site/stats/traffic?${query}`, { headers }),
       app.request(`/api/site/stats/sharing?${query}`, { headers }),
     ])
+    const overview = await createAdminStatsRepo(db).getOverviewStatistics(new Date(at + 3 * 3_600_000), {
+      from: new Date(at),
+      to: new Date(at + 2 * 3_600_000 - 1),
+      timeZone: 'UTC',
+    })
     const growth = (await growthRes.json()) as {
       coverage: { status: string }
       summary: { newUsers: { value: number | null } }
-      userScaleTrend: Array<{ newUsers: number | null }>
+      userScaleTrend: Array<{ newUsers: number | null; totalUsers: number | null }>
+      activeUserTrend: Array<{ dau: number | null; wau: number | null; mau: number | null }>
       registrationSources: unknown[]
     }
     const storage = (await storageRes.json()) as {
@@ -285,11 +303,16 @@ describe('site stats routes', () => {
     expect([growthRes.status, storageRes.status, trafficRes.status, sharingRes.status]).toEqual([200, 200, 200, 200])
     expect(growth.coverage.status).toBe('partial')
     expect(growth.summary.newUsers.value).toBeNull()
-    expect(growth.userScaleTrend).toEqual([{ date: '2026-07-01', newUsers: null, totalUsers: null }])
+    expect(growth.userScaleTrend).toEqual([{ date: '2026-07-01', newUsers: null, totalUsers: 42 }])
+    expect(growth.activeUserTrend).toEqual([{ date: '2026-07-01', dau: 3, wau: 5, mau: 7 }])
     expect(growth.registrationSources).toEqual([])
+    expect(overview.users.trend).toEqual([{ date: '2026-07-01', totalUsers: 42, activeUsers: 7, newUsers: null }])
+    expect(overview.storageTrend).toEqual([
+      { date: '2026-07-01', usedBytes: 4096, writtenBytes: null, releasedBytes: null },
+    ])
     expect(storage.summary.newBytes.value).toBeNull()
     expect(storage.summary.newFiles.value).toBeNull()
-    expect(storage.storageTrend).toEqual([{ date: '2026-07-01', usedBytes: null, newBytes: null, newFiles: null }])
+    expect(storage.storageTrend).toEqual([{ date: '2026-07-01', usedBytes: 4096, newBytes: null, newFiles: null }])
     expect(traffic.summary.totalBytes.value).toBeNull()
     expect(traffic.summary.requestCount.value).toBeNull()
     expect(traffic.trafficTrend).toEqual([
