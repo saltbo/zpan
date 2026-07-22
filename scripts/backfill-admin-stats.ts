@@ -244,6 +244,7 @@ WHERE ctr.issued_at IS NULL
   );
 
 ${purgeLegacyRollupsSql()}
+${purgeOrphanRollupsSql()}
 ${purgeOpenRollupsSql(now)}
 ${purgeCounterRollupsSql()}
 
@@ -266,6 +267,29 @@ WHERE CASE WHEN json_valid(metadata) = 1 THEN
     AND json_extract(metadata, '$.scope') IN ('counters', 'snapshots', 'full')
     AND json_extract(metadata, '$.quality') = 'exact'
   ELSE 0 END = 0;`
+}
+
+function purgeOrphanRollupsSql(): string {
+  return `DELETE FROM stats_rollups_hourly AS result
+WHERE result.metric_key <> 'stats.rollup_run'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM stats_rollups_hourly marker
+    WHERE marker.bucket_start = result.bucket_start
+      AND marker.org_id = ''
+      AND marker.metric_key = 'stats.rollup_run'
+      AND marker.dimension_key = ''
+      AND marker.dimension_value = ''
+      AND json_valid(marker.metadata) = 1
+      AND (
+        (json_extract(result.metadata, '$.scope') = 'counters'
+          AND json_extract(marker.metadata, '$.scope') IN ('counters', 'full'))
+        OR (json_extract(result.metadata, '$.scope') = 'snapshots'
+          AND json_extract(marker.metadata, '$.scope') IN ('snapshots', 'full'))
+        OR (json_extract(result.metadata, '$.scope') = 'full'
+          AND json_extract(marker.metadata, '$.scope') = 'full')
+      )
+  );`
 }
 
 function purgeOpenRollupsSql(now: Date): string {
@@ -612,13 +636,21 @@ export function buildValidationSql(now = new Date()): string {
     SELECT COALESCE(SUM(delta_bytes), 0) FROM storage_usage_ledger
     WHERE delta_bytes > 0
       AND reason NOT IN ('opening_balance', 'opening_balance_complete', 'integrity_opening_balance')
-      AND occurred_at >= ${storageLedgerExactFrom} AND occurred_at < ${currentHour}
+      AND occurred_at >= MAX(
+        COALESCE(${storageLedgerExactFrom}, ${MIN_VALID_TIMESTAMP_MS}),
+        COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})
+      )
+      AND occurred_at < ${currentHour}
   ),
   'rawStorageReleasedBytes', (
     SELECT COALESCE(SUM(-delta_bytes), 0) FROM storage_usage_ledger
     WHERE delta_bytes < 0
       AND reason NOT IN ('opening_balance', 'opening_balance_complete', 'integrity_opening_balance')
-      AND occurred_at >= ${storageLedgerExactFrom} AND occurred_at < ${currentHour}
+      AND occurred_at >= MAX(
+        COALESCE(${storageLedgerExactFrom}, ${MIN_VALID_TIMESTAMP_MS}),
+        COALESCE(${statisticsFirstFullHourMsSql}, ${MIN_VALID_TIMESTAMP_MS})
+      )
+      AND occurred_at < ${currentHour}
   )
 ) AS summary;`
 
@@ -1053,6 +1085,7 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
     summary.invalidDownloadTaskEvents > 0 ||
     summary.orphanRollupBuckets > 0 ||
     summary.requiredDimensionMismatchGroups > 0 ||
+    summary.lowerBoundRollups > 0 ||
     summary.legacyRollupRows > 0 ||
     summary.counterMissingBuckets > 0 ||
     summary.openCounterMarkers > 0
@@ -1065,6 +1098,7 @@ export function assertBackfillValidation(summary: ValidationSummary): void {
         invalidDownloadTaskEvents: summary.invalidDownloadTaskEvents,
         orphanRollupBuckets: summary.orphanRollupBuckets,
         requiredDimensionMismatchGroups: summary.requiredDimensionMismatchGroups,
+        lowerBoundRollups: summary.lowerBoundRollups,
         legacyRollupRows: summary.legacyRollupRows,
         counterMissingBuckets: summary.counterMissingBuckets,
         openCounterMarkers: summary.openCounterMarkers,

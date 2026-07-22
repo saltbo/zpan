@@ -27,6 +27,18 @@ describe('admin stats backfill', () => {
         typeof assertBackfillValidation
       >[0]),
     ).toThrow('"requiredDimensionMismatchGroups":1')
+    expect(() =>
+      assertBackfillValidation({ lowerBoundRollups: 1 } as Parameters<typeof assertBackfillValidation>[0]),
+    ).toThrow('"lowerBoundRollups":1')
+  })
+
+  it('builds one compound branch per authoritative counter source', () => {
+    const sql = buildAdminStatsCounterRowsSql({ fromMs: 0, toMs: 3_600_000 })
+
+    expect(sql.match(/FROM audit_events ae/g)).toHaveLength(1)
+    expect(sql.match(/FROM cloud_traffic_reports traffic_report/g)).toHaveLength(1)
+    expect(sql.match(/FROM storage_usage_ledger storage_change/g)).toHaveLength(1)
+    expect(sql.match(/UNION ALL/g)).toHaveLength(11)
   })
 
   it('recovers exact available facts and is idempotent', () => {
@@ -38,7 +50,7 @@ describe('admin stats backfill', () => {
     const snapshotObservedAt = '2026-07-10T09:50:00.000Z'
     const eventSec = Math.floor(eventMs / 1000)
     const currentHourMs = Date.parse('2026-07-10T12:00:00.000Z')
-    const storageOpeningMs = Date.parse('2026-07-09T00:00:00.000Z')
+    const storageOpeningMs = Date.parse('2026-03-01T00:00:00.000Z')
     const currentEventSec = Math.floor(Date.parse('2026-07-10T12:10:00.000Z') / 1000)
     const latestClosedHour = Date.parse('2026-07-10T11:00:00.000Z')
     const firstExactHour = Math.ceil(historyStartMs / 3_600_000) * 3_600_000
@@ -155,6 +167,8 @@ describe('admin stats backfill', () => {
       INSERT INTO storage_usage_ledger VALUES
         ('ledger-opening', 'opening:complete', '', '', 'storage', 'global', 0, 'opening_balance_complete',
           ${storageOpeningMs}, ${storageOpeningMs}),
+        ('ledger-before-stats', 'matter:before-stats', 'o1', 'storage-1', 'matter', 'before-stats', 700, 'matter_activated',
+          ${historyStartMs + 600_000}, ${historyStartMs + 600_000}),
         ('ledger-written', 'matter:written', 'o1', 'storage-1', 'matter', 'written', 600, 'matter_activated',
           ${eventMs}, ${eventMs}),
         ('ledger-released', 'matter:released', 'o1', 'storage-1', 'matter', 'released', -100, 'matter_purged',
@@ -173,6 +187,8 @@ describe('admin stats backfill', () => {
         ('snapshot-marker', ${eventHourMs}, '', 'stats.rollup_run', '', '', 1, 0, 0,
           '{"version":3,"scope":"snapshots","quality":"exact","snapshotQuality":"exact","snapshotObservedAt":"${snapshotObservedAt}"}', ${eventMs}),
         ('snapshot-gauge', ${eventHourMs}, '', 'storage.used', '', '', 0, 512, 0,
+          '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"${snapshotObservedAt}"}', ${eventMs}),
+        ('orphan-snapshot-gauge', ${eventHourMs - 3_600_000}, '', 'storage.used', '', '', 0, 256, 0,
           '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"${snapshotObservedAt}"}', ${eventMs});
     `)
 
@@ -240,6 +256,8 @@ describe('admin stats backfill', () => {
       counterMissingBuckets: 0,
       openCounterMarkers: 0,
       requiredDimensionMismatchGroups: 0,
+      orphanRollupBuckets: 0,
+      lowerBoundRollups: 0,
       rawUploadAttempts: 1,
       rollupUploadAttempts: 1,
       rawUserSignups: 2,
@@ -305,6 +323,9 @@ describe('admin stats backfill', () => {
     expect(db.prepare('SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE bucket_start = 0').get()).toEqual({
       value: 0,
     })
+    expect(
+      db.prepare("SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE id = 'orphan-snapshot-gauge'").get(),
+    ).toEqual({ value: 0 })
     expect(
       db.prepare('SELECT COUNT(*) AS value FROM stats_rollups_hourly WHERE bucket_start >= ?').get(currentHourMs),
     ).toEqual({ value: 0 })

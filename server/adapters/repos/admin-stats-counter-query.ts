@@ -239,7 +239,7 @@ WHERE count <> excluded.count
 }
 
 function buildCounterSql(range: AdminStatsCounterQueryRange, statement: string): string {
-  const sourceRows = HOURLY_SOURCES.flatMap(hourlySourceRows).join('\nUNION ALL\n')
+  const sourceRows = HOURLY_SOURCES.map(hourlySourceRow).join('\nUNION ALL\n')
   return `WITH
 bounds AS (
   SELECT (${range.fromMs}) AS from_ms, (${range.toMs}) AS to_ms
@@ -296,22 +296,17 @@ aggregated_rows AS (
 ${statement}`
 }
 
-function hourlySourceRows(source: HourlySource): string[] {
-  return [
-    hourlySourceRow(source),
-    ...Object.entries(source.dimensions ?? {}).map(([key, value]) => hourlySourceRow(source, key, value)),
-  ]
-}
-
-function hourlySourceRow(source: HourlySource, dimensionKey = '', dimensionExpression = "''"): string {
+function hourlySourceRow(source: HourlySource): string {
   const timestamp = `(${source.timestampMs})`
   const bucket = `CAST(${timestamp} / ${HOUR_MS} AS INTEGER) * ${HOUR_MS}`
-  const dimension = dimensionKey ? `CAST((${dimensionExpression}) AS TEXT)` : "''"
+  const dimensions = ["'', ''", ...Object.entries(source.dimensions ?? {}).map(([key, value]) => `'${key}', ${value}`)]
+    .map((entry) => `      ${entry}`)
+    .join(',\n')
   const filters = [
     source.where,
     `${timestamp} >= (SELECT from_ms FROM bounds)`,
     `${timestamp} < (SELECT to_ms FROM bounds)`,
-    dimensionKey ? `(${dimensionExpression}) IS NOT NULL AND CAST((${dimensionExpression}) AS TEXT) <> ''` : null,
+    `(dimension.key = '' OR (dimension.value IS NOT NULL AND CAST(dimension.value AS TEXT) <> ''))`,
   ]
     .filter(Boolean)
     .join('\n    AND ')
@@ -319,14 +314,17 @@ function hourlySourceRow(source: HourlySource, dimensionKey = '', dimensionExpre
   ${bucket} AS bucket_start,
   ${source.org} AS org_id,
   '${source.metric}' AS metric_key,
-  '${dimensionKey}' AS dimension_key,
-  ${dimension} AS dimension_value,
+  dimension.key AS dimension_key,
+  CAST(dimension.value AS TEXT) AS dimension_value,
   ${source.count ?? 'COUNT(*)'} AS count,
   ${source.bytes ?? '0'} AS bytes,
   ${source.uniqueCount ?? '0'} AS unique_count
 FROM ${source.source}
+CROSS JOIN json_each(json_object(
+${dimensions}
+    )) AS dimension
 WHERE ${filters}
-GROUP BY 1, 2${dimensionKey ? ', 5' : ''}`
+GROUP BY 1, 2, 4, 5`
 }
 
 function indent(value: string, spaces: number): string {
