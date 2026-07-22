@@ -559,7 +559,7 @@ describe('admin hourly stats rollup', () => {
     expect(await completeReader.completeDayKeys('counters')).toEqual(new Set(['2026-07-10']))
   })
 
-  it('never exposes the current open hour, even if rollup rows already exist', async () => {
+  it('reads exact current-hour snapshots without exposing current-hour counters', async () => {
     const { db } = await createTestApp()
     const bucketStart = Date.parse('2026-07-10T10:00:00.000Z')
     await db.run(sql`
@@ -570,6 +570,8 @@ describe('admin hourly stats rollup', () => {
         ('current-hour-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0,
           '{"version":3,"scope":"full","quality":"exact"}', ${bucketStart}),
         ('current-hour-rollup', ${bucketStart}, '', 'transfer.upload', '', '', 1, 42, 0,
+          '{"version":3,"scope":"full","quality":"exact"}', ${bucketStart}),
+        ('current-hour-snapshot', ${bucketStart}, '', 'storage.used', '', '', 0, 99, 0,
           '{"version":3,"scope":"full","quality":"exact"}', ${bucketStart})
     `)
     const reader = new AdminStatsHourlyReader(
@@ -583,6 +585,12 @@ describe('admin hourly stats rollup', () => {
     )
 
     expect(await reader.rows(M.transferUpload)).toEqual([])
+    expect(await reader.rows(M.storageUsed)).toEqual([expect.objectContaining({ bytes: 99 })])
     expect(await reader.coverage()).toMatchObject({ status: 'empty', expectedBuckets: 0, completedBuckets: 0 })
+    expect(await reader.coverage('snapshots')).toMatchObject({
+      status: 'complete',
+      expectedBuckets: 1,
+      completedBuckets: 1,
+    })
   })
 })

@@ -32,7 +32,8 @@ export interface HourlyMetricRow {
 
 export class AdminStatsHourlyReader {
   private readonly queryFrom: Date
-  private readonly queryTo: Date
+  private readonly counterQueryTo: Date
+  private readonly snapshotQueryTo: Date
   private readonly metricRows = new Map<string, Promise<HourlyMetricRow[]>>()
   private readonly markerRowsPromises = new Map<AdminStatsRollupScope, Promise<CompatibleMarkerRow[]>>()
 
@@ -46,7 +47,9 @@ export class AdminStatsHourlyReader {
       throw new Error('stats_range_must_align_to_utc_hours')
     }
     this.queryFrom = range.from
-    this.queryTo = new Date(Math.min(rangeToExclusive, floorHour(now).getTime()))
+    const currentHourStart = floorHour(now).getTime()
+    this.counterQueryTo = new Date(Math.min(rangeToExclusive, currentHourStart))
+    this.snapshotQueryTo = new Date(Math.min(rangeToExclusive, currentHourStart + HOUR_MS))
   }
 
   async rows(
@@ -76,7 +79,7 @@ export class AdminStatsHourlyReader {
   async topSpaceUsage(
     options: { limit?: number; personalOnly?: boolean } = {},
   ): Promise<Array<{ orgId: string; usedBytes: number; quotaBytes: number }>> {
-    if (this.queryFrom >= this.queryTo) return []
+    if (this.queryFrom >= this.snapshotQueryTo) return []
     const limit = options.limit ?? DASHBOARD_RANKING_LIMIT
     const personalFilter = options.personalOnly
       ? sql`AND (org.slug LIKE 'personal-%' OR (json_valid(org.metadata) = 1 AND json_extract(org.metadata, '$.type') = 'personal'))`
@@ -90,7 +93,7 @@ export class AdminStatsHourlyReader {
           AND dimension_key = ''
           AND dimension_value = ''
           AND bucket_start >= ${this.queryFrom.getTime()}
-          AND bucket_start < ${this.queryTo.getTime()}
+          AND bucket_start < ${this.snapshotQueryTo.getTime()}
           AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.version') END = ${ROLLUP_VERSION}
           AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') END IN ('snapshots', 'full')
           AND CASE WHEN json_valid(metadata) = 1 THEN
@@ -129,7 +132,8 @@ export class AdminStatsHourlyReader {
   }
 
   async coverage(requiredScope: AdminStatsRollupScope = 'full'): Promise<AdminStatsCoverage> {
-    const expectedBuckets = Math.max(0, Math.floor((this.queryTo.getTime() - this.queryFrom.getTime()) / HOUR_MS))
+    const queryTo = this.queryTo(requiredScope)
+    const expectedBuckets = Math.max(0, Math.floor((queryTo.getTime() - this.queryFrom.getTime()) / HOUR_MS))
     const markerRows = await this.markerRows(requiredScope)
     const completedBuckets = markerRows.length
     const lowerBoundBuckets = markerRows.filter(
@@ -151,9 +155,10 @@ export class AdminStatsHourlyReader {
 
   async completeDayKeys(requiredScope: AdminStatsRollupScope): Promise<Set<string>> {
     const markerBuckets = await this.markerBuckets(requiredScope)
+    const queryTo = this.queryTo(requiredScope)
     const expectedByDay = new Map<string, number>()
     const completedByDay = new Map<string, number>()
-    for (let at = this.queryFrom.getTime(); at < this.queryTo.getTime(); at += HOUR_MS) {
+    for (let at = this.queryFrom.getTime(); at < queryTo.getTime(); at += HOUR_MS) {
       const day = this.dayKey(new Date(at))
       expectedByDay.set(day, (expectedByDay.get(day) ?? 0) + 1)
       if (markerBuckets.has(at)) completedByDay.set(day, (completedByDay.get(day) ?? 0) + 1)
@@ -166,7 +171,7 @@ export class AdminStatsHourlyReader {
   }
 
   endExclusive(): Date {
-    return this.queryTo
+    return this.counterQueryTo
   }
 
   dayKey(date: Date): string {
@@ -177,8 +182,9 @@ export class AdminStatsHourlyReader {
     metric: AdminStatsMetric,
     dimensionKeys: readonly (AdminStatsDimension | '')[],
   ): Promise<HourlyMetricRow[]> {
-    if (this.queryFrom >= this.queryTo) return []
     const requiredScope = metricDefinition(metric).kind === 'gauge' ? 'snapshots' : 'counters'
+    const queryTo = this.queryTo(requiredScope)
+    if (this.queryFrom >= queryTo) return []
     const markerBuckets = await this.markerBuckets(requiredScope)
     if (markerBuckets.size === 0) return []
     const rows = await this.db
@@ -198,7 +204,7 @@ export class AdminStatsHourlyReader {
           eq(statsRollupsHourly.metricKey, metric),
           inArray(statsRollupsHourly.dimensionKey, dimensionKeys),
           gte(statsRollupsHourly.bucketStart, this.queryFrom),
-          lt(statsRollupsHourly.bucketStart, this.queryTo),
+          lt(statsRollupsHourly.bucketStart, queryTo),
           sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.version') END = ${ROLLUP_VERSION}`,
           requiredScope === 'snapshots'
             ? sql`CASE WHEN json_valid(${statsRollupsHourly.metadata}) = 1 THEN json_extract(${statsRollupsHourly.metadata}, '$.scope') END IN ('snapshots', 'full')`
@@ -236,7 +242,8 @@ export class AdminStatsHourlyReader {
   }
 
   private async loadMarkerRows(requiredScope: AdminStatsRollupScope): Promise<CompatibleMarkerRow[]> {
-    if (this.queryFrom >= this.queryTo) return []
+    const queryTo = this.queryTo(requiredScope)
+    if (this.queryFrom >= queryTo) return []
     const rows = await this.db
       .select({ bucketStart: statsRollupsHourly.bucketStart, metadata: statsRollupsHourly.metadata })
       .from(statsRollupsHourly)
@@ -246,7 +253,7 @@ export class AdminStatsHourlyReader {
           eq(statsRollupsHourly.orgId, ''),
           eq(statsRollupsHourly.dimensionKey, ''),
           gte(statsRollupsHourly.bucketStart, this.queryFrom),
-          lt(statsRollupsHourly.bucketStart, this.queryTo),
+          lt(statsRollupsHourly.bucketStart, queryTo),
         ),
       )
     return rows.flatMap((row) => {
@@ -257,6 +264,10 @@ export class AdminStatsHourlyReader {
         ? [{ bucketStart: row.bucketStart, metadata }]
         : []
     })
+  }
+
+  private queryTo(requiredScope: AdminStatsRollupScope): Date {
+    return requiredScope === 'snapshots' ? this.snapshotQueryTo : this.counterQueryTo
   }
 }
 

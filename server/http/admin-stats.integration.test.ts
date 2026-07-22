@@ -324,6 +324,64 @@ describe('site stats routes', () => {
     expect(sharing.typeBreakdown).toEqual([])
   })
 
+  it('publishes exact current-hour snapshots without treating open counters as complete', async () => {
+    const { db } = await createTestApp()
+    const bucketStart = Date.UTC(2026, 6, 22, 10)
+    const now = new Date(bucketStart + 30 * 60_000)
+    const metadata = JSON.stringify({
+      version: 3,
+      scope: 'snapshots',
+      quality: 'exact',
+      snapshotObservedAt: now.toISOString(),
+    })
+    await db.run(sql`
+      INSERT INTO stats_rollups_hourly (
+        id, bucket_start, org_id, metric_key, dimension_key, dimension_value,
+        count, bytes, unique_count, metadata, updated_at
+      ) VALUES
+        ('current-snapshot-marker', ${bucketStart}, '', 'stats.rollup_run', '', '', 1, 0, 0,
+          ${metadata}, ${now.getTime()}),
+        ('current-user-inventory', ${bucketStart}, '', 'user.inventory', '', '', 42, 0, 0,
+          ${metadata}, ${now.getTime()}),
+        ('current-active-base', ${bucketStart}, '', 'user.active_snapshot', '', '', 7, 0, 7,
+          ${metadata}, ${now.getTime()}),
+        ('current-active-dau', ${bucketStart}, '', 'user.active_snapshot', 'window', 'dau', 3, 0, 3,
+          ${metadata}, ${now.getTime()}),
+        ('current-active-wau', ${bucketStart}, '', 'user.active_snapshot', 'window', 'wau', 5, 0, 5,
+          ${metadata}, ${now.getTime()}),
+        ('current-active-mau', ${bucketStart}, '', 'user.active_snapshot', 'window', 'mau', 7, 0, 7,
+          ${metadata}, ${now.getTime()}),
+        ('current-storage-used', ${bucketStart}, '', 'storage.used', '', '', 0, 4096, 0,
+          ${metadata}, ${now.getTime()}),
+        ('current-storage-quota', ${bucketStart}, '', 'storage.quota', '', '', 0, 8192, 0,
+          ${metadata}, ${now.getTime()}),
+        ('current-storage-quota-invalid', ${bucketStart}, '', 'storage.quota', 'status', 'invalid', 0, 0, 0,
+          ${metadata}, ${now.getTime()})
+    `)
+    const range = {
+      from: new Date(Date.UTC(2026, 6, 22)),
+      to: new Date(Date.UTC(2026, 6, 23) - 1),
+      timeZone: 'UTC' as const,
+    }
+    const repo = createAdminStatsRepo(db)
+
+    const [overview, growth, storage] = await Promise.all([
+      repo.getOverviewStatistics(now, range),
+      repo.getDashboardGrowthStats(now, range),
+      repo.getDashboardStorageStats(now, range),
+    ])
+
+    expect(overview.users.trend).toEqual([{ date: '2026-07-22', totalUsers: 42, activeUsers: 7, newUsers: null }])
+    expect(growth.summary.totalUsers).toBe(42)
+    expect(growth.summary.activeUsers.value).toBe(7)
+    expect(growth.summary.newUsers.value).toBeNull()
+    expect(growth.userScaleTrend).toEqual([{ date: '2026-07-22', newUsers: null, totalUsers: 42 }])
+    expect(growth.activeUserTrend).toEqual([{ date: '2026-07-22', dau: 3, wau: 5, mau: 7 }])
+    expect(growth.coverage).toMatchObject({ status: 'empty', completedBuckets: 0, expectedBuckets: 10 })
+    expect(growth.snapshotCoverage).toMatchObject({ status: 'partial', completedBuckets: 1, expectedBuckets: 11 })
+    expect(storage.summary).toMatchObject({ storageUsedBytes: 4096, quotaBytes: 8192 })
+  })
+
   it('hydrates completed-hour dashboard dimensions from rollups', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)

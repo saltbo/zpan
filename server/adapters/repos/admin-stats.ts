@@ -62,7 +62,7 @@ async function getOverviewStatistics(
   range: AdminStatsDateRange,
 ): Promise<AdminOverviewStatistics> {
   const effective = effectiveRange(range, now)
-  const reader = new AdminStatsHourlyReader(db, effective, now)
+  const reader = new AdminStatsHourlyReader(db, range, now)
   const [
     inventory,
     active,
@@ -251,7 +251,7 @@ async function getDashboardOverviewStats(
 ): Promise<AdminDashboardOverviewStats> {
   const effective = effectiveRange(range, now)
   const previous = previousRange(effective)
-  const reader = new AdminStatsHourlyReader(db, effective, now)
+  const reader = new AdminStatsHourlyReader(db, range, now)
   const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     users,
@@ -387,7 +387,7 @@ async function getDashboardOperationsStats(
   range: AdminStatsDateRange,
 ): Promise<AdminDashboardOperationsStats> {
   const effective = effectiveRange(range, now)
-  const reader = new AdminStatsHourlyReader(db, effective, now)
+  const reader = new AdminStatsHourlyReader(db, range, now)
   const [
     activeBackgroundJobs,
     activeRemoteDownloads,
@@ -463,7 +463,7 @@ async function getDashboardGrowthStats(
 ): Promise<AdminDashboardGrowthStats> {
   const effective = effectiveRange(range, now)
   const previous = previousRange(effective)
-  const reader = new AdminStatsHourlyReader(db, effective, now)
+  const reader = new AdminStatsHourlyReader(db, range, now)
   const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     users,
@@ -544,7 +544,7 @@ async function getDashboardStorageStats(
 ): Promise<AdminDashboardStorageStats> {
   const effective = effectiveRange(range, now)
   const previous = previousRange(effective)
-  const reader = new AdminStatsHourlyReader(db, effective, now)
+  const reader = new AdminStatsHourlyReader(db, range, now)
   const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     quotas,
@@ -661,7 +661,7 @@ async function getDashboardTrafficStats(
 ): Promise<AdminDashboardTrafficStats> {
   const effective = effectiveRange(range, now)
   const previous = previousRange(effective)
-  const reader = new AdminStatsHourlyReader(db, effective, now)
+  const reader = new AdminStatsHourlyReader(db, range, now)
   const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     traffic,
@@ -826,7 +826,7 @@ async function getDashboardSharingStats(
 ): Promise<AdminDashboardSharingStats> {
   const effective = effectiveRange(range, now)
   const previous = previousRange(effective)
-  const reader = new AdminStatsHourlyReader(db, effective, now)
+  const reader = new AdminStatsHourlyReader(db, range, now)
   const previousReader = new AdminStatsHourlyReader(db, previous, now)
   const [
     sharing,
