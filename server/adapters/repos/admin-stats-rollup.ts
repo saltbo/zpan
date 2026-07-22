@@ -25,7 +25,7 @@ import {
 import type { Database } from '../../platform/interface'
 import { ADMIN_STATS_FACT_COUNTER_METRICS, buildAdminStatsCounterRowsSqlStatements } from './admin-stats-counter-query'
 import { ensureAdminStatsIntegrityOpening, inspectAdminStatsSourceIntegrity } from './admin-stats-integrity'
-import { createCloudTrafficReportRepo } from './cloud-traffic-report'
+import { createCloudTrafficReportRepo, trafficLedgerExactFrom } from './cloud-traffic-report'
 import { getEffectiveQuotasByOrg } from './quota'
 import { ensureStorageUsageOpeningBalances } from './storage-usage-ledger'
 
@@ -93,7 +93,10 @@ export async function rebuildAdminStatsHour(
   const capturedSnapshot = await compatibleSnapshotMarker(db, bucketStart)
 
   await ensureStorageUsageOpeningBalances(db, generatedAt)
-  await createCloudTrafficReportRepo(db).ensureLedgerOpening(generatedAt)
+  const trafficReports = createCloudTrafficReportRepo(db)
+  await trafficReports.ensureLedgerOpening(generatedAt)
+  const trafficLedgerOpening = await trafficReports.getLedgerOpening()
+  if (!trafficLedgerOpening) throw new Error('traffic_ledger_opening_missing')
   const counterRows = (
     await queryStage(
       'counters',
@@ -122,6 +125,9 @@ export async function rebuildAdminStatsHour(
   const lowerBoundRows = 0
   rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' })
   rollups.incrementValue(M.statsRollupRun, '', 'metric_key', M.userSignup, 1, 0, 0)
+  if (bucketStart.getTime() >= trafficLedgerExactFrom(trafficLedgerOpening).getTime()) {
+    rollups.incrementValue(M.statsRollupRun, '', 'metric_key', M.transferDownloadIssued, 1, 0, 0)
+  }
   const completionScope = capturedSnapshot ? 'full' : 'counters'
   const counterQuality: 'exact' = 'exact'
 

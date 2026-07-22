@@ -315,6 +315,7 @@ describe('admin hourly stats rollup', () => {
     expect(row(M.webhookSnapshot, 'status', 'processed', '')).toMatchObject({ count: 1 })
     expect(row(M.statsRollupRun, '', '', '')).toMatchObject({ count: 1 })
     expect(row(M.statsRollupRun, 'metric_key', M.userSignup, '')).toMatchObject({ count: 1 })
+    expect(row(M.statsRollupRun, 'metric_key', M.transferDownloadIssued, '')).toMatchObject({ count: 1 })
     expect(JSON.parse(row(M.transferUpload)?.metadata ?? '{}')).toMatchObject({ version: 3, quality: 'exact' })
     expect(JSON.parse(row(M.statsRollupRun, '', '', '')?.metadata ?? '{}')).toMatchObject({
       version: 3,
@@ -325,6 +326,13 @@ describe('admin hourly stats rollup', () => {
       snapshotObservedAt: generatedAt.toISOString(),
     })
     expect(JSON.parse(row(M.statsRollupRun, 'metric_key', M.userSignup, '')?.metadata ?? '{}')).toMatchObject({
+      version: 3,
+      scope: 'counters',
+      quality: 'exact',
+    })
+    expect(
+      JSON.parse(row(M.statsRollupRun, 'metric_key', M.transferDownloadIssued, '')?.metadata ?? '{}'),
+    ).toMatchObject({
       version: 3,
       scope: 'counters',
       quality: 'exact',
@@ -364,15 +372,39 @@ describe('admin hourly stats rollup', () => {
     expect(storedRows).toBeGreaterThan(first.rows)
 
     await captureAdminStatsSnapshot(db, bucketStart, generatedAt)
-    const [{ count: signupMarkers }] = await db.all<{ count: number }>(sql`
+    const markerCounts = await db.all<{ metric: string; count: number }>(sql`
+      SELECT dimension_value AS metric, COUNT(*) AS count
+      FROM stats_rollups_hourly
+      WHERE bucket_start = ${bucketStart.getTime()}
+        AND metric_key = ${M.statsRollupRun}
+        AND dimension_key = 'metric_key'
+        AND dimension_value IN (${M.userSignup}, ${M.transferDownloadIssued})
+      GROUP BY dimension_value
+    `)
+    expect(markerCounts).toEqual(
+      expect.arrayContaining([
+        { metric: M.userSignup, count: 1 },
+        { metric: M.transferDownloadIssued, count: 1 },
+      ]),
+    )
+  })
+
+  it('does not mark download traffic complete before the ledger exact boundary', async () => {
+    const { db } = await createTestApp()
+    const bucketStart = new Date('2026-07-10T12:00:00.000Z')
+    await createCloudTrafficReportRepo(db).ensureLedgerOpening(new Date('2026-07-10T12:30:00.000Z'))
+
+    await rebuildAdminStatsHour(db, bucketStart, new Date('2026-07-10T13:05:00.000Z'))
+
+    const [{ count }] = await db.all<{ count: number }>(sql`
       SELECT COUNT(*) AS count
       FROM stats_rollups_hourly
       WHERE bucket_start = ${bucketStart.getTime()}
         AND metric_key = ${M.statsRollupRun}
         AND dimension_key = 'metric_key'
-        AND dimension_value = ${M.userSignup}
+        AND dimension_value = ${M.transferDownloadIssued}
     `)
-    expect(signupMarkers).toBe(1)
+    expect(count).toBe(0)
   })
 
   it('rejects buckets that are not aligned to a UTC hour', async () => {
