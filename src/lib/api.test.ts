@@ -3787,7 +3787,12 @@ describe('api', () => {
 
   describe('email config API', () => {
     it('getEmailConfig fetches admin email config', async () => {
-      const payload = { enabled: true, provider: 'cloudflare', from: 'no-reply@zpan.space' }
+      const payload = {
+        enabled: true,
+        requireEmailVerification: true,
+        provider: 'cloudflare',
+        from: 'no-reply@zpan.space',
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await getEmailConfig()
@@ -3801,7 +3806,12 @@ describe('api', () => {
     it('saveEmailConfig PUTs the expected payload', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
 
-      const payload = { enabled: true, provider: 'cloudflare' as const, from: 'no-reply@zpan.space' }
+      const payload = {
+        enabled: true,
+        requireEmailVerification: true,
+        provider: 'cloudflare' as const,
+        from: 'no-reply@zpan.space',
+      }
       await saveEmailConfig(payload)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
@@ -3814,7 +3824,12 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'bad config' }, false, 400))
 
       await expect(
-        saveEmailConfig({ enabled: true, provider: 'cloudflare', from: 'no-reply@zpan.space' }),
+        saveEmailConfig({
+          enabled: true,
+          requireEmailVerification: false,
+          provider: 'cloudflare',
+          from: 'no-reply@zpan.space',
+        }),
       ).rejects.toThrow('bad config')
     })
 

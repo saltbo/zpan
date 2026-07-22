@@ -20,6 +20,17 @@ async function signUp(ctx: TestCtx, email: string, extra?: Record<string, unknow
   })
 }
 
+async function configureRequiredEmailVerification(ctx: TestCtx) {
+  await ctx.db.insert(schema.systemOptions).values([
+    { key: 'email_enabled', value: 'true' },
+    { key: 'email_provider', value: 'http' },
+    { key: 'email_from', value: 'no-reply@example.com' },
+    { key: 'email_http_url', value: 'https://api.mail.example.com/send' },
+    { key: 'email_http_api_key', value: 'my-api-key' },
+    { key: 'auth_require_email_verification', value: 'true' },
+  ])
+}
+
 async function expectPlanEntitlement(ctx: TestCtx, resourceType: 'storage' | 'traffic', bytes: number) {
   const rows = await ctx.db.select().from(schema.orgQuotaEntitlements)
   expect(rows).toEqual(
@@ -298,6 +309,100 @@ describe('isEmailConfigured — via emailVerification conditional', () => {
     })
     // The endpoint returns 200 regardless; the callback silently returns early
     expect(res.status).toBe(200)
+  })
+})
+
+describe('dynamic email verification policy', () => {
+  it('requires verification immediately and resends the email on sign-in', async () => {
+    const { vi } = await import('vitest')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      const ctx = await createTestApp()
+      await configureRequiredEmailVerification(ctx)
+
+      const signUpResponse = await signUp(ctx, 'required@example.com', { username: 'required_user' })
+      expect(signUpResponse.status).toBe(200)
+      await expect(signUpResponse.json()).resolves.toMatchObject({ token: null })
+      expect(await ctx.db.select().from(authSchema.session)).toHaveLength(0)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      const signInResponse = await ctx.app.request('/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'required@example.com', password: 'password123456' }),
+      })
+      expect(signInResponse.status).toBe(403)
+      await expect(signInResponse.json()).resolves.toMatchObject({ code: 'EMAIL_NOT_VERIFIED' })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+
+      const usernameSignInResponse = await ctx.app.request('/api/auth/sign-in/username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'required_user', password: 'password123456' }),
+      })
+      expect(usernameSignInResponse.status).toBe(403)
+      await expect(usernameSignInResponse.json()).resolves.toMatchObject({ code: 'EMAIL_NOT_VERIFIED' })
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('accepts the verification link and marks the user as verified', async () => {
+    const { vi } = await import('vitest')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      const ctx = await createTestApp()
+      await configureRequiredEmailVerification(ctx)
+      await signUp(ctx, 'verify-required@example.com')
+
+      const request = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined
+      const payload = JSON.parse(String(request?.body)) as { html: string }
+      const verificationUrl = payload.html.match(/href="([^"]+)"/)?.[1]
+      if (!verificationUrl) throw new Error('Verification email did not contain a link')
+
+      const url = new URL(verificationUrl)
+      const verifyResponse = await ctx.app.request(`${url.pathname}${url.search}`)
+      expect(verifyResponse.status).toBe(302)
+
+      const [user] = await ctx.db
+        .select({ emailVerified: authSchema.user.emailVerified })
+        .from(authSchema.user)
+        .where(eq(authSchema.user.email, 'verify-required@example.com'))
+        .limit(1)
+      expect(user.emailVerified).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('applies a disabled policy without recreating the auth service', async () => {
+    const { vi } = await import('vitest')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
+
+    try {
+      const ctx = await createTestApp()
+      await configureRequiredEmailVerification(ctx)
+      await signUp(ctx, 'toggle@example.com')
+      await ctx.db
+        .update(schema.systemOptions)
+        .set({ value: 'false' })
+        .where(eq(schema.systemOptions.key, 'auth_require_email_verification'))
+
+      const signInResponse = await ctx.app.request('/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'toggle@example.com', password: 'password123456' }),
+      })
+      expect(signInResponse.status).toBe(200)
+      expect(signInResponse.headers.getSetCookie()).not.toHaveLength(0)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
 

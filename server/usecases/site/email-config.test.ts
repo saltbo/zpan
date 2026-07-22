@@ -67,12 +67,20 @@ describe('email-config usecase', () => {
   describe('getEmailConfig', () => {
     it('returns the disabled empty state when no config exists', async () => {
       const { deps } = makeDeps({ email: { getSettings: async () => ({ enabled: false, config: null }) } })
-      expect(await getEmailConfig(deps, platform)).toEqual({ enabled: false, provider: null })
+      expect(await getEmailConfig(deps, platform)).toEqual({
+        enabled: false,
+        requireEmailVerification: false,
+        provider: null,
+      })
     })
 
     it('returns enabled with provider null when config is incomplete', async () => {
       const { deps } = makeDeps({ email: { getSettings: async () => ({ enabled: true, config: null }) } })
-      expect(await getEmailConfig(deps, platform)).toEqual({ enabled: true, provider: null })
+      expect(await getEmailConfig(deps, platform)).toEqual({
+        enabled: true,
+        requireEmailVerification: false,
+        provider: null,
+      })
     })
 
     it('masks the SMTP password, keeping the last 4 chars', async () => {
@@ -80,6 +88,7 @@ describe('email-config usecase', () => {
       const out = await getEmailConfig(deps, platform)
       expect(out).toEqual({
         enabled: true,
+        requireEmailVerification: false,
         provider: 'smtp',
         from: 'no-reply@example.com',
         smtp: {
@@ -97,6 +106,7 @@ describe('email-config usecase', () => {
       const out = await getEmailConfig(deps, platform)
       expect(out).toEqual({
         enabled: true,
+        requireEmailVerification: false,
         provider: 'http',
         from: 'no-reply@example.com',
         http: { url: 'https://api.mail.example.com/send', apiKey: '****-key' },
@@ -107,6 +117,7 @@ describe('email-config usecase', () => {
       const { deps } = makeDeps({ email: { getSettings: async () => cloudflareSettings } })
       expect(await getEmailConfig(deps, platform)).toEqual({
         enabled: true,
+        requireEmailVerification: false,
         provider: 'cloudflare',
         from: 'no-reply@zpan.space',
       })
@@ -125,6 +136,14 @@ describe('email-config usecase', () => {
       const out = (await getEmailConfig(deps, platform)) as unknown as { smtp: { pass: string } }
       expect(out.smtp.pass).toBe('')
     })
+
+    it('returns the stored email verification policy', async () => {
+      const { deps } = makeDeps({
+        email: { getSettings: async () => cloudflareSettings },
+        systemOptions: { getValue: async () => 'true' },
+      })
+      expect(await getEmailConfig(deps, platform)).toMatchObject({ requireEmailVerification: true })
+    })
   })
 
   describe('saveEmailConfig', () => {
@@ -132,6 +151,7 @@ describe('email-config usecase', () => {
       const { deps, setMany } = makeDeps()
       const input: SaveEmailConfigInput = {
         enabled: true,
+        requireEmailVerification: true,
         provider: 'smtp',
         from: 'sender@example.com',
         smtp: { host: 'mail.example.com', port: 465, user: 'u', pass: 'p', secure: false },
@@ -139,6 +159,7 @@ describe('email-config usecase', () => {
       await saveEmailConfig(deps, input)
       expect(setMany).toHaveBeenCalledWith([
         { key: 'email_enabled', value: 'true' },
+        { key: 'auth_require_email_verification', value: 'true' },
         { key: 'email_provider', value: 'smtp' },
         { key: 'email_from', value: 'sender@example.com' },
         { key: 'email_smtp_host', value: 'mail.example.com' },
@@ -153,6 +174,7 @@ describe('email-config usecase', () => {
       const { deps, setMany } = makeDeps()
       const input: SaveEmailConfigInput = {
         enabled: true,
+        requireEmailVerification: false,
         provider: 'http',
         from: 'http-from@example.com',
         http: { url: 'https://api.sendgrid.com/v3/mail/send', apiKey: 'SG.key12345' },
@@ -160,6 +182,7 @@ describe('email-config usecase', () => {
       await saveEmailConfig(deps, input)
       expect(setMany).toHaveBeenCalledWith([
         { key: 'email_enabled', value: 'true' },
+        { key: 'auth_require_email_verification', value: 'false' },
         { key: 'email_provider', value: 'http' },
         { key: 'email_from', value: 'http-from@example.com' },
         { key: 'email_http_url', value: 'https://api.sendgrid.com/v3/mail/send' },
@@ -167,12 +190,46 @@ describe('email-config usecase', () => {
       ])
     })
 
+    it('preserves the stored SMTP password when the masked value is submitted unchanged', async () => {
+      const { deps, setMany } = makeDeps({ systemOptions: { getValue: async () => 'supersecret' } })
+      await saveEmailConfig(deps, {
+        enabled: true,
+        requireEmailVerification: true,
+        provider: 'smtp',
+        from: 'sender@example.com',
+        smtp: { host: 'mail.example.com', port: 587, user: 'u', pass: '****cret', secure: true },
+      })
+
+      expect(setMany).toHaveBeenCalledWith(expect.arrayContaining([{ key: 'email_smtp_pass', value: 'supersecret' }]))
+    })
+
+    it('preserves the stored HTTP API key when the masked value is submitted unchanged', async () => {
+      const { deps, setMany } = makeDeps({ systemOptions: { getValue: async () => 'my-secret-key' } })
+      await saveEmailConfig(deps, {
+        enabled: true,
+        requireEmailVerification: true,
+        provider: 'http',
+        from: 'sender@example.com',
+        http: { url: 'https://api.mail.example.com/send', apiKey: '****-key' },
+      })
+
+      expect(setMany).toHaveBeenCalledWith(
+        expect.arrayContaining([{ key: 'email_http_api_key', value: 'my-secret-key' }]),
+      )
+    })
+
     it('writes only the three shared rows for Cloudflare', async () => {
       const { deps, setMany } = makeDeps()
-      const input: SaveEmailConfigInput = { enabled: true, provider: 'cloudflare', from: 'no-reply@zpan.space' }
+      const input: SaveEmailConfigInput = {
+        enabled: true,
+        requireEmailVerification: false,
+        provider: 'cloudflare',
+        from: 'no-reply@zpan.space',
+      }
       await saveEmailConfig(deps, input)
       expect(setMany).toHaveBeenCalledWith([
         { key: 'email_enabled', value: 'true' },
+        { key: 'auth_require_email_verification', value: 'false' },
         { key: 'email_provider', value: 'cloudflare' },
         { key: 'email_from', value: 'no-reply@zpan.space' },
       ])
@@ -182,6 +239,7 @@ describe('email-config usecase', () => {
       const { deps, setMany } = makeDeps()
       const input: SaveEmailConfigInput = {
         enabled: false,
+        requireEmailVerification: false,
         provider: 'smtp',
         from: 'sender@example.com',
         smtp: { host: 'mail.example.com', port: 587, user: '', pass: '', secure: true },
@@ -193,6 +251,19 @@ describe('email-config usecase', () => {
           { key: 'email_provider', value: 'smtp' },
         ]),
       )
+    })
+
+    it('rejects required verification when email sending is disabled', async () => {
+      const { deps, setMany } = makeDeps()
+      await expect(
+        saveEmailConfig(deps, {
+          enabled: false,
+          requireEmailVerification: true,
+          provider: 'cloudflare',
+          from: 'no-reply@zpan.space',
+        }),
+      ).rejects.toMatchObject({ httpStatus: 400 })
+      expect(setMany).not.toHaveBeenCalled()
     })
   })
 

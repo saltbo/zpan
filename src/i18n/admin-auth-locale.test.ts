@@ -75,6 +75,8 @@ const ADMIN_AUTH_KEYS = [
   'admin.auth.emailSection',
   'admin.auth.emailEnabled',
   'admin.auth.emailEnabledHint',
+  'admin.auth.emailVerificationRequired',
+  'admin.auth.emailVerificationHint',
   'admin.auth.emailProvider',
   'admin.auth.emailProviderPlaceholder',
   'admin.auth.emailCloudflare',

@@ -1,5 +1,5 @@
 import { apiKey } from '@better-auth/api-key'
-import { APIError, type BetterAuthPlugin, betterAuth } from 'better-auth'
+import { APIError, type BetterAuthOptions, type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import type { CaptchaOptions } from 'better-auth/plugins'
@@ -39,6 +39,7 @@ import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { executeWriteTransaction } from './db/transaction'
 import { CAPTCHA_AUTH_ENDPOINTS, type CaptchaConfig } from './domain/captcha'
+import { EMAIL_VERIFICATION_REQUIRED_OPTION_KEY, isEmailVerificationRequired } from './domain/email-verification'
 import { currentTrafficPeriod } from './domain/quota'
 import { recordAuditEffect } from './lib/audit'
 import { isLocalNetworkOrigin } from './lib/local-origin'
@@ -128,6 +129,13 @@ function dynamicCaptcha(db: Database): BetterAuthPlugin {
       return plugin.onRequest?.(request, ctx)
     },
   }
+}
+
+const EMAIL_VERIFICATION_AUTH_PATHS = ['/sign-up/email', '/sign-in/email', '/sign-in/username'] as const
+
+function usesEmailVerificationPolicy(request: Request): boolean {
+  const path = new URL(request.url).pathname
+  return EMAIL_VERIFICATION_AUTH_PATHS.some((authPath) => path.endsWith(authPath))
 }
 
 const _INVITE_CODE_ERRORS: Record<string, string> = {
@@ -303,9 +311,10 @@ export async function createAuth(
   // db proxy in a binding-free Platform — matching the previous behaviour where
   // a Database source had no CF binding available.
   const authPlatform: Platform = platformProxy ?? { db: dbProxy, getEnv: () => undefined, getBinding: () => undefined }
-  const email = createEmailGateway(createSystemOptionsRepo(db))
+  const systemOptionsRepo = createSystemOptionsRepo(db)
+  const email = createEmailGateway(systemOptionsRepo)
   const providerConfigs = await loadProviderConfigs(rawDb)
-  const auth = betterAuth({
+  const authOptions = {
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,
     baseURL,
@@ -668,15 +677,51 @@ export async function createAuth(
         },
       },
     },
-  })
+  } satisfies BetterAuthOptions
 
-  // betterAuth() starts its lazy $context init synchronously, inside whichever
-  // request constructs the instance. Resolve it here so a cached instance never
-  // carries a pending promise tied to its creating request — on Cloudflare
-  // Workers such a promise never settles when awaited from a later request,
-  // which would hang every auth call in the isolate.
-  await auth.$context
-  return auth
+  const buildAuth = (requireEmailVerification: boolean) =>
+    betterAuth({
+      ...authOptions,
+      emailAndPassword: { ...authOptions.emailAndPassword, requireEmailVerification },
+      emailVerification: {
+        ...authOptions.emailVerification,
+        sendOnSignUp: requireEmailVerification,
+        sendOnSignIn: requireEmailVerification,
+      },
+    })
+
+  const createAuthInstance = async (requireEmailVerification: boolean) => {
+    const auth = buildAuth(requireEmailVerification)
+
+    // betterAuth() starts its lazy $context init synchronously, inside whichever
+    // request constructs the instance. Resolve it here so a cached instance never
+    // carries a pending promise tied to its creating request — on Cloudflare
+    // Workers such a promise never settles when awaited from a later request,
+    // which would hang every auth call in the isolate.
+    await auth.$context
+    return auth
+  }
+
+  const defaultAuth = await createAuthInstance(false)
+  let verificationAuth: typeof defaultAuth | null = null
+  const dynamicHandler = async (request: Request): Promise<Response> => {
+    if (!usesEmailVerificationPolicy(request)) return defaultAuth.handler(request)
+
+    const required = isEmailVerificationRequired(
+      await systemOptionsRepo.getValue(EMAIL_VERIFICATION_REQUIRED_OPTION_KEY),
+    )
+    if (!required) return defaultAuth.handler(request)
+
+    verificationAuth ??= await createAuthInstance(true)
+    return verificationAuth.handler(request)
+  }
+
+  return new Proxy(defaultAuth, {
+    get(target, property) {
+      if (property === 'handler') return dynamicHandler
+      return Reflect.get(target, property, target)
+    },
+  })
 }
 
 export type Auth = Awaited<ReturnType<typeof createAuth>>

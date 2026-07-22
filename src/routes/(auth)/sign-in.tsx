@@ -55,7 +55,11 @@ function SignIn() {
         : await signIn.username({ username: identity, password, callbackURL: '/files', fetchOptions })
 
       if (result.error) {
-        setError(result.error.message ?? t('auth.signInFailed'))
+        setError(
+          result.error.code === 'EMAIL_NOT_VERIFIED'
+            ? t('auth.emailNotVerified')
+            : (result.error.message ?? t('auth.signInFailed')),
+        )
         return
       }
       if (redirectTo) {

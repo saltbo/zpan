@@ -9,6 +9,7 @@ async function saveEmailConfig(page: import('@playwright/test').Page) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         enabled: true,
+        requireEmailVerification: false,
         provider: 'http',
         from: 'no-reply@example.com',
         http: {

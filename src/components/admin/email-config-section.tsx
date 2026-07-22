@@ -21,6 +21,7 @@ type EmailConfigResponse = Awaited<ReturnType<typeof getEmailConfig>>
 
 interface FormState {
   enabled: boolean
+  requireEmailVerification: boolean
   provider: ProviderType
   from: string
   smtpHost: string
@@ -34,6 +35,7 @@ interface FormState {
 
 const emptyForm: FormState = {
   enabled: false,
+  requireEmailVerification: false,
   provider: 'smtp',
   from: '',
   smtpHost: '',
@@ -50,6 +52,7 @@ function formToPayload(form: FormState): EmailConfigData {
     return {
       provider: 'smtp',
       enabled: form.enabled,
+      requireEmailVerification: form.requireEmailVerification,
       from: form.from,
       smtp: {
         host: form.smtpHost,
@@ -64,12 +67,14 @@ function formToPayload(form: FormState): EmailConfigData {
     return {
       provider: 'cloudflare',
       enabled: form.enabled,
+      requireEmailVerification: form.requireEmailVerification,
       from: form.from,
     }
   }
   return {
     provider: 'http',
     enabled: form.enabled,
+    requireEmailVerification: form.requireEmailVerification,
     from: form.from,
     http: { url: form.httpUrl, apiKey: form.httpApiKey },
   }
@@ -77,12 +82,19 @@ function formToPayload(form: FormState): EmailConfigData {
 
 function formStateFromConfig(data: EmailConfigResponse | undefined): FormState {
   if (!data) return emptyForm
-  if (data.provider === null) return { ...emptyForm, enabled: data.enabled }
+  if (data.provider === null) {
+    return {
+      ...emptyForm,
+      enabled: data.enabled,
+      requireEmailVerification: data.requireEmailVerification,
+    }
+  }
 
   const config = data as EmailConfigData
   if (config.provider === 'smtp') {
     return {
       enabled: config.enabled,
+      requireEmailVerification: config.requireEmailVerification,
       provider: 'smtp',
       from: config.from,
       smtpHost: config.smtp.host,
@@ -98,6 +110,7 @@ function formStateFromConfig(data: EmailConfigResponse | undefined): FormState {
   if (config.provider === 'http') {
     return {
       enabled: config.enabled,
+      requireEmailVerification: config.requireEmailVerification,
       provider: 'http',
       from: config.from,
       smtpHost: '',
@@ -112,6 +125,7 @@ function formStateFromConfig(data: EmailConfigResponse | undefined): FormState {
 
   return {
     enabled: config.enabled,
+    requireEmailVerification: config.requireEmailVerification,
     provider: 'cloudflare',
     from: config.from,
     smtpHost: '',
@@ -202,6 +216,9 @@ export function EmailConfigSection() {
             <Badge variant={savedForm.enabled ? 'default' : 'secondary'}>
               {savedForm.enabled ? t('admin.auth.enabled') : t('common.disabled')}
             </Badge>
+            {savedForm.requireEmailVerification && (
+              <Badge variant="secondary">{t('admin.auth.emailVerificationRequired')}</Badge>
+            )}
             <Button variant="outline" size="sm" onClick={() => setTestDialogOpen(true)} disabled={!savedForm.enabled}>
               {t('admin.auth.testEmail')}
             </Button>
@@ -242,7 +259,23 @@ export function EmailConfigSection() {
           <AdminFormLabel htmlFor="emailEnabled" help={t('admin.auth.emailEnabledHint')}>
             {t('admin.auth.emailEnabled')}
           </AdminFormLabel>
-          <Switch id="emailEnabled" checked={form.enabled} onCheckedChange={(v) => update({ enabled: !!v })} />
+          <Switch
+            id="emailEnabled"
+            checked={form.enabled}
+            onCheckedChange={(enabled) => update({ enabled, ...(!enabled ? { requireEmailVerification: false } : {}) })}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <AdminFormLabel htmlFor="requireEmailVerification" help={t('admin.auth.emailVerificationHint')}>
+            {t('admin.auth.emailVerificationRequired')}
+          </AdminFormLabel>
+          <Switch
+            id="requireEmailVerification"
+            checked={form.requireEmailVerification}
+            disabled={!form.enabled}
+            onCheckedChange={(requireEmailVerification) => update({ requireEmailVerification })}
+          />
         </div>
 
         <AdminFormField id="email-provider" label={t('admin.auth.emailProvider')} required>

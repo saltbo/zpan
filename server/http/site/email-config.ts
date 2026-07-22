@@ -6,6 +6,7 @@ import { errorResponse, jsonContent } from '../openapi'
 
 const smtpConfigSchema = z.object({
   enabled: z.boolean(),
+  requireEmailVerification: z.boolean(),
   provider: z.literal('smtp'),
   from: z.string().email(),
   smtp: z.object({
@@ -19,6 +20,7 @@ const smtpConfigSchema = z.object({
 
 const httpConfigSchema = z.object({
   enabled: z.boolean(),
+  requireEmailVerification: z.boolean(),
   provider: z.literal('http'),
   from: z.string().email(),
   http: z.object({ url: z.string().url(), apiKey: z.string().min(1) }),
@@ -26,6 +28,7 @@ const httpConfigSchema = z.object({
 
 const cloudflareConfigSchema = z.object({
   enabled: z.boolean(),
+  requireEmailVerification: z.boolean(),
   provider: z.literal('cloudflare'),
   from: z.string().email(),
 })
@@ -36,7 +39,12 @@ const emailConfigSchema = z.discriminatedUnion('provider', [smtpConfigSchema, ht
 // with the stable fields; provider-specific masked settings vary and are not
 // modeled field-for-field (no `additionalProperties` — oapi-codegen mishandles it).
 const emailSettingsSchema = z
-  .object({ enabled: z.boolean(), provider: z.string().nullable().optional(), from: z.string().optional() })
+  .object({
+    enabled: z.boolean(),
+    requireEmailVerification: z.boolean(),
+    provider: z.string().nullable().optional(),
+    from: z.string().optional(),
+  })
   .openapi('EmailSettings')
 
 const testEmailSchema = z.object({ to: z.string().email() })
@@ -61,7 +69,10 @@ const saveRoute = createRoute({
   path: '/',
   middleware: [requireAdmin] as const,
   request: { body: { content: { 'application/json': { schema: emailConfigSchema } }, required: true } },
-  responses: { 200: jsonContent(successSchema, 'Saved') },
+  responses: {
+    200: jsonContent(successSchema, 'Saved'),
+    400: errorResponse('Invalid email configuration'),
+  },
 })
 
 const testRoute = createRoute({

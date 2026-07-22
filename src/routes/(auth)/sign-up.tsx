@@ -36,6 +36,7 @@ function SignUp() {
   const [password, setPassword] = useState('')
   const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState('')
+  const [verificationSentTo, setVerificationSentTo] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [formExpanded, setFormExpanded] = useState(providers.length <= 3)
   const [captchaToken, setCaptchaToken] = useState('')
@@ -124,6 +125,22 @@ function SignUp() {
     )
   }
 
+  if (verificationSentTo) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex w-full max-w-sm flex-col gap-6 p-6 text-center">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-bold">{t('auth.verifyEmailTitle')}</h1>
+            <p className="text-muted-foreground">{t('auth.verifyEmailSent', { email: verificationSentTo })}</p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/sign-in">{t('auth.backToSignIn')}</Link>
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -141,6 +158,10 @@ function SignUp() {
       })
       if (result.error) {
         setError(result.error.message ?? t('auth.signUpFailed'))
+        return
+      }
+      if (result.data?.token === null) {
+        setVerificationSentTo(email)
         return
       }
       navigate({ to: '/files' })

@@ -794,6 +794,7 @@ export function getSiteInvitation(token: string) {
 
 export interface SmtpEmailConfig {
   enabled: boolean
+  requireEmailVerification: boolean
   provider: 'smtp'
   from: string
   smtp: { host: string; port: number; user: string; pass: string; secure: boolean }
@@ -801,6 +802,7 @@ export interface SmtpEmailConfig {
 
 export interface HttpEmailConfig {
   enabled: boolean
+  requireEmailVerification: boolean
   provider: 'http'
   from: string
   http: { url: string; apiKey: string }
@@ -808,6 +810,7 @@ export interface HttpEmailConfig {
 
 export interface CloudflareEmailConfig {
   enabled: boolean
+  requireEmailVerification: boolean
   provider: 'cloudflare'
   from: string
 }
@@ -816,6 +819,7 @@ export type EmailConfigData = SmtpEmailConfig | HttpEmailConfig | CloudflareEmai
 
 export interface EmptyEmailConfigData {
   enabled: boolean
+  requireEmailVerification: boolean
   provider: null
 }
 

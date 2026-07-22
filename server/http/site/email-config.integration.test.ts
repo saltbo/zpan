@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as schema from '../../db/schema.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../../test/setup.js'
@@ -82,7 +83,7 @@ describe('Admin Email Config API — GET', () => {
     const res = await app.request('/api/site/email', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body).toEqual({ enabled: false, provider: null })
+    expect(body).toEqual({ enabled: false, requireEmailVerification: false, provider: null })
   })
 
   it('returns enabled with null provider when email is enabled but sender/provider are incomplete [spec: email-config/incomplete-provider]', async () => {
@@ -94,6 +95,7 @@ describe('Admin Email Config API — GET', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({
       enabled: true,
+      requireEmailVerification: false,
       provider: null,
     })
   })
@@ -152,6 +154,7 @@ describe('Admin Email Config API — GET', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({
       enabled: true,
+      requireEmailVerification: false,
       provider: null,
     })
   })
@@ -168,6 +171,7 @@ describe('Admin Email Config API — PUT', () => {
       body: JSON.stringify({
         provider: 'smtp',
         enabled: true,
+        requireEmailVerification: true,
         from: 'no-reply@example.com',
         smtp: {
           host: 'smtp.example.com',
@@ -193,6 +197,7 @@ describe('Admin Email Config API — PUT', () => {
       body: JSON.stringify({
         provider: 'smtp',
         enabled: true,
+        requireEmailVerification: false,
         from: 'sender@example.com',
         smtp: {
           host: 'mail.example.com',
@@ -213,6 +218,34 @@ describe('Admin Email Config API — PUT', () => {
     expect(smtp.port).toBe(465)
   })
 
+  it('preserves the SMTP password when only settings around it are changed', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedSmtpConfig(db)
+
+    const currentResponse = await app.request('/api/site/email', { headers })
+    const current = (await currentResponse.json()) as {
+      smtp: { host: string; port: number; user: string; pass: string; secure: boolean }
+    }
+    await app.request('/api/site/email', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'smtp',
+        enabled: true,
+        requireEmailVerification: true,
+        from: 'no-reply@example.com',
+        smtp: current.smtp,
+      }),
+    })
+
+    const [stored] = await db
+      .select({ value: schema.systemOptions.value })
+      .from(schema.systemOptions)
+      .where(eq(schema.systemOptions.key, 'email_smtp_pass'))
+    expect(stored.value).toBe('supersecret')
+  })
+
   it('saves HTTP config and returns success [spec: email-config/save-http]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
@@ -223,6 +256,7 @@ describe('Admin Email Config API — PUT', () => {
       body: JSON.stringify({
         provider: 'http',
         enabled: true,
+        requireEmailVerification: false,
         from: 'no-reply@example.com',
         http: {
           url: 'https://api.mail.example.com/send',
@@ -245,6 +279,7 @@ describe('Admin Email Config API — PUT', () => {
       body: JSON.stringify({
         provider: 'http',
         enabled: true,
+        requireEmailVerification: false,
         from: 'http-from@example.com',
         http: {
           url: 'https://api.sendgrid.com/v3/mail/send',
@@ -285,6 +320,25 @@ describe('Admin Email Config API — PUT', () => {
     expect(res.status).toBe(400)
   })
 
+  it('rejects required verification when email delivery is disabled', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    const res = await app.request('/api/site/email', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled: false,
+        requireEmailVerification: true,
+        provider: 'smtp',
+        from: 'sender@example.com',
+        smtp: { host: 'mail.example.com', port: 587, user: '', pass: '', secure: true },
+      }),
+    })
+
+    expect(res.status).toBe(400)
+  })
+
   it('updates existing config when PUT is called a second time [spec: email-config/update]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
@@ -295,6 +349,7 @@ describe('Admin Email Config API — PUT', () => {
       body: JSON.stringify({
         provider: 'smtp',
         enabled: true,
+        requireEmailVerification: false,
         from: 'first@example.com',
         smtp: { host: 'first.smtp.com', port: 25, user: '', pass: '', secure: false },
       }),
@@ -306,6 +361,7 @@ describe('Admin Email Config API — PUT', () => {
       body: JSON.stringify({
         provider: 'smtp',
         enabled: true,
+        requireEmailVerification: false,
         from: 'second@example.com',
         smtp: { host: 'second.smtp.com', port: 587, user: '', pass: '', secure: true },
       }),
@@ -329,6 +385,7 @@ describe('Admin Email Config API — PUT', () => {
       body: JSON.stringify({
         provider: 'cloudflare',
         enabled: true,
+        requireEmailVerification: false,
         from: 'no-reply@zpan.space',
       }),
     })
@@ -346,6 +403,7 @@ describe('Admin Email Config API — PUT', () => {
       body: JSON.stringify({
         provider: 'cloudflare',
         enabled: true,
+        requireEmailVerification: true,
         from: 'no-reply@zpan.space',
       }),
     })
@@ -353,6 +411,7 @@ describe('Admin Email Config API — PUT', () => {
     const res = await app.request('/api/site/email', { headers })
     await expect(res.json()).resolves.toEqual({
       enabled: true,
+      requireEmailVerification: true,
       provider: 'cloudflare',
       from: 'no-reply@zpan.space',
     })
@@ -367,6 +426,7 @@ describe('Admin Email Config API — PUT', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         enabled: false,
+        requireEmailVerification: false,
         provider: 'smtp',
         from: 'sender@example.com',
         smtp: { host: 'mail.example.com', port: 587, user: '', pass: '', secure: true },
@@ -448,6 +508,7 @@ describe('Admin Email Config API — POST /test', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         enabled: false,
+        requireEmailVerification: false,
         provider: 'http',
         from: 'no-reply@example.com',
         http: { url: 'https://api.mail.example.com/send', apiKey: 'key' },
