@@ -49,6 +49,9 @@ describe('admin stats backfill', () => {
     const historyStartMs = Date.parse('2026-04-01T00:10:00.000Z')
     const eventMs = Date.parse('2026-07-10T09:10:00.000Z')
     const eventHourMs = Date.parse('2026-07-10T09:00:00.000Z')
+    const sessionCreatedMs = Date.parse('2026-07-10T08:00:00.000Z')
+    const sessionUpdatedMs = Date.parse('2026-07-10T10:20:00.000Z')
+    const newerExistingActivityMs = Date.parse('2026-07-10T11:30:00.000Z')
     const snapshotObservedAt = '2026-07-10T09:50:00.000Z'
     const eventSec = Math.floor(eventMs / 1000)
     const currentHourMs = Date.parse('2026-07-10T12:00:00.000Z')
@@ -60,7 +63,9 @@ describe('admin stats backfill', () => {
     db.exec(`
       CREATE TABLE user (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL DEFAULT 0, last_active_at INTEGER);
       CREATE TABLE account (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, provider_id TEXT NOT NULL, created_at INTEGER NOT NULL);
-      CREATE TABLE session (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL);
+      CREATE TABLE session (
+        id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+      );
       CREATE TABLE organization (id TEXT PRIMARY KEY, metadata TEXT, created_at INTEGER NOT NULL);
       CREATE TABLE member (
         id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at INTEGER NOT NULL
@@ -121,12 +126,16 @@ describe('admin stats backfill', () => {
       );
 
       INSERT INTO user VALUES
-        ('u0', 0, NULL),
+        ('u0', 0, ${newerExistingActivityMs}),
         ('u1', ${firstExactHour + 600_000}, NULL),
         ('u2', ${firstExactHour + 601_000}, NULL);
       INSERT INTO account VALUES
         ('a1', 'u1', 'github', ${firstExactHour + 600_000}),
         ('a2', 'u2', 'github', ${firstExactHour + 601_000});
+      INSERT INTO session VALUES
+        ('session-u0', 'u0', ${sessionCreatedMs}, ${eventHourMs}),
+        ('session-u1', 'u1', ${sessionCreatedMs}, ${sessionCreatedMs + 1_800_000}),
+        ('session-u2', 'u2', ${sessionCreatedMs}, ${sessionUpdatedMs});
       INSERT INTO organization VALUES
         ('o1', '{"type":"personal"}', ${historyStartMs}),
         ('o2', '{"type":"personal"}', ${historyStartMs + 1000});
@@ -302,6 +311,12 @@ describe('admin stats backfill', () => {
     })
     expect(db.prepare("SELECT last_active_at AS lastActiveAt FROM user WHERE id = 'u1'").get()).toEqual({
       lastActiveAt: eventSec * 1000,
+    })
+    expect(db.prepare("SELECT last_active_at AS lastActiveAt FROM user WHERE id = 'u2'").get()).toEqual({
+      lastActiveAt: sessionUpdatedMs,
+    })
+    expect(db.prepare("SELECT last_active_at AS lastActiveAt FROM user WHERE id = 'u0'").get()).toEqual({
+      lastActiveAt: newerExistingActivityMs,
     })
     expect(db.prepare("SELECT COUNT(*) AS value FROM audit_events WHERE action = 'user_access'").get()).toEqual({
       value: 0,

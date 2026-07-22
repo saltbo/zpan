@@ -155,23 +155,32 @@ SELECT
   CAST(registered_user.created_at / 1000 AS INTEGER)
 FROM user registered_user;
 
+WITH activity_facts AS (
+  SELECT user_id, created_at * 1000 AS occurred_at
+  FROM audit_events
+  WHERE action = 'user_access' AND user_id IS NOT NULL
+
+  UNION ALL
+
+  SELECT user_id, MAX(created_at, updated_at) AS occurred_at
+  FROM session
+),
+latest_activity AS (
+  SELECT user_id, MAX(occurred_at) AS occurred_at
+  FROM activity_facts
+  GROUP BY user_id
+)
 UPDATE user
 SET last_active_at = (
-  SELECT MAX(ae.created_at * 1000)
-  FROM audit_events ae
-  WHERE ae.action = 'user_access' AND ae.user_id = user.id
+  SELECT latest_activity.occurred_at
+  FROM latest_activity
+  WHERE latest_activity.user_id = user.id
 )
 WHERE EXISTS (
-  SELECT 1 FROM audit_events ae
-  WHERE ae.action = 'user_access' AND ae.user_id = user.id
-)
-AND (
-  last_active_at IS NULL
-  OR last_active_at < (
-    SELECT MAX(ae.created_at * 1000)
-    FROM audit_events ae
-    WHERE ae.action = 'user_access' AND ae.user_id = user.id
-  )
+  SELECT 1
+  FROM latest_activity
+  WHERE latest_activity.user_id = user.id
+    AND (user.last_active_at IS NULL OR user.last_active_at < latest_activity.occurred_at)
 );
 
 DELETE FROM audit_events WHERE action = 'user_access';
