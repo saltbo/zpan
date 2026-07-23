@@ -500,6 +500,7 @@ func (e SiteBrandingThemeMode) Valid() bool {
 
 // Defines values for WebDavVerificationStatus.
 const (
+	WebDavVerificationStatusDisabled   WebDavVerificationStatus = "disabled"
 	WebDavVerificationStatusFailed     WebDavVerificationStatus = "failed"
 	WebDavVerificationStatusReady      WebDavVerificationStatus = "ready"
 	WebDavVerificationStatusUnverified WebDavVerificationStatus = "unverified"
@@ -508,6 +509,8 @@ const (
 // Valid indicates whether the value is a known member of the WebDavVerificationStatus enum.
 func (e WebDavVerificationStatus) Valid() bool {
 	switch e {
+	case WebDavVerificationStatusDisabled:
+		return true
 	case WebDavVerificationStatusFailed:
 		return true
 	case WebDavVerificationStatusReady:
@@ -2441,7 +2444,8 @@ type SiteConfig struct {
 	Branding SiteBranding `json:"branding"`
 	Services struct {
 		Webdav struct {
-			Url string `json:"url"`
+			Enabled bool   `json:"enabled"`
+			Url     string `json:"url"`
 		} `json:"webdav"`
 	} `json:"services"`
 	Site struct {
@@ -2508,6 +2512,8 @@ type SiteSettings struct {
 // SiteWebDavSettings defines model for SiteWebDavSettings.
 type SiteWebDavSettings struct {
 	CandidateUrl   *string                  `json:"candidateUrl"`
+	Domain         string                   `json:"domain"`
+	Enabled        bool                     `json:"enabled"`
 	Error          *string                  `json:"error"`
 	LastVerifiedAt *time.Time               `json:"lastVerifiedAt"`
 	PathUrl        string                   `json:"pathUrl"`
@@ -2635,6 +2641,12 @@ type UpdateSiteCaptcha struct {
 // UpdateSiteRegistration defines model for UpdateSiteRegistration.
 type UpdateSiteRegistration struct {
 	Mode SignupMode `json:"mode"`
+}
+
+// UpdateSiteWebDav defines model for UpdateSiteWebDav.
+type UpdateSiteWebDav struct {
+	Domain  string `json:"domain"`
+	Enabled bool   `json:"enabled"`
 }
 
 // User defines model for User.
@@ -4385,6 +4397,9 @@ type UpdateSiteQuotasJSONRequestBody = SiteQuotaSettings
 // UpdateSiteRegistrationJSONRequestBody defines body for UpdateSiteRegistration for application/json ContentType.
 type UpdateSiteRegistrationJSONRequestBody = UpdateSiteRegistration
 
+// UpdateSiteWebDavJSONRequestBody defines body for UpdateSiteWebDav for application/json ContentType.
+type UpdateSiteWebDavJSONRequestBody = UpdateSiteWebDav
+
 // CreateStorageJSONRequestBody defines body for CreateStorage for application/json ContentType.
 type CreateStorageJSONRequestBody CreateStorageJSONBody
 
@@ -5405,6 +5420,11 @@ type ClientInterface interface {
 	UpdateSiteRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateSiteRegistration(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateSiteWebDavWithBody request with any body
+	UpdateSiteWebDavWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateSiteWebDav(ctx context.Context, body UpdateSiteWebDavJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// VerifySiteWebDav request
 	VerifySiteWebDav(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -8704,6 +8724,30 @@ func (c *Client) UpdateSiteRegistrationWithBody(ctx context.Context, contentType
 
 func (c *Client) UpdateSiteRegistration(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateSiteRegistrationRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSiteWebDavWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteWebDavRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSiteWebDav(ctx context.Context, body UpdateSiteWebDavJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteWebDavRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -16846,6 +16890,46 @@ func NewUpdateSiteRegistrationRequestWithBody(server string, contentType string,
 	return req, nil
 }
 
+// NewUpdateSiteWebDavRequest calls the generic UpdateSiteWebDav builder with application/json body
+func NewUpdateSiteWebDavRequest(server string, body UpdateSiteWebDavJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateSiteWebDavRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUpdateSiteWebDavRequestWithBody generates requests for UpdateSiteWebDav with any type of body
+func NewUpdateSiteWebDavRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/webdav")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewVerifySiteWebDavRequest generates requests for VerifySiteWebDav
 func NewVerifySiteWebDavRequest(server string) (*http.Request, error) {
 	var err error
@@ -19320,6 +19404,11 @@ type ClientWithResponsesInterface interface {
 	UpdateSiteRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteRegistrationResponse, error)
 
 	UpdateSiteRegistrationWithResponse(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteRegistrationResponse, error)
+
+	// UpdateSiteWebDavWithBodyWithResponse request with any body
+	UpdateSiteWebDavWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteWebDavResponse, error)
+
+	UpdateSiteWebDavWithResponse(ctx context.Context, body UpdateSiteWebDavJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteWebDavResponse, error)
 
 	// VerifySiteWebDavWithResponse request
 	VerifySiteWebDavWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*VerifySiteWebDavResponse, error)
@@ -26842,6 +26931,37 @@ func (r UpdateSiteRegistrationResponse) ContentType() string {
 	return ""
 }
 
+type UpdateSiteWebDavResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SiteWebDavSettings
+	JSON400      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateSiteWebDavResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateSiteWebDavResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateSiteWebDavResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type VerifySiteWebDavResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -30546,6 +30666,23 @@ func (c *ClientWithResponses) UpdateSiteRegistrationWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParseUpdateSiteRegistrationResponse(rsp)
+}
+
+// UpdateSiteWebDavWithBodyWithResponse request with arbitrary body returning *UpdateSiteWebDavResponse
+func (c *ClientWithResponses) UpdateSiteWebDavWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteWebDavResponse, error) {
+	rsp, err := c.UpdateSiteWebDavWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSiteWebDavResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateSiteWebDavWithResponse(ctx context.Context, body UpdateSiteWebDavJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteWebDavResponse, error) {
+	rsp, err := c.UpdateSiteWebDav(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSiteWebDavResponse(rsp)
 }
 
 // VerifySiteWebDavWithResponse request returning *VerifySiteWebDavResponse
@@ -41504,6 +41641,39 @@ func ParseUpdateSiteRegistrationResponse(rsp *http.Response) (*UpdateSiteRegistr
 			return nil, err
 		}
 		response.JSON402 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateSiteWebDavResponse parses an HTTP response from a UpdateSiteWebDavWithResponse call
+func ParseUpdateSiteWebDavResponse(rsp *http.Response) (*UpdateSiteWebDavResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateSiteWebDavResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SiteWebDavSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 
