@@ -1,13 +1,12 @@
-import { useQuery } from '@tanstack/react-query'
+import { isPersonalOrgLike } from '@shared/org-slugs'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useParams } from '@tanstack/react-router'
-import { UserPlus, Users } from 'lucide-react'
-import { useState } from 'react'
+import { Settings } from 'lucide-react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageTabs } from '@/components/layout/page-tabs'
-import { InviteDialog } from '@/components/team/invite-dialog'
-import { Button } from '@/components/ui/button'
-import { authClient, useSession } from '@/lib/auth-client'
+import { authClient, setActive, useActiveOrganization } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/teams/$teamId')({
   component: TeamLayout,
@@ -16,14 +15,16 @@ export const Route = createFileRoute('/_authenticated/teams/$teamId')({
 type FullOrganization = {
   id: string
   name: string
+  slug: string
+  metadata?: Record<string, unknown> | string | null
   members: Array<{ userId: string; role: string }>
 }
 
 function TeamLayout() {
   const { t } = useTranslation()
   const { teamId } = useParams({ from: '/_authenticated/teams/$teamId' })
-  const { data: session } = useSession()
-  const [inviteOpen, setInviteOpen] = useState(false)
+  const { data: activeOrg, isPending: activeOrgPending } = useActiveOrganization()
+  const queryClient = useQueryClient()
 
   const {
     data: org,
@@ -41,11 +42,23 @@ function TeamLayout() {
     enabled: !!teamId,
   })
 
-  const userId = session?.user?.id ?? ''
-  const myMembership = org?.members.find((m) => m.userId === userId)
-  const isOwner = myMembership?.role === 'owner'
+  const workspaceSync = useMutation({
+    mutationFn: async () => {
+      const { error: setActiveError } = await setActive({ organizationId: teamId })
+      if (setActiveError) throw setActiveError
+      await queryClient.invalidateQueries({ queryKey: ['objects'] })
+    },
+  })
 
-  if (isPending) {
+  useEffect(() => {
+    if (!org || activeOrgPending || activeOrg?.id === teamId || workspaceSync.isPending) return
+    workspaceSync.mutate()
+  }, [activeOrg?.id, activeOrgPending, org, teamId, workspaceSync])
+
+  const isPersonal = org ? isPersonalOrgLike(org) : false
+  const workspaceMismatch = activeOrg?.id !== teamId
+
+  if (isPending || activeOrgPending || (!!org && workspaceMismatch && !workspaceSync.error)) {
     return (
       <div className="space-y-4">
         <div className="h-8 w-48 animate-pulse rounded bg-muted" />
@@ -59,7 +72,7 @@ function TeamLayout() {
     )
   }
 
-  if (error || !org) {
+  if (error || workspaceSync.error || !org) {
     return (
       <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
         {t('teams.loadError')}
@@ -68,9 +81,14 @@ function TeamLayout() {
   }
 
   const allTabs = [
-    { to: '/teams/$teamId/members', params: { teamId }, label: t('teams.tabMembers') },
+    {
+      to: '/teams/$teamId/settings',
+      params: { teamId },
+      label: t('teams.tabSettings'),
+    },
+    { to: '/teams/$teamId/members', params: { teamId }, label: t('teams.tabMembers'), hidden: isPersonal },
+    { to: '/teams/$teamId/ihost', params: { teamId }, label: t('settings.tabImageHosting') },
     { to: '/teams/$teamId/activity', params: { teamId }, label: t('teams.tabActivity') },
-    { to: '/teams/$teamId/settings', params: { teamId }, label: t('teams.tabSettings'), hidden: !isOwner },
   ]
   const tabs = allTabs.filter((item) => !item.hidden)
 
@@ -79,20 +97,11 @@ function TeamLayout() {
       <PageHeader
         items={[
           {
-            label: t('nav.teams'),
-            icon: <Users className="size-4 text-muted-foreground" />,
-            to: '/teams',
+            label: t('org.workspaceSettings'),
+            icon: <Settings className="size-4 text-muted-foreground" />,
           },
           { label: org.name },
         ]}
-        actions={
-          isOwner ? (
-            <Button size="sm" onClick={() => setInviteOpen(true)}>
-              <UserPlus />
-              <span className="sr-only sm:not-sr-only">{t('teams.invite.button')}</span>
-            </Button>
-          ) : null
-        }
       />
 
       <div className="border-b">
@@ -100,8 +109,6 @@ function TeamLayout() {
       </div>
 
       <Outlet />
-
-      {isOwner && <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} orgId={org.id} />}
     </div>
   )
 }

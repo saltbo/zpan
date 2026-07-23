@@ -1,6 +1,6 @@
 import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME } from '@shared/constants'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronsUpDown, LogOut, Settings, ShieldCheck, Users } from 'lucide-react'
+import { ChevronsUpDown, LogOut, Settings, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useBranding } from '@/components/branding/BrandingProvider'
@@ -78,12 +78,6 @@ export function ShareLayout({ children }: ShareLayoutProps) {
                   <Link to="/settings">
                     <Settings className="mr-2 h-4 w-4" />
                     {t('nav.settings')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/teams">
-                    <Users className="mr-2 h-4 w-4" />
-                    {t('nav.teams')}
                   </Link>
                 </DropdownMenuItem>
                 {isAdmin && (

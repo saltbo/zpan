@@ -1,8 +1,11 @@
+import { isPersonalOrgLike } from '@shared/org-slugs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Navigate } from '@tanstack/react-router'
+import { UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { InviteDialog } from '@/components/team/invite-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -39,6 +42,8 @@ type OrgMember = {
 type FullOrganization = {
   id: string
   name: string
+  slug: string
+  metadata?: Record<string, unknown> | string | null
   members: OrgMember[]
 }
 
@@ -264,6 +269,7 @@ function TeamMembersPage() {
   const { teamId } = Route.useParams()
   const { data: session } = useSession()
   const [leaveOpen, setLeaveOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   const {
     data: org,
@@ -304,10 +310,20 @@ function TeamMembersPage() {
     )
   }
 
+  if (isPersonalOrgLike(org)) {
+    return <Navigate to="/teams/$teamId/settings" params={{ teamId }} replace />
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground">{t('teams.memberCount', { count: org.members.length })}</span>
+        {isOwner && (
+          <Button size="sm" onClick={() => setInviteOpen(true)}>
+            <UserPlus />
+            {t('teams.invite.button')}
+          </Button>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -335,6 +351,7 @@ function TeamMembersPage() {
       {myMembership && !isOwner && (
         <LeaveTeamDialog open={leaveOpen} onOpenChange={setLeaveOpen} member={myMembership} orgId={org.id} />
       )}
+      {isOwner && <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} orgId={org.id} />}
     </div>
   )
 }

@@ -203,7 +203,7 @@ test.describe('Share access page shell', () => {
     await page.locator('header').getByRole('button').first().click()
 
     await expect(page.getByRole('menuitem', { name: /settings/i })).toBeVisible()
-    await expect(page.getByRole('menuitem', { name: /teams/i })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: /teams/i })).toHaveCount(0)
     await expect(page.getByRole('menuitem', { name: /sign out/i })).toBeVisible()
     await expect(page.locator('header').getByText('Public access page')).toHaveCount(0)
     await expect(page.locator('header').getByText('Open workspace')).toHaveCount(0)

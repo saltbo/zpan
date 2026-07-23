@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronsUpDown, Languages, LogOut, Palette, Settings, ShieldCheck, Users } from 'lucide-react'
+import { ChevronsUpDown, Languages, LogOut, Palette, Settings, ShieldCheck } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useTranslation } from 'react-i18next'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -54,20 +54,12 @@ export function UserAccountMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="end" className="w-56">
         {showFrontendLinks && (
-          <>
-            <DropdownMenuItem asChild>
-              <Link to="/settings">
-                <Settings className="mr-2 h-4 w-4" />
-                {t('nav.settings')}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/teams">
-                <Users className="mr-2 h-4 w-4" />
-                {t('nav.teams')}
-              </Link>
-            </DropdownMenuItem>
-          </>
+          <DropdownMenuItem asChild>
+            <Link to="/settings">
+              <Settings className="mr-2 h-4 w-4" />
+              {t('nav.settings')}
+            </Link>
+          </DropdownMenuItem>
         )}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>

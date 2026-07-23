@@ -41,9 +41,17 @@ async function signUpAndGoToImageHost(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/files/, { timeout: 10000 })
 }
 
+async function openImageHostSettings(page: import('@playwright/test').Page) {
+  const response = await page.request.get('/api/auth/organization/list')
+  await expectApiOk(response, 'List workspaces')
+  const organizations = (await response.json()) as Array<{ id: string }>
+  expect(organizations.length).toBeGreaterThan(0)
+  await page.goto(`/teams/${organizations[0].id}/ihost`)
+  await expect(page).toHaveURL(/teams\/[^/]+\/ihost/, { timeout: 10000 })
+}
+
 async function enableImageHostFromSettings(page: import('@playwright/test').Page) {
-  await page.goto('/settings/ihost')
-  await expect(page).toHaveURL(/settings\/ihost/, { timeout: 10000 })
+  await openImageHostSettings(page)
   const enableBtn = page.getByRole('button', { name: /enable|activate/i })
   await expect(enableBtn).toBeVisible({ timeout: 10000 })
   const [response] = await Promise.all([
@@ -59,7 +67,7 @@ async function enableImageHostFromSettings(page: import('@playwright/test').Page
 test.describe('Image Host @all', () => {
   test('shows enable-feature prompt in settings before activation', async ({ page }) => {
     await signUpAndGoToImageHost(page)
-    await page.goto('/settings/ihost')
+    await openImageHostSettings(page)
     // Settings page shows an enable/activate button
     const enableBtn = page.getByRole('button', { name: /enable|activate/i })
     await expect(enableBtn).toBeVisible({ timeout: 10000 })

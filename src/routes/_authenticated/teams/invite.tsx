@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
+import { setActive } from '@/lib/auth-client'
 import { publicTeamsApi, teamsApi } from '@/lib/rpc'
 
 export const Route = createFileRoute('/_authenticated/teams/invite')({
@@ -47,15 +48,19 @@ function TeamInvitePage() {
       }
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success(t('teams.invite.accepted'))
-      navigate({ to: '/teams' })
+      if (!info) return
+      await setActive({ organizationId: info.organizationId })
+      navigate({ to: '/teams/$teamId/activity', params: { teamId: info.organizationId } })
     },
     onError: (err: { message?: string }) => {
       const msg = err.message ?? String(err)
       if (msg.includes('Already a member') || msg.includes('already_member')) {
         toast.info(t('teams.invite.alreadyMember'))
-        navigate({ to: '/teams' })
+        if (info) {
+          navigate({ to: '/teams/$teamId/activity', params: { teamId: info.organizationId } })
+        }
       } else {
         toast.error(msg)
       }
@@ -74,8 +79,8 @@ function TeamInvitePage() {
     return (
       <div className="flex min-h-[300px] flex-col items-center justify-center gap-4">
         <p className="text-destructive">{t('teams.invite.invalidToken')}</p>
-        <Button variant="outline" onClick={() => navigate({ to: '/teams' })}>
-          {t('nav.teams')}
+        <Button variant="outline" onClick={() => navigate({ to: '/files' })}>
+          {t('nav.files')}
         </Button>
       </div>
     )

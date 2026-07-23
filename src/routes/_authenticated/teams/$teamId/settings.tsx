@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { isPersonalOrgLike } from '@shared/org-slugs'
 import type { PublicImageMime } from '@shared/schemas'
 import { MAX_PUBLIC_IMAGE_SIZE, PUBLIC_IMAGE_MIMES } from '@shared/schemas'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { deleteTeamLogo, uploadTeamLogo } from '@/lib/api'
-import { authClient, useSession } from '@/lib/auth-client'
+import { authClient, setActive, useListOrganizations, useSession } from '@/lib/auth-client'
 import { getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/teams/$teamId/settings')({
@@ -94,7 +95,7 @@ function LogoCard({ org }: { org: FullOrganization }) {
       <div className="flex items-start justify-between gap-6 px-6">
         <div className="space-y-1.5">
           <CardTitle>{t('teams.logo')}</CardTitle>
-          <CardDescription>{t('teams.logo.description')}</CardDescription>
+          <CardDescription>{t('org.logoDescription')}</CardDescription>
         </div>
         <button
           type="button"
@@ -169,8 +170,8 @@ function TeamNameCard({ org }: { org: FullOrganization }) {
     <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))}>
       <Card>
         <CardHeader>
-          <CardTitle>{t('teams.teamName')}</CardTitle>
-          <CardDescription>{t('teams.teamName.description')}</CardDescription>
+          <CardTitle>{t('org.workspaceName')}</CardTitle>
+          <CardDescription>{t('org.workspaceNameDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           <Input {...form.register('name')} maxLength={100} />
@@ -179,7 +180,7 @@ function TeamNameCard({ org }: { org: FullOrganization }) {
           )}
         </CardContent>
         <CardFooter className="justify-between border-t bg-muted/30">
-          <p className="text-sm text-muted-foreground">{t('teams.teamName.hint')}</p>
+          <p className="text-sm text-muted-foreground">{t('org.workspaceNameHint')}</p>
           <Button type="submit" size="sm" disabled={!form.formState.isDirty || mutation.isPending}>
             {mutation.isPending ? t('common.loading') : t('common.save')}
           </Button>
@@ -193,17 +194,22 @@ function DangerZoneCard({ org }: { org: FullOrganization }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { data: organizations } = useListOrganizations()
   const [open, setOpen] = useState(false)
 
   const mutation = useMutation({
     mutationFn: async () => {
+      const personalOrg = organizations?.find(isPersonalOrgLike)
+      if (!personalOrg) throw new Error(t('teams.loadError'))
+      const { error: setActiveError } = await setActive({ organizationId: personalOrg.id })
+      if (setActiveError) throw setActiveError
       const { error } = await authClient.organization.delete({ organizationId: org.id })
       if (error) throw error
     },
     onSuccess: () => {
       toast.success(t('teams.deleted'))
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
-      navigate({ to: '/teams' })
+      navigate({ to: '/files' })
     },
     onError: (err: { message?: string }) => toast.error(err.message ?? String(err)),
   })
@@ -297,7 +303,7 @@ function TeamSettingsPage() {
     <div className="max-w-2xl space-y-6">
       <LogoCard org={org} />
       <TeamNameCard org={org} />
-      <DangerZoneCard org={org} />
+      {!isPersonalOrgLike(org) && <DangerZoneCard org={org} />}
     </div>
   )
 }

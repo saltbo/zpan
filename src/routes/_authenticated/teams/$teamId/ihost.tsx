@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { enableIhostFeature, getIhostConfig } from '@/lib/api'
 import { useActiveOrganization, useSession } from '@/lib/auth-client'
 
-export const Route = createFileRoute('/_authenticated/settings/ihost')({
+export const Route = createFileRoute('/_authenticated/teams/$teamId/ihost')({
   component: ImageHostSettingsPage,
 })
 

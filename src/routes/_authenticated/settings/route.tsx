@@ -19,7 +19,6 @@ function SettingsLayout() {
     ...(siteConfig?.services.webdav.enabled === false
       ? []
       : [{ to: '/settings/webdav', label: t('settings.tabWebDav') }]),
-    { to: '/settings/ihost', label: t('settings.tabImageHosting') },
     { to: '/settings/api-keys', label: t('settings.tabApiKeys') },
   ]
 
