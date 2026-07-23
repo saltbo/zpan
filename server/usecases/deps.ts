@@ -38,6 +38,7 @@ import type {
   ShareRepo,
   SiteInvitationRepo,
   StorageRepo,
+  StorageUsageBreakdownRepo,
   StorageUsageRepo,
   SystemOptionsRepo,
   TeamInviteRepo,
@@ -86,6 +87,7 @@ export interface Deps {
   siteInvitations: SiteInvitationRepo
   storages: StorageRepo
   storageUsage: StorageUsageRepo
+  storageUsageBreakdowns: StorageUsageBreakdownRepo
   systemOptions: SystemOptionsRepo
   teams: TeamRepo
   teamInvites: TeamInviteRepo

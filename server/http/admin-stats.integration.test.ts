@@ -1,6 +1,7 @@
 import type { AdminDashboardOverviewStats } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import { buildStorageUsageBackfillSql } from '../../scripts/backfill-storage-usage'
 import { createAdminStatsRepo, metricSpec } from '../adapters/repos/admin-stats'
 import { ensureAdminStatsIntegrityOpening } from '../adapters/repos/admin-stats-integrity'
 import { captureAdminStatsSnapshot, rebuildAdminStatsHour } from '../adapters/repos/admin-stats-rollup'
@@ -639,15 +640,16 @@ describe('site stats routes', () => {
     const beforeRes = await app.request('/api/site/stats/storage', { headers })
     const before = (await beforeRes.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
 
+    await db.run(sql.raw(buildStorageUsageBackfillSql(Date.now())))
     await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
     await rebuildAdminStatsHour(db, bucketStart, new Date())
     const afterRes = await app.request('/api/site/stats/storage', { headers })
     const after = (await afterRes.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
 
     expect(beforeRes.status).toBe(200)
-    expect(before.typeBreakdown).not.toContainEqual(expect.objectContaining({ type: 'custom' }))
+    expect(before.typeBreakdown).not.toContainEqual(expect.objectContaining({ type: 'other', files: 9 }))
     expect(afterRes.status).toBe(200)
-    expect(after.typeBreakdown).toContainEqual(expect.objectContaining({ type: 'custom', files: 9 }))
+    expect(after.typeBreakdown).toContainEqual(expect.objectContaining({ type: 'other', files: 9 }))
   })
 
   it('counts quota pressure across every space while bounding the ranking to eight', async () => {

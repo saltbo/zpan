@@ -343,6 +343,15 @@ const APP_SCHEMA_SQL = `
 	  CREATE INDEX IF NOT EXISTS storage_usage_ledger_occurred_idx ON storage_usage_ledger(occurred_at);
 	  CREATE INDEX IF NOT EXISTS storage_usage_ledger_org_occurred_idx ON storage_usage_ledger(org_id, occurred_at);
 	  CREATE INDEX IF NOT EXISTS storage_usage_ledger_storage_occurred_idx ON storage_usage_ledger(storage_id, occurred_at);
+	  CREATE TABLE IF NOT EXISTS storage_usage_breakdowns (
+	    org_id TEXT NOT NULL,
+	    category TEXT NOT NULL,
+	    bytes INTEGER NOT NULL DEFAULT 0,
+	    file_count INTEGER NOT NULL DEFAULT 0,
+	    updated_at INTEGER NOT NULL
+	  );
+	  CREATE UNIQUE INDEX IF NOT EXISTS storage_usage_breakdowns_org_category_uniq ON storage_usage_breakdowns(org_id, category);
+	  CREATE INDEX IF NOT EXISTS storage_usage_breakdowns_org_idx ON storage_usage_breakdowns(org_id);
 	  CREATE TABLE IF NOT EXISTS shares (
     id TEXT PRIMARY KEY,
     token TEXT NOT NULL UNIQUE,

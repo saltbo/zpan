@@ -62,6 +62,7 @@ import {
   getSiteInvitation,
   getSiteSettings,
   getStorage,
+  getStorageUsage,
   getTeam,
   getTrashObject,
   getUnreadCount,
@@ -96,6 +97,7 @@ import {
   listShares,
   listSiteInvitations,
   listStorages,
+  listStorageUsageItems,
   listTeamActivities,
   listTeams,
   listTrash,
@@ -1926,6 +1928,39 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
 
       await expect(getUserQuota()).rejects.toThrow('unauthorized')
+    })
+  })
+
+  describe('storage usage', () => {
+    const usage = {
+      usedBytes: 256,
+      quotaBytes: 1024,
+      currentPlan: null,
+      breakdowns: [{ category: 'documents', bytes: 256, fileCount: 2 }],
+      updatedAt: '2026-07-23T00:00:00.000Z',
+    }
+
+    it('gets storage usage through the RPC route', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(usage))
+      await expect(getStorageUsage()).resolves.toEqual(usage)
+      expect((vi.mocked(fetch).mock.calls[0] as [string])[0]).toContain('/api/storage')
+    })
+
+    it('lists category items with the expected query', async () => {
+      const page = { items: [], total: 0, page: 2, pageSize: 10 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(page))
+      await expect(listStorageUsageItems('trash', 2, 10)).resolves.toEqual(page)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/storage/items')
+      expect(url).toContain('category=trash')
+      expect(url).toContain('page=2')
+    })
+
+    it('throws ApiError for usage and item failures', async () => {
+      for (const call of [() => getStorageUsage(), () => listStorageUsageItems('photos')]) {
+        vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unavailable' }, false, 503))
+        await expect(call()).rejects.toBeInstanceOf(ApiError)
+      }
     })
   })
 

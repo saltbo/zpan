@@ -70,6 +70,9 @@ import type {
   SiteInvitation,
   Storage,
   StorageObject,
+  StorageUsageCategory,
+  StorageUsageItem,
+  StorageUsageResponse,
 } from '@shared/types'
 import {
   adminAuditApi,
@@ -101,6 +104,7 @@ import {
   siteSettingsApi,
   siteStatsApi,
   storages,
+  storageUsageApi,
   system,
   teamsApi,
   trash,
@@ -112,6 +116,18 @@ export type { Storage, StorageObject }
 
 export function getSiteConfig() {
   return unwrap<SiteConfig>(configzApi.index.$get())
+}
+
+export function getStorageUsage() {
+  return unwrap<StorageUsageResponse>(storageUsageApi.index.$get())
+}
+
+export function listStorageUsageItems(category: StorageUsageCategory, page = 1, pageSize = 20) {
+  return unwrap<PaginatedResponse<StorageUsageItem>>(
+    storageUsageApi.items.$get({
+      query: { category, page: String(page), pageSize: String(pageSize) },
+    }),
+  )
 }
 
 export function getSiteSettings() {

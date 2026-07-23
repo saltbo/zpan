@@ -15,6 +15,7 @@ import {
   imagePurgeLedgerQuery,
   storageUsageOpeningBalanceQuery,
 } from './storage-usage-ledger'
+import { imageAddedProjectionQueries, imageRemovedProjectionQueries } from './storage-usage-projection-mutations'
 
 type ImageHostingRow = typeof imageHostings.$inferSelect
 
@@ -241,7 +242,11 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
           ),
         )
         .returning({ id: imageHostings.id })
-      const writes: AtomicQuery[] = [activateQuery, imageActivationLedgerQuery(db, orgId, id, now)]
+      const writes: AtomicQuery[] = [
+        activateQuery,
+        imageActivationLedgerQuery(db, orgId, id, now),
+        ...imageAddedProjectionQueries(db, orgId, id),
+      ]
       const results = await executeWriteTransactionWithResults(db, writes, [0])
       const updated = results[0] as { id: string }[]
       return updated.length > 0
@@ -272,6 +277,7 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
       const now = new Date()
       await executeWriteTransaction(db, [
         storageUsageOpeningBalanceQuery(db, orgId, row.storageId, now),
+        ...imageRemovedProjectionQueries(db, orgId, id),
         imagePurgeLedgerQuery(db, orgId, id, now),
         db
           .update(imageHostings)

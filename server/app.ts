@@ -33,6 +33,7 @@ import { licensing, licensingAdmin } from './http/site/licensing'
 import { siteSettings } from './http/site/settings'
 import storages from './http/site/storages'
 import system from './http/site/system'
+import storageUsage from './http/storage-usage'
 import { cloudStore, cloudStoreWebhooks } from './http/store'
 import { adminTeams, publicTeams, teams } from './http/teams'
 import trash from './http/trash'
@@ -233,6 +234,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/site/invitations', adminSiteInvitations)
   app.route('/api/quotas', userQuotas)
   app.route('/api/quotas', adminQuotas)
+  app.route('/api/storage', storageUsage)
   app.route('/api/store', cloudStore)
   app.route('/api/site', system)
   app.route('/api/notifications', notifications)
@@ -360,3 +362,4 @@ export type BrandingAdminRoute = typeof brandingAdmin
 export type AdminAuditRoute = typeof adminAudit
 export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats
+export type StorageUsageRoute = typeof storageUsage

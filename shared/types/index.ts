@@ -451,6 +451,12 @@ export interface BackgroundJob {
 import type { ShareKind as _ShareKind } from '../schemas/share'
 
 export type { ShareKind } from '../schemas/share'
+export type {
+  StorageUsageBreakdown,
+  StorageUsageCategory,
+  StorageUsageItem,
+  StorageUsageResponse,
+} from '../storage-usage'
 
 // passwordHash is intentionally not part of the shared wire type; it never leaves the server.
 export interface Share {

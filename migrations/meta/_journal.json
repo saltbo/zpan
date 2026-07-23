@@ -449,6 +449,13 @@
       "when": 1784684944405,
       "tag": "0064_download-task-events-soft-delete",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "6",
+      "when": 1784827364022,
+      "tag": "0065_storage-usage-breakdowns",
+      "breakpoints": true
     }
   ]
 }

@@ -26,6 +26,12 @@ import {
   storageUsageMutationQuery,
   storageUsageOpeningBalanceQuery,
 } from './storage-usage-ledger'
+import {
+  matterAddedProjectionQueries,
+  matterRemovedProjectionQueries,
+  matterRestoredProjectionQueries,
+  matterTrashedProjectionQueries,
+} from './storage-usage-projection-mutations'
 
 type MatterRow = typeof matters.$inferSelect
 
@@ -181,10 +187,13 @@ export function createMatterRepo(db: Database): MatterRepo {
 
   async function trashForReplace(orgId: string, existing: Matter): Promise<void> {
     const now = new Date()
-    await db
-      .update(matters)
-      .set({ trashedAt: now.getTime(), updatedAt: now })
-      .where(and(eq(matters.id, existing.id), eq(matters.orgId, orgId), isNull(matters.purgedAt)))
+    await executeWriteTransaction(db, [
+      ...matterTrashedProjectionQueries(db, orgId, [existing.id]),
+      db
+        .update(matters)
+        .set({ trashedAt: now.getTime(), updatedAt: now })
+        .where(and(eq(matters.id, existing.id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
+    ])
   }
 
   /** Execute the side effects of a plan (trash the replaced row). */
@@ -271,6 +280,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         const writes: AtomicQuery[] = [
           storageUsageOpeningBalanceQuery(db, row.orgId, row.storageId, now),
           db.insert(matters).values(row),
+          ...matterAddedProjectionQueries(db, row.orgId, row.id),
           ...(row.size && row.size > 0
             ? [
                 storageUsageMutationQuery(db, {
@@ -425,6 +435,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       await executeWriteTransaction(db, [
         storageUsageOpeningBalanceQuery(db, row.orgId, row.storageId, now),
         db.insert(matters).values(row),
+        ...(row.dirtype === DirType.FILE ? matterAddedProjectionQueries(db, row.orgId, row.id) : []),
         ...(row.dirtype === DirType.FILE && row.size && row.size > 0
           ? [
               storageUsageMutationQuery(db, {
@@ -477,20 +488,21 @@ export function createMatterRepo(db: Database): MatterRepo {
 
       // Soft delete: mark trashedAt, keep status='active'. Only mark live rows so a
       // child already trashed earlier keeps its own trashedAt (and restore later).
-      for (const targetId of allIds) {
-        await db
+      await executeWriteTransaction(db, [
+        ...matterTrashedProjectionQueries(db, orgId, allIds),
+        db
           .update(matters)
           .set({ trashedAt: nowTs, updatedAt: now })
           .where(
             and(
-              eq(matters.id, targetId),
+              inArray(matters.id, allIds),
               eq(matters.orgId, orgId),
               eq(matters.status, ObjectStatus.ACTIVE),
               isNull(matters.trashedAt),
               isNull(matters.purgedAt),
             ),
-          )
-      }
+          ),
+      ])
       const trashed = { ...existing, trashedAt: nowTs, updatedAt: now }
 
       return trashed
@@ -537,19 +549,20 @@ export function createMatterRepo(db: Database): MatterRepo {
       }
 
       // Clear the trash mark on the whole subtree (status is already 'active').
-      for (const targetId of allIds) {
-        await db
+      await executeWriteTransaction(db, [
+        ...matterRestoredProjectionQueries(db, orgId, allIds),
+        db
           .update(matters)
           .set({ trashedAt: null, updatedAt: now })
           .where(
             and(
-              eq(matters.id, targetId),
+              inArray(matters.id, allIds),
               eq(matters.orgId, orgId),
               isNotNull(matters.trashedAt),
               isNull(matters.purgedAt),
             ),
-          )
-      }
+          ),
+      ])
 
       const restored = { ...existing, name: finalName, trashedAt: null, updatedAt: now }
 
@@ -574,6 +587,11 @@ export function createMatterRepo(db: Database): MatterRepo {
       )
       await executeWriteTransaction(db, [
         ...[...storageIds].map((storageId) => storageUsageOpeningBalanceQuery(db, orgId, storageId, now)),
+        ...matterRemovedProjectionQueries(
+          db,
+          orgId,
+          rows.map((row) => row.id),
+        ),
         ...rows.map((row) => matterPurgeLedgerQuery(db, orgId, row.id, now)),
         db
           .update(matters)
@@ -615,18 +633,38 @@ export function createMatterRepo(db: Database): MatterRepo {
 
     async trashByIds(orgId, ids): Promise<void> {
       if (ids.length === 0) return
-      await db
-        .update(matters)
-        .set({ trashedAt: Date.now(), updatedAt: new Date() })
-        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids), isNull(matters.purgedAt)))
+      await executeWriteTransaction(db, [
+        ...matterTrashedProjectionQueries(db, orgId, ids),
+        db
+          .update(matters)
+          .set({ trashedAt: Date.now(), updatedAt: new Date() })
+          .where(
+            and(
+              eq(matters.orgId, orgId),
+              inArray(matters.id, ids),
+              isNull(matters.trashedAt),
+              isNull(matters.purgedAt),
+            ),
+          ),
+      ])
     },
 
     async restoreActiveByIds(orgId, ids): Promise<void> {
       if (ids.length === 0) return
-      await db
-        .update(matters)
-        .set({ trashedAt: null, updatedAt: new Date() })
-        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids), isNull(matters.purgedAt)))
+      await executeWriteTransaction(db, [
+        ...matterRestoredProjectionQueries(db, orgId, ids),
+        db
+          .update(matters)
+          .set({ trashedAt: null, updatedAt: new Date() })
+          .where(
+            and(
+              eq(matters.orgId, orgId),
+              inArray(matters.id, ids),
+              isNotNull(matters.trashedAt),
+              isNull(matters.purgedAt),
+            ),
+          ),
+      ])
     },
 
     async touch(orgId, id): Promise<void> {
@@ -642,11 +680,13 @@ export function createMatterRepo(db: Database): MatterRepo {
       const now = new Date()
       const writes: AtomicQuery[] = [
         storageUsageOpeningBalanceQuery(db, orgId, existing.storageId, now),
+        ...matterRemovedProjectionQueries(db, orgId, [id]),
         matterResizeLedgerQuery(db, orgId, id, fields.size, now),
         db
           .update(matters)
           .set({ type: fields.type, size: fields.size, object: fields.object, updatedAt: now })
           .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
+        ...matterAddedProjectionQueries(db, orgId, id),
       ]
       await executeWriteTransaction(db, writes)
     },
@@ -710,6 +750,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft'), isNull(matters.purgedAt)))
         .returning({ id: matters.id })
       const writes: AtomicQuery[] = [activateQuery, matterActivationLedgerQuery(db, orgId, id, now)]
+      writes.push(...matterAddedProjectionQueries(db, orgId, id))
       const results = await executeWriteTransactionWithResults(db, writes, [0])
       const updated = results[0] as { id: string }[]
       return updated.length > 0

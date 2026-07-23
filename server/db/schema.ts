@@ -95,6 +95,21 @@ export const orgQuotas = sqliteTable(
   (t) => [uniqueIndex('org_quotas_org_uniq').on(t.orgId)],
 )
 
+export const storageUsageBreakdowns = sqliteTable(
+  'storage_usage_breakdowns',
+  {
+    orgId: text('org_id').notNull(),
+    category: text('category').notNull(),
+    bytes: integer('bytes').notNull().default(0),
+    fileCount: integer('file_count').notNull().default(0),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('storage_usage_breakdowns_org_category_uniq').on(t.orgId, t.category),
+    index('storage_usage_breakdowns_org_idx').on(t.orgId),
+  ],
+)
+
 export const cloudTrafficReports = sqliteTable(
   'cloud_traffic_reports',
   {

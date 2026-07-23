@@ -41,6 +41,7 @@ import { createShareNotificationRepo } from './adapters/repos/share-notification
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { createStorageRepo } from './adapters/repos/storage'
 import { createStorageUsageRepo } from './adapters/repos/storage-usage'
+import { createStorageUsageBreakdownRepo } from './adapters/repos/storage-usage-breakdown'
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { createTeamRepo } from './adapters/repos/team'
 import { createTeamInviteRepo } from './adapters/repos/team-invite'
@@ -96,6 +97,7 @@ export function createDeps(platform: Platform): Deps {
     siteInvitations: createSiteInvitationRepo(db),
     storages,
     storageUsage: createStorageUsageRepo(db),
+    storageUsageBreakdowns: createStorageUsageBreakdownRepo(db),
     systemOptions,
     teams: createTeamRepo(db),
     teamInvites: createTeamInviteRepo(db),

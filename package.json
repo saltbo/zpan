@@ -26,6 +26,7 @@
     "db:reset:d1": "tsx --env-file=.dev.vars scripts/db-reset.ts --d1",
     "seed:preview-admin": "TMPDIR=/tmp node --env-file-if-exists=.dev.vars --import tsx scripts/seed-preview-admin.ts",
     "stats:backfill": "tsx scripts/backfill-admin-stats.ts",
+    "storage:backfill": "tsx scripts/backfill-storage-usage.ts",
     "typecheck": "tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p src/tsconfig.json",
     "test": "vitest run --project unit --project integration",
     "test:cf": "vitest run --project cloudflare",

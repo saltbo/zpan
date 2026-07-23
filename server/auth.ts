@@ -36,6 +36,7 @@ import { createMemberCountRepo } from './adapters/repos/member-count'
 import { createNotificationRepo } from './adapters/repos/notification'
 import { createOrgRepo } from './adapters/repos/org'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
+import { initialStorageUsageProjectionQueries } from './adapters/repos/storage-usage-breakdown'
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { recordUserActivity } from './adapters/repos/user-activity'
 import * as authSchema from './db/auth-schema'
@@ -840,6 +841,7 @@ async function createPersonalOrg(
       createdAt: now,
     }),
     db.insert(orgQuotas).values(quotaValues),
+    ...initialStorageUsageProjectionQueries(db, orgId, now),
     ...entitlementValues.map((value) => db.insert(orgQuotaEntitlements).values(value)),
   ])
 
@@ -875,6 +877,7 @@ async function createOrgQuotaValues(_db: Database, orgId: string, now: Date): Pr
 async function createOrgQuota(db: Database, orgId: string, now: Date, isTeam = false): Promise<void> {
   await executeWriteTransaction(db, [
     db.insert(orgQuotas).values(await createOrgQuotaValues(db, orgId, now)),
+    ...initialStorageUsageProjectionQueries(db, orgId, now),
     ...(await createFreePlanEntitlementValues(db, orgId, now, isTeam)).map((value) =>
       db.insert(orgQuotaEntitlements).values(value),
     ),

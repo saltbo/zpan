@@ -10,6 +10,7 @@ import {
   orgQuotas,
   shares,
   statsRollupsHourly,
+  storageUsageBreakdowns,
   webhookEvents,
 } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
@@ -707,14 +708,46 @@ async function inventoryGroups(
   now: Date,
   dimension: '' | 'base' | AdminStatsDimension,
 ): Promise<InventoryGroup[]> {
+  if (dimension === 'base' || dimension === 'file_type_group') {
+    const rows = await db
+      .select({
+        orgId: storageUsageBreakdowns.orgId,
+        category: storageUsageBreakdowns.category,
+        files: storageUsageBreakdowns.fileCount,
+        bytes: storageUsageBreakdowns.bytes,
+      })
+      .from(storageUsageBreakdowns)
+      .where(ne(storageUsageBreakdowns.category, 'trash'))
+    if (dimension === 'file_type_group') {
+      return rows.map((row) => ({
+        orgId: row.orgId,
+        files: row.files,
+        bytes: row.bytes,
+        dimensionKey: 'file_type_group',
+        dimensionValue: row.category,
+      }))
+    } else {
+      const values = new Map<string, { files: number; bytes: number }>()
+      for (const row of rows) {
+        const value = values.get(row.orgId) ?? { files: 0, bytes: 0 }
+        value.files += row.files
+        value.bytes += row.bytes
+        values.set(row.orgId, value)
+      }
+      return [...values].map(([orgId, value]) => ({
+        orgId,
+        ...value,
+        dimensionKey: '',
+        dimensionValue: '',
+      }))
+    }
+  }
   const dimensionSql =
-    dimension === 'file_type_group'
-      ? sql<string>`CASE WHEN instr(${matters.type}, '/') > 0 THEN substr(${matters.type}, 1, instr(${matters.type}, '/') - 1) ELSE COALESCE(NULLIF(${matters.type}, ''), 'unknown') END`
-      : dimension === 'size_bucket'
-        ? sql<string>`CASE WHEN ${matters.size} <= ${10 * 1024 * 1024} THEN '<10MB' WHEN ${matters.size} <= ${100 * 1024 * 1024} THEN '10-100MB' WHEN ${matters.size} <= ${1024 * 1024 * 1024} THEN '100MB-1GB' ELSE '>1GB' END`
-        : dimension === 'age_bucket'
-          ? sql<string>`CASE WHEN ${matters.createdAt} >= ${Math.floor(now.getTime() / 1000) - 30 * 86_400} THEN '<30d' WHEN ${matters.createdAt} >= ${Math.floor(now.getTime() / 1000) - 90 * 86_400} THEN '30-90d' WHEN ${matters.createdAt} >= ${Math.floor(now.getTime() / 1000) - 180 * 86_400} THEN '90-180d' ELSE '>180d' END`
-          : sql<string>`''`
+    dimension === 'size_bucket'
+      ? sql<string>`CASE WHEN ${matters.size} <= ${10 * 1024 * 1024} THEN '<10MB' WHEN ${matters.size} <= ${100 * 1024 * 1024} THEN '10-100MB' WHEN ${matters.size} <= ${1024 * 1024 * 1024} THEN '100MB-1GB' ELSE '>1GB' END`
+      : dimension === 'age_bucket'
+        ? sql<string>`CASE WHEN ${matters.createdAt} >= ${Math.floor(now.getTime() / 1000) - 30 * 86_400} THEN '<30d' WHEN ${matters.createdAt} >= ${Math.floor(now.getTime() / 1000) - 90 * 86_400} THEN '30-90d' WHEN ${matters.createdAt} >= ${Math.floor(now.getTime() / 1000) - 180 * 86_400} THEN '90-180d' ELSE '>180d' END`
+        : sql<string>`''`
   const matterRows = await db
     .select({
       orgId: matters.orgId,
@@ -728,13 +761,11 @@ async function inventoryGroups(
     )
     .groupBy(matters.orgId, dimensionSql)
   const imageDimensionSql =
-    dimension === 'file_type_group'
-      ? sql<string>`'image'`
-      : dimension === 'size_bucket'
-        ? sql<string>`CASE WHEN ${imageHostings.size} <= ${10 * 1024 * 1024} THEN '<10MB' WHEN ${imageHostings.size} <= ${100 * 1024 * 1024} THEN '10-100MB' WHEN ${imageHostings.size} <= ${1024 * 1024 * 1024} THEN '100MB-1GB' ELSE '>1GB' END`
-        : dimension === 'age_bucket'
-          ? sql<string>`CASE WHEN ${imageHostings.createdAt} >= ${now.getTime() - 30 * 86_400_000} THEN '<30d' WHEN ${imageHostings.createdAt} >= ${now.getTime() - 90 * 86_400_000} THEN '30-90d' WHEN ${imageHostings.createdAt} >= ${now.getTime() - 180 * 86_400_000} THEN '90-180d' ELSE '>180d' END`
-          : sql<string>`''`
+    dimension === 'size_bucket'
+      ? sql<string>`CASE WHEN ${imageHostings.size} <= ${10 * 1024 * 1024} THEN '<10MB' WHEN ${imageHostings.size} <= ${100 * 1024 * 1024} THEN '10-100MB' WHEN ${imageHostings.size} <= ${1024 * 1024 * 1024} THEN '100MB-1GB' ELSE '>1GB' END`
+      : dimension === 'age_bucket'
+        ? sql<string>`CASE WHEN ${imageHostings.createdAt} >= ${now.getTime() - 30 * 86_400_000} THEN '<30d' WHEN ${imageHostings.createdAt} >= ${now.getTime() - 90 * 86_400_000} THEN '30-90d' WHEN ${imageHostings.createdAt} >= ${now.getTime() - 180 * 86_400_000} THEN '90-180d' ELSE '>180d' END`
+        : sql<string>`''`
   const imageRows = await db
     .select({
       orgId: imageHostings.orgId,
@@ -745,19 +776,21 @@ async function inventoryGroups(
     .from(imageHostings)
     .where(and(eq(imageHostings.status, 'active'), isNull(imageHostings.purgedAt)))
     .groupBy(imageHostings.orgId, imageDimensionSql)
-  const result: InventoryGroup[] = matterRows.map((row) => ({
-    orgId: row.orgId,
-    files: Number(row.files),
-    bytes: Number(row.bytes),
-    dimensionKey: dimension === 'base' ? '' : dimension,
-    dimensionValue: row.dimensionValue,
-  }))
+  const result: InventoryGroup[] = [
+    ...matterRows.map((row) => ({
+      orgId: row.orgId,
+      files: Number(row.files),
+      bytes: Number(row.bytes),
+      dimensionKey: dimension,
+      dimensionValue: row.dimensionValue,
+    })),
+  ]
   for (const row of imageRows) {
     result.push({
       orgId: row.orgId,
       files: Number(row.files),
       bytes: Number(row.bytes),
-      dimensionKey: dimension === 'base' ? '' : dimension,
+      dimensionKey: dimension,
       dimensionValue: row.dimensionValue,
     })
   }

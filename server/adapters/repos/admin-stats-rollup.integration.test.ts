@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import { buildStorageUsageBackfillSql } from '../../../scripts/backfill-storage-usage'
 import {
   ADMIN_STATS_METRIC_REGISTRY,
   assertMetricDimension,
@@ -254,6 +255,7 @@ describe('admin hourly stats rollup', () => {
       VALUES ('rollup-webhook', 'cloud', 'webhook-event', 'order.quota_changed', 'hash', '{}', 'processed', ${atMs}, ${atMs})
     `)
 
+    await db.run(sql.raw(buildStorageUsageBackfillSql(generatedAt.getTime())))
     await captureAdminStatsSnapshot(db, bucketStart, generatedAt)
     const first = await rebuildAdminStatsHour(db, bucketStart, generatedAt)
     const rows = await db.all<RollupRow>(sql`

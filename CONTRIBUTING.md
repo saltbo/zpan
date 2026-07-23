@@ -111,6 +111,20 @@ pnpm db:reset:d1             # Reset D1 local database (.wrangler)
 
 Migration files live in `migrations/` at project root. Always commit them.
 
+### Storage usage backfill
+
+After applying the migration that creates `storage_usage_breakdowns`, run the storage usage backfill once. The command is a dry run unless `--apply` is present.
+
+```sh
+pnpm storage:backfill -- --d1 zpan-db --remote
+pnpm storage:backfill -- --d1 zpan-db --remote --apply
+
+pnpm storage:backfill -- --sqlite zpan.db
+pnpm storage:backfill -- --sqlite zpan.db --apply
+```
+
+The backfill recalculates all eight storage categories from `matters` and `image_hostings`. It is an operator command, not part of the application runtime or deployment lifecycle.
+
 ### Turso (libSQL) migrate path
 
 When deploying the Node/Docker image against a Turso (libSQL) database, set `TURSO_DATABASE_URL` (and `TURSO_AUTH_TOKEN` for remote URLs) before running `db:migrate`. `drizzle.config.ts` detects the env var and switches to the `turso` dialect automatically:
