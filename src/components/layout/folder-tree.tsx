@@ -3,7 +3,7 @@ import type { StorageObject } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearch } from '@tanstack/react-router'
 import { ChevronRight, Folder } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar'
 import { listObjectsByPath } from '@/lib/api'
@@ -35,7 +35,10 @@ function FolderNode({
   const isActive = currentPath === folderPath
 
   const [open, setOpen] = useState(shouldAutoExpand)
-  const expanded = open || shouldAutoExpand
+  useEffect(() => {
+    if (isAncestorOf(folderPath, currentPath)) setOpen(true)
+  }, [folderPath, currentPath])
+
   // Always prefetch to know if this folder has children (for arrow visibility)
   const query = useFolders(folderPath, true)
   const subFolders = query.data ?? []
@@ -43,17 +46,27 @@ function FolderNode({
 
   return (
     <SidebarMenuSubItem>
-      <Collapsible open={expanded} onOpenChange={setOpen}>
+      <Collapsible open={open} onOpenChange={setOpen}>
         <SidebarMenuSubButton asChild isActive={isActive}>
-          <Link to="/files" search={{ path: folderPath }}>
-            <CollapsibleTrigger asChild onClick={(e) => e.preventDefault()} disabled={!hasChildren}>
-              <ChevronRight
-                className={`h-3 w-3 shrink-0 transition-transform data-[state=open]:rotate-90 ${hasChildren ? '' : 'invisible'}`}
-              />
-            </CollapsibleTrigger>
-            <Folder className="h-4 w-4" />
-            <span>{folder.name}</span>
-          </Link>
+          <div>
+            {hasChildren ? (
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={folder.name}
+                  className="group/trigger flex size-4 shrink-0 items-center justify-center"
+                >
+                  <ChevronRight className="size-3 transition-transform group-data-[state=open]/trigger:rotate-90" />
+                </button>
+              </CollapsibleTrigger>
+            ) : (
+              <span className="size-4 shrink-0" />
+            )}
+            <Link to="/files" search={{ path: folderPath }} className="flex min-w-0 flex-1 items-center gap-2">
+              <Folder className="size-4 shrink-0" />
+              <span className="truncate">{folder.name}</span>
+            </Link>
+          </div>
         </SidebarMenuSubButton>
         <CollapsibleContent>
           {subFolders.length > 0 && (
