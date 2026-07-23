@@ -456,6 +456,8 @@ export type {
   StorageUsageCategory,
   StorageUsageItem,
   StorageUsageResponse,
+  StorageUsageSortDirection,
+  StorageUsageSortField,
 } from '../storage-usage'
 
 // passwordHash is intentionally not part of the shared wire type; it never leaves the server.

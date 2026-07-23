@@ -73,6 +73,8 @@ import type {
   StorageUsageCategory,
   StorageUsageItem,
   StorageUsageResponse,
+  StorageUsageSortDirection,
+  StorageUsageSortField,
 } from '@shared/types'
 import {
   adminAuditApi,
@@ -122,10 +124,16 @@ export function getStorageUsage() {
   return unwrap<StorageUsageResponse>(storageUsageApi.index.$get())
 }
 
-export function listStorageUsageItems(category: StorageUsageCategory, page = 1, pageSize = 20) {
+export function listStorageUsageItems(
+  category: StorageUsageCategory,
+  page = 1,
+  pageSize = 20,
+  sortBy: StorageUsageSortField = 'size',
+  sortDir: StorageUsageSortDirection = 'desc',
+) {
   return unwrap<PaginatedResponse<StorageUsageItem>>(
     storageUsageApi.items.$get({
-      query: { category, page: String(page), pageSize: String(pageSize) },
+      query: { category, page: String(page), pageSize: String(pageSize), sortBy, sortDir },
     }),
   )
 }

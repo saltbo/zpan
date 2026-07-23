@@ -1,5 +1,5 @@
 import { classifyStorageUsage, STORAGE_USAGE_CATEGORIES, type StorageUsageCategory } from '@shared/storage-usage'
-import { and, count, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { DirType } from '../../../shared/constants'
 import { imageHostings, matters, storageUsageBreakdowns } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -77,7 +77,7 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
       }
     },
 
-    async listItems(orgId, category, page, pageSize) {
+    async listItems(orgId, category, page, pageSize, sortBy, sortDir) {
       const offset = (page - 1) * pageSize
       if (category === 'image_hosting') {
         const where = and(
@@ -85,12 +85,19 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
           eq(imageHostings.status, 'active'),
           isNull(imageHostings.purgedAt),
         )
+        const sortColumn =
+          sortBy === 'name'
+            ? sql`${imageHostings.path} COLLATE NOCASE`
+            : sortBy === 'updatedAt'
+              ? imageHostings.createdAt
+              : imageHostings.size
+        const order = sortDir === 'asc' ? asc(sortColumn) : desc(sortColumn)
         const [rows, totals] = await Promise.all([
           db
             .select()
             .from(imageHostings)
             .where(where)
-            .orderBy(sql`${imageHostings.size} DESC`)
+            .orderBy(order, asc(imageHostings.id))
             .limit(pageSize)
             .offset(offset),
           db.select({ count: count() }).from(imageHostings).where(where),
@@ -114,8 +121,15 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
         isNull(matters.purgedAt),
         itemCategoryCondition(category),
       )
+      const sortColumn =
+        sortBy === 'name'
+          ? sql`${matters.name} COLLATE NOCASE`
+          : sortBy === 'updatedAt'
+            ? matters.updatedAt
+            : matters.size
+      const order = sortDir === 'asc' ? asc(sortColumn) : desc(sortColumn)
       const [rows, totals] = await Promise.all([
-        db.select().from(matters).where(where).orderBy(sql`${matters.size} DESC`).limit(pageSize).offset(offset),
+        db.select().from(matters).where(where).orderBy(order, asc(matters.id)).limit(pageSize).offset(offset),
         db.select({ count: count() }).from(matters).where(where),
       ])
       return {

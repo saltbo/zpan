@@ -1949,11 +1949,13 @@ describe('api', () => {
     it('lists category items with the expected query', async () => {
       const page = { items: [], total: 0, page: 2, pageSize: 10 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(page))
-      await expect(listStorageUsageItems('trash', 2, 10)).resolves.toEqual(page)
+      await expect(listStorageUsageItems('trash', 2, 10, 'name', 'asc')).resolves.toEqual(page)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
       expect(url).toContain('/api/storage/items')
       expect(url).toContain('category=trash')
       expect(url).toContain('page=2')
+      expect(url).toContain('sortBy=name')
+      expect(url).toContain('sortDir=asc')
     })
 
     it('throws ApiError for usage and item failures', async () => {

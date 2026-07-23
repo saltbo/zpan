@@ -3,11 +3,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  deleteIhostImage,
+  deleteObject,
   getStorageUsage,
   getUserQuota,
   listCloudProducts,
   listCloudStoreTargets,
   listStorageUsageItems,
+  purgeTrashObject,
 } from '@/lib/api'
 import { StoragePage } from './storage'
 
@@ -27,11 +30,14 @@ vi.mock('@/lib/auth-client', () => ({
 }))
 
 vi.mock('@/lib/api', () => ({
+  deleteIhostImage: vi.fn(),
+  deleteObject: vi.fn(),
   getStorageUsage: vi.fn(),
   getUserQuota: vi.fn(),
   listCloudProducts: vi.fn(),
   listCloudStoreTargets: vi.fn(),
   listStorageUsageItems: vi.fn(),
+  purgeTrashObject: vi.fn(),
 }))
 
 vi.mock('@/components/store/checkout-navigation', () => ({
@@ -90,6 +96,9 @@ beforeEach(() => {
     total: 1,
   })
   vi.mocked(listStorageUsageItems).mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 })
+  vi.mocked(deleteIhostImage).mockResolvedValue(undefined)
+  vi.mocked(deleteObject).mockResolvedValue(undefined)
+  vi.mocked(purgeTrashObject).mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -111,8 +120,34 @@ describe('StoragePage', () => {
     renderPage()
     const photos = await screen.findAllByText('storage.category.photos')
     fireEvent.click(photos[1])
-    await waitFor(() => expect(listStorageUsageItems).toHaveBeenCalledWith('photos', 1, 20))
-    expect(screen.getByText('storage.goManage')).toBeTruthy()
+    await waitFor(() => expect(listStorageUsageItems).toHaveBeenCalledWith('photos', 1, 20, 'size', 'desc'))
+    expect(screen.getByText('storage.manageFilesTitle')).toBeTruthy()
+  })
+
+  it('sorts the full category query from table headers', async () => {
+    vi.mocked(listStorageUsageItems).mockResolvedValue({
+      items: [
+        {
+          id: 'photo-1',
+          name: 'one.jpg',
+          type: 'image/jpeg',
+          size: 100,
+          updatedAt: '2026-07-23T00:00:00.000Z',
+          source: 'files',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    renderPage()
+    const photos = await screen.findAllByText('storage.category.photos')
+    fireEvent.click(photos[1])
+    fireEvent.click(await screen.findByText('storage.columnName'))
+
+    await waitFor(() => expect(listStorageUsageItems).toHaveBeenCalledWith('photos', 1, 20, 'name', 'asc'))
+    fireEvent.click(await screen.findByText('storage.columnName'))
+    await waitFor(() => expect(listStorageUsageItems).toHaveBeenCalledWith('photos', 1, 20, 'name', 'desc'))
   })
 
   it('opens storage plans in a modal instead of the primary page', async () => {
@@ -120,6 +155,78 @@ describe('StoragePage', () => {
     const button = await screen.findByText('storage.expandStorage')
     await waitFor(() => expect(button.closest('button')?.disabled).toBe(false))
     fireEvent.click(button)
-    expect(await screen.findAllByText('storage.availablePlansTitle')).toHaveLength(2)
+    expect(await screen.findAllByText('storage.availablePlansTitle')).toHaveLength(1)
+    expect(screen.getAllByText('storage.availablePlansDescription')).toHaveLength(1)
+    expect(screen.queryByText('storage.availableProductsDescription')).toBeNull()
+  })
+
+  it('selects multiple files and permanently deletes them without leaving the dialog', async () => {
+    vi.mocked(listStorageUsageItems).mockResolvedValue({
+      items: [
+        {
+          id: 'photo-1',
+          name: 'one.jpg',
+          type: 'image/jpeg',
+          size: 100,
+          updatedAt: '2026-07-23T00:00:00.000Z',
+          source: 'files',
+        },
+        {
+          id: 'photo-2',
+          name: 'two.png',
+          type: 'image/png',
+          size: 200,
+          updatedAt: '2026-07-23T00:00:00.000Z',
+          source: 'files',
+        },
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 20,
+    })
+
+    renderPage()
+    const photos = await screen.findAllByText('storage.category.photos')
+    fireEvent.click(photos[1])
+    fireEvent.click(await screen.findByLabelText('storage.selectAll'))
+    fireEvent.click(screen.getByText('storage.deleteSelected'))
+    fireEvent.click(screen.getByText('storage.deletePermanently'))
+
+    await waitFor(() => expect(deleteObject).toHaveBeenCalledTimes(2))
+    expect(deleteObject).toHaveBeenNthCalledWith(1, 'photo-1')
+    expect(deleteObject).toHaveBeenNthCalledWith(2, 'photo-2')
+    expect(purgeTrashObject).toHaveBeenNthCalledWith(1, 'photo-1')
+    expect(purgeTrashObject).toHaveBeenNthCalledWith(2, 'photo-2')
+  })
+
+  it.each([
+    ['image_hosting', 'image_hosting', deleteIhostImage],
+    ['trash', 'trash', purgeTrashObject],
+  ] as const)('uses the correct delete path for %s items', async (category, source, deleteFn) => {
+    vi.mocked(listStorageUsageItems).mockResolvedValue({
+      items: [
+        {
+          id: `${category}-1`,
+          name: `${category}.png`,
+          type: 'image/png',
+          size: 100,
+          updatedAt: '2026-07-23T00:00:00.000Z',
+          source,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+
+    renderPage()
+    const categoryLabels = await screen.findAllByText(`storage.category.${category}`)
+    const categoryButton = categoryLabels.map((label) => label.closest('button')).find(Boolean)
+    fireEvent.click(categoryButton!)
+    fireEvent.click(await screen.findByLabelText(`storage.deleteFile:${category}.png`))
+    fireEvent.click(screen.getByText('storage.deletePermanently'))
+
+    await waitFor(() => expect(deleteFn).toHaveBeenCalledWith(`${category}-1`))
+    expect(deleteObject).not.toHaveBeenCalled()
   })
 })

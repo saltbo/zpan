@@ -29,6 +29,37 @@ async function setup() {
 }
 
 describe('storage usage breakdown projection', () => {
+  it('sorts category items before pagination', async () => {
+    const { db, orgId } = await setup()
+    const usage = createStorageUsageBreakdownRepo(db)
+    const matter = createMatterRepo(db)
+
+    for (const [name, size] of [
+      ['charlie.pdf', 30],
+      ['alpha.pdf', 10],
+      ['bravo.pdf', 20],
+    ] as const) {
+      await matter.create({
+        orgId,
+        name,
+        type: 'application/pdf',
+        size,
+        dirtype: DirType.FILE,
+        parent: '',
+        object: name,
+        storageId: 'storage-1',
+        status: ObjectStatus.ACTIVE,
+      })
+    }
+
+    const byName = await usage.listItems(orgId, 'documents', 1, 2, 'name', 'asc')
+    expect(byName.items.map((item) => item.name)).toEqual(['alpha.pdf', 'bravo.pdf'])
+    expect(byName.total).toBe(3)
+
+    const bySize = await usage.listItems(orgId, 'documents', 1, 3, 'size', 'desc')
+    expect(bySize.items.map((item) => item.size)).toEqual([30, 20, 10])
+  })
+
   it('initializes new spaces and moves file bytes through active, trash, restore, and purge', async () => {
     const { db, orgId } = await setup()
     const usage = createStorageUsageBreakdownRepo(db)
