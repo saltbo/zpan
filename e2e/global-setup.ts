@@ -9,6 +9,7 @@ import { hashPassword } from '../server/lib/password'
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from './helpers'
 
 const localBaseUrl = process.env.E2E_LOCAL_BASE_URL ?? 'http://localhost:5185'
+const publicBaseUrl = process.env.E2E_BASE_URL ?? localBaseUrl
 const defaultOrgQuota = process.env.E2E_DEFAULT_ORG_QUOTA ?? String(1024 * 1024 * 1024)
 
 const storageConfig = {
@@ -191,6 +192,16 @@ setup('seed admin and storage', async () => {
         return
       }
     }
+
+    const identityResp = await request.put('/api/site/settings/identity', {
+      headers,
+      data: {
+        name: 'ZPan',
+        description: '',
+        publicUrl: publicBaseUrl,
+      },
+    })
+    if (!identityResp.ok()) throw new Error(`could not set E2E public URL: ${identityResp.status()}`)
 
     const quotaResp = await request.put('/api/site/settings/quotas', {
       headers,
