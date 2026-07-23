@@ -24,14 +24,12 @@ import {
   createRemoteDownloadApiKey,
   createWebDavAppPassword,
   type IhostApiKey,
-  listIhostApiKeys,
-  listRemoteDownloadApiKeys,
-  listWebDavAppPasswords,
+  listApiKeys,
   revokeIhostApiKey,
   revokeRemoteDownloadApiKey,
   revokeWebDavAppPassword,
 } from '@/lib/api'
-import { useActiveOrganization, useSession } from '@/lib/auth-client'
+import { useListOrganizations, useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/settings/api-keys')({
   component: ApiKeysSettingsPage,
@@ -49,6 +47,11 @@ interface ApiKeyRow {
 interface CreatedKey {
   name: string
   key: string
+}
+
+interface Organization {
+  id: string
+  name: string
 }
 
 function formatDate(value: string | null) {
@@ -73,12 +76,12 @@ function CopyButton({ value }: { value: string }) {
 
 function CreateApiKeyDialog({
   open,
-  orgId,
+  organizations,
   onOpenChange,
   onCreated,
 }: {
   open: boolean
-  orgId: string | undefined
+  organizations: Organization[]
   onOpenChange: (open: boolean) => void
   onCreated: (key: CreatedKey) => void
 }) {
@@ -86,6 +89,7 @@ function CreateApiKeyDialog({
   const queryClient = useQueryClient()
   const [kind, setKind] = useState<ApiKeyKind>('ihost')
   const [name, setName] = useState('')
+  const [orgId, setOrgId] = useState('')
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -106,6 +110,7 @@ function CreateApiKeyDialog({
       onCreated({ name: result.name ?? name.trim(), key: result.key })
       setName('')
       setKind('ihost')
+      setOrgId('')
       onOpenChange(false)
       toast.success(t('settings.apiKeys.createSuccess'))
     },
@@ -144,6 +149,23 @@ function CreateApiKeyDialog({
               placeholder={t('settings.apiKeys.namePlaceholder')}
             />
           </div>
+          {needsOrg ? (
+            <div className="space-y-2">
+              <Label htmlFor="api-key-workspace">{t('settings.apiKeys.scopeLabel')}</Label>
+              <Select value={orgId} onValueChange={setOrgId}>
+                <SelectTrigger id="api-key-workspace" className="w-full">
+                  <SelectValue placeholder={t('settings.apiKeys.scopePlaceholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -248,45 +270,35 @@ function RevokeApiKeyDialog({ apiKey, onClose }: { apiKey: ApiKeyRow | null; onC
 function ApiKeysSettingsPage() {
   const { t } = useTranslation()
   const { data: session } = useSession()
-  const { data: activeOrg } = useActiveOrganization()
-  const orgId = activeOrg?.id
+  const { data: organizationData } = useListOrganizations()
+  const organizations = (organizationData ?? []) as Organization[]
   const [createOpen, setCreateOpen] = useState(false)
   const [createdKey, setCreatedKey] = useState<CreatedKey | null>(null)
   const [revoking, setRevoking] = useState<ApiKeyRow | null>(null)
 
-  const ihostQuery = useQuery({
-    queryKey: ['api-keys', 'ihost', orgId],
-    queryFn: () => listIhostApiKeys(orgId as string),
-    enabled: !!orgId,
-  })
-  const webdavQuery = useQuery({
-    queryKey: ['api-keys', 'webdav'],
-    queryFn: listWebDavAppPasswords,
+  const apiKeysQuery = useQuery({
+    queryKey: ['api-keys'],
+    queryFn: listApiKeys,
     enabled: !!session,
   })
-  const remoteDownloadQuery = useQuery({
-    queryKey: ['api-keys', 'remote-download', orgId],
-    queryFn: () => listRemoteDownloadApiKeys(orgId as string),
-    enabled: !!orgId,
-  })
 
-  const rows: ApiKeyRow[] = [
-    ...(ihostQuery.data ?? []).map((key) => ({ id: key.id, name: key.name ?? key.id, kind: 'ihost' as const, key })),
-    ...(webdavQuery.data ?? []).map((key) => ({
-      id: key.id,
-      name: key.name ?? key.id,
-      kind: 'webdav' as const,
-      key,
-    })),
-    ...(remoteDownloadQuery.data ?? []).map((key) => ({
-      id: key.id,
-      name: key.name ?? key.id,
-      kind: 'remote-download' as const,
-      key,
-    })),
-  ].sort((a, b) => new Date(b.key.createdAt).getTime() - new Date(a.key.createdAt).getTime())
+  const rows: ApiKeyRow[] = (apiKeysQuery.data ?? [])
+    .filter((key): key is IhostApiKey & { configId: ApiKeyKind } =>
+      ['ihost', 'webdav', 'remote-download'].includes(key.configId),
+    )
+    .map((key) => ({ id: key.id, name: key.name ?? key.id, kind: key.configId, key }))
+    .sort((a, b) => new Date(b.key.createdAt).getTime() - new Date(a.key.createdAt).getTime())
 
-  const isLoading = ihostQuery.isLoading || webdavQuery.isLoading || remoteDownloadQuery.isLoading
+  const orgNames = new Map(organizations.map((org) => [org.id, org.name]))
+  const isLoading = apiKeysQuery.isLoading
+
+  function scopeLabel(row: ApiKeyRow): string {
+    const scope = row.key.metadata?.scope
+    if (scope?.mode === 'user-workspaces') return t('settings.apiKeys.scopeAllWorkspaces')
+    if (scope?.mode === 'workspace')
+      return orgNames.get(scope.orgId) ?? t('settings.apiKeys.scopeUnavailable', { orgId: scope.orgId })
+    return t('settings.apiKeys.scopeInvalid')
+  }
 
   return (
     <div className="max-w-4xl">
@@ -312,6 +324,7 @@ function ApiKeysSettingsPage() {
                 <TableRow>
                   <TableHead>{t('settings.apiKeys.colName')}</TableHead>
                   <TableHead>{t('settings.apiKeys.colType')}</TableHead>
+                  <TableHead>{t('settings.apiKeys.colScope')}</TableHead>
                   <TableHead>{t('settings.apiKeys.colCreated')}</TableHead>
                   <TableHead>{t('settings.apiKeys.colLastUsed')}</TableHead>
                   <TableHead className="w-20 text-right">{t('settings.apiKeys.colActions')}</TableHead>
@@ -327,6 +340,7 @@ function ApiKeysSettingsPage() {
                     <TableCell>
                       <Badge variant="secondary">{t(`settings.apiKeys.type.${row.kind}`)}</Badge>
                     </TableCell>
+                    <TableCell>{scopeLabel(row)}</TableCell>
                     <TableCell>{formatDate(row.key.createdAt)}</TableCell>
                     <TableCell>{formatDate(row.key.lastRequest) ?? t('settings.apiKeys.never')}</TableCell>
                     <TableCell className="text-right">
@@ -351,7 +365,7 @@ function ApiKeysSettingsPage() {
 
       <CreateApiKeyDialog
         open={createOpen}
-        orgId={orgId}
+        organizations={organizations}
         onOpenChange={setCreateOpen}
         onCreated={(key) => setCreatedKey(key)}
       />

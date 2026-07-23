@@ -74,6 +74,7 @@ import {
   listAdminAnnouncements,
   listAdminAuditLogs,
   listAnnouncements,
+  listApiKeys,
   listAuthProviders,
   listBackgroundJobs,
   listCloudCreditLedgerEntries,
@@ -84,7 +85,6 @@ import {
   listDownloaders,
   listDownloadTaskEvents,
   listDownloadTasks,
-  listIhostApiKeys,
   listIhostImages,
   listInviteCodes,
   listNotifications,
@@ -92,7 +92,6 @@ import {
   listOrgEntitlements,
   listQuotas,
   listReceivedShares,
-  listRemoteDownloadApiKeys,
   listShareObjects,
   listShares,
   listSiteInvitations,
@@ -101,7 +100,6 @@ import {
   listTeams,
   listTrash,
   listUserEntitlements,
-  listWebDavAppPasswords,
   markAllNotificationsRead,
   markNotificationRead,
   pollPairing,
@@ -2976,47 +2974,36 @@ describe('api', () => {
     })
   })
 
-  describe('listIhostApiKeys', () => {
+  describe('listApiKeys', () => {
     const sampleKey = {
       id: 'key-1',
+      configId: 'ihost',
       name: 'My Key',
       start: 'abc',
       prefix: null,
       createdAt: '2024-01-01T00:00:00.000Z',
       lastRequest: null,
       permissions: { ihost: ['upload'] },
-      referenceId: 'org-1',
+      metadata: { scope: { mode: 'workspace', orgId: 'org-1' } },
+      referenceId: 'user-1',
       enabled: true,
     }
 
-    it('calls GET /api/auth/api-key/list with organizationId', async () => {
+    it('lists every key owned by the current user without an organization filter', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ apiKeys: [sampleKey] }))
 
-      await listIhostApiKeys('org-1')
+      const result = await listApiKeys()
 
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/auth/api-key/list')
-      expect(url).toContain('organizationId=org-1')
-    })
-
-    it('filters to ihost:upload permission only', async () => {
-      const otherKey = {
-        ...sampleKey,
-        id: 'key-2',
-        permissions: { 'other-scope': ['read'] },
-      }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ apiKeys: [sampleKey, otherKey] }))
-
-      const result = await listIhostApiKeys('org-1')
-
-      expect(result).toHaveLength(1)
-      expect(result[0].id).toBe('key-1')
+      expect(result).toEqual([sampleKey])
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/auth/api-key/list')
+      expect(init.method).toBe('GET')
     })
 
     it('returns empty array when no matching keys', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ apiKeys: [] }))
 
-      const result = await listIhostApiKeys('org-1')
+      const result = await listApiKeys()
 
       expect(result).toEqual([])
     })
@@ -3024,7 +3011,7 @@ describe('api', () => {
     it('throws ApiError on failure', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
 
-      await expect(listIhostApiKeys('org-1')).rejects.toThrow('Unauthorized')
+      await expect(listApiKeys()).rejects.toThrow('Unauthorized')
     })
   })
 
@@ -3121,30 +3108,17 @@ describe('api', () => {
   describe('WebDAV app passwords', () => {
     const samplePassword = {
       id: 'webdav-key-1',
+      configId: 'webdav',
       name: 'Finder',
       start: 'zpan',
       prefix: null,
       createdAt: '2024-01-01T00:00:00.000Z',
       lastRequest: null,
       permissions: { webdav: ['read', 'write'] },
+      metadata: { scope: { mode: 'user-workspaces' } },
       referenceId: 'user-1',
       enabled: true,
     }
-
-    it('lists only webdav app passwords', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        makeResponse({
-          apiKeys: [samplePassword, { ...samplePassword, id: 'other', permissions: { other: ['read'] } }],
-        }),
-      )
-
-      const result = await listWebDavAppPasswords()
-
-      expect(result).toEqual([samplePassword])
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/auth/api-key/list?configId=webdav')
-      expect(init.method).toBe('GET')
-    })
 
     it('creates a webdav app password with configId', async () => {
       const created = { ...samplePassword, key: 'webdav-secret' }
@@ -3170,41 +3144,22 @@ describe('api', () => {
       expect(init.method).toBe('POST')
       expect(JSON.parse(init.body as string)).toEqual({ configId: 'webdav', keyId: 'webdav-key-1' })
     })
-
-    it('throws ApiError on webdav app password failure', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
-
-      await expect(listWebDavAppPasswords()).rejects.toThrow('Unauthorized')
-    })
   })
 
   describe('Remote download API keys', () => {
     const sampleKey = {
       id: 'remote-key-1',
+      configId: 'remote-download',
       name: 'Remote Download',
       start: 'zpan',
       prefix: null,
       createdAt: '2024-01-01T00:00:00.000Z',
       lastRequest: null,
       permissions: { remoteDownload: ['read', 'create', 'cancel'] },
-      referenceId: 'org-1',
+      metadata: { scope: { mode: 'workspace', orgId: 'org-1' } },
+      referenceId: 'user-1',
       enabled: true,
     }
-
-    it('lists only remote-download API keys', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        makeResponse({
-          apiKeys: [sampleKey, { ...sampleKey, id: 'other', permissions: { ihost: ['upload'] } }],
-        }),
-      )
-
-      const result = await listRemoteDownloadApiKeys('org-1')
-
-      expect(result).toEqual([sampleKey])
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/auth/api-key/list?organizationId=org-1&configId=remote-download')
-      expect(init.method).toBe('GET')
-    })
 
     it('creates a remote-download API key with configId', async () => {
       const created = { ...sampleKey, key: 'remote-secret' }
@@ -3233,12 +3188,6 @@ describe('api', () => {
       expect(url).toBe('/api/auth/api-key/delete')
       expect(init.method).toBe('POST')
       expect(JSON.parse(init.body as string)).toEqual({ configId: 'remote-download', keyId: 'remote-key-1' })
-    })
-
-    it('throws ApiError on remote-download API key failure', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
-
-      await expect(listRemoteDownloadApiKeys('org-1')).rejects.toThrow('Unauthorized')
     })
   })
 

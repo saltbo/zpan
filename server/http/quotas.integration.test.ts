@@ -187,7 +187,7 @@ describe('User Quotas API — /api/quotas', () => {
     expect(body.orgId).toBeTruthy()
   })
 
-  it('GET /api/quotas/me returns 404 when user has no org [spec: quotas/me-no-org]', async () => {
+  it('GET /api/quotas/me rejects an API key because the route requires a user session [spec: quotas/me-no-org]', async () => {
     const { app, auth, db } = await createTestApp()
     await authedHeaders(app, 'noorg@example.com')
     const [user] = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'noorg@example.com'`)
@@ -201,7 +201,7 @@ describe('User Quotas API — /api/quotas', () => {
       headers: { Authorization: `Bearer ${apiKey.key}` },
     })
 
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(401)
   })
 
   it('GET /api/quotas/me returns base quota plus active entitlements and labels [spec: quotas/me-effective]', async () => {

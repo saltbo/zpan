@@ -335,7 +335,7 @@ const app = new OpenAPIHono<Env>()
 // because `.use()` returns the base Hono type and would strip `.openapi()`.
 app.use(async (c, next) => {
   const principal = c.get('principal')
-  if (c.get('userId') || principal?.kind === 'download-task-upload') {
+  if (principal?.kind === 'user' || principal?.kind === 'download-task-upload') {
     await next()
     return
   }

@@ -11,12 +11,18 @@ import { eq } from 'drizzle-orm'
 import { apikey } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
 import { type ApiKeyAuth, type ApiKeyGateway, ApiKeyRateLimitError, type VerifiedApiKey } from '../../usecases/ports'
-import { resolveOrganizationOwnerUserId } from './organization-owner'
+import { normalizeLegacyApiKey } from './api-key-scopes'
 
 type VerifyApiKeyResult = {
   valid: boolean
   error: { message: string; code: string; details?: { tryAgainIn?: number } } | null
-  key: Omit<VerifiedApiKey, 'ownerUserId'> | null
+  key: {
+    id: string
+    configId: string
+    referenceId: string
+    metadata: unknown
+    permissions: ApiKeyPermissions | null
+  } | null
 }
 
 export function createApiKeyGateway(): ApiKeyGateway {
@@ -27,7 +33,7 @@ export function createApiKeyGateway(): ApiKeyGateway {
       if (configId && resolvedConfigId !== configId) return null
       const result = await verify(auth, { configId: resolvedConfigId, key })
       throwIfRateLimited(result)
-      if (result?.valid && result.key) return attachOwnerUserId(db, result.key)
+      if (result?.valid && result.key) return normalizeVerifiedApiKey(db, result.key)
       return null
     },
 
@@ -41,30 +47,29 @@ export function createApiKeyGateway(): ApiKeyGateway {
         permissions: { [resource]: [action] },
       })
       throwIfRateLimited(result)
-      if (result?.valid && result.key) return attachOwnerUserId(db, result.key)
+      if (result?.valid && result.key) return normalizeVerifiedApiKey(db, result.key)
       return null
     },
 
     hasApiKeyPermission(permissions: ApiKeyPermissions | null | undefined, resource, action) {
       return permissions?.[resource]?.includes(action) ?? false
     },
-
-    isOrgApiKey(configId) {
-      return configId !== ApiKeyTemplate.WEBDAV
-    },
   }
 }
 
-async function attachOwnerUserId(
+async function normalizeVerifiedApiKey(
   db: Database,
-  key: Omit<VerifiedApiKey, 'ownerUserId'>,
-): Promise<VerifiedApiKey> {
-  if (key.configId === ApiKeyTemplate.WEBDAV) {
-    return { ...key, ownerUserId: key.referenceId }
+  key: NonNullable<VerifyApiKeyResult['key']>,
+): Promise<VerifiedApiKey | null> {
+  const normalized = await normalizeLegacyApiKey(db, key)
+  if (!normalized) return null
+  return {
+    id: key.id,
+    configId: key.configId,
+    referenceId: normalized.referenceId,
+    scope: normalized.scope,
+    permissions: key.permissions,
   }
-
-  const ownerUserId = await resolveOrganizationOwnerUserId(db, key.referenceId)
-  return { ...key, ownerUserId }
 }
 
 async function verify(auth: ApiKeyAuth, body: Record<string, unknown>): Promise<VerifyApiKeyResult | null> {

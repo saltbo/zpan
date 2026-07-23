@@ -176,7 +176,7 @@ describe('Download tasks API integration', () => {
     expect(created.token).toBeTruthy()
   })
 
-  it('uses the API key owner UID in the object storage key [spec: download-tasks/api-key-owner-storage-key]', async () => {
+  it('uses the API key owner UID in the object storage key', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const admin = await adminHeaders(app)
@@ -216,11 +216,6 @@ describe('Download tasks API integration', () => {
     expect(createTaskRes.status).toBe(201)
     const task = (await createTaskRes.json()) as DownloadTask
     expect(task.createdBy).toBe(identity.userId)
-    await db.run(sql`
-      UPDATE download_tasks
-      SET created_by_user_id = ${`api-key:${apiKey.id}`}
-      WHERE id = ${task.id}
-    `)
 
     const downloader = await registerDownloaderThroughDeviceLogin(app, 'api-key-storage-downloader', admin)
     const assigned = await claimTaskForDownloader(app, downloader.token, task.id)

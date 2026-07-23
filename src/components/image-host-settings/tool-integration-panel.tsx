@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { listIhostApiKeys } from '@/lib/api'
+import { listApiKeys } from '@/lib/api'
 import { PicGoGenerator } from './tool-generators/picgo'
 import { ShareXGenerator } from './tool-generators/sharex'
 import { UPicGenerator } from './tool-generators/upic'
@@ -30,7 +30,11 @@ export function ToolIntegrationPanel({ orgId }: ToolIntegrationPanelProps) {
 
   const keysQuery = useQuery({
     queryKey: ['ihost', 'api-keys', orgId],
-    queryFn: () => listIhostApiKeys(orgId),
+    queryFn: async () =>
+      (await listApiKeys()).filter(
+        (key) =>
+          key.configId === 'ihost' && key.metadata?.scope.mode === 'workspace' && key.metadata.scope.orgId === orgId,
+      ),
   })
   const apiKeys = keysQuery.data ?? []
 

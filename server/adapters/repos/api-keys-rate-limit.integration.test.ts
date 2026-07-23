@@ -7,6 +7,7 @@ import {
 } from '../../../shared/api-key-templates.js'
 import { authedHeaders, createTestApp } from '../../test/setup.js'
 import { ApiKeyRateLimitError } from '../../usecases/ports'
+import { deleteApiKeysScopedToOrganization } from './api-key-scopes'
 import { createApiKeyGateway } from './api-keys'
 
 const apiKeys = createApiKeyGateway()
@@ -44,12 +45,16 @@ async function createOrgApiKey(
 async function getApiKeyRow(db: TestApp['db'], id: string) {
   const rows = await db.all<{
     config_id: string
+    reference_id: string
+    metadata: string | null
+    enabled: number
     rate_limit_enabled: number
     rate_limit_time_window: number | null
     rate_limit_max: number | null
     request_count: number
   }>(sql`
-    SELECT config_id, rate_limit_enabled, rate_limit_time_window, rate_limit_max, request_count
+    SELECT config_id, reference_id, metadata, enabled,
+           rate_limit_enabled, rate_limit_time_window, rate_limit_max, request_count
     FROM apikey
     WHERE id = ${id}
   `)
@@ -57,7 +62,53 @@ async function getApiKeyRow(db: TestApp['db'], id: string) {
   return rows[0]
 }
 
-describe('API key rate limits', () => {
+describe('API keys', () => {
+  it('stores every template as a user-owned key with a server-defined scope', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const { orgId, userId } = await getUserAndOrg(db)
+
+    const ihostResponse = await app.request('/api/auth/api-key/create', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        configId: 'ihost',
+        organizationId: orgId,
+        metadata: { scope: { mode: 'workspace', orgId: 'forged-org' } },
+      }),
+    })
+    const webdavResponse = await app.request('/api/auth/api-key/create', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ configId: 'webdav', metadata: { scope: { mode: 'workspace', orgId } } }),
+    })
+    const remoteDownloadResponse = await app.request('/api/auth/api-key/create', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ configId: 'remote-download', organizationId: orgId }),
+    })
+
+    expect(ihostResponse.status).toBe(200)
+    expect(webdavResponse.status).toBe(200)
+    expect(remoteDownloadResponse.status).toBe(200)
+    const ihost = (await ihostResponse.json()) as { id: string }
+    const webdav = (await webdavResponse.json()) as { id: string }
+    expect(await getApiKeyRow(db, ihost.id)).toMatchObject({
+      reference_id: userId,
+      metadata: JSON.stringify({ scope: { mode: 'workspace', orgId } }),
+    })
+    expect(await getApiKeyRow(db, webdav.id)).toMatchObject({
+      reference_id: userId,
+      metadata: JSON.stringify({ scope: { mode: 'user-workspaces' } }),
+    })
+
+    const listResponse = await app.request('/api/auth/api-key/list', { headers })
+    expect(listResponse.status).toBe(200)
+    const listed = (await listResponse.json()) as { apiKeys: Array<{ configId: string; referenceId: string }> }
+    expect(listed.apiKeys.map((key) => key.configId).sort()).toEqual(['ihost', 'remote-download', 'webdav'])
+    expect(listed.apiKeys.every((key) => key.referenceId === userId)).toBe(true)
+  })
+
   it('persists the configured defaults for each API key template', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
@@ -72,6 +123,7 @@ describe('API key rate limits', () => {
 
     expect(await getApiKeyRow(db, ihost.id)).toMatchObject({
       config_id: 'ihost',
+      reference_id: userId,
       rate_limit_enabled: 1,
       rate_limit_time_window: 60_000,
       rate_limit_max: 60,
@@ -79,6 +131,7 @@ describe('API key rate limits', () => {
     })
     expect(await getApiKeyRow(db, webdav.id)).toMatchObject({
       config_id: 'webdav',
+      reference_id: userId,
       rate_limit_enabled: 1,
       rate_limit_time_window: WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,
       rate_limit_max: WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
@@ -86,6 +139,7 @@ describe('API key rate limits', () => {
     })
     expect(await getApiKeyRow(db, remoteDownload.id)).toMatchObject({
       config_id: 'remote-download',
+      reference_id: userId,
       rate_limit_enabled: 1,
       rate_limit_time_window: 60_000,
       rate_limit_max: 120,
@@ -93,7 +147,7 @@ describe('API key rate limits', () => {
     })
   })
 
-  it('resolves the organization owner UID for an organization API key', async () => {
+  it('returns the user owner and workspace scope for a workspace API key', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     const { orgId, userId } = await getUserAndOrg(db)
@@ -101,8 +155,53 @@ describe('API key rate limits', () => {
 
     await expect(apiKeys.verifyApiKey(auth, db, remoteDownload.key, 'remote-download')).resolves.toMatchObject({
       id: remoteDownload.id,
-      ownerUserId: userId,
+      referenceId: userId,
+      scope: { mode: 'workspace', orgId },
     })
+  })
+
+  it('normalizes a legacy organization-owned key to the current owner', async () => {
+    const { app, db, auth } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const { orgId, userId } = await getUserAndOrg(db)
+    const remoteDownload = await createOrgApiKey(auth, 'remote-download', orgId, userId)
+    const ihost = await createOrgApiKey(auth, 'ihost', orgId, userId)
+    await db.run(sql`
+      UPDATE apikey
+      SET reference_id = ${orgId}, metadata = NULL
+      WHERE id IN (${remoteDownload.id}, ${ihost.id})
+    `)
+
+    await expect(apiKeys.verifyApiKey(auth, db, remoteDownload.key, 'remote-download')).resolves.toMatchObject({
+      referenceId: userId,
+      scope: { mode: 'workspace', orgId },
+    })
+    const row = await getApiKeyRow(db, remoteDownload.id)
+    expect(row.reference_id).toBe(userId)
+    expect(JSON.parse(row.metadata as string)).toEqual({ scope: { mode: 'workspace', orgId } })
+
+    const listResponse = await app.request('/api/auth/api-key/list', { headers })
+    expect(listResponse.status).toBe(200)
+    const listed = (await listResponse.json()) as { apiKeys: Array<{ id: string }> }
+    expect(listed.apiKeys.map((key) => key.id)).toEqual(expect.arrayContaining([remoteDownload.id, ihost.id]))
+    expect(await getApiKeyRow(db, ihost.id)).toMatchObject({ reference_id: userId })
+  })
+
+  it('deletes workspace-scoped keys with their organization but preserves WebDAV keys', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    const { orgId, userId } = await getUserAndOrg(db)
+    const ihost = await createOrgApiKey(auth, 'ihost', orgId, userId)
+    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
+    const webdav = (await (auth.api as any).createApiKey({
+      body: { configId: 'webdav', userId },
+    })) as { id: string }
+
+    await deleteApiKeysScopedToOrganization(db, orgId)
+
+    const rows = await db.all<{ id: string }>(sql`SELECT id FROM apikey`)
+    expect(rows.map((row) => row.id)).not.toContain(ihost.id)
+    expect(rows.map((row) => row.id)).toContain(webdav.id)
   })
 
   it('allows exactly maxRequests verifications before rejecting the next one', async () => {

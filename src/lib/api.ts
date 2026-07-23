@@ -1,4 +1,4 @@
-import { ApiKeyTemplate } from '@shared/api-key-templates'
+import { type ApiKeyMetadata, ApiKeyTemplate } from '@shared/api-key-templates'
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
   AllowedImageMime,
@@ -1056,12 +1056,14 @@ export function deleteIhostConfig() {
 
 export interface IhostApiKey {
   id: string
+  configId: string
   name: string | null
   start: string | null
   prefix: string | null
   createdAt: string
   lastRequest: string | null
   permissions: Record<string, string[]> | null
+  metadata: ApiKeyMetadata | null
   referenceId: string
   enabled: boolean
 }
@@ -1079,10 +1081,10 @@ async function apiKeyFetch<T>(path: string, options: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export function listIhostApiKeys(organizationId: string) {
-  return apiKeyFetch<{ apiKeys: IhostApiKey[] }>(`/api-key/list?organizationId=${encodeURIComponent(organizationId)}`, {
+export function listApiKeys() {
+  return apiKeyFetch<{ apiKeys: IhostApiKey[] }>('/api-key/list', {
     method: 'GET',
-  }).then((res) => res.apiKeys.filter((k) => k.permissions?.ihost?.includes('upload')))
+  }).then((res) => res.apiKeys)
 }
 
 export function createIhostApiKey(organizationId: string, name: string) {
@@ -1113,12 +1115,6 @@ export interface CreateWebDavAppPasswordResult extends WebDavAppPassword {
   key: string
 }
 
-export function listWebDavAppPasswords() {
-  return apiKeyFetch<{ apiKeys: WebDavAppPassword[] }>('/api-key/list?configId=webdav', {
-    method: 'GET',
-  }).then((res) => res.apiKeys.filter((k) => k.permissions?.webdav?.includes('read')))
-}
-
 export function createWebDavAppPassword(name: string) {
   return apiKeyFetch<CreateWebDavAppPasswordResult>('/api-key/create', {
     method: 'POST',
@@ -1144,15 +1140,6 @@ export type RemoteDownloadApiKey = IhostApiKey
 
 export interface CreateRemoteDownloadApiKeyResult extends RemoteDownloadApiKey {
   key: string
-}
-
-export function listRemoteDownloadApiKeys(organizationId: string) {
-  return apiKeyFetch<{ apiKeys: RemoteDownloadApiKey[] }>(
-    `/api-key/list?organizationId=${encodeURIComponent(organizationId)}&configId=${ApiKeyTemplate.REMOTE_DOWNLOAD}`,
-    {
-      method: 'GET',
-    },
-  ).then((res) => res.apiKeys.filter((k) => k.permissions?.remoteDownload?.includes('create')))
 }
 
 export function createRemoteDownloadApiKey(organizationId: string, name: string) {

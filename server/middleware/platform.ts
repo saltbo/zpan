@@ -36,8 +36,8 @@ export type AuthPrincipal =
       keyId: string
       configId: string
       orgId: string | null
-      userId: string | null
-      ownerUserId: string
+      userId: string
+      scope: import('@shared/api-key-templates').ApiKeyScope
       permissions: Record<string, string[]> | null
       authMethod: 'api-key'
     }

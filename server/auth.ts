@@ -9,7 +9,9 @@ import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/acc
 import { count, eq, like } from 'drizzle-orm'
 import { customAlphabet, nanoid } from 'nanoid'
 import {
+  API_KEY_TEMPLATES,
   ApiKeyTemplate,
+  apiKeyMetadata,
   IHOST_API_KEY_PERMISSIONS,
   REMOTE_DOWNLOAD_API_KEY_PERMISSIONS,
   WEBDAV_API_KEY_PERMISSIONS,
@@ -26,6 +28,7 @@ import {
 } from '../shared/oauth-providers'
 import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
 import { createEmailGateway } from './adapters/gateways/email'
+import { deleteApiKeysScopedToOrganization, normalizeLegacyApiKeysForUser } from './adapters/repos/api-key-scopes'
 import { createAuditRepo } from './adapters/repos/audit'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createLicenseBindingRepo } from './adapters/repos/license-binding'
@@ -378,6 +381,40 @@ export async function createAuth(
         if (ctx.path === '/delete-user') {
           throw new APIError('FORBIDDEN', { message: 'Self-service account deletion is not available' })
         }
+        if (ctx.path === '/api-key/list') {
+          const session = await getSessionFromCtx(ctx)
+          if (session?.user.id) await normalizeLegacyApiKeysForUser(db, session.user.id)
+          return
+        }
+        if (ctx.path !== '/api-key/create') return
+
+        const body = ctx.body as Record<string, unknown> | undefined
+        if (!body) return
+        const configId = body.configId
+        if (typeof configId !== 'string' || !API_KEY_TEMPLATES.includes(configId as ApiKeyTemplate)) return
+
+        const session = await getSessionFromCtx(ctx)
+        const userId = session?.user.id ?? (typeof body?.userId === 'string' ? body.userId : null)
+        if (!userId) throw new APIError('UNAUTHORIZED', { message: 'Unauthorized' })
+
+        if (configId === ApiKeyTemplate.WEBDAV) {
+          if (body?.organizationId !== undefined) {
+            throw new APIError('BAD_REQUEST', { message: 'WebDAV API keys cannot target a workspace' })
+          }
+          body.metadata = apiKeyMetadata({ mode: 'user-workspaces' })
+          return
+        }
+
+        const orgId = body?.organizationId
+        if (typeof orgId !== 'string' || !orgId) {
+          throw new APIError('BAD_REQUEST', { message: 'Organization ID is required' })
+        }
+        const orgs = createOrgRepo(db)
+        const role = await orgs.getMemberRole(orgId, userId)
+        if (role !== 'owner' && role !== 'editor') {
+          throw new APIError('FORBIDDEN', { message: 'Editor access to the workspace is required' })
+        }
+        body.metadata = apiKeyMetadata({ mode: 'workspace', orgId })
       }),
       // Audit admin user disable/enable (served by the admin plugin) the
       // same way the old /api/users usecases did. This after-hook runs for every
@@ -394,7 +431,11 @@ export async function createAuth(
         if (adminAudit) {
           const targetUserId = (ctx.body as { userId?: string } | undefined)?.userId
           const orgId = (session?.session as { activeOrganizationId?: string } | undefined)?.activeOrganizationId
-          if (!targetUserId || !orgId) return
+          if (!targetUserId) return
+          if (adminAudit.action === 'user_delete') {
+            await db.delete(authSchema.apikey).where(eq(authSchema.apikey.referenceId, targetUserId))
+          }
+          if (!orgId) return
           await recordAuditEffect(adminAudit.action, () =>
             createAuditRepo(db).record({
               orgId,
@@ -461,6 +502,9 @@ export async function createAuth(
             const isTeam = !isPersonalOrgLike(organization)
             await createOrgQuota(db, organization.id, new Date(), isTeam)
           },
+          afterDeleteOrganization: async ({ organization }) => {
+            await deleteApiKeysScopedToOrganization(db, organization.id)
+          },
           afterAcceptInvitation: async ({ user, organization }) => {
             await createNotificationRepo(db).create({
               userId: user.id,
@@ -494,7 +538,8 @@ export async function createAuth(
       apiKey([
         {
           configId: ApiKeyTemplate.IHOST,
-          references: 'organization',
+          references: 'user',
+          enableMetadata: true,
           rateLimit: {
             enabled: true,
             timeWindow: 60_000,
@@ -507,6 +552,7 @@ export async function createAuth(
         {
           configId: ApiKeyTemplate.WEBDAV,
           references: 'user',
+          enableMetadata: true,
           rateLimit: {
             enabled: true,
             // Filesystem clients such as macOS Finder issue bursts of PROPFIND
@@ -520,7 +566,8 @@ export async function createAuth(
         },
         {
           configId: ApiKeyTemplate.REMOTE_DOWNLOAD,
-          references: 'organization',
+          references: 'user',
+          enableMetadata: true,
           rateLimit: {
             enabled: true,
             timeWindow: 60_000,

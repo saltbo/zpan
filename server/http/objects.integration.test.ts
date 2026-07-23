@@ -2395,11 +2395,10 @@ describe('object multipart upload API with S3-compatible storage', () => {
 // These exercise the inline `apiError(...)` guards in the handlers that the
 // happy-path tests above don't reach: cross-org list authz, missing-storage
 // resolution, the download-task-upload confirm guards, and the editor-access
-// gate for a user-scoped (orgId-less) API key principal.
+// gate for an API key principal on session-only object routes.
 
 // Creates an API key via the real better-auth plugin. A `webdav` config-id key
-// is user-scoped, so the auth middleware resolves it with userId set and orgId
-// null — the exact state the editor-access gate denies.
+// is user-owned but is not a browser/session principal.
 async function createUserApiKey(
   auth: Awaited<ReturnType<typeof createTestApp>>['auth'],
   userId: string,
@@ -2520,7 +2519,7 @@ describe('Objects API — error branches', () => {
     })
   })
 
-  it('returns 403 for a user-scoped API key with no active org on write', async () => {
+  it('returns 401 for an API key on a session-only object write', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -2532,10 +2531,10 @@ describe('Objects API — error branches', () => {
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'denied.txt', type: 'text/plain', size: 1 }),
     })
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(401)
     const body = (await res.json()) as { error: { message: string; status: string } }
-    expect(body.error.message).toBe('Forbidden')
-    expect(body.error.status).toBe('PERMISSION_DENIED')
+    expect(body.error.message).toBe('Unauthorized')
+    expect(body.error.status).toBe('UNAUTHENTICATED')
   })
 
   it('returns 403 when listing an org the user cannot read via orgId override', async () => {

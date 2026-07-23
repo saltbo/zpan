@@ -150,6 +150,32 @@ describe('requirePermission middleware', () => {
     await expect(res.json()).resolves.toEqual({ ok: true })
   })
 
+  it('rejects a workspace API key after its owner is downgraded below editor', async () => {
+    const { app, db, auth } = await createTestApp()
+    mountProbes(app)
+    await authedHeaders(app, 'key-editor@example.com')
+    const userId = await getUserId(db, 'key-editor@example.com')
+    const teamOrgId = 'team-key-role'
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata)
+      VALUES (${teamOrgId}, 'Key Role Team', ${teamOrgId}, '{"type":"team"}')
+    `)
+    await db.run(sql`
+      INSERT INTO member (id, organization_id, user_id, role)
+      VALUES (${`member-${teamOrgId}`}, ${teamOrgId}, ${userId}, 'editor')
+    `)
+    const key = await createApiKey(auth, teamOrgId, userId, { remoteDownload: ['create'] })
+    await db.run(sql`
+      UPDATE member SET role = 'viewer'
+      WHERE organization_id = ${teamOrgId} AND user_id = ${userId}
+    `)
+
+    const res = await app.request('/api/test-authz/api-perm', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    expect(res.status).toBe(403)
+  })
+
   it('returns 401 for a downloader principal when allowDownloader is not set', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     mountProbes(app)

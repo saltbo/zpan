@@ -162,7 +162,7 @@ export const apikey = sqliteTable(
     configId: text('config_id').notNull().default('default'),
     name: text('name'),
     start: text('start'),
-    referenceId: text('reference_id').notNull(), // organizationId when references='organization'
+    referenceId: text('reference_id').notNull(), // userId; workspace scope lives in metadata
     prefix: text('prefix'),
     key: text('key').notNull(),
     refillInterval: integer('refill_interval'),

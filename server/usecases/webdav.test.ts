@@ -126,6 +126,7 @@ function makeDeps(
       ...overrides.apiKeys,
     } as unknown as ApiKeyGateway,
     userAdmin: {
+      isBanned: async () => false,
       matchesUsername: async () => true,
       ...overrides.userAdmin,
     } as unknown as UserAdminRepo,
@@ -220,7 +221,7 @@ describe('webdav usecase', () => {
         id: 'k1',
         configId: 'webdav',
         referenceId: 'u9',
-        ownerUserId: 'u9',
+        scope: { mode: 'user-workspaces' as const },
         permissions: null,
       }))
       const deps = makeDeps({ apiKeys: { verifyApiKeyForPermission } })
@@ -231,6 +232,11 @@ describe('webdav usecase', () => {
 
     it('is unauthorized when the key does not verify', async () => {
       const deps = makeDeps({ apiKeys: { verifyApiKeyForPermission: async () => null } })
+      expect(await resolveWebDavAuth(deps, authParams)).toEqual({ ok: false, reason: 'unauthorized' })
+    })
+
+    it('is unauthorized when the key owner is disabled', async () => {
+      const deps = makeDeps({ userAdmin: { isBanned: async () => true } })
       expect(await resolveWebDavAuth(deps, authParams)).toEqual({ ok: false, reason: 'unauthorized' })
     })
 

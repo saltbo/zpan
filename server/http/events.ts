@@ -73,7 +73,7 @@ const eventStreamRoute = createRoute({
     '- `heartbeat` → `{ at }` — keep-alive emitted when nothing changed for a while',
     '- `error` → `{ message }` — a domain query failed this tick',
     '',
-    'Organization API keys require `?downloadTasks=1` and `remoteDownload:read`. Their stream is limited to `download-tasks` data from the key organization plus heartbeat and error control events.',
+    'Workspace-scoped API keys require `?downloadTasks=1` and `remoteDownload:read`. Their stream is limited to `download-tasks` data from the key workspace plus heartbeat and error control events.',
   ].join('\n'),
   request: { query: eventsQueryDocSchema },
   responses: {

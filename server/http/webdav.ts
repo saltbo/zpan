@@ -109,7 +109,7 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
     configId: result.configId,
     orgId: null,
     userId: result.userId,
-    ownerUserId: result.userId,
+    scope: { mode: 'user-workspaces' },
     permissions: result.permissions,
     authMethod: 'api-key',
   })

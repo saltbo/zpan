@@ -211,11 +211,11 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)
   })
   .openapi(createRouteDoc, async (c) => {
-    const principal = c.get('principal')
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized()
-    const ownerUserId = principal?.kind === 'api-key' ? principal.ownerUserId : (c.get('userId') as string)
-    return c.json(await createDownloadTask(c.get('deps'), orgId, ownerUserId, c.req.valid('json')), 201)
+    // API keys carry their owning user's UID in userId, so downloader uploads
+    // build the same org/uid object path as browser-created tasks.
+    return c.json(await createDownloadTask(c.get('deps'), orgId, c.get('userId') as string, c.req.valid('json')), 201)
   })
   .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')

@@ -29,6 +29,15 @@ export function requirePermission(
       if (!c.get('deps').apiKeys.hasApiKeyPermission(principal.permissions, resource, action)) {
         throw forbidden('Forbidden')
       }
+      if (principal.scope.mode === 'workspace') {
+        const role = await c.get('deps').org.getMemberRole(principal.scope.orgId, principal.userId)
+        const minRole = opts.minTeamRole ?? 'editor'
+        if (role !== null) {
+          if ((ROLE_LEVELS[role] ?? 0) < ROLE_LEVELS[minRole]) throw forbidden('Forbidden')
+          return next()
+        }
+        throw forbidden('Forbidden')
+      }
       return next()
     }
 

@@ -1,11 +1,11 @@
-import type { ApiKeyPermissions } from '@shared/api-key-templates'
+import type { ApiKeyPermissions, ApiKeyScope } from '@shared/api-key-templates'
 import type { Database } from '../../platform/interface'
 
 export interface VerifiedApiKey {
   id: string
   configId: string
   referenceId: string
-  ownerUserId: string
+  scope: ApiKeyScope
   permissions: ApiKeyPermissions | null
 }
 
@@ -38,5 +38,4 @@ export interface ApiKeyGateway {
     configId?: string,
   ): Promise<VerifiedApiKey | null>
   hasApiKeyPermission(permissions: ApiKeyPermissions | null | undefined, resource: string, action: string): boolean
-  isOrgApiKey(configId: string): boolean
 }

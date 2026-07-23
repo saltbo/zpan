@@ -51,7 +51,7 @@ describe('global OpenAPI document', () => {
     expect(html).toContain('/api/openapi.json')
   })
 
-  it('documents the organization API-key event-stream authorization contract', async () => {
+  it('documents the workspace-scoped API-key event-stream authorization contract', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
@@ -60,7 +60,7 @@ describe('global OpenAPI document', () => {
     const events = doc.paths['/api/events']?.get
 
     expect(events?.responses?.['403']?.description).toBe('Forbidden')
-    expect(events?.description).toContain('Organization API keys')
+    expect(events?.description).toContain('Workspace-scoped API keys')
     expect(events?.description).toContain('remoteDownload:read')
     expect(events?.description).toContain('?downloadTasks=1')
   })

@@ -110,7 +110,7 @@ describe('GET /api/events', () => {
     expect(text).toContain('browser-org-task')
   })
 
-  it('streams only org-scoped download tasks to an authorized org API key [spec: events/api-key-download-tasks]', async () => {
+  it('streams only scoped download tasks to an authorized workspace API key [spec: events/api-key-download-tasks]', async () => {
     const testApp = await createTestApp()
     const keyOwner = await authedOrgFor(testApp, 'api-key-owner@example.com')
     const otherOrg = await authedOrgFor(testApp, 'other-org-owner@example.com')
@@ -149,7 +149,7 @@ describe('GET /api/events', () => {
     expect(text).not.toContain('event: jobs')
   })
 
-  it('forbids an org API key without remoteDownload read [spec: events/api-key-permission-denied]', async () => {
+  it('forbids a workspace API key without remoteDownload read [spec: events/api-key-permission-denied]', async () => {
     const testApp = await createTestApp()
     const keyOwner = await authedOrgFor(testApp, 'api-key-no-read@example.com')
     const key = await createOrgApiKey(testApp.auth, keyOwner.orgId, keyOwner.userId, {
@@ -163,7 +163,7 @@ describe('GET /api/events', () => {
     expect(res.status).toBe(403)
   })
 
-  it('forbids an authorized org API key without the downloadTasks opt-in [spec: events/api-key-download-tasks-required]', async () => {
+  it('forbids an authorized workspace API key without the downloadTasks opt-in [spec: events/api-key-download-tasks-required]', async () => {
     const testApp = await createTestApp()
     const keyOwner = await authedOrgFor(testApp, 'api-key-no-opt-in@example.com')
     const key = await createOrgApiKey(testApp.auth, keyOwner.orgId, keyOwner.userId, {

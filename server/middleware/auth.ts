@@ -53,15 +53,16 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       throw error
     }
     if (apiKey) {
-      const orgId = deps.apiKeys.isOrgApiKey(apiKey.configId) ? apiKey.referenceId : null
-      const userId = deps.apiKeys.isOrgApiKey(apiKey.configId) ? null : apiKey.referenceId
+      if (await deps.userAdmin.isBanned(apiKey.referenceId)) throw unauthorized('Unauthorized')
+      const orgId = apiKey.scope.mode === 'workspace' ? apiKey.scope.orgId : null
+      const userId = apiKey.referenceId
       c.set('principal', {
         kind: 'api-key',
         keyId: apiKey.id,
         configId: apiKey.configId,
         orgId,
         userId,
-        ownerUserId: apiKey.ownerUserId,
+        scope: apiKey.scope,
         permissions: apiKey.permissions,
         authMethod: 'api-key',
       })
@@ -110,8 +111,7 @@ export const requireDownloader = createMiddleware<Env>(async (c, next) => {
 })
 
 export const requireAuth = createMiddleware<Env>(async (c, next) => {
-  const userId = c.get('userId')
-  if (!userId) {
+  if (c.get('principal')?.kind !== 'user') {
     throw unauthorized('Unauthorized')
   }
   await next()
