@@ -23,7 +23,6 @@ import { Card } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
-import { VideoPosterGrid } from '@/components/video/video-poster-grid'
 import { createBackgroundJob, deleteObject, getObject, listObjectsByPath, updateObject } from '@/lib/api'
 import { runSequentialOperation } from '@/lib/sequential-operation'
 import { cn } from '@/lib/utils'
@@ -41,7 +40,6 @@ import { TransferSpaceDialog } from './transfer-space-dialog'
 import type { BreadcrumbItem, FileActionHandlers } from './types'
 
 const FILES_PAGE_SIZE = 500
-const VIDEO_VIEW_MODE_STORAGE_KEY = 'zpan-video-view-mode'
 
 export interface FileManagerHeaderMeta {
   label: string
@@ -188,11 +186,7 @@ export function FileManager({
     [capabilities, dataSource],
   )
 
-  const videoPosterViewEnabled = filterType === 'videos' && !dataSource
-  const [viewMode, setViewMode] = useViewMode(
-    viewModeStorageKey ?? (videoPosterViewEnabled ? VIDEO_VIEW_MODE_STORAGE_KEY : undefined),
-    videoPosterViewEnabled ? 'posters' : 'list',
-  )
+  const [viewMode, setViewMode] = useViewMode(viewModeStorageKey)
   const [sorting, setSorting] = useState<SortingState>(() => {
     try {
       const saved = localStorage.getItem('zpan-sort')
@@ -616,7 +610,6 @@ export function FileManager({
           onBatchCompress={resolvedCapabilities.archive ? handleBatchCompress : undefined}
           onClearSelection={resolvedCapabilities.selection ? () => setRowSelection({}) : undefined}
           onShare={resolvedCapabilities.share ? handleToolbarShare : undefined}
-          posterViewEnabled={videoPosterViewEnabled}
         />
 
         {items.length === 0 ? (
@@ -624,8 +617,6 @@ export function FileManager({
             <FolderOpen className="h-16 w-16" />
             <p className="text-sm">{emptyStateLabel ?? t('files.emptyState')}</p>
           </div>
-        ) : viewMode === 'posters' && videoPosterViewEnabled ? (
-          <VideoPosterGrid videos={items} handlers={handlers} />
         ) : viewMode === 'list' ? (
           <FilesTable
             table={table}

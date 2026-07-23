@@ -40,6 +40,7 @@ function dialogClass(previewType: PreviewType, fullscreen: boolean): string {
     case 'markdown':
     case 'code':
     case 'text':
+    case 'nfo':
       return 'max-w-5xl h-[85vh]'
     default:
       return 'max-w-3xl h-[75vh]'

@@ -188,6 +188,13 @@ describe('getPreviewType — text extensions', () => {
   })
 })
 
+describe('getPreviewType — NFO extension', () => {
+  it('recognizes NFO metadata files', () => {
+    expect(getPreviewType('movie.nfo')).toBe('nfo')
+    expect(getPreviewType('Episode.NFO')).toBe('nfo')
+  })
+})
+
 describe('getPreviewType — audio extensions', () => {
   it('returns audio for .mp3', () => {
     expect(getPreviewType('song.mp3')).toBe('audio')

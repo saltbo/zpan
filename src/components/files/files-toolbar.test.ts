@@ -34,13 +34,13 @@ describe('FilesToolbar — static contract values', () => {
 })
 
 // ---------------------------------------------------------------------------
-// ViewMode type contract — the toolbar accepts the two file views and the video poster view
+// ViewMode type contract — the toolbar accepts exactly 'list' | 'grid'
 // ---------------------------------------------------------------------------
 
-type ViewMode = 'list' | 'grid' | 'posters'
+type ViewMode = 'list' | 'grid'
 
 function isValidViewMode(v: string): v is ViewMode {
-  return v === 'list' || v === 'grid' || v === 'posters'
+  return v === 'list' || v === 'grid'
 }
 
 describe('FilesToolbar — ViewMode contract', () => {
@@ -50,10 +50,6 @@ describe('FilesToolbar — ViewMode contract', () => {
 
   it('accepts "grid" as a valid view mode', () => {
     expect(isValidViewMode('grid')).toBe(true)
-  })
-
-  it('accepts "posters" as a valid view mode', () => {
-    expect(isValidViewMode('posters')).toBe(true)
   })
 
   it('rejects an arbitrary string as a view mode', () => {

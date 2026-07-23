@@ -16,6 +16,7 @@ export interface PreviewFile {
 const PdfPreview = lazy(() => import('./pdf-preview').then((m) => ({ default: m.PdfPreview })))
 const OfficePreview = lazy(() => import('./office-preview').then((m) => ({ default: m.OfficePreview })))
 const TextPreview = lazy(() => import('./text-preview').then((m) => ({ default: m.TextPreview })))
+const NfoPreview = lazy(() => import('./nfo-preview').then((m) => ({ default: m.NfoPreview })))
 const MediaPreview = lazy(() => import('./media-preview').then((m) => ({ default: m.MediaPreview })))
 
 interface PreviewDownloadButtonProps {
@@ -56,6 +57,8 @@ function FilePreviewContentInner({ file, previewType }: { file: PreviewFile; pre
     case 'code':
     case 'text':
       return <TextPreview url={file.downloadUrl} filename={file.name} previewType={previewType} />
+    case 'nfo':
+      return <NfoPreview url={file.downloadUrl} />
     case 'audio':
     case 'video':
       return <MediaPreview url={file.downloadUrl} filename={file.name} previewType={previewType} />

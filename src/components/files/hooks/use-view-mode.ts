@@ -1,14 +1,11 @@
 import { useState } from 'react'
 
-export type ViewMode = 'list' | 'grid' | 'posters'
+export type ViewMode = 'list' | 'grid'
 
 const DEFAULT_STORAGE_KEY = 'zpan-view-mode'
 
-export function useViewMode(storageKey = DEFAULT_STORAGE_KEY, defaultMode: ViewMode = 'list') {
-  const [mode, setMode] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem(storageKey)
-    return saved === 'list' || saved === 'grid' || saved === 'posters' ? saved : defaultMode
-  })
+export function useViewMode(storageKey = DEFAULT_STORAGE_KEY) {
+  const [mode, setMode] = useState<ViewMode>(() => (localStorage.getItem(storageKey) as ViewMode) || 'list')
 
   function set(m: ViewMode) {
     localStorage.setItem(storageKey, m)

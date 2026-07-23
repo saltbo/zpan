@@ -1,104 +1,120 @@
-import { DirType, ObjectStatus } from '@shared/constants'
-import type { StorageObject } from '@shared/types'
 import { describe, expect, it } from 'vitest'
-import { filenameStem, findVideoCompanions, parseMovieNfo } from './nfo'
+import { parseNfo } from './nfo'
 
-function file(name: string): StorageObject {
-  return {
-    id: name,
-    orgId: 'org-1',
-    alias: name,
-    name,
-    type: 'application/octet-stream',
-    size: 100,
-    dirtype: DirType.FILE,
-    parent: 'Movies',
-    object: name,
-    storageId: 'storage-1',
-    status: ObjectStatus.ACTIVE,
-    trashedAt: null,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-  }
-}
-
-function video(name: string): StorageObject {
-  return { ...file(name), type: 'video/x-matroska' }
-}
-
-describe('filenameStem', () => {
-  it('removes only the final extension', () => {
-    expect(filenameStem('Movie.2026.1080p.mkv')).toBe('Movie.2026.1080p')
-    expect(filenameStem('.hidden')).toBe('.hidden')
-  })
-})
-
-describe('findVideoCompanions', () => {
-  it('matches case-insensitive same-stem NFO and prefers same-stem poster', () => {
-    const movie = video('Arrival.mkv')
-    const nfo = file('ARRIVAL.NFO')
-    const stemPoster = file('arrival-poster.webp')
-    const folderPoster = file('poster.jpg')
-
-    expect(findVideoCompanions(movie, [movie, nfo, folderPoster, stemPoster])).toEqual({
-      nfo,
-      poster: stemPoster,
+describe('parseNfo', () => {
+  it('parses Kodi movie XML into sections', () => {
+    expect(
+      parseNfo(`
+        <movie>
+          <title>Arrival</title>
+          <year>2016</year>
+          <genre>Science Fiction</genre>
+          <genre>Drama</genre>
+          <ratings>
+            <rating name="imdb"><value>7.9</value></rating>
+          </ratings>
+          <actor><name>Amy Adams</name><role>Louise Banks</role></actor>
+          <actor><name>Jeremy Renner</name><role>Ian Donnelly</role></actor>
+        </movie>
+      `),
+    ).toEqual({
+      format: 'xml',
+      root: 'movie',
+      sections: [
+        {
+          name: 'movie',
+          fields: [
+            { name: 'title', values: ['Arrival'] },
+            { name: 'year', values: ['2016'] },
+            { name: 'genre', values: ['Science Fiction', 'Drama'] },
+          ],
+        },
+        {
+          name: 'ratings',
+          fields: [{ name: 'rating (imdb) › value', values: ['7.9'] }],
+        },
+        {
+          name: 'actor',
+          fields: [
+            { name: 'name', values: ['Amy Adams', 'Jeremy Renner'] },
+            { name: 'role', values: ['Louise Banks', 'Ian Donnelly'] },
+          ],
+        },
+      ],
     })
   })
 
-  it('falls back to a folder poster', () => {
-    const movie = video('Arrival.mkv')
-    const poster = file('folder.png')
-
-    expect(findVideoCompanions(movie, [movie, poster])).toEqual({ nfo: null, poster })
-  })
-
-  it('uses movie.nfo only when the directory contains one video', () => {
-    const movie = video('Arrival.mkv')
-    const nfo = file('movie.nfo')
-
-    expect(findVideoCompanions(movie, [movie, nfo]).nfo).toBe(nfo)
-    expect(findVideoCompanions(movie, [movie, video('Blade Runner.mkv'), nfo]).nfo).toBeNull()
-  })
-})
-
-describe('parseMovieNfo', () => {
-  it('parses common Kodi movie fields', () => {
-    const movie = parseMovieNfo(`
-      <movie>
-        <title>Arrival</title>
-        <originaltitle>Arrival</originaltitle>
-        <year>2016</year>
-        <plot>A linguist works with the military.</plot>
-        <tagline>Why are they here?</tagline>
-        <ratings><rating default="true"><value>7.9</value></rating></ratings>
-        <runtime>116</runtime>
-        <premiered>2016-11-11</premiered>
-        <genre>Science Fiction</genre>
-        <genre>Drama</genre>
-        <director>Denis Villeneuve</director>
-        <actor><name>Amy Adams</name></actor>
-        <actor><name>Jeremy Renner</name></actor>
-      </movie>
+  it('parses episode XML without requiring a movie root', () => {
+    const document = parseNfo(`
+      <episodedetails>
+        <title>Sol Regem</title>
+        <season>3</season>
+        <episode>1</episode>
+      </episodedetails>
     `)
 
-    expect(movie).toEqual({
-      title: 'Arrival',
-      originalTitle: 'Arrival',
-      year: 2016,
-      plot: 'A linguist works with the military.',
-      tagline: 'Why are they here?',
-      rating: 7.9,
-      runtime: 116,
-      premiered: '2016-11-11',
-      genres: ['Science Fiction', 'Drama'],
-      directors: ['Denis Villeneuve'],
-      actors: ['Amy Adams', 'Jeremy Renner'],
+    expect(document).toMatchObject({
+      format: 'xml',
+      root: 'episodedetails',
+      sections: [
+        {
+          fields: [
+            { name: 'title', values: ['Sol Regem'] },
+            { name: 'season', values: ['3'] },
+            { name: 'episode', values: ['1'] },
+          ],
+        },
+      ],
     })
   })
 
-  it('rejects malformed XML and non-movie NFO files', () => {
-    expect(parseMovieNfo('<movie><title>Broken</movie>')).toBeNull()
-    expect(parseMovieNfo('<episodedetails><title>Episode</title></episodedetails>')).toBeNull()
+  it('parses MediaInfo text reports', () => {
+    expect(
+      parseNfo(`General
+Complete name                            : Zootopia.mp4
+Duration                                 : 1 h 48 min
+
+Video
+Format                                   : AVC
+Width                                    : 1 920 pixels
+
+Audio
+Format                                   : AAC
+Channel(s)                               : 2 channels
+`),
+    ).toEqual({
+      format: 'mediainfo',
+      sections: [
+        {
+          name: 'General',
+          fields: [
+            { name: 'Complete name', values: ['Zootopia.mp4'] },
+            { name: 'Duration', values: ['1 h 48 min'] },
+          ],
+        },
+        {
+          name: 'Video',
+          fields: [
+            { name: 'Format', values: ['AVC'] },
+            { name: 'Width', values: ['1 920 pixels'] },
+          ],
+        },
+        {
+          name: 'Audio',
+          fields: [
+            { name: 'Format', values: ['AAC'] },
+            { name: 'Channel(s)', values: ['2 channels'] },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('preserves unsupported and malformed NFO content as plain text', () => {
+    expect(parseNfo('Release notes')).toEqual({ format: 'text', content: 'Release notes' })
+    expect(parseNfo('<movie><title>Broken</movie>')).toEqual({
+      format: 'text',
+      content: '<movie><title>Broken</movie>',
+    })
   })
 })

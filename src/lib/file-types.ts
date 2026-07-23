@@ -1,4 +1,14 @@
-export type PreviewType = 'image' | 'pdf' | 'office' | 'text' | 'markdown' | 'code' | 'audio' | 'video' | 'unsupported'
+export type PreviewType =
+  | 'image'
+  | 'pdf'
+  | 'office'
+  | 'text'
+  | 'markdown'
+  | 'code'
+  | 'nfo'
+  | 'audio'
+  | 'video'
+  | 'unsupported'
 
 const extensionMap: Record<string, PreviewType> = {
   // Image
@@ -58,6 +68,9 @@ const extensionMap: Record<string, PreviewType> = {
   env: 'text',
   gitignore: 'text',
   editorconfig: 'text',
+
+  // Media metadata
+  nfo: 'nfo',
 
   // Audio
   mp3: 'audio',
