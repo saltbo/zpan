@@ -35,7 +35,7 @@ export class S3Service implements S3Gateway {
   async presignUpload(
     storage: S3StorageCredentials,
     key: string,
-    contentType: string,
+    contentType?: string,
     filenameOrExpiresIn?: string | number,
     expiresIn = DEFAULT_EXPIRES_IN,
   ): Promise<string> {
@@ -49,9 +49,7 @@ export class S3Service implements S3Gateway {
 
     const client = this.createClient(storage)
     // Only sign ContentType/ContentDisposition when provided. A signed header must
-    // be sent verbatim by the client or S3 rejects the PUT; the object-upload flow
-    // passes neither (a bare PUT) so its uniform slice uploader needs no headers,
-    // while image hosting passes a contentType it echoes back.
+    // be sent verbatim by the client or S3 rejects the PUT.
     const command = new PutObjectCommand({
       Bucket: storage.bucket,
       Key: key,
@@ -62,14 +60,21 @@ export class S3Service implements S3Gateway {
     return url
   }
 
-  async createMultipartUpload(storage: S3StorageCredentials, key: string, contentType: string): Promise<string> {
+  async createMultipartUpload(storage: S3StorageCredentials, key: string, contentType?: string): Promise<string> {
     const client = this.createClient(storage)
     const url = await getSignedUrl(
       client,
-      new CreateMultipartUploadCommand({ Bucket: storage.bucket, Key: key, ContentType: contentType }),
+      new CreateMultipartUploadCommand({
+        Bucket: storage.bucket,
+        Key: key,
+        ...(contentType ? { ContentType: contentType } : {}),
+      }),
       { expiresIn: DEFAULT_EXPIRES_IN },
     )
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': contentType } })
+    const response = await fetch(url, {
+      method: 'POST',
+      ...(contentType ? { headers: { 'Content-Type': contentType } } : {}),
+    })
     const body = await response.text()
     if (!response.ok) throw new Error(`S3 multipart upload create failed: ${response.status}: ${body.trim()}`)
     const uploadId = xmlTag(body, 'UploadId')
@@ -199,12 +204,12 @@ export class S3Service implements S3Gateway {
   async headObject(
     storage: S3StorageCredentials,
     key: string,
-  ): Promise<{ size: number; contentType: string; etag: string }> {
+  ): Promise<{ size: number; contentType?: string; etag: string }> {
     const client = this.createClient(storage)
     const result = await client.send(new HeadObjectCommand({ Bucket: storage.bucket, Key: key }))
     return {
       size: result.ContentLength ?? 0,
-      contentType: result.ContentType ?? 'application/octet-stream',
+      contentType: result.ContentType,
       etag: (result.ETag ?? '').replace(/"/g, ''),
     }
   }

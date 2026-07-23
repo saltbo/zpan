@@ -328,11 +328,15 @@ describe('confirmUpload', () => {
     await insertOrgQuota(db, orgId, 10000, 0)
     const matterId = await insertDraftFile(db, orgId, { id: 'matter-a', size: 500, storageId })
 
-    const result = await confirmUpload(db, matterId, orgId)
+    const result = await confirmUpload(db, matterId, orgId, { contentType: 'audio/flac' })
 
     expect(result.matter).not.toBeNull()
     expect(result.matter?.status).toBe('active')
+    expect(result.matter?.type).toBe('audio/flac')
     expect(result.quotaExceeded).toBeUndefined()
+
+    const matterRows = await db.all<{ type: string }>(sql`SELECT type FROM matters WHERE id = ${matterId}`)
+    expect(matterRows[0].type).toBe('audio/flac')
 
     const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${storageId}`)
     expect(storageRows[0].used).toBe(500)

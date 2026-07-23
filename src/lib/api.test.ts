@@ -520,6 +520,15 @@ describe('api', () => {
       expect(headers.get('Content-Type')).toContain('application/json')
     })
 
+    it('omits an optional content type', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'new1', name: 'unknown.bin' }))
+
+      await createObject({ name: 'unknown.bin', parent: 'root', dirtype: 0 })
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(JSON.parse(init.body as string)).toEqual({ name: 'unknown.bin', parent: 'root', dirtype: 0 })
+    })
+
     it('includes storageId when creating a targeted object draft', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'new1', name: 'doc.pdf' }))
 
@@ -880,6 +889,7 @@ describe('api', () => {
       method = ''
       url = ''
       body: unknown
+      headers: Record<string, string> = {}
       responseHeaders: Record<string, string> = { ETag: '"etag-abc"' }
 
       constructor() {
@@ -891,6 +901,9 @@ describe('api', () => {
       }
       getResponseHeader(key: string) {
         return this.responseHeaders[key] ?? null
+      }
+      setRequestHeader(key: string, value: string) {
+        this.headers[key] = value
       }
       send(body: unknown) {
         this.body = body
@@ -915,6 +928,21 @@ describe('api', () => {
       expect(xhr.method).toBe('PUT')
       expect(xhr.url).toBe('https://s3/part-1')
       expect(xhr.body).toBe(blob)
+    })
+
+    it('sets Content-Type only when one is provided', async () => {
+      const withType = uploadPartToS3('https://s3/part-1', new Blob(['chunk']), { contentType: 'audio/flac' })
+      const typedXhr = MockPartXHR.instances[0]
+      typedXhr.onload?.()
+      await withType
+
+      const withoutType = uploadPartToS3('https://s3/part-2', new Blob(['chunk']))
+      const untypedXhr = MockPartXHR.instances[1]
+      untypedXhr.onload?.()
+      await withoutType
+
+      expect(typedXhr.headers).toEqual({ 'Content-Type': 'audio/flac' })
+      expect(untypedXhr.headers).toEqual({})
     })
 
     it('rejects when the ETag header is not exposed', async () => {

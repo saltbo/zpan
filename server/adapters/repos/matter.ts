@@ -700,13 +700,13 @@ export function createMatterRepo(db: Database): MatterRepo {
       return applyConflictResolution(orgId, parent, name, strategy, options)
     },
 
-    async activateDraft(id, orgId, finalName, now): Promise<boolean> {
+    async activateDraft(id, orgId, finalName, type, now): Promise<boolean> {
       const existing = await getMatter(id, orgId)
       if (!existing || existing.status !== 'draft') return false
       await executeWriteTransaction(db, [storageUsageOpeningBalanceQuery(db, orgId, existing.storageId, now)])
       const activateQuery = db
         .update(matters)
-        .set({ name: finalName, status: 'active', updatedAt: now })
+        .set({ name: finalName, type, status: 'active', updatedAt: now })
         .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft'), isNull(matters.purgedAt)))
         .returning({ id: matters.id })
       const writes: AtomicQuery[] = [activateQuery, matterActivationLedgerQuery(db, orgId, id, now)]

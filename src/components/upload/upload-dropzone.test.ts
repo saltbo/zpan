@@ -108,7 +108,7 @@ async function simulateOnDropWithUploadFn(
 async function simulateDefaultUpload(file: File, parent: string, ctx: UploadRunnerContext): Promise<void> {
   const created = await createObject({
     name: file.name,
-    type: file.type || 'application/octet-stream',
+    type: file.type || undefined,
     size: file.size,
     parent,
     dirtype: 0,
@@ -307,7 +307,7 @@ describe('UploadDropzone — default upload path (no uploadFn)', () => {
     expect(abortObjectUpload).toHaveBeenCalledWith('obj-1', 'sess-1')
   })
 
-  it('uses application/octet-stream when file type is empty', async () => {
+  it('omits type when the browser does not provide one', async () => {
     vi.mocked(createObject).mockResolvedValue(draft as never)
     vi.mocked(uploadObjectSlices).mockResolvedValue(parts)
     vi.mocked(completeObjectUpload).mockResolvedValue({ id: 'obj-1', status: 'active' } as never)
@@ -315,7 +315,7 @@ describe('UploadDropzone — default upload path (no uploadFn)', () => {
     const file = new File(['data'], 'blob') // no type
     await simulateDefaultUpload(file, 'root', makeCtx())
 
-    expect(createObject).toHaveBeenCalledWith(expect.objectContaining({ type: 'application/octet-stream' }))
+    expect(createObject).toHaveBeenCalledWith(expect.objectContaining({ type: undefined }))
   })
 
   it('throws when createObject returns no upload instructions', async () => {

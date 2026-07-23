@@ -14,7 +14,7 @@ function isAbortError(err: unknown): boolean {
 async function uploadPartWithRetry(
   url: string,
   blob: Blob,
-  options: { signal: AbortSignal; onProgress: (loaded: number) => void },
+  options: { signal: AbortSignal; onProgress: (loaded: number) => void; contentType?: string },
 ): Promise<string> {
   let lastError: unknown
   for (let attempt = 0; attempt < PART_ATTEMPTS; attempt++) {
@@ -22,6 +22,7 @@ async function uploadPartWithRetry(
       return await uploadPartToS3(url, blob, {
         signal: options.signal,
         onProgress: (p) => options.onProgress(p.loaded),
+        contentType: options.contentType,
       })
     } catch (error) {
       if (isAbortError(error)) throw error
@@ -72,6 +73,7 @@ export async function uploadObjectSlices(
     const slice = file.slice(start, Math.min(start + partSize, file.size))
     const etag = await uploadPartWithRetry(url, slice, {
       signal: ctx.signal,
+      contentType: file.type || undefined,
       onProgress: (loaded) => {
         loadedByPart.set(partNumber, loaded)
         reportProgress()

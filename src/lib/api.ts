@@ -271,7 +271,7 @@ export interface CreateObjectResult extends StorageObject {
 
 export function createObject(data: {
   name: string
-  type: string
+  type?: string
   size?: number
   parent: string
   dirtype: number
@@ -1330,6 +1330,7 @@ export function uploadToS3(url: string, file: File, options: UploadToS3Options =
 export interface UploadPartOptions {
   onProgress?: (progress: UploadProgress) => void
   signal?: AbortSignal
+  contentType?: string
 }
 
 /**
@@ -1376,6 +1377,7 @@ export function uploadPartToS3(url: string, blob: Blob, options: UploadPartOptio
       options.signal?.removeEventListener('abort', abort)
     }
     xhr.open('PUT', url)
+    if (options.contentType) xhr.setRequestHeader('Content-Type', options.contentType)
     xhr.send(blob)
   })
 }

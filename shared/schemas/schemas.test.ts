@@ -75,6 +75,12 @@ describe('createMatterSchema', () => {
     }
   })
 
+  it('accepts a missing optional content type', () => {
+    const result = createMatterSchema.safeParse({ name: 'unknown.bin' })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.type).toBeUndefined()
+  })
+
   it('accepts an optional target storage id', () => {
     const result = createMatterSchema.safeParse({ name: 'file.txt', type: 'text/plain', storageId: 'st-1' })
     expect(result.success).toBe(true)

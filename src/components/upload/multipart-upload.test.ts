@@ -37,7 +37,7 @@ describe('uploadObjectSlices', () => {
   })
 
   it('PUTs the single URL and returns one part (single-PUT case)', async () => {
-    const file = new File(['0123456789'], 'small.bin') // 10 bytes, 1 url
+    const file = new File(['0123456789'], 'small.bin', { type: 'application/x-test' }) // 10 bytes, 1 url
     const ctx = makeCtx()
 
     const parts = await uploadObjectSlices(makeUpload(['https://s3/part-1'], file.size), file, ctx)
@@ -46,7 +46,24 @@ describe('uploadObjectSlices', () => {
     const [url, blob] = api.uploadPartToS3.mock.calls[0]
     expect(url).toBe('https://s3/part-1')
     expect((blob as Blob).size).toBe(10)
+    expect(api.uploadPartToS3).toHaveBeenCalledWith(
+      'https://s3/part-1',
+      expect.any(Blob),
+      expect.objectContaining({ contentType: 'application/x-test' }),
+    )
     expect(parts).toEqual([{ partNumber: 1, etag: 'etag-1' }])
+  })
+
+  it('does not send Content-Type when the file has none', async () => {
+    const file = new File(['0123'], 'unknown.bin')
+
+    await uploadObjectSlices(makeUpload(['https://s3/part-1'], file.size), file, makeCtx())
+
+    expect(api.uploadPartToS3).toHaveBeenCalledWith(
+      'https://s3/part-1',
+      expect.any(Blob),
+      expect.objectContaining({ contentType: undefined }),
+    )
   })
 
   it('slices the file by partSize across N URLs and returns parts sorted by partNumber', async () => {

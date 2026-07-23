@@ -142,7 +142,7 @@ async function uploadFile(
         (strategy) =>
           createObject({
             name: file.name,
-            type: file.type || 'application/octet-stream',
+            type: file.type || undefined,
             size: file.size,
             parent,
             dirtype: DirType.FILE,
@@ -152,7 +152,7 @@ async function uploadFile(
       )
     : await createObject({
         name: file.name,
-        type: file.type || 'application/octet-stream',
+        type: file.type || undefined,
         size: file.size,
         parent,
         dirtype: DirType.FILE,

@@ -194,7 +194,7 @@ export type ConflictStrategy = z.infer<typeof conflictStrategySchema>
 
 export const createMatterSchema = z.object({
   name: z.string().min(1),
-  type: z.string().min(1),
+  type: z.string().min(1).optional(),
   size: z.number().int().min(0).optional(),
   parent: z.string().default(''),
   dirtype: z.number().int().default(0),

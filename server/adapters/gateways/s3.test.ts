@@ -157,6 +157,16 @@ describe('S3Service', () => {
       )
     })
 
+    it('does not sign Content-Type when it is absent', async () => {
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+      await service.presignUpload(storage, 'unknown.bin')
+      expect(getSignedUrl).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'unknown.bin' } }),
+        { expiresIn: 3600 },
+      )
+    })
+
     it('respects custom expiresIn', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       await service.presignUpload(storage, 'test.jpg', 'image/jpeg', 600)
@@ -270,6 +280,25 @@ describe('S3Service', () => {
       expect(mockSend).not.toHaveBeenCalled()
     })
 
+    it('omits multipart Content-Type when it is absent', async () => {
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response('<CreateMultipartUploadResult><UploadId>upload-1</UploadId></CreateMultipartUploadResult>'),
+        )
+      vi.stubGlobal('fetch', fetchMock)
+
+      await service.createMultipartUpload(storage, 'unknown.bin')
+
+      expect(getSignedUrl).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'unknown.bin' } }),
+        { expiresIn: 3600 },
+      )
+      expect(fetchMock).toHaveBeenCalledWith('https://signed-url.example.com', { method: 'POST' })
+    })
+
     it('fails create multipart uploads when S3 omits the upload id', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('<CreateMultipartUploadResult />')))
 
@@ -346,10 +375,10 @@ describe('S3Service', () => {
       )
     })
 
-    it('defaults size to 0, contentType to application/octet-stream, and etag to empty', async () => {
+    it('does not invent a content type when S3 omits it', async () => {
       mockSend.mockResolvedValueOnce({ $metadata: {} })
       const result = await service.headObject(storage, 'test.bin')
-      expect(result).toEqual({ size: 0, contentType: 'application/octet-stream', etag: '' })
+      expect(result).toEqual({ size: 0, contentType: undefined, etag: '' })
     })
   })
 

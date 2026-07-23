@@ -291,9 +291,10 @@ describe('object usecase', () => {
 
     it('creates a small file draft and returns single-PUT upload instructions', async () => {
       const draft = file('d1', { status: 'draft', object: 'o1/u1/key.jpg', name: 'photo.jpg', type: 'image/jpeg' })
+      const presignUpload = vi.fn(async () => 'https://up')
       const { deps } = makeDeps({
         matter: { create: async () => draft },
-        s3: { presignUpload: async () => 'https://up' },
+        s3: { presignUpload },
       })
       const out = await createObject(deps, {
         orgId: 'o1',
@@ -307,9 +308,28 @@ describe('object usecase', () => {
         expect(out.upload.urls).toEqual(['https://up'])
         expect(out.upload.partSize).toBe(2048)
         expect(out.matter.status).toBe('draft')
+        expect(presignUpload).toHaveBeenCalledWith(storage, expect.any(String), 'image/jpeg')
       } else {
         throw new Error('expected upload outcome')
       }
+    })
+
+    it('presigns and stores a file draft without a content type', async () => {
+      const create = vi.fn(async (input: Parameters<MatterRepo['create']>[0]) =>
+        file('d1', { ...input, status: 'draft' }),
+      )
+      const presignUpload = vi.fn(async () => 'https://up')
+      const { deps } = makeDeps({ matter: { create }, s3: { presignUpload } })
+
+      const out = await createObject(deps, {
+        orgId: 'o1',
+        actor: user,
+        input: { name: 'unknown.bin', size: 10, dirtype: DirType.FILE, parent: '' },
+      })
+
+      expect(out.ok).toBe(true)
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ type: '' }))
+      expect(presignUpload).toHaveBeenCalledWith(storage, expect.any(String), undefined)
     })
 
     it('uses an eligible requested storage for a file draft', async () => {
@@ -554,8 +574,9 @@ describe('object usecase', () => {
       const draft = file('d1', { status: 'draft', size: 100 })
       const setStatus = vi.fn(async () => {})
       const headObject = vi.fn(async () => ({ size: 100, contentType: 'text/plain', etag: 'abc' }))
+      const activateDraft = vi.fn(async () => true)
       const { deps } = makeDeps({
-        matter: { get: async () => draft, activateDraft: async () => true },
+        matter: { get: async () => draft, activateDraft },
         s3: { headObject } as Partial<S3Gateway>,
         objectUploadSessions: { get: async () => session(), setStatus },
       })
@@ -570,6 +591,29 @@ describe('object usecase', () => {
       if (out.ok) expect(out.matter.status).toBe('active')
       expect(headObject).toHaveBeenCalledWith(storage, 'key/d1')
       expect(setStatus).toHaveBeenCalledWith('sess-1', 'completed')
+      expect(activateDraft).toHaveBeenCalledWith('d1', 'o1', 'd1.txt', 'text/plain', expect.any(Date))
+    })
+
+    it('stores an empty type when HEAD returns no Content-Type', async () => {
+      const draft = file('d1', { status: 'draft', size: 100, type: 'client/type' })
+      const activateDraft = vi.fn(async () => true)
+      const { deps } = makeDeps({
+        matter: { get: async () => draft, activateDraft },
+        s3: { headObject: async () => ({ size: 100, contentType: undefined, etag: 'abc' }) } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session(), setStatus: async () => {} },
+      })
+
+      const out = await completeUpload(deps, {
+        orgId: 'o1',
+        objectId: 'd1',
+        sessionId: 'sess-1',
+        parts: [{ partNumber: 1, etag: 'abc' }],
+        actorId: 'u1',
+      })
+
+      expect(out.ok).toBe(true)
+      if (out.ok) expect(out.matter.type).toBe('')
+      expect(activateDraft).toHaveBeenCalledWith('d1', 'o1', 'd1.txt', '', expect.any(Date))
     })
 
     it('tolerates quoted ETags from the client (strips quotes before comparing)', async () => {
@@ -610,9 +654,11 @@ describe('object usecase', () => {
     it('completes a multipart draft via CompleteMultipartUpload', async () => {
       const draft = file('d1', { status: 'draft', size: 100 })
       const completeMultipartUpload = vi.fn(async () => {})
+      const headObject = vi.fn(async () => ({ size: 100, contentType: 'audio/flac', etag: 'multipart-etag' }))
+      const activateDraft = vi.fn(async () => true)
       const { deps } = makeDeps({
-        matter: { get: async () => draft, activateDraft: async () => true },
-        s3: { completeMultipartUpload } as Partial<S3Gateway>,
+        matter: { get: async () => draft, activateDraft },
+        s3: { completeMultipartUpload, headObject } as Partial<S3Gateway>,
         objectUploadSessions: { get: async () => session({ uploadId: 'mp-1' }), setStatus: async () => {} },
       })
       const out = await completeUpload(deps, {
@@ -624,6 +670,8 @@ describe('object usecase', () => {
       })
       expect(out.ok).toBe(true)
       expect(completeMultipartUpload).toHaveBeenCalledWith(storage, 'key/d1', 'mp-1', [{ partNumber: 1, etag: 'e1' }])
+      expect(headObject).toHaveBeenCalledWith(storage, 'key/d1')
+      expect(activateDraft).toHaveBeenCalledWith('d1', 'o1', 'd1.txt', 'audio/flac', expect.any(Date))
     })
 
     it('throws not_found when the upload session is missing', async () => {

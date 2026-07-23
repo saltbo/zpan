@@ -143,5 +143,5 @@ export interface MatterRepo {
    * Flips a draft row to active under `finalName`, scoped to status='draft' as a
    * concurrent-confirm safety net. Returns false when no draft row matched (race).
    */
-  activateDraft(id: string, orgId: string, finalName: string, now: Date): Promise<boolean>
+  activateDraft(id: string, orgId: string, finalName: string, type: string, now: Date): Promise<boolean>
 }

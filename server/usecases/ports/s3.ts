@@ -14,11 +14,11 @@ export interface S3Gateway {
   presignUpload(
     storage: S3StorageCredentials,
     key: string,
-    contentType: string,
+    contentType?: string,
     filenameOrExpiresIn?: string | number,
     expiresIn?: number,
   ): Promise<string>
-  createMultipartUpload(storage: S3StorageCredentials, key: string, contentType: string): Promise<string>
+  createMultipartUpload(storage: S3StorageCredentials, key: string, contentType?: string): Promise<string>
   presignUploadPart(
     storage: S3StorageCredentials,
     key: string,
@@ -37,7 +37,7 @@ export interface S3Gateway {
   presignInline(storage: S3StorageCredentials, key: string, mime: string, expiresIn?: number): Promise<string>
   // `etag` is the S3 ETag with surrounding quotes stripped (= content MD5 for a
   // single PutObject); used to verify a finalized single-PUT upload.
-  headObject(storage: S3StorageCredentials, key: string): Promise<{ size: number; contentType: string; etag: string }>
+  headObject(storage: S3StorageCredentials, key: string): Promise<{ size: number; contentType?: string; etag: string }>
   getObjectBytes(storage: S3StorageCredentials, key: string, range?: string): Promise<Uint8Array>
   getObjectBody(storage: S3StorageCredentials, key: string, range?: string): Promise<BodyInit>
   getObjectStream(storage: S3StorageCredentials, key: string, range?: string): Promise<ReadableStream<Uint8Array>>

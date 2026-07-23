@@ -200,7 +200,7 @@ export async function createObject(
   const matter = await deps.matter.create({
     orgId,
     name,
-    type: isFolder ? 'folder' : type,
+    type: isFolder ? 'folder' : (type ?? ''),
     size: isFolder ? 0 : size,
     dirtype,
     parent,
@@ -235,7 +235,7 @@ async function prepareUpload(
     objectId: string
     storage: StorageRecord
     storageKey: string
-    contentType: string
+    contentType?: string
     size: number
     onConflict: ConflictStrategy
     actorId: string
@@ -247,12 +247,10 @@ async function prepareUpload(
   let urls: string[]
 
   if (size <= PART_SIZE_BYTES) {
-    // Single PutObject — one presigned PUT, no S3 multipart overhead. Presign a
-    // bare PUT (no signed ContentType) so the uniform slice uploader can PUT raw
-    // bytes with no headers, exactly like a multipart part. The object's
-    // content-type is applied at download/view time (presignDownload/Inline).
+    // Single PutObject — one presigned PUT, no S3 multipart overhead. When the
+    // client supplied a content type it is signed and must be sent verbatim.
     partSize = size
-    urls = [await deps.s3.presignUpload(storage, storageKey, '')]
+    urls = [await deps.s3.presignUpload(storage, storageKey, contentType)]
   } else {
     partSize = PART_SIZE_BYTES
     const partCount = Math.ceil(size / partSize)
@@ -333,10 +331,9 @@ export type CompleteUploadOutcome =
   | { ok: false; reason: 'not_found' }
   | { ok: false; error: AppError }
 
-// Finalizes a draft upload (draft → live). For a single PutObject it HEADs the
-// object and checks the reported ETag; for multipart it calls
-// CompleteMultipartUpload. Then it runs the quota-guarded activation (reusing the
-// session's stored conflict strategy) and returns the live object.
+// Finalizes a draft upload (draft → live). Multipart uploads are completed first,
+// then every upload is HEADed so the persisted type matches the object's final
+// metadata. Single PutObject uploads additionally verify the reported ETag.
 export async function completeUpload(
   deps: Pick<
     Deps,
@@ -355,23 +352,7 @@ export async function completeUpload(
   if (!record) throw new ObjectUploadSessionError('not_found')
   if (record.status !== 'active') throw new ObjectUploadSessionError('invalid_state')
 
-  if (record.uploadId == null) {
-    // Single PutObject: confirm the object landed and matches the reported ETag.
-    let head: { size: number; contentType: string; etag: string }
-    try {
-      head = await deps.s3.headObject(storage, record.storageKey)
-    } catch (error) {
-      throw new ObjectUploadSessionError(
-        'invalid_state',
-        `Uploaded object not found: ${(error as Error).message}`,
-        'object_not_found',
-      )
-    }
-    const reported = params.parts[0]?.etag.replace(/"/g, '')
-    if (!reported || reported !== head.etag) {
-      throw new ObjectUploadSessionError('invalid_state', 'Uploaded object ETag does not match', 'etag_mismatch')
-    }
-  } else {
+  if (record.uploadId != null) {
     try {
       await deps.s3.completeMultipartUpload(storage, record.storageKey, record.uploadId, params.parts)
     } catch (error) {
@@ -381,11 +362,29 @@ export async function completeUpload(
       )
     }
   }
+
+  let head: { size: number; contentType?: string; etag: string }
+  try {
+    head = await deps.s3.headObject(storage, record.storageKey)
+  } catch (error) {
+    throw new ObjectUploadSessionError(
+      'invalid_state',
+      `Uploaded object not found: ${(error as Error).message}`,
+      'object_not_found',
+    )
+  }
+  if (record.uploadId == null) {
+    const reported = params.parts[0]?.etag.replace(/"/g, '')
+    if (!reported || reported !== head.etag) {
+      throw new ObjectUploadSessionError('invalid_state', 'Uploaded object ETag does not match', 'etag_mismatch')
+    }
+  }
   await deps.objectUploadSessions.setStatus(record.id, 'completed')
 
   // Draft → live: reserve quota, apply the stored conflict strategy, activate.
   const { matter, quotaExceeded: exceeded } = await confirmUpload(deps, params.objectId, params.orgId, {
     onConflict: record.onConflict,
+    contentType: head.contentType ?? null,
     purgeReplaced: (incumbent) => purgeRecursively(deps, params.orgId, [incumbent]).then(() => undefined),
   })
   if (exceeded) {
@@ -720,6 +719,8 @@ export type ConfirmUploadDeps = {
 export interface ConfirmUploadOptions {
   onConflict?: ConflictStrategy
   teamQuotaEnabled?: boolean
+  /** Undefined preserves the draft value; null records that storage returned no type. */
+  contentType?: string | null
   /**
    * Overwrites the file being replaced: hard-purge it (delete row, S3 object,
    * shares). With it, a 'replace' frees the incumbent's quota so the upload is
@@ -770,7 +771,8 @@ export async function confirmUpload(
         }
 
         const now = new Date()
-        const activated = await deps.matter.activateDraft(id, orgId, plan.finalName, now)
+        const type = opts.contentType === undefined ? existing.type : (opts.contentType ?? '')
+        const activated = await deps.matter.activateDraft(id, orgId, plan.finalName, type, now)
         if (!activated) {
           throw new Error('CONFIRM_UPLOAD_RACE')
         }
@@ -779,7 +781,7 @@ export async function confirmUpload(
         // once more so the new file's bytes are reflected.
         if (overwrites) await deps.storageUsage.reconcile(orgId, [existing.storageId])
 
-        const confirmed = { ...existing, name: plan.finalName, status: 'active', updatedAt: now }
+        const confirmed = { ...existing, name: plan.finalName, type, status: 'active', updatedAt: now }
 
         return { matter: confirmed }
       },
