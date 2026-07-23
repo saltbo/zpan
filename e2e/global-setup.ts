@@ -18,18 +18,18 @@ const storageConfig = {
   accessKey: process.env.E2E_STORAGE_ACCESS_KEY ?? 'e2e-access-key',
   secretKey: process.env.E2E_STORAGE_SECRET_KEY ?? 'e2e-secret-key',
   capacity: 0,
-  status: 'active',
+  enabled: true,
 }
 
 type StorageItem = {
   id: string
   capacity: number
   used: number
-  status: string
+  enabled: boolean
 }
 
 function isAvailableStorage(storage: StorageItem) {
-  return storage.status === 'active' && (storage.capacity === 0 || storage.used < storage.capacity)
+  return storage.enabled && (storage.capacity === 0 || storage.used < storage.capacity)
 }
 
 function prepareNodeDatabase() {
@@ -108,7 +108,7 @@ function ensureNodeStorage() {
   const storage = sqlite
     .prepare(
       `
-        SELECT id, capacity, used, status
+        SELECT id, capacity, used, enabled
         FROM storages
         ORDER BY created_at ASC
         LIMIT 1
@@ -122,7 +122,8 @@ function ensureNodeStorage() {
         `
         UPDATE storages
           SET bucket = ?, endpoint = ?, region = ?, access_key = ?, secret_key = ?,
-              capacity = ?, status = ?, updated_at = CAST(unixepoch('subsecond') * 1000 AS INTEGER)
+              capacity = ?, enabled = ?, status = 'unknown', status_reason = NULL,
+              status_checked_at = NULL, updated_at = CAST(unixepoch('subsecond') * 1000 AS INTEGER)
           WHERE id = ?
         `,
       )
@@ -133,7 +134,7 @@ function ensureNodeStorage() {
         storageConfig.accessKey,
         storageConfig.secretKey,
         storageConfig.capacity,
-        storageConfig.status,
+        Number(storageConfig.enabled),
         storage.id,
       )
     sqlite.close()
@@ -145,9 +146,9 @@ function ensureNodeStorage() {
       `
         INSERT INTO storages (
           id, bucket, endpoint, region, access_key, secret_key,
-          file_path, custom_host, capacity, used, status, created_at, updated_at
+          file_path, custom_host, capacity, used, enabled, status, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, '', '', ?, 0, ?, CAST(unixepoch('subsecond') * 1000 AS INTEGER), CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+        VALUES (?, ?, ?, ?, ?, ?, '', '', ?, 0, ?, 'unknown', CAST(unixepoch('subsecond') * 1000 AS INTEGER), CAST(unixepoch('subsecond') * 1000 AS INTEGER))
       `,
     )
     .run(
@@ -158,7 +159,7 @@ function ensureNodeStorage() {
       storageConfig.accessKey,
       storageConfig.secretKey,
       storageConfig.capacity,
-      storageConfig.status,
+      Number(storageConfig.enabled),
     )
   sqlite.close()
   return true
