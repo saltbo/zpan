@@ -31,6 +31,18 @@ pnpm test:cf          # Integration tests (Cloudflare Workers runtime)
 pnpm e2e              # Playwright E2E tests
 ```
 
+### Live Cloud E2E account
+
+The Node and Cloudflare Workers E2E jobs use runtime-specific secret names, but both credential pairs may
+belong to the same staging account and one-instance subscription. Both jobs therefore hold the repository-wide
+`zpan-cloud-staging-e2e` concurrency lock for their full lifetime and queue instead of canceling one another.
+Any new CI job that pairs against that subscription must use the same concurrency group. A job may run outside
+the group only when its credentials belong to an independently licensed staging account.
+
+The Cloud specs unbind after each serial suite, including test failures. Pairing also removes a stale test
+license before retrying, so cleanup is repeatable after an interrupted run. Do not skip either cleanup path or
+increase the subscription limit to make parallel jobs pass.
+
 ## Adding a Feature
 
 1. **Write code** in the relevant directory (`server/`, `src/`, `shared/`)

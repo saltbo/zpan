@@ -183,6 +183,11 @@ jobs:
     name: E2E (Node)
     runs-on: ubuntu-latest
     needs: check
+    # Both runtimes may share a one-instance staging subscription. Keep the
+    # entire job in the lock so setup, pairing, and cleanup cannot overlap.
+    concurrency:
+      group: zpan-cloud-staging-e2e
+      queue: max
     env:
       BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
       E2E_CLOUD_BUSINESS_EMAIL_NODE: ${{ secrets.E2E_CLOUD_BUSINESS_EMAIL_NODE }}
@@ -232,6 +237,9 @@ jobs:
     name: E2E (CF Workers)
     runs-on: ubuntu-latest
     needs: check
+    concurrency:
+      group: zpan-cloud-staging-e2e
+      queue: max
     env:
       BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
       E2E_CLOUD_BUSINESS_EMAIL_CF: ${{ secrets.E2E_CLOUD_BUSINESS_EMAIL_CF }}
