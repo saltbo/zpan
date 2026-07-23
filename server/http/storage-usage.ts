@@ -3,7 +3,7 @@ import { STORAGE_USAGE_CATEGORIES, STORAGE_USAGE_SORT_FIELDS } from '@shared/sto
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
-import { getStorageUsage } from '../usecases/storage-usage-dashboard'
+import { getStorageUsage, listStorageUsageItems } from '../usecases/storage-usage-dashboard'
 import { jsonContent } from './openapi'
 
 const categorySchema = z.enum(STORAGE_USAGE_CATEGORIES)
@@ -84,16 +84,7 @@ const storageUsage = app
   .openapi(getUsageRoute, async (c) => c.json(await getStorageUsage(c.get('deps'), requireOrg(c)), 200))
   .openapi(listItemsRoute, async (c) => {
     const query = c.req.valid('query')
-    const result = await c
-      .get('deps')
-      .storageUsageBreakdowns.listItems(
-        requireOrg(c),
-        query.category,
-        query.page,
-        query.pageSize,
-        query.sortBy,
-        query.sortDir,
-      )
+    const result = await listStorageUsageItems(c.get('deps'), requireOrg(c), query)
     return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)
   })
 
