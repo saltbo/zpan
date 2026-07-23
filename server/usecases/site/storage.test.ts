@@ -1,5 +1,5 @@
 import { FREE_STORAGE_LIMIT } from '@shared/constants'
-import type { CreateStorageInput } from '@shared/schemas'
+import type { CreateStorageInput, ReplaceStorageInput } from '@shared/schemas'
 import type { BindingState } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LicenseBindingRepo, StorageRecord, StorageRepo } from '../ports'
@@ -10,8 +10,9 @@ import {
   deleteStorage,
   getStorage,
   listStorages,
+  patchStorage,
+  replaceStorage,
   type StorageDeps,
-  updateStorage,
   updateStorageEgressBilling,
 } from './storage'
 
@@ -37,13 +38,29 @@ const validInput: CreateStorageInput = {
   secretKey: 's',
 } as CreateStorageInput
 
+const validReplacement: ReplaceStorageInput = {
+  provider: '',
+  bucket: 'new-b',
+  endpoint: 'https://s3.example.com',
+  region: 'us-east-1',
+  accessKey: 'k',
+  secretKey: 's',
+  capacity: 0,
+  forcePathStyle: true,
+  egressCreditBillingEnabled: false,
+  egressCreditUnitBytes: 104857600,
+  egressCreditPerUnit: 1,
+  enabled: true,
+}
+
 function makeDeps(storages: Partial<StorageRepo> = {}) {
   const repo: StorageRepo = {
     list: async () => ({ items: [], total: 0 }),
     get: async () => null,
     create: async () => sampleStorage,
     count: async () => 0,
-    update: async () => null,
+    replace: async () => null,
+    patch: async () => null,
     delete: async () => 'ok',
     select: async () => sampleStorage,
     ...storages,
@@ -135,20 +152,20 @@ describe('storage usecase', () => {
     })
   })
 
-  describe('updateStorage', () => {
-    it('updates the storage', async () => {
+  describe('replaceStorage', () => {
+    it('replaces the storage', async () => {
       edition(COMMUNITY)
-      const update = vi.fn(async () => sampleStorage)
-      const { deps } = makeDeps({ update })
-      const out = await updateStorage(deps, { id: 'st-1', input: { bucket: 'new-b' } })
+      const replace = vi.fn(async () => sampleStorage)
+      const { deps } = makeDeps({ replace })
+      const out = await replaceStorage(deps, { id: 'st-1', input: validReplacement })
       expect(out).toEqual({ ok: true, storage: sampleStorage })
-      expect(update).toHaveBeenCalledWith('st-1', { bucket: 'new-b' })
+      expect(replace).toHaveBeenCalledWith('st-1', validReplacement)
     })
 
     it('returns not_found for a missing storage', async () => {
       edition(COMMUNITY)
-      const { deps } = makeDeps({ update: async () => null })
-      const out = await updateStorage(deps, { id: 'x', input: { bucket: 'new-b' } })
+      const { deps } = makeDeps({ replace: async () => null })
+      const out = await replaceStorage(deps, { id: 'x', input: validReplacement })
       expect(out.ok).toBe(false)
       if (!out.ok) {
         expect(out.error).toBeInstanceOf(AppError)
@@ -159,11 +176,11 @@ describe('storage usecase', () => {
 
     it('gates egress-credit billing before the existence check (402 over 404)', async () => {
       edition(PRO) // lacks quota_store
-      const update = vi.fn(async () => null)
-      const { deps } = makeDeps({ update })
-      const out = await updateStorage(deps, {
+      const replace = vi.fn(async () => null)
+      const { deps } = makeDeps({ replace })
+      const out = await replaceStorage(deps, {
         id: 'x',
-        input: { egressCreditBillingEnabled: true },
+        input: { ...validReplacement, egressCreditBillingEnabled: true },
       })
       expect(out.ok).toBe(false)
       if (!out.ok) {
@@ -172,21 +189,32 @@ describe('storage usecase', () => {
         expect(out.error.meta.reason).toBe('FEATURE_NOT_AVAILABLE')
         expect(out.error.meta.metadata).toEqual({ feature: 'quota_store' })
       }
-      expect(update).not.toHaveBeenCalled()
+      expect(replace).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('patchStorage', () => {
+    it('patches only the requested fields', async () => {
+      edition(COMMUNITY)
+      const patch = vi.fn(async () => sampleStorage)
+      const { deps } = makeDeps({ patch })
+      const out = await patchStorage(deps, { id: 'st-1', input: { enabled: false } })
+      expect(out).toEqual({ ok: true, storage: sampleStorage })
+      expect(patch).toHaveBeenCalledWith('st-1', { enabled: false })
     })
   })
 
   describe('updateStorageEgressBilling', () => {
     it('updates egress billing fields', async () => {
       edition(BUSINESS)
-      const update = vi.fn(async () => sampleStorage)
-      const { deps } = makeDeps({ get: async () => sampleStorage, update })
+      const patch = vi.fn(async () => sampleStorage)
+      const { deps } = makeDeps({ get: async () => sampleStorage, patch })
       const out = await updateStorageEgressBilling(deps, {
         id: 'st-1',
         input: { enabled: true, unitBytes: 1024, creditsPerUnit: 2 },
       })
       expect(out).toEqual({ ok: true, storage: sampleStorage })
-      expect(update).toHaveBeenCalledWith('st-1', {
+      expect(patch).toHaveBeenCalledWith('st-1', {
         egressCreditBillingEnabled: true,
         egressCreditUnitBytes: 1024,
         egressCreditPerUnit: 2,
@@ -195,8 +223,8 @@ describe('storage usecase', () => {
 
     it('blocks enabling egress billing without quota_store', async () => {
       edition(PRO)
-      const update = vi.fn(async () => sampleStorage)
-      const { deps } = makeDeps({ get: async () => sampleStorage, update })
+      const patch = vi.fn(async () => sampleStorage)
+      const { deps } = makeDeps({ get: async () => sampleStorage, patch })
       const out = await updateStorageEgressBilling(deps, {
         id: 'st-1',
         input: { enabled: true, unitBytes: 1024, creditsPerUnit: 2 },
@@ -208,12 +236,12 @@ describe('storage usecase', () => {
         expect(out.error.meta.reason).toBe('FEATURE_NOT_AVAILABLE')
         expect(out.error.meta.metadata).toEqual({ feature: 'quota_store' })
       }
-      expect(update).not.toHaveBeenCalled()
+      expect(patch).not.toHaveBeenCalled()
     })
 
     it('returns not_found for a missing storage when billing is disabled', async () => {
       edition(PRO)
-      const { deps } = makeDeps({ update: async () => null })
+      const { deps } = makeDeps({ patch: async () => null })
       const out = await updateStorageEgressBilling(deps, {
         id: 'missing',
         input: { enabled: false, unitBytes: 1024, creditsPerUnit: 2 },
@@ -227,8 +255,8 @@ describe('storage usecase', () => {
 
     it('returns not_found before quota_store gating for a missing storage when billing is enabled', async () => {
       edition(PRO)
-      const update = vi.fn(async () => null)
-      const { deps } = makeDeps({ get: async () => null, update })
+      const patch = vi.fn(async () => null)
+      const { deps } = makeDeps({ get: async () => null, patch })
       const out = await updateStorageEgressBilling(deps, {
         id: 'missing',
         input: { enabled: true, unitBytes: 1024, creditsPerUnit: 2 },
@@ -238,7 +266,7 @@ describe('storage usecase', () => {
         expect(out.error.httpStatus).toBe(404)
         expect(out.error.message).toBe('Storage not found')
       }
-      expect(update).not.toHaveBeenCalled()
+      expect(patch).not.toHaveBeenCalled()
     })
   })
 

@@ -9,11 +9,23 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to, ...props }: { children: ReactNode; to: string } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a href={to} {...props}>
-      {children}
-    </a>
-  ),
+  Link: ({
+    children,
+    to,
+    params,
+    ...props
+  }: {
+    children: ReactNode
+    to: string
+    params?: { username: string }
+  } & AnchorHTMLAttributes<HTMLAnchorElement>) => {
+    const href = params?.username ? to.replace('$username', params.username) : to
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    )
+  },
   useNavigate: () => mocks.navigate,
 }))
 
@@ -56,11 +68,12 @@ afterEach(() => {
 })
 
 describe('UserAccountMenu', () => {
-  it('keeps personal settings and admin access but removes the teams entry', async () => {
+  it('links to the public profile, personal settings, and admin access but omits teams', async () => {
     const view = render(<UserAccountMenu showAdminLink showFrontendLinks />)
 
     fireEvent.pointerDown(view.getByRole('button', { name: /Admin User/ }), { button: 0, ctrlKey: false })
 
+    expect((await view.findByRole('menuitem', { name: 'nav.profile' })).getAttribute('href')).toBe('/u/admin')
     expect(await view.findByRole('menuitem', { name: 'nav.settings' })).toBeTruthy()
     expect(view.getByRole('menuitem', { name: 'nav.adminPanel' })).toBeTruthy()
     expect(view.queryByText('nav.teams')).toBeNull()

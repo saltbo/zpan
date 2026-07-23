@@ -108,7 +108,10 @@ function makeStorage(overrides: Partial<Storage> = {}): Storage {
     egressCreditPerUnit: 1,
     forcePathStyle: true,
     used: 0,
-    status: 'active',
+    enabled: true,
+    status: 'healthy',
+    statusReason: null,
+    statusCheckedAt: '2026-01-01',
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
   }

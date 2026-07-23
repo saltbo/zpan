@@ -1,12 +1,13 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { STORAGE_USAGE_CATEGORIES } from '@shared/storage-usage'
+import { STORAGE_USAGE_CATEGORIES, STORAGE_USAGE_SORT_FIELDS } from '@shared/storage-usage'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
-import { getStorageUsage } from '../usecases/storage-usage-dashboard'
+import { getStorageUsage, listStorageUsageItems } from '../usecases/storage-usage-dashboard'
 import { jsonContent } from './openapi'
 
 const categorySchema = z.enum(STORAGE_USAGE_CATEGORIES)
+const sortFieldSchema = z.enum(STORAGE_USAGE_SORT_FIELDS)
 const breakdownSchema = z.object({
   category: categorySchema,
   bytes: z.number().int(),
@@ -25,6 +26,8 @@ const usageSchema = z
 const itemSchema = z.object({
   id: z.string(),
   name: z.string(),
+  path: z.string(),
+  parentPath: z.string(),
   type: z.string(),
   size: z.number().int(),
   updatedAt: z.string(),
@@ -51,6 +54,8 @@ const listItemsRoute = createRoute({
       category: categorySchema,
       page: z.coerce.number().int().min(1).default(1),
       pageSize: z.coerce.number().int().min(1).max(100).default(20),
+      sortBy: sortFieldSchema.default('size'),
+      sortDir: z.enum(['asc', 'desc']).default('desc'),
     }),
   },
   responses: {
@@ -79,9 +84,7 @@ const storageUsage = app
   .openapi(getUsageRoute, async (c) => c.json(await getStorageUsage(c.get('deps'), requireOrg(c)), 200))
   .openapi(listItemsRoute, async (c) => {
     const query = c.req.valid('query')
-    const result = await c
-      .get('deps')
-      .storageUsageBreakdowns.listItems(requireOrg(c), query.category, query.page, query.pageSize)
+    const result = await listStorageUsageItems(c.get('deps'), requireOrg(c), query)
     return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)
   })
 

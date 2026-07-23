@@ -9,7 +9,12 @@
 // the CRUD resource; that one is a cross-resource operation.
 
 import { FREE_STORAGE_LIMIT } from '@shared/constants'
-import type { CreateStorageInput, UpdateStorageEgressBillingInput, UpdateStorageInput } from '@shared/schemas'
+import type {
+  CreateStorageInput,
+  PatchStorageInput,
+  ReplaceStorageInput,
+  UpdateStorageEgressBillingInput,
+} from '@shared/schemas'
 import { hasFeature } from '../../domain/licensing'
 import {
   type AppError,
@@ -86,9 +91,9 @@ export async function createStorage(
   return { ok: true, storage }
 }
 
-export async function updateStorage(
+export async function replaceStorage(
   deps: StorageDeps,
-  params: { id: string; input: UpdateStorageInput },
+  params: { id: string; input: ReplaceStorageInput },
 ): Promise<UpdateStorageOutcome> {
   const { id, input } = params
   // Feature gate before the existence check — preserves 402-over-404 ordering.
@@ -98,7 +103,23 @@ export async function updateStorage(
   ) {
     return { ok: false, error: featureBlockError({ feature: 'quota_store' }) }
   }
-  const storage = await deps.storages.update(id, input)
+  const storage = await deps.storages.replace(id, input)
+  if (!storage) return { ok: false, error: storageNotFound() }
+  return { ok: true, storage }
+}
+
+export async function patchStorage(
+  deps: StorageDeps,
+  params: { id: string; input: PatchStorageInput },
+): Promise<UpdateStorageOutcome> {
+  const { id, input } = params
+  if (
+    enablesEgressCreditBilling(input) &&
+    !hasFeature('quota_store', await loadBindingState({ licenseBinding: deps.licenseBinding }))
+  ) {
+    return { ok: false, error: featureBlockError({ feature: 'quota_store' }) }
+  }
+  const storage = await deps.storages.patch(id, input)
   if (!storage) return { ok: false, error: storageNotFound() }
   return { ok: true, storage }
 }
@@ -113,7 +134,7 @@ export async function updateStorageEgressBilling(
   if (input.enabled && !hasFeature('quota_store', await loadBindingState({ licenseBinding: deps.licenseBinding }))) {
     return { ok: false, error: featureBlockError({ feature: 'quota_store' }) }
   }
-  const storage = await deps.storages.update(id, {
+  const storage = await deps.storages.patch(id, {
     egressCreditBillingEnabled: input.enabled,
     egressCreditUnitBytes: input.unitBytes,
     egressCreditPerUnit: input.creditsPerUnit,

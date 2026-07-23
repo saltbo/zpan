@@ -1,19 +1,27 @@
-import { FREE_STORAGE_LIMIT, StorageStatus } from '@shared/constants'
+import { FREE_STORAGE_LIMIT, StorageStatus, StorageStatusReason } from '@shared/constants'
 import type { Storage } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
+  Activity,
   AlertTriangle,
+  ArrowRight,
+  Boxes,
   CheckCircle2,
   Database,
+  Ellipsis,
+  HardDrive,
   Loader2,
-  Pencil,
+  MapPin,
   Plus,
+  Power,
+  Search,
   Settings2,
   TestTube2,
   Trash2,
+  WifiOff,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AdminFormDrawer, AdminFormLabel } from '@/components/admin/admin-form-drawer'
@@ -31,6 +39,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -40,10 +55,10 @@ import {
   abortObjectUpload,
   createObject,
   listStorages,
-  updateStorage,
+  patchStorage,
   updateStorageEgressBilling,
 } from '@/lib/api'
-import { type EplistProvider, eplistProviderLabel, listEplistProviders } from '@/lib/eplist'
+import { eplistProviderLabel, listEplistProviders } from '@/lib/eplist'
 import { formatSize } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/storages/')({
@@ -59,9 +74,12 @@ type StorageHealth =
 type StorageTestStep = 'creating' | 'uploading' | 'cleanup'
 type StorageTestPosition = StorageTestStep | 'done'
 type StorageTestStepState = 'done' | 'failed' | 'active' | 'pending'
+type StorageFilter = 'all' | 'healthy' | 'attention' | 'failed' | 'disabled'
+type StorageSort = 'default' | 'usage' | 'used' | 'bucket'
 
 const TEST_CONTENT = 'zpan storage connection test\n'
 const DATA_UNITS = { MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 } as const
+const DISPLAY_DATA_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const
 
 type DataUnit = keyof typeof DATA_UNITS
 type BillingForm = {
@@ -95,6 +113,20 @@ function readableError(error: unknown) {
   return String(error)
 }
 
+function formatCapacityPair(used: number, capacity: number) {
+  const unitIndex = Math.min(
+    DISPLAY_DATA_UNITS.length - 1,
+    Math.max(0, Math.floor(Math.log(Math.max(capacity, 1)) / Math.log(1024))),
+  )
+  const divisor = 1024 ** unitIndex
+  const usedValue = used / divisor
+  const capacityValue = capacity / divisor
+  const fractionDigits = unitIndex === 0 ? 0 : usedValue > 0 && usedValue < 0.1 ? 2 : 1
+  const formatValue = (value: number) => value.toFixed(fractionDigits).replace(/\.0+$|(\.\d*[1-9])0+$/, '$1')
+
+  return `${formatValue(usedValue)} / ${formatValue(capacityValue)} ${DISPLAY_DATA_UNITS[unitIndex]}`
+}
+
 export function StoragesPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -108,6 +140,9 @@ export function StoragesPage() {
   const [testHealth, setTestHealth] = useState<StorageHealth>({ status: 'idle' })
   const [testStep, setTestStep] = useState<StorageTestPosition>('done')
   const [testFailedStep, setTestFailedStep] = useState<StorageTestStep | null>(null)
+  const [filter, setFilter] = useState<StorageFilter>('all')
+  const [sort, setSort] = useState<StorageSort>('default')
+  const [query, setQuery] = useState('')
 
   const storagesQuery = useQuery({
     queryKey: ['admin', 'storages'],
@@ -123,10 +158,30 @@ export function StoragesPage() {
   const providers = providersQuery.data ?? []
   const storagesLimitReached = !hasFeature('storages_unlimited') && storages.length >= FREE_STORAGE_LIMIT
   const hasTrafficBilling = hasFeature('quota_store')
+  const visibleStorages = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    const items = storages.filter((storage) => {
+      const visualStatus = storageVisualStatus(storage)
+      const matchesFilter = filter === 'all' || visualStatus === filter
+      const providerLabel = eplistProviderLabel(providers, storage.provider)
+      const matchesQuery =
+        !normalizedQuery ||
+        [storage.bucket, storage.endpoint, storage.region, providerLabel].some((value) =>
+          value.toLowerCase().includes(normalizedQuery),
+        )
+      return matchesFilter && matchesQuery
+    })
+    return [...items].sort((left, right) => {
+      if (sort === 'usage') return storageUsage(right) - storageUsage(left)
+      if (sort === 'used') return right.used - left.used
+      if (sort === 'bucket') return left.bucket.localeCompare(right.bucket)
+      return 0
+    })
+  }, [filter, providers, query, sort, storages])
 
   const billingMutation = useMutation({
     mutationFn: async ({ storage, form }: { storage: Storage; form: BillingForm }) => {
-      await updateStorage(storage.id, { capacity: capacityPayload(form) })
+      await patchStorage(storage.id, { capacity: capacityPayload(form) })
       if (hasTrafficBilling) {
         await updateStorageEgressBilling(storage.id, egressBillingPayload(form))
       }
@@ -137,6 +192,20 @@ export function StoragesPage() {
       toast.success(t('admin.storages.billingSaveSuccess'))
     },
     onError: (err) => toast.error(err.message),
+  })
+
+  const enabledMutation = useMutation({
+    mutationFn: ({ storage, enabled }: { storage: Storage; enabled: boolean }) => patchStorage(storage.id, { enabled }),
+    onSuccess: (storage, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'storages'] })
+      toast.success(
+        t(variables.enabled ? 'admin.storages.enableSuccess' : 'admin.storages.disableSuccess', {
+          bucket: storage.bucket,
+        }),
+      )
+      if (variables.enabled) handleTest(storage)
+    },
+    onError: (error) => toast.error(readableError(error)),
   })
 
   function handleEdit(storage: Storage) {
@@ -233,6 +302,21 @@ export function StoragesPage() {
         }
       }
       const finalResult = result ?? { status: 'idle' as const }
+      if (finalResult.status !== 'idle') {
+        const status = finalResult.status === 'success' ? StorageStatus.HEALTHY : StorageStatus.UNHEALTHY
+        const statusReason =
+          finalResult.status === 'success'
+            ? null
+            : finalResult.status === 'cors'
+              ? StorageStatusReason.CORS
+              : StorageStatusReason.UNKNOWN
+        try {
+          await patchStorage(storage.id, { status, statusReason })
+          queryClient.invalidateQueries({ queryKey: ['admin', 'storages'] })
+        } catch {
+          toast.error(t('admin.storages.healthSaveFailed'))
+        }
+      }
       setTestFailedStep(
         finalResult.status === 'success' || finalResult.status === 'idle' ? null : (failedStep ?? currentStep),
       )
@@ -253,6 +337,7 @@ export function StoragesPage() {
     <div className="space-y-4">
       <AdminPageHeader
         title={t('admin.storages.title')}
+        description={t('admin.storages.placeholder')}
         action={
           <Button size="sm" onClick={handleAddNew} disabled={storagesLimitReached}>
             <Plus className="mr-2 h-4 w-4" />
@@ -263,54 +348,80 @@ export function StoragesPage() {
 
       {storagesLimitReached && <UpgradeHint feature="storages_unlimited" />}
 
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colBucket')}</th>
-              <th className="hidden px-4 py-3 text-left font-medium md:table-cell">
-                {t('admin.storages.colProvider')}
-              </th>
-              <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colAccessKey')}</th>
-              <th className="hidden max-w-48 px-4 py-3 text-left font-medium lg:table-cell">
-                {t('admin.storages.colEndpoint')}
-              </th>
-              <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">
-                {t('admin.storages.colEgressBilling')}
-              </th>
-              <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colStatus')}</th>
-              <th className="px-4 py-3 text-right font-medium">{t('admin.storages.colActions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {storages.map((storage) => (
-              <StorageTableRow
-                key={storage.id}
-                storage={storage}
-                providers={providers}
-                hasTrafficBilling={hasTrafficBilling}
-                testing={testTarget?.id === storage.id && testHealth.status === 'testing'}
-                onTest={() => handleTest(storage)}
-                onEdit={() => handleEdit(storage)}
-                onConfigureBilling={() => handleConfigureBilling(storage)}
-                onDelete={() => setDeleteTarget({ id: storage.id, bucket: storage.bucket })}
-              />
-            ))}
-            {storages.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
-                  <div className="flex flex-col items-center gap-3">
-                    <Database className="h-10 w-10" />
-                    <p>{t('admin.storages.noStorages')}</p>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <StorageOverview storages={storages} />
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg border bg-card p-1">
+          {(['all', 'healthy', 'attention', 'failed', 'disabled'] as const).map((value) => (
+            <Button
+              key={value}
+              variant={filter === value ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 rounded-md px-2.5 text-[11px]"
+              onClick={() => setFilter(value)}
+            >
+              {t(`admin.storages.filter.${value}`)}
+              <span className="ml-1 rounded-full bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                {storageFilterCount(storages, value)}
+              </span>
+            </Button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <div className="relative min-w-0 flex-1 sm:w-60">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('admin.storages.searchPlaceholder')}
+              className="h-8 rounded-lg bg-card pl-9 text-xs"
+            />
+          </div>
+          <Select value={sort} onValueChange={(value) => setSort(value as StorageSort)}>
+            <SelectTrigger className="h-8 w-36 rounded-lg bg-card text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(['default', 'usage', 'used', 'bucket'] as const).map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(`admin.storages.sort.${value}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <StorageFormDrawer open={formOpen} onOpenChange={handleFormOpenChange} storage={editingStorage} />
+      {visibleStorages.length > 0 ? (
+        <div className="grid gap-3 xl:grid-cols-2">
+          {visibleStorages.map((storage) => (
+            <StorageCard
+              key={storage.id}
+              storage={storage}
+              providerLabel={eplistProviderLabel(providers, storage.provider)}
+              testing={testTarget?.id === storage.id && testHealth.status === 'testing'}
+              toggling={enabledMutation.isPending && enabledMutation.variables?.storage.id === storage.id}
+              onTest={() => handleTest(storage)}
+              onToggle={() => enabledMutation.mutate({ storage, enabled: !storage.enabled })}
+              onEdit={() => handleEdit(storage)}
+              onConfigureBilling={() => handleConfigureBilling(storage)}
+              onDelete={() => setDeleteTarget({ id: storage.id, bucket: storage.bucket })}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-muted-foreground">
+          <Database className="size-10" />
+          <p>{storages.length === 0 ? t('admin.storages.noStorages') : t('admin.storages.noMatches')}</p>
+        </div>
+      )}
+
+      <StorageFormDrawer
+        open={formOpen}
+        onOpenChange={handleFormOpenChange}
+        storage={editingStorage}
+        onCreated={handleTest}
+      />
 
       <StorageEgressBillingDrawer
         storage={billingTarget}
@@ -343,83 +454,330 @@ export function StoragesPage() {
   )
 }
 
-function StorageTableRow({
+function StorageOverview({ storages }: { storages: Storage[] }) {
+  const { t } = useTranslation()
+  const enabled = storages.filter((storage) => storage.enabled).length
+  const bounded = storages.filter((storage) => storage.capacity > 0)
+  const capacity = bounded.reduce((total, storage) => total + storage.capacity, 0)
+  const used = storages.reduce((total, storage) => total + storage.used, 0)
+  const healthy = storages.filter((storage) => storage.enabled && storage.status === StorageStatus.HEALTHY).length
+
+  const items = [
+    {
+      icon: Boxes,
+      iconClassName: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+      label: t('admin.storages.overview.backends'),
+      value: String(storages.length),
+    },
+    {
+      icon: Database,
+      iconClassName: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+      label: t('admin.storages.overview.capacity'),
+      value: formatSize(capacity),
+    },
+    {
+      icon: HardDrive,
+      iconClassName: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+      label: t('admin.storages.overview.used'),
+      value: formatSize(used),
+      detail:
+        capacity > 0 ? t('admin.storages.overview.usage', { percent: Math.round((used / capacity) * 100) }) : undefined,
+    },
+    {
+      icon: Activity,
+      iconClassName: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+      label: t('admin.storages.overview.health'),
+      value: `${healthy}/${enabled}`,
+    },
+  ]
+
+  return (
+    <section className="grid overflow-hidden rounded-xl border bg-card shadow-xs sm:grid-cols-2 xl:grid-cols-4">
+      {items.map((item) => {
+        const Icon = item.icon
+        return (
+          <div
+            key={item.label}
+            className="flex min-h-[76px] items-center gap-2.5 border-b px-3 py-2.5 last:border-b-0 sm:border-r sm:[&:nth-child(2)]:border-r-0 xl:border-b-0 xl:[&:nth-child(2)]:border-r"
+          >
+            <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${item.iconClassName}`}>
+              <Icon className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] text-muted-foreground">{item.label}</p>
+              <div className="flex min-w-0 items-baseline gap-1.5">
+                <p className="shrink-0 text-base leading-5 font-semibold tracking-tight tabular-nums">{item.value}</p>
+                {item.detail && <p className="truncate text-[10px] text-muted-foreground">{item.detail}</p>}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+function storageUsage(storage: Storage) {
+  if (storage.capacity <= 0) return -1
+  return storage.used / storage.capacity
+}
+
+function storageVisualStatus(storage: Storage): Exclude<StorageFilter, 'all'> {
+  if (!storage.enabled) return 'disabled'
+  if (storage.status === StorageStatus.UNHEALTHY) return 'failed'
+  if (storage.status === StorageStatus.UNKNOWN || storageUsage(storage) >= 0.9) {
+    return 'attention'
+  }
+  return 'healthy'
+}
+
+function storageFilterCount(storages: Storage[], filter: StorageFilter) {
+  if (filter === 'all') return storages.length
+  return storages.filter((storage) => storageVisualStatus(storage) === filter).length
+}
+
+function StorageCard({
   storage,
-  providers,
-  hasTrafficBilling,
+  providerLabel,
   testing,
+  toggling,
   onTest,
+  onToggle,
   onEdit,
   onConfigureBilling,
   onDelete,
 }: {
   storage: Storage
-  providers: EplistProvider[]
-  hasTrafficBilling: boolean
+  providerLabel: string
   testing: boolean
+  toggling: boolean
   onTest: () => void
+  onToggle: () => void
   onEdit: () => void
   onConfigureBilling: () => void
   onDelete: () => void
 }) {
   const { t } = useTranslation()
-
-  const isActive = storage.status === StorageStatus.ACTIVE
-  const provider = storage.provider?.trim() ?? ''
-
-  const statusBadge = isActive ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground'
+  const usage = storageUsage(storage)
+  const percent = usage < 0 ? null : Math.round(usage * 100)
+  const visiblePercent = Math.min(100, Math.max(0, percent ?? 0))
+  const available = storage.capacity > 0 ? Math.max(0, storage.capacity - storage.used) : null
+  const visualStatus = storageVisualStatus(storage)
+  const badgeStatus = testing ? 'testing' : visualStatus
+  const ringClassName =
+    !storage.enabled || percent === null
+      ? 'text-muted-foreground'
+      : percent >= 90
+        ? 'text-amber-500'
+        : 'text-blue-600 dark:text-blue-400'
 
   return (
-    <tr className="border-b last:border-0 hover:bg-muted/30">
-      <td className="px-4 py-3 font-medium">{storage.bucket}</td>
-      <td className="hidden max-w-44 truncate px-4 py-3 text-muted-foreground md:table-cell" title={provider}>
-        {provider ? eplistProviderLabel(providers, provider) : ''}
-      </td>
-      <td className="max-w-44 truncate px-4 py-3 font-mono text-muted-foreground text-xs" title={storage.accessKey}>
-        {storage.accessKey}
-      </td>
-      <td className="hidden max-w-48 truncate px-4 py-3 text-muted-foreground lg:table-cell">{storage.endpoint}</td>
-      <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
-        {hasTrafficBilling && storage.egressCreditBillingEnabled
-          ? t('admin.storages.egressBillingRate', {
-              credits: storage.egressCreditPerUnit,
-              unit: formatSize(storage.egressCreditUnitBytes),
-            })
-          : t('admin.storages.egressBillingOff')}
-      </td>
-      <td className="px-4 py-3">
-        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge}`}>
-          {isActive ? t('admin.storages.statusActive') : t('admin.storages.statusInactive')}
+    <article className="relative overflow-hidden rounded-[14px] border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.03),0_6px_18px_rgba(15,23,42,0.04)]">
+      <header className="flex min-h-[60px] items-center gap-2.5 border-b px-3.5 py-2.5">
+        <span className="flex h-8 min-w-14 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-blue-500/10 px-2 text-blue-700 dark:text-blue-400">
+          <Database className="size-4" />
+          <b className="max-w-12 truncate text-[10px] tracking-wide uppercase">{storage.provider || 'S3'}</b>
         </span>
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={onTest}
-            title={t('admin.storages.testAction')}
-            disabled={testing}
-          >
-            {testing ? <Loader2 className="animate-spin" /> : <TestTube2 />}
-          </Button>
-          <Button variant="ghost" size="icon-xs" onClick={onEdit} title={t('common.edit')}>
-            <Pencil />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={onConfigureBilling}
-            title={t('admin.storages.configureEgressBilling')}
-          >
-            <Settings2 />
-          </Button>
-          <Button variant="ghost" size="icon-xs" onClick={onDelete} title={t('common.delete')}>
-            <Trash2 className="text-destructive" />
-          </Button>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-xs font-semibold">{providerLabel || storage.provider || 'S3'}</h3>
+          <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground" title={storage.endpoint}>
+            {storage.endpoint}
+          </p>
         </div>
-      </td>
-    </tr>
+        <StorageStatusBadge status={badgeStatus} />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              aria-label={t('admin.storages.cardActions', { bucket: storage.bucket })}
+            >
+              <Ellipsis className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={onToggle} disabled={toggling}>
+              {toggling ? <Loader2 className="animate-spin" /> : <Power />}
+              {t(storage.enabled ? 'admin.storages.disableAction' : 'admin.storages.enableAction')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onTest} disabled={!storage.enabled || testing}>
+              {testing ? <Loader2 className="animate-spin" /> : <TestTube2 />}
+              {t('admin.storages.testAction')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onConfigureBilling}>
+              <Settings2 />
+              {t('admin.storages.capacityBilling')}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+              <Trash2 />
+              {t('common.delete')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
+
+      <div className="grid grid-cols-1 items-center gap-4 px-4 py-3.5 sm:grid-cols-[140px_minmax(0,1fr)]">
+        <StorageUsageRing
+          className={ringClassName}
+          percent={percent}
+          visiblePercent={visiblePercent}
+          used={storage.used}
+          capacity={storage.capacity}
+          ariaLabel={
+            percent === null
+              ? t('admin.storages.capacityUnbounded')
+              : t('admin.storages.capacityAria', { percent, used: formatSize(storage.used) })
+          }
+        />
+
+        <dl className="grid min-w-0 grid-cols-2 gap-2">
+          <div className="col-span-2 flex min-h-12 min-w-0 items-center gap-2 rounded-lg bg-muted/55 px-2.5 py-2">
+            <Database className="size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <dt className="text-[10px] text-muted-foreground">{t('admin.storages.colBucket')}</dt>
+              <dd className="mt-0.5 truncate font-mono text-[11px] font-semibold" title={storage.bucket}>
+                {storage.bucket}
+              </dd>
+            </div>
+          </div>
+          <div className="flex min-h-12 min-w-0 items-center gap-2 rounded-lg bg-muted/55 px-2.5 py-2">
+            <HardDrive className="size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <dt className="text-[10px] text-muted-foreground">{t('admin.storages.available')}</dt>
+              <dd className="mt-0.5 truncate text-[11px] font-semibold">
+                {available === null ? t('admin.storages.unbounded') : formatSize(available)}
+              </dd>
+            </div>
+          </div>
+          <div className="flex min-h-12 min-w-0 items-center gap-2 rounded-lg bg-muted/55 px-2.5 py-2">
+            <MapPin className="size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <dt className="text-[10px] text-muted-foreground">{t('admin.storages.fieldRegion')}</dt>
+              <dd className="mt-0.5 truncate text-[11px] font-semibold" title={storage.region}>
+                {storage.region}
+              </dd>
+            </div>
+          </div>
+        </dl>
+      </div>
+
+      <footer className="flex min-h-11 items-center justify-between border-t bg-muted/25 px-2.5 pl-3.5">
+        <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+          {testing ? (
+            <Loader2 className="size-3.5 shrink-0 animate-spin" />
+          ) : storage.status === StorageStatus.UNHEALTHY ? (
+            <WifiOff className="size-3.5 shrink-0" />
+          ) : (
+            <Activity className="size-3.5 shrink-0" />
+          )}
+          <span className="truncate">
+            {storage.statusReason ? `${t(`admin.storages.statusReason.${storage.statusReason}`)} · ` : ''}
+            {storage.statusCheckedAt
+              ? t('admin.storages.lastChecked', { value: new Date(storage.statusCheckedAt).toLocaleString() })
+              : t('admin.storages.neverChecked')}
+          </span>
+        </span>
+        <Button variant="ghost" size="sm" className="h-8 text-xs text-primary" onClick={onEdit}>
+          {t('admin.storages.manageAction')}
+          <ArrowRight className="ml-1 size-3.5" />
+        </Button>
+      </footer>
+    </article>
+  )
+}
+
+function StorageUsageRing({
+  className,
+  percent,
+  visiblePercent,
+  used,
+  capacity,
+  ariaLabel,
+}: {
+  className: string
+  percent: number | null
+  visiblePercent: number
+  used: number
+  capacity: number
+  ariaLabel: string
+}) {
+  const { t } = useTranslation()
+  const radius = 53
+  const circumference = 2 * Math.PI * radius
+  const dashOffset = circumference * (1 - visiblePercent / 100)
+  const valueClassName = percent === null || Math.abs(percent) >= 1000 ? 'text-lg' : 'text-[22px]'
+
+  return (
+    <div
+      data-testid="storage-usage-ring"
+      className={`relative mx-auto size-[132px] shrink-0 ${className}`}
+      role="img"
+      aria-label={ariaLabel}
+    >
+      <svg className="size-full -rotate-90" viewBox="0 0 132 132" aria-hidden="true">
+        <circle cx="66" cy="66" r={radius} fill="none" stroke="currentColor" strokeWidth="15" className="text-muted" />
+        <circle
+          cx="66"
+          cy="66"
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="15"
+          strokeLinecap="butt"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+        />
+      </svg>
+      <div className="absolute inset-[15px] flex flex-col items-center justify-center rounded-full bg-card text-center text-foreground">
+        <strong
+          className={`max-w-[96px] whitespace-nowrap leading-none font-semibold tracking-tight tabular-nums ${valueClassName}`}
+        >
+          {percent === null ? formatSize(used) : `${percent}%`}
+        </strong>
+        {percent === null ? (
+          <span className="mt-1.5 whitespace-nowrap text-[9px] leading-none text-muted-foreground">
+            {t('admin.storages.usedLabel')}
+          </span>
+        ) : (
+          <span
+            data-testid="storage-usage-detail"
+            className="mt-1.5 max-w-[96px] whitespace-nowrap text-[9px] leading-none text-muted-foreground tabular-nums"
+            title={`${formatSize(used)} / ${formatSize(capacity)}`}
+          >
+            {formatCapacityPair(used, capacity)}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StorageStatusBadge({ status }: { status: Exclude<StorageFilter, 'all'> | 'testing' }) {
+  const { t } = useTranslation()
+  const className =
+    status === 'healthy'
+      ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+      : status === 'failed'
+        ? 'bg-destructive/10 text-destructive'
+        : status === 'attention'
+          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+          : 'bg-muted text-muted-foreground'
+
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${className}`}
+    >
+      {status === 'testing' ? (
+        <Loader2 className="size-3 animate-spin" />
+      ) : status === 'failed' ? (
+        <WifiOff className="size-3" />
+      ) : (
+        <span className="size-1.5 rounded-full bg-current" />
+      )}
+      {t(`admin.storages.cardStatus.${status}`)}
+    </span>
   )
 }
 

@@ -423,7 +423,7 @@ describe('Storage audit events', () => {
     const { id: storageId } = (await createRes.json()) as { id: string }
 
     const updateRes = await app.request(`/api/site/storages/${storageId}`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: { ...admin, 'Content-Type': 'application/json' },
       body: JSON.stringify({ bucket: 'updated-bucket' }),
     })

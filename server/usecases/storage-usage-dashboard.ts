@@ -1,4 +1,10 @@
-import type { StorageUsageResponse } from '@shared/types'
+import type {
+  StorageUsageCategory,
+  StorageUsageItem,
+  StorageUsageResponse,
+  StorageUsageSortDirection,
+  StorageUsageSortField,
+} from '@shared/types'
 import type { Deps } from './deps'
 
 export async function getStorageUsage(
@@ -22,4 +28,25 @@ export async function getStorageUsage(
     breakdowns: projection.breakdowns,
     updatedAt: projection.updatedAt?.toISOString() ?? null,
   }
+}
+
+export async function listStorageUsageItems(
+  deps: Pick<Deps, 'storageUsageBreakdowns'>,
+  orgId: string,
+  input: {
+    category: StorageUsageCategory
+    page: number
+    pageSize: number
+    sortBy: StorageUsageSortField
+    sortDir: StorageUsageSortDirection
+  },
+): Promise<{ items: StorageUsageItem[]; total: number }> {
+  return deps.storageUsageBreakdowns.listItems(
+    orgId,
+    input.category,
+    input.page,
+    input.pageSize,
+    input.sortBy,
+    input.sortDir,
+  )
 }

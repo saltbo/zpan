@@ -11,6 +11,10 @@ export const STORAGE_USAGE_CATEGORIES = [
 
 export type StorageUsageCategory = (typeof STORAGE_USAGE_CATEGORIES)[number]
 
+export const STORAGE_USAGE_SORT_FIELDS = ['name', 'size', 'updatedAt'] as const
+export type StorageUsageSortField = (typeof STORAGE_USAGE_SORT_FIELDS)[number]
+export type StorageUsageSortDirection = 'asc' | 'desc'
+
 const ARCHIVE_MIME_TYPES = new Set([
   'application/gzip',
   'application/vnd.rar',
@@ -67,6 +71,8 @@ export interface StorageUsageResponse {
 export interface StorageUsageItem {
   id: string
   name: string
+  path: string
+  parentPath: string
   type: string
   size: number
   updatedAt: string

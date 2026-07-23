@@ -41,6 +41,18 @@ const validStorage = {
   secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
 }
 
+const validReplacement = {
+  provider: '',
+  ...validStorage,
+  customHost: '',
+  capacity: 0,
+  forcePathStyle: true,
+  egressCreditBillingEnabled: false,
+  egressCreditUnitBytes: 104857600,
+  egressCreditPerUnit: 1,
+  enabled: true,
+}
+
 describe('[CF] Admin Storages API', () => {
   it('returns 401 without auth', async () => {
     const app = await buildApp()
@@ -80,7 +92,9 @@ describe('[CF] Admin Storages API', () => {
 
     expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.status).toBe('active')
+    expect(body.enabled).toBe(true)
+    expect(body.status).toBe('unknown')
+    expect(body.statusReason).toBeNull()
     expect(body.id).toBeTruthy()
   })
 
@@ -141,7 +155,7 @@ describe('[CF] Admin Storages API', () => {
     const res = await app.request(`/api/site/storages/${created.id}`, {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bucket: 'updated-cf-bucket' }),
+      body: JSON.stringify({ ...validReplacement, bucket: 'updated-cf-bucket' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>

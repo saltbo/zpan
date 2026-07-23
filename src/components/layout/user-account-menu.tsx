@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronsUpDown, Languages, LogOut, Palette, Settings, ShieldCheck } from 'lucide-react'
+import { ChevronsUpDown, Languages, LogOut, Palette, Settings, ShieldCheck, UserRound } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useTranslation } from 'react-i18next'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -53,6 +53,14 @@ export function UserAccountMenu({
         </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="end" className="w-56">
+        {showFrontendLinks && user?.username && (
+          <DropdownMenuItem asChild>
+            <Link to="/u/$username" params={{ username: user.username }}>
+              <UserRound className="mr-2 h-4 w-4" />
+              {t('nav.profile')}
+            </Link>
+          </DropdownMenuItem>
+        )}
         {showFrontendLinks && (
           <DropdownMenuItem asChild>
             <Link to="/settings">

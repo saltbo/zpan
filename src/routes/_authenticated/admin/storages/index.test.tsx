@@ -1,4 +1,4 @@
-import { ObjectStatus, StorageStatus } from '@shared/constants'
+import { ObjectStatus, StorageStatus, StorageStatusReason } from '@shared/constants'
 import type { Storage } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -8,7 +8,7 @@ import {
   type CreateObjectResult,
   createObject,
   listStorages,
-  updateStorage,
+  patchStorage,
   updateStorageEgressBilling,
 } from '@/lib/api'
 import { corsJsonForOrigin, StoragesPage } from './index'
@@ -43,10 +43,11 @@ vi.mock('@/hooks/useEntitlement', () => ({
 }))
 
 vi.mock('@/lib/api', () => ({
+  ApiError: class ApiError extends Error {},
   abortObjectUpload: vi.fn(),
   createObject: vi.fn(),
   listStorages: vi.fn(),
-  updateStorage: vi.fn(),
+  patchStorage: vi.fn(),
   updateStorageEgressBilling: vi.fn(),
 }))
 
@@ -72,7 +73,10 @@ const storage: Storage = {
   egressCreditUnitBytes: 1073741824,
   egressCreditPerUnit: 1,
   used: 0,
-  status: StorageStatus.ACTIVE,
+  enabled: true,
+  status: StorageStatus.HEALTHY,
+  statusReason: null,
+  statusCheckedAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
@@ -141,13 +145,56 @@ describe('admin storages CORS guidance', () => {
 })
 
 describe('StoragesPage connection test action', () => {
-  it('shows the storage access key in the list', async () => {
+  it('shows concise storage details without exposing credentials', async () => {
     vi.mocked(listStorages).mockResolvedValue({ items: [storage], total: 1 })
 
     const view = renderStoragesPage()
 
-    expect(await view.findByText('access-key')).toBeTruthy()
+    expect(await view.findByText('bucket')).toBeTruthy()
     expect(await view.findByText('Amazon S3')).toBeTruthy()
+    expect(screen.queryByText('access-key')).toBeNull()
+  })
+
+  it('colors capacity independently from connection health', async () => {
+    vi.mocked(listStorages).mockResolvedValue({
+      items: [
+        {
+          ...storage,
+          capacity: 100,
+          used: 95,
+          status: StorageStatus.UNHEALTHY,
+          statusReason: StorageStatusReason.NETWORK_ERROR,
+        },
+      ],
+      total: 1,
+    })
+
+    const view = renderStoragesPage()
+
+    expect((await view.findByTestId('storage-usage-ring')).classList.contains('text-amber-500')).toBe(true)
+  })
+
+  it('shows used and total capacity on one line with a shared unit', async () => {
+    vi.mocked(listStorages).mockResolvedValue({
+      items: [{ ...storage, capacity: 500 * 1024 ** 2, used: 302.4 * 1024 ** 2 }],
+      total: 1,
+    })
+
+    const view = renderStoragesPage()
+    const detail = await view.findByTestId('storage-usage-detail')
+
+    expect(detail.textContent).toBe('302.4 / 500 MB')
+    expect(detail.classList.contains('whitespace-nowrap')).toBe(true)
+  })
+
+  it('keeps editing out of the overflow menu and exposes capacity billing', async () => {
+    vi.mocked(listStorages).mockResolvedValue({ items: [storage], total: 1 })
+
+    const view = renderStoragesPage()
+    fireEvent.pointerDown(await view.findByRole('button', { name: 'admin.storages.cardActions' }), { button: 0 })
+
+    expect(await view.findByRole('menuitem', { name: 'admin.storages.capacityBilling' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'common.edit' })).toBeNull()
   })
 
   it('leaves the provider cell empty when storage has no provider value', async () => {
@@ -155,7 +202,7 @@ describe('StoragesPage connection test action', () => {
 
     const view = renderStoragesPage()
 
-    expect(await view.findByText('access-key')).toBeTruthy()
+    expect(await view.findByText('bucket')).toBeTruthy()
     expect(screen.queryByText('admin.storages.providerCustom')).toBeNull()
   })
 
@@ -163,11 +210,13 @@ describe('StoragesPage connection test action', () => {
     vi.mocked(listStorages).mockResolvedValue({ items: [storage], total: 1 })
     vi.mocked(createObject).mockResolvedValue(uploadDraft)
     vi.mocked(abortObjectUpload).mockResolvedValue(undefined)
+    vi.mocked(patchStorage).mockResolvedValue(storage)
     const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
     const view = renderStoragesPage()
-    fireEvent.click(await view.findByTitle('admin.storages.testAction'))
+    fireEvent.pointerDown(await view.findByRole('button', { name: 'admin.storages.cardActions' }), { button: 0 })
+    fireEvent.click(await view.findByRole('menuitem', { name: 'admin.storages.testAction' }))
 
     await view.findByText('admin.storages.testDialogTitle')
     expect(screen.getByText('admin.storages.testStepCreate')).toBeTruthy()
@@ -194,16 +243,19 @@ describe('StoragesPage connection test action', () => {
     )
     await view.findByText('admin.storages.testSuccess')
     expect(abortObjectUpload).toHaveBeenCalledWith('object-1', 'session-1', { strictStorageCleanup: true })
+    expect(patchStorage).toHaveBeenCalledWith('storage-1', { status: 'healthy', statusReason: null })
   })
 
   it('renders current-origin CORS guidance when the browser cannot reach the presigned URL', async () => {
     vi.mocked(listStorages).mockResolvedValue({ items: [storage], total: 1 })
     vi.mocked(createObject).mockResolvedValue(uploadDraft)
     vi.mocked(abortObjectUpload).mockResolvedValue(undefined)
+    vi.mocked(patchStorage).mockResolvedValue(storage)
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
 
     const view = renderStoragesPage()
-    fireEvent.click(await view.findByTitle('admin.storages.testAction'))
+    fireEvent.pointerDown(await view.findByRole('button', { name: 'admin.storages.cardActions' }), { button: 0 })
+    fireEvent.click(await view.findByRole('menuitem', { name: 'admin.storages.testAction' }))
 
     await view.findByText('admin.storages.testCorsFailure')
     expect(screen.getByTestId('storage-test-step-creating').dataset.state).toBe('done')
@@ -220,20 +272,50 @@ describe('StoragesPage connection test action', () => {
     expect(abortObjectUpload).toHaveBeenCalledWith('object-1', 'session-1', { strictStorageCleanup: true })
   })
 
+  it('runs a health check after enabling a storage and keeps it enabled when the check fails', async () => {
+    const disabled = {
+      ...storage,
+      enabled: false,
+      status: StorageStatus.UNHEALTHY,
+      statusReason: StorageStatusReason.UNKNOWN,
+    }
+    vi.mocked(listStorages).mockResolvedValue({ items: [disabled], total: 1 })
+    vi.mocked(patchStorage).mockImplementation(async (_id, input) => ({
+      ...disabled,
+      enabled: input.enabled ?? true,
+      status: input.status ?? disabled.status,
+    }))
+    vi.mocked(createObject).mockRejectedValue(new Error('connection failed'))
+
+    const view = renderStoragesPage()
+    fireEvent.pointerDown(await view.findByRole('button', { name: 'admin.storages.cardActions' }), { button: 0 })
+    fireEvent.click(await view.findByRole('menuitem', { name: 'admin.storages.enableAction' }))
+
+    await waitFor(() => expect(patchStorage).toHaveBeenCalledWith('storage-1', { enabled: true }))
+    await waitFor(() => expect(createObject).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(patchStorage).toHaveBeenCalledWith('storage-1', {
+        status: 'unhealthy',
+        statusReason: 'unknown',
+      }),
+    )
+  })
+
   it('opens egress billing from the row action and saves through the dedicated wrapper', async () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     vi.mocked(listStorages).mockResolvedValue({ items: [{ ...storage, egressCreditBillingEnabled: true }], total: 1 })
-    vi.mocked(updateStorage).mockResolvedValue(storage)
+    vi.mocked(patchStorage).mockResolvedValue(storage)
     vi.mocked(updateStorageEgressBilling).mockResolvedValue(storage)
 
     const view = renderStoragesPage()
-    fireEvent.click(await view.findByTitle('admin.storages.configureEgressBilling'))
+    fireEvent.pointerDown(await view.findByRole('button', { name: 'admin.storages.cardActions' }), { button: 0 })
+    fireEvent.click(await view.findByRole('menuitem', { name: 'admin.storages.capacityBilling' }))
     await view.findByText('admin.storages.billingTitle')
     fireEvent.change(screen.getByLabelText('admin.storages.fieldCapacity'), { target: { value: '2' } })
     fireEvent.change(screen.getByLabelText('admin.storages.egressBillingCredits'), { target: { value: '4' } })
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
-    await waitFor(() => expect(updateStorage).toHaveBeenCalledWith('storage-1', { capacity: 2 * 1024 * 1024 * 1024 }))
+    await waitFor(() => expect(patchStorage).toHaveBeenCalledWith('storage-1', { capacity: 2 * 1024 * 1024 * 1024 }))
     await waitFor(() =>
       expect(updateStorageEgressBilling).toHaveBeenCalledWith('storage-1', {
         enabled: true,
@@ -247,10 +329,11 @@ describe('StoragesPage connection test action', () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     mockHasFeature.mockImplementation((feature) => feature !== 'quota_store')
     vi.mocked(listStorages).mockResolvedValue({ items: [{ ...storage, egressCreditBillingEnabled: true }], total: 1 })
-    vi.mocked(updateStorage).mockResolvedValue(storage)
+    vi.mocked(patchStorage).mockResolvedValue(storage)
 
     const view = renderStoragesPage()
-    fireEvent.click(await view.findByTitle('admin.storages.configureEgressBilling'))
+    fireEvent.pointerDown(await view.findByRole('button', { name: 'admin.storages.cardActions' }), { button: 0 })
+    fireEvent.click(await view.findByRole('menuitem', { name: 'admin.storages.capacityBilling' }))
 
     await view.findByText('admin.storages.egressBillingBusinessOnly')
     expect(screen.getByLabelText('admin.storages.egressBillingUnit')).toHaveProperty('disabled', true)
@@ -258,7 +341,7 @@ describe('StoragesPage connection test action', () => {
     fireEvent.change(screen.getByLabelText('admin.storages.fieldCapacity'), { target: { value: '3' } })
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
-    await waitFor(() => expect(updateStorage).toHaveBeenCalledWith('storage-1', { capacity: 3 * 1024 * 1024 * 1024 }))
+    await waitFor(() => expect(patchStorage).toHaveBeenCalledWith('storage-1', { capacity: 3 * 1024 * 1024 * 1024 }))
     expect(updateStorageEgressBilling).not.toHaveBeenCalled()
   })
 })

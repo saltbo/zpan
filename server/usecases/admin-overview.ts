@@ -14,10 +14,11 @@ export async function getAdminOverview(deps: Deps, now = new Date()): Promise<Ad
     id: storage.id,
     provider: storage.provider,
     bucket: storage.bucket,
+    enabled: storage.enabled,
     status: storage.status,
     used: storage.used,
     capacity: storage.capacity,
-    writable: storage.status === 'active' && (storage.capacity === 0 || storage.used < storage.capacity),
+    writable: storage.enabled && (storage.capacity === 0 || storage.used < storage.capacity),
   }))
   const writableStorages = storageItems.filter((storage) => storage.writable).length
   const onlineDownloaders = downloaders.filter((downloader) => downloader.enabled && downloader.status === 'online')

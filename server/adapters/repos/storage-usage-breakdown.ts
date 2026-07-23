@@ -1,5 +1,5 @@
 import { classifyStorageUsage, STORAGE_USAGE_CATEGORIES, type StorageUsageCategory } from '@shared/storage-usage'
-import { and, count, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { DirType } from '../../../shared/constants'
 import { imageHostings, matters, storageUsageBreakdowns } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -47,6 +47,17 @@ function itemCategoryCondition(category: StorageUsageCategory) {
   return and(isNull(matters.trashedAt), sql`${expression} = ${category}`)
 }
 
+function joinPath(parent: string, name: string) {
+  return parent ? `${parent}/${name}` : name
+}
+
+function splitPath(path: string) {
+  const separator = path.lastIndexOf('/')
+  return separator === -1
+    ? { name: path, parentPath: '' }
+    : { name: path.slice(separator + 1), parentPath: path.slice(0, separator) }
+}
+
 export function initialStorageUsageProjectionQueries(db: Database, orgId: string, now: Date) {
   return STORAGE_USAGE_CATEGORIES.map((category) =>
     db
@@ -77,7 +88,7 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
       }
     },
 
-    async listItems(orgId, category, page, pageSize) {
+    async listItems(orgId, category, page, pageSize, sortBy, sortDir) {
       const offset = (page - 1) * pageSize
       if (category === 'image_hosting') {
         const where = and(
@@ -85,25 +96,37 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
           eq(imageHostings.status, 'active'),
           isNull(imageHostings.purgedAt),
         )
+        const sortColumn =
+          sortBy === 'name'
+            ? sql`${imageHostings.path} COLLATE NOCASE`
+            : sortBy === 'updatedAt'
+              ? imageHostings.createdAt
+              : imageHostings.size
+        const order = sortDir === 'asc' ? asc(sortColumn) : desc(sortColumn)
         const [rows, totals] = await Promise.all([
           db
             .select()
             .from(imageHostings)
             .where(where)
-            .orderBy(sql`${imageHostings.size} DESC`)
+            .orderBy(order, asc(imageHostings.id))
             .limit(pageSize)
             .offset(offset),
           db.select({ count: count() }).from(imageHostings).where(where),
         ])
         return {
-          items: rows.map((row) => ({
-            id: row.id,
-            name: row.path,
-            type: row.mime,
-            size: row.size,
-            updatedAt: row.createdAt.toISOString(),
-            source: 'image_hosting' as const,
-          })),
+          items: rows.map((row) => {
+            const location = splitPath(row.path)
+            return {
+              id: row.id,
+              name: location.name,
+              path: row.path,
+              parentPath: location.parentPath,
+              type: row.mime,
+              size: row.size,
+              updatedAt: row.createdAt.toISOString(),
+              source: 'image_hosting' as const,
+            }
+          }),
           total: totals[0]?.count ?? 0,
         }
       }
@@ -114,14 +137,23 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
         isNull(matters.purgedAt),
         itemCategoryCondition(category),
       )
+      const sortColumn =
+        sortBy === 'name'
+          ? sql`${matters.name} COLLATE NOCASE`
+          : sortBy === 'updatedAt'
+            ? matters.updatedAt
+            : matters.size
+      const order = sortDir === 'asc' ? asc(sortColumn) : desc(sortColumn)
       const [rows, totals] = await Promise.all([
-        db.select().from(matters).where(where).orderBy(sql`${matters.size} DESC`).limit(pageSize).offset(offset),
+        db.select().from(matters).where(where).orderBy(order, asc(matters.id)).limit(pageSize).offset(offset),
         db.select({ count: count() }).from(matters).where(where),
       ])
       return {
         items: rows.map((row) => ({
           id: row.id,
           name: row.name,
+          path: joinPath(row.parent, row.name),
+          parentPath: row.parent,
           type: row.type,
           size: row.size ?? 0,
           updatedAt: row.updatedAt.toISOString(),

@@ -14,11 +14,23 @@ export const DirType = {
 export type DirType = (typeof DirType)[keyof typeof DirType]
 
 export const StorageStatus = {
-  ACTIVE: 'active',
-  INACTIVE: 'inactive',
+  UNKNOWN: 'unknown',
+  HEALTHY: 'healthy',
+  UNHEALTHY: 'unhealthy',
 } as const
 
 export type StorageStatus = (typeof StorageStatus)[keyof typeof StorageStatus]
+
+export const StorageStatusReason = {
+  CORS: 'cors',
+  AUTHENTICATION_FAILED: 'authentication_failed',
+  PERMISSION_DENIED: 'permission_denied',
+  BUCKET_NOT_FOUND: 'bucket_not_found',
+  NETWORK_ERROR: 'network_error',
+  UNKNOWN: 'unknown',
+} as const
+
+export type StorageStatusReason = (typeof StorageStatusReason)[keyof typeof StorageStatusReason]
 
 // Soft delete is tracked by the `trashedAt` timestamp, not a status value:
 // live = active & trashedAt IS NULL, trash = active & trashedAt IS NOT NULL.

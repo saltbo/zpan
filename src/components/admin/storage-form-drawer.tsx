@@ -11,7 +11,7 @@ import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/ad
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { createStorage, updateStorage } from '@/lib/api'
+import { createStorage, replaceStorage } from '@/lib/api'
 import { eplistEndpointUrl, findEplistProvider, listEplistEndpoints, listEplistProviders } from '@/lib/eplist'
 
 const storageFormSchema = z.object({
@@ -44,9 +44,10 @@ interface StorageFormDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   storage: Storage | null
+  onCreated?: (storage: Storage) => void
 }
 
-export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDrawerProps) {
+export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: StorageFormDrawerProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [showSecret, setShowSecret] = useState(false)
@@ -82,10 +83,21 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
   }, [open, storage, form])
 
   const mutation = useMutation({
-    mutationFn: (values: StorageFormValues) => (isEditing ? updateStorage(storage.id, values) : createStorage(values)),
-    onSuccess: () => {
+    mutationFn: (values: StorageFormValues) =>
+      isEditing
+        ? replaceStorage(storage.id, {
+            ...values,
+            capacity: storage.capacity,
+            egressCreditBillingEnabled: storage.egressCreditBillingEnabled,
+            egressCreditUnitBytes: storage.egressCreditUnitBytes,
+            egressCreditPerUnit: storage.egressCreditPerUnit,
+            enabled: storage.enabled,
+          })
+        : createStorage(values),
+    onSuccess: (savedStorage) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'storages'] })
       onOpenChange(false)
+      if (!isEditing) onCreated?.(savedStorage)
       toast.success(isEditing ? t('admin.storages.updated') : t('admin.storages.created'))
     },
     onError: (err) => {

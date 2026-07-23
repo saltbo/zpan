@@ -175,8 +175,18 @@ export {
   updateSiteWebDavSchema,
   webDavVerificationStatusSchema,
 } from './site-config'
-export type { CreateStorageInput, UpdateStorageEgressBillingInput, UpdateStorageInput } from './storage'
-export { createStorageSchema, updateStorageEgressBillingSchema, updateStorageSchema } from './storage'
+export type {
+  CreateStorageInput,
+  PatchStorageInput,
+  ReplaceStorageInput,
+  UpdateStorageEgressBillingInput,
+} from './storage'
+export {
+  createStorageSchema,
+  patchStorageSchema,
+  replaceStorageSchema,
+  updateStorageEgressBillingSchema,
+} from './storage'
 
 export const signInSchema = z.object({
   email: z.string().email(),

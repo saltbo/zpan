@@ -1,5 +1,11 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { createStorageSchema, pageSchema, updateStorageEgressBillingSchema, updateStorageSchema } from '@shared/schemas'
+import {
+  createStorageSchema,
+  pageSchema,
+  patchStorageSchema,
+  replaceStorageSchema,
+  updateStorageEgressBillingSchema,
+} from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { type StorageRecord, storageNotFound } from '../../usecases/ports'
@@ -8,7 +14,8 @@ import {
   deleteStorage,
   getStorage,
   listStorages,
-  updateStorage,
+  patchStorage,
+  replaceStorage,
   updateStorageEgressBilling,
 } from '../../usecases/site/storage'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
@@ -33,7 +40,12 @@ const storageSchema = z
     egressCreditPerUnit: z.number().int(),
     forcePathStyle: z.boolean(),
     used: z.number().int(),
-    status: z.string(),
+    enabled: z.boolean(),
+    status: z.enum(['unknown', 'healthy', 'unhealthy']),
+    statusReason: z
+      .enum(['cors', 'authentication_failed', 'permission_denied', 'bucket_not_found', 'network_error', 'unknown'])
+      .nullable(),
+    statusCheckedAt: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -42,7 +54,12 @@ const storageSchema = z
 type StorageDTO = z.infer<typeof storageSchema>
 
 function toStorageDTO(s: StorageRecord): StorageDTO {
-  return { ...s, createdAt: s.createdAt.toISOString(), updatedAt: s.updatedAt.toISOString() }
+  return {
+    ...s,
+    statusCheckedAt: s.statusCheckedAt?.toISOString() ?? null,
+    createdAt: s.createdAt.toISOString(),
+    updatedAt: s.updatedAt.toISOString(),
+  }
 }
 
 const storageListSchema = pageSchema(storageSchema, 'StorageList')
@@ -85,14 +102,29 @@ const getStorageRoute = createRoute({
   },
 })
 
-const updateStorageRoute = createRoute({
-  operationId: 'updateStorage',
-  summary: 'Update storage',
+const replaceStorageRoute = createRoute({
+  operationId: 'replaceStorage',
+  summary: 'Replace storage',
   tags: ['Storages'],
   method: 'put',
   path: '/{id}',
   middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }), ...jsonBody(updateStorageSchema) },
+  request: { params: z.object({ id: z.string() }), ...jsonBody(replaceStorageSchema) },
+  responses: {
+    200: jsonContent(storageSchema, 'Replaced storage'),
+    402: errorResponse('Feature not available'),
+    404: errorResponse('Storage not found'),
+  },
+})
+
+const patchStorageRoute = createRoute({
+  operationId: 'patchStorage',
+  summary: 'Patch storage',
+  tags: ['Storages'],
+  method: 'patch',
+  path: '/{id}',
+  middleware: [requireAdmin] as const,
+  request: { params: z.object({ id: z.string() }), ...jsonBody(patchStorageSchema) },
   responses: {
     200: jsonContent(storageSchema, 'Updated storage'),
     402: errorResponse('Feature not available'),
@@ -148,8 +180,16 @@ const storages = new OpenAPIHono<Env>()
     if (!storage) throw storageNotFound()
     return c.json(toStorageDTO(storage), 200)
   })
-  .openapi(updateStorageRoute, async (c) => {
-    const result = await updateStorage(c.get('deps'), {
+  .openapi(replaceStorageRoute, async (c) => {
+    const result = await replaceStorage(c.get('deps'), {
+      id: c.req.valid('param').id,
+      input: c.req.valid('json'),
+    })
+    if (!result.ok) throw result.error
+    return c.json(toStorageDTO(result.storage), 200)
+  })
+  .openapi(patchStorageRoute, async (c) => {
+    const result = await patchStorage(c.get('deps'), {
       id: c.req.valid('param').id,
       input: c.req.valid('json'),
     })

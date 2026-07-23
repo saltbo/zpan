@@ -125,6 +125,21 @@ pnpm storage:backfill -- --sqlite zpan.db --apply
 
 The backfill recalculates all eight storage categories from `matters` and `image_hostings`. It is an operator command, not part of the application runtime or deployment lifecycle.
 
+### Storage enabled/status backfill
+
+After applying migrations 0066 through 0069, convert legacy storage status values into
+the `enabled` flag and the `unknown`/`healthy`/`unhealthy` health model:
+
+```sh
+pnpm storage-status:backfill -- --d1 zpan-db --remote
+pnpm storage-status:backfill -- --d1 zpan-db --remote --apply
+
+pnpm storage-status:backfill -- --sqlite zpan.db
+pnpm storage-status:backfill -- --sqlite zpan.db --apply
+```
+
+Run this once before deploying the application version that reads health status.
+
 ### Turso (libSQL) migrate path
 
 When deploying the Node/Docker image against a Turso (libSQL) database, set `TURSO_DATABASE_URL` (and `TURSO_AUTH_TOKEN` for remote URLs) before running `db:migrate`. `drizzle.config.ts` detects the env var and switches to the `turso` dialect automatically:

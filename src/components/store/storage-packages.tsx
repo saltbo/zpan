@@ -11,24 +11,28 @@ export function StoragePackages({
   packages,
   disabled,
   currentPlan,
+  showHeader = true,
   onCheckout,
   onManagePlan,
 }: {
   packages: CloudProduct[]
   disabled: boolean
   currentPlan?: CurrentStoragePlan | null
+  showHeader?: boolean
   onCheckout: (packageId: string, priceId: string) => void
   onManagePlan?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'en'
   return (
-    <section className="space-y-4">
-      <div>
-        <h3 className="text-lg font-semibold">{t('storage.availablePlansTitle')}</h3>
-        <p className="text-sm text-muted-foreground">{t('storage.availableProductsDescription')}</p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <section className="min-w-0 space-y-4">
+      {showHeader && (
+        <div>
+          <h3 className="text-lg font-semibold">{t('storage.availablePlansTitle')}</h3>
+          <p className="text-sm text-muted-foreground">{t('storage.availableProductsDescription')}</p>
+        </div>
+      )}
+      <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {packages.map((pkg) => (
           <PackageCard
             key={pkg.id}

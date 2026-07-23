@@ -559,7 +559,7 @@ function StorageBackendsCard({ overview }: { overview: AdminOverview }) {
 
 function StorageBackendRow({ storage }: { storage: AdminOverviewStorage }) {
   const { t } = useTranslation()
-  const status = storage.writable ? 'writable' : storage.status === 'active' ? 'full' : 'disabled'
+  const status = storage.writable ? 'writable' : storage.enabled ? 'full' : 'disabled'
   const usage = percent(storage.used, storage.capacity)
 
   return (

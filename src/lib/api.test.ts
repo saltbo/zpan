@@ -104,11 +104,13 @@ import {
   listUserEntitlements,
   markAllNotificationsRead,
   markNotificationRead,
+  patchStorage,
   pollPairing,
   presignObjectUploadParts,
   purgeTrashObject,
   redeemCloudGiftCard,
   refreshLicense,
+  replaceStorage,
   resendSiteInvitation,
   resetBrandingField,
   restoreObject,
@@ -140,7 +142,6 @@ import {
   updateSiteQuotas,
   updateSiteRegistration,
   updateSiteWebDav,
-  updateStorage,
   updateStorageEgressBilling,
   updateUserEntitlement,
   uploadAvatar,
@@ -1573,29 +1574,63 @@ describe('api', () => {
     })
   })
 
-  describe('updateStorage', () => {
-    it('puts updated storage data and returns updated storage', async () => {
+  describe('replaceStorage', () => {
+    const replacement = {
+      provider: 'custom-s3',
+      bucket: 'updated-files',
+      endpoint: 'https://s3.example.com',
+      region: 'auto',
+      accessKey: 'access-key',
+      secretKey: 'secret-key',
+      customHost: '',
+      capacity: 0,
+      forcePathStyle: false,
+      egressCreditBillingEnabled: false,
+      egressCreditUnitBytes: 104857600,
+      egressCreditPerUnit: 1,
+      enabled: true,
+    }
+
+    it('puts a complete storage replacement and returns the storage', async () => {
       const storage = { id: 's1', bucket: 'updated-files' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(storage))
 
-      const result = await updateStorage('s1', {
-        provider: 'custom-s3',
-        bucket: 'updated-files',
-        forcePathStyle: false,
-      })
+      const result = await replaceStorage('s1', replacement)
 
       expect(result).toEqual(storage)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/site/storages/s1')
       expect(init.method).toBe('PUT')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ provider: 'custom-s3', bucket: 'updated-files', forcePathStyle: false })
+      expect(init.body).toBe(JSON.stringify(replacement))
     })
 
-    it('throws on error response', async () => {
+    it('throws ApiError on error response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
-      await expect(updateStorage('s1', { bucket: 'x' })).rejects.toThrow('forbidden')
+      await expect(replaceStorage('s1', replacement)).rejects.toBeInstanceOf(ApiError)
+    })
+  })
+
+  describe('patchStorage', () => {
+    it('patches partial storage state and returns the storage', async () => {
+      const storage = { id: 's1', enabled: false }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(storage))
+
+      const result = await patchStorage('s1', { enabled: false })
+
+      expect(result).toEqual(storage)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/storages/s1')
+      expect(init.method).toBe('PATCH')
+      expect(init.body).toBe(JSON.stringify({ enabled: false }))
+    })
+
+    it('throws ApiError on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(
+        patchStorage('missing', { status: 'unhealthy', statusReason: 'network_error' }),
+      ).rejects.toBeInstanceOf(ApiError)
     })
   })
 
@@ -1949,11 +1984,13 @@ describe('api', () => {
     it('lists category items with the expected query', async () => {
       const page = { items: [], total: 0, page: 2, pageSize: 10 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(page))
-      await expect(listStorageUsageItems('trash', 2, 10)).resolves.toEqual(page)
+      await expect(listStorageUsageItems('trash', 2, 10, 'name', 'asc')).resolves.toEqual(page)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
       expect(url).toContain('/api/storage/items')
       expect(url).toContain('category=trash')
       expect(url).toContain('page=2')
+      expect(url).toContain('sortBy=name')
+      expect(url).toContain('sortDir=asc')
     })
 
     it('throws ApiError for usage and item failures', async () => {

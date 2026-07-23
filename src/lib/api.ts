@@ -14,8 +14,10 @@ import type {
   DiscountQuote,
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
+  PatchStorageInput,
   PresignObjectUploadPartsInput,
   RedeemGiftCardResponse,
+  ReplaceStorageInput,
   SiteConfig,
   SiteSettings,
   UpdateDownloaderCreditBillingInput,
@@ -27,7 +29,6 @@ import type {
   UpdateSiteRegistrationInput,
   UpdateSiteWebDavInput,
   UpdateStorageEgressBillingInput,
-  UpdateStorageInput,
 } from '@shared/schemas'
 import type {
   AdminAuditEvent,
@@ -73,6 +74,8 @@ import type {
   StorageUsageCategory,
   StorageUsageItem,
   StorageUsageResponse,
+  StorageUsageSortDirection,
+  StorageUsageSortField,
 } from '@shared/types'
 import {
   adminAuditApi,
@@ -122,10 +125,16 @@ export function getStorageUsage() {
   return unwrap<StorageUsageResponse>(storageUsageApi.index.$get())
 }
 
-export function listStorageUsageItems(category: StorageUsageCategory, page = 1, pageSize = 20) {
+export function listStorageUsageItems(
+  category: StorageUsageCategory,
+  page = 1,
+  pageSize = 20,
+  sortBy: StorageUsageSortField = 'size',
+  sortDir: StorageUsageSortDirection = 'desc',
+) {
   return unwrap<PaginatedResponse<StorageUsageItem>>(
     storageUsageApi.items.$get({
-      query: { category, page: String(page), pageSize: String(pageSize) },
+      query: { category, page: String(page), pageSize: String(pageSize), sortBy, sortDir },
     }),
   )
 }
@@ -548,8 +557,12 @@ export function getStorage(id: string) {
   return unwrap<Storage>(storages[':id'].$get({ param: { id } }))
 }
 
-export function updateStorage(id: string, data: UpdateStorageInput) {
+export function replaceStorage(id: string, data: ReplaceStorageInput) {
   return unwrap<Storage>(storages[':id'].$put({ param: { id }, json: data }))
+}
+
+export function patchStorage(id: string, data: PatchStorageInput) {
+  return unwrap<Storage>(storages[':id'].$patch({ param: { id }, json: data }))
 }
 
 export function updateStorageEgressBilling(id: string, data: UpdateStorageEgressBillingInput) {

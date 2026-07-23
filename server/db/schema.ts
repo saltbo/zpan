@@ -76,7 +76,10 @@ export const storages = sqliteTable('storages', {
   egressCreditPerUnit: integer('egress_credit_per_unit').notNull().default(1),
   forcePathStyle: integer('force_path_style', { mode: 'boolean' }).notNull().default(true),
   used: integer('used').notNull().default(0),
-  status: text('status').notNull().default('active'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  status: text('status').notNull().default('unknown'),
+  statusReason: text('status_reason'),
+  statusCheckedAt: integer('status_checked_at', { mode: 'timestamp_ms' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })

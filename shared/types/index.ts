@@ -1,5 +1,5 @@
 import type { CommercePayment, CommerceProduct, ProductPrice } from 'zpan-cloud-sdk'
-import type { DirType, ObjectStatus, StorageStatus } from '../constants'
+import type { DirType, ObjectStatus, StorageStatus, StorageStatusReason } from '../constants'
 import type {
   CloudOrder as ZPanCloudOrder,
   CloudOrderFulfillmentPayload as ZPanCloudOrderFulfillmentPayload,
@@ -40,7 +40,10 @@ export interface Storage {
   egressCreditUnitBytes: number
   egressCreditPerUnit: number
   used: number
+  enabled: boolean
   status: StorageStatus
+  statusReason: StorageStatusReason | null
+  statusCheckedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -456,6 +459,8 @@ export type {
   StorageUsageCategory,
   StorageUsageItem,
   StorageUsageResponse,
+  StorageUsageSortDirection,
+  StorageUsageSortField,
 } from '../storage-usage'
 
 // passwordHash is intentionally not part of the shared wire type; it never leaves the server.

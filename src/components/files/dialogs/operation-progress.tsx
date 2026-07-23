@@ -29,7 +29,7 @@ export function OperationProgress({ operation, onCancel, onClose }: OperationPro
   const hasFailures = operation.failures.length > 0
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="min-w-0 space-y-1">
         <div className="text-sm font-medium">{operation.title}</div>
         <div className="truncate text-xs text-muted-foreground">

@@ -1,22 +1,16 @@
-import type { StorageUsageCategory } from '@shared/types'
+import type { StorageUsageCategory, StorageUsageItem } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
-import { Archive, ChevronRight, Cloud, File, FileText, Image, Images, Music, Trash2, Video } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { ChevronRight, Cloud } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { STORAGE_CATEGORY_META, StorageCleanupDialog } from '@/components/storage/storage-cleanup-dialog'
 import { CheckoutConfirmDialog, type CheckoutSelection } from '@/components/store/checkout-confirm-dialog'
 import { openCheckoutTab, resolveCheckoutSelection } from '@/components/store/checkout-navigation'
 import { StoragePackages } from '@/components/store/storage-panels'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  getStorageUsage,
-  getUserQuota,
-  listCloudProducts,
-  listCloudStoreTargets,
-  listStorageUsageItems,
-} from '@/lib/api'
+import { getStorageUsage, getUserQuota, listCloudProducts, listCloudStoreTargets } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
 import { formatSize } from '@/lib/format'
 
@@ -24,19 +18,9 @@ export const Route = createFileRoute('/_authenticated/storage')({
   component: StoragePage,
 })
 
-const CATEGORY_META: Record<StorageUsageCategory, { color: string; icon: typeof Image; manageHref: string }> = {
-  photos: { color: '#f59e42', icon: Image, manageHref: '/files?type=photos' },
-  videos: { color: '#7c5ce7', icon: Video, manageHref: '/files?type=videos' },
-  music: { color: '#ec4899', icon: Music, manageHref: '/files?type=music' },
-  documents: { color: '#3b82f6', icon: FileText, manageHref: '/files?type=documents' },
-  archives: { color: '#14b8a6', icon: Archive, manageHref: '/files?type=archives' },
-  other: { color: '#94a3b8', icon: File, manageHref: '/files?type=other' },
-  image_hosting: { color: '#06b6d4', icon: Images, manageHref: '/image-host' },
-  trash: { color: '#ef4444', icon: Trash2, manageHref: '/trash' },
-}
-
 export function StoragePage() {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const { data: activeOrg } = useActiveOrganization()
   const orgId = activeOrg?.id ?? ''
   const [selectedCategory, setSelectedCategory] = useState<StorageUsageCategory | null>(null)
@@ -81,6 +65,19 @@ export function StoragePage() {
   function startCheckout(packageId: string, priceId: string, promotionCode?: string) {
     openCheckoutTab({ action: 'checkout', packageId, priceId, promotionCode })
     setPlansOpen(false)
+  }
+
+  function openFileLocation(item: StorageUsageItem) {
+    setSelectedCategory(null)
+    if (item.source === 'trash') {
+      navigate({ to: '/trash' })
+      return
+    }
+    if (item.source === 'image_hosting') {
+      navigate({ to: '/image-host' })
+      return
+    }
+    navigate({ to: '/files', search: item.parentPath ? { path: item.parentPath } : {} })
   }
 
   if (usageQuery.isLoading) {
@@ -130,7 +127,7 @@ export function StoragePage() {
                 key={row.category}
                 style={{
                   width: `${quotaBytes > 0 ? (row.bytes / quotaBytes) * 100 : 0}%`,
-                  backgroundColor: CATEGORY_META[row.category].color,
+                  backgroundColor: STORAGE_CATEGORY_META[row.category].color,
                 }}
                 title={`${t(`storage.category.${row.category}`)} · ${formatSize(row.bytes)}`}
               />
@@ -144,7 +141,10 @@ export function StoragePage() {
             .slice(0, 6)
             .map((row) => (
               <span key={row.category} className="flex items-center gap-1.5">
-                <i className="size-2 rounded-full" style={{ backgroundColor: CATEGORY_META[row.category].color }} />
+                <i
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: STORAGE_CATEGORY_META[row.category].color }}
+                />
                 {t(`storage.category.${row.category}`)}
               </span>
             ))}
@@ -165,7 +165,7 @@ export function StoragePage() {
         </div>
         <div>
           {displayBreakdowns.map((row) => {
-            const meta = CATEGORY_META[row.category]
+            const meta = STORAGE_CATEGORY_META[row.category]
             const Icon = meta.icon
             return (
               <button
@@ -192,7 +192,13 @@ export function StoragePage() {
         </div>
       </section>
 
-      <CategoryDialog category={selectedCategory} onOpenChange={(open) => !open && setSelectedCategory(null)} />
+      <StorageCleanupDialog
+        category={selectedCategory}
+        breakdowns={displayBreakdowns}
+        onCategoryChange={setSelectedCategory}
+        onOpenLocation={openFileLocation}
+        onOpenChange={(open) => !open && setSelectedCategory(null)}
+      />
 
       <Dialog open={plansOpen} onOpenChange={setPlansOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
@@ -204,6 +210,7 @@ export function StoragePage() {
             packages={productsQuery.data?.items ?? []}
             disabled={!orgId}
             currentPlan={quotaQuery.data?.currentPlan ?? null}
+            showHeader={false}
             onCheckout={requestCheckout}
             onManagePlan={() => openCheckoutTab({ action: 'portal' })}
           />
@@ -218,69 +225,5 @@ export function StoragePage() {
         onConfirm={startCheckout}
       />
     </div>
-  )
-}
-
-function CategoryDialog({
-  category,
-  onOpenChange,
-}: {
-  category: StorageUsageCategory | null
-  onOpenChange: (open: boolean) => void
-}) {
-  const { t } = useTranslation()
-  const itemsQuery = useQuery({
-    queryKey: ['storage-usage', 'items', category],
-    queryFn: () => listStorageUsageItems(category!, 1, 20),
-    enabled: category !== null,
-  })
-  const meta = category ? CATEGORY_META[category] : null
-  const Icon = meta?.icon ?? File
-  const totalBytes = useMemo(
-    () => itemsQuery.data?.items.reduce((sum, item) => sum + item.size, 0) ?? 0,
-    [itemsQuery.data],
-  )
-
-  return (
-    <Dialog open={category !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Icon className="size-5" style={{ color: meta?.color }} />
-            {category ? t(`storage.category.${category}`) : ''}
-          </DialogTitle>
-          <DialogDescription>
-            {t('storage.categorySummary', {
-              count: itemsQuery.data?.total ?? 0,
-              size: formatSize(totalBytes),
-            })}
-          </DialogDescription>
-        </DialogHeader>
-        <ScrollArea className="max-h-[420px]">
-          <div className="divide-y">
-            {itemsQuery.isLoading && (
-              <p className="py-10 text-center text-sm text-muted-foreground">{t('common.loading')}</p>
-            )}
-            {itemsQuery.data?.items.map((item) => (
-              <div key={item.id} className="flex items-center gap-3 py-3">
-                <File className="size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-sm">{item.name}</span>
-                <span className="text-sm tabular-nums text-muted-foreground">{formatSize(item.size)}</span>
-              </div>
-            ))}
-            {itemsQuery.data?.items.length === 0 && (
-              <p className="py-10 text-center text-sm text-muted-foreground">{t('storage.noFiles')}</p>
-            )}
-          </div>
-        </ScrollArea>
-        {meta && (
-          <div className="flex justify-end">
-            <Button asChild>
-              <a href={meta.manageHref}>{t('storage.goManage')}</a>
-            </Button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
   )
 }
