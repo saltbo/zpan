@@ -1,4 +1,4 @@
-import { Archive, Copy, Download, FolderInput, LayoutGrid, List, Share2, Trash2, X } from 'lucide-react'
+import { Archive, Clapperboard, Copy, Download, FolderInput, LayoutGrid, List, Share2, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -16,6 +16,7 @@ interface FilesToolbarProps {
   onBatchCompress?: () => void
   onClearSelection?: () => void
   onShare?: () => void
+  posterViewEnabled?: boolean
 }
 
 export function FilesToolbar({
@@ -30,6 +31,7 @@ export function FilesToolbar({
   onBatchCompress,
   onClearSelection,
   onShare,
+  posterViewEnabled = false,
 }: FilesToolbarProps) {
   const { t } = useTranslation()
   const selectionActive = selectedCount > 0 && !!(onBatchMove || onBatchTrash || onBatchCompress || onClearSelection)
@@ -95,11 +97,16 @@ export function FilesToolbar({
           onValueChange={(v) => v && onViewModeChange(v as ViewMode)}
           className="hidden sm:flex"
         >
+          {posterViewEnabled && (
+            <ToggleGroupItem value="posters" aria-label={t('videos.posterView')}>
+              <Clapperboard />
+            </ToggleGroupItem>
+          )}
           <ToggleGroupItem value="list" aria-label="List view">
-            <List className="h-4 w-4" />
+            <List />
           </ToggleGroupItem>
           <ToggleGroupItem value="grid" aria-label="Grid view">
-            <LayoutGrid className="h-4 w-4" />
+            <LayoutGrid />
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
