@@ -15,8 +15,12 @@ describe('[CF] System API', () => {
     const app = await buildApp()
     const res = await app.request('https://pan.example.com/api/configz')
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { site: { publicUrl: string }; services: { webdav: { url: string } } }
+    const body = (await res.json()) as {
+      site: { publicUrl: string }
+      services: { webdav: { enabled: boolean; url: string } }
+    }
     expect(body.site.publicUrl).toBe('https://pan.example.com')
+    expect(body.services.webdav.enabled).toBe(true)
     expect(body.services.webdav.url).toBe('https://pan.example.com/dav/')
   })
 

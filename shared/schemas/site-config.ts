@@ -57,7 +57,7 @@ export const siteConfigSchema = z
       captcha: publicCaptchaSchema,
       providers: z.array(publicAuthProviderSchema),
     }),
-    services: z.object({ webdav: z.object({ url: z.string() }) }),
+    services: z.object({ webdav: z.object({ enabled: z.boolean(), url: z.string() }) }),
   })
   .openapi('SiteConfig')
 
@@ -110,11 +110,13 @@ export const siteQuotaSettingsSchema = z
   .openapi('SiteQuotaSettings')
 
 export const webDavVerificationStatusSchema = z
-  .enum(['unverified', 'ready', 'failed'])
+  .enum(['disabled', 'unverified', 'ready', 'failed'])
   .openapi('WebDavVerificationStatus')
 
 export const siteWebDavSettingsSchema = z
   .object({
+    enabled: z.boolean(),
+    domain: z.string(),
     pathUrl: z.url(),
     candidateUrl: z.url().nullable(),
     status: webDavVerificationStatusSchema,
@@ -145,6 +147,21 @@ export const updateSiteCaptchaSchema = z
   })
   .openapi('UpdateSiteCaptcha')
 export const updateSiteQuotasSchema = siteQuotaSettingsSchema
+export const updateSiteWebDavSchema = z
+  .object({
+    enabled: z.boolean(),
+    domain: z
+      .string()
+      .trim()
+      .refine(
+        (value) =>
+          value === '' ||
+          (value.length <= 253 &&
+            /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/i.test(value)),
+        'WebDAV domain must be a hostname without a protocol, port, or path',
+      ),
+  })
+  .openapi('UpdateSiteWebDav')
 
 export type SiteConfig = z.infer<typeof siteConfigSchema>
 export type SiteBranding = z.infer<typeof siteBrandingSchema>
@@ -158,3 +175,4 @@ export type UpdateSiteIdentityInput = z.infer<typeof updateSiteIdentitySchema>
 export type UpdateSiteRegistrationInput = z.infer<typeof updateSiteRegistrationSchema>
 export type UpdateSiteCaptchaInput = z.infer<typeof updateSiteCaptchaSchema>
 export type UpdateSiteQuotasInput = z.infer<typeof updateSiteQuotasSchema>
+export type UpdateSiteWebDavInput = z.infer<typeof updateSiteWebDavSchema>

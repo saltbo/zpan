@@ -8,6 +8,7 @@ import {
   updateSiteIdentity,
   updateSiteQuotas,
   updateSiteRegistration,
+  updateSiteWebDav,
   verifySiteWebDav,
 } from '@/lib/api'
 import { SettingsPage } from './index'
@@ -30,9 +31,11 @@ const state = vi.hoisted(() => ({
       defaultMonthlyTrafficBytes: 0,
     },
     webdav: {
+      enabled: true,
+      domain: '',
       pathUrl: 'https://zpan.example.com/dav/',
       candidateUrl: 'https://dav.zpan.example.com/',
-      status: 'unverified',
+      status: 'unverified' as const,
       lastVerifiedAt: null,
       error: null,
     },
@@ -57,6 +60,7 @@ vi.mock('@/hooks/useEntitlement', () => ({
 vi.mock('@/lib/api', () => ({
   updateSiteIdentity: vi.fn(),
   updateSiteRegistration: vi.fn(),
+  updateSiteWebDav: vi.fn(),
   updateSiteCaptcha: vi.fn(),
   updateSiteQuotas: vi.fn(),
   verifySiteWebDav: vi.fn(),
@@ -208,5 +212,22 @@ describe('SettingsPage', () => {
 
     await waitFor(() => expect(verifySiteWebDav).toHaveBeenCalledOnce())
     expect(toast.success).toHaveBeenCalledWith('admin.settings.webdavVerified')
+  })
+
+  it('saves WebDAV enablement and a custom domain from the settings drawer', async () => {
+    vi.mocked(updateSiteWebDav).mockResolvedValueOnce({
+      ...state.settings.webdav,
+      domain: 'webdisk.example.com',
+      candidateUrl: 'https://webdisk.example.com/',
+    })
+    const view = renderSettingsPage()
+    openSection(view, 'admin.settings.webdavTitle', 'admin.settings.webdavDetails')
+
+    fireEvent.change(view.getByLabelText('admin.settings.webdavDomain'), {
+      target: { value: 'WebDisk.Example.com' },
+    })
+    fireEvent.click(view.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => expect(updateSiteWebDav).toHaveBeenCalledWith({ enabled: true, domain: 'webdisk.example.com' }))
   })
 })

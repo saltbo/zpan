@@ -39,7 +39,7 @@ volumes:
 
 Migrations run automatically at startup. The compose files in this repository also include an optional downloader service using the CLI-only tag (`ghcr.io/saltbo/zpan:latest-cli`). On first start, `zpan downloader up` prints a device authorization URL in the container logs and waits. Open that URL as an admin user; after approval the downloader registers itself, saves its token under `/data/config.yaml`, and continues running.
 
-To expose WebDAV at the root of a dedicated hostname, set the site's **Public URL** in Admin Settings and configure your front proxy to route `dav.<public-hostname>` to ZPan while internally prefixing requests with `/dav`. No additional ZPan environment variable is required. See [WebDAV custom domains](../webdav-custom-domain.md) for the complete proxy contract.
+To expose WebDAV at the root of a dedicated hostname, enable WebDAV in Admin Settings, set the site's **Public URL**, and configure your front proxy to route `dav.<public-hostname>` to ZPan while internally prefixing requests with `/dav`. A different hostname can be configured in the WebDAV settings drawer. See [WebDAV custom domains](../webdav-custom-domain.md) for the complete proxy contract.
 
 To run only a remote downloader on another machine:
 

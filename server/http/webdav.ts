@@ -30,6 +30,7 @@ import {
   WebDavPathError,
   type WebDavTarget,
 } from '../usecases/ports'
+import { getSiteWebDavRuntimeConfig } from '../usecases/site/settings'
 import {
   recordAuditEvent,
   recordDownloadFailure,
@@ -618,6 +619,12 @@ async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEn
 }
 
 const app = new Hono<Env>()
+
+app.use('*', async (c, next) => {
+  const config = await getSiteWebDavRuntimeConfig(c.get('deps'))
+  if (!config.enabled) return c.notFound()
+  await next()
+})
 
 app.use('*', async (c, next) => {
   const auth = await requireWebDavApiKey(c)
@@ -1422,7 +1429,7 @@ async function unlockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 function matterLocation(c: DavContext, workspaceSegment: string, path: string): string {
   const requestUrl = new URL(c.req.url)
   const mountPath = publicMountPath(c)
-  const publicUrl = mountPath === '' ? webDavPublicUrl(c.get('sitePublicOrigin')) : null
+  const publicUrl = mountPath === '' ? webDavPublicUrl(c.get('sitePublicOrigin'), c.get('webDavDomain')) : null
   const url = publicUrl ?? requestUrl
   url.pathname = `${mountPath}/${encodeDavPathSegment(workspaceSegment)}/${path
     .split('/')

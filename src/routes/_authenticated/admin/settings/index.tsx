@@ -16,7 +16,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminFormLabel, AdminSwitchField } from '@/components/admin/admin-form-drawer'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { BrandingSection } from '@/components/admin/branding-section'
 import type { StorageQuotaUnit } from '@/components/admin/cloud-store-settings-section'
@@ -37,6 +37,7 @@ import {
   updateSiteIdentity,
   updateSiteQuotas,
   updateSiteRegistration,
+  updateSiteWebDav,
   verifySiteWebDav,
 } from '@/lib/api'
 
@@ -77,6 +78,8 @@ const settingsSchema = z.object({
   captchaSiteKey: z.string(),
   captchaSecretKey: z.string(),
   captchaMinScore: z.string(),
+  webdavEnabled: z.boolean(),
+  webdavDomain: z.string(),
 })
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
@@ -179,6 +182,8 @@ export function SettingsPage() {
   const captchaSecretConfigured = settings?.captcha.secretConfigured ?? false
   const captchaMinScore = settings?.captcha.minScore === null ? '' : String(settings?.captcha.minScore ?? '')
   const webdav = settings?.webdav
+  const webdavEnabled = webdav?.enabled ?? true
+  const webdavDomain = webdav?.domain ?? ''
   const { hasFeature } = useEntitlement()
   const hasWhiteLabel = hasFeature('white_label')
   const hasOpenRegistration = hasFeature('open_registration')
@@ -199,6 +204,8 @@ export function SettingsPage() {
       captchaSiteKey: '',
       captchaSecretKey: '',
       captchaMinScore: '',
+      webdavEnabled: true,
+      webdavDomain: '',
     },
   })
 
@@ -219,6 +226,8 @@ export function SettingsPage() {
       captchaSiteKey,
       captchaSecretKey: '',
       captchaMinScore,
+      webdavEnabled,
+      webdavDomain,
     }
   }, [
     siteName,
@@ -231,6 +240,8 @@ export function SettingsPage() {
     captchaProvider,
     captchaSiteKey,
     captchaMinScore,
+    webdavEnabled,
+    webdavDomain,
   ])
 
   const closeSettingsDrawer = useCallback(
@@ -363,11 +374,40 @@ export function SettingsPage() {
     },
   })
 
+  const webdavMutation = useMutation({
+    mutationFn: async () => {
+      const values = form.getValues()
+      const domain = values.webdavDomain.trim().toLowerCase()
+      if (
+        domain &&
+        (domain.length > 253 ||
+          !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/i.test(domain))
+      ) {
+        form.setError('webdavDomain', { message: t('admin.settings.webdavDomainInvalid') })
+        throw new Error(t('admin.settings.webdavDomainInvalid'))
+      }
+      return updateSiteWebDav({ enabled: values.webdavEnabled, domain })
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData<SiteSettings>(siteSettingsQueryKey, (current) =>
+        current ? { ...current, webdav: result } : current,
+      )
+      queryClient.invalidateQueries({ queryKey: siteSettingsQueryKey })
+      queryClient.invalidateQueries({ queryKey: siteConfigQueryKey })
+      form.reset({ ...form.getValues(), webdavEnabled: result.enabled, webdavDomain: result.domain })
+      toast.success(t('admin.settings.saved'))
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
+  })
+
   const quotaUnit = form.watch('quotaUnit')
   const teamQuotaUnit = form.watch('teamQuotaUnit')
   const registrationsEnabled = form.watch('registrationsEnabled')
   const captchaProtectionEnabled = form.watch('captchaEnabled')
   const selectedCaptchaProvider = form.watch('captchaProvider')
+  const configuredWebdavEnabled = form.watch('webdavEnabled')
   const savedQuota = bytesToDisplay(quotaBytes)
   const savedTeamQuota = bytesToDisplay(teamQuotaBytes)
   const savedRegistrationsEnabled = effectiveSignupMode === SignupMode.OPEN
@@ -449,7 +489,13 @@ export function SettingsPage() {
             icon={<Network className="size-4" />}
             title={t('admin.settings.webdavTitle')}
             description={t('admin.settings.webdavDescription')}
-            details={webdav?.status === 'ready' ? webdav.candidateUrl : webdav?.pathUrl}
+            details={
+              webdav?.enabled
+                ? webdav.status === 'ready'
+                  ? webdav.candidateUrl
+                  : webdav.pathUrl
+                : t('common.disabled')
+            }
             status={
               <Badge
                 variant={
@@ -564,16 +610,46 @@ export function SettingsPage() {
             </Button>
             <Button
               type="button"
-              disabled={!webdav?.candidateUrl || webdavVerificationMutation.isPending}
+              variant="outline"
+              disabled={
+                !webdav?.enabled ||
+                !webdav.candidateUrl ||
+                form.formState.isDirty ||
+                webdavVerificationMutation.isPending
+              }
               onClick={() => webdavVerificationMutation.mutate()}
             >
               {webdavVerificationMutation.isPending
                 ? t('admin.settings.webdavVerifying')
                 : t('admin.settings.webdavVerify')}
             </Button>
+            <Button type="button" disabled={webdavMutation.isPending} onClick={() => webdavMutation.mutate()}>
+              {webdavMutation.isPending ? t('common.loading') : t('common.save')}
+            </Button>
           </>
         }
       >
+        <AdminSwitchField
+          id="webdavEnabled"
+          label={t('admin.settings.webdavEnabled')}
+          description={t('admin.settings.webdavEnabledHint')}
+          checked={configuredWebdavEnabled}
+          disabled={webdavMutation.isPending}
+          onCheckedChange={(checked) => form.setValue('webdavEnabled', checked, { shouldDirty: true })}
+        />
+        <AdminFormField
+          id="webdavDomain"
+          label={t('admin.settings.webdavDomain')}
+          help={t('admin.settings.webdavDomainHint')}
+          error={form.formState.errors.webdavDomain?.message}
+          className={!configuredWebdavEnabled ? 'opacity-60' : undefined}
+        >
+          <Input
+            disabled={!configuredWebdavEnabled}
+            placeholder={t('admin.settings.webdavDomainPlaceholder')}
+            {...form.register('webdavDomain')}
+          />
+        </AdminFormField>
         <AdminFormField
           id="webdavPathUrl"
           label={t('admin.settings.webdavPathUrl')}

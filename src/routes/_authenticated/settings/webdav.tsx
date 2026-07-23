@@ -36,11 +36,25 @@ function WebDavSettingsPage() {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const { data: siteConfig } = useSiteConfig()
+  const webDavEnabled = siteConfig?.services.webdav.enabled ?? true
   const configuredWebDavUrl = siteConfig?.services.webdav.url ?? ''
   const origin = typeof window === 'undefined' ? '' : window.location.origin
   const webDavUrl = resolveWebDavSettingsUrl(configuredWebDavUrl, origin)
   const user = session?.user as { email?: string; username?: string } | undefined
   const username = user?.email ?? user?.username ?? ''
+
+  if (!webDavEnabled) {
+    return (
+      <div className="max-w-2xl">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.webdav.connection.section')}</CardTitle>
+            <CardDescription>{t('settings.webdav.disabled')}</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-2xl">

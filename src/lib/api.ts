@@ -25,6 +25,7 @@ import type {
   UpdateSiteIdentityInput,
   UpdateSiteQuotasInput,
   UpdateSiteRegistrationInput,
+  UpdateSiteWebDavInput,
   UpdateStorageEgressBillingInput,
   UpdateStorageInput,
 } from '@shared/schemas'
@@ -135,6 +136,10 @@ export function updateSiteCaptcha(input: UpdateSiteCaptchaInput) {
 
 export function updateSiteQuotas(input: UpdateSiteQuotasInput) {
   return unwrap<SiteSettings['quotas']>(siteSettingsApi.quotas.$put({ json: input }))
+}
+
+export function updateSiteWebDav(input: UpdateSiteWebDavInput) {
+  return unwrap<SiteSettings['webdav']>(siteSettingsApi.webdav.$put({ json: input }))
 }
 
 export function verifySiteWebDav() {

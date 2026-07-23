@@ -255,6 +255,7 @@ function siteSettingsRoutes(): AuditRoute[] {
     ['PUT', 'registration', 'site_registration_update'],
     ['PUT', 'captcha', 'site_captcha_update'],
     ['PUT', 'quotas', 'site_quotas_update'],
+    ['PUT', 'webdav', 'site_webdav_update'],
     ['POST', 'webdav/verification', 'site_webdav_verify'],
   ].map(([method, path, action]) =>
     staticResourceRoute(method, `/api/site/settings/${path}`, action, 'site_settings', action),

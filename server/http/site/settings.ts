@@ -10,6 +10,7 @@ import {
   updateSiteIdentitySchema,
   updateSiteQuotasSchema,
   updateSiteRegistrationSchema,
+  updateSiteWebDavSchema,
 } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
@@ -19,6 +20,7 @@ import {
   updateSiteIdentity,
   updateSiteQuotas,
   updateSiteRegistration,
+  updateSiteWebDav,
   verifySiteWebDav,
 } from '../../usecases/site/settings'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
@@ -89,12 +91,26 @@ const updateQuotasRoute = createRoute({
 
 const verifyWebDavRoute = createRoute({
   operationId: 'verifySiteWebDav',
-  summary: 'Verify the derived WebDAV domain',
+  summary: 'Verify the configured or derived WebDAV domain',
   tags: ['Site Settings'],
   method: 'post',
   path: '/webdav/verification',
   middleware: [requireAdmin] as const,
   responses: { 200: jsonContent(siteWebDavSettingsSchema, 'Current WebDAV verification status') },
+})
+
+const updateWebDavRoute = createRoute({
+  operationId: 'updateSiteWebDav',
+  summary: 'Update WebDAV settings',
+  tags: ['Site Settings'],
+  method: 'put',
+  path: '/webdav',
+  middleware: [requireAdmin] as const,
+  request: jsonBody(updateSiteWebDavSchema),
+  responses: {
+    200: jsonContent(siteWebDavSettingsSchema, 'Updated WebDAV settings'),
+    400: errorResponse('Invalid WebDAV settings'),
+  },
 })
 
 export const siteSettings = new OpenAPIHono<Env>()
@@ -105,4 +121,7 @@ export const siteSettings = new OpenAPIHono<Env>()
   )
   .openapi(updateCaptchaRoute, async (c) => c.json(await updateSiteCaptcha(c.get('deps'), c.req.valid('json')), 200))
   .openapi(updateQuotasRoute, async (c) => c.json(await updateSiteQuotas(c.get('deps'), c.req.valid('json')), 200))
+  .openapi(updateWebDavRoute, async (c) =>
+    c.json(await updateSiteWebDav(c.get('deps'), c.req.valid('json'), c.req.url), 200),
+  )
   .openapi(verifyWebDavRoute, async (c) => c.json(await verifySiteWebDav(c.get('deps'), c.req.url, fetch), 200))

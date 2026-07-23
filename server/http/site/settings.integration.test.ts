@@ -25,7 +25,7 @@ describe('Site configuration API', () => {
     expect(body).toMatchObject({
       site: { name: 'ZPan', description: '', publicUrl: 'https://pan.example.com' },
       auth: { captcha: { enabled: false }, providers: [] },
-      services: { webdav: { url: 'https://pan.example.com/dav/' } },
+      services: { webdav: { enabled: true, url: 'https://pan.example.com/dav/' } },
     })
     expect(body).toHaveProperty('branding')
   })
@@ -43,6 +43,8 @@ describe('Site configuration API', () => {
       registration: { configuredMode: SignupMode.OPEN, effectiveMode: SignupMode.OPEN },
       captcha: { enabled: false, secretConfigured: false },
       webdav: {
+        enabled: true,
+        domain: '',
         pathUrl: expect.stringContaining('/dav/'),
         candidateUrl: expect.stringContaining('dav.'),
         status: 'unverified',
@@ -91,6 +93,30 @@ describe('Site configuration API', () => {
       services: { webdav: { url: string } }
     }
     expect(verifiedConfig.services.webdav.url).toBe('https://dav.files.example.com/')
+  })
+
+  it('uses the configured WebDAV domain and blocks requests when disabled', async () => {
+    const { app } = await createTestApp()
+    await app.request('https://pan.example.com/api/configz')
+    const admin = await adminHeaders(app)
+    const update = await put(app, 'webdav', admin, { enabled: false, domain: 'webdisk.example.net' })
+    expect(update.status).toBe(200)
+
+    const settings = await app.request('https://pan.example.com/api/site/settings', {
+      headers: admin,
+    })
+
+    expect(settings.status).toBe(200)
+    await expect(settings.json()).resolves.toMatchObject({
+      webdav: {
+        enabled: false,
+        domain: 'webdisk.example.net',
+        pathUrl: 'https://pan.example.com/dav/',
+        candidateUrl: 'https://webdisk.example.net/',
+        status: 'disabled',
+      },
+    })
+    expect((await app.request('https://pan.example.com/dav/')).status).toBe(404)
   })
 
   it('requires admin for WebDAV verification', async () => {

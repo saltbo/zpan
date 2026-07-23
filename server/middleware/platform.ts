@@ -14,6 +14,7 @@ export type Env = {
     userRole: string | null
     orgId: string | null
     sitePublicOrigin: string | null
+    webDavDomain: string
     webDavMountPath: WebDavMountPath
     // Structured detail for the access log on a failed request. Set by `jsonError`
     // (via `app.onError`); read by the accessLog middleware so every 4xx/5xx carries
@@ -62,6 +63,7 @@ export const platformMiddleware = (platform: Platform, auth: Auth) =>
     c.set('principal', null)
     c.set('errorLog', null)
     c.set('sitePublicOrigin', null)
+    c.set('webDavDomain', '')
     c.set('webDavMountPath', '/dav')
     await next()
   })

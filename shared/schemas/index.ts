@@ -153,6 +153,7 @@ export type {
   UpdateSiteIdentityInput,
   UpdateSiteQuotasInput,
   UpdateSiteRegistrationInput,
+  UpdateSiteWebDavInput,
 } from './site-config'
 export {
   captchaProviderSchema,
@@ -171,6 +172,7 @@ export {
   updateSiteIdentitySchema,
   updateSiteQuotasSchema,
   updateSiteRegistrationSchema,
+  updateSiteWebDavSchema,
   webDavVerificationStatusSchema,
 } from './site-config'
 export type { CreateStorageInput, UpdateStorageEgressBillingInput, UpdateStorageInput } from './storage'

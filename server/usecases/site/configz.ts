@@ -31,6 +31,8 @@ const CONFIG_KEYS = [
   SITE_SETTING_KEYS.captchaSiteKey,
   SITE_SETTING_KEYS.captchaSecretKey,
   SITE_SETTING_KEYS.captchaMinScore,
+  SITE_SETTING_KEYS.webdavEnabled,
+  SITE_SETTING_KEYS.webdavDomain,
   SITE_SETTING_KEYS.webdavVerifiedOrigin,
 ]
 
@@ -87,7 +89,13 @@ export async function getSiteConfig(deps: ConfigzDeps, requestUrl: string): Prom
     },
     services: {
       webdav: {
-        url: effectiveWebDavUrl(requestUrl, publicUrl, values.get(SITE_SETTING_KEYS.webdavVerifiedOrigin)),
+        enabled: values.get(SITE_SETTING_KEYS.webdavEnabled) !== 'false',
+        url: effectiveWebDavUrl(
+          requestUrl,
+          publicUrl,
+          values.get(SITE_SETTING_KEYS.webdavVerifiedOrigin),
+          values.get(SITE_SETTING_KEYS.webdavDomain),
+        ),
       },
     },
   }

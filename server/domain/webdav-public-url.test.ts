@@ -37,8 +37,34 @@ describe('WebDAV public URL', () => {
     expect(webDavPublicUrl('http://local.test:8080')?.origin).toBe('http://dav.local.test:8080')
   })
 
-  it('recognizes only dav-prefixed candidate requests before loading Public URL', () => {
+  it('uses a configured domain instead of the derived hostname', () => {
+    expect(webDavPublicUrl('https://files.example.com', 'webdisk.example.net')?.origin).toBe(
+      'https://webdisk.example.net',
+    )
+    expect(
+      isWebDavPublicRequest(
+        'https://webdisk.example.net/workspace',
+        'https://files.example.com',
+        'webdisk.example.net',
+      ),
+    ).toBe(true)
+    expect(isPotentialWebDavPublicRequest('https://webdisk.example.net/dav/')).toBe(true)
+  })
+
+  it.each([
+    'https://dav.example.com',
+    'dav.example.com:8443',
+    'dav.example.com/path',
+    '-dav.example.com',
+  ])('rejects invalid configured domain value %s', (value) => {
+    expect(() => webDavPublicUrl('https://files.example.com', value)).toThrow(
+      'WebDAV domain must be a hostname without a protocol, port, or path',
+    )
+  })
+
+  it('recognizes dav-prefixed hosts and rewritten /dav paths before loading settings', () => {
     expect(isPotentialWebDavPublicRequest('https://dav.example.com/')).toBe(true)
+    expect(isPotentialWebDavPublicRequest('https://webdisk.example.com/dav/workspace')).toBe(true)
     expect(isPotentialWebDavPublicRequest('https://img.dav.example.com/')).toBe(false)
   })
 

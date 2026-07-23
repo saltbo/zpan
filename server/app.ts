@@ -51,6 +51,7 @@ import { getDeployPlatform } from './runtime-platform'
 import type { Deps } from './usecases/deps'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/site/instance-telemetry'
 import { ensureSitePublicOrigin, getSitePublicOrigin } from './usecases/site/public-origin'
+import { getSiteWebDavRuntimeConfig } from './usecases/site/settings'
 
 export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
   const app = new OpenAPIHono<Env>()
@@ -63,9 +64,14 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   })
   app.use('/*', async (c, next) => {
     if (isPotentialWebDavPublicRequest(c.req.url)) {
-      const sitePublicOrigin = await getSitePublicOrigin(deps)
-      if (isWebDavPublicRequest(c.req.url, sitePublicOrigin)) {
-        c.set('sitePublicOrigin', sitePublicOrigin)
+      const [sitePublicOrigin, webDavConfig] = await Promise.all([
+        getSitePublicOrigin(deps),
+        getSiteWebDavRuntimeConfig(deps),
+      ])
+      c.set('webDavDomain', webDavConfig.domain)
+      const routingOrigin = sitePublicOrigin ?? (webDavConfig.domain ? new URL(c.req.url).origin : null)
+      if (webDavConfig.enabled && isWebDavPublicRequest(c.req.url, routingOrigin, webDavConfig.domain)) {
+        c.set('sitePublicOrigin', routingOrigin)
         c.set('webDavMountPath', '')
         await next()
         return

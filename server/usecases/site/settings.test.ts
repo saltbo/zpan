@@ -11,6 +11,7 @@ import {
   updateSiteIdentity,
   updateSiteQuotas,
   updateSiteRegistration,
+  updateSiteWebDav,
   verifySiteWebDav,
 } from './settings'
 
@@ -73,6 +74,8 @@ describe('site settings usecase', () => {
         defaultMonthlyTrafficBytes: DEFAULT_ORG_TRAFFIC_QUOTA,
       },
       webdav: {
+        enabled: true,
+        domain: '',
         pathUrl: 'https://pan.example.com/dav/',
         candidateUrl: 'https://dav.pan.example.com/',
         status: 'unverified',
@@ -212,6 +215,71 @@ describe('site settings usecase', () => {
     expect(values.get('webdav_verified_origin')).toBe('https://dav.files.example.com')
   })
 
+  it('verifies and records the configured WebDAV domain', async () => {
+    const { deps, values } = makeDeps([
+      ['site_public_origin', 'https://files.example.com'],
+      ['webdav_domain', 'webdisk.example.net'],
+    ])
+    const fetcher = vi.fn(
+      async () =>
+        new Response('Unauthorized', {
+          status: 401,
+          headers: { 'WWW-Authenticate': 'Basic realm="ZPan WebDAV"' },
+        }),
+    ) as typeof fetch
+
+    const result = await verifySiteWebDav(
+      deps,
+      'https://files.example.com/api/site/settings/webdav/verification',
+      fetcher,
+    )
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://webdisk.example.net/',
+      expect.objectContaining({ method: 'OPTIONS', redirect: 'manual' }),
+    )
+    expect(result).toMatchObject({ candidateUrl: 'https://webdisk.example.net/', status: 'ready' })
+    expect(values.get('webdav_verified_origin')).toBe('https://webdisk.example.net')
+  })
+
+  it('updates WebDAV enablement and domain and clears stale verification', async () => {
+    const { deps, values } = makeDeps([
+      ['site_public_origin', 'https://files.example.com'],
+      ['webdav_domain', 'dav.old.example.com'],
+      ['webdav_verified_origin', 'https://dav.old.example.com'],
+    ])
+
+    const result = await updateSiteWebDav(
+      deps,
+      { enabled: false, domain: 'WebDisk.Example.net' },
+      'https://files.example.com/api/site/settings/webdav',
+    )
+
+    expect(result).toMatchObject({
+      enabled: false,
+      domain: 'webdisk.example.net',
+      candidateUrl: 'https://webdisk.example.net/',
+      status: 'disabled',
+    })
+    expect(values.get('webdav_enabled')).toBe('false')
+    expect(values.get('webdav_verified_origin')).toBe('')
+  })
+
+  it('rejects domain verification while WebDAV is disabled', async () => {
+    const { deps } = makeDeps([
+      ['site_public_origin', 'https://files.example.com'],
+      ['webdav_enabled', 'false'],
+    ])
+
+    await expect(
+      verifySiteWebDav(
+        deps,
+        'https://files.example.com/api/site/settings/webdav/verification',
+        vi.fn() as unknown as typeof fetch,
+      ),
+    ).rejects.toMatchObject({ httpStatus: 400 })
+  })
+
   it('stores a failed verification and keeps the path URL available', async () => {
     const { deps, values } = makeDeps([['site_public_origin', 'https://files.example.com']])
     const fetcher = vi.fn(async () => new Response('Not Found', { status: 404 })) as typeof fetch
@@ -223,6 +291,8 @@ describe('site settings usecase', () => {
     )
 
     expect(result).toEqual({
+      enabled: true,
+      domain: '',
       pathUrl: 'https://files.example.com/dav/',
       candidateUrl: 'https://dav.files.example.com/',
       status: 'failed',

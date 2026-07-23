@@ -40,7 +40,7 @@ describe('getSiteConfig', () => {
         theme: { mode: 'preset', preset: 'default', custom: null, configured: false },
       },
       auth: { signupMode: SignupMode.INVITE_ONLY, captcha: { enabled: false }, providers: [] },
-      services: { webdav: { url: 'https://pan.example.com/dav/' } },
+      services: { webdav: { enabled: true, url: 'https://pan.example.com/dav/' } },
     })
   })
 
@@ -98,5 +98,24 @@ describe('getSiteConfig', () => {
     )
 
     expect(config.services.webdav.url).toBe('https://files.example.com/dav/')
+  })
+
+  it('publishes a configured WebDAV domain after that origin is verified', async () => {
+    const config = await getSiteConfig(
+      makeDeps([
+        ['site_public_origin', 'https://files.example.com'],
+        ['webdav_domain', 'webdisk.example.net'],
+        ['webdav_verified_origin', 'https://webdisk.example.net'],
+      ]),
+      'https://request.example.com/api/configz',
+    )
+
+    expect(config.services.webdav.url).toBe('https://webdisk.example.net/')
+  })
+
+  it('publishes the WebDAV disabled state', async () => {
+    const config = await getSiteConfig(makeDeps([['webdav_enabled', 'false']]), 'https://pan.example.com/api/configz')
+
+    expect(config.services.webdav).toEqual({ enabled: false, url: 'https://pan.example.com/dav/' })
   })
 })

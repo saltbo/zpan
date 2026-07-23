@@ -24,6 +24,7 @@ import type {
   UpdateSiteIdentityInput,
   UpdateSiteQuotasInput,
   UpdateSiteRegistrationInput,
+  UpdateSiteWebDavInput,
 } from '@shared/schemas'
 import { readCaptchaConfig } from '../../domain/captcha'
 import { hasFeature } from '../../domain/licensing'
@@ -49,6 +50,8 @@ export const SITE_SETTING_KEYS = {
   webdavVerifiedOrigin: 'webdav_verified_origin',
   webdavVerifiedAt: 'webdav_verified_at',
   webdavVerificationError: 'webdav_verification_error',
+  webdavEnabled: 'webdav_enabled',
+  webdavDomain: 'webdav_domain',
 } as const
 
 const ALL_SETTING_KEYS = Object.values(SITE_SETTING_KEYS)
@@ -121,20 +124,40 @@ function quotasFrom(values: Map<string, string>): SiteQuotaSettings {
   }
 }
 
+function isWebDavEnabled(values: Map<string, string>): boolean {
+  return values.get(SITE_SETTING_KEYS.webdavEnabled) !== 'false'
+}
+
 function webdavFrom(values: Map<string, string>, requestUrl: string): SiteWebDavSettings {
   const publicUrl = normalizePublicOrigin(values.get(SITE_SETTING_KEYS.publicOrigin)) ?? new URL(requestUrl).origin
-  const candidate = webDavPublicUrl(publicUrl)
+  const enabled = isWebDavEnabled(values)
+  const domain = values.get(SITE_SETTING_KEYS.webdavDomain)?.trim() ?? ''
+  const candidate = webDavPublicUrl(publicUrl, domain)
   const verifiedOrigin = normalizePublicOrigin(values.get(SITE_SETTING_KEYS.webdavVerifiedOrigin))
   const error = values.get(SITE_SETTING_KEYS.webdavVerificationError)?.trim() || null
   const ready = candidate !== null && candidate.origin === verifiedOrigin
   const lastVerifiedAt = ready ? values.get(SITE_SETTING_KEYS.webdavVerifiedAt)?.trim() || null : null
 
   return {
+    enabled,
+    domain,
     pathUrl: webDavPathUrl(requestUrl, publicUrl),
     candidateUrl: candidate ? `${candidate.origin}/` : null,
-    status: ready ? 'ready' : error ? 'failed' : 'unverified',
+    status: enabled ? (ready ? 'ready' : error ? 'failed' : 'unverified') : 'disabled',
     lastVerifiedAt,
-    error: ready ? null : error,
+    error: enabled && !ready ? error : null,
+  }
+}
+
+export async function getSiteWebDavRuntimeConfig(
+  deps: Pick<SiteSettingsDeps, 'systemOptions'>,
+): Promise<{ enabled: boolean; domain: string }> {
+  const values = optionMap(
+    await deps.systemOptions.getMany([SITE_SETTING_KEYS.webdavEnabled, SITE_SETTING_KEYS.webdavDomain]),
+  )
+  return {
+    enabled: isWebDavEnabled(values),
+    domain: values.get(SITE_SETTING_KEYS.webdavDomain)?.trim() ?? '',
   }
 }
 
@@ -212,7 +235,9 @@ export async function verifySiteWebDav(
   fetcher: typeof fetch,
 ): Promise<SiteWebDavSettings> {
   const values = optionMap(await deps.systemOptions.getMany(ALL_SETTING_KEYS))
-  const candidate = webdavFrom(values, requestUrl).candidateUrl
+  const current = webdavFrom(values, requestUrl)
+  if (!current.enabled) throw badRequest('WebDAV must be enabled before its domain can be verified')
+  const candidate = current.candidateUrl
   let error: string | null = null
 
   await deps.systemOptions.setMany([
@@ -246,6 +271,30 @@ export async function verifySiteWebDav(
   ])
   const updatedValues = optionMap(await deps.systemOptions.getMany(ALL_SETTING_KEYS))
   return webdavFrom(updatedValues, requestUrl)
+}
+
+export async function updateSiteWebDav(
+  deps: Pick<SiteSettingsDeps, 'systemOptions'>,
+  input: UpdateSiteWebDavInput,
+  requestUrl: string,
+): Promise<SiteWebDavSettings> {
+  const domain = input.domain.trim().toLowerCase()
+  const currentDomain = (await deps.systemOptions.getValue(SITE_SETTING_KEYS.webdavDomain))?.trim() ?? ''
+  const domainChanged = currentDomain !== domain
+
+  await deps.systemOptions.setMany([
+    { key: SITE_SETTING_KEYS.webdavEnabled, value: String(input.enabled) },
+    { key: SITE_SETTING_KEYS.webdavDomain, value: domain },
+    ...(domainChanged
+      ? [
+          { key: SITE_SETTING_KEYS.webdavVerifiedOrigin, value: '' },
+          { key: SITE_SETTING_KEYS.webdavVerifiedAt, value: '' },
+          { key: SITE_SETTING_KEYS.webdavVerificationError, value: '' },
+        ]
+      : []),
+  ])
+
+  return webdavFrom(optionMap(await deps.systemOptions.getMany(ALL_SETTING_KEYS)), requestUrl)
 }
 
 export async function updateSiteRegistration(

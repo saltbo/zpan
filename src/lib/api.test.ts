@@ -139,6 +139,7 @@ import {
   updateSiteIdentity,
   updateSiteQuotas,
   updateSiteRegistration,
+  updateSiteWebDav,
   updateStorage,
   updateStorageEgressBilling,
   updateUserEntitlement,
@@ -1913,7 +1914,7 @@ describe('api', () => {
         theme: { mode: 'preset', preset: 'default', custom: null, configured: false },
       },
       auth: { signupMode: 'invite_only', captcha: { enabled: false }, providers: [] },
-      services: { webdav: { url: 'https://pan.example.com/dav/' } },
+      services: { webdav: { enabled: true, url: 'https://pan.example.com/dav/' } },
     } as const
     const settings = {
       identity: config.site,
@@ -1927,6 +1928,8 @@ describe('api', () => {
       },
       quotas: { defaultOrgBytes: 1024, defaultTeamBytes: 1024, defaultMonthlyTrafficBytes: 0 },
       webdav: {
+        enabled: true,
+        domain: '',
         pathUrl: 'https://pan.example.com/dav/',
         candidateUrl: 'https://dav.pan.example.com/',
         status: 'unverified',
@@ -2037,6 +2040,26 @@ describe('api', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/site/settings/webdav/verification')
       expect(init.method).toBe('POST')
+    })
+
+    it('updates WebDAV settings with a structured payload', async () => {
+      const input = { enabled: true, domain: 'webdisk.example.com' }
+      const result = { ...settings.webdav, ...input, candidateUrl: 'https://webdisk.example.com/' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(result))
+
+      await expect(updateSiteWebDav(input)).resolves.toEqual(result)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/webdav')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(String(init.body))).toEqual(input)
+    })
+
+    it('throws when updating WebDAV settings fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'invalid' }, false, 400))
+      await expect(updateSiteWebDav({ enabled: true, domain: 'https://invalid' })).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 400,
+      })
     })
 
     it('throws when WebDAV verification fails at the API boundary', async () => {
