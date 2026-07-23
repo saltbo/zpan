@@ -28,7 +28,7 @@ export type PairingPollResult = {
 }
 
 export type CloudLicense = {
-  id: string
+  bindingId: string | null
 }
 
 export async function expandSignInForm(page: Page) {
@@ -168,34 +168,15 @@ export async function approvePairingInCloud(pairing: PairingInfo) {
     })
     if (approve.status() === 409 && (await cloudErrorCode(approve)) === 'instance_limit') {
       await unbindCloudTestLicenses(cloudRequest)
-      await approvePairingAfterLicenseCleanup(cloudRequest, pairing.code)
+      const retry = await cloudRequest.patch(`/api/pairings/${encodeURIComponent(pairing.code)}`, {
+        data: { action: 'approve' },
+      })
+      await expectCloudOk(retry, 'Cloud pairing approval failed after license cleanup')
       return
     }
     await expectCloudOk(approve, 'Cloud pairing approval failed')
   } finally {
     await cloudRequest.dispose()
-  }
-}
-
-async function approvePairingAfterLicenseCleanup(cloudRequest: APIRequestContext, pairingCode: string) {
-  const url = `/api/pairings/${encodeURIComponent(pairingCode)}`
-  for (let attempt = 1; attempt <= 20; attempt += 1) {
-    const response = await cloudRequest.patch(url, { data: { action: 'approve' } })
-    if (response.ok()) return
-
-    const status = response.status()
-    const body = await response.text()
-    let errorCode: string | undefined
-    try {
-      errorCode = (JSON.parse(body) as { error?: { code?: string } }).error?.code
-    } catch (error) {
-      throw new Error(`Cloud pairing approval returned invalid JSON: ${status} ${body}`, { cause: error })
-    }
-
-    if (status !== 409 || errorCode !== 'instance_limit' || attempt === 20) {
-      throw new Error(`Cloud pairing approval failed after license cleanup: ${status} ${body}`)
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000))
   }
 }
 
@@ -206,7 +187,8 @@ export async function unbindCloudTestLicenses(cloudRequest: APIRequestContext) {
   const body = (await response.json()) as { items: CloudLicense[] }
   const licenses = body.items
   for (const license of licenses) {
-    const deleted = await cloudRequest.delete(`/api/licenses/${encodeURIComponent(license.id)}`)
+    if (!license.bindingId) continue
+    const deleted = await cloudRequest.delete(`/api/licenses/${encodeURIComponent(license.bindingId)}`)
     if (deleted.status() === 404 && (await cloudErrorCode(deleted)) === 'not_found') continue
     await expectCloudOk(deleted, 'Cloud license cleanup failed')
   }
