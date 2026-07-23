@@ -215,7 +215,7 @@ setup('seed admin and storage', async () => {
 
       const existing = storages[0]
       if (existing) {
-        const resp = await request.put(`/api/site/storages/${existing.id}`, {
+        const resp = await request.patch(`/api/site/storages/${existing.id}`, {
           headers,
           data: storageConfig,
         })
