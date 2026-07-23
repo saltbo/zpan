@@ -498,6 +498,96 @@ func (e SiteBrandingThemeMode) Valid() bool {
 	}
 }
 
+// Defines values for StorageStatus.
+const (
+	StorageStatusHealthy   StorageStatus = "healthy"
+	StorageStatusUnhealthy StorageStatus = "unhealthy"
+	StorageStatusUnknown   StorageStatus = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the StorageStatus enum.
+func (e StorageStatus) Valid() bool {
+	switch e {
+	case StorageStatusHealthy:
+		return true
+	case StorageStatusUnhealthy:
+		return true
+	case StorageStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StorageStatusReason.
+const (
+	StorageStatusReasonAuthenticationFailed StorageStatusReason = "authentication_failed"
+	StorageStatusReasonBucketNotFound       StorageStatusReason = "bucket_not_found"
+	StorageStatusReasonCors                 StorageStatusReason = "cors"
+	StorageStatusReasonLessThannil          StorageStatusReason = "<nil>"
+	StorageStatusReasonNetworkError         StorageStatusReason = "network_error"
+	StorageStatusReasonPermissionDenied     StorageStatusReason = "permission_denied"
+	StorageStatusReasonUnknown              StorageStatusReason = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the StorageStatusReason enum.
+func (e StorageStatusReason) Valid() bool {
+	switch e {
+	case StorageStatusReasonAuthenticationFailed:
+		return true
+	case StorageStatusReasonBucketNotFound:
+		return true
+	case StorageStatusReasonCors:
+		return true
+	case StorageStatusReasonLessThannil:
+		return true
+	case StorageStatusReasonNetworkError:
+		return true
+	case StorageStatusReasonPermissionDenied:
+		return true
+	case StorageStatusReasonUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StorageUsageBreakdownsCategory.
+const (
+	StorageUsageBreakdownsCategoryArchives     StorageUsageBreakdownsCategory = "archives"
+	StorageUsageBreakdownsCategoryDocuments    StorageUsageBreakdownsCategory = "documents"
+	StorageUsageBreakdownsCategoryImageHosting StorageUsageBreakdownsCategory = "image_hosting"
+	StorageUsageBreakdownsCategoryMusic        StorageUsageBreakdownsCategory = "music"
+	StorageUsageBreakdownsCategoryOther        StorageUsageBreakdownsCategory = "other"
+	StorageUsageBreakdownsCategoryPhotos       StorageUsageBreakdownsCategory = "photos"
+	StorageUsageBreakdownsCategoryTrash        StorageUsageBreakdownsCategory = "trash"
+	StorageUsageBreakdownsCategoryVideos       StorageUsageBreakdownsCategory = "videos"
+)
+
+// Valid indicates whether the value is a known member of the StorageUsageBreakdownsCategory enum.
+func (e StorageUsageBreakdownsCategory) Valid() bool {
+	switch e {
+	case StorageUsageBreakdownsCategoryArchives:
+		return true
+	case StorageUsageBreakdownsCategoryDocuments:
+		return true
+	case StorageUsageBreakdownsCategoryImageHosting:
+		return true
+	case StorageUsageBreakdownsCategoryMusic:
+		return true
+	case StorageUsageBreakdownsCategoryOther:
+		return true
+	case StorageUsageBreakdownsCategoryPhotos:
+		return true
+	case StorageUsageBreakdownsCategoryTrash:
+		return true
+	case StorageUsageBreakdownsCategoryVideos:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WebDavVerificationStatus.
 const (
 	WebDavVerificationStatusDisabled   WebDavVerificationStatus = "disabled"
@@ -836,16 +926,16 @@ func (e ListDownloadTasksParamsSortBy) Valid() bool {
 
 // Defines values for ListDownloadTasksParamsSortDir.
 const (
-	Asc  ListDownloadTasksParamsSortDir = "asc"
-	Desc ListDownloadTasksParamsSortDir = "desc"
+	ListDownloadTasksParamsSortDirAsc  ListDownloadTasksParamsSortDir = "asc"
+	ListDownloadTasksParamsSortDirDesc ListDownloadTasksParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListDownloadTasksParamsSortDir enum.
 func (e ListDownloadTasksParamsSortDir) Valid() bool {
 	switch e {
-	case Asc:
+	case ListDownloadTasksParamsSortDirAsc:
 		return true
-	case Desc:
+	case ListDownloadTasksParamsSortDirDesc:
 		return true
 	default:
 		return false
@@ -1232,16 +1322,16 @@ func (e RevokeShareJSONBodyStatus) Valid() bool {
 
 // Defines values for ListAnnouncementsParamsScope.
 const (
-	ListAnnouncementsParamsScopeActive ListAnnouncementsParamsScope = "active"
-	ListAnnouncementsParamsScopeAll    ListAnnouncementsParamsScope = "all"
+	Active ListAnnouncementsParamsScope = "active"
+	All    ListAnnouncementsParamsScope = "all"
 )
 
 // Valid indicates whether the value is a known member of the ListAnnouncementsParamsScope enum.
 func (e ListAnnouncementsParamsScope) Valid() bool {
 	switch e {
-	case ListAnnouncementsParamsScopeActive:
+	case Active:
 		return true
-	case ListAnnouncementsParamsScopeAll:
+	case All:
 		return true
 	default:
 		return false
@@ -1374,18 +1464,150 @@ func (e SaveEmailConfigJSONBody2Provider) Valid() bool {
 	}
 }
 
-// Defines values for UpdateStorageJSONBodyStatus.
+// Defines values for PatchStorageJSONBodyStatus.
 const (
-	UpdateStorageJSONBodyStatusActive   UpdateStorageJSONBodyStatus = "active"
-	UpdateStorageJSONBodyStatusDisabled UpdateStorageJSONBodyStatus = "disabled"
+	PatchStorageJSONBodyStatusHealthy   PatchStorageJSONBodyStatus = "healthy"
+	PatchStorageJSONBodyStatusUnhealthy PatchStorageJSONBodyStatus = "unhealthy"
+	PatchStorageJSONBodyStatusUnknown   PatchStorageJSONBodyStatus = "unknown"
 )
 
-// Valid indicates whether the value is a known member of the UpdateStorageJSONBodyStatus enum.
-func (e UpdateStorageJSONBodyStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the PatchStorageJSONBodyStatus enum.
+func (e PatchStorageJSONBodyStatus) Valid() bool {
 	switch e {
-	case UpdateStorageJSONBodyStatusActive:
+	case PatchStorageJSONBodyStatusHealthy:
 		return true
-	case UpdateStorageJSONBodyStatusDisabled:
+	case PatchStorageJSONBodyStatusUnhealthy:
+		return true
+	case PatchStorageJSONBodyStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchStorageJSONBodyStatusReason.
+const (
+	PatchStorageJSONBodyStatusReasonAuthenticationFailed PatchStorageJSONBodyStatusReason = "authentication_failed"
+	PatchStorageJSONBodyStatusReasonBucketNotFound       PatchStorageJSONBodyStatusReason = "bucket_not_found"
+	PatchStorageJSONBodyStatusReasonCors                 PatchStorageJSONBodyStatusReason = "cors"
+	PatchStorageJSONBodyStatusReasonLessThannil          PatchStorageJSONBodyStatusReason = "<nil>"
+	PatchStorageJSONBodyStatusReasonNetworkError         PatchStorageJSONBodyStatusReason = "network_error"
+	PatchStorageJSONBodyStatusReasonPermissionDenied     PatchStorageJSONBodyStatusReason = "permission_denied"
+	PatchStorageJSONBodyStatusReasonUnknown              PatchStorageJSONBodyStatusReason = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the PatchStorageJSONBodyStatusReason enum.
+func (e PatchStorageJSONBodyStatusReason) Valid() bool {
+	switch e {
+	case PatchStorageJSONBodyStatusReasonAuthenticationFailed:
+		return true
+	case PatchStorageJSONBodyStatusReasonBucketNotFound:
+		return true
+	case PatchStorageJSONBodyStatusReasonCors:
+		return true
+	case PatchStorageJSONBodyStatusReasonLessThannil:
+		return true
+	case PatchStorageJSONBodyStatusReasonNetworkError:
+		return true
+	case PatchStorageJSONBodyStatusReasonPermissionDenied:
+		return true
+	case PatchStorageJSONBodyStatusReasonUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListStorageUsageItemsParamsCategory.
+const (
+	ListStorageUsageItemsParamsCategoryArchives     ListStorageUsageItemsParamsCategory = "archives"
+	ListStorageUsageItemsParamsCategoryDocuments    ListStorageUsageItemsParamsCategory = "documents"
+	ListStorageUsageItemsParamsCategoryImageHosting ListStorageUsageItemsParamsCategory = "image_hosting"
+	ListStorageUsageItemsParamsCategoryMusic        ListStorageUsageItemsParamsCategory = "music"
+	ListStorageUsageItemsParamsCategoryOther        ListStorageUsageItemsParamsCategory = "other"
+	ListStorageUsageItemsParamsCategoryPhotos       ListStorageUsageItemsParamsCategory = "photos"
+	ListStorageUsageItemsParamsCategoryTrash        ListStorageUsageItemsParamsCategory = "trash"
+	ListStorageUsageItemsParamsCategoryVideos       ListStorageUsageItemsParamsCategory = "videos"
+)
+
+// Valid indicates whether the value is a known member of the ListStorageUsageItemsParamsCategory enum.
+func (e ListStorageUsageItemsParamsCategory) Valid() bool {
+	switch e {
+	case ListStorageUsageItemsParamsCategoryArchives:
+		return true
+	case ListStorageUsageItemsParamsCategoryDocuments:
+		return true
+	case ListStorageUsageItemsParamsCategoryImageHosting:
+		return true
+	case ListStorageUsageItemsParamsCategoryMusic:
+		return true
+	case ListStorageUsageItemsParamsCategoryOther:
+		return true
+	case ListStorageUsageItemsParamsCategoryPhotos:
+		return true
+	case ListStorageUsageItemsParamsCategoryTrash:
+		return true
+	case ListStorageUsageItemsParamsCategoryVideos:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListStorageUsageItemsParamsSortBy.
+const (
+	Name      ListStorageUsageItemsParamsSortBy = "name"
+	Size      ListStorageUsageItemsParamsSortBy = "size"
+	UpdatedAt ListStorageUsageItemsParamsSortBy = "updatedAt"
+)
+
+// Valid indicates whether the value is a known member of the ListStorageUsageItemsParamsSortBy enum.
+func (e ListStorageUsageItemsParamsSortBy) Valid() bool {
+	switch e {
+	case Name:
+		return true
+	case Size:
+		return true
+	case UpdatedAt:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListStorageUsageItemsParamsSortDir.
+const (
+	ListStorageUsageItemsParamsSortDirAsc  ListStorageUsageItemsParamsSortDir = "asc"
+	ListStorageUsageItemsParamsSortDirDesc ListStorageUsageItemsParamsSortDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListStorageUsageItemsParamsSortDir enum.
+func (e ListStorageUsageItemsParamsSortDir) Valid() bool {
+	switch e {
+	case ListStorageUsageItemsParamsSortDirAsc:
+		return true
+	case ListStorageUsageItemsParamsSortDirDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListStorageUsageItems200JSONResponseBodyItemsSource.
+const (
+	ListStorageUsageItems200JSONResponseBodyItemsSourceFiles        ListStorageUsageItems200JSONResponseBodyItemsSource = "files"
+	ListStorageUsageItems200JSONResponseBodyItemsSourceImageHosting ListStorageUsageItems200JSONResponseBodyItemsSource = "image_hosting"
+	ListStorageUsageItems200JSONResponseBodyItemsSourceTrash        ListStorageUsageItems200JSONResponseBodyItemsSource = "trash"
+)
+
+// Valid indicates whether the value is a known member of the ListStorageUsageItems200JSONResponseBodyItemsSource enum.
+func (e ListStorageUsageItems200JSONResponseBodyItemsSource) Valid() bool {
+	switch e {
+	case ListStorageUsageItems200JSONResponseBodyItemsSourceFiles:
+		return true
+	case ListStorageUsageItems200JSONResponseBodyItemsSourceImageHosting:
+		return true
+	case ListStorageUsageItems200JSONResponseBodyItemsSourceTrash:
 		return true
 	default:
 		return false
@@ -2522,25 +2744,34 @@ type SiteWebDavSettings struct {
 
 // Storage defines model for Storage.
 type Storage struct {
-	AccessKey                  string  `json:"accessKey"`
-	Bucket                     string  `json:"bucket"`
-	Capacity                   int     `json:"capacity"`
-	CreatedAt                  string  `json:"createdAt"`
-	CustomHost                 *string `json:"customHost"`
-	EgressCreditBillingEnabled bool    `json:"egressCreditBillingEnabled"`
-	EgressCreditPerUnit        int     `json:"egressCreditPerUnit"`
-	EgressCreditUnitBytes      int     `json:"egressCreditUnitBytes"`
-	Endpoint                   string  `json:"endpoint"`
-	FilePath                   string  `json:"filePath"`
-	ForcePathStyle             bool    `json:"forcePathStyle"`
-	Id                         string  `json:"id"`
-	Provider                   string  `json:"provider"`
-	Region                     string  `json:"region"`
-	SecretKey                  string  `json:"secretKey"`
-	Status                     string  `json:"status"`
-	UpdatedAt                  string  `json:"updatedAt"`
-	Used                       int     `json:"used"`
+	AccessKey                  string               `json:"accessKey"`
+	Bucket                     string               `json:"bucket"`
+	Capacity                   int                  `json:"capacity"`
+	CreatedAt                  string               `json:"createdAt"`
+	CustomHost                 *string              `json:"customHost"`
+	EgressCreditBillingEnabled bool                 `json:"egressCreditBillingEnabled"`
+	EgressCreditPerUnit        int                  `json:"egressCreditPerUnit"`
+	EgressCreditUnitBytes      int                  `json:"egressCreditUnitBytes"`
+	Enabled                    bool                 `json:"enabled"`
+	Endpoint                   string               `json:"endpoint"`
+	FilePath                   string               `json:"filePath"`
+	ForcePathStyle             bool                 `json:"forcePathStyle"`
+	Id                         string               `json:"id"`
+	Provider                   string               `json:"provider"`
+	Region                     string               `json:"region"`
+	SecretKey                  string               `json:"secretKey"`
+	Status                     StorageStatus        `json:"status"`
+	StatusCheckedAt            *string              `json:"statusCheckedAt"`
+	StatusReason               *StorageStatusReason `json:"statusReason"`
+	UpdatedAt                  string               `json:"updatedAt"`
+	Used                       int                  `json:"used"`
 }
+
+// StorageStatus defines model for Storage.Status.
+type StorageStatus string
+
+// StorageStatusReason defines model for Storage.StatusReason.
+type StorageStatusReason string
 
 // StorageList defines model for StorageList.
 type StorageList struct {
@@ -2549,6 +2780,26 @@ type StorageList struct {
 	PageSize int       `json:"pageSize"`
 	Total    int       `json:"total"`
 }
+
+// StorageUsage defines model for StorageUsage.
+type StorageUsage struct {
+	Breakdowns []struct {
+		Bytes     int                            `json:"bytes"`
+		Category  StorageUsageBreakdownsCategory `json:"category"`
+		FileCount int                            `json:"fileCount"`
+	} `json:"breakdowns"`
+	CurrentPlan *struct {
+		Name         string `json:"name"`
+		StorageBytes int    `json:"storageBytes"`
+		Subscription bool   `json:"subscription"`
+	} `json:"currentPlan"`
+	QuotaBytes int     `json:"quotaBytes"`
+	UpdatedAt  *string `json:"updatedAt"`
+	UsedBytes  int     `json:"usedBytes"`
+}
+
+// StorageUsageBreakdownsCategory defines model for StorageUsage.Breakdowns.Category.
+type StorageUsageBreakdownsCategory string
 
 // TeamInvitationList defines model for TeamInvitationList.
 type TeamInvitationList struct {
@@ -3988,25 +4239,47 @@ type CreateStorageJSONBody struct {
 	SecretKey                  string  `json:"secretKey"`
 }
 
-// UpdateStorageJSONBody defines parameters for UpdateStorage.
-type UpdateStorageJSONBody struct {
-	AccessKey                  *string                      `json:"accessKey,omitempty"`
-	Bucket                     *string                      `json:"bucket,omitempty"`
-	Capacity                   *int                         `json:"capacity,omitempty"`
-	CustomHost                 *string                      `json:"customHost,omitempty"`
-	EgressCreditBillingEnabled *bool                        `json:"egressCreditBillingEnabled,omitempty"`
-	EgressCreditPerUnit        *int                         `json:"egressCreditPerUnit,omitempty"`
-	EgressCreditUnitBytes      *int                         `json:"egressCreditUnitBytes,omitempty"`
-	Endpoint                   *string                      `json:"endpoint,omitempty"`
-	ForcePathStyle             *bool                        `json:"forcePathStyle,omitempty"`
-	Provider                   *string                      `json:"provider,omitempty"`
-	Region                     *string                      `json:"region,omitempty"`
-	SecretKey                  *string                      `json:"secretKey,omitempty"`
-	Status                     *UpdateStorageJSONBodyStatus `json:"status,omitempty"`
+// PatchStorageJSONBody defines parameters for PatchStorage.
+type PatchStorageJSONBody struct {
+	AccessKey                  *string                           `json:"accessKey,omitempty"`
+	Bucket                     *string                           `json:"bucket,omitempty"`
+	Capacity                   *int                              `json:"capacity,omitempty"`
+	CustomHost                 *string                           `json:"customHost,omitempty"`
+	EgressCreditBillingEnabled *bool                             `json:"egressCreditBillingEnabled,omitempty"`
+	EgressCreditPerUnit        *int                              `json:"egressCreditPerUnit,omitempty"`
+	EgressCreditUnitBytes      *int                              `json:"egressCreditUnitBytes,omitempty"`
+	Enabled                    *bool                             `json:"enabled,omitempty"`
+	Endpoint                   *string                           `json:"endpoint,omitempty"`
+	ForcePathStyle             *bool                             `json:"forcePathStyle,omitempty"`
+	Provider                   *string                           `json:"provider,omitempty"`
+	Region                     *string                           `json:"region,omitempty"`
+	SecretKey                  *string                           `json:"secretKey,omitempty"`
+	Status                     *PatchStorageJSONBodyStatus       `json:"status,omitempty"`
+	StatusReason               *PatchStorageJSONBodyStatusReason `json:"statusReason,omitempty"`
 }
 
-// UpdateStorageJSONBodyStatus defines parameters for UpdateStorage.
-type UpdateStorageJSONBodyStatus string
+// PatchStorageJSONBodyStatus defines parameters for PatchStorage.
+type PatchStorageJSONBodyStatus string
+
+// PatchStorageJSONBodyStatusReason defines parameters for PatchStorage.
+type PatchStorageJSONBodyStatusReason string
+
+// ReplaceStorageJSONBody defines parameters for ReplaceStorage.
+type ReplaceStorageJSONBody struct {
+	AccessKey                  string  `json:"accessKey"`
+	Bucket                     string  `json:"bucket"`
+	Capacity                   int     `json:"capacity"`
+	CustomHost                 *string `json:"customHost,omitempty"`
+	EgressCreditBillingEnabled bool    `json:"egressCreditBillingEnabled"`
+	EgressCreditPerUnit        int     `json:"egressCreditPerUnit"`
+	EgressCreditUnitBytes      int     `json:"egressCreditUnitBytes"`
+	Enabled                    bool    `json:"enabled"`
+	Endpoint                   string  `json:"endpoint"`
+	ForcePathStyle             bool    `json:"forcePathStyle"`
+	Provider                   string  `json:"provider"`
+	Region                     string  `json:"region"`
+	SecretKey                  string  `json:"secretKey"`
+}
 
 // UpdateStorageEgressBillingJSONBody defines parameters for UpdateStorageEgressBilling.
 type UpdateStorageEgressBillingJSONBody struct {
@@ -4014,6 +4287,27 @@ type UpdateStorageEgressBillingJSONBody struct {
 	Enabled        bool `json:"enabled"`
 	UnitBytes      int  `json:"unitBytes"`
 }
+
+// ListStorageUsageItemsParams defines parameters for ListStorageUsageItems.
+type ListStorageUsageItemsParams struct {
+	Category ListStorageUsageItemsParamsCategory `form:"category" json:"category"`
+	Page     *int                                `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int                                `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	SortBy   *ListStorageUsageItemsParamsSortBy  `form:"sortBy,omitempty" json:"sortBy,omitempty"`
+	SortDir  *ListStorageUsageItemsParamsSortDir `form:"sortDir,omitempty" json:"sortDir,omitempty"`
+}
+
+// ListStorageUsageItemsParamsCategory defines parameters for ListStorageUsageItems.
+type ListStorageUsageItemsParamsCategory string
+
+// ListStorageUsageItemsParamsSortBy defines parameters for ListStorageUsageItems.
+type ListStorageUsageItemsParamsSortBy string
+
+// ListStorageUsageItemsParamsSortDir defines parameters for ListStorageUsageItems.
+type ListStorageUsageItemsParamsSortDir string
+
+// ListStorageUsageItems200JSONResponseBodyItemsSource defines parameters for ListStorageUsageItems.
+type ListStorageUsageItems200JSONResponseBodyItemsSource string
 
 // CreateCheckoutJSONBody defines parameters for CreateCheckout.
 type CreateCheckoutJSONBody struct {
@@ -4403,8 +4697,11 @@ type UpdateSiteWebDavJSONRequestBody = UpdateSiteWebDav
 // CreateStorageJSONRequestBody defines body for CreateStorage for application/json ContentType.
 type CreateStorageJSONRequestBody CreateStorageJSONBody
 
-// UpdateStorageJSONRequestBody defines body for UpdateStorage for application/json ContentType.
-type UpdateStorageJSONRequestBody UpdateStorageJSONBody
+// PatchStorageJSONRequestBody defines body for PatchStorage for application/json ContentType.
+type PatchStorageJSONRequestBody PatchStorageJSONBody
+
+// ReplaceStorageJSONRequestBody defines body for ReplaceStorage for application/json ContentType.
+type ReplaceStorageJSONRequestBody ReplaceStorageJSONBody
 
 // UpdateStorageEgressBillingJSONRequestBody defines body for UpdateStorageEgressBilling for application/json ContentType.
 type UpdateStorageEgressBillingJSONRequestBody UpdateStorageEgressBillingJSONBody
@@ -5443,15 +5740,26 @@ type ClientInterface interface {
 	// GetStorage request
 	GetStorage(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateStorageWithBody request with any body
-	UpdateStorageWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PatchStorageWithBody request with any body
+	PatchStorageWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateStorage(ctx context.Context, id string, body UpdateStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PatchStorage(ctx context.Context, id string, body PatchStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceStorageWithBody request with any body
+	ReplaceStorageWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReplaceStorage(ctx context.Context, id string, body ReplaceStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateStorageEgressBillingWithBody request with any body
 	UpdateStorageEgressBillingWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateStorageEgressBilling(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetStorageUsage request
+	GetStorageUsage(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListStorageUsageItems request
+	ListStorageUsageItems(ctx context.Context, params *ListStorageUsageItemsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateBillingPortalSession request
 	CreateBillingPortalSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -8830,8 +9138,8 @@ func (c *Client) GetStorage(ctx context.Context, id string, reqEditors ...Reques
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateStorageWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateStorageRequestWithBody(c.Server, id, contentType, body)
+func (c *Client) PatchStorageWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchStorageRequestWithBody(c.Server, id, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8842,8 +9150,32 @@ func (c *Client) UpdateStorageWithBody(ctx context.Context, id string, contentTy
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateStorage(ctx context.Context, id string, body UpdateStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateStorageRequest(c.Server, id, body)
+func (c *Client) PatchStorage(ctx context.Context, id string, body PatchStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchStorageRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceStorageWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceStorageRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceStorage(ctx context.Context, id string, body ReplaceStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceStorageRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8868,6 +9200,30 @@ func (c *Client) UpdateStorageEgressBillingWithBody(ctx context.Context, id stri
 
 func (c *Client) UpdateStorageEgressBilling(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateStorageEgressBillingRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetStorageUsage(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetStorageUsageRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListStorageUsageItems(ctx context.Context, params *ListStorageUsageItemsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListStorageUsageItemsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -17092,19 +17448,66 @@ func NewGetStorageRequest(server string, id string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewUpdateStorageRequest calls the generic UpdateStorage builder with application/json body
-func NewUpdateStorageRequest(server string, id string, body UpdateStorageJSONRequestBody) (*http.Request, error) {
+// NewPatchStorageRequest calls the generic PatchStorage builder with application/json body
+func NewPatchStorageRequest(server string, id string, body PatchStorageJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateStorageRequestWithBody(server, id, "application/json", bodyReader)
+	return NewPatchStorageRequestWithBody(server, id, "application/json", bodyReader)
 }
 
-// NewUpdateStorageRequestWithBody generates requests for UpdateStorage with any type of body
-func NewUpdateStorageRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+// NewPatchStorageRequestWithBody generates requests for PatchStorage with any type of body
+func NewPatchStorageRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/storages/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewReplaceStorageRequest calls the generic ReplaceStorage builder with application/json body
+func NewReplaceStorageRequest(server string, id string, body ReplaceStorageJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceStorageRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewReplaceStorageRequestWithBody generates requests for ReplaceStorage with any type of body
+func NewReplaceStorageRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -17182,6 +17585,131 @@ func NewUpdateStorageEgressBillingRequestWithBody(server string, id string, cont
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetStorageUsageRequest generates requests for GetStorageUsage
+func NewGetStorageUsageRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/storage")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListStorageUsageItemsRequest generates requests for ListStorageUsageItems
+func NewListStorageUsageItemsRequest(server string, params *ListStorageUsageItemsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/storage/items")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "category", params.Category, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.SortBy != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sortBy", *params.SortBy, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.SortDir != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sortDir", *params.SortDir, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -19427,15 +19955,26 @@ type ClientWithResponsesInterface interface {
 	// GetStorageWithResponse request
 	GetStorageWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetStorageResponse, error)
 
-	// UpdateStorageWithBodyWithResponse request with any body
-	UpdateStorageWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateStorageResponse, error)
+	// PatchStorageWithBodyWithResponse request with any body
+	PatchStorageWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchStorageResponse, error)
 
-	UpdateStorageWithResponse(ctx context.Context, id string, body UpdateStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateStorageResponse, error)
+	PatchStorageWithResponse(ctx context.Context, id string, body PatchStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchStorageResponse, error)
+
+	// ReplaceStorageWithBodyWithResponse request with any body
+	ReplaceStorageWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceStorageResponse, error)
+
+	ReplaceStorageWithResponse(ctx context.Context, id string, body ReplaceStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceStorageResponse, error)
 
 	// UpdateStorageEgressBillingWithBodyWithResponse request with any body
 	UpdateStorageEgressBillingWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateStorageEgressBillingResponse, error)
 
 	UpdateStorageEgressBillingWithResponse(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateStorageEgressBillingResponse, error)
+
+	// GetStorageUsageWithResponse request
+	GetStorageUsageWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStorageUsageResponse, error)
+
+	// ListStorageUsageItemsWithResponse request
+	ListStorageUsageItemsWithResponse(ctx context.Context, params *ListStorageUsageItemsParams, reqEditors ...RequestEditorFn) (*ListStorageUsageItemsResponse, error)
 
 	// CreateBillingPortalSessionWithResponse request
 	CreateBillingPortalSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CreateBillingPortalSessionResponse, error)
@@ -27115,7 +27654,7 @@ func (r GetStorageResponse) ContentType() string {
 	return ""
 }
 
-type UpdateStorageResponse struct {
+type PatchStorageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Storage
@@ -27124,7 +27663,7 @@ type UpdateStorageResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r UpdateStorageResponse) Status() string {
+func (r PatchStorageResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -27132,7 +27671,7 @@ func (r UpdateStorageResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpdateStorageResponse) StatusCode() int {
+func (r PatchStorageResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -27140,7 +27679,39 @@ func (r UpdateStorageResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UpdateStorageResponse) ContentType() string {
+func (r PatchStorageResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReplaceStorageResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Storage
+	JSON402      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceStorageResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceStorageResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReplaceStorageResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -27173,6 +27744,80 @@ func (r UpdateStorageEgressBillingResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r UpdateStorageEgressBillingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetStorageUsageResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StorageUsage
+}
+
+// Status returns HTTPResponse.Status
+func (r GetStorageUsageResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetStorageUsageResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetStorageUsageResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListStorageUsageItemsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Items []struct {
+			Id         string                                              `json:"id"`
+			Name       string                                              `json:"name"`
+			ParentPath string                                              `json:"parentPath"`
+			Path       string                                              `json:"path"`
+			Size       int                                                 `json:"size"`
+			Source     ListStorageUsageItems200JSONResponseBodyItemsSource `json:"source"`
+			Type       string                                              `json:"type"`
+			UpdatedAt  string                                              `json:"updatedAt"`
+		} `json:"items"`
+		Page     int `json:"page"`
+		PageSize int `json:"pageSize"`
+		Total    int `json:"total"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r ListStorageUsageItemsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListStorageUsageItemsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListStorageUsageItemsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -30738,21 +31383,38 @@ func (c *ClientWithResponses) GetStorageWithResponse(ctx context.Context, id str
 	return ParseGetStorageResponse(rsp)
 }
 
-// UpdateStorageWithBodyWithResponse request with arbitrary body returning *UpdateStorageResponse
-func (c *ClientWithResponses) UpdateStorageWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateStorageResponse, error) {
-	rsp, err := c.UpdateStorageWithBody(ctx, id, contentType, body, reqEditors...)
+// PatchStorageWithBodyWithResponse request with arbitrary body returning *PatchStorageResponse
+func (c *ClientWithResponses) PatchStorageWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchStorageResponse, error) {
+	rsp, err := c.PatchStorageWithBody(ctx, id, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateStorageResponse(rsp)
+	return ParsePatchStorageResponse(rsp)
 }
 
-func (c *ClientWithResponses) UpdateStorageWithResponse(ctx context.Context, id string, body UpdateStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateStorageResponse, error) {
-	rsp, err := c.UpdateStorage(ctx, id, body, reqEditors...)
+func (c *ClientWithResponses) PatchStorageWithResponse(ctx context.Context, id string, body PatchStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchStorageResponse, error) {
+	rsp, err := c.PatchStorage(ctx, id, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateStorageResponse(rsp)
+	return ParsePatchStorageResponse(rsp)
+}
+
+// ReplaceStorageWithBodyWithResponse request with arbitrary body returning *ReplaceStorageResponse
+func (c *ClientWithResponses) ReplaceStorageWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceStorageResponse, error) {
+	rsp, err := c.ReplaceStorageWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceStorageResponse(rsp)
+}
+
+func (c *ClientWithResponses) ReplaceStorageWithResponse(ctx context.Context, id string, body ReplaceStorageJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceStorageResponse, error) {
+	rsp, err := c.ReplaceStorage(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceStorageResponse(rsp)
 }
 
 // UpdateStorageEgressBillingWithBodyWithResponse request with arbitrary body returning *UpdateStorageEgressBillingResponse
@@ -30770,6 +31432,24 @@ func (c *ClientWithResponses) UpdateStorageEgressBillingWithResponse(ctx context
 		return nil, err
 	}
 	return ParseUpdateStorageEgressBillingResponse(rsp)
+}
+
+// GetStorageUsageWithResponse request returning *GetStorageUsageResponse
+func (c *ClientWithResponses) GetStorageUsageWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStorageUsageResponse, error) {
+	rsp, err := c.GetStorageUsage(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetStorageUsageResponse(rsp)
+}
+
+// ListStorageUsageItemsWithResponse request returning *ListStorageUsageItemsResponse
+func (c *ClientWithResponses) ListStorageUsageItemsWithResponse(ctx context.Context, params *ListStorageUsageItemsParams, reqEditors ...RequestEditorFn) (*ListStorageUsageItemsResponse, error) {
+	rsp, err := c.ListStorageUsageItems(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListStorageUsageItemsResponse(rsp)
 }
 
 // CreateBillingPortalSessionWithResponse request returning *CreateBillingPortalSessionResponse
@@ -41831,15 +42511,55 @@ func ParseGetStorageResponse(rsp *http.Response) (*GetStorageResponse, error) {
 	return response, nil
 }
 
-// ParseUpdateStorageResponse parses an HTTP response from a UpdateStorageWithResponse call
-func ParseUpdateStorageResponse(rsp *http.Response) (*UpdateStorageResponse, error) {
+// ParsePatchStorageResponse parses an HTTP response from a PatchStorageWithResponse call
+func ParsePatchStorageResponse(rsp *http.Response) (*PatchStorageResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateStorageResponse{
+	response := &PatchStorageResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Storage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplaceStorageResponse parses an HTTP response from a ReplaceStorageWithResponse call
+func ParseReplaceStorageResponse(rsp *http.Response) (*ReplaceStorageResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceStorageResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -41905,6 +42625,72 @@ func ParseUpdateStorageEgressBillingResponse(rsp *http.Response) (*UpdateStorage
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetStorageUsageResponse parses an HTTP response from a GetStorageUsageWithResponse call
+func ParseGetStorageUsageResponse(rsp *http.Response) (*GetStorageUsageResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetStorageUsageResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StorageUsage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListStorageUsageItemsResponse parses an HTTP response from a ListStorageUsageItemsWithResponse call
+func ParseListStorageUsageItemsResponse(rsp *http.Response) (*ListStorageUsageItemsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListStorageUsageItemsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []struct {
+				Id         string                                              `json:"id"`
+				Name       string                                              `json:"name"`
+				ParentPath string                                              `json:"parentPath"`
+				Path       string                                              `json:"path"`
+				Size       int                                                 `json:"size"`
+				Source     ListStorageUsageItems200JSONResponseBodyItemsSource `json:"source"`
+				Type       string                                              `json:"type"`
+				UpdatedAt  string                                              `json:"updatedAt"`
+			} `json:"items"`
+			Page     int `json:"page"`
+			PageSize int `json:"pageSize"`
+			Total    int `json:"total"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 
