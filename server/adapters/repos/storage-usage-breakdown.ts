@@ -47,6 +47,17 @@ function itemCategoryCondition(category: StorageUsageCategory) {
   return and(isNull(matters.trashedAt), sql`${expression} = ${category}`)
 }
 
+function joinPath(parent: string, name: string) {
+  return parent ? `${parent}/${name}` : name
+}
+
+function splitPath(path: string) {
+  const separator = path.lastIndexOf('/')
+  return separator === -1
+    ? { name: path, parentPath: '' }
+    : { name: path.slice(separator + 1), parentPath: path.slice(0, separator) }
+}
+
 export function initialStorageUsageProjectionQueries(db: Database, orgId: string, now: Date) {
   return STORAGE_USAGE_CATEGORIES.map((category) =>
     db
@@ -103,14 +114,19 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
           db.select({ count: count() }).from(imageHostings).where(where),
         ])
         return {
-          items: rows.map((row) => ({
-            id: row.id,
-            name: row.path,
-            type: row.mime,
-            size: row.size,
-            updatedAt: row.createdAt.toISOString(),
-            source: 'image_hosting' as const,
-          })),
+          items: rows.map((row) => {
+            const location = splitPath(row.path)
+            return {
+              id: row.id,
+              name: location.name,
+              path: row.path,
+              parentPath: location.parentPath,
+              type: row.mime,
+              size: row.size,
+              updatedAt: row.createdAt.toISOString(),
+              source: 'image_hosting' as const,
+            }
+          }),
           total: totals[0]?.count ?? 0,
         }
       }
@@ -136,6 +152,8 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
         items: rows.map((row) => ({
           id: row.id,
           name: row.name,
+          path: joinPath(row.parent, row.name),
+          parentPath: row.parent,
           type: row.type,
           size: row.size ?? 0,
           updatedAt: row.updatedAt.toISOString(),

@@ -71,6 +71,8 @@ export interface StorageUsageResponse {
 export interface StorageUsageItem {
   id: string
   name: string
+  path: string
+  parentPath: string
   type: string
   size: number
   updatedAt: string

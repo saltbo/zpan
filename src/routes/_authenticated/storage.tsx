@@ -1,6 +1,6 @@
-import type { StorageUsageCategory } from '@shared/types'
+import type { StorageUsageCategory, StorageUsageItem } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ChevronRight, Cloud } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,6 +20,7 @@ export const Route = createFileRoute('/_authenticated/storage')({
 
 export function StoragePage() {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const { data: activeOrg } = useActiveOrganization()
   const orgId = activeOrg?.id ?? ''
   const [selectedCategory, setSelectedCategory] = useState<StorageUsageCategory | null>(null)
@@ -64,6 +65,19 @@ export function StoragePage() {
   function startCheckout(packageId: string, priceId: string, promotionCode?: string) {
     openCheckoutTab({ action: 'checkout', packageId, priceId, promotionCode })
     setPlansOpen(false)
+  }
+
+  function openFileLocation(item: StorageUsageItem) {
+    setSelectedCategory(null)
+    if (item.source === 'trash') {
+      navigate({ to: '/trash' })
+      return
+    }
+    if (item.source === 'image_hosting') {
+      navigate({ to: '/image-host' })
+      return
+    }
+    navigate({ to: '/files', search: item.parentPath ? { path: item.parentPath } : {} })
   }
 
   if (usageQuery.isLoading) {
@@ -182,6 +196,7 @@ export function StoragePage() {
         category={selectedCategory}
         breakdowns={displayBreakdowns}
         onCategoryChange={setSelectedCategory}
+        onOpenLocation={openFileLocation}
         onOpenChange={(open) => !open && setSelectedCategory(null)}
       />
 

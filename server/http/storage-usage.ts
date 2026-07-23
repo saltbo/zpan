@@ -26,6 +26,8 @@ const usageSchema = z
 const itemSchema = z.object({
   id: z.string(),
   name: z.string(),
+  path: z.string(),
+  parentPath: z.string(),
   type: z.string(),
   size: z.number().int(),
   updatedAt: z.string(),

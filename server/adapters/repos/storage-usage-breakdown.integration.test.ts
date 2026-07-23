@@ -45,7 +45,7 @@ describe('storage usage breakdown projection', () => {
         type: 'application/pdf',
         size,
         dirtype: DirType.FILE,
-        parent: '',
+        parent: name === 'alpha.pdf' ? 'Reports/2026' : '',
         object: name,
         storageId: 'storage-1',
         status: ObjectStatus.ACTIVE,
@@ -54,6 +54,10 @@ describe('storage usage breakdown projection', () => {
 
     const byName = await usage.listItems(orgId, 'documents', 1, 2, 'name', 'asc')
     expect(byName.items.map((item) => item.name)).toEqual(['alpha.pdf', 'bravo.pdf'])
+    expect(byName.items[0]).toMatchObject({
+      path: 'Reports/2026/alpha.pdf',
+      parentPath: 'Reports/2026',
+    })
     expect(byName.total).toBe(3)
 
     const bySize = await usage.listItems(orgId, 'documents', 1, 3, 'size', 'desc')

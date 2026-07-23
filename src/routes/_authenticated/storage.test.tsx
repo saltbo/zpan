@@ -14,6 +14,8 @@ import {
 } from '@/lib/api'
 import { StoragePage } from './storage'
 
+const mocks = vi.hoisted(() => ({ navigate: vi.fn() }))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, unknown>) => (values ? `${key}:${Object.values(values).join('/')}` : key),
@@ -23,6 +25,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => options,
+  useNavigate: () => mocks.navigate,
 }))
 
 vi.mock('@/lib/auth-client', () => ({
@@ -130,6 +133,8 @@ describe('StoragePage', () => {
         {
           id: 'photo-1',
           name: 'one.jpg',
+          path: 'Photos/one.jpg',
+          parentPath: 'Photos',
           type: 'image/jpeg',
           size: 100,
           updatedAt: '2026-07-23T00:00:00.000Z',
@@ -150,6 +155,33 @@ describe('StoragePage', () => {
     await waitFor(() => expect(listStorageUsageItems).toHaveBeenCalledWith('photos', 1, 20, 'name', 'desc'))
   })
 
+  it('shows the full path and opens the containing folder', async () => {
+    vi.mocked(listStorageUsageItems).mockResolvedValue({
+      items: [
+        {
+          id: 'document-1',
+          name: 'report.pdf',
+          path: 'Work/Reports/report.pdf',
+          parentPath: 'Work/Reports',
+          type: 'application/pdf',
+          size: 100,
+          updatedAt: '2026-07-23T00:00:00.000Z',
+          source: 'files',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+
+    renderPage()
+    const documents = await screen.findAllByText('storage.category.documents')
+    fireEvent.click(documents[1])
+    expect(await screen.findByText('/Work/Reports/report.pdf')).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('storage.openContainingFolder'))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/files', search: { path: 'Work/Reports' } })
+  })
+
   it('opens storage plans in a modal instead of the primary page', async () => {
     renderPage()
     const button = await screen.findByText('storage.expandStorage')
@@ -166,6 +198,8 @@ describe('StoragePage', () => {
         {
           id: 'photo-1',
           name: 'one.jpg',
+          path: 'Photos/one.jpg',
+          parentPath: 'Photos',
           type: 'image/jpeg',
           size: 100,
           updatedAt: '2026-07-23T00:00:00.000Z',
@@ -174,6 +208,8 @@ describe('StoragePage', () => {
         {
           id: 'photo-2',
           name: 'two.png',
+          path: 'Photos/two.png',
+          parentPath: 'Photos',
           type: 'image/png',
           size: 200,
           updatedAt: '2026-07-23T00:00:00.000Z',
@@ -208,6 +244,8 @@ describe('StoragePage', () => {
         {
           id: `${category}-1`,
           name: `${category}.png`,
+          path: `${category}/${category}.png`,
+          parentPath: category,
           type: 'image/png',
           size: 100,
           updatedAt: '2026-07-23T00:00:00.000Z',

@@ -16,6 +16,7 @@ import {
   ChevronRight,
   File,
   FileText,
+  FolderOpen,
   Image,
   Images,
   Loader2,
@@ -62,11 +63,13 @@ export function StorageCleanupDialog({
   category,
   breakdowns,
   onCategoryChange,
+  onOpenLocation,
   onOpenChange,
 }: {
   category: StorageUsageCategory | null
   breakdowns: StorageUsageBreakdown[]
   onCategoryChange: (category: StorageUsageCategory) => void
+  onOpenLocation: (item: StorageUsageItem) => void
   onOpenChange: (open: boolean) => void
 }) {
   const { t } = useTranslation()
@@ -302,7 +305,7 @@ export function StorageCleanupDialog({
                         align="right"
                         onChange={changeSort}
                       />
-                      <TableHead className="h-8 w-11">
+                      <TableHead className="h-8 w-[72px]">
                         <span className="sr-only">{t('common.actions')}</span>
                       </TableHead>
                     </TableRow>
@@ -310,6 +313,12 @@ export function StorageCleanupDialog({
                   <TableBody>
                     {items.map((item) => {
                       const selected = selectedIds.has(item.id)
+                      const locationLabel =
+                        item.source === 'trash'
+                          ? t('storage.openTrash')
+                          : item.source === 'image_hosting'
+                            ? t('storage.openImageHosting')
+                            : t('storage.openContainingFolder')
                       return (
                         <TableRow key={item.id} data-state={selected ? 'selected' : undefined}>
                           <TableCell className="w-10 px-2 py-1.5 text-center">
@@ -328,8 +337,8 @@ export function StorageCleanupDialog({
                                 <p className="truncate text-xs font-medium" title={item.name}>
                                   {item.name}
                                 </p>
-                                <p className="truncate text-[11px] text-muted-foreground md:hidden">
-                                  {formatMimeType(item.type)}
+                                <p className="truncate text-[11px] text-muted-foreground" title={`/${item.path}`}>
+                                  /{item.path}
                                 </p>
                               </div>
                             </div>
@@ -347,15 +356,27 @@ export function StorageCleanupDialog({
                             {formatSize(item.size)}
                           </TableCell>
                           <TableCell className="py-1.5 pr-2 text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="size-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                              aria-label={t('storage.deleteFile', { name: item.name })}
-                              onClick={() => setPendingDeleteItems([item])}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
+                            <div className="flex justify-end gap-0.5">
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="size-7 text-muted-foreground"
+                                aria-label={locationLabel}
+                                title={locationLabel}
+                                onClick={() => onOpenLocation(item)}
+                              >
+                                <FolderOpen className="size-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="size-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                aria-label={t('storage.deleteFile', { name: item.name })}
+                                onClick={() => setPendingDeleteItems([item])}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )
