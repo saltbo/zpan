@@ -2496,6 +2496,30 @@ async function mintTaskUploadContext(
 }
 
 describe('Objects API — error branches', () => {
+  it('accepts a download-task-upload token scoped to a Unicode target folder', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const targetFolder = 'Media/Music/欧阳娜娜/NANA II (2020)'
+    const { uploadToken } = await mintTaskUploadContext(app, db, { targetFolder })
+
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: '藏.mp3',
+        type: 'audio/mpeg',
+        size: 1,
+        parent: targetFolder,
+      }),
+    })
+
+    expect(res.status).toBe(201)
+    await expect(res.json()).resolves.toMatchObject({
+      name: '藏.mp3',
+      parent: targetFolder,
+    })
+  })
+
   it('returns 403 for a user-scoped API key with no active org on write', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
