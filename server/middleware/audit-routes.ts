@@ -89,6 +89,7 @@ const STANDARD_AUDIT_ROUTES: AuditRoute[] = [
   }),
   responseResourceRoute('POST', '/api/site/storages', 'storage_create', 'storage', 'bucket'),
   responseResourceRoute('PUT', '/api/site/storages/:storageId', 'storage_update', 'storage', 'bucket', 'storageId'),
+  responseResourceRoute('PATCH', '/api/site/storages/:storageId', 'storage_update', 'storage', 'bucket', 'storageId'),
   responseResourceRoute(
     'PUT',
     '/api/site/storages/:storageId/egress-billing',

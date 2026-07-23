@@ -35,7 +35,9 @@ describe('Admin overview API', () => {
       customHost: '',
       capacity: 1000,
       used: 400,
-      status: 'active',
+      enabled: true,
+      status: 'healthy',
+      statusCheckedAt: now,
       createdAt: now,
       updatedAt: now,
     })

@@ -35,7 +35,10 @@ describe('[CF] storage usage projection invariant', () => {
       customHost: '',
       capacity: 0,
       used: 0,
-      status: 'active',
+      enabled: true,
+      status: 'unknown',
+      statusReason: null,
+      statusCheckedAt: null,
       createdAt: now,
       updatedAt: now,
     })

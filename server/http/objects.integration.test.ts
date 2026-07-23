@@ -100,7 +100,7 @@ const validStorage = {
 
 async function insertStorage(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
-  opts: { id?: string; metered?: boolean; capacity?: number; used?: number; status?: string } = {},
+  opts: { id?: string; metered?: boolean; capacity?: number; used?: number; enabled?: boolean } = {},
 ) {
   const now = Date.now()
   const metered = opts.metered ? 1 : 0
@@ -108,13 +108,13 @@ async function insertStorage(
   await db.run(sql`
     INSERT INTO storages (
       id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
-      capacity, used, status, egress_credit_billing_enabled, egress_credit_unit_bytes,
+      capacity, used, enabled, status, egress_credit_billing_enabled, egress_credit_unit_bytes,
       egress_credit_per_unit, created_at, updated_at
     )
     VALUES (
       ${id}, ${validStorage.bucket},
       ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey},
-      '', '', ${opts.capacity ?? 0}, ${opts.used ?? 0}, ${opts.status ?? 'active'}, ${metered}, ${100 * 1024 ** 2}, 1, ${now}, ${now}
+      '', '', ${opts.capacity ?? 0}, ${opts.used ?? 0}, ${(opts.enabled ?? true) ? 1 : 0}, 'untested', ${metered}, ${100 * 1024 ** 2}, 1, ${now}, ${now}
     )
   `)
 }
@@ -728,7 +728,7 @@ describe('Objects API', () => {
   it('POST /api/objects with ineligible storageId fails before draft/session creation', async () => {
     for (const storage of [
       { id: 'missing' },
-      { id: 'inactive', status: 'disabled' },
+      { id: 'inactive', enabled: false },
       { id: 'full', capacity: 1, used: 1 },
     ]) {
       const { app, db } = await createTestApp()

@@ -14,8 +14,10 @@ import type {
   DiscountQuote,
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
+  PatchStorageInput,
   PresignObjectUploadPartsInput,
   RedeemGiftCardResponse,
+  ReplaceStorageInput,
   SiteConfig,
   SiteSettings,
   UpdateDownloaderCreditBillingInput,
@@ -27,7 +29,6 @@ import type {
   UpdateSiteRegistrationInput,
   UpdateSiteWebDavInput,
   UpdateStorageEgressBillingInput,
-  UpdateStorageInput,
 } from '@shared/schemas'
 import type {
   AdminAuditEvent,
@@ -556,8 +557,12 @@ export function getStorage(id: string) {
   return unwrap<Storage>(storages[':id'].$get({ param: { id } }))
 }
 
-export function updateStorage(id: string, data: UpdateStorageInput) {
+export function replaceStorage(id: string, data: ReplaceStorageInput) {
   return unwrap<Storage>(storages[':id'].$put({ param: { id }, json: data }))
+}
+
+export function patchStorage(id: string, data: PatchStorageInput) {
+  return unwrap<Storage>(storages[':id'].$patch({ param: { id }, json: data }))
 }
 
 export function updateStorageEgressBilling(id: string, data: UpdateStorageEgressBillingInput) {

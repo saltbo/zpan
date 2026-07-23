@@ -1,0 +1,1 @@
+ALTER TABLE `storages` ADD `status_reason` text;

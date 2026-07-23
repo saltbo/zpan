@@ -13,6 +13,17 @@ const validStorage = {
   secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
 }
 
+const validReplacement = {
+  ...validStorage,
+  customHost: '',
+  capacity: 0,
+  forcePathStyle: true,
+  egressCreditBillingEnabled: false,
+  egressCreditUnitBytes: 104857600,
+  egressCreditPerUnit: 1,
+  enabled: true,
+}
+
 describe('Admin Storages API', () => {
   it('returns 401 without auth [spec: storages/auth-required]', async () => {
     const { app } = await createTestApp()
@@ -57,7 +68,10 @@ describe('Admin Storages API', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.provider).toBe('aws-s3')
     expect(body.bucket).toBe('test-bucket')
-    expect(body.status).toBe('active')
+    expect(body.enabled).toBe(true)
+    expect(body.status).toBe('unknown')
+    expect(body.statusReason).toBeNull()
+    expect(body.statusCheckedAt).toBeNull()
     expect(body.capacity).toBe(0)
     expect(body.forcePathStyle).toBe(true)
     expect(body.used).toBe(0)
@@ -155,7 +169,7 @@ describe('Admin Storages API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('PUT /:id updates a storage [spec: storages/update]', async () => {
+  it('PUT /:id fully replaces a storage [spec: storages/update]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -169,13 +183,25 @@ describe('Admin Storages API', () => {
     const res = await app.request(`/api/site/storages/${created.id}`, {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bucket: 'updated-bucket', status: 'disabled', forcePathStyle: false }),
+      body: JSON.stringify({ ...validReplacement, bucket: 'updated-bucket', forcePathStyle: false, enabled: false }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.bucket).toBe('updated-bucket')
-    expect(body.status).toBe('disabled')
+    expect(body.enabled).toBe(false)
+    expect(body.status).toBe('unknown')
     expect(body.forcePathStyle).toBe(false)
+  })
+
+  it('PUT /:id rejects partial payloads', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/site/storages/any', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bucket: 'partial' }),
+    })
+    expect(res.status).toBe(400)
   })
 
   it('PUT /:id returns 404 for missing storage', async () => {
@@ -184,9 +210,64 @@ describe('Admin Storages API', () => {
     const res = await app.request('/api/site/storages/nonexistent', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bucket: 'nope' }),
+      body: JSON.stringify(validReplacement),
     })
     expect(res.status).toBe(404)
+  })
+
+  it('PATCH /:id updates enabled and health independently', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const createRes = await app.request('/api/site/storages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(validStorage),
+    })
+    const created = (await createRes.json()) as { id: string }
+
+    const disabledRes = await app.request(`/api/site/storages/${created.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    })
+    expect(disabledRes.status).toBe(200)
+    expect(await disabledRes.json()).toMatchObject({ enabled: false, status: 'unknown', statusReason: null })
+
+    const healthRes = await app.request(`/api/site/storages/${created.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'unhealthy', statusReason: 'network_error' }),
+    })
+    expect(healthRes.status).toBe(200)
+    const health = (await healthRes.json()) as {
+      enabled: boolean
+      status: string
+      statusReason: string | null
+      statusCheckedAt: string | null
+    }
+    expect(health.enabled).toBe(false)
+    expect(health.status).toBe('unhealthy')
+    expect(health.statusReason).toBe('network_error')
+    expect(health.statusCheckedAt).not.toBeNull()
+  })
+
+  it('PATCH /:id rejects empty payloads and health mixed with connection settings', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    for (const body of [
+      {},
+      { status: 'healthy', bucket: 'mixed' },
+      { status: 'unhealthy' },
+      { status: 'healthy', statusReason: 'cors' },
+      { statusReason: 'cors' },
+    ]) {
+      const res = await app.request('/api/site/storages/any', {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      expect(res.status).toBe(400)
+    }
   })
 
   it('PUT /:id/egress-billing updates storage credits billing [spec: storages/egress-billing]', async () => {
@@ -319,7 +400,7 @@ async function insertStorage(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
   opts: {
     id: string
-    status?: string
+    enabled?: boolean
     capacity?: number
     used?: number
     createdAt?: number
@@ -328,10 +409,10 @@ async function insertStorage(
   const now = opts.createdAt ?? Date.now()
   const capacity = opts.capacity ?? 0
   const used = opts.used ?? 0
-  const status = opts.status ?? 'active'
+  const enabled = (opts.enabled ?? true) ? 1 : 0
   await db.run(sql`
-    INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${opts.id}, 'bucket', 'https://s3.example.com', 'us-east-1', 'key', 'secret', '$UID/$RAW_NAME', '', ${capacity}, ${used}, ${status}, ${now}, ${now})
+    INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, enabled, status, created_at, updated_at)
+    VALUES (${opts.id}, 'bucket', 'https://s3.example.com', 'us-east-1', 'key', 'secret', '$UID/$RAW_NAME', '', ${capacity}, ${used}, ${enabled}, 'unknown', ${now}, ${now})
   `)
 }
 
@@ -381,8 +462,8 @@ describe('selectStorage service', () => {
 
   it('ignores disabled storages', async () => {
     const { db } = await createTestApp()
-    await insertStorage(db, { id: 's1', status: 'disabled', capacity: 0, createdAt: 1 })
-    await insertStorage(db, { id: 's2', status: 'active', capacity: 0, createdAt: 2 })
+    await insertStorage(db, { id: 's1', enabled: false, capacity: 0, createdAt: 1 })
+    await insertStorage(db, { id: 's2', enabled: true, capacity: 0, createdAt: 2 })
 
     const storage = await createStorageRepo(db).select()
     expect(storage.id).toBe('s2')

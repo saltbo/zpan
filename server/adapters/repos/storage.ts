@@ -5,6 +5,15 @@ import type { Database } from '../../platform/interface'
 import type { StorageRecord, StorageRepo } from '../../usecases/ports'
 
 type StorageRow = typeof storages.$inferSelect
+const CONNECTION_FIELDS = [
+  'provider',
+  'bucket',
+  'endpoint',
+  'region',
+  'accessKey',
+  'secretKey',
+  'forcePathStyle',
+] as const
 
 function toRecord(row: StorageRow): StorageRecord {
   return row as StorageRecord
@@ -45,7 +54,10 @@ export function createStorageRepo(db: Database): StorageRepo {
         egressCreditPerUnit: input.egressCreditPerUnit ?? 1,
         forcePathStyle: input.forcePathStyle ?? true,
         used: 0,
-        status: 'active',
+        enabled: true,
+        status: 'unknown',
+        statusReason: null,
+        statusCheckedAt: null,
         createdAt: now,
         updatedAt: now,
       }
@@ -58,25 +70,38 @@ export function createStorageRepo(db: Database): StorageRepo {
       return rows[0]?.count ?? 0
     },
 
-    async update(id, input) {
+    async replace(id, input) {
       const existing = await getRow(id)
       if (!existing) return null
 
       const now = new Date()
+      const connectionChanged = CONNECTION_FIELDS.some((field) => input[field] !== existing[field])
       const updated = {
-        provider: input.provider ?? existing.provider,
-        bucket: input.bucket ?? existing.bucket,
-        endpoint: input.endpoint ?? existing.endpoint,
-        region: input.region ?? existing.region,
-        accessKey: input.accessKey ?? existing.accessKey,
-        secretKey: input.secretKey ?? existing.secretKey,
-        customHost: input.customHost ?? existing.customHost,
-        capacity: input.capacity ?? existing.capacity,
-        egressCreditBillingEnabled: input.egressCreditBillingEnabled ?? existing.egressCreditBillingEnabled,
-        egressCreditUnitBytes: input.egressCreditUnitBytes ?? existing.egressCreditUnitBytes,
-        egressCreditPerUnit: input.egressCreditPerUnit ?? existing.egressCreditPerUnit,
-        forcePathStyle: input.forcePathStyle ?? existing.forcePathStyle,
-        status: input.status ?? existing.status,
+        ...input,
+        customHost: input.customHost ?? '',
+        ...(connectionChanged ? { status: 'unknown', statusReason: null, statusCheckedAt: null } : {}),
+        updatedAt: now,
+      }
+
+      await db.update(storages).set(updated).where(eq(storages.id, id))
+      return toRecord({ ...existing, ...updated })
+    },
+
+    async patch(id, input) {
+      const existing = await getRow(id)
+      if (!existing) return null
+
+      const now = new Date()
+      const connectionChanged = CONNECTION_FIELDS.some(
+        (field) => input[field] !== undefined && input[field] !== existing[field],
+      )
+      const updated = {
+        ...input,
+        ...(input.customHost === undefined ? {} : { customHost: input.customHost }),
+        ...(connectionChanged ? { status: 'unknown', statusReason: null, statusCheckedAt: null } : {}),
+        ...(input.status === undefined || connectionChanged
+          ? {}
+          : { statusReason: input.statusReason ?? null, statusCheckedAt: now }),
         updatedAt: now,
       }
 
@@ -105,7 +130,7 @@ export function createStorageRepo(db: Database): StorageRepo {
         .where(
           and(
             id ? eq(storages.id, id) : undefined,
-            eq(storages.status, 'active'),
+            eq(storages.enabled, true),
             or(eq(storages.capacity, 0), lt(storages.used, storages.capacity)),
           ),
         )

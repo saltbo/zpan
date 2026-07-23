@@ -3,7 +3,7 @@ import type { Storage } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createStorage, updateStorage } from '@/lib/api'
+import { createStorage, replaceStorage } from '@/lib/api'
 import { StorageFormDrawer } from './storage-form-drawer'
 
 class TestResizeObserver {
@@ -27,7 +27,7 @@ vi.mock('sonner', () => ({
 
 vi.mock('@/lib/api', () => ({
   createStorage: vi.fn(),
-  updateStorage: vi.fn(),
+  replaceStorage: vi.fn(),
 }))
 
 vi.mock('@/lib/eplist', () => ({
@@ -57,7 +57,10 @@ const storage: Storage = {
   egressCreditUnitBytes: 100 * 1024 * 1024,
   egressCreditPerUnit: 3,
   used: 0,
-  status: StorageStatus.ACTIVE,
+  enabled: true,
+  status: StorageStatus.HEALTHY,
+  statusReason: null,
+  statusCheckedAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
@@ -119,7 +122,7 @@ describe('StorageFormDrawer', () => {
 
   it('resets edit values, allows provider editing, submits update payload, and toggles secret visibility', async () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
-    vi.mocked(updateStorage).mockResolvedValue(storage)
+    vi.mocked(replaceStorage).mockResolvedValue(storage)
     renderStorageFormDrawer({ storage })
 
     const providerInput = screen.getByLabelText('admin.storages.fieldProvider') as HTMLInputElement
@@ -141,12 +144,16 @@ describe('StorageFormDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
-      expect(updateStorage).toHaveBeenCalledWith(
+      expect(replaceStorage).toHaveBeenCalledWith(
         'storage-1',
-        expect.not.objectContaining({ capacity: expect.any(Number) }),
+        expect.objectContaining({
+          provider: 'custom-s3',
+          capacity: storage.capacity,
+          egressCreditPerUnit: storage.egressCreditPerUnit,
+          enabled: true,
+        }),
       ),
     )
-    expect(updateStorage).not.toHaveBeenCalledWith('storage-1', expect.objectContaining({ egressCreditPerUnit: 3 }))
   })
 
   it('keeps the provider input empty when editing storage without a provider value', () => {

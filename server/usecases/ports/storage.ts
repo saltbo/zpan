@@ -1,9 +1,10 @@
-import type { CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
+import type { CreateStorageInput, PatchStorageInput, ReplaceStorageInput } from '@shared/schemas'
 import type { Storage } from '@shared/types'
 
 // Server-side record: the shared DTO, but timestamps stay as Date until the http
 // layer serializes them. Drizzle row types never cross this boundary.
-export type StorageRecord = Omit<Storage, 'createdAt' | 'updatedAt'> & {
+export type StorageRecord = Omit<Storage, 'createdAt' | 'updatedAt' | 'statusCheckedAt'> & {
+  statusCheckedAt: Date | null
   createdAt: Date
   updatedAt: Date
 }
@@ -15,7 +16,8 @@ export interface StorageRepo {
   get(id: string): Promise<StorageRecord | null>
   create(input: CreateStorageInput): Promise<StorageRecord>
   count(): Promise<number>
-  update(id: string, input: UpdateStorageInput): Promise<StorageRecord | null>
+  replace(id: string, input: ReplaceStorageInput): Promise<StorageRecord | null>
+  patch(id: string, input: PatchStorageInput): Promise<StorageRecord | null>
   delete(id: string): Promise<DeleteStorageResult>
   // Picks the oldest active storage with available capacity (uploads land here),
   // or validates and returns the requested storage against the same eligibility.

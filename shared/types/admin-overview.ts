@@ -2,6 +2,7 @@ export interface AdminOverviewStorage {
   id: string
   provider: string
   bucket: string
+  enabled: boolean
   status: string
   used: number
   capacity: number

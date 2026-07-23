@@ -25,10 +25,52 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.colStatus',
   'admin.storages.colHealth',
   'admin.storages.colActions',
-  'admin.storages.statusActive',
-  'admin.storages.statusInactive',
   'admin.storages.healthUntested',
   'admin.storages.healthTesting',
+  'admin.storages.healthSaveFailed',
+  'admin.storages.enableAction',
+  'admin.storages.disableAction',
+  'admin.storages.enableSuccess',
+  'admin.storages.disableSuccess',
+  'admin.storages.cardActions',
+  'admin.storages.manageAction',
+  'admin.storages.available',
+  'admin.storages.unbounded',
+  'admin.storages.usedLabel',
+  'admin.storages.capacityUnbounded',
+  'admin.storages.capacityAria',
+  'admin.storages.lastChecked',
+  'admin.storages.neverChecked',
+  'admin.storages.statusReason.cors',
+  'admin.storages.statusReason.authentication_failed',
+  'admin.storages.statusReason.permission_denied',
+  'admin.storages.statusReason.bucket_not_found',
+  'admin.storages.statusReason.network_error',
+  'admin.storages.statusReason.unknown',
+  'admin.storages.noMatches',
+  'admin.storages.searchPlaceholder',
+  'admin.storages.filter.all',
+  'admin.storages.filter.healthy',
+  'admin.storages.filter.attention',
+  'admin.storages.filter.failed',
+  'admin.storages.filter.disabled',
+  'admin.storages.sort.default',
+  'admin.storages.sort.usage',
+  'admin.storages.sort.used',
+  'admin.storages.sort.bucket',
+  'admin.storages.cardStatus.healthy',
+  'admin.storages.cardStatus.attention',
+  'admin.storages.cardStatus.failed',
+  'admin.storages.cardStatus.disabled',
+  'admin.storages.cardStatus.testing',
+  'admin.storages.overview.backends',
+  'admin.storages.overview.enabled',
+  'admin.storages.overview.capacity',
+  'admin.storages.overview.bounded',
+  'admin.storages.overview.used',
+  'admin.storages.overview.usage',
+  'admin.storages.overview.health',
+  'admin.storages.overview.healthy',
   'admin.storages.testAction',
   'admin.storages.testDialogTitle',
   'admin.storages.testStepCreate',
@@ -66,7 +108,7 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.capacityPlaceholder',
   'admin.storages.capacityHint',
   'admin.storages.egressBilling',
-  'admin.storages.configureEgressBilling',
+  'admin.storages.capacityBilling',
   'admin.storages.billingTitle',
   'admin.storages.billingDescription',
   'admin.storages.egressBillingHint',
@@ -93,6 +135,14 @@ const INTERPOLATED_KEYS: Record<string, string[]> = {
   'admin.storages.testCleanupFailed': ['{{detail}}'],
   'admin.storages.billingDescription': ['{{bucket}}'],
   'admin.storages.egressBillingRate': ['{{credits}}', '{{unit}}'],
+  'admin.storages.enableSuccess': ['{{bucket}}'],
+  'admin.storages.disableSuccess': ['{{bucket}}'],
+  'admin.storages.cardActions': ['{{bucket}}'],
+  'admin.storages.capacityAria': ['{{percent}}', '{{used}}'],
+  'admin.storages.lastChecked': ['{{value}}'],
+  'admin.storages.overview.enabled': ['{{count}}'],
+  'admin.storages.overview.bounded': ['{{count}}'],
+  'admin.storages.overview.usage': ['{{percent}}'],
 }
 
 describe('admin.storages locale keys — presence', () => {
@@ -170,12 +220,12 @@ describe('admin.storages locale keys — English values contract', () => {
     expect(enLocale['admin.storages.noStorages']).toBe('No storages configured')
   })
 
-  it('admin.storages.statusActive is "Active"', () => {
-    expect(enLocale['admin.storages.statusActive']).toBe('Active')
+  it('admin.storages.enableAction is "Enable and test"', () => {
+    expect(enLocale['admin.storages.enableAction']).toBe('Enable and test')
   })
 
-  it('admin.storages.statusInactive is "Inactive"', () => {
-    expect(enLocale['admin.storages.statusInactive']).toBe('Inactive')
+  it('admin.storages.cardStatus.healthy is "Running normally"', () => {
+    expect(enLocale['admin.storages.cardStatus.healthy']).toBe('Running normally')
   })
 
   it('admin.storages.colHealth is "Connection health"', () => {
@@ -254,16 +304,16 @@ describe('admin.storages locale keys — i18n runtime translation', () => {
     expect(i18n.t('admin.storages.add')).toBe('添加存储')
   })
 
-  it('translates admin.storages.statusActive to Chinese', async () => {
+  it('translates admin.storages.enableAction to Chinese', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.storages.statusActive')).toBe('正常')
+    expect(i18n.t('admin.storages.enableAction')).toBe('启用并检查')
   })
 
-  it('translates admin.storages.statusInactive to Chinese', async () => {
+  it('translates admin.storages.cardStatus.healthy to Chinese', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.storages.statusInactive')).toBe('未启用')
+    expect(i18n.t('admin.storages.cardStatus.healthy')).toBe('运行正常')
   })
 
   it('translates admin.storages.created to Chinese', async () => {

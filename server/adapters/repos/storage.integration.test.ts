@@ -70,7 +70,7 @@ describe('createStorage', () => {
     expect(result.capacity).toBe(1073741824)
   })
 
-  it('initialises used to 0 and status to active', async () => {
+  it('initialises enabled health state', async () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
       bucket: 'my-bucket',
@@ -81,7 +81,10 @@ describe('createStorage', () => {
       capacity: 0,
     })
     expect(result.used).toBe(0)
-    expect(result.status).toBe('active')
+    expect(result.enabled).toBe(true)
+    expect(result.status).toBe('unknown')
+    expect(result.statusReason).toBeNull()
+    expect(result.statusCheckedAt).toBeNull()
   })
 
   it('persists the created row to the database', async () => {
@@ -100,7 +103,7 @@ describe('createStorage', () => {
   })
 })
 
-describe('updateStorage', () => {
+describe('replaceStorage and patchStorage', () => {
   async function seed(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
     return createStorageRepo(db).create({
       bucket: 'original-bucket',
@@ -115,26 +118,15 @@ describe('updateStorage', () => {
 
   it('returns null when storage does not exist', async () => {
     const { db } = await createTestApp()
-    const result = await createStorageRepo(db).update('nonexistent', { bucket: 'new-bucket' })
+    const result = await createStorageRepo(db).patch('nonexistent', { bucket: 'new-bucket' })
     expect(result).toBeNull()
   })
 
-  it('keeps existing values for fields not included in update', async () => {
+  it('replaces all editable fields', async () => {
     const { db } = await createTestApp()
     const created = await seed(db)
-    const updated = await createStorageRepo(db).update(created.id, {})
-    expect(updated?.bucket).toBe('original-bucket')
-    expect(updated?.region).toBe('us-east-1')
-    expect(updated?.accessKey).toBe('AKID')
-    expect(updated?.secretKey).toBe('SECRET')
-    expect(updated?.customHost).toBe('https://cdn.original.com')
-    expect(updated?.capacity).toBe(500)
-  })
-
-  it('applies all provided optional fields', async () => {
-    const { db } = await createTestApp()
-    const created = await seed(db)
-    const updated = await createStorageRepo(db).update(created.id, {
+    const updated = await createStorageRepo(db).replace(created.id, {
+      provider: 'r2',
       bucket: 'new-bucket',
       endpoint: 'https://r2.example.com',
       region: 'auto',
@@ -142,7 +134,11 @@ describe('updateStorage', () => {
       secretKey: 'NEW_SECRET',
       customHost: 'https://cdn.new.com',
       capacity: 1000,
-      status: 'disabled',
+      forcePathStyle: false,
+      egressCreditBillingEnabled: false,
+      egressCreditUnitBytes: 1024,
+      egressCreditPerUnit: 2,
+      enabled: false,
     })
     expect(updated?.bucket).toBe('new-bucket')
     expect(updated?.endpoint).toBe('https://r2.example.com')
@@ -151,15 +147,30 @@ describe('updateStorage', () => {
     expect(updated?.secretKey).toBe('NEW_SECRET')
     expect(updated?.customHost).toBe('https://cdn.new.com')
     expect(updated?.capacity).toBe(1000)
-    expect(updated?.status).toBe('disabled')
+    expect(updated?.enabled).toBe(false)
+    expect(updated?.status).toBe('unknown')
+    expect(updated?.statusReason).toBeNull()
   })
 
-  it('updates only status leaving all other fields intact', async () => {
+  it('patches enabled without changing health', async () => {
     const { db } = await createTestApp()
     const created = await seed(db)
-    const updated = await createStorageRepo(db).update(created.id, { status: 'disabled' })
-    expect(updated?.status).toBe('disabled')
+    const healthy = await createStorageRepo(db).patch(created.id, { status: 'healthy' })
+    const updated = await createStorageRepo(db).patch(created.id, { enabled: false })
+    expect(healthy?.statusCheckedAt).not.toBeNull()
+    expect(updated?.enabled).toBe(false)
+    expect(updated?.status).toBe('healthy')
     expect(updated?.bucket).toBe('original-bucket')
+  })
+
+  it('resets health when connection settings change', async () => {
+    const { db } = await createTestApp()
+    const created = await seed(db)
+    await createStorageRepo(db).patch(created.id, { status: 'healthy' })
+    const updated = await createStorageRepo(db).patch(created.id, { endpoint: 'https://new.example.com' })
+    expect(updated?.status).toBe('unknown')
+    expect(updated?.statusReason).toBeNull()
+    expect(updated?.statusCheckedAt).toBeNull()
   })
 
   it('updates the updatedAt timestamp', async () => {
@@ -167,7 +178,7 @@ describe('updateStorage', () => {
     const created = await seed(db)
     const before = created.updatedAt.getTime()
     await new Promise((r) => setTimeout(r, 10))
-    const updated = await createStorageRepo(db).update(created.id, { bucket: 'new-bucket' })
+    const updated = await createStorageRepo(db).patch(created.id, { bucket: 'new-bucket' })
     expect(updated?.updatedAt.getTime()).toBeGreaterThanOrEqual(before)
   })
 })
@@ -228,7 +239,7 @@ describe('getStorage', () => {
 describe('selectStorage', () => {
   async function seedActive(
     db: Awaited<ReturnType<typeof createTestApp>>['db'],
-    opts: { capacity?: number; used?: number; status?: string; bucket?: string } = {},
+    opts: { capacity?: number; used?: number; enabled?: boolean; bucket?: string } = {},
   ) {
     const created = await createStorageRepo(db).create({
       bucket: opts.bucket ?? 'b',
@@ -238,9 +249,9 @@ describe('selectStorage', () => {
       secretKey: 'S',
       capacity: opts.capacity ?? 0,
     })
-    if (opts.used !== undefined || opts.status !== undefined) {
+    if (opts.used !== undefined || opts.enabled !== undefined) {
       await db.run(
-        sql`UPDATE storages SET used = ${opts.used ?? created.used}, status = ${opts.status ?? created.status} WHERE id = ${created.id}`,
+        sql`UPDATE storages SET used = ${opts.used ?? created.used}, enabled = ${(opts.enabled ?? created.enabled) ? 1 : 0} WHERE id = ${created.id}`,
       )
     }
     return createStorageRepo(db).get(created.id)
@@ -267,7 +278,7 @@ describe('selectStorage', () => {
 
   it('rejects a requested inactive storage', async () => {
     const { db } = await createTestApp()
-    const created = await seedActive(db, { status: 'disabled' })
+    const created = await seedActive(db, { enabled: false })
     await expect(createStorageRepo(db).select(created?.id)).rejects.toThrow('No available storage')
   })
 
