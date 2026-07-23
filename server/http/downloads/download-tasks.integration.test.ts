@@ -176,6 +176,76 @@ describe('Download tasks API integration', () => {
     expect(created.token).toBeTruthy()
   })
 
+  it('uses the API key owner UID in the object storage key [spec: download-tasks/api-key-owner-storage-key]', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const admin = await adminHeaders(app)
+    const email = 'api-key-storage-owner@example.com'
+    const userHeaders = await authedHeaders(app, email)
+    const identities = await db.all<{ userId: string; orgId: string }>(sql`
+      SELECT u.id AS userId, o.id AS orgId
+      FROM user u
+      INNER JOIN member m ON m.user_id = u.id
+      INNER JOIN organization o ON o.id = m.organization_id
+      WHERE u.email = ${email} AND o.metadata LIKE '%"type":"personal"%'
+      LIMIT 1
+    `)
+    const identity = identities[0]
+    expect(identity).toBeTruthy()
+
+    const keyRes = await app.request('/api/auth/api-key/create', {
+      method: 'POST',
+      headers: { ...userHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        configId: 'remote-download',
+        name: 'storage-key-owner',
+        organizationId: identity.orgId,
+      }),
+    })
+    expect(keyRes.status).toBe(200)
+    const apiKey = (await keyRes.json()) as { id: string; key: string }
+
+    const createTaskRes = await app.request('/api/downloads/tasks', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey.key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/file.txt' },
+        targetFolder: '',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const task = (await createTaskRes.json()) as DownloadTask
+    expect(task.createdBy).toBe(identity.userId)
+    await db.run(sql`
+      UPDATE download_tasks
+      SET created_by_user_id = ${`api-key:${apiKey.id}`}
+      WHERE id = ${task.id}
+    `)
+
+    const downloader = await registerDownloaderThroughDeviceLogin(app, 'api-key-storage-downloader', admin)
+    const assigned = await claimTaskForDownloader(app, downloader.token, task.id)
+    const uploadToken = assigned.status.assignment?.uploadToken
+    expect(uploadToken).toBeTruthy()
+
+    const createObjectRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'file.txt',
+        type: 'text/plain',
+        size: 1,
+        parent: '',
+      }),
+    })
+    expect(createObjectRes.status).toBe(201)
+    const object = (await createObjectRes.json()) as { id: string }
+    const rows = await db.all<{ objectKey: string }>(
+      sql`SELECT object AS objectKey FROM matters WHERE id = ${object.id}`,
+    )
+    expect(rows[0]?.objectKey).toMatch(new RegExp(`^${identity.orgId}/${identity.userId}/\\d{8}/`))
+    expect(rows[0]?.objectKey).not.toContain('api-key:')
+  })
+
   it('supports comma-separated task statuses on the status query [spec: download-tasks/list-status-multi]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)

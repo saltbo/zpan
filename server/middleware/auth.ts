@@ -61,6 +61,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
         configId: apiKey.configId,
         orgId,
         userId,
+        ownerUserId: apiKey.ownerUserId,
         permissions: apiKey.permissions,
         authMethod: 'api-key',
       })

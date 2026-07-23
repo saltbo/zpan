@@ -11,11 +11,12 @@ import { eq } from 'drizzle-orm'
 import { apikey } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
 import { type ApiKeyAuth, type ApiKeyGateway, ApiKeyRateLimitError, type VerifiedApiKey } from '../../usecases/ports'
+import { resolveOrganizationOwnerUserId } from './organization-owner'
 
 type VerifyApiKeyResult = {
   valid: boolean
   error: { message: string; code: string; details?: { tryAgainIn?: number } } | null
-  key: VerifiedApiKey | null
+  key: Omit<VerifiedApiKey, 'ownerUserId'> | null
 }
 
 export function createApiKeyGateway(): ApiKeyGateway {
@@ -26,7 +27,7 @@ export function createApiKeyGateway(): ApiKeyGateway {
       if (configId && resolvedConfigId !== configId) return null
       const result = await verify(auth, { configId: resolvedConfigId, key })
       throwIfRateLimited(result)
-      if (result?.valid && result.key) return result.key
+      if (result?.valid && result.key) return attachOwnerUserId(db, result.key)
       return null
     },
 
@@ -40,7 +41,7 @@ export function createApiKeyGateway(): ApiKeyGateway {
         permissions: { [resource]: [action] },
       })
       throwIfRateLimited(result)
-      if (result?.valid && result.key) return result.key
+      if (result?.valid && result.key) return attachOwnerUserId(db, result.key)
       return null
     },
 
@@ -52,6 +53,18 @@ export function createApiKeyGateway(): ApiKeyGateway {
       return configId !== ApiKeyTemplate.WEBDAV
     },
   }
+}
+
+async function attachOwnerUserId(
+  db: Database,
+  key: Omit<VerifiedApiKey, 'ownerUserId'>,
+): Promise<VerifiedApiKey> {
+  if (key.configId === ApiKeyTemplate.WEBDAV) {
+    return { ...key, ownerUserId: key.referenceId }
+  }
+
+  const ownerUserId = await resolveOrganizationOwnerUserId(db, key.referenceId)
+  return { ...key, ownerUserId }
 }
 
 async function verify(auth: ApiKeyAuth, body: Record<string, unknown>): Promise<VerifyApiKeyResult | null> {

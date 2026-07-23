@@ -93,6 +93,18 @@ describe('API key rate limits', () => {
     })
   })
 
+  it('resolves the organization owner UID for an organization API key', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    const { orgId, userId } = await getUserAndOrg(db)
+    const remoteDownload = await createOrgApiKey(auth, 'remote-download', orgId, userId)
+
+    await expect(apiKeys.verifyApiKey(auth, db, remoteDownload.key, 'remote-download')).resolves.toMatchObject({
+      id: remoteDownload.id,
+      ownerUserId: userId,
+    })
+  })
+
   it('allows exactly maxRequests verifications before rejecting the next one', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)

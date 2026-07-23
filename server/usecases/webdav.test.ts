@@ -220,6 +220,7 @@ describe('webdav usecase', () => {
         id: 'k1',
         configId: 'webdav',
         referenceId: 'u9',
+        ownerUserId: 'u9',
         permissions: null,
       }))
       const deps = makeDeps({ apiKeys: { verifyApiKeyForPermission } })

@@ -5,6 +5,7 @@ import { constantTimeEqual } from '../../lib/constant-time'
 import type { Platform } from '../../platform/interface'
 import type { DownloadTokenClaims, DownloadTokenGateway, TaskUploadTokenClaims } from '../../usecases/ports'
 import { DOWNLOAD_TOKEN_VERSION } from '../../usecases/ports'
+import { resolveOrganizationOwnerUserId } from './organization-owner'
 
 const downloaderTokenSchema = z.object({
   v: z.literal(DOWNLOAD_TOKEN_VERSION),
@@ -109,6 +110,10 @@ export function createDownloadTokenGateway(): DownloadTokenGateway {
         return null
       }
       if (!['assigned', 'downloading', 'uploading'].includes(task.status)) return null
+      if (claims.createdByUserId.startsWith('api-key:')) {
+        const ownerUserId = await resolveOrganizationOwnerUserId(db, claims.orgId)
+        return { ...claims, createdByUserId: ownerUserId }
+      }
       return claims
     },
   }

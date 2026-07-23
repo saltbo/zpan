@@ -37,6 +37,7 @@ export type AuthPrincipal =
       configId: string
       orgId: string | null
       userId: string | null
+      ownerUserId: string
       permissions: Record<string, string[]> | null
       authMethod: 'api-key'
     }

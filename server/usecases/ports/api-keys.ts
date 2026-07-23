@@ -5,6 +5,7 @@ export interface VerifiedApiKey {
   id: string
   configId: string
   referenceId: string
+  ownerUserId: string
   permissions: ApiKeyPermissions | null
 }
 
