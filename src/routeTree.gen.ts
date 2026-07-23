@@ -54,6 +54,7 @@ import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_authenticated/teams/$teamId/settings'
 import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
 import { Route as AuthenticatedTeamsTeamIdIhostRouteImport } from './routes/_authenticated/teams/$teamId/ihost'
+import { Route as AuthenticatedTeamsTeamIdBillingRouteImport } from './routes/_authenticated/teams/$teamId/billing'
 import { Route as AuthenticatedTeamsTeamIdActivityRouteImport } from './routes/_authenticated/teams/$teamId/activity'
 import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users/$userId'
 import { Route as AuthenticatedAdminTeamsOrgIdRouteImport } from './routes/_authenticated/admin/teams/$orgId'
@@ -309,6 +310,12 @@ const AuthenticatedTeamsTeamIdIhostRoute =
     path: '/ihost',
     getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
   } as any)
+const AuthenticatedTeamsTeamIdBillingRoute =
+  AuthenticatedTeamsTeamIdBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
+  } as any)
 const AuthenticatedTeamsTeamIdActivityRoute =
   AuthenticatedTeamsTeamIdActivityRouteImport.update({
     id: '/activity',
@@ -382,6 +389,7 @@ export interface FileRoutesByFullPath {
   '/admin/teams/$orgId': typeof AuthenticatedAdminTeamsOrgIdRoute
   '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
+  '/teams/$teamId/billing': typeof AuthenticatedTeamsTeamIdBillingRoute
   '/teams/$teamId/ihost': typeof AuthenticatedTeamsTeamIdIhostRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
@@ -430,6 +438,7 @@ export interface FileRoutesByTo {
   '/admin/teams/$orgId': typeof AuthenticatedAdminTeamsOrgIdRoute
   '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
+  '/teams/$teamId/billing': typeof AuthenticatedTeamsTeamIdBillingRoute
   '/teams/$teamId/ihost': typeof AuthenticatedTeamsTeamIdIhostRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
@@ -483,6 +492,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/teams/$orgId': typeof AuthenticatedAdminTeamsOrgIdRoute
   '/_authenticated/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/_authenticated/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
+  '/_authenticated/teams/$teamId/billing': typeof AuthenticatedTeamsTeamIdBillingRoute
   '/_authenticated/teams/$teamId/ihost': typeof AuthenticatedTeamsTeamIdIhostRoute
   '/_authenticated/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/_authenticated/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
@@ -536,6 +546,7 @@ export interface FileRouteTypes {
     | '/admin/teams/$orgId'
     | '/admin/users/$userId'
     | '/teams/$teamId/activity'
+    | '/teams/$teamId/billing'
     | '/teams/$teamId/ihost'
     | '/teams/$teamId/members'
     | '/teams/$teamId/settings'
@@ -584,6 +595,7 @@ export interface FileRouteTypes {
     | '/admin/teams/$orgId'
     | '/admin/users/$userId'
     | '/teams/$teamId/activity'
+    | '/teams/$teamId/billing'
     | '/teams/$teamId/ihost'
     | '/teams/$teamId/members'
     | '/teams/$teamId/settings'
@@ -636,6 +648,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/teams/$orgId'
     | '/_authenticated/admin/users/$userId'
     | '/_authenticated/teams/$teamId/activity'
+    | '/_authenticated/teams/$teamId/billing'
     | '/_authenticated/teams/$teamId/ihost'
     | '/_authenticated/teams/$teamId/members'
     | '/_authenticated/teams/$teamId/settings'
@@ -975,6 +988,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeamsTeamIdIhostRouteImport
       parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
     }
+    '/_authenticated/teams/$teamId/billing': {
+      id: '/_authenticated/teams/$teamId/billing'
+      path: '/billing'
+      fullPath: '/teams/$teamId/billing'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdBillingRouteImport
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
+    }
     '/_authenticated/teams/$teamId/activity': {
       id: '/_authenticated/teams/$teamId/activity'
       path: '/activity'
@@ -1081,6 +1101,7 @@ const AuthenticatedSettingsRouteRouteWithChildren =
 
 interface AuthenticatedTeamsTeamIdRouteRouteChildren {
   AuthenticatedTeamsTeamIdActivityRoute: typeof AuthenticatedTeamsTeamIdActivityRoute
+  AuthenticatedTeamsTeamIdBillingRoute: typeof AuthenticatedTeamsTeamIdBillingRoute
   AuthenticatedTeamsTeamIdIhostRoute: typeof AuthenticatedTeamsTeamIdIhostRoute
   AuthenticatedTeamsTeamIdMembersRoute: typeof AuthenticatedTeamsTeamIdMembersRoute
   AuthenticatedTeamsTeamIdSettingsRoute: typeof AuthenticatedTeamsTeamIdSettingsRoute
@@ -1091,6 +1112,7 @@ const AuthenticatedTeamsTeamIdRouteRouteChildren: AuthenticatedTeamsTeamIdRouteR
   {
     AuthenticatedTeamsTeamIdActivityRoute:
       AuthenticatedTeamsTeamIdActivityRoute,
+    AuthenticatedTeamsTeamIdBillingRoute: AuthenticatedTeamsTeamIdBillingRoute,
     AuthenticatedTeamsTeamIdIhostRoute: AuthenticatedTeamsTeamIdIhostRoute,
     AuthenticatedTeamsTeamIdMembersRoute: AuthenticatedTeamsTeamIdMembersRoute,
     AuthenticatedTeamsTeamIdSettingsRoute:

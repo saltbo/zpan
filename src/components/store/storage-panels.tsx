@@ -1,5 +1,5 @@
-export { CreditBalanceButton } from './credits-panel'
-export { StorageOrderHistoryContent, StorageOrderHistoryDialog } from './order-history'
+export { CreditBillingPanel } from './credits-panel'
+export { StorageOrderHistoryDialog } from './order-history'
 export { StorageActions } from './storage-dialogs'
 export { StoragePackages } from './storage-packages'
 export { StorageUnavailableState } from './storage-unavailable'

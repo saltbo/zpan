@@ -1,6 +1,8 @@
 import type { CloudCreditLedgerEntry } from '@shared/schemas'
 import type { CloudProduct } from '@shared/types'
-import { BadgeCent, PlusCircle } from 'lucide-react'
+import { BadgeCent, CircleDollarSign } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -8,6 +10,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -16,7 +19,7 @@ import { cloudProductIncludedCredits } from '@/lib/cloud-product'
 import { formatCurrency } from '@/lib/format'
 import { StorageActions } from './storage-dialogs'
 
-export function CreditBalanceButton({
+export function CreditBillingPanel({
   credits,
   products,
   entries,
@@ -25,6 +28,7 @@ export function CreditBalanceButton({
   onCheckout,
   isRedeeming,
   checkoutDisabled,
+  accountAction,
 }: {
   credits?: { balance: number }
   products: CloudProduct[]
@@ -34,37 +38,37 @@ export function CreditBalanceButton({
   onCheckout: (packageId: string, priceId: string) => void
   isRedeeming: boolean
   checkoutDisabled: boolean
+  accountAction?: ReactNode
 }) {
   const { t } = useTranslation()
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
-          aria-label={t('storage.viewCreditActivity')}
-        >
-          <BadgeCent className="h-4 w-4" />
-          {t('storage.creditsButton')}
-        </button>
-      </DialogTrigger>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{t('storage.creditsButton')}</DialogTitle>
-          <DialogDescription>{t('storage.creditActivityDescription')}</DialogDescription>
-        </DialogHeader>
-        <CreditBalanceSummary credits={credits} onRedeem={onRedeem} isRedeeming={isRedeeming} />
-        <CreditProducts products={products} disabled={checkoutDisabled} onCheckout={onCheckout} />
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium">{t('storage.creditActivityTitle')}</h3>
-          <CreditActivity entries={entries} loading={loading} />
+    <section className="space-y-6">
+      <div className="flex min-h-32 flex-wrap items-center justify-between gap-6 rounded-lg border bg-card px-6 py-5">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <BadgeCent className="size-4" />
+            <span>{t('storage.creditBalance')}</span>
+          </div>
+          <div className="text-4xl font-semibold tracking-tight tabular-nums">
+            {credits ? formatCredits(credits.balance) : t('common.loading')}
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+        <div className="flex flex-wrap items-center gap-2">
+          <CreditTopUpDialog products={products} disabled={checkoutDisabled} onCheckout={onCheckout} />
+          <StorageActions onRedeem={onRedeem} isRedeeming={isRedeeming} />
+          {accountAction}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-lg font-semibold">{t('storage.creditActivityTitle')}</h3>
+        <CreditActivity entries={entries} loading={loading} />
+      </div>
+    </section>
   )
 }
 
-function CreditProducts({
+function CreditTopUpDialog({
   products,
   disabled,
   onCheckout,
@@ -74,63 +78,82 @@ function CreditProducts({
   onCheckout: (packageId: string, priceId: string) => void
 }) {
   const { t, i18n } = useTranslation()
-  const language = i18n.resolvedLanguage ?? 'en'
+  const [open, setOpen] = useState(false)
   const purchasableProducts = products
     .map((product) => ({ product, price: oneTimeUsdPrice(product) }))
     .filter((item): item is { product: CloudProduct; price: CloudProduct['prices'][number] & { id: string } } =>
       Boolean(item.price),
     )
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selected = purchasableProducts.find(({ product }) => product.id === selectedId) ?? purchasableProducts[0]
 
-  if (purchasableProducts.length === 0) return null
+  function continueCheckout() {
+    if (!selected) return
+    setOpen(false)
+    onCheckout(selected.product.id, selected.price.id)
+  }
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-medium">{t('storage.creditTopUpTitle')}</h3>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {purchasableProducts.map(({ product, price }) => (
-          <div key={product.id} className="rounded-lg border p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{product.name}</div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {t('storage.creditTopUpAmount', { amount: formatCredits(cloudProductIncludedCredits(product)) })}
-                </div>
-              </div>
-              <div className="shrink-0 text-sm font-semibold tabular-nums">
-                {formatCurrency(price.amount, price.currency, language)}
-              </div>
-            </div>
-            <Button className="mt-3 h-8 w-full" disabled={disabled} onClick={() => onCheckout(product.id, price.id)}>
-              <PlusCircle className="h-3.5 w-3.5" />
-              {t('storage.buyCredits')}
-            </Button>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button disabled={disabled}>
+          <CircleDollarSign className="size-4" />
+          {t('storage.creditTopUpTitle')}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t('storage.creditTopUpTitle')}</DialogTitle>
+          <DialogDescription>{t('storage.creditTopUpDialogDescription')}</DialogDescription>
+        </DialogHeader>
+        {purchasableProducts.length > 0 ? (
+          <div className="space-y-2 py-2">
+            {purchasableProducts.map(({ product, price }) => {
+              const selectedProduct = selected?.product.id === product.id
+              return (
+                <label
+                  key={product.id}
+                  className={`flex cursor-pointer items-center justify-between gap-4 rounded-md border px-4 py-3 transition-colors ${
+                    selectedProduct ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-muted/50'
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <input
+                      type="radio"
+                      name="credit-top-up"
+                      value={product.id}
+                      checked={selectedProduct}
+                      className="size-4 shrink-0 accent-primary"
+                      onChange={() => setSelectedId(product.id)}
+                    />
+                    <span className="font-medium">
+                      {t('storage.creditTopUpAmount', {
+                        amount: formatCredits(cloudProductIncludedCredits(product)),
+                      })}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-semibold tabular-nums">
+                    {formatCurrency(price.amount, price.currency, i18n.resolvedLanguage ?? 'en')}
+                  </span>
+                </label>
+              )
+            })}
           </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function CreditBalanceSummary({
-  credits,
-  onRedeem,
-  isRedeeming,
-}: {
-  credits?: { balance: number }
-  onRedeem: (code: string) => void
-  isRedeeming: boolean
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-muted/20 p-4">
-      <div className="min-w-0">
-        <div className="text-sm text-muted-foreground">{t('storage.creditBalance')}</div>
-        <div className="mt-2 text-3xl font-semibold tabular-nums">
-          {credits ? formatCredits(credits.balance) : t('common.loading')}
-        </div>
-      </div>
-      <StorageActions onRedeem={onRedeem} isRedeeming={isRedeeming} />
-    </div>
+        ) : (
+          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            {t('storage.noCreditTopUps')}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button disabled={!selected} onClick={continueCheckout}>
+            {t('storage.proceedToCheckout')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -141,7 +164,7 @@ function CreditActivity({ entries, loading }: { entries: CloudCreditLedgerEntry[
   if (entries.length === 0) return <CreditEmptyState label={t('storage.creditActivityEmpty')} />
 
   return (
-    <div className="max-h-[60vh] overflow-auto rounded-lg border">
+    <div className="overflow-x-auto rounded-lg border">
       <table className="w-full caption-bottom text-left text-sm">
         <thead className="sticky top-0 border-b bg-background">
           <tr>

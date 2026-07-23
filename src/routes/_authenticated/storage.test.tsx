@@ -1,11 +1,10 @@
-import type { CloudOrder, CloudProduct } from '@shared/types'
+import type { CloudProduct } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
-  cancelCloudOrder,
   getCloudCredits,
   getUserQuota,
   listCloudCreditLedgerEntries,
@@ -13,7 +12,6 @@ import {
   listCloudOrders,
   listCloudProducts,
   listCloudStoreTargets,
-  redeemCloudGiftCard,
 } from '@/lib/api'
 import { openNewTab } from '@/lib/browser-navigation'
 import { StoragePage } from './storage'
@@ -115,44 +113,6 @@ vi.mock('@/lib/api', () => {
   }
 })
 
-function order(overrides: Partial<CloudOrder> = {}): CloudOrder {
-  return {
-    id: 'order-1',
-    storeId: 'store-1',
-    buyerAccountId: 'buyer-1',
-    target: { orgId: 'org-1' },
-    status: 'paid',
-    subtotalAmount: 999,
-    discountAmount: 0,
-    totalAmount: 999,
-    currency: 'usd',
-    items: [
-      {
-        id: 'item-1',
-        orderId: 'order-1',
-        productId: 'pkg-1',
-        productType: 'store_item',
-        name: '100 GB',
-        description: null,
-        quantity: 1,
-        unitAmount: 999,
-        totalAmount: 999,
-        fulfillmentPayload: {
-          deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 0, includedCredits: 0 },
-        },
-      },
-    ],
-    payments: [],
-    paymentStatus: 'paid',
-    fulfillmentStatus: 'fulfilled',
-    createdAt: '2026-05-05T00:00:00.000Z',
-    paidAt: '2026-05-05T00:00:00.000Z',
-    fulfilledAt: '2026-05-05T00:00:00.000Z',
-    canceledAt: null,
-    ...overrides,
-  }
-}
-
 function quotaPackage(): CloudProduct {
   return {
     id: 'pkg-1',
@@ -233,31 +193,6 @@ function higherSubscriptionPackage(): CloudProduct {
   }
 }
 
-function creditPackage(): CloudProduct {
-  return {
-    id: 'pkg-credits',
-    storeId: 'store-1',
-    type: 'store_item',
-    name: '5,000 Credits',
-    description: 'Credit top-up',
-    metadata: {
-      deliverable: { type: 'zpan.credits', includedCredits: 5000 },
-    },
-    prices: [
-      {
-        id: 'price-credits-usd',
-        currency: 'usd',
-        amount: 2999,
-        metadata: { creditGrantType: 'top_up', creditAmount: '5000' },
-      },
-    ],
-    active: true,
-    sortOrder: 1,
-    createdAt: '2026-05-05T00:00:00.000Z',
-    updatedAt: '2026-05-05T00:00:00.000Z',
-  }
-}
-
 function renderStoragePage(queryClient: QueryClient) {
   return render(
     <QueryClientProvider client={queryClient}>
@@ -305,25 +240,6 @@ describe('StoragePage', () => {
     vi.mocked(listCloudCreditLedgerEntries).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
   })
 
-  it('refreshes quota when a checkout order is delivered', async () => {
-    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listCloudOrders).mockResolvedValue({
-      items: [order()],
-      total: 1,
-    })
-
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
-    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
-    renderStoragePage(queryClient)
-
-    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['user', 'quota'] }))
-  })
-
   it('shows effective quota and plan credits status', async () => {
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
@@ -369,7 +285,7 @@ describe('StoragePage', () => {
     expect(view.getByText('storage.trafficUsage')).toBeTruthy()
     expect(view.queryByText('storage.storageQuotaEntitlement')).toBeNull()
     expect(view.getAllByRole('progressbar')).toHaveLength(2)
-    expect(view.getByLabelText('storage.viewCreditActivity')).toBeTruthy()
+    expect(view.queryByLabelText('storage.viewCreditActivity')).toBeNull()
     await waitFor(() => expect(view.getAllByText('1.5 KB').length).toBeGreaterThan(0))
     expect(view.getByText('storage.trafficPeriodDetail:2026-05')).toBeTruthy()
   })
@@ -720,13 +636,9 @@ describe('StoragePage', () => {
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=portal')
   })
 
-  it('uses the active workspace for orders and checkout', async () => {
+  it('uses the active workspace for checkout', async () => {
     activeOrganization.value = { id: 'org-2' }
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
-    vi.mocked(listCloudOrders).mockResolvedValue({
-      items: [order({ id: 'order-2', target: { orgId: 'org-2' } })],
-      total: 1,
-    })
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -736,12 +648,6 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.historyTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.historyTitle' }))
-    await waitFor(() => expect(view.getByText('org-2')).toBeTruthy())
-    expect(vi.mocked(listCloudOrders)).toHaveBeenCalledWith()
-    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
-    await waitFor(() => expect(view.queryByText('org-2')).toBeNull())
     fireEvent.click(await view.findByRole('button', { name: /storage.checkoutMonthly/ }))
     fireEvent.click(await view.findByRole('button', { name: 'storage.proceedToCheckout' }))
 
@@ -836,187 +742,5 @@ describe('StoragePage', () => {
     expect(view.getAllByText('storage.storageQuota').length).toBeGreaterThan(0)
     expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy()
     expect(view.queryByRole('button', { name: 'storage.redeemTitle' })).toBeNull()
-  })
-
-  it('shows credit balance inside the credits dialog', async () => {
-    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(getCloudCredits).mockResolvedValue({ balance: 1250 })
-
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
-    const view = renderStoragePage(queryClient)
-
-    await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
-    const creditsButton = view.getByLabelText('storage.viewCreditActivity')
-    expect(creditsButton).toBeTruthy()
-    expect(creditsButton.textContent).toContain('storage.creditsButton')
-    expect(creditsButton.textContent).not.toContain('1,250')
-    expect(view.getByText('storage.trafficUsage')).toBeTruthy()
-    expect(view.queryByText('storage.storageQuotaEntitlement')).toBeNull()
-    expect(view.queryByText('storage.creditBalance')).toBeNull()
-    expect(view.queryByText('1,250')).toBeNull()
-    fireEvent.click(creditsButton)
-    await waitFor(() => expect(view.getAllByText('storage.creditBalance').length).toBeGreaterThan(0))
-    expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy()
-    await waitFor(() => expect(view.getAllByText('1,250').length).toBeGreaterThan(0))
-  })
-
-  it('starts checkout from a credits top-up product', async () => {
-    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listCloudCreditProducts).mockResolvedValue({ items: [creditPackage()], total: 1 })
-    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
-    const view = renderStoragePage(queryClient)
-
-    await waitFor(() => expect(view.getByLabelText('storage.viewCreditActivity')).toBeTruthy())
-    fireEvent.click(view.getByLabelText('storage.viewCreditActivity'))
-    expect(await view.findByText('storage.creditTopUpTitle')).toBeTruthy()
-    fireEvent.click(view.getByRole('button', { name: 'storage.buyCredits' }))
-    fireEvent.click(await view.findByRole('button', { name: 'storage.proceedToCheckout' }))
-
-    expect(openNewTab).toHaveBeenCalledWith(
-      '/store/checkout?action=checkout&packageId=pkg-credits&priceId=price-credits-usd',
-    )
-  })
-
-  it('opens credit activity dialog', async () => {
-    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(getCloudCredits).mockResolvedValue({ balance: 1250 })
-    vi.mocked(listCloudCreditLedgerEntries).mockResolvedValue({
-      items: [
-        {
-          id: 'ledger-1',
-          creditAccountId: 'credit-account-1',
-          creditBucketId: 'credit-bucket-1',
-          storeId: 'store-1',
-          customerId: 'org-1',
-          amount: 500,
-          direction: 'credit',
-          status: 'posted',
-          sourceType: 'gift_card_redemption',
-          sourceId: 'gift-1',
-          orderId: null,
-          paymentId: null,
-          createdAt: '2026-05-08T00:00:00.000Z',
-        },
-      ],
-      total: 1,
-      limit: 50,
-      offset: 0,
-    })
-
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
-    const view = renderStoragePage(queryClient)
-
-    await waitFor(() => expect(view.getByLabelText('storage.viewCreditActivity')).toBeTruthy())
-    fireEvent.click(view.getByLabelText('storage.viewCreditActivity'))
-
-    expect(await view.findByText('storage.creditActivityTitle')).toBeTruthy()
-    expect(view.getAllByText('1,250').length).toBeGreaterThan(0)
-    expect(view.getByText('storage.creditSourceGiftCard')).toBeTruthy()
-  })
-
-  it('redeems a gift card successfully', async () => {
-    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(redeemCloudGiftCard).mockResolvedValue({
-      redeemedCredits: 5000,
-      entries: [],
-      failures: [],
-    })
-
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
-    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
-    const view = renderStoragePage(queryClient)
-
-    await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
-    fireEvent.click(view.getByLabelText('storage.viewCreditActivity'))
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.redeemTitle' }))
-    fireEvent.change(view.getByLabelText('storage.giftCardCode'), { target: { value: 'ZS-1234-5678' } })
-    fireEvent.click(view.getByRole('button', { name: 'storage.redeemAction' }))
-
-    await waitFor(() => expect(redeemCloudGiftCard).toHaveBeenCalledWith('ZS-1234-5678'))
-    expect(toast.success).toHaveBeenCalledWith('storage.redeemSuccess:5000')
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'credits'] })
-  })
-
-  it('continues payment for an unpaid order', async () => {
-    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listCloudOrders).mockResolvedValue({
-      items: [order({ id: 'order-unpaid', paymentStatus: 'unpaid', status: 'pending' })],
-      total: 1,
-    })
-
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
-    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
-    const view = renderStoragePage(queryClient)
-
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.historyTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.historyTitle' }))
-    await waitFor(() => expect(view.getByLabelText('storage.continuePayment')).toBeTruthy())
-    fireEvent.click(view.getByLabelText('storage.continuePayment'))
-
-    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=payment&orderId=order-unpaid')
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
-  })
-
-  it('cancels an unpaid order', async () => {
-    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listCloudOrders).mockResolvedValue({
-      items: [order({ id: 'order-unpaid', paymentStatus: 'unpaid', status: 'pending' })],
-      total: 1,
-    })
-    vi.mocked(cancelCloudOrder).mockResolvedValue(
-      order({ id: 'order-unpaid', status: 'canceled', paymentStatus: 'canceled' }),
-    )
-
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
-    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
-    const view = renderStoragePage(queryClient)
-
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.historyTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.historyTitle' }))
-    await waitFor(() => expect(view.getByLabelText('storage.cancelOrder')).toBeTruthy())
-    fireEvent.click(view.getByLabelText('storage.cancelOrder'))
-    expect(await view.findByText('storage.cancelConfirm')).toBeTruthy()
-    fireEvent.click(view.getByRole('button', { name: 'common.confirm' }))
-
-    await waitFor(() => expect(cancelCloudOrder).toHaveBeenCalledWith('order-unpaid'))
-    expect(toast.success).toHaveBeenCalledWith('storage.cancelSuccess')
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'credits'] })
   })
 })

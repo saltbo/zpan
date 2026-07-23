@@ -131,7 +131,7 @@ describe('OrgSwitcher', () => {
   })
 
   it('opens the first workspace settings tab when switching workspaces from settings', async () => {
-    mocks.pathname = '/teams/personal-org/ihost'
+    mocks.pathname = '/teams/personal-org/billing'
     const view = await openSwitcher()
 
     fireEvent.click(view.getByRole('menuitem', { name: /Design Team/ }))

@@ -20,20 +20,18 @@ export function StorageOrderHistoryDialog({
   orders,
   onContinuePayment,
   onCancelOrder,
-  continuingOrderId,
   cancelingOrderId,
 }: {
   orders: CloudOrder[]
   onContinuePayment: (orderId: string) => void
   onCancelOrder: (orderId: string) => void
-  continuingOrderId: string | null
   cancelingOrderId: string | null
 }) {
   const { t } = useTranslation()
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline">
           <ShoppingCart />
           {t('storage.historyTitle')}
         </Button>
@@ -48,7 +46,6 @@ export function StorageOrderHistoryDialog({
             orders={orders}
             onContinuePayment={onContinuePayment}
             onCancelOrder={onCancelOrder}
-            continuingOrderId={continuingOrderId}
             cancelingOrderId={cancelingOrderId}
           />
         </div>
@@ -124,7 +121,6 @@ function OrderRow({
           )}
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span>{formatTargetValue(order, 'orgId')}</span>
           <span>{new Date(order.createdAt).toLocaleString()}</span>
         </div>
       </div>
@@ -207,9 +203,4 @@ function OrderIconButton({
 function isActionableOrder(order: CloudOrder) {
   if (order.status !== 'pending') return false
   return order.paymentStatus !== 'paid' && order.paymentStatus !== 'canceled'
-}
-
-function formatTargetValue(order: CloudOrder, key: string) {
-  const value = order.target?.[key]
-  return typeof value === 'string' ? value : '-'
 }

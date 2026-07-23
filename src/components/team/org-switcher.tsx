@@ -57,7 +57,7 @@ export function OrgSwitcher() {
       return
     }
     await queryClient.invalidateQueries({ queryKey: ['objects'] })
-    const isWorkspaceSettings = /^\/teams\/[^/]+\/(activity|ihost|members|settings)$/.test(pathname)
+    const isWorkspaceSettings = /^\/teams\/[^/]+\/(activity|billing|ihost|members|settings)$/.test(pathname)
     if (isWorkspaceSettings) {
       navigate({ to: '/teams/$teamId/settings', params: { teamId: org.id } })
       return
