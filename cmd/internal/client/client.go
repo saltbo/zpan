@@ -622,7 +622,7 @@ func (c *Client) createMatter(
 	onConflict := openapi.CreateObjectJSONBodyOnConflictRename
 	res, err := c.api.CreateObjectWithResponse(ctx, openapi.CreateObjectJSONRequestBody{
 		Name:       name,
-		Type:       contentType,
+		Type:       &contentType,
 		Size:       &sizeInt,
 		Parent:     &parent,
 		Dirtype:    &dirtype,

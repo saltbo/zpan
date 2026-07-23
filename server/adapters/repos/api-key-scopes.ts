@@ -1,5 +1,5 @@
 import { type ApiKeyScope, ApiKeyTemplate, apiKeyMetadata, parseApiKeyScope } from '@shared/api-key-templates'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { apikey, member } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
 import { resolveOrganizationOwnerUserId } from './organization-owner'
@@ -56,13 +56,22 @@ export async function normalizeLegacyApiKey(
 }
 
 export async function normalizeLegacyApiKeysForUser(db: Database, userId: string): Promise<void> {
-  await db
-    .update(apikey)
-    .set({
-      metadata: JSON.stringify(apiKeyMetadata({ mode: 'user-workspaces' })),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(apikey.configId, ApiKeyTemplate.WEBDAV), eq(apikey.referenceId, userId), isNull(apikey.metadata)))
+  const webDavKeys = await db
+    .select({ id: apikey.id, metadata: apikey.metadata })
+    .from(apikey)
+    .where(and(eq(apikey.configId, ApiKeyTemplate.WEBDAV), eq(apikey.referenceId, userId)))
+  const legacyWebDavKeyIds = webDavKeys
+    .filter(({ metadata }) => scopeForApiKey(ApiKeyTemplate.WEBDAV, parseMetadata(metadata)) === null)
+    .map(({ id }) => id)
+  if (legacyWebDavKeyIds.length > 0) {
+    await db
+      .update(apikey)
+      .set({
+        metadata: JSON.stringify(apiKeyMetadata({ mode: 'user-workspaces' })),
+        updatedAt: new Date(),
+      })
+      .where(inArray(apikey.id, legacyWebDavKeyIds))
+  }
 
   const ownedOrgs = await db
     .select({ orgId: member.organizationId })
@@ -78,7 +87,7 @@ export async function normalizeLegacyApiKeysForUser(db: Database, userId: string
         metadata: JSON.stringify(apiKeyMetadata({ mode: 'workspace', orgId })),
         updatedAt: new Date(),
       })
-      .where(and(inArray(apikey.configId, WORKSPACE_TEMPLATES), eq(apikey.referenceId, orgId), isNull(apikey.metadata)))
+      .where(and(inArray(apikey.configId, WORKSPACE_TEMPLATES), eq(apikey.referenceId, orgId)))
   }
 }
 

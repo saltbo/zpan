@@ -166,11 +166,16 @@ describe('API keys', () => {
     const { orgId, userId } = await getUserAndOrg(db)
     const remoteDownload = await createOrgApiKey(auth, 'remote-download', orgId, userId)
     const ihost = await createOrgApiKey(auth, 'ihost', orgId, userId)
+    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
+    const webdav = (await (auth.api as any).createApiKey({
+      body: { configId: 'webdav', userId },
+    })) as { id: string }
     await db.run(sql`
       UPDATE apikey
-      SET reference_id = ${orgId}, metadata = NULL
+      SET reference_id = ${orgId}, metadata = '{}'
       WHERE id IN (${remoteDownload.id}, ${ihost.id})
     `)
+    await db.run(sql`UPDATE apikey SET metadata = '{}' WHERE id = ${webdav.id}`)
 
     await expect(apiKeys.verifyApiKey(auth, db, remoteDownload.key, 'remote-download')).resolves.toMatchObject({
       referenceId: userId,
@@ -182,8 +187,21 @@ describe('API keys', () => {
 
     const listResponse = await app.request('/api/auth/api-key/list', { headers })
     expect(listResponse.status).toBe(200)
-    const listed = (await listResponse.json()) as { apiKeys: Array<{ id: string }> }
-    expect(listed.apiKeys.map((key) => key.id)).toEqual(expect.arrayContaining([remoteDownload.id, ihost.id]))
+    const listed = (await listResponse.json()) as {
+      apiKeys: Array<{ id: string; metadata: { scope: { mode: string; orgId?: string } } }>
+    }
+    expect(listed.apiKeys).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: ihost.id,
+          metadata: { scope: { mode: 'workspace', orgId } },
+        }),
+        expect.objectContaining({
+          id: webdav.id,
+          metadata: { scope: { mode: 'user-workspaces' } },
+        }),
+      ]),
+    )
     expect(await getApiKeyRow(db, ihost.id)).toMatchObject({ reference_id: userId })
   })
 

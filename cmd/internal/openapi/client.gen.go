@@ -3708,7 +3708,7 @@ type CreateObjectJSONBody struct {
 	Parent     *string                         `json:"parent,omitempty"`
 	Size       *int                            `json:"size,omitempty"`
 	StorageId  *string                         `json:"storageId,omitempty"`
-	Type       string                          `json:"type"`
+	Type       *string                         `json:"type,omitempty"`
 }
 
 // CreateObjectJSONBodyOnConflict defines parameters for CreateObject.
