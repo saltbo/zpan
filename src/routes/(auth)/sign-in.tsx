@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { useSiteConfig } from '@/hooks/use-site-config'
-import { signIn } from '@/lib/auth-client'
+import { authClient, signIn } from '@/lib/auth-client'
+import { isCredentialLoginMethod } from '@/lib/last-login-method'
 
 export const Route = createFileRoute('/(auth)/sign-in')({
   component: SignIn,
@@ -42,6 +43,7 @@ function SignIn() {
   const [loading, setLoading] = useState(false)
   const [formExpanded, setFormExpanded] = useState(providers.length <= 3)
   const [captchaToken, setCaptchaToken] = useState('')
+  const usedCredentialsLast = isCredentialLoginMethod(authClient.getLastUsedLoginMethod())
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -81,7 +83,7 @@ function SignIn() {
           <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.signInSubtitle')}</p>
         </div>
-        <OAuthButtons />
+        <OAuthButtons showLastUsed />
         {showDivider && (
           <div className="flex items-center gap-3">
             <Separator className="flex-1" />
@@ -97,6 +99,7 @@ function SignIn() {
           >
             {t('auth.signInWithEmail')}
             <ChevronDown className="h-4 w-4" />
+            {usedCredentialsLast && <span className="text-xs">{t('auth.lastUsed')}</span>}
           </button>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -129,8 +132,13 @@ function SignIn() {
               <ProviderCaptcha provider={captcha.provider} siteKey={captcha.siteKey} onToken={setCaptchaToken} />
             )}
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading || (captcha?.enabled && !captchaToken)}>
+            <Button type="submit" className="relative w-full" disabled={loading || (captcha?.enabled && !captchaToken)}>
               {loading ? t('auth.signingIn') : t('auth.signIn')}
+              {usedCredentialsLast && (
+                <span className="absolute right-3 text-xs font-normal text-primary-foreground/70">
+                  {t('auth.lastUsed')}
+                </span>
+              )}
             </Button>
           </form>
         )}

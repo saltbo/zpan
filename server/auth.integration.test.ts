@@ -406,6 +406,56 @@ describe('dynamic email verification policy', () => {
   })
 })
 
+describe('last login method', () => {
+  it('records email sign-in in a client-readable cookie', async () => {
+    const ctx = await createTestApp()
+    await signUp(ctx, 'last-email@example.com')
+
+    const response = await ctx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'last-email@example.com', password: 'password123456' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.getSetCookie()).toEqual(
+      expect.arrayContaining([expect.stringContaining('better-auth.last_used_login_method=email')]),
+    )
+  })
+
+  it('records username sign-in in a client-readable cookie', async () => {
+    const ctx = await createTestApp()
+    await signUp(ctx, 'last-username@example.com', { username: 'last_username' })
+
+    const response = await ctx.app.request('/api/auth/sign-in/username', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'last_username', password: 'password123456' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.getSetCookie()).toEqual(
+      expect.arrayContaining([expect.stringContaining('better-auth.last_used_login_method=username')]),
+    )
+  })
+
+  it('does not update the cookie when sign-in fails', async () => {
+    const ctx = await createTestApp()
+    await signUp(ctx, 'last-failed@example.com')
+
+    const response = await ctx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'last-failed@example.com', password: 'wrong-password' }),
+    })
+
+    expect(response.status).toBe(401)
+    expect(response.headers.getSetCookie()).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('better-auth.last_used_login_method=')]),
+    )
+  })
+})
+
 describe('buildVerificationEmailHtml — via send-verification-email with email_provider configured', () => {
   it('send-verification-email triggers email send when email_provider is configured', async () => {
     const { vi } = await import('vitest')

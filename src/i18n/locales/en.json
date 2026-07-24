@@ -22,6 +22,7 @@
   "auth.signInWithEmail": "Sign in with email",
   "auth.signUpWithEmail": "Sign up with email",
   "auth.continueWith": "Continue with {{provider}}",
+  "auth.lastUsed": "Last used",
   "auth.registrationClosed": "Registration is currently closed",
   "auth.invalidInvitation": "This invitation is no longer valid",
   "auth.invitationExpired": "The invitation link has expired. Ask the administrator to send a new one.",

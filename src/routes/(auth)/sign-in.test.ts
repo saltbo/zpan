@@ -1,5 +1,6 @@
 import { SignupMode } from '@shared/constants'
 import { describe, expect, it } from 'vitest'
+import { isCredentialLoginMethod } from '@/lib/last-login-method'
 
 // SignIn is a React rendering component. The project has no jsdom or
 // @testing-library/react setup, so we cannot render it here.
@@ -92,6 +93,16 @@ const SIGN_IN_CALLBACK_URL = '/files'
 describe('SignIn — OAuth and form callback URL', () => {
   it('callback URL for sign-in is "/files"', () => {
     expect(SIGN_IN_CALLBACK_URL).toBe('/files')
+  })
+})
+
+describe('SignIn — last login method', () => {
+  it.each(['email', 'username'])('treats %s as the credential form', (method) => {
+    expect(isCredentialLoginMethod(method)).toBe(true)
+  })
+
+  it.each(['github', 'google', null])('does not treat %s as the credential form', (method) => {
+    expect(isCredentialLoginMethod(method)).toBe(false)
   })
 })
 

@@ -1,10 +1,23 @@
 import { apiKeyClient } from '@better-auth/api-key/client'
-import { adminClient, deviceAuthorizationClient, organizationClient, usernameClient } from 'better-auth/client/plugins'
+import {
+  adminClient,
+  deviceAuthorizationClient,
+  lastLoginMethodClient,
+  organizationClient,
+  usernameClient,
+} from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 
 export const authClient = createAuthClient({
   baseURL: import.meta.env.VITE_API_URL || '',
-  plugins: [usernameClient(), organizationClient(), adminClient(), apiKeyClient(), deviceAuthorizationClient()],
+  plugins: [
+    usernameClient(),
+    organizationClient(),
+    adminClient(),
+    apiKeyClient(),
+    deviceAuthorizationClient(),
+    lastLoginMethodClient(),
+  ],
 })
 
 import { clearSessionCache } from './api'

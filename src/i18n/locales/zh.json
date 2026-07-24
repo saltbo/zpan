@@ -22,6 +22,7 @@
   "auth.signInWithEmail": "使用邮箱登录",
   "auth.signUpWithEmail": "使用邮箱注册",
   "auth.continueWith": "使用 {{provider}} 继续",
+  "auth.lastUsed": "上次使用",
   "auth.registrationClosed": "注册功能已关闭",
   "auth.invalidInvitation": "这个邀请已不可用",
   "auth.invitationExpired": "邀请链接已过期，请联系管理员重新发送。",

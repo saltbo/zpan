@@ -3,7 +3,16 @@ import { APIError, type BetterAuthOptions, type BetterAuthPlugin, betterAuth } f
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import type { CaptchaOptions } from 'better-auth/plugins'
-import { admin, bearer, captcha, deviceAuthorization, openAPI, organization, username } from 'better-auth/plugins'
+import {
+  admin,
+  bearer,
+  captcha,
+  deviceAuthorization,
+  lastLoginMethod,
+  openAPI,
+  organization,
+  username,
+} from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
@@ -520,6 +529,9 @@ export async function createAuth(
         },
       }),
       username(),
+      lastLoginMethod({
+        customResolveMethod: (ctx) => (ctx.path === '/sign-in/username' ? 'username' : null),
+      }),
       dynamicCaptcha(db),
       genericOAuth({
         config: providerConfigs.oidc.map((c) => ({

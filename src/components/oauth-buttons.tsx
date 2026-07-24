@@ -10,10 +10,11 @@ export function useOAuthProviders() {
   return { providers: data?.auth.providers ?? [], isLoading }
 }
 
-export function OAuthButtons() {
+export function OAuthButtons({ showLastUsed = false }: { showLastUsed?: boolean }) {
   const { t } = useTranslation()
   const [error, setError] = useState('')
   const { providers, isLoading } = useOAuthProviders()
+  const lastLoginMethod = showLastUsed ? authClient.getLastUsedLoginMethod() : null
 
   if (isLoading || providers.length === 0) return null
 
@@ -33,11 +34,14 @@ export function OAuthButtons() {
           key={provider.id}
           type="button"
           variant="outline"
-          className="w-full"
+          className="relative w-full"
           onClick={() => handleOAuth(provider.id)}
         >
           <OAuthProviderIcon icon={provider.icon} name={provider.name} />
           {t('auth.continueWith', { provider: provider.name })}
+          {lastLoginMethod === provider.id && (
+            <span className="absolute right-3 text-xs font-normal text-muted-foreground">{t('auth.lastUsed')}</span>
+          )}
         </Button>
       ))}
     </div>

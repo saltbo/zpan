@@ -56,6 +56,9 @@ test.describe('Auth flow', () => {
     expect(signInResp.status()).toBe(200)
 
     await expect(page).toHaveURL(/files/, { timeout: 10000 })
+
+    await page.goto('/sign-in')
+    await expect(page.getByText('Last used')).toBeVisible()
   })
 
   test('sidebar shows only My Files and Trash for regular users @desktop @tablet', async ({ page }) => {
