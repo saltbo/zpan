@@ -60,7 +60,7 @@ export function assertPreviewDatabaseName(name) {
   }
 }
 
-export function patchD1BindingConfig(rawConfig, databaseName, databaseId) {
+export function patchD1BindingConfig(rawConfig, databaseName, databaseId, migrationsDir) {
   const bindingsToPatch = []
 
   const patchList = (bindings) => {
@@ -83,6 +83,7 @@ export function patchD1BindingConfig(rawConfig, databaseName, databaseId) {
   }
   bindingsToPatch[0].database_name = databaseName
   bindingsToPatch[0].database_id = databaseId
+  bindingsToPatch[0].migrations_dir = migrationsDir
   return rawConfig
 }
 
@@ -249,7 +250,9 @@ async function seedPreviewReviewer(configPath) {
 
 function patchGeneratedWranglerConfig(configPath, databaseName, databaseId) {
   const config = JSON.parse(readFileSync(configPath, 'utf8'))
-  const patched = patchD1BindingConfig(config, databaseName, databaseId)
+  const migrationsDir =
+    path.relative(path.dirname(path.resolve(configPath)), path.resolve('migrations')).split(path.sep).join('/') || '.'
+  const patched = patchD1BindingConfig(config, databaseName, databaseId, migrationsDir)
   writeFileSync(configPath, `${JSON.stringify(patched, null, 2)}\n`)
   console.log(`Patched generated Wrangler config D1 binding: ${configPath}`)
 }

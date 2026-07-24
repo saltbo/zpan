@@ -29,8 +29,8 @@ function createHarness(options = {}) {
   tempDirs.add(root)
 
   const workDir = path.join(root, 'work')
-  const distDir = path.join(workDir, 'dist', 'zpan')
-  const configPath = path.join(distDir, 'wrangler.json')
+  const configPath = options.configPath ?? path.join(workDir, 'dist', 'zpan', 'wrangler.json')
+  const configDir = path.dirname(configPath)
 
   const config =
     options.config ??
@@ -46,7 +46,8 @@ function createHarness(options = {}) {
     nextUuid: options.nextUuid ?? 1,
   }
 
-  mkdirSync(distDir, { recursive: true })
+  mkdirSync(workDir, { recursive: true })
+  mkdirSync(configDir, { recursive: true })
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
 
   return {
@@ -389,18 +390,25 @@ describe('cloudflare branch preview lifecycle', () => {
       },
     }
 
-    expect(patchD1BindingConfig(config, 'zpan-preview-feature', 'new-id')).toEqual({
+    expect(patchD1BindingConfig(config, 'zpan-preview-feature', 'new-id', '../../migrations')).toEqual({
       d1_databases: [{ binding: 'OTHER', database_name: 'other', database_id: 'other-id' }],
       env: {
         staging: {
-          d1_databases: [{ binding: 'DB', database_name: 'zpan-preview-feature', database_id: 'new-id' }],
+          d1_databases: [
+            {
+              binding: 'DB',
+              database_name: 'zpan-preview-feature',
+              database_id: 'new-id',
+              migrations_dir: '../../migrations',
+            },
+          ],
         },
       },
     })
   })
 
   it('fails when generated Wrangler config has zero or multiple DB bindings', () => {
-    expect(() => patchD1BindingConfig({ d1_databases: [] }, 'zpan-preview-feature', 'new-id')).toThrow(
+    expect(() => patchD1BindingConfig({ d1_databases: [] }, 'zpan-preview-feature', 'new-id', '../../migrations')).toThrow(
       'Expected exactly one D1 binding named DB, found 0',
     )
 
@@ -416,6 +424,7 @@ describe('cloudflare branch preview lifecycle', () => {
         },
         'zpan-preview-feature',
         'new-id',
+        '../../migrations',
       ),
     ).toThrow('Expected exactly one D1 binding named DB, found 2')
   })
@@ -507,6 +516,10 @@ describe('cloudflare branch preview lifecycle', () => {
     const harness = createHarness({
       databases: [{ name: previewDb, uuid: 'old-uuid' }],
     })
+    const expectedMigrationsDir = path
+      .relative(path.dirname(harness.configPath), path.join(harness.workDir, 'migrations'))
+      .split(path.sep)
+      .join('/')
 
     const result = await harness.run(['build', '--config', harness.configPath], {
       env: { WORKERS_CI: '1', WORKERS_CI_BRANCH: branch },
@@ -527,7 +540,14 @@ describe('cloudflare branch preview lifecycle', () => {
     expect(state.calls[0].cloudflareEnv).toBe('staging')
     expect(harness.readConfig()).toEqual({
       name: 'zpan',
-      d1_databases: [{ binding: 'DB', database_name: previewDb, database_id: 'uuid-1' }],
+      d1_databases: [
+        {
+          binding: 'DB',
+          database_name: previewDb,
+          database_id: 'uuid-1',
+          migrations_dir: expectedMigrationsDir,
+        },
+      ],
     })
     expect(state.executedSql).toHaveLength(1)
     expect(state.executedSql[0]).toEqual(
@@ -537,6 +557,31 @@ describe('cloudflare branch preview lifecycle', () => {
       }),
     )
     expect(state.executedSql[0].sql).toContain("reviewer@zpan.dev")
+  })
+
+  it('rebases migrations_dir from a custom absolute generated config path', async () => {
+    const branch = 'feature/Custom Config Path'
+    const customConfigPath = path.join(
+      mkdtempSync(path.join(tmpdir(), 'zpan-preview-custom-config-')),
+      'nested',
+      'output',
+      'wrangler.json',
+    )
+    tempDirs.add(path.dirname(path.dirname(customConfigPath)))
+    const harness = createHarness({
+      configPath: customConfigPath,
+    })
+    const expectedMigrationsDir = path
+      .relative(path.dirname(harness.configPath), path.join(harness.workDir, 'migrations'))
+      .split(path.sep)
+      .join('/')
+
+    const result = await harness.run(['prepare', '--config', harness.configPath], {
+      env: { WORKERS_CI_BRANCH: branch },
+    })
+
+    expect(result.status).toBe(0)
+    expect(harness.readConfig().d1_databases[0].migrations_dir).toBe(expectedMigrationsDir)
   })
 
   it('uploads the generated preview config without resetting D1', async () => {
@@ -611,6 +656,9 @@ describe('cloudflare branch preview lifecycle', () => {
       ['exec', 'wrangler', 'd1', 'delete'],
     ])
     expect(harness.readConfig().d1_databases[0].database_name).toBe(previewDb)
+    expect(harness.readConfig().d1_databases[0].migrations_dir).toBe(
+      path.relative(path.dirname(harness.configPath), path.join(harness.workDir, 'migrations')).split(path.sep).join('/'),
+    )
   })
 
   it('deletes the created preview database again when reviewer seeding fails', async () => {
