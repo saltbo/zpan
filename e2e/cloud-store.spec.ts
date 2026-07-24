@@ -81,6 +81,7 @@ test.describe
         await expectStorefrontProductVisibleInApi(page, packageName)
 
         const creditsBefore = await getCreditBalance(page)
+        await openWorkspaceBilling(page)
         await redeemGiftCard(page, giftCard.code)
         await expect.poll(() => getCreditBalance(page), { timeout: 20_000 }).toBeGreaterThanOrEqual(creditsBefore + 200)
 
@@ -130,6 +131,7 @@ test.describe
           await expectStorefrontProductVisibleInApi(userPage, packageName)
 
           const creditsBefore = await getCreditBalance(userPage)
+          await openWorkspaceBilling(userPage)
           await redeemGiftCard(userPage, giftCard.code)
           await expect
             .poll(() => getCreditBalance(userPage), { timeout: 20_000 })
@@ -268,9 +270,7 @@ async function expectCloudGiftCardVisible(cloud: CloudBusinessContext, code: str
 }
 
 async function redeemGiftCard(page: Page, code: string) {
-  await page.getByRole('button', { name: 'View credit activity' }).click()
-  const creditsDialog = page.getByRole('dialog', { name: 'Credits' })
-  await creditsDialog.getByRole('button', { name: 'Redeem gift card' }).click()
+  await page.getByRole('button', { name: 'Redeem gift card' }).click()
   const redeemDialog = page.getByRole('dialog', { name: 'Redeem gift card' })
   await redeemDialog.getByLabel('Gift card code').fill(code)
   const redeemResponse = page.waitForResponse(
@@ -280,6 +280,15 @@ async function redeemGiftCard(page: Page, code: string) {
   await expectResponseStatus(await redeemResponse, 200)
   await expect(page.getByText(/Redeemed successfully/)).toBeVisible({ timeout: 20_000 })
   await page.keyboard.press('Escape')
+}
+
+async function openWorkspaceBilling(page: Page) {
+  const targets = await getJson<{ items: Array<{ orgId: string; role: string }> }>(page, '/api/store/targets')
+  const target = targets.items.find((item) => item.role === 'owner') ?? targets.items[0]
+  if (!target) throw new Error('Cloud store target is unavailable')
+
+  await page.goto(`/teams/${encodeURIComponent(target.orgId)}/billing`)
+  await expect(page.getByRole('button', { name: 'Redeem gift card' })).toBeVisible({ timeout: 20_000 })
 }
 
 async function getCreditBalance(page: Page) {
