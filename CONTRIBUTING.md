@@ -56,9 +56,40 @@ A code-review-only approval (reading the diff without visiting the preview) is *
 
 ### Preview environment details
 
-- All PRs share one staging D1 database (`zpan-db-staging`) — data persists across deployments
-- A dev storage backend is pre-configured, so file upload works out of the box
-- If you need a clean state, coordinate with maintainers
+- Cloudflare branch previews use an isolated, resettable D1 database named from
+  a short branch slug plus a collision-resistant hash.
+- Every preview deployment deletes and recreates that preview database, applies all
+  migrations through the PR head, then seeds deterministic reviewer data before the
+  Worker preview is uploaded.
+- Migration or seed failure fails the preview deployment visibly. Do not accept a
+  schema-changing PR that serves new Worker code against a stale D1 schema.
+- Preview D1 databases are deleted automatically when a PR closes by the
+  `Cloudflare preview cleanup` workflow. Maintainers can also run
+  `ZPAN_PREVIEW_NAME=<branch> pnpm preview:d1:cleanup` manually. When cleaning
+  up a fork whose repository cannot be inferred from `origin`, also set
+  `ZPAN_PREVIEW_REPOSITORY=<owner/repo>`.
+- Production (`zpan-db`) and shared staging (`zpan-db-staging`) are not used for PR
+  branch previews.
+
+### Cloudflare Workers Builds setup
+
+The upstream Cloudflare Workers Builds project must use:
+
+```sh
+pnpm build
+pnpm preview:d1:upload
+```
+
+Keep the build command as `pnpm build` and the non-production deploy command as
+`pnpm preview:d1:upload`. During a non-production Workers Build,
+`pnpm build` creates/resets the branch D1, applies `migrations/` with
+`wrangler d1 migrations apply --remote`, seeds it, and patches the generated
+`dist/zpan/wrangler.json` binding. The deploy command then uploads that exact
+generated config with the stable branch alias.
+
+The Cloudflare API token used by Workers Builds must include Workers edit access
+and D1 edit access for the account. If D1 edit is missing, the preview must fail
+instead of falling back to `zpan-db-staging`.
 
 ### Staging test accounts
 
@@ -70,6 +101,25 @@ A shared test account is available on the staging database for preview verificat
 | Password | `zpan-staging-reviewer-2026` |
 
 Use this account for UI regression testing in preview deployments. **Do not change the password** — other contributors depend on it.
+
+Each isolated branch preview seeds the same non-production reviewer login:
+
+| Field | Value |
+|-------|-------|
+| Email | `reviewer@zpan.dev` |
+| Password | `zpan-staging-reviewer-2026` |
+
+For schema-changing PRs, the PR verification comment must include evidence from
+the Cloudflare branch preview that:
+
+- The preview deployment migrated the isolated D1 database successfully.
+- An authenticated reviewer can create a folder or file-backed share, list it,
+  and unlist it.
+- An anonymous visitor can load the public profile/share route.
+- Existing landing-folder navigation still works after the new migrations.
+
+The full design and acceptance workflow are documented in
+[`docs/design/cloudflare-branch-previews.md`](docs/design/cloudflare-branch-previews.md).
 
 For admin feature testing, use the dedicated non-production preview admin account:
 
