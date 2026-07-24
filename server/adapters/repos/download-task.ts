@@ -67,8 +67,8 @@ function appendStatusEvent(
   const appended = sql`json_insert(${events}, '$[#]', json_object(
     'id', lower(hex(randomblob(16))),
     'type', 'status_changed',
-    'occurredAt', ${input.now.getTime()},
-    'attempt', ${input.attempt},
+    'occurredAt', CAST(${input.now.getTime()} AS INTEGER),
+    'attempt', CAST(${input.attempt} AS INTEGER),
     'from', ${downloadTasks.status},
     'to', ${input.to},
     'reason', ${input.reason},
@@ -76,10 +76,10 @@ function appendStatusEvent(
     'downloaderId', ${input.downloaderId},
     'transferredBytes', CASE
       WHEN json_type(${input.runtime}, '$.progress.download.bytes') = 'integer'
-        THEN json_extract(${input.runtime}, '$.progress.download.bytes')
+        THEN CAST(json_extract(${input.runtime}, '$.progress.download.bytes') AS INTEGER)
       ELSE NULL
     END,
-    'billedBytes', ${input.billedBytes},
+    'billedBytes', CAST(${input.billedBytes} AS INTEGER),
     'errorCode', ${input.errorCode},
     'errorMessage', ${input.errorMessage}
   ))`
@@ -102,17 +102,17 @@ function appendErrorEvent(
   const appended = sql`json_insert(${events}, '$[#]', json_object(
     'id', lower(hex(randomblob(16))),
     'type', 'error_reported',
-    'occurredAt', ${input.now.getTime()},
-    'attempt', ${input.attempt},
+    'occurredAt', CAST(${input.now.getTime()} AS INTEGER),
+    'attempt', CAST(${input.attempt} AS INTEGER),
     'reason', NULL,
     'category', COALESCE(${input.category}, 'uncategorized'),
     'downloaderId', ${input.downloaderId},
     'transferredBytes', CASE
       WHEN json_type(${input.runtime}, '$.progress.download.bytes') = 'integer'
-        THEN json_extract(${input.runtime}, '$.progress.download.bytes')
+        THEN CAST(json_extract(${input.runtime}, '$.progress.download.bytes') AS INTEGER)
       ELSE NULL
     END,
-    'billedBytes', ${input.billedBytes},
+    'billedBytes', CAST(${input.billedBytes} AS INTEGER),
     'errorCode', ${input.errorCode},
     'errorMessage', ${input.errorMessage}
   ))`
@@ -123,17 +123,17 @@ function appendCleanupEvent(events: SQL, type: 'cleanup_requested' | 'cleanup_co
   return sql`json_insert(${events}, '$[#]', json_object(
     'id', lower(hex(randomblob(16))),
     'type', ${type},
-    'occurredAt', ${now.getTime()},
-    'attempt', ${downloadTasks.attempt},
+    'occurredAt', CAST(${now.getTime()} AS INTEGER),
+    'attempt', CAST(${downloadTasks.attempt} AS INTEGER),
     'reason', NULL,
     'category', COALESCE(${downloadTasks.category}, 'uncategorized'),
     'downloaderId', ${downloadTasks.assignedDownloaderId},
     'transferredBytes', CASE
       WHEN json_type(${downloadTasks.runtime}, '$.progress.download.bytes') = 'integer'
-        THEN json_extract(${downloadTasks.runtime}, '$.progress.download.bytes')
+        THEN CAST(json_extract(${downloadTasks.runtime}, '$.progress.download.bytes') AS INTEGER)
       ELSE NULL
     END,
-    'billedBytes', ${downloadTasks.billingChargedBytes},
+    'billedBytes', CAST(${downloadTasks.billingChargedBytes} AS INTEGER),
     'errorCode', ${downloadTasks.errorCode},
     'errorMessage', ${downloadTasks.errorMessage}
   ))`
