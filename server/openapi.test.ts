@@ -65,6 +65,71 @@ describe('global OpenAPI document', () => {
     expect(events?.description).toContain('?downloadTasks=1')
   })
 
+  it('documents the concrete public profile contract without the removed objects placeholder', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      paths: Record<
+        string,
+        {
+          get?: {
+            responses?: Record<string, { content?: { 'application/json'?: { schema?: { $ref?: string } } } }>
+          }
+        }
+      >
+      components?: {
+        schemas?: Record<
+          string,
+          {
+            properties?: Record<
+              string,
+              {
+                type?: string
+                properties?: Record<string, { type?: string; nullable?: boolean }>
+                items?: {
+                  type?: string
+                  properties?: Record<string, { type?: string; nullable?: boolean }>
+                  required?: string[]
+                }
+              }
+            >
+            required?: string[]
+          }
+        >
+      }
+    }
+
+    expect(doc.paths['/api/users/{username}']?.get?.responses?.['200']?.content?.['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/PublicProfile',
+    })
+    expect(doc.paths['/api/users/{username}/objects']).toBeUndefined()
+
+    const profile = doc.components?.schemas?.PublicProfile
+    expect(profile?.required).toEqual(['user', 'shares'])
+    expect(profile?.properties?.user).toMatchObject({
+      type: 'object',
+      properties: {
+        username: { type: 'string' },
+        name: { type: 'string' },
+        image: { type: 'string', nullable: true },
+      },
+    })
+    expect(profile?.properties?.shares).toMatchObject({
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          token: { type: 'string' },
+          name: { type: 'string' },
+          type: { type: 'string' },
+          size: { type: 'integer', nullable: true },
+          isFolder: { type: 'boolean' },
+        },
+        required: ['token', 'name', 'type', 'size', 'isFolder'],
+      },
+    })
+  })
+
   it("merges better-auth's auto-generated schema (incl. the device flow) into the same doc", async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')

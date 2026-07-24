@@ -1,8 +1,6 @@
-export interface PublicUser {
-  username: string
-  name: string
-  image: string | null
-}
+import type { PublicUser } from '@shared/schemas/profile'
+
+export type { PublicUser } from '@shared/schemas/profile'
 
 export interface ProfileRepo {
   getUserByUsername(username: string): Promise<PublicUser | null>

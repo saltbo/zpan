@@ -34,6 +34,12 @@ export function createShareRepo(db: Database): ShareRepo {
       if (input.kind === 'direct' && input.password) throw new CreateShareError('DIRECT_NO_PASSWORD')
       if (input.kind === 'direct' && input.recipients && input.recipients.length > 0)
         throw new CreateShareError('DIRECT_NO_RECIPIENTS')
+      if (
+        input.showOnProfile &&
+        (input.kind !== 'landing' || (input.recipients != null && input.recipients.length > 0))
+      ) {
+        throw new CreateShareError('PROFILE_LISTING_INELIGIBLE')
+      }
 
       const matter = await db
         .select()
@@ -59,6 +65,7 @@ export function createShareRepo(db: Database): ShareRepo {
         views: 0,
         downloads: 0,
         status: 'active',
+        listedAt: input.showOnProfile ? now : null,
         createdAt: now,
       }
 
@@ -175,6 +182,52 @@ export function createShareRepo(db: Database): ShareRepo {
       return result.length > 0
     },
 
+    async setProfileListing(token: string, creatorId: string, listedAt: Date | null): Promise<boolean> {
+      const result = await db
+        .update(shares)
+        .set({ listedAt })
+        .where(and(eq(shares.token, token), eq(shares.creatorId, creatorId)))
+        .returning({ id: shares.id })
+
+      return result.length > 0
+    },
+
+    async listPublicProfileShares(username: string, now: Date) {
+      const nowSecs = Math.floor(now.getTime() / 1000)
+      const rows = await db
+        .select({
+          token: shares.token,
+          name: matters.name,
+          type: matters.type,
+          size: matters.size,
+          dirtype: matters.dirtype,
+        })
+        .from(shares)
+        .innerJoin(user, eq(shares.creatorId, user.id))
+        .innerJoin(matters, eq(shares.matterId, matters.id))
+        .where(
+          and(
+            eq(user.username, username),
+            isNotNull(shares.listedAt),
+            eq(shares.kind, 'landing'),
+            eq(shares.status, 'active'),
+            or(isNull(shares.expiresAt), sql`${shares.expiresAt} > ${nowSecs}`),
+            or(isNull(shares.downloadLimit), sql`${shares.downloads} < ${shares.downloadLimit}`),
+            eq(matters.status, 'active'),
+            isNull(matters.trashedAt),
+            isNull(matters.purgedAt),
+            sql`NOT EXISTS (
+              SELECT 1
+              FROM ${shareRecipients}
+              WHERE ${shareRecipients.shareId} = ${shares.id}
+            )`,
+          ),
+        )
+        .orderBy(desc(shares.listedAt), desc(shares.id))
+
+      return rows.map(({ dirtype, ...row }) => ({ ...row, isFolder: dirtype !== DirType.FILE }))
+    },
+
     async listForApi(
       creatorId: string,
       opts: { page: number; pageSize: number; status?: string },
@@ -200,6 +253,7 @@ export function createShareRepo(db: Database): ShareRepo {
           views: shares.views,
           downloads: shares.downloads,
           status: shares.status,
+          listedAt: shares.listedAt,
           createdAt: shares.createdAt,
           matterName: matters.name,
           matterType: matters.type,
@@ -257,6 +311,7 @@ export function createShareRepo(db: Database): ShareRepo {
           views: shares.views,
           downloads: shares.downloads,
           status: shares.status,
+          listedAt: shares.listedAt,
           createdAt: shares.createdAt,
           matterName: matters.name,
           matterType: matters.type,

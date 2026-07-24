@@ -69,6 +69,36 @@ Feature: Shares
     When the share is created
     Then the limit is stored
 
+  @shares/create-profile-listing @api
+  Scenario: An eligible landing share is listed at creation time
+    Given an authenticated user creating an untargeted landing share
+    When they choose to show it on their personal homepage
+    Then the share and its profile listing are created atomically
+
+  @shares/profile-listing-owner @api
+  Scenario: An owner lists and unlists an eligible share
+    Given an owner's untargeted landing share
+    When they add and remove its profile listing
+    Then only the listing state changes
+
+  @shares/profile-listing-authorization @api
+  Scenario: Another user cannot change a profile listing
+    Given a landing share owned by another user
+    When a non-owner tries to change its profile listing
+    Then the API responds 403
+
+  @shares/profile-listing-ineligible @api
+  Scenario: Direct and recipient-targeted shares cannot be listed
+    Given direct and recipient-targeted shares
+    When forged profile-listing requests are submitted
+    Then the API responds 400 PROFILE_LISTING_INELIGIBLE
+
+  @shares/profile-unlist-preserves-access @api
+  Scenario: Unlisting does not revoke a share
+    Given a listed public landing share
+    When its owner removes the profile listing
+    Then its original landing URL remains usable
+
   @shares/create-notify-best-effort @api
   Scenario: Share creation succeeds even if notification fails
     Given share-created notification dispatch rejects

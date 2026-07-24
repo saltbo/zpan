@@ -1,6 +1,6 @@
 Feature: Public profiles
-  Each user has a public profile page listing their public shares, reachable
-  without authentication. Profile paths render as navigable breadcrumbs.
+  Each user has a public profile page listing owner-curated public landing
+  shares, reachable without authentication.
 
   @profile/user-not-found @api
   Scenario: An unknown user id has no profile
@@ -26,20 +26,26 @@ Feature: Public profiles
     When their profile is requested
     Then their user info is returned
 
-  @profile/unknown-username @api
-  Scenario: An unknown username has no public listing
-    Given a username that does not exist
-    When its public listing is requested
-    Then the API responds 404
+  @profile/curated-shares @api
+  Scenario: A profile returns only selected public landing shares
+    Given selected and unselected public landing shares owned by a user
+    When their profile is requested without authentication
+    Then exactly the selected shares are returned
 
-  @profile/empty-listing @api
-  Scenario: A known user with no public files lists nothing
-    Given a known user with no public files
-    When their public listing is requested
-    Then an empty item list and breadcrumb are returned
+  @profile/privacy-boundaries @api
+  Scenario: Private share modes never appear on a profile
+    Given forged selected direct and recipient-targeted shares
+    When the owner's profile is requested
+    Then neither private share is returned
 
-  @profile/breadcrumb-segments @domain
-  Scenario: A profile path splits into breadcrumb segments
-    Given a nested profile path
-    When it is split into breadcrumb segments
-    Then each path level becomes one ordered segment
+  @profile/availability-filtering @api
+  Scenario: Unavailable selected shares disappear at read time
+    Given selected revoked, expired, exhausted, trashed, purged, draft, and missing-target shares
+    When the owner's profile is requested
+    Then none of the unavailable shares are returned
+
+  @profile/share-flow @journey
+  Scenario: Listed files and folders use the landing-share flow
+    Given selected public file and folder landing shares
+    When a visitor opens either item from the profile
+    Then the existing share landing page handles file access and folder navigation

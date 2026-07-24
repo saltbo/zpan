@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { publicProfileSchema } from '@shared/schemas/profile'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -11,6 +12,7 @@ import {
   unsupportedMediaType,
 } from '../usecases/ports'
 import { getUserQuota } from '../usecases/quota'
+import { listPublicProfileShares } from '../usecases/share'
 import {
   getPublicProfile,
   grantUserEntitlement,
@@ -34,11 +36,7 @@ import { errorResponse, jsonBody, jsonContent } from './openapi'
 // lookup, the authenticated user's own avatar — plus the admin storage
 // entitlement grants, which live in our own quota domain rather than better-auth.
 
-const publicUserSchema = z
-  .object({ username: z.string(), name: z.string(), image: z.string().nullable() })
-  .openapi('PublicUser')
-
-const publicProfileSchema = z.object({ user: publicUserSchema, shares: z.array(z.unknown()) }).openapi('PublicProfile')
+const publicProfileResponseSchema = publicProfileSchema.openapi('PublicProfile')
 
 const grantEntitlementSchema = z.object({
   resourceType: z.literal('storage'),
@@ -104,20 +102,7 @@ const getUserRoute = createRoute({
   path: '/{username}',
   request: { params: z.object({ username: z.string() }) },
   responses: {
-    200: jsonContent(publicProfileSchema, 'User'),
-    404: errorResponse('User not found'),
-  },
-})
-
-const userObjectsRoute = createRoute({
-  operationId: 'listUserObjects',
-  summary: "List a user's public objects",
-  tags: ['Users'],
-  method: 'get',
-  path: '/{username}/objects',
-  request: { params: z.object({ username: z.string() }) },
-  responses: {
-    200: jsonContent(z.object({ items: z.array(z.unknown()), breadcrumb: z.array(z.unknown()) }), 'Objects'),
+    200: jsonContent(publicProfileResponseSchema, 'User'),
     404: errorResponse('User not found'),
   },
 })
@@ -220,14 +205,13 @@ export const users = new OpenAPIHono<Env>()
     return c.body(null, 204)
   })
   .openapi(getUserRoute, async (c) => {
-    const user = await getPublicProfile(c.get('deps'), c.req.valid('param').username)
+    const username = c.req.valid('param').username
+    const [user, shares] = await Promise.all([
+      getPublicProfile(c.get('deps'), username),
+      listPublicProfileShares(c.get('deps'), username),
+    ])
     if (!user) throw notFound('User not found')
-    return c.json({ user, shares: [] }, 200)
-  })
-  .openapi(userObjectsRoute, async (c) => {
-    const user = await getPublicProfile(c.get('deps'), c.req.valid('param').username)
-    if (!user) throw notFound('User not found')
-    return c.json({ items: [], breadcrumb: [] }, 200)
+    return c.json({ user, shares }, 200)
   })
   .openapi(getUserQuotaRoute, async (c) => {
     const quota = await getUserQuota(c.get('deps'), { userId: c.req.valid('param').userId })
