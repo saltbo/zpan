@@ -596,6 +596,42 @@ describe('readShareReadme', () => {
       'Password required',
     )
   })
+
+  it('rejects README access for file shares', async () => {
+    const { deps } = makeDeps({
+      share: {
+        resolveByToken: async () => okResolution({ matter: fileMatter }),
+      },
+    })
+
+    expectError(await readShareReadme(deps, baseParams), 404, undefined, 'README.md not found')
+  })
+
+  it('rejects README files larger than one MiB', async () => {
+    const oversizedReadme = { ...readme, size: 1024 * 1024 + 1 }
+    const { deps } = makeDeps({
+      share: {
+        resolveByToken: async () => okResolution({ matter: folderMatter }),
+        listDirectActiveChildren: async () => [oversizedReadme],
+      },
+    })
+
+    expectError(await readShareReadme(deps, baseParams), 413, undefined, 'README.md is too large')
+  })
+
+  it('rejects README files that are not valid UTF-8', async () => {
+    const { deps } = makeDeps({
+      share: {
+        resolveByToken: async () => okResolution({ matter: folderMatter }),
+        listDirectActiveChildren: async () => [readme],
+      },
+      s3: {
+        getObjectBytes: async () => new Uint8Array([0xff]),
+      },
+    })
+
+    expectError(await readShareReadme(deps, baseParams), 400, undefined, 'README.md must be UTF-8 text')
+  })
 })
 
 // ─── downloadShareObject ─────────────────────────────────────────────────────
