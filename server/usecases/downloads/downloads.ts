@@ -242,15 +242,13 @@ export async function recordDownloaderHeartbeat(
     }),
     deps.downloadTasks.listPendingCleanup(downloaderId, CONTROL_TASK_PAGE_SIZE),
   ])
+  const hasActiveControls = controls.items.some((task) => task.status.state !== 'suspended')
   return {
     ...updated,
     assignments: assignments.items,
     controls: [...controls.items, ...cleanupControls],
     nextPollAfterSeconds:
-      assignments.items.length > 0 ||
-      controls.items.length > 0 ||
-      cleanupControls.length > 0 ||
-      heartbeat.currentTasks > 0
+      assignments.items.length > 0 || hasActiveControls || cleanupControls.length > 0 || heartbeat.currentTasks > 0
         ? DOWNLOADER_ACTIVE_NEXT_POLL_SECONDS
         : DOWNLOADER_IDLE_NEXT_POLL_SECONDS,
   }

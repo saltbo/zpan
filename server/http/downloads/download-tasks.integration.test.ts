@@ -1079,6 +1079,20 @@ describe('Download tasks API integration', () => {
     expect(patched.status.state).toBe('suspended')
     expect(patched.status.runtime?.message ?? '').toContain('credit')
     expect(patched.status.progress.download.bytes).toBe(0)
+
+    const stoppingHeartbeat = await recordDownloaderHeartbeat(app, createdDownloader.token, {
+      ...heartbeat,
+      currentTasks: 1,
+    })
+    expect(stoppingHeartbeat.controls.some((item) => item.id === task.id)).toBe(true)
+    expect(stoppingHeartbeat.nextPollAfterSeconds).toBe(5)
+
+    const stoppedHeartbeat = await recordDownloaderHeartbeat(app, createdDownloader.token, {
+      ...heartbeat,
+      currentTasks: 0,
+    })
+    expect(stoppedHeartbeat.controls.some((item) => item.id === task.id)).toBe(true)
+    expect(stoppedHeartbeat.nextPollAfterSeconds).toBe(60)
   })
 
   it('recovers a suspended task when credits are restored [spec: download-tasks/billing-recover]', async () => {
