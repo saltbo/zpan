@@ -565,10 +565,12 @@ export const shares = sqliteTable(
     views: integer('views').notNull().default(0),
     downloads: integer('downloads').notNull().default(0),
     status: text('status').notNull().default('active'), // 'active' | 'revoked'
+    listedAt: integer('listed_at', { mode: 'timestamp' }),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   },
   (t) => [
     index('shares_creator_status_created_idx').on(t.creatorId, t.status, t.createdAt),
+    index('shares_creator_listed_idx').on(t.creatorId, t.listedAt),
     index('shares_created_idx').on(t.createdAt),
   ],
 )

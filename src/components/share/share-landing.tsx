@@ -1,4 +1,5 @@
 import { DirType } from '@shared/constants'
+import type { ShareObjectItem } from '@shared/schemas'
 import type { ShareView, StorageObject } from '@shared/types'
 import { UserRound } from 'lucide-react'
 import { useState } from 'react'
@@ -16,13 +17,7 @@ interface ShareLandingProps {
   onPasswordRequired?: () => void
 }
 
-function toStorageObject(item: {
-  ref: string
-  name: string
-  type: string
-  size: number
-  isFolder: boolean
-}): StorageObject {
+function toStorageObject(item: ShareObjectItem): StorageObject {
   const now = new Date().toISOString()
   return {
     id: item.ref,
@@ -30,7 +25,7 @@ function toStorageObject(item: {
     alias: item.ref,
     name: item.name,
     type: item.type,
-    size: item.size,
+    size: item.size ?? 0,
     dirtype: item.isFolder ? DirType.USER_FOLDER : DirType.FILE,
     parent: '',
     object: item.ref,

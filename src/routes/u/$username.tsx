@@ -1,7 +1,8 @@
+import type { PublicProfileShare, PublicUser } from '@shared/schemas/profile'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { FolderIcon } from 'lucide-react'
-import type { PublicUser } from '@/lib/api'
+import { FileIcon, FolderIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getProfile } from '@/lib/api'
 
 export const Route = createFileRoute('/u/$username')({
@@ -27,15 +28,17 @@ function UserHeader({ profile }: { profile: PublicUser }) {
 }
 
 function EmptyState() {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
       <FolderIcon className="mb-3 h-12 w-12 opacity-30" />
-      <p className="text-sm">No shared files yet</p>
+      <p className="text-sm">{t('profile.noShares')}</p>
     </div>
   )
 }
 
-function ProfilePage() {
+export function ProfilePage() {
+  const { t } = useTranslation()
   const { username } = Route.useParams()
 
   const profileQuery = useQuery({
@@ -47,7 +50,7 @@ function ProfilePage() {
   if (profileQuery.isPending) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t('common.loading')}</p>
       </div>
     )
   }
@@ -56,19 +59,45 @@ function ProfilePage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-2">
         <h1 className="text-2xl font-bold">404</h1>
-        <p className="text-muted-foreground">User not found</p>
+        <p className="text-muted-foreground">{t('profile.notFound')}</p>
       </div>
     )
   }
 
-  const { user: profile } = profileQuery.data!
+  const { user: profile, shares } = profileQuery.data!
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <UserHeader profile={profile} />
       <div className="mt-6">
-        <EmptyState />
+        {shares.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {shares.map((share) => (
+              <ProfileShareCard key={share.token} share={share} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
+  )
+}
+
+function ProfileShareCard({ share }: { share: PublicProfileShare }) {
+  const Icon = share.isFolder ? FolderIcon : FileIcon
+  return (
+    <a
+      href={`/s/${share.token}`}
+      className="flex items-center gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="rounded-md bg-muted p-2">
+        <Icon className="size-5 text-muted-foreground" />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate font-medium">{share.name}</p>
+        <p className="truncate text-xs text-muted-foreground">{share.type}</p>
+      </div>
+    </a>
   )
 }

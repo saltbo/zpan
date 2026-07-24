@@ -476,6 +476,7 @@ export interface Share {
   views: number
   downloads: number
   status: 'active' | 'revoked'
+  listedAt: string | null
   createdAt: string
 }
 

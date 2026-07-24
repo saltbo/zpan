@@ -1,3 +1,4 @@
+import type { PublicProfileShare } from '@shared/schemas/profile'
 import type { CreateShareInput } from '@shared/schemas/share'
 import type { Matter } from './matter'
 
@@ -18,6 +19,7 @@ export interface ShareRecord {
   views: number
   downloads: number
   status: string
+  listedAt: Date | null
   createdAt: Date
 }
 
@@ -41,6 +43,7 @@ export interface ShareListItem {
   views: number
   downloads: number
   status: string
+  listedAt: Date | null
   createdAt: Date
   matter: { name: string; type: string; dirtype: number }
   recipientCount: number
@@ -58,7 +61,14 @@ export type ShareResolution =
 // Thrown by createShare on invalid share-shape combinations. Carries a stable
 // code the http layer maps to a 400/404.
 export class CreateShareError extends Error {
-  constructor(public code: 'MATTER_NOT_FOUND' | 'DIRECT_NO_FOLDER' | 'DIRECT_NO_PASSWORD' | 'DIRECT_NO_RECIPIENTS') {
+  constructor(
+    public code:
+      | 'MATTER_NOT_FOUND'
+      | 'DIRECT_NO_FOLDER'
+      | 'DIRECT_NO_PASSWORD'
+      | 'DIRECT_NO_RECIPIENTS'
+      | 'PROFILE_LISTING_INELIGIBLE',
+  ) {
     super(code)
   }
 }
@@ -73,6 +83,8 @@ export interface ShareRepo {
   listRecipientUserIds(shareId: string): Promise<string[]>
   revokeByMatter(matterId: string): Promise<void>
   revokeByToken(token: string, creatorId: string): Promise<boolean>
+  setProfileListing(token: string, creatorId: string, listedAt: Date | null): Promise<boolean>
+  listPublicProfileShares(username: string, now: Date): Promise<PublicProfileShare[]>
   listForApi(
     creatorId: string,
     opts: { page: number; pageSize: number; status?: string },
