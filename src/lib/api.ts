@@ -996,12 +996,10 @@ export function revokeShare(token: string) {
   return unwrap<ShareView>(authedSharesApi[':token'].status.$put({ param: { token }, json: { status: 'revoked' } }))
 }
 
-export function listShareOnProfile(token: string) {
-  return unwrap<{ listedAt: string | null }>(authedSharesApi[':token']['profile-listing'].$put({ param: { token } }))
-}
-
-export function unlistShareFromProfile(token: string) {
-  return discard(authedSharesApi[':token']['profile-listing'].$delete({ param: { token } }))
+export function setSharePrivacy(token: string, isPrivate: boolean) {
+  return unwrap<{ private: boolean }>(
+    authedSharesApi[':token'].privacy.$put({ param: { token }, json: { private: isPrivate } }),
+  )
 }
 
 export interface CreateShareResult {
@@ -1010,7 +1008,7 @@ export interface CreateShareResult {
   urls: { landing?: string; direct?: string }
   expiresAt: string | null
   downloadLimit: number | null
-  listedAt: string | null
+  private: boolean
 }
 
 export function createShare(data: CreateShareRequest) {

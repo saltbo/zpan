@@ -1891,7 +1891,7 @@ type CreatedShare struct {
 	DownloadLimit *int    `json:"downloadLimit"`
 	ExpiresAt     *string `json:"expiresAt"`
 	Kind          string  `json:"kind"`
-	ListedAt      *string `json:"listedAt"`
+	Private       bool    `json:"private"`
 	Token         string  `json:"token"`
 	Urls          struct {
 		Direct  *string `json:"direct,omitempty"`
@@ -2577,7 +2577,6 @@ type ShareListItem struct {
 	ExpiresAt     *string `json:"expiresAt"`
 	Id            string  `json:"id"`
 	Kind          string  `json:"kind"`
-	ListedAt      *string `json:"listedAt"`
 	Matter        struct {
 		Dirtype int    `json:"dirtype"`
 		Name    string `json:"name"`
@@ -2585,6 +2584,7 @@ type ShareListItem struct {
 	} `json:"matter"`
 	MatterId       string `json:"matterId"`
 	OrgId          string `json:"orgId"`
+	Private        bool   `json:"private"`
 	RecipientCount int    `json:"recipientCount"`
 	Status         string `json:"status"`
 	Token          string `json:"token"`
@@ -2609,9 +2609,9 @@ type ShareObjects struct {
 	Total    int `json:"total"`
 }
 
-// ShareProfileListing defines model for ShareProfileListing.
-type ShareProfileListing struct {
-	ListedAt *string `json:"listedAt"`
+// SharePrivacy defines model for SharePrivacy.
+type SharePrivacy struct {
+	Private bool `json:"private"`
 }
 
 // ShareView defines model for ShareView.
@@ -4058,11 +4058,11 @@ type CreateShareJSONBody struct {
 	Kind          CreateShareJSONBodyKind `json:"kind"`
 	MatterId      string                  `json:"matterId"`
 	Password      *string                 `json:"password,omitempty"`
+	Private       *bool                   `json:"private,omitempty"`
 	Recipients    *[]struct {
 		RecipientEmail  *openapi_types.Email `json:"recipientEmail,omitempty"`
 		RecipientUserId *string              `json:"recipientUserId,omitempty"`
 	} `json:"recipients,omitempty"`
-	ShowOnProfile *bool `json:"showOnProfile,omitempty"`
 }
 
 // CreateShareJSONBodyKind defines parameters for CreateShare.
@@ -4671,6 +4671,9 @@ type CreateShareJSONRequestBody CreateShareJSONBody
 
 // SaveShareJSONRequestBody defines body for SaveShare for application/json ContentType.
 type SaveShareJSONRequestBody SaveShareJSONBody
+
+// PutSharePrivacyJSONRequestBody defines body for PutSharePrivacy for application/json ContentType.
+type PutSharePrivacyJSONRequestBody = SharePrivacy
 
 // VerifySharePasswordJSONRequestBody defines body for VerifySharePassword for application/json ContentType.
 type VerifySharePasswordJSONRequestBody VerifySharePasswordJSONBody
@@ -5602,11 +5605,10 @@ type ClientInterface interface {
 
 	SaveShare(ctx context.Context, token string, body SaveShareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteShareProfileListing request
-	DeleteShareProfileListing(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PutSharePrivacyWithBody request with any body
+	PutSharePrivacyWithBody(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PutShareProfileListing request
-	PutShareProfileListing(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PutSharePrivacy(ctx context.Context, token string, body PutSharePrivacyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// VerifySharePasswordWithBody request with any body
 	VerifySharePasswordWithBody(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -8456,8 +8458,8 @@ func (c *Client) SaveShare(ctx context.Context, token string, body SaveShareJSON
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteShareProfileListing(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteShareProfileListingRequest(c.Server, token)
+func (c *Client) PutSharePrivacyWithBody(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutSharePrivacyRequestWithBody(c.Server, token, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8468,8 +8470,8 @@ func (c *Client) DeleteShareProfileListing(ctx context.Context, token string, re
 	return c.Client.Do(req)
 }
 
-func (c *Client) PutShareProfileListing(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutShareProfileListingRequest(c.Server, token)
+func (c *Client) PutSharePrivacy(ctx context.Context, token string, body PutSharePrivacyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutSharePrivacyRequest(c.Server, token, body)
 	if err != nil {
 		return nil, err
 	}
@@ -15733,42 +15735,19 @@ func NewSaveShareRequestWithBody(server string, token string, contentType string
 	return req, nil
 }
 
-// NewDeleteShareProfileListingRequest generates requests for DeleteShareProfileListing
-func NewDeleteShareProfileListingRequest(server string, token string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "token", token, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+// NewPutSharePrivacyRequest calls the generic PutSharePrivacy builder with application/json body
+func NewPutSharePrivacyRequest(server string, token string, body PutSharePrivacyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/shares/%s/profile-listing", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
+	bodyReader = bytes.NewReader(buf)
+	return NewPutSharePrivacyRequestWithBody(server, token, "application/json", bodyReader)
 }
 
-// NewPutShareProfileListingRequest generates requests for PutShareProfileListing
-func NewPutShareProfileListingRequest(server string, token string) (*http.Request, error) {
+// NewPutSharePrivacyRequestWithBody generates requests for PutSharePrivacy with any type of body
+func NewPutSharePrivacyRequestWithBody(server string, token string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -15783,7 +15762,7 @@ func NewPutShareProfileListingRequest(server string, token string) (*http.Reques
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/shares/%s/profile-listing", pathParam0)
+	operationPath := fmt.Sprintf("/api/shares/%s/privacy", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -15793,10 +15772,12 @@ func NewPutShareProfileListingRequest(server string, token string) (*http.Reques
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -19866,11 +19847,10 @@ type ClientWithResponsesInterface interface {
 
 	SaveShareWithResponse(ctx context.Context, token string, body SaveShareJSONRequestBody, reqEditors ...RequestEditorFn) (*SaveShareResponse, error)
 
-	// DeleteShareProfileListingWithResponse request
-	DeleteShareProfileListingWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*DeleteShareProfileListingResponse, error)
+	// PutSharePrivacyWithBodyWithResponse request with any body
+	PutSharePrivacyWithBodyWithResponse(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSharePrivacyResponse, error)
 
-	// PutShareProfileListingWithResponse request
-	PutShareProfileListingWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*PutShareProfileListingResponse, error)
+	PutSharePrivacyWithResponse(ctx context.Context, token string, body PutSharePrivacyJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSharePrivacyResponse, error)
 
 	// VerifySharePasswordWithBodyWithResponse request with any body
 	VerifySharePasswordWithBodyWithResponse(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VerifySharePasswordResponse, error)
@@ -26391,16 +26371,17 @@ func (r SaveShareResponse) ContentType() string {
 	return ""
 }
 
-type DeleteShareProfileListingResponse struct {
+type PutSharePrivacyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *SharePrivacy
 	JSON400      *Error
 	JSON403      *Error
 	JSON404      *Error
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteShareProfileListingResponse) Status() string {
+func (r PutSharePrivacyResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -26408,7 +26389,7 @@ func (r DeleteShareProfileListingResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteShareProfileListingResponse) StatusCode() int {
+func (r PutSharePrivacyResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -26416,40 +26397,7 @@ func (r DeleteShareProfileListingResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DeleteShareProfileListingResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type PutShareProfileListingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ShareProfileListing
-	JSON400      *Error
-	JSON403      *Error
-	JSON404      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r PutShareProfileListingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PutShareProfileListingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r PutShareProfileListingResponse) ContentType() string {
+func (r PutSharePrivacyResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -30974,22 +30922,21 @@ func (c *ClientWithResponses) SaveShareWithResponse(ctx context.Context, token s
 	return ParseSaveShareResponse(rsp)
 }
 
-// DeleteShareProfileListingWithResponse request returning *DeleteShareProfileListingResponse
-func (c *ClientWithResponses) DeleteShareProfileListingWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*DeleteShareProfileListingResponse, error) {
-	rsp, err := c.DeleteShareProfileListing(ctx, token, reqEditors...)
+// PutSharePrivacyWithBodyWithResponse request with arbitrary body returning *PutSharePrivacyResponse
+func (c *ClientWithResponses) PutSharePrivacyWithBodyWithResponse(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSharePrivacyResponse, error) {
+	rsp, err := c.PutSharePrivacyWithBody(ctx, token, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeleteShareProfileListingResponse(rsp)
+	return ParsePutSharePrivacyResponse(rsp)
 }
 
-// PutShareProfileListingWithResponse request returning *PutShareProfileListingResponse
-func (c *ClientWithResponses) PutShareProfileListingWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*PutShareProfileListingResponse, error) {
-	rsp, err := c.PutShareProfileListing(ctx, token, reqEditors...)
+func (c *ClientWithResponses) PutSharePrivacyWithResponse(ctx context.Context, token string, body PutSharePrivacyJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSharePrivacyResponse, error) {
+	rsp, err := c.PutSharePrivacy(ctx, token, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePutShareProfileListingResponse(rsp)
+	return ParsePutSharePrivacyResponse(rsp)
 }
 
 // VerifySharePasswordWithBodyWithResponse request with arbitrary body returning *VerifySharePasswordResponse
@@ -41256,62 +41203,22 @@ func ParseSaveShareResponse(rsp *http.Response) (*SaveShareResponse, error) {
 	return response, nil
 }
 
-// ParseDeleteShareProfileListingResponse parses an HTTP response from a DeleteShareProfileListingWithResponse call
-func ParseDeleteShareProfileListingResponse(rsp *http.Response) (*DeleteShareProfileListingResponse, error) {
+// ParsePutSharePrivacyResponse parses an HTTP response from a PutSharePrivacyWithResponse call
+func ParsePutSharePrivacyResponse(rsp *http.Response) (*PutSharePrivacyResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DeleteShareProfileListingResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePutShareProfileListingResponse parses an HTTP response from a PutShareProfileListingWithResponse call
-func ParsePutShareProfileListingResponse(rsp *http.Response) (*PutShareProfileListingResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PutShareProfileListingResponse{
+	response := &PutSharePrivacyResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ShareProfileListing
+		var dest SharePrivacy
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

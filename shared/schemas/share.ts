@@ -26,10 +26,10 @@ export const createShareSchema = z.object({
   expiresAt: z.date().optional(),
   downloadLimit: z.number().int().positive().optional(),
   recipients: z.array(shareRecipientSchema).optional(),
-  showOnProfile: z.boolean().optional(),
+  private: z.boolean().default(false),
 })
 
-export type CreateShareInput = z.infer<typeof createShareSchema>
+export type CreateShareInput = z.input<typeof createShareSchema>
 
 export const listSharesQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -45,10 +45,10 @@ export const createShareRequestSchema = z.object({
   expiresAt: z.string().datetime({ offset: true }).optional(),
   downloadLimit: z.number().int().positive().optional(),
   recipients: z.array(shareRecipientSchema).optional(),
-  showOnProfile: z.boolean().optional(),
+  private: z.boolean().default(false),
 })
 
-export type CreateShareRequest = z.infer<typeof createShareRequestSchema>
+export type CreateShareRequest = z.input<typeof createShareRequestSchema>
 
 export const shareObjectItemSchema = z.object({
   ref: z.string(),

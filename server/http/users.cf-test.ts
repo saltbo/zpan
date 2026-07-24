@@ -91,7 +91,7 @@ function createShare(app: TestApp, headers: Record<string, string>, body: Record
 }
 
 describe('[CF] public profile shares', () => {
-  it('lists a landing share selected at creation and unlisting leaves the share usable', async () => {
+  it('lists a landing share by default and making it private leaves the share usable', async () => {
     const { app, db } = await buildApp()
     const owner = await signUp(app, db, `profile-owner-${nanoid(5)}`)
     const matterId = await insertMatter(db, owner.orgId, 'Public guide.txt')
@@ -99,11 +99,10 @@ describe('[CF] public profile shares', () => {
     const creation = await createShare(app, owner.headers, {
       matterId,
       kind: 'landing',
-      showOnProfile: true,
     })
     expect(creation.status).toBe(201)
-    const created = (await creation.json()) as { token: string; listedAt: string | null }
-    expect(created.listedAt).toEqual(expect.any(String))
+    const created = (await creation.json()) as { token: string; private: boolean }
+    expect(created.private).toBe(false)
 
     const profile = await app.request(`/api/users/${owner.username}`)
     expect(profile.status).toBe(200)
@@ -120,11 +119,12 @@ describe('[CF] public profile shares', () => {
       ],
     })
 
-    const unlisted = await app.request(`/api/shares/${created.token}/profile-listing`, {
-      method: 'DELETE',
-      headers: owner.headers,
+    const madePrivate = await app.request(`/api/shares/${created.token}/privacy`, {
+      method: 'PUT',
+      headers: { ...owner.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ private: true }),
     })
-    expect(unlisted.status).toBe(204)
+    expect(madePrivate.status).toBe(200)
 
     const afterUnlisting = await app.request(`/api/users/${owner.username}`)
     expect(((await afterUnlisting.json()) as { shares: unknown[] }).shares).toEqual([])
@@ -133,7 +133,7 @@ describe('[CF] public profile shares', () => {
     expect(underlyingShare.status).toBe(200)
   })
 
-  it('requires authentication and ownership to change a profile listing', async () => {
+  it('requires authentication and ownership to change share privacy', async () => {
     const { app, db } = await buildApp()
     const owner = await signUp(app, db, `profile-owner-${nanoid(5)}`)
     const other = await signUp(app, db, `profile-other-${nanoid(5)}`)
@@ -145,18 +145,24 @@ describe('[CF] public profile shares', () => {
       kind: 'landing',
     })
 
-    const anonymous = await app.request(`/api/shares/${share.token}/profile-listing`, { method: 'PUT' })
+    const anonymous = await app.request(`/api/shares/${share.token}/privacy`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ private: true }),
+    })
     expect(anonymous.status).toBe(401)
 
-    const nonOwner = await app.request(`/api/shares/${share.token}/profile-listing`, {
+    const nonOwner = await app.request(`/api/shares/${share.token}/privacy`, {
       method: 'PUT',
-      headers: other.headers,
+      headers: { ...other.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ private: true }),
     })
     expect(nonOwner.status).toBe(403)
 
-    const ownerMutation = await app.request(`/api/shares/${share.token}/profile-listing`, {
+    const ownerMutation = await app.request(`/api/shares/${share.token}/privacy`, {
       method: 'PUT',
-      headers: owner.headers,
+      headers: { ...owner.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ private: false }),
     })
     expect(ownerMutation.status).toBe(200)
 
@@ -166,7 +172,7 @@ describe('[CF] public profile shares', () => {
     ])
   })
 
-  it('rejects forged listing requests and never exposes direct or recipient-targeted shares', async () => {
+  it('rejects ineligible privacy requests and never exposes direct or recipient-targeted shares', async () => {
     const { app, db } = await buildApp()
     const owner = await signUp(app, db, `profile-owner-${nanoid(5)}`)
     const matterId = await insertMatter(db, owner.orgId, 'Privacy boundary.txt')
@@ -176,7 +182,6 @@ describe('[CF] public profile shares', () => {
       orgId: owner.orgId,
       creatorId: owner.userId,
       kind: 'landing',
-      showOnProfile: true,
     })
     const direct = await repo.create({
       matterId,
@@ -192,30 +197,26 @@ describe('[CF] public profile shares', () => {
       recipients: [{ recipientEmail: 'recipient@example.com' }],
     })
 
-    const forgedListedAt = Date.now()
-    await db.run(
-      sql`UPDATE shares SET listed_at = ${forgedListedAt} WHERE token IN (${direct.token}, ${targeted.token})`,
-    )
-
     for (const token of [direct.token, targeted.token]) {
-      const mutation = await app.request(`/api/shares/${token}/profile-listing`, {
+      const mutation = await app.request(`/api/shares/${token}/privacy`, {
         method: 'PUT',
-        headers: owner.headers,
+        headers: { ...owner.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ private: true }),
       })
       expect(mutation.status).toBe(400)
     }
 
     for (const body of [
-      { matterId, kind: 'direct', showOnProfile: true },
+      { matterId, kind: 'direct', private: true },
       {
         matterId,
         kind: 'landing',
         recipients: [{ recipientEmail: 'recipient@example.com' }],
-        showOnProfile: true,
+        private: true,
       },
     ]) {
       const creation = await createShare(app, owner.headers, body)
-      expect(creation.status).toBe(400)
+      expect(creation.status).toBe(201)
     }
 
     const profile = await app.request(`/api/users/${owner.username}`)
@@ -224,7 +225,7 @@ describe('[CF] public profile shares', () => {
     ])
   })
 
-  it('filters revoked, expired, exhausted, trashed, inactive, missing, and unlisted targets at read time', async () => {
+  it('filters private, revoked, expired, exhausted, trashed, inactive, and missing targets at read time', async () => {
     const { app, db } = await buildApp()
     const owner = await signUp(app, db, `profile-owner-${nanoid(5)}`)
     const repo = createShareRepo(db)
@@ -236,7 +237,6 @@ describe('[CF] public profile shares', () => {
         orgId: owner.orgId,
         creatorId: owner.userId,
         kind: 'landing',
-        showOnProfile: true,
         ...options,
       })
       return { matterId, share }
@@ -249,12 +249,13 @@ describe('[CF] public profile shares', () => {
     const trashed = await listedShare('Trashed.txt')
     const inactive = await listedShare('Inactive.txt')
     const missing = await listedShare('Missing.txt')
-    const unlistedMatterId = await insertMatter(db, owner.orgId, 'Unlisted.txt')
+    const privateMatterId = await insertMatter(db, owner.orgId, 'Private.txt')
     await repo.create({
-      matterId: unlistedMatterId,
+      matterId: privateMatterId,
       orgId: owner.orgId,
       creatorId: owner.userId,
       kind: 'landing',
+      private: true,
     })
 
     await db.run(sql`UPDATE shares SET status = 'revoked' WHERE id = ${revoked.share.id}`)

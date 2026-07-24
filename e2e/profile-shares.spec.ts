@@ -17,7 +17,7 @@ const folderShare = {
   rootRef: 'profile-folder-root',
 }
 
-test('anonymous profile opens curated files and folders through the landing-share flow @desktop [spec: profile/share-flow]', async ({
+test('anonymous profile opens public files and folders through the landing-share flow @desktop [spec: profile/share-flow]', async ({
   page,
 }) => {
   await page.route('**/api/users/alice', (route) =>

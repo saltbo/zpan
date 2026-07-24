@@ -23,7 +23,7 @@ import {
   type ShareCreatorDto,
   type ShareViewerDto,
   saveShare,
-  setProfileListing,
+  setSharePrivacy,
   verifySharePassword,
   viewShare,
 } from '../usecases/share'
@@ -117,7 +117,7 @@ const shareListItemSchema = z
     views: z.number().int(),
     downloads: z.number().int(),
     status: z.string(),
-    listedAt: z.string().nullable(),
+    private: z.boolean(),
     createdAt: z.string(),
     matter: z.object({ name: z.string(), type: z.string(), dirtype: z.number().int() }),
     recipientCount: z.number().int(),
@@ -129,7 +129,6 @@ function toShareListItemDTO(s: ShareListItem): z.infer<typeof shareListItemSchem
   return {
     ...s,
     expiresAt: s.expiresAt ? s.expiresAt.toISOString() : null,
-    listedAt: s.listedAt ? s.listedAt.toISOString() : null,
     createdAt: s.createdAt.toISOString(),
   }
 }
@@ -145,7 +144,7 @@ const createdShareSchema = z
     urls: z.object({ landing: z.string().optional(), direct: z.string().optional() }),
     expiresAt: z.string().nullable(),
     downloadLimit: z.number().int().nullable(),
-    listedAt: z.string().nullable(),
+    private: z.boolean(),
   })
   .openapi('CreatedShare')
 
@@ -387,33 +386,21 @@ const revokeShareRoute = createRoute({
   },
 })
 
-const profileListingSchema = z.object({ listedAt: z.string().nullable() }).openapi('ShareProfileListing')
+const sharePrivacySchema = z.object({ private: z.boolean() }).openapi('SharePrivacy')
 
-const putProfileListingRoute = createRoute({
-  operationId: 'putShareProfileListing',
-  summary: 'Show a share on the owner public profile',
+const putSharePrivacyRoute = createRoute({
+  operationId: 'putSharePrivacy',
+  summary: 'Set whether a share is hidden from the owner public profile',
   tags: ['Shares'],
   method: 'put',
-  path: '/{token}/profile-listing',
-  request: { params: z.object({ token: z.string() }) },
-  responses: {
-    200: jsonContent(profileListingSchema, 'Profile listing'),
-    400: errorResponse('Share is not eligible for profile listing'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Not found'),
+  path: '/{token}/privacy',
+  request: {
+    params: z.object({ token: z.string() }),
+    ...jsonBody(sharePrivacySchema),
   },
-})
-
-const deleteProfileListingRoute = createRoute({
-  operationId: 'deleteShareProfileListing',
-  summary: 'Remove a share from the owner public profile',
-  tags: ['Shares'],
-  method: 'delete',
-  path: '/{token}/profile-listing',
-  request: { params: z.object({ token: z.string() }) },
   responses: {
-    204: { description: 'Profile listing removed' },
-    400: errorResponse('Share is not eligible for profile listing'),
+    200: jsonContent(sharePrivacySchema, 'Share privacy'),
+    400: errorResponse('Share does not have configurable privacy'),
     403: errorResponse('Forbidden'),
     404: errorResponse('Not found'),
   },
@@ -461,29 +448,20 @@ export const authedShares = authedApp
           urls: shareUrls(out.share.kind, out.share.token),
           expiresAt: out.share.expiresAt ? out.share.expiresAt.toISOString() : null,
           downloadLimit: out.share.downloadLimit,
-          listedAt: out.share.listedAt ? out.share.listedAt.toISOString() : null,
+          private: out.share.private,
         },
         201,
       )
     }
     throw out.error
   })
-  .openapi(putProfileListingRoute, async (c) => {
-    const out = await setProfileListing(c.get('deps'), {
+  .openapi(putSharePrivacyRoute, async (c) => {
+    const out = await setSharePrivacy(c.get('deps'), {
       token: c.req.valid('param').token,
       userId: c.get('userId')!,
-      listed: true,
+      private: c.req.valid('json').private,
     })
-    if (out.ok) return c.json({ listedAt: out.listedAt?.toISOString() ?? null }, 200)
-    throw out.error
-  })
-  .openapi(deleteProfileListingRoute, async (c) => {
-    const out = await setProfileListing(c.get('deps'), {
-      token: c.req.valid('param').token,
-      userId: c.get('userId')!,
-      listed: false,
-    })
-    if (out.ok) return c.body(null, 204)
+    if (out.ok) return c.json({ private: out.private }, 200)
     throw out.error
   })
   .openapi(revokeShareRoute, async (c) => {

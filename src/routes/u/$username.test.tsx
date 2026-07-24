@@ -63,7 +63,7 @@ afterEach(() => {
 })
 
 describe('public user homepage', () => {
-  it('loads the requested profile and links curated files and folders to the landing-share flow', async () => {
+  it('loads the requested profile and links public files and folders to the landing-share flow', async () => {
     renderPage()
 
     expect(await screen.findByText('Alice')).toBeTruthy()
@@ -73,7 +73,7 @@ describe('public user homepage', () => {
     expect(screen.queryByText('profile.noShares')).toBeNull()
   })
 
-  it('shows the empty state when the profile has no curated shares', async () => {
+  it('shows the empty state when the profile has no public shares', async () => {
     vi.mocked(getProfile).mockResolvedValue({ ...profile, shares: [] })
 
     renderPage()

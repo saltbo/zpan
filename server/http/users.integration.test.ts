@@ -613,7 +613,7 @@ async function insertProfileShare(
     token?: string
     kind?: 'landing' | 'direct'
     status?: 'active' | 'revoked'
-    listed?: boolean
+    private?: boolean
     expiresAt?: number | null
     downloadLimit?: number | null
     downloads?: number
@@ -625,12 +625,12 @@ async function insertProfileShare(
   await db.run(sql`
     INSERT INTO shares (
       id, token, kind, matter_id, org_id, creator_id, password_hash, expires_at,
-      download_limit, views, downloads, status, listed_at, created_at
+      download_limit, views, downloads, status, private, created_at
     )
     VALUES (
       ${id}, ${token}, ${opts.kind ?? 'landing'}, ${matterId}, ${orgId}, ${creatorId},
       NULL, ${opts.expiresAt ?? null}, ${opts.downloadLimit ?? null}, 0, ${opts.downloads ?? 0},
-      ${opts.status ?? 'active'}, ${opts.listed === false ? null : now}, ${now}
+      ${opts.status ?? 'active'}, ${opts.private ? 1 : 0}, ${now}
     )
   `)
   return { id, token }
@@ -679,7 +679,7 @@ describe('GET /api/users/:username', () => {
     expect(body.shares).toEqual([])
   })
 
-  it('returns exactly the selected public landing shares without authentication [spec: profile/curated-shares]', async () => {
+  it('returns public landing shares and hides private ones without authentication [spec: profile/public-shares]', async () => {
     const { app, db } = await createTestApp()
     const { orgId } = await insertUser(db, {
       id: 'curated-user',
@@ -688,12 +688,12 @@ describe('GET /api/users/:username', () => {
     })
     await insertProfileMatter(db, orgId, 'curated-file', { name: 'Public.txt' })
     await insertProfileMatter(db, orgId, 'curated-folder', { name: 'Photos', dirtype: 1 })
-    await insertProfileMatter(db, orgId, 'unlisted-file', { name: 'Hidden.txt' })
+    await insertProfileMatter(db, orgId, 'private-file', { name: 'Hidden.txt' })
     await insertProfileShare(db, 'curated-user', orgId, 'curated-file', { token: 'public-file' })
     await insertProfileShare(db, 'curated-user', orgId, 'curated-folder', { token: 'public-folder' })
-    await insertProfileShare(db, 'curated-user', orgId, 'unlisted-file', {
+    await insertProfileShare(db, 'curated-user', orgId, 'private-file', {
       token: 'hidden-file',
-      listed: false,
+      private: true,
     })
 
     const res = await app.request('/api/users/curated')

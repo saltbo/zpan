@@ -34,13 +34,6 @@ export function createShareRepo(db: Database): ShareRepo {
       if (input.kind === 'direct' && input.password) throw new CreateShareError('DIRECT_NO_PASSWORD')
       if (input.kind === 'direct' && input.recipients && input.recipients.length > 0)
         throw new CreateShareError('DIRECT_NO_RECIPIENTS')
-      if (
-        input.showOnProfile &&
-        (input.kind !== 'landing' || (input.recipients != null && input.recipients.length > 0))
-      ) {
-        throw new CreateShareError('PROFILE_LISTING_INELIGIBLE')
-      }
-
       const matter = await db
         .select()
         .from(matters)
@@ -65,7 +58,7 @@ export function createShareRepo(db: Database): ShareRepo {
         views: 0,
         downloads: 0,
         status: 'active',
-        listedAt: input.showOnProfile ? now : null,
+        private: input.private ?? false,
         createdAt: now,
       }
 
@@ -182,10 +175,10 @@ export function createShareRepo(db: Database): ShareRepo {
       return result.length > 0
     },
 
-    async setProfileListing(token: string, creatorId: string, listedAt: Date | null): Promise<boolean> {
+    async setPrivacy(token: string, creatorId: string, isPrivate: boolean): Promise<boolean> {
       const result = await db
         .update(shares)
-        .set({ listedAt })
+        .set({ private: isPrivate })
         .where(and(eq(shares.token, token), eq(shares.creatorId, creatorId)))
         .returning({ id: shares.id })
 
@@ -208,7 +201,7 @@ export function createShareRepo(db: Database): ShareRepo {
         .where(
           and(
             eq(user.username, username),
-            isNotNull(shares.listedAt),
+            eq(shares.private, false),
             eq(shares.kind, 'landing'),
             eq(shares.status, 'active'),
             or(isNull(shares.expiresAt), sql`${shares.expiresAt} > ${nowSecs}`),
@@ -223,7 +216,7 @@ export function createShareRepo(db: Database): ShareRepo {
             )`,
           ),
         )
-        .orderBy(desc(shares.listedAt), desc(shares.id))
+        .orderBy(desc(shares.createdAt), desc(shares.id))
 
       return rows.map(({ dirtype, ...row }) => ({ ...row, isFolder: dirtype !== DirType.FILE }))
     },
@@ -253,7 +246,7 @@ export function createShareRepo(db: Database): ShareRepo {
           views: shares.views,
           downloads: shares.downloads,
           status: shares.status,
-          listedAt: shares.listedAt,
+          private: shares.private,
           createdAt: shares.createdAt,
           matterName: matters.name,
           matterType: matters.type,
@@ -311,7 +304,7 @@ export function createShareRepo(db: Database): ShareRepo {
           views: shares.views,
           downloads: shares.downloads,
           status: shares.status,
-          listedAt: shares.listedAt,
+          private: shares.private,
           createdAt: shares.createdAt,
           matterName: matters.name,
           matterType: matters.type,

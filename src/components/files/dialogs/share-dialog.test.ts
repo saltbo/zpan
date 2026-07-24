@@ -118,7 +118,7 @@ const makeResult = (
   urls: { landing: '/s/tok' },
   expiresAt: null,
   downloadLimit: null,
-  listedAt: null,
+  private: false,
   ...overrides,
 })
 

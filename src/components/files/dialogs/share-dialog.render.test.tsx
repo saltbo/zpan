@@ -75,7 +75,7 @@ beforeEach(() => {
     urls: { landing: '/s/share-token' },
     expiresAt: null,
     downloadLimit: null,
-    listedAt: '2026-07-23T00:00:00.000Z',
+    private: false,
   })
 })
 
@@ -84,11 +84,11 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('ShareDialog profile listing selection', () => {
-  it('sends showOnProfile when the owner enables it for a landing share', async () => {
+describe('ShareDialog privacy selection', () => {
+  it('sends private when the owner enables it for a landing share', async () => {
     renderDialog()
 
-    fireEvent.click(screen.getByRole('switch', { name: 'share.showOnProfile' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'share.private' }))
     fireEvent.click(screen.getByRole('button', { name: 'share.createButton' }))
 
     await waitFor(() =>
@@ -96,19 +96,19 @@ describe('ShareDialog profile listing selection', () => {
         expect.objectContaining({
           matterId: 'matter-1',
           kind: 'landing',
-          showOnProfile: true,
+          private: true,
         }),
         expect.anything(),
       ),
     )
   })
 
-  it('omits showOnProfile unless the owner enables the control', async () => {
+  it('omits private unless the owner enables the control', async () => {
     renderDialog()
 
     fireEvent.click(screen.getByRole('button', { name: 'share.createButton' }))
 
     await waitFor(() => expect(createShare).toHaveBeenCalled())
-    expect(vi.mocked(createShare).mock.calls[0]?.[0]).not.toHaveProperty('showOnProfile')
+    expect(vi.mocked(createShare).mock.calls[0]?.[0]).not.toHaveProperty('private')
   })
 })

@@ -443,7 +443,7 @@ export type CreatedShare = {
   kind: string
   expiresAt: Date | null
   downloadLimit: number | null
-  listedAt: Date | null
+  private: boolean
 }
 
 export type CreateShareOutcome = { ok: true; share: CreatedShare } | { ok: false; error: AppError }
@@ -455,10 +455,6 @@ const CREATE_SHARE_ERRORS: Record<CreateShareError['code'], AppError> = {
   DIRECT_NO_FOLDER: badRequest('Direct shares cannot be folders', 'DIRECT_NO_FOLDER'),
   DIRECT_NO_PASSWORD: badRequest('Direct shares cannot have a password', 'DIRECT_NO_PASSWORD'),
   DIRECT_NO_RECIPIENTS: badRequest('Direct shares cannot have recipients', 'DIRECT_NO_RECIPIENTS'),
-  PROFILE_LISTING_INELIGIBLE: badRequest(
-    'Only untargeted landing shares can be shown on a profile',
-    'PROFILE_LISTING_INELIGIBLE',
-  ),
 }
 
 export async function createShare(
@@ -487,7 +483,7 @@ export async function createShare(
       expiresAt,
       downloadLimit: input.downloadLimit,
       recipients: input.recipients,
-      showOnProfile: input.showOnProfile,
+      private: input.private,
     })
   } catch (err) {
     if (err instanceof CreateShareError) return { ok: false, error: CREATE_SHARE_ERRORS[err.code] }
@@ -515,59 +511,40 @@ export async function createShare(
       kind: share.kind,
       expiresAt: share.expiresAt,
       downloadLimit: share.downloadLimit,
-      listedAt: share.listedAt,
+      private: share.private,
     },
   }
 }
 
-// ─── PUT/DELETE /:token/profile-listing — owner-curated profile state ───────
+// ─── PUT /:token/privacy — owner-controlled profile visibility ──────────────
 
-export type SetProfileListingParams = {
+export type SetSharePrivacyParams = {
   token: string
   userId: string
-  listed: boolean
-  now?: Date
+  private: boolean
 }
 
-export type SetProfileListingOutcome = { ok: true; listedAt: Date | null } | { ok: false; error: AppError }
+export type SetSharePrivacyOutcome = { ok: true; private: boolean } | { ok: false; error: AppError }
 
-export async function setProfileListing(
-  deps: ShareDeps,
-  params: SetProfileListingParams,
-): Promise<SetProfileListingOutcome> {
-  const { token, userId, listed, now = new Date() } = params
+export async function setSharePrivacy(deps: ShareDeps, params: SetSharePrivacyParams): Promise<SetSharePrivacyOutcome> {
+  const { token, userId, private: isPrivate } = params
   const resolved = await deps.share.resolveByToken(token)
   if (resolved.status === 'not_found' || resolved.status === 'revoked') {
     return { ok: false, error: notFound() }
   }
 
-  const { share, matter, recipients } = resolved
+  const { share, recipients } = resolved
   if (share.creatorId !== userId) return { ok: false, error: forbidden() }
   if (share.kind !== 'landing' || recipients.length > 0) {
     return {
       ok: false,
-      error: badRequest('Only untargeted landing shares can be shown on a profile', 'PROFILE_LISTING_INELIGIBLE'),
+      error: badRequest('Only untargeted landing shares have configurable privacy', 'SHARE_PRIVACY_INELIGIBLE'),
     }
   }
 
-  if (
-    listed &&
-    (resolved.status === 'matter_trashed' ||
-      matter.status !== 'active' ||
-      matter.purgedAt != null ||
-      (share.expiresAt != null && share.expiresAt <= now) ||
-      (share.downloadLimit != null && share.downloads >= share.downloadLimit))
-  ) {
-    return {
-      ok: false,
-      error: badRequest('Unavailable shares cannot be shown on a profile', 'PROFILE_LISTING_UNAVAILABLE'),
-    }
-  }
-
-  const listedAt = listed ? now : null
-  const updated = await deps.share.setProfileListing(token, userId, listedAt)
+  const updated = await deps.share.setPrivacy(token, userId, isPrivate)
   if (!updated) return { ok: false, error: notFound() }
-  return { ok: true, listedAt }
+  return { ok: true, private: isPrivate }
 }
 
 export function listPublicProfileShares(deps: ShareDeps, username: string, now = new Date()) {

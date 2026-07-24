@@ -94,7 +94,6 @@ import {
   listQuotas,
   listReceivedShares,
   listShareObjects,
-  listShareOnProfile,
   listShares,
   listSiteInvitations,
   listStorages,
@@ -129,9 +128,9 @@ import {
   saveShareToDrive,
   sendDownloaderHeartbeat,
   serverEventsUrl,
+  setSharePrivacy,
   testEmail,
   transferObject,
-  unlistShareFromProfile,
   updateAnnouncement,
   updateDownloader,
   updateDownloaderCreditBilling,
@@ -2708,61 +2707,46 @@ describe('api', () => {
     })
   })
 
-  describe('profile share listing', () => {
-    it('lists a share with PUT on the exact resource path', async () => {
-      const payload = { listedAt: '2026-07-23T12:00:00.000Z' }
+  describe('share privacy', () => {
+    it('updates privacy with PUT on the exact resource path', async () => {
+      const payload = { private: true }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      await expect(listShareOnProfile('tok123')).resolves.toEqual(payload)
+      await expect(setSharePrivacy('tok123', true)).resolves.toEqual(payload)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/shares/tok123/profile-listing')
+      expect(url).toBe('/api/shares/tok123/privacy')
       expect(init.method).toBe('PUT')
-      expect(init.body).toBeUndefined()
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toEqual({ private: true })
     })
 
-    it('surfaces listing errors', async () => {
+    it('surfaces privacy errors', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
-      await expect(listShareOnProfile('tok123')).rejects.toBeInstanceOf(ApiError)
-    })
-
-    it('unlists a share with DELETE on the exact resource path', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
-
-      await expect(unlistShareFromProfile('tok123')).resolves.toBeUndefined()
-
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/shares/tok123/profile-listing')
-      expect(init.method).toBe('DELETE')
-      expect(init.body).toBeUndefined()
-    })
-
-    it('surfaces unlisting errors', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Not found' }, false, 404))
-      await expect(unlistShareFromProfile('missing')).rejects.toBeInstanceOf(ApiError)
+      await expect(setSharePrivacy('tok123', true)).rejects.toBeInstanceOf(ApiError)
     })
   })
 
   describe('createShare', () => {
-    it('posts the profile selection flag to the exact share collection path', async () => {
+    it('posts the privacy flag to the exact share collection path', async () => {
       const payload = {
         token: 'tok123',
         kind: 'landing' as const,
         urls: { landing: 'https://zpan.io/s/tok123' },
         expiresAt: null,
         downloadLimit: null,
-        listedAt: '2026-07-23T12:00:00.000Z',
+        private: true,
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await createShare({ matterId: 'obj-1', kind: 'landing', showOnProfile: true })
+      const result = await createShare({ matterId: 'obj-1', kind: 'landing', private: true })
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/shares')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toEqual({ matterId: 'obj-1', kind: 'landing', showOnProfile: true })
+      expect(body).toEqual({ matterId: 'obj-1', kind: 'landing', private: true })
       const headers =
         init.headers instanceof Headers ? init.headers : new Headers(init.headers as Record<string, string>)
       expect(headers.get('Content-Type')).toContain('application/json')

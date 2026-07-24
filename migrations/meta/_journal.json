@@ -491,6 +491,13 @@
       "when": 1784850571453,
       "tag": "0070_profile-share-listing",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "6",
+      "when": 1784869319265,
+      "tag": "0071_share-privacy",
+      "breakpoints": true
     }
   ]
 }

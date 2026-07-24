@@ -1,6 +1,6 @@
 Feature: Public profiles
-  Each user has a public profile page listing owner-curated public landing
-  shares, reachable without authentication.
+  Each user has a public profile page listing public landing shares that have
+  not been marked private, reachable without authentication.
 
   @profile/user-not-found @api
   Scenario: An unknown user id has no profile
@@ -26,26 +26,26 @@ Feature: Public profiles
     When their profile is requested
     Then their user info is returned
 
-  @profile/curated-shares @api
-  Scenario: A profile returns only selected public landing shares
-    Given selected and unselected public landing shares owned by a user
+  @profile/public-shares @api
+  Scenario: A profile returns public landing shares and hides private ones
+    Given public and private landing shares owned by a user
     When their profile is requested without authentication
-    Then exactly the selected shares are returned
+    Then exactly the public shares are returned
 
   @profile/privacy-boundaries @api
   Scenario: Private share modes never appear on a profile
-    Given forged selected direct and recipient-targeted shares
+    Given direct and recipient-targeted shares
     When the owner's profile is requested
     Then neither private share is returned
 
   @profile/availability-filtering @api
-  Scenario: Unavailable selected shares disappear at read time
-    Given selected revoked, expired, exhausted, trashed, purged, draft, and missing-target shares
+  Scenario: Unavailable public shares disappear at read time
+    Given public revoked, expired, exhausted, trashed, purged, draft, and missing-target shares
     When the owner's profile is requested
     Then none of the unavailable shares are returned
 
   @profile/share-flow @journey
   Scenario: Listed files and folders use the landing-share flow
-    Given selected public file and folder landing shares
+    Given public file and folder landing shares
     When a visitor opens either item from the profile
     Then the existing share landing page handles file access and folder navigation

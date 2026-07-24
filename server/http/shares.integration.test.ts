@@ -257,7 +257,7 @@ describe('POST /api/shares', () => {
     expect(body.downloadLimit).toBe(5)
   })
 
-  it('atomically lists an eligible landing share at creation time [spec: shares/create-profile-listing]', async () => {
+  it('creates an eligible landing share as public by default [spec: shares/create-public]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -267,21 +267,19 @@ describe('POST /api/shares', () => {
     const res = await createShare(app, headers, {
       matterId: 'profile-create',
       kind: 'landing',
-      showOnProfile: true,
     })
 
     expect(res.status).toBe(201)
-    const body = (await res.json()) as { token: string; listedAt: string | null }
-    expect(body.listedAt).not.toBeNull()
+    const body = (await res.json()) as { token: string; private: boolean }
+    expect(body.private).toBe(false)
     const rows = await db
-      .select({ listedAt: shares.listedAt, status: shares.status })
+      .select({ private: shares.private, status: shares.status })
       .from(shares)
       .where(eq(shares.token, body.token))
-    expect(rows[0]?.listedAt).toBeInstanceOf(Date)
-    expect(rows[0]?.status).toBe('active')
+    expect(rows[0]).toEqual({ private: false, status: 'active' })
   })
 
-  it('rejects forged profile listing on direct and recipient-targeted shares', async () => {
+  it('accepts private creation without changing direct or targeted eligibility', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -291,23 +289,17 @@ describe('POST /api/shares', () => {
     const direct = await createShare(app, headers, {
       matterId: 'profile-ineligible',
       kind: 'direct',
-      showOnProfile: true,
+      private: true,
     })
-    expect(direct.status).toBe(400)
-    expect(((await direct.json()) as { error: { details: Array<{ reason: string }> } }).error.details[0]?.reason).toBe(
-      'PROFILE_LISTING_INELIGIBLE',
-    )
+    expect(direct.status).toBe(201)
 
     const targeted = await createShare(app, headers, {
       matterId: 'profile-ineligible',
       kind: 'landing',
       recipients: [{ recipientEmail: 'private@example.com' }],
-      showOnProfile: true,
+      private: true,
     })
-    expect(targeted.status).toBe(400)
-    expect(
-      ((await targeted.json()) as { error: { details: Array<{ reason: string }> } }).error.details[0]?.reason,
-    ).toBe('PROFILE_LISTING_INELIGIBLE')
+    expect(targeted.status).toBe(201)
   })
 
   it('returns 400 with DIRECT_NO_RECIPIENTS when creating direct share with recipients [spec: shares/direct-no-recipients]', async () => {
@@ -359,25 +351,23 @@ describe('POST /api/shares', () => {
   })
 })
 
-// ─── PUT/DELETE /api/shares/:token/profile-listing ───────────────────────────
+// ─── PUT /api/shares/:token/privacy ──────────────────────────────────────────
 
-function profileListingRequest(
-  app: TestApp,
-  token: string,
-  method: 'PUT' | 'DELETE',
-  headers?: Record<string, string>,
-) {
-  return app.request(`/api/shares/${token}/profile-listing`, { method, headers })
+function privacyRequest(app: TestApp, token: string, isPrivate: boolean, headers?: Record<string, string>) {
+  return app.request(`/api/shares/${token}/privacy`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ private: isPrivate }),
+  })
 }
 
-describe('share profile listing mutation', () => {
+describe('share privacy mutation', () => {
   it('requires authentication', async () => {
     const { app } = await createTestApp()
-    expect((await profileListingRequest(app, 'unknown', 'PUT')).status).toBe(401)
-    expect((await profileListingRequest(app, 'unknown', 'DELETE')).status).toBe(401)
+    expect((await privacyRequest(app, 'unknown', true)).status).toBe(401)
   })
 
-  it('lets only the owner list and unlist, without revoking the landing share [spec: shares/profile-listing-owner] [spec: shares/profile-listing-authorization] [spec: shares/profile-unlist-preserves-access]', async () => {
+  it('lets only the owner make a landing share private or public without revoking it [spec: shares/privacy-owner] [spec: shares/privacy-authorization] [spec: shares/privacy-preserves-access]', async () => {
     const { app, db } = await createTestApp()
     const ownerHeaders = await authedHeaders(app, `profile-owner-${nanoid()}@example.com`)
     await insertStorage(db)
@@ -387,25 +377,26 @@ describe('share profile listing mutation', () => {
     const token = ((await created.json()) as { token: string }).token
     const otherHeaders = await authedHeaders(app, `profile-other-${nanoid()}@example.com`)
 
-    expect((await profileListingRequest(app, token, 'PUT', otherHeaders)).status).toBe(403)
+    expect((await privacyRequest(app, token, true, otherHeaders)).status).toBe(403)
 
-    const listed = await profileListingRequest(app, token, 'PUT', ownerHeaders)
-    expect(listed.status).toBe(200)
-    expect(((await listed.json()) as { listedAt: string | null }).listedAt).not.toBeNull()
+    const madePrivate = await privacyRequest(app, token, true, ownerHeaders)
+    expect(madePrivate.status).toBe(200)
+    expect(await madePrivate.json()).toEqual({ private: true })
 
-    const unlisted = await profileListingRequest(app, token, 'DELETE', ownerHeaders)
-    expect(unlisted.status).toBe(204)
+    const madePublic = await privacyRequest(app, token, false, ownerHeaders)
+    expect(madePublic.status).toBe(200)
+    expect(await madePublic.json()).toEqual({ private: false })
     const rows = await db
-      .select({ listedAt: shares.listedAt, status: shares.status })
+      .select({ private: shares.private, status: shares.status })
       .from(shares)
       .where(eq(shares.token, token))
-    expect(rows[0]).toEqual({ listedAt: null, status: 'active' })
+    expect(rows[0]).toEqual({ private: false, status: 'active' })
 
     const landing = await app.request(`/api/shares/${token}`)
     expect(landing.status).toBe(200)
   })
 
-  it('rejects forged listing mutations for direct and recipient-targeted shares [spec: shares/profile-listing-ineligible]', async () => {
+  it('rejects privacy mutations for direct and recipient-targeted shares [spec: shares/privacy-ineligible]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, `profile-ineligible-owner-${nanoid()}@example.com`)
     await insertStorage(db)
@@ -423,10 +414,10 @@ describe('share profile listing mutation', () => {
     const targetedToken = ((await targetedCreated.json()) as { token: string }).token
 
     for (const token of [directToken, targetedToken]) {
-      const res = await profileListingRequest(app, token, 'PUT', headers)
+      const res = await privacyRequest(app, token, true, headers)
       expect(res.status).toBe(400)
       const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
-      expect(body.error.details[0]?.reason).toBe('PROFILE_LISTING_INELIGIBLE')
+      expect(body.error.details[0]?.reason).toBe('SHARE_PRIVACY_INELIGIBLE')
     }
   })
 })

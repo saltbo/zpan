@@ -2,7 +2,7 @@ import { DirType } from '@shared/constants'
 import type { CreateShareRequest } from '@shared/schemas'
 import type { StorageObject } from '@shared/types'
 import { useMutation } from '@tanstack/react-query'
-import { CheckCircle2, Copy, File, Folder, House, KeyRound, Share2, TriangleAlert, X } from 'lucide-react'
+import { CheckCircle2, Copy, File, Folder, KeyRound, Lock, Share2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -79,7 +79,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
   const [customExpires, setCustomExpires] = useState('')
   const [limitOption, setLimitOption] = useState('unlimited')
   const [customLimit, setCustomLimit] = useState('')
-  const [showOnProfile, setShowOnProfile] = useState(false)
+  const [privateShare, setPrivateShare] = useState(false)
   const [result, setResult] = useState<CreateShareResult | null>(null)
 
   useEffect(() => {
@@ -93,7 +93,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
     setCustomExpires('')
     setLimitOption('unlimited')
     setCustomLimit('')
-    setShowOnProfile(false)
+    setPrivateShare(false)
     setResult(null)
   }, [open])
 
@@ -147,7 +147,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
     if (isTargetedMode(mode) && chips.length > 0) {
       body.recipients = chips.filter((c) => c.valid).map((c) => ({ recipientEmail: c.value }))
     }
-    if (mode === 'page' && showOnProfile) body.showOnProfile = true
+    if (mode === 'page' && privateShare) body.private = true
     mutation.mutate(body)
   }
 
@@ -186,7 +186,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
                 isFolder={isFolder}
                 onChange={(next) => {
                   setMode(next)
-                  setShowOnProfile(false)
+                  setPrivateShare(false)
                   setPasswordEnabled(false)
                   setPassword('')
                   if (!isTargetedMode(next)) {
@@ -220,16 +220,16 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
                 <div className="flex min-h-11 items-start justify-between gap-4 rounded-md border bg-background p-3">
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
-                      <House className="h-4 w-4 text-muted-foreground" />
-                      <Label htmlFor="share-profile-listing">{t('share.showOnProfile')}</Label>
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                      <Label htmlFor="private-share">{t('share.private')}</Label>
                     </div>
-                    <p className="text-xs leading-5 text-muted-foreground">{t('share.showOnProfileHint')}</p>
+                    <p className="text-xs leading-5 text-muted-foreground">{t('share.privateHint')}</p>
                   </div>
                   <Switch
-                    id="share-profile-listing"
+                    id="private-share"
                     className="mt-0.5"
-                    checked={showOnProfile}
-                    onCheckedChange={setShowOnProfile}
+                    checked={privateShare}
+                    onCheckedChange={setPrivateShare}
                   />
                 </div>
               )}

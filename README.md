@@ -46,7 +46,7 @@ The product boundary is intentional: ZPan is a purpose-built S3-backed web drive
 - **S3 web drive** — Manage files, folders, previews, trash, quotas, and team workspaces on top of your own object storage
 - **Image hosting** — Upload via PicGo, PicList, uPic, ShareX, Flameshot, or API and get a stable URL instantly
 - **File sharing** — Publish share links with password, expiration, download limits, direct links, and save-to-drive flows
-- **Personal homepage** — Give each user a public `/u/username` page for curated shared files and folder-style browsing
+- **Personal homepage** — Give each user a public `/u/username` page for public shared files and folder-style browsing
 - **External access** — Mount files through WebDAV and run downloader workers for remote-download workflows
 
 ## Why ZPan?

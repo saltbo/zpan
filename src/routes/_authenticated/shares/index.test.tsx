@@ -2,7 +2,7 @@ import type { ShareListItem } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { listReceivedShares, listShareOnProfile, listShares, revokeShare, unlistShareFromProfile } from '@/lib/api'
+import { listReceivedShares, listShares, revokeShare, setSharePrivacy } from '@/lib/api'
 import { SharesPage } from './index'
 
 const router = vi.hoisted(() => ({
@@ -47,10 +47,9 @@ vi.mock('@/components/shares/revoke-confirm-dialog', () => ({
 
 vi.mock('@/lib/api', () => ({
   listReceivedShares: vi.fn(),
-  listShareOnProfile: vi.fn(),
   listShares: vi.fn(),
   revokeShare: vi.fn(),
-  unlistShareFromProfile: vi.fn(),
+  setSharePrivacy: vi.fn(),
 }))
 
 function share(overrides: Partial<ShareListItem>): ShareListItem {
@@ -66,7 +65,7 @@ function share(overrides: Partial<ShareListItem>): ShareListItem {
     views: 2,
     downloads: 1,
     status: 'active',
-    listedAt: null,
+    private: false,
     createdAt: '2026-07-23T00:00:00.000Z',
     matter: {
       name: 'Public file.pdf',
@@ -79,12 +78,12 @@ function share(overrides: Partial<ShareListItem>): ShareListItem {
 }
 
 const shares = [
-  share({ token: 'unlisted-token', matter: { name: 'Unlisted.pdf', type: 'application/pdf', dirtype: 0 } }),
+  share({ token: 'public-token', matter: { name: 'Public.pdf', type: 'application/pdf', dirtype: 0 } }),
   share({
     id: 'share-2',
-    token: 'listed-token',
-    listedAt: '2026-07-23T01:00:00.000Z',
-    matter: { name: 'Listed folder', type: 'folder', dirtype: 1 },
+    token: 'private-token',
+    private: true,
+    matter: { name: 'Private folder', type: 'folder', dirtype: 1 },
   }),
   share({
     id: 'share-3',
@@ -106,8 +105,7 @@ function renderPage() {
 beforeEach(() => {
   vi.mocked(listShares).mockResolvedValue({ items: shares, total: shares.length, page: 1, pageSize: 20 })
   vi.mocked(listReceivedShares).mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 })
-  vi.mocked(listShareOnProfile).mockResolvedValue({ listedAt: '2026-07-23T02:00:00.000Z' })
-  vi.mocked(unlistShareFromProfile).mockResolvedValue(undefined)
+  vi.mocked(setSharePrivacy).mockResolvedValue({ private: true })
   vi.mocked(revokeShare).mockResolvedValue({} as never)
 })
 
@@ -116,39 +114,41 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('authenticated Shares profile listing actions', () => {
-  it('lists an eligible landing share and unlists an already listed share', async () => {
+describe('authenticated Shares privacy actions', () => {
+  it('makes a public share private and a private share public', async () => {
     renderPage()
 
-    expect(await screen.findByText('Unlisted.pdf')).toBeTruthy()
-    fireEvent.click(screen.getAllByTitle('shares.listOnProfile')[0])
-    await waitFor(() => expect(listShareOnProfile).toHaveBeenCalledWith('unlisted-token'))
+    expect(await screen.findByText('Public.pdf')).toBeTruthy()
+    const publicButton = screen
+      .getAllByTitle('shares.makePrivate')
+      .find((button) => button.closest('tr')?.textContent?.includes('Public.pdf'))
+    fireEvent.click(publicButton!)
+    await waitFor(() => expect(setSharePrivacy).toHaveBeenCalledWith('public-token', true))
 
-    fireEvent.click(screen.getByTitle('shares.unlistFromProfile'))
-    await waitFor(() => expect(unlistShareFromProfile).toHaveBeenCalledWith('listed-token'))
+    fireEvent.click(screen.getByTitle('shares.makePublic'))
+    await waitFor(() => expect(setSharePrivacy).toHaveBeenCalledWith('private-token', false))
   })
 
-  it('disables profile listing for an ineligible direct share', async () => {
+  it('disables privacy changes for an ineligible direct share', async () => {
     renderPage()
 
     expect(await screen.findByText('Direct file.pdf')).toBeTruthy()
-    const listButtons = screen.getAllByTitle('shares.listOnProfile')
-    const directButton = listButtons.find((button) => button.closest('tr')?.textContent?.includes('Direct file.pdf'))
+    const privacyButtons = screen.getAllByTitle('shares.makePrivate')
+    const directButton = privacyButtons.find((button) => button.closest('tr')?.textContent?.includes('Direct file.pdf'))
 
     expect(directButton?.hasAttribute('disabled')).toBe(true)
     fireEvent.click(directButton!)
-    expect(listShareOnProfile).not.toHaveBeenCalled()
+    expect(setSharePrivacy).not.toHaveBeenCalled()
   })
 
-  it('keeps unlisting available when an already listed landing share has expired', async () => {
-    const expiredListed = share({
-      token: 'expired-listed-token',
+  it('keeps privacy changes available when a landing share has expired', async () => {
+    const expiredPublic = share({
+      token: 'expired-public-token',
       expiresAt: '2000-01-01T00:00:00.000Z',
-      listedAt: '1999-12-01T00:00:00.000Z',
-      matter: { name: 'Expired listed.pdf', type: 'application/pdf', dirtype: 0 },
+      matter: { name: 'Expired public.pdf', type: 'application/pdf', dirtype: 0 },
     })
     vi.mocked(listShares).mockResolvedValue({
-      items: [expiredListed],
+      items: [expiredPublic],
       total: 1,
       page: 1,
       pageSize: 20,
@@ -156,10 +156,10 @@ describe('authenticated Shares profile listing actions', () => {
 
     renderPage()
 
-    expect(await screen.findByText('Expired listed.pdf')).toBeTruthy()
-    const unlistButton = screen.getByTitle('shares.unlistFromProfile')
-    expect(unlistButton.hasAttribute('disabled')).toBe(false)
-    fireEvent.click(unlistButton)
-    await waitFor(() => expect(unlistShareFromProfile).toHaveBeenCalledWith('expired-listed-token'))
+    expect(await screen.findByText('Expired public.pdf')).toBeTruthy()
+    const privateButton = screen.getByTitle('shares.makePrivate')
+    expect(privateButton.hasAttribute('disabled')).toBe(false)
+    fireEvent.click(privateButton)
+    await waitFor(() => expect(setSharePrivacy).toHaveBeenCalledWith('expired-public-token', true))
   })
 })
