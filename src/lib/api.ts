@@ -22,6 +22,7 @@ import type {
   ReplaceStorageInput,
   ShareObjectItem,
   ShareObjectsResponse,
+  ShareReadmeResponse,
   SiteConfig,
   SiteSettings,
   UpdateDownloaderCreditBillingInput,
@@ -1029,6 +1030,10 @@ export function listShareObjects(token: string, parent = '', page = 1, pageSize 
       query: { parent, page: String(page), pageSize: String(pageSize) },
     }),
   )
+}
+
+export function getShareReadme(token: string) {
+  return unwrap<ShareReadmeResponse>(publicSharesApi[':token'].readme.$get({ param: { token } }))
 }
 
 export function buildShareObjectUrl(token: string, ref: string): string {

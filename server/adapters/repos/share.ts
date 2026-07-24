@@ -369,9 +369,13 @@ export function createShareRepo(db: Database): ShareRepo {
       return quota.hasQuotaForBytes(orgId, bytes)
     },
 
-    async getCreatorName(creatorId: string): Promise<string | null> {
-      const rows = await db.select({ name: user.name }).from(user).where(eq(user.id, creatorId)).limit(1)
-      return rows[0]?.name ?? null
+    async getCreatorIdentity(creatorId: string) {
+      const rows = await db
+        .select({ name: user.name, username: user.username })
+        .from(user)
+        .where(eq(user.id, creatorId))
+        .limit(1)
+      return rows[0] ?? null
     },
 
     async getUserEmail(userId: string): Promise<string | null> {

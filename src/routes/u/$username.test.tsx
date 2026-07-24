@@ -14,6 +14,11 @@ vi.mock('@tanstack/react-router', () => ({
     ...options,
     useParams: () => ({ username: 'alice' }),
   }),
+  Link: ({ to, params, children, ...props }: { to: string; params: { token?: string }; children: React.ReactNode }) => (
+    <a href={params?.token ? to.replace('$token', params.token) : to} {...props}>
+      {children}
+    </a>
+  ),
 }))
 
 vi.mock('@/lib/api', () => ({
@@ -66,7 +71,7 @@ describe('public user homepage', () => {
   it('loads the requested profile and links public files and folders to the landing-share flow', async () => {
     renderPage()
 
-    expect(await screen.findByText('Alice')).toBeTruthy()
+    expect(await screen.findByText('profile.publicSpaceTitle')).toBeTruthy()
     expect(getProfile).toHaveBeenCalledWith('alice')
     expect(screen.getByRole('link', { name: /release-notes\.pdf/ }).getAttribute('href')).toBe('/s/file-token')
     expect(screen.getByRole('link', { name: /Public folder/ }).getAttribute('href')).toBe('/s/folder-token')

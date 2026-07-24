@@ -8,6 +8,7 @@ import {
   listSharesQuerySchema,
   saveShareRequestSchema,
   shareObjectsResponseSchema,
+  shareReadmeResponseSchema,
   shareRecipientViewSchema,
 } from '../../shared/schemas/share'
 import { transferAuditActor } from '../middleware/audit-transfers'
@@ -19,6 +20,7 @@ import {
   downloadShareObject,
   listShareObjects,
   listShares,
+  readShareReadme,
   revokeShare,
   type ShareCreatorDto,
   type ShareViewerDto,
@@ -53,6 +55,7 @@ const shareViewSchema = z
       isFolder: z.boolean(),
     }),
     creatorName: z.string(),
+    creatorUsername: z.string().nullable(),
     requiresPassword: z.boolean(),
     expired: z.boolean(),
     exhausted: z.boolean(),
@@ -79,6 +82,7 @@ function toShareViewDTO(dto: ShareViewerDto | ShareCreatorDto): z.infer<typeof s
     downloadLimit: dto.downloadLimit,
     matter: dto.matter,
     creatorName: dto.creatorName,
+    creatorUsername: dto.creatorUsername,
     requiresPassword: dto.requiresPassword,
     expired: dto.expired,
     exhausted: dto.exhausted,
@@ -231,6 +235,23 @@ const listShareObjectsRoute = createRoute({
   },
 })
 
+const readShareReadmeRoute = createRoute({
+  operationId: 'readShareReadme',
+  summary: 'Read a shared folder README',
+  tags: ['Shares'],
+  method: 'get',
+  path: '/{token}/readme',
+  request: { params: z.object({ token: z.string() }) },
+  responses: {
+    200: jsonContent(shareReadmeResponseSchema, 'README.md content'),
+    400: errorResponse('README.md is not valid UTF-8'),
+    401: errorResponse('Password required'),
+    404: errorResponse('README.md not found'),
+    410: errorResponse('Share expired'),
+    413: errorResponse('README.md is too large'),
+  },
+})
+
 const pub = new OpenAPIHono<Env>()
 
 // GET /{token}/objects/{ref} resolves a download to a 302 redirect (or a presigned
@@ -340,6 +361,17 @@ export const publicShares = pub
       pageSize,
     })
     if (out.ok) return c.json(out.result, 200)
+    throw out.error
+  })
+  .openapi(readShareReadmeRoute, async (c) => {
+    const token = c.req.valid('param').token
+    const viewerId = await readUserId(c)
+    const out = await readShareReadme(c.get('deps'), {
+      token,
+      viewerId,
+      accessCookie: getCookie(c, cookieName(token)),
+    })
+    if (out.ok) return c.json({ content: out.content }, 200)
     throw out.error
   })
 

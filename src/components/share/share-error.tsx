@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { AlertCircle, Clock, Download, FileX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -29,7 +30,7 @@ export function ShareError({ code }: ShareErrorProps) {
         <p className="text-muted-foreground">{t(descKey)}</p>
       </div>
       <Button asChild variant="outline">
-        <a href="/">{t('share.browseZPan')}</a>
+        <Link to="/">{t('share.browseZPan')}</Link>
       </Button>
     </div>
   )

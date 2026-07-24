@@ -81,6 +81,7 @@ export type ShareViewerDto = {
   downloadLimit: number | null
   matter: { name: string; type: string; size: number | null; isFolder: boolean }
   creatorName: string
+  creatorUsername: string | null
   requiresPassword: boolean
   expired: boolean
   exhausted: boolean
@@ -121,7 +122,7 @@ async function composeShareView(
   const exhausted = !!(share.downloadLimit != null && share.downloads >= share.downloadLimit)
   const isFolder = matter.dirtype !== DirType.FILE
 
-  const creatorName = (await deps.share.getCreatorName(share.creatorId)) ?? ''
+  const creator = await deps.share.getCreatorIdentity(share.creatorId)
 
   const base: ShareViewerDto = {
     token: share.token,
@@ -130,7 +131,8 @@ async function composeShareView(
     expiresAt: share.expiresAt,
     downloadLimit: share.downloadLimit,
     matter: { name: matter.name, type: matter.type, size: matter.size, isFolder },
-    creatorName,
+    creatorName: creator?.name ?? '',
+    creatorUsername: creator?.username ?? null,
     requiresPassword,
     expired,
     exhausted,
@@ -269,6 +271,48 @@ export async function listShareObjects(
       pageSize,
       breadcrumb: buildBreadcrumb(matter.name, relativePath),
     },
+  }
+}
+
+// ─── GET /:token/readme — root README.md content ────────────────────────────
+
+const MAX_SHARE_README_BYTES = 1024 * 1024
+
+export type ReadShareReadmeParams = {
+  token: string
+  viewerId: string | null
+  accessCookie: string | undefined
+  now?: Date
+}
+
+export type ReadShareReadmeOutcome = { ok: true; content: string } | { ok: false; error: AppError }
+
+export async function readShareReadme(deps: ShareDeps, params: ReadShareReadmeParams): Promise<ReadShareReadmeOutcome> {
+  const { token, viewerId, accessCookie, now = new Date() } = params
+  const resolved = await deps.share.resolveByToken(token)
+  if (resolved.status !== 'ok') return { ok: false, error: notFound('README.md not found') }
+
+  const { share, matter, recipients } = resolved
+  if (share.kind !== 'landing' || matter.dirtype === DirType.FILE)
+    return { ok: false, error: notFound('README.md not found') }
+  if (checkAccessGate(share.passwordHash, recipients, viewerId, accessCookie) === 'password_required')
+    return { ok: false, error: passwordRequired() }
+  if (share.expiresAt && share.expiresAt < now) return { ok: false, error: expiredError('Share has expired') }
+
+  const children = await deps.share.listDirectActiveChildren(matter.orgId, folderRootPath(matter))
+  const readme = children.find((child) => child.dirtype === DirType.FILE && child.name === 'README.md')
+  if (!readme) return { ok: false, error: notFound('README.md not found') }
+  if ((readme.size ?? 0) > MAX_SHARE_README_BYTES)
+    return { ok: false, error: new AppError(413, 'README.md is too large') }
+
+  const storage = await deps.storages.get(readme.storageId)
+  if (!storage) return { ok: false, error: storageNotFound() }
+
+  const bytes = await deps.s3.getObjectBytes(storage, readme.object)
+  try {
+    return { ok: true, content: new TextDecoder('utf-8', { fatal: true }).decode(bytes) }
+  } catch {
+    return { ok: false, error: badRequest('README.md must be UTF-8 text') }
   }
 }
 
@@ -466,11 +510,11 @@ export async function createShare(
 
   const expiresAt = input.expiresAt ? new Date(input.expiresAt) : undefined
 
-  const [creatorNameRaw, matterName] = await Promise.all([
-    deps.share.getCreatorName(userId),
+  const [creator, matterName] = await Promise.all([
+    deps.share.getCreatorIdentity(userId),
     deps.share.getMatterName(input.matterId),
   ])
-  const creatorName = creatorNameRaw ?? 'Unknown'
+  const creatorName = creator?.name ?? 'Unknown'
 
   let share: ShareRecord
   try {

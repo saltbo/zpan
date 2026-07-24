@@ -140,6 +140,7 @@ export type {
   ShareKind,
   ShareObjectItem,
   ShareObjectsResponse,
+  ShareReadmeResponse,
 } from './share'
 export {
   createShareRequestSchema,
@@ -148,6 +149,7 @@ export {
   shareKindSchema,
   shareObjectItemSchema,
   shareObjectsResponseSchema,
+  shareReadmeResponseSchema,
   shareRecipientSchema,
   shareRecipientViewSchema,
 } from './share'

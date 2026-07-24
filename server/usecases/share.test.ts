@@ -26,6 +26,7 @@ import {
   downloadShareObject,
   listShareObjects,
   listShares,
+  readShareReadme,
   revokeShare,
   type ShareDeps,
   saveShare,
@@ -142,7 +143,7 @@ function makeShareRepo(over: Partial<ShareRepo> = {}): ShareRepo {
     computeSourceBytes: async () => 1024,
     listDirectActiveChildren: async () => [],
     hasQuotaForBytes: async () => true,
-    getCreatorName: async () => 'Creator Name',
+    getCreatorIdentity: async () => ({ name: 'Creator Name', username: 'creator' }),
     getUserEmail: async () => 'creator@example.com',
     getMatterName: async () => 'file.bin',
     findShareChildMatter: async () => childMatter,
@@ -270,6 +271,7 @@ describe('viewShare', () => {
       kind: 'landing',
       matter: { name: 'file.bin', isFolder: false },
       creatorName: 'Creator Name',
+      creatorUsername: 'creator',
       requiresPassword: false,
       expired: false,
       exhausted: false,
@@ -277,6 +279,21 @@ describe('viewShare', () => {
       rootRef: encodeChildRef('sk_token1', 'm-1'),
     })
     expect('recipients' in out.dto).toBe(false)
+  })
+
+  it('returns a null creator username for legacy users without one', async () => {
+    const { deps } = makeDeps({
+      share: { getCreatorIdentity: async () => ({ name: 'Legacy User', username: null }) },
+    })
+    const out = await viewShare(deps, {
+      token: 'sk_token1',
+      viewerId: null,
+      viewCookie: 'seen',
+      accessCookie: undefined,
+    })
+    if (!out.ok) throw new Error('expected ok')
+    expect(out.dto.creatorName).toBe('Legacy User')
+    expect(out.dto.creatorUsername).toBeNull()
   })
 
   it('does not increment views (no cookie) when already seen', async () => {
@@ -518,6 +535,66 @@ describe('listShareObjects', () => {
       { name: 'a', path: 'a' },
       { name: 'b', path: 'a/b' },
     ])
+  })
+})
+
+// ─── readShareReadme ────────────────────────────────────────────────────────
+
+describe('readShareReadme', () => {
+  const baseParams = { token: 'sk_token1', viewerId: null, accessCookie: 'ok' }
+  const readme = {
+    ...fileMatter,
+    id: 'readme-1',
+    name: 'README.md',
+    type: 'text/markdown',
+    size: 24,
+    parent: 'root/docs',
+    object: 'root/docs/README.md',
+  } as Matter
+
+  it('reads the root README.md as UTF-8 without consuming a download', async () => {
+    const listDirectActiveChildren = vi.fn(async () => [readme])
+    const getObjectBytes = vi.fn(async () => new TextEncoder().encode('# Folder guide'))
+    const { deps } = makeDeps({
+      share: {
+        resolveByToken: async () => okResolution({ matter: folderMatter }),
+        listDirectActiveChildren,
+      },
+      s3: { getObjectBytes },
+    })
+
+    const out = await readShareReadme(deps, baseParams)
+
+    expect(out).toEqual({ ok: true, content: '# Folder guide' })
+    expect(listDirectActiveChildren).toHaveBeenCalledWith('o-1', 'root/docs')
+    expect(getObjectBytes).toHaveBeenCalledWith(sampleStorage, 'root/docs/README.md')
+  })
+
+  it('returns not found when the folder has no root README.md', async () => {
+    const { deps } = makeDeps({
+      share: {
+        resolveByToken: async () => okResolution({ matter: folderMatter }),
+        listDirectActiveChildren: async () => [childMatter],
+      },
+    })
+
+    expectError(await readShareReadme(deps, baseParams), 404, undefined, 'README.md not found')
+  })
+
+  it('enforces the share password gate', async () => {
+    const protectedShare = { ...landingShare, passwordHash: 'hash' } as ShareRecord
+    const { deps } = makeDeps({
+      share: {
+        resolveByToken: async () => okResolution({ share: protectedShare, matter: folderMatter }),
+      },
+    })
+
+    expectError(
+      await readShareReadme(deps, { ...baseParams, accessCookie: undefined }),
+      401,
+      undefined,
+      'Password required',
+    )
   })
 })
 
@@ -788,7 +865,10 @@ describe('createShare', () => {
 
   it('dispatches share-created notifications when recipients are present', async () => {
     const { deps, createNotification, sendEmail } = makeDeps({
-      share: { getCreatorName: async () => 'Alice', getMatterName: async () => 'doc.pdf' },
+      share: {
+        getCreatorIdentity: async () => ({ name: 'Alice', username: 'alice' }),
+        getMatterName: async () => 'doc.pdf',
+      },
     })
     const recipients = [{ recipientUserId: 'u2' }, { recipientEmail: 'b@example.com' }]
     await createShare(deps, platform, {
@@ -813,7 +893,7 @@ describe('createShare', () => {
 
   it('falls back to Unknown creator / empty matter name', async () => {
     const { deps, sendEmail } = makeDeps({
-      share: { getCreatorName: async () => null, getMatterName: async () => null },
+      share: { getCreatorIdentity: async () => null, getMatterName: async () => null },
     })
     await createShare(deps, platform, {
       orgId: 'o-1',
