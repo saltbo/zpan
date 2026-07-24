@@ -1,3 +1,62 @@
+## v2.8.0 — 2026-07-24 · Admin analytics & operations
+
+### Features
+- **Admin analytics dashboard** — live operational cards and trustworthy hourly
+  rollups for storage, traffic, users, shares, remote downloads, and background
+  jobs, including trend charts, coverage indicators, and backfill tooling.
+- **Storage operations** — redesigned backend management with provider presets,
+  connection testing and request previews, usage projections by category, file
+  location tracking, and safer cleanup workflows.
+- **Spaces and quota** — workspace settings now separate members, services,
+  billing, and image hosting, with clearer quota ownership and cross-space file
+  operations.
+- **Public profiles and shares** — redesigned public pages can feature curated
+  shares directly on a user's profile.
+- **WebDAV administration** — service controls and optional custom domains, with
+  automatic domain derivation and verification.
+- **API and events** — complete OpenAPI coverage with Scalar documentation,
+  consistent resource schemas and errors, plus a unified SSE stream that
+  replaces frontend polling.
+- **More refinements** — admin user/team activity feeds, improved audit filters,
+  remote-download event timelines, NFO previews, configurable email
+  verification, and a remembered last sign-in method.
+
+### Fixes
+- Reworked remote-downloader supervision, heartbeat recovery, seeding, retries,
+  credit pre-authorization, progress reporting, and cleanup.
+- Analytics now uses bounded, completed rollups and explicitly shows incomplete
+  history instead of silently mixing partial or live data.
+- Fixed upload metadata for non-ASCII filenames and synchronized stored content
+  types after upload.
+- Improved Finder WebDAV compatibility, active-folder protection, dialog
+  overflow, and collapsible folder navigation.
+
+> **Breaking changes:** API endpoints and response shapes are now consistently
+> resource-oriented; errors use a unified format, delete operations return
+> `204 No Content`, and status transitions use resource status endpoints.
+> Landing-page shares are now publicly accessible by default unless explicitly
+> configured as private.
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.8.0)
+
+## v2.7.4 — 2026-06-11
+
+### Features
+- Loopback and LAN origins are trusted automatically without
+  `TRUSTED_ORIGINS`.
+- Cloud license pairing now has clearer configuration, errors, and confirmation.
+- Coupon codes can be entered during checkout.
+
+### Fixes
+- Eliminated cross-request session initialization hangs and added a faster
+  client-side session cache.
+- Non-ASCII upload filenames are now safe in `Content-Disposition`.
+- Duplicate checkout attempts automatically cancel the stale pending order.
+- Default quota values are handled correctly in the admin form.
+- Failed D1 queries now log their underlying cause chain.
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.7.4)
+
 ## v2.7.3 — 2026-06-09
 
 ### Features

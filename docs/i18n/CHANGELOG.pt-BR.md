@@ -1,3 +1,59 @@
+## v2.8.0 — 2026-07-24 · Análises e operações administrativas
+
+### Recursos
+- **Painel analítico administrativo** — cartões operacionais ao vivo e
+  agregações horárias confiáveis para armazenamento, tráfego, usuários,
+  compartilhamentos, downloads remotos e tarefas em segundo plano, com
+  tendências, cobertura dos dados e ferramentas de preenchimento histórico.
+- **Operações de armazenamento** — gestão de backends reformulada com presets
+  de provedores, teste de conexão, prévia de requisições, projeção de uso por
+  categoria, localização de arquivos e limpeza segura.
+- **Espaços e cota** — as configurações separam membros, serviços, cobrança e
+  hospedagem de imagens, com propriedade de cota e operações entre espaços mais claras.
+- **Perfis e compartilhamentos públicos** — páginas públicas renovadas podem
+  exibir compartilhamentos selecionados diretamente no perfil do usuário.
+- **Administração WebDAV** — controles do serviço e domínios personalizados
+  opcionais, com derivação e verificação automáticas.
+- **API e eventos** — cobertura OpenAPI completa com documentação Scalar,
+  esquemas e erros consistentes e um fluxo SSE unificado que substitui o polling.
+- **Mais melhorias** — atividade de usuários/equipes na administração, filtros
+  de auditoria, linha do tempo de downloads remotos, prévia NFO, verificação de
+  e-mail configurável e memorização do último método de login.
+
+### Correções
+- Reformulada a supervisão, recuperação por heartbeat, semeadura, repetição,
+  pré-autorização de créditos, progresso e limpeza do downloader remoto.
+- As análises usam apenas agregações delimitadas e concluídas e mostram
+  históricos incompletos em vez de misturar dados parciais ou ao vivo.
+- Corrigidos os metadados de upload para nomes não ASCII e a sincronização do
+  tipo de conteúdo armazenado após o upload.
+- Melhor compatibilidade WebDAV com Finder, proteção de pastas ativas,
+  transbordamento de diálogos e navegação recolhível por pastas.
+
+> **Mudanças incompatíveis:** rotas e respostas da API agora são orientadas a
+> recursos; erros usam um formato unificado, exclusões retornam `204 No Content`
+> e mudanças de estado usam endpoints de status. Compartilhamentos com landing
+> page agora são públicos por padrão, salvo configuração explícita como privados.
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.8.0)
+
+## v2.7.4 — 2026-06-11
+
+### Recursos
+- Origens de loopback e LAN são confiáveis automaticamente sem `TRUSTED_ORIGINS`.
+- O pareamento da licença em nuvem tem configuração, erros e confirmação mais claros.
+- Cupons podem ser inseridos durante o checkout.
+
+### Correções
+- Eliminadas travas na inicialização de sessão entre requisições, com um cache
+  de sessão do cliente mais rápido.
+- Nomes não ASCII agora são seguros em `Content-Disposition`.
+- Checkouts duplicados cancelam automaticamente o pedido pendente obsoleto.
+- Valores padrão de cota são tratados corretamente no formulário administrativo.
+- Falhas de consultas D1 registram toda a cadeia de causas.
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.7.4)
+
 ## v2.7.3 — 2026-06-09
 
 ### Recursos
