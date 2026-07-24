@@ -1891,6 +1891,7 @@ type CreatedShare struct {
 	DownloadLimit *int    `json:"downloadLimit"`
 	ExpiresAt     *string `json:"expiresAt"`
 	Kind          string  `json:"kind"`
+	ListedAt      *string `json:"listedAt"`
 	Token         string  `json:"token"`
 	Urls          struct {
 		Direct  *string `json:"direct,omitempty"`
@@ -2450,15 +2451,18 @@ type PublicOrigin = string
 
 // PublicProfile defines model for PublicProfile.
 type PublicProfile struct {
-	Shares []*interface{} `json:"shares"`
-	User   PublicUser     `json:"user"`
-}
-
-// PublicUser defines model for PublicUser.
-type PublicUser struct {
-	Image    *string `json:"image"`
-	Name     string  `json:"name"`
-	Username string  `json:"username"`
+	Shares []struct {
+		IsFolder bool   `json:"isFolder"`
+		Name     string `json:"name"`
+		Size     *int   `json:"size"`
+		Token    string `json:"token"`
+		Type     string `json:"type"`
+	} `json:"shares"`
+	User struct {
+		Image    *string `json:"image"`
+		Name     string  `json:"name"`
+		Username string  `json:"username"`
+	} `json:"user"`
 }
 
 // QuotaEntitlement defines model for QuotaEntitlement.
@@ -2573,6 +2577,7 @@ type ShareListItem struct {
 	ExpiresAt     *string `json:"expiresAt"`
 	Id            string  `json:"id"`
 	Kind          string  `json:"kind"`
+	ListedAt      *string `json:"listedAt"`
 	Matter        struct {
 		Dirtype int    `json:"dirtype"`
 		Name    string `json:"name"`
@@ -2592,10 +2597,21 @@ type ShareObjects struct {
 		Name string `json:"name"`
 		Path string `json:"path"`
 	} `json:"breadcrumb"`
-	Items    []*interface{} `json:"items"`
-	Page     int            `json:"page"`
-	PageSize int            `json:"pageSize"`
-	Total    int            `json:"total"`
+	Items []struct {
+		IsFolder bool   `json:"isFolder"`
+		Name     string `json:"name"`
+		Ref      string `json:"ref"`
+		Size     *int   `json:"size"`
+		Type     string `json:"type"`
+	} `json:"items"`
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+	Total    int `json:"total"`
+}
+
+// ShareProfileListing defines model for ShareProfileListing.
+type ShareProfileListing struct {
+	ListedAt *string `json:"listedAt"`
 }
 
 // ShareView defines model for ShareView.
@@ -2617,14 +2633,20 @@ type ShareView struct {
 		Size     *int   `json:"size"`
 		Type     string `json:"type"`
 	} `json:"matter"`
-	MatterId         *string         `json:"matterId,omitempty"`
-	OrgId            *string         `json:"orgId,omitempty"`
-	Recipients       *[]*interface{} `json:"recipients,omitempty"`
-	RequiresPassword bool            `json:"requiresPassword"`
-	RootRef          string          `json:"rootRef"`
-	Status           string          `json:"status"`
-	Token            string          `json:"token"`
-	Views            int             `json:"views"`
+	MatterId   *string `json:"matterId,omitempty"`
+	OrgId      *string `json:"orgId,omitempty"`
+	Recipients *[]struct {
+		CreatedAt       string  `json:"createdAt"`
+		Id              string  `json:"id"`
+		RecipientEmail  *string `json:"recipientEmail"`
+		RecipientUserId *string `json:"recipientUserId"`
+		ShareId         string  `json:"shareId"`
+	} `json:"recipients,omitempty"`
+	RequiresPassword bool   `json:"requiresPassword"`
+	RootRef          string `json:"rootRef"`
+	Status           string `json:"status"`
+	Token            string `json:"token"`
+	Views            int    `json:"views"`
 }
 
 // SignupMode defines model for SignupMode.
@@ -4040,6 +4062,7 @@ type CreateShareJSONBody struct {
 		RecipientEmail  *openapi_types.Email `json:"recipientEmail,omitempty"`
 		RecipientUserId *string              `json:"recipientUserId,omitempty"`
 	} `json:"recipients,omitempty"`
+	ShowOnProfile *bool `json:"showOnProfile,omitempty"`
 }
 
 // CreateShareJSONBodyKind defines parameters for CreateShare.
@@ -5579,6 +5602,12 @@ type ClientInterface interface {
 
 	SaveShare(ctx context.Context, token string, body SaveShareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteShareProfileListing request
+	DeleteShareProfileListing(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutShareProfileListing request
+	PutShareProfileListing(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// VerifySharePasswordWithBody request with any body
 	VerifySharePasswordWithBody(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5893,9 +5922,6 @@ type ClientInterface interface {
 
 	// GetUserProfile request
 	GetUserProfile(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListUserObjects request
-	ListUserObjects(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetApiAuthAccountInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -8430,6 +8456,30 @@ func (c *Client) SaveShare(ctx context.Context, token string, body SaveShareJSON
 	return c.Client.Do(req)
 }
 
+func (c *Client) DeleteShareProfileListing(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteShareProfileListingRequest(c.Server, token)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutShareProfileListing(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutShareProfileListingRequest(c.Server, token)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) VerifySharePasswordWithBody(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewVerifySharePasswordRequestWithBody(c.Server, token, contentType, body)
 	if err != nil {
@@ -9800,18 +9850,6 @@ func (c *Client) GetUserQuota(ctx context.Context, userId string, reqEditors ...
 
 func (c *Client) GetUserProfile(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetUserProfileRequest(c.Server, username)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListUserObjects(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListUserObjectsRequest(c.Server, username)
 	if err != nil {
 		return nil, err
 	}
@@ -15695,6 +15733,74 @@ func NewSaveShareRequestWithBody(server string, token string, contentType string
 	return req, nil
 }
 
+// NewDeleteShareProfileListingRequest generates requests for DeleteShareProfileListing
+func NewDeleteShareProfileListingRequest(server string, token string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "token", token, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/shares/%s/profile-listing", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutShareProfileListingRequest generates requests for PutShareProfileListing
+func NewPutShareProfileListingRequest(server string, token string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "token", token, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/shares/%s/profile-listing", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewVerifySharePasswordRequest calls the generic VerifySharePassword builder with application/json body
 func NewVerifySharePasswordRequest(server string, token string, body VerifySharePasswordJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -19162,40 +19268,6 @@ func NewGetUserProfileRequest(server string, username string) (*http.Request, er
 	return req, nil
 }
 
-// NewListUserObjectsRequest generates requests for ListUserObjects
-func NewListUserObjectsRequest(server string, username string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users/%s/objects", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -19794,6 +19866,12 @@ type ClientWithResponsesInterface interface {
 
 	SaveShareWithResponse(ctx context.Context, token string, body SaveShareJSONRequestBody, reqEditors ...RequestEditorFn) (*SaveShareResponse, error)
 
+	// DeleteShareProfileListingWithResponse request
+	DeleteShareProfileListingWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*DeleteShareProfileListingResponse, error)
+
+	// PutShareProfileListingWithResponse request
+	PutShareProfileListingWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*PutShareProfileListingResponse, error)
+
 	// VerifySharePasswordWithBodyWithResponse request with any body
 	VerifySharePasswordWithBodyWithResponse(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VerifySharePasswordResponse, error)
 
@@ -20108,9 +20186,6 @@ type ClientWithResponsesInterface interface {
 
 	// GetUserProfileWithResponse request
 	GetUserProfileWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*GetUserProfileResponse, error)
-
-	// ListUserObjectsWithResponse request
-	ListUserObjectsWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*ListUserObjectsResponse, error)
 }
 
 type GetApiAuthAccountInfoResponse struct {
@@ -26316,6 +26391,71 @@ func (r SaveShareResponse) ContentType() string {
 	return ""
 }
 
+type DeleteShareProfileListingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteShareProfileListingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteShareProfileListingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteShareProfileListingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutShareProfileListingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShareProfileListing
+	JSON400      *Error
+	JSON403      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r PutShareProfileListingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutShareProfileListingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutShareProfileListingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type VerifySharePasswordResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29013,40 +29153,6 @@ func (r GetUserProfileResponse) ContentType() string {
 	return ""
 }
 
-type ListUserObjectsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Breadcrumb []*interface{} `json:"breadcrumb"`
-		Items      []*interface{} `json:"items"`
-	}
-	JSON404 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r ListUserObjectsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListUserObjectsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListUserObjectsResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 // GetApiAuthAccountInfoWithResponse request returning *GetApiAuthAccountInfoResponse
 func (c *ClientWithResponses) GetApiAuthAccountInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAuthAccountInfoResponse, error) {
 	rsp, err := c.GetApiAuthAccountInfo(ctx, reqEditors...)
@@ -30868,6 +30974,24 @@ func (c *ClientWithResponses) SaveShareWithResponse(ctx context.Context, token s
 	return ParseSaveShareResponse(rsp)
 }
 
+// DeleteShareProfileListingWithResponse request returning *DeleteShareProfileListingResponse
+func (c *ClientWithResponses) DeleteShareProfileListingWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*DeleteShareProfileListingResponse, error) {
+	rsp, err := c.DeleteShareProfileListing(ctx, token, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteShareProfileListingResponse(rsp)
+}
+
+// PutShareProfileListingWithResponse request returning *PutShareProfileListingResponse
+func (c *ClientWithResponses) PutShareProfileListingWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*PutShareProfileListingResponse, error) {
+	rsp, err := c.PutShareProfileListing(ctx, token, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutShareProfileListingResponse(rsp)
+}
+
 // VerifySharePasswordWithBodyWithResponse request with arbitrary body returning *VerifySharePasswordResponse
 func (c *ClientWithResponses) VerifySharePasswordWithBodyWithResponse(ctx context.Context, token string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VerifySharePasswordResponse, error) {
 	rsp, err := c.VerifySharePasswordWithBody(ctx, token, contentType, body, reqEditors...)
@@ -31871,15 +31995,6 @@ func (c *ClientWithResponses) GetUserProfileWithResponse(ctx context.Context, us
 		return nil, err
 	}
 	return ParseGetUserProfileResponse(rsp)
-}
-
-// ListUserObjectsWithResponse request returning *ListUserObjectsResponse
-func (c *ClientWithResponses) ListUserObjectsWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*ListUserObjectsResponse, error) {
-	rsp, err := c.ListUserObjects(ctx, username, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListUserObjectsResponse(rsp)
 }
 
 // ParseGetApiAuthAccountInfoResponse parses an HTTP response from a GetApiAuthAccountInfoWithResponse call
@@ -41141,6 +41256,93 @@ func ParseSaveShareResponse(rsp *http.Response) (*SaveShareResponse, error) {
 	return response, nil
 }
 
+// ParseDeleteShareProfileListingResponse parses an HTTP response from a DeleteShareProfileListingWithResponse call
+func ParseDeleteShareProfileListingResponse(rsp *http.Response) (*DeleteShareProfileListingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteShareProfileListingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutShareProfileListingResponse parses an HTTP response from a PutShareProfileListingWithResponse call
+func ParsePutShareProfileListingResponse(rsp *http.Response) (*PutShareProfileListingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutShareProfileListingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShareProfileListing
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseVerifySharePasswordResponse parses an HTTP response from a VerifySharePasswordWithResponse call
 func ParseVerifySharePasswordResponse(rsp *http.Response) (*VerifySharePasswordResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -44156,42 +44358,6 @@ func ParseGetUserProfileResponse(rsp *http.Response) (*GetUserProfileResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest PublicProfile
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListUserObjectsResponse parses an HTTP response from a ListUserObjectsWithResponse call
-func ParseListUserObjectsResponse(rsp *http.Response) (*ListUserObjectsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListUserObjectsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Breadcrumb []*interface{} `json:"breadcrumb"`
-			Items      []*interface{} `json:"items"`
-		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

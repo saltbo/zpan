@@ -3,7 +3,13 @@ import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { pageSchema } from '../../shared/schemas'
-import { createShareRequestSchema, listSharesQuerySchema, saveShareRequestSchema } from '../../shared/schemas/share'
+import {
+  createShareRequestSchema,
+  listSharesQuerySchema,
+  saveShareRequestSchema,
+  shareObjectsResponseSchema,
+  shareRecipientViewSchema,
+} from '../../shared/schemas/share'
 import { transferAuditActor } from '../middleware/audit-transfers'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -17,6 +23,7 @@ import {
   type ShareCreatorDto,
   type ShareViewerDto,
   saveShare,
+  setProfileListing,
   verifySharePassword,
   viewShare,
 } from '../usecases/share'
@@ -59,7 +66,7 @@ const shareViewSchema = z
     orgId: z.string().optional(),
     creatorId: z.string().optional(),
     createdAt: z.string().optional(),
-    recipients: z.array(z.unknown()).optional(),
+    recipients: z.array(shareRecipientViewSchema).optional(),
   })
   .openapi('ShareView')
 
@@ -88,7 +95,10 @@ function toShareViewDTO(dto: ShareViewerDto | ShareCreatorDto): z.infer<typeof s
       orgId: dto.orgId,
       creatorId: dto.creatorId,
       createdAt: dto.createdAt.toISOString(),
-      recipients: dto.recipients,
+      recipients: dto.recipients.map((recipient) => ({
+        ...recipient,
+        createdAt: recipient.createdAt.toISOString(),
+      })),
     }
   }
   return base
@@ -107,6 +117,7 @@ const shareListItemSchema = z
     views: z.number().int(),
     downloads: z.number().int(),
     status: z.string(),
+    listedAt: z.string().nullable(),
     createdAt: z.string(),
     matter: z.object({ name: z.string(), type: z.string(), dirtype: z.number().int() }),
     recipientCount: z.number().int(),
@@ -115,20 +126,17 @@ const shareListItemSchema = z
   .openapi('ShareListItem')
 
 function toShareListItemDTO(s: ShareListItem): z.infer<typeof shareListItemSchema> {
-  return { ...s, expiresAt: s.expiresAt ? s.expiresAt.toISOString() : null, createdAt: s.createdAt.toISOString() }
+  return {
+    ...s,
+    expiresAt: s.expiresAt ? s.expiresAt.toISOString() : null,
+    listedAt: s.listedAt ? s.listedAt.toISOString() : null,
+    createdAt: s.createdAt.toISOString(),
+  }
 }
 
 const shareListSchema = pageSchema(shareListItemSchema, 'ShareList')
 
-const shareObjectsSchema = z
-  .object({
-    items: z.array(z.unknown()),
-    total: z.number().int(),
-    page: z.number().int(),
-    pageSize: z.number().int(),
-    breadcrumb: z.array(z.object({ name: z.string(), path: z.string() })),
-  })
-  .openapi('ShareObjects')
+const shareObjectsSchema = shareObjectsResponseSchema.openapi('ShareObjects')
 
 const createdShareSchema = z
   .object({
@@ -137,6 +145,7 @@ const createdShareSchema = z
     urls: z.object({ landing: z.string().optional(), direct: z.string().optional() }),
     expiresAt: z.string().nullable(),
     downloadLimit: z.number().int().nullable(),
+    listedAt: z.string().nullable(),
   })
   .openapi('CreatedShare')
 
@@ -378,6 +387,38 @@ const revokeShareRoute = createRoute({
   },
 })
 
+const profileListingSchema = z.object({ listedAt: z.string().nullable() }).openapi('ShareProfileListing')
+
+const putProfileListingRoute = createRoute({
+  operationId: 'putShareProfileListing',
+  summary: 'Show a share on the owner public profile',
+  tags: ['Shares'],
+  method: 'put',
+  path: '/{token}/profile-listing',
+  request: { params: z.object({ token: z.string() }) },
+  responses: {
+    200: jsonContent(profileListingSchema, 'Profile listing'),
+    400: errorResponse('Share is not eligible for profile listing'),
+    403: errorResponse('Forbidden'),
+    404: errorResponse('Not found'),
+  },
+})
+
+const deleteProfileListingRoute = createRoute({
+  operationId: 'deleteShareProfileListing',
+  summary: 'Remove a share from the owner public profile',
+  tags: ['Shares'],
+  method: 'delete',
+  path: '/{token}/profile-listing',
+  request: { params: z.object({ token: z.string() }) },
+  responses: {
+    204: { description: 'Profile listing removed' },
+    400: errorResponse('Share is not eligible for profile listing'),
+    403: errorResponse('Forbidden'),
+    404: errorResponse('Not found'),
+  },
+})
+
 const saveShareRoute = createRoute({
   operationId: 'saveShare',
   summary: 'Save a share to my drive',
@@ -420,10 +461,29 @@ export const authedShares = authedApp
           urls: shareUrls(out.share.kind, out.share.token),
           expiresAt: out.share.expiresAt ? out.share.expiresAt.toISOString() : null,
           downloadLimit: out.share.downloadLimit,
+          listedAt: out.share.listedAt ? out.share.listedAt.toISOString() : null,
         },
         201,
       )
     }
+    throw out.error
+  })
+  .openapi(putProfileListingRoute, async (c) => {
+    const out = await setProfileListing(c.get('deps'), {
+      token: c.req.valid('param').token,
+      userId: c.get('userId')!,
+      listed: true,
+    })
+    if (out.ok) return c.json({ listedAt: out.listedAt?.toISOString() ?? null }, 200)
+    throw out.error
+  })
+  .openapi(deleteProfileListingRoute, async (c) => {
+    const out = await setProfileListing(c.get('deps'), {
+      token: c.req.valid('param').token,
+      userId: c.get('userId')!,
+      listed: false,
+    })
+    if (out.ok) return c.body(null, 204)
     throw out.error
   })
   .openapi(revokeShareRoute, async (c) => {

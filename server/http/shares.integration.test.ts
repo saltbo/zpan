@@ -257,6 +257,59 @@ describe('POST /api/shares', () => {
     expect(body.downloadLimit).toBe(5)
   })
 
+  it('atomically lists an eligible landing share at creation time [spec: shares/create-profile-listing]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'profile-create', name: 'homepage.txt' })
+
+    const res = await createShare(app, headers, {
+      matterId: 'profile-create',
+      kind: 'landing',
+      showOnProfile: true,
+    })
+
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { token: string; listedAt: string | null }
+    expect(body.listedAt).not.toBeNull()
+    const rows = await db
+      .select({ listedAt: shares.listedAt, status: shares.status })
+      .from(shares)
+      .where(eq(shares.token, body.token))
+    expect(rows[0]?.listedAt).toBeInstanceOf(Date)
+    expect(rows[0]?.status).toBe('active')
+  })
+
+  it('rejects forged profile listing on direct and recipient-targeted shares', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'profile-ineligible', name: 'private.txt' })
+
+    const direct = await createShare(app, headers, {
+      matterId: 'profile-ineligible',
+      kind: 'direct',
+      showOnProfile: true,
+    })
+    expect(direct.status).toBe(400)
+    expect(((await direct.json()) as { error: { details: Array<{ reason: string }> } }).error.details[0]?.reason).toBe(
+      'PROFILE_LISTING_INELIGIBLE',
+    )
+
+    const targeted = await createShare(app, headers, {
+      matterId: 'profile-ineligible',
+      kind: 'landing',
+      recipients: [{ recipientEmail: 'private@example.com' }],
+      showOnProfile: true,
+    })
+    expect(targeted.status).toBe(400)
+    expect(
+      ((await targeted.json()) as { error: { details: Array<{ reason: string }> } }).error.details[0]?.reason,
+    ).toBe('PROFILE_LISTING_INELIGIBLE')
+  })
+
   it('returns 400 with DIRECT_NO_RECIPIENTS when creating direct share with recipients [spec: shares/direct-no-recipients]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
@@ -303,6 +356,78 @@ describe('POST /api/shares', () => {
       recipients: [{ recipientEmail: 'someone@example.com' }],
     })
     expect(res.status).toBe(201)
+  })
+})
+
+// ─── PUT/DELETE /api/shares/:token/profile-listing ───────────────────────────
+
+function profileListingRequest(
+  app: TestApp,
+  token: string,
+  method: 'PUT' | 'DELETE',
+  headers?: Record<string, string>,
+) {
+  return app.request(`/api/shares/${token}/profile-listing`, { method, headers })
+}
+
+describe('share profile listing mutation', () => {
+  it('requires authentication', async () => {
+    const { app } = await createTestApp()
+    expect((await profileListingRequest(app, 'unknown', 'PUT')).status).toBe(401)
+    expect((await profileListingRequest(app, 'unknown', 'DELETE')).status).toBe(401)
+  })
+
+  it('lets only the owner list and unlist, without revoking the landing share [spec: shares/profile-listing-owner] [spec: shares/profile-listing-authorization] [spec: shares/profile-unlist-preserves-access]', async () => {
+    const { app, db } = await createTestApp()
+    const ownerHeaders = await authedHeaders(app, `profile-owner-${nanoid()}@example.com`)
+    await insertStorage(db)
+    const ownerOrgId = await getOrgId(db)
+    await insertFile(db, ownerOrgId, { id: 'profile-toggle', name: 'toggle.txt' })
+    const created = await createShare(app, ownerHeaders, { matterId: 'profile-toggle', kind: 'landing' })
+    const token = ((await created.json()) as { token: string }).token
+    const otherHeaders = await authedHeaders(app, `profile-other-${nanoid()}@example.com`)
+
+    expect((await profileListingRequest(app, token, 'PUT', otherHeaders)).status).toBe(403)
+
+    const listed = await profileListingRequest(app, token, 'PUT', ownerHeaders)
+    expect(listed.status).toBe(200)
+    expect(((await listed.json()) as { listedAt: string | null }).listedAt).not.toBeNull()
+
+    const unlisted = await profileListingRequest(app, token, 'DELETE', ownerHeaders)
+    expect(unlisted.status).toBe(204)
+    const rows = await db
+      .select({ listedAt: shares.listedAt, status: shares.status })
+      .from(shares)
+      .where(eq(shares.token, token))
+    expect(rows[0]).toEqual({ listedAt: null, status: 'active' })
+
+    const landing = await app.request(`/api/shares/${token}`)
+    expect(landing.status).toBe(200)
+  })
+
+  it('rejects forged listing mutations for direct and recipient-targeted shares [spec: shares/profile-listing-ineligible]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app, `profile-ineligible-owner-${nanoid()}@example.com`)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'profile-direct-toggle', name: 'direct.txt' })
+    await insertFile(db, orgId, { id: 'profile-targeted-toggle', name: 'targeted.txt' })
+
+    const directCreated = await createShare(app, headers, { matterId: 'profile-direct-toggle', kind: 'direct' })
+    const directToken = ((await directCreated.json()) as { token: string }).token
+    const targetedCreated = await createShare(app, headers, {
+      matterId: 'profile-targeted-toggle',
+      kind: 'landing',
+      recipients: [{ recipientEmail: 'recipient@example.com' }],
+    })
+    const targetedToken = ((await targetedCreated.json()) as { token: string }).token
+
+    for (const token of [directToken, targetedToken]) {
+      const res = await profileListingRequest(app, token, 'PUT', headers)
+      expect(res.status).toBe(400)
+      const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
+      expect(body.error.details[0]?.reason).toBe('PROFILE_LISTING_INELIGIBLE')
+    }
   })
 })
 

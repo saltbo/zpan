@@ -1,6 +1,5 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildBreadcrumb } from '../domain/breadcrumb.js'
 import { authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
 
 async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']>) {
@@ -574,6 +573,69 @@ async function insertUser(
   return { orgId: `org-${opts.id}` }
 }
 
+type ProfileTestDb = Awaited<ReturnType<typeof createTestApp>>['db']
+
+async function insertProfileMatter(
+  db: ProfileTestDb,
+  orgId: string,
+  id: string,
+  opts: {
+    name?: string
+    status?: string
+    dirtype?: number
+    trashedAt?: number | null
+    purgedAt?: number | null
+  } = {},
+) {
+  const now = Math.floor(Date.now() / 1000)
+  const dirtype = opts.dirtype ?? 0
+  await db.run(sql`
+    INSERT INTO matters (
+      id, org_id, alias, name, type, size, dirtype, parent, object, storage_id,
+      status, trashed_at, purged_at, created_at, updated_at
+    )
+    VALUES (
+      ${id}, ${orgId}, ${`${id}-alias`}, ${opts.name ?? `${id}.txt`},
+      ${dirtype === 0 ? 'text/plain' : 'folder'}, ${dirtype === 0 ? 100 : 0}, ${dirtype},
+      '', ${dirtype === 0 ? `objects/${id}` : ''}, 'profile-storage',
+      ${opts.status ?? 'active'}, ${opts.trashedAt ?? null}, ${opts.purgedAt ?? null}, ${now}, ${now}
+    )
+  `)
+}
+
+async function insertProfileShare(
+  db: ProfileTestDb,
+  creatorId: string,
+  orgId: string,
+  matterId: string,
+  opts: {
+    id?: string
+    token?: string
+    kind?: 'landing' | 'direct'
+    status?: 'active' | 'revoked'
+    listed?: boolean
+    expiresAt?: number | null
+    downloadLimit?: number | null
+    downloads?: number
+  } = {},
+) {
+  const now = Math.floor(Date.now() / 1000)
+  const id = opts.id ?? `share-${matterId}`
+  const token = opts.token ?? `token-${matterId}`
+  await db.run(sql`
+    INSERT INTO shares (
+      id, token, kind, matter_id, org_id, creator_id, password_hash, expires_at,
+      download_limit, views, downloads, status, listed_at, created_at
+    )
+    VALUES (
+      ${id}, ${token}, ${opts.kind ?? 'landing'}, ${matterId}, ${orgId}, ${creatorId},
+      NULL, ${opts.expiresAt ?? null}, ${opts.downloadLimit ?? null}, 0, ${opts.downloads ?? 0},
+      ${opts.status ?? 'active'}, ${opts.listed === false ? null : now}, ${now}
+    )
+  `)
+  return { id, token }
+}
+
 describe('GET /api/users/:username', () => {
   it('returns 404 when user does not exist [spec: profile/user-not-found]', async () => {
     const { app } = await createTestApp()
@@ -616,43 +678,93 @@ describe('GET /api/users/:username', () => {
     expect(body.user.username).toBe('orphanuser')
     expect(body.shares).toEqual([])
   })
-})
 
-describe('GET /api/users/:username/objects', () => {
-  it('returns 404 for unknown username [spec: profile/unknown-username]', async () => {
-    const { app } = await createTestApp()
-    const res = await app.request('/api/users/nonexistent/objects')
-    expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: { message: string } }
-    expect(body.error.message).toBe('User not found')
-  })
-
-  it('returns empty items and breadcrumb for known user [spec: profile/empty-listing]', async () => {
+  it('returns exactly the selected public landing shares without authentication [spec: profile/curated-shares]', async () => {
     const { app, db } = await createTestApp()
-    await insertUser(db, { id: 'user-1', username: 'testuser', email: 'test@example.com' })
+    const { orgId } = await insertUser(db, {
+      id: 'curated-user',
+      username: 'curated',
+      email: 'curated@example.com',
+    })
+    await insertProfileMatter(db, orgId, 'curated-file', { name: 'Public.txt' })
+    await insertProfileMatter(db, orgId, 'curated-folder', { name: 'Photos', dirtype: 1 })
+    await insertProfileMatter(db, orgId, 'unlisted-file', { name: 'Hidden.txt' })
+    await insertProfileShare(db, 'curated-user', orgId, 'curated-file', { token: 'public-file' })
+    await insertProfileShare(db, 'curated-user', orgId, 'curated-folder', { token: 'public-folder' })
+    await insertProfileShare(db, 'curated-user', orgId, 'unlisted-file', {
+      token: 'hidden-file',
+      listed: false,
+    })
 
-    const res = await app.request('/api/users/testuser/objects')
+    const res = await app.request('/api/users/curated')
+
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; breadcrumb: string[] }
-    expect(body.items).toEqual([])
-    expect(body.breadcrumb).toEqual([])
-  })
-})
-
-describe('buildBreadcrumb', () => {
-  it('returns empty array for empty string', () => {
-    expect(buildBreadcrumb('')).toEqual([])
+    const body = (await res.json()) as {
+      shares: Array<{ token: string; name: string; type: string; size: number | null; isFolder: boolean }>
+    }
+    expect(body.shares).toEqual([
+      { token: 'public-folder', name: 'Photos', type: 'folder', size: 0, isFolder: true },
+      { token: 'public-file', name: 'Public.txt', type: 'text/plain', size: 100, isFolder: false },
+    ])
   })
 
-  it('returns single segment for a simple name', () => {
-    expect(buildBreadcrumb('photos')).toEqual(['photos'])
+  it('never leaks forged listed direct or recipient-targeted shares [spec: profile/privacy-boundaries]', async () => {
+    const { app, db } = await createTestApp()
+    const { orgId } = await insertUser(db, {
+      id: 'privacy-user',
+      username: 'privacy',
+      email: 'privacy@example.com',
+    })
+    await insertProfileMatter(db, orgId, 'private-direct')
+    await insertProfileMatter(db, orgId, 'private-targeted')
+    const direct = await insertProfileShare(db, 'privacy-user', orgId, 'private-direct', { kind: 'direct' })
+    const targeted = await insertProfileShare(db, 'privacy-user', orgId, 'private-targeted')
+    await db.run(sql`
+      INSERT INTO share_recipients (id, share_id, recipient_email, created_at)
+      VALUES ('private-recipient', ${targeted.id}, 'recipient@example.com', ${Math.floor(Date.now() / 1000)})
+    `)
+
+    const res = await app.request('/api/users/privacy')
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { shares: unknown[] }).shares).toEqual([])
+    expect(direct.token).toBeTruthy()
   })
 
-  it('splits nested path into segments [spec: profile/breadcrumb-segments]', () => {
-    expect(buildBreadcrumb('a/b/c')).toEqual(['a', 'b', 'c'])
-  })
+  it('filters every unavailable selected share at read time [spec: profile/availability-filtering]', async () => {
+    const { app, db } = await createTestApp()
+    const { orgId } = await insertUser(db, {
+      id: 'availability-user',
+      username: 'availability',
+      email: 'availability@example.com',
+    })
+    const now = Math.floor(Date.now() / 1000)
+    const matters = [
+      ['available', {}],
+      ['revoked', {}],
+      ['expired', {}],
+      ['exhausted', {}],
+      ['trashed', { trashedAt: now }],
+      ['purged', { purgedAt: now }],
+      ['draft', { status: 'draft' }],
+    ] as const
+    for (const [id, options] of matters) await insertProfileMatter(db, orgId, id, options)
 
-  it('returns two segments for one-level-deep path', () => {
-    expect(buildBreadcrumb('Parent/Child')).toEqual(['Parent', 'Child'])
+    await insertProfileShare(db, 'availability-user', orgId, 'available', { token: 'only-available' })
+    await insertProfileShare(db, 'availability-user', orgId, 'revoked', { status: 'revoked' })
+    await insertProfileShare(db, 'availability-user', orgId, 'expired', { expiresAt: now - 1 })
+    await insertProfileShare(db, 'availability-user', orgId, 'exhausted', {
+      downloadLimit: 2,
+      downloads: 2,
+    })
+    await insertProfileShare(db, 'availability-user', orgId, 'trashed')
+    await insertProfileShare(db, 'availability-user', orgId, 'purged')
+    await insertProfileShare(db, 'availability-user', orgId, 'draft')
+    await insertProfileShare(db, 'availability-user', orgId, 'missing-target', { token: 'missing-target' })
+
+    const res = await app.request('/api/users/availability')
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { shares: Array<{ token: string }> }).shares.map((share) => share.token)).toEqual([
+      'only-available',
+    ])
   })
 })

@@ -3,7 +3,7 @@ import type { PublicImageMime } from '@shared/schemas'
 import { MAX_PUBLIC_IMAGE_SIZE, PUBLIC_IMAGE_MIMES } from '@shared/schemas'
 import { useMutation } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Camera, Loader2 } from 'lucide-react'
+import { Camera, ExternalLink, Loader2 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -182,7 +182,7 @@ function DisplayNameCard() {
   )
 }
 
-function UsernameCard() {
+export function UsernameCard() {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const username = (session?.user as { username?: string })?.username ?? ''
@@ -201,8 +201,16 @@ function UsernameCard() {
           <Input value={username} disabled className="rounded-l-none" />
         </div>
       </CardContent>
-      <CardFooter className="border-t bg-muted/30">
+      <CardFooter className="justify-between border-t bg-muted/30">
         <p className="text-sm text-muted-foreground">{t('settings.profile.username.hint')}</p>
+        {username && (
+          <Button asChild variant="outline" size="sm">
+            <a href={`/u/${username}`} target="_blank" rel="noopener noreferrer">
+              {t('settings.profile.publicHomepage')}
+              <ExternalLink />
+            </a>
+          </Button>
+        )}
       </CardFooter>
     </Card>
   )
