@@ -50,6 +50,11 @@ export interface ShareListItem {
   creatorName?: string
 }
 
+export interface ShareCreatorIdentity {
+  name: string
+  username: string | null
+}
+
 export type ShareResolution =
   | { status: 'ok'; share: ShareRecord; matter: Matter; recipients: ShareRecipientRecord[] }
   // matter_trashed carries the records so the creator-only revoke path can still
@@ -94,7 +99,7 @@ export interface ShareRepo {
   hasQuotaForBytes(orgId: string, bytes: number): Promise<boolean>
   // Lookups the share routes need; co-located here while user/matter are
   // unmigrated so the share http layer holds no drizzle.
-  getCreatorName(creatorId: string): Promise<string | null>
+  getCreatorIdentity(creatorId: string): Promise<ShareCreatorIdentity | null>
   getUserEmail(userId: string): Promise<string | null>
   getMatterName(matterId: string): Promise<string | null>
   findShareChildMatter(

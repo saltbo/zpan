@@ -1,22 +1,15 @@
 import type { ShareView } from '@shared/types'
-import { File, UserRound } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
-import { FileManagerSurface } from '@/components/files/file-manager'
-import { FilePreviewContent, PreviewDownloadButton, type PreviewFile } from '@/components/preview/file-preview-content'
-import { Button } from '@/components/ui/button'
+import { File } from 'lucide-react'
+import { FilePreviewContent, type PreviewFile } from '@/components/preview/file-preview-content'
 import { buildShareObjectUrl } from '@/lib/api'
 import { getPreviewType } from '@/lib/file-types'
-import { formatSize } from '@/lib/format'
 
 interface FilePreviewProps {
   token: string
   share: ShareView
-  onSaveToDrive?: () => void
-  isLoggedIn: boolean
 }
 
-export function FilePreview({ token, share, onSaveToDrive, isLoggedIn }: FilePreviewProps) {
-  const { t } = useTranslation()
+export function FilePreview({ token, share }: FilePreviewProps) {
   const downloadUrl = buildShareObjectUrl(token, share.rootRef)
   const file: PreviewFile = {
     id: share.rootRef,
@@ -26,38 +19,20 @@ export function FilePreview({ token, share, onSaveToDrive, isLoggedIn }: FilePre
     downloadUrl,
   }
   const previewType = getPreviewType(file.name, file.type)
-  const headerItems = [
-    {
-      label: share.matter.name,
-      icon: <File className="size-4 text-muted-foreground" />,
-    },
-  ]
-  const headerActions = (
-    <>
-      {isLoggedIn && onSaveToDrive && (
-        <Button variant="outline" size="sm" onClick={onSaveToDrive}>
-          {t('share.saveToDrive')}
-        </Button>
-      )}
-      <PreviewDownloadButton url={downloadUrl} filename={share.matter.name} />
-    </>
-  )
 
   return (
-    <FileManagerSurface
-      headerItems={headerItems}
-      headerMeta={[
-        {
-          label: t('share.sharedBy', { name: share.creatorName }),
-          icon: <UserRound className="size-3 text-primary" />,
-        },
-        { label: formatSize(share.matter.size) },
-      ]}
-      headerActions={headerActions}
-    >
-      <div className="h-[70dvh] min-h-80 overflow-auto bg-background">
+    <section className="overflow-hidden rounded-xl border bg-background" aria-label={share.matter.name}>
+      <header className="flex min-h-14 items-center border-b px-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
+            <File className="size-4 text-muted-foreground" aria-hidden="true" />
+          </span>
+          <strong className="truncate text-sm font-medium">{share.matter.name}</strong>
+        </div>
+      </header>
+      <div className="h-[70dvh] min-h-[420px] overflow-auto bg-canvas">
         <FilePreviewContent file={file} previewType={previewType} />
       </div>
-    </FileManagerSurface>
+    </section>
   )
 }

@@ -1263,6 +1263,7 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
+      await db.run(sql`UPDATE user SET username = 'public-owner' WHERE id = ${creatorId}`)
       await insertFile(db, orgId, { id: 'f1', name: 'photo.jpg' })
       const share = await createShareRepo(db).create({ matterId: 'f1', orgId, creatorId, kind: 'landing' })
 
@@ -1280,6 +1281,8 @@ describe('Public share routes', () => {
       expect(body.expired).toBe(false)
       expect(body.exhausted).toBe(false)
       expect(body.accessibleByUser).toBe(false)
+      expect(body.creatorName).toBe('Test User')
+      expect(body.creatorUsername).toBe('public-owner')
       expect(typeof body.rootRef).toBe('string')
       // Non-creator must not see internal ids
       expect(body.matterId).toBeUndefined()
@@ -1849,6 +1852,51 @@ describe('Public share routes', () => {
       const body = (await res.json()) as { error: { message: string; status: string } }
       expect(body.error.message).toBe('Storage not found')
       expect(body.error.status).toBe('NOT_FOUND')
+    })
+  })
+
+  // ─── GET /api/shares/:token/readme ──────────────────────────────────────────
+
+  describe('GET /api/shares/:token/readme', () => {
+    it('returns the root README.md content without authentication', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      await insertFolder(db, orgId, { id: 'readme-root', name: 'Docs' })
+      await insertFile(db, orgId, { id: 'readme-file', name: 'README.md', parent: 'Docs' })
+      const share = await createShareRepo(db).create({
+        matterId: 'readme-root',
+        orgId,
+        creatorId,
+        kind: 'landing',
+      })
+      vi.spyOn(S3Service.prototype, 'getObjectBytes').mockResolvedValue(new TextEncoder().encode('# Shared docs'))
+
+      const res = await app.request(`/api/shares/${share.token}/readme`)
+
+      expect(res.status).toBe(200)
+      await expect(res.json()).resolves.toEqual({ content: '# Shared docs' })
+    })
+
+    it('returns 404 when the shared folder has no root README.md', async () => {
+      const { app, db } = await createTestApp()
+      await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const creatorId = await getUserId(db)
+      await insertFolder(db, orgId, { id: 'no-readme-root', name: 'Empty Docs' })
+      const share = await createShareRepo(db).create({
+        matterId: 'no-readme-root',
+        orgId,
+        creatorId,
+        kind: 'landing',
+      })
+
+      const res = await app.request(`/api/shares/${share.token}/readme`)
+
+      expect(res.status).toBe(404)
     })
   })
 

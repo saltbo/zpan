@@ -8,6 +8,7 @@ const folderShare = {
   downloadLimit: null,
   matter: { name: 'Photos', type: 'folder', size: 0, isFolder: true },
   creatorName: 'Alice',
+  creatorUsername: 'alice',
   requiresPassword: false,
   expired: false,
   exhausted: false,
@@ -56,6 +57,9 @@ test('anonymous profile opens public files and folders through the landing-share
             },
     })
   })
+  await page.route(`**/api/shares/${folderShare.token}/readme`, (route) =>
+    route.fulfill({ json: { content: '# Photos\n\nPublic albums.' } }),
+  )
 
   await page.goto('/u/alice')
 

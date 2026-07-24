@@ -81,6 +81,18 @@ async function insertFile(
   `)
 }
 
+async function insertFolder(
+  db: Awaited<ReturnType<typeof buildApp>>['db'],
+  orgId: string,
+  opts: { id: string; name: string },
+) {
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-cf-alias`}, ${opts.name}, 'folder', 0, 1, '', '', ${STORAGE_ID}, 'active', ${now}, ${now})
+  `)
+}
+
 describe('[CF] Public share routes — no requireAuth', () => {
   it('GET /api/shares/:token returns share metadata without auth', async () => {
     const { app, db } = await buildApp()
@@ -90,14 +102,31 @@ describe('[CF] Public share routes — no requireAuth', () => {
 
     const rows = await db.all<{ id: string }>(sql`SELECT id FROM matters WHERE name = 'cf-file.txt' LIMIT 1`)
     const matterId = rows[0].id
+    await db.run(sql`UPDATE user SET username = 'cf-public-owner' WHERE id = ${userId}`)
     const share = await createShareRepo(db).create({ matterId, orgId, creatorId: userId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.kind).toBe('landing')
+    expect(body.creatorName).toBe('CF Test')
+    expect(body.creatorUsername).toBe('cf-public-owner')
     const matter = body.matter as Record<string, unknown>
     expect(matter.name).toBe('cf-file.txt')
+  })
+
+  it('GET /api/shares/:token/readme is available without auth', async () => {
+    const { app, db } = await buildApp()
+    const { orgId, userId } = await signUpAndGetIds(app, db)
+    await insertStorage(db)
+    const folderId = `cf-readme-folder-${Date.now()}`
+    await insertFolder(db, orgId, { id: folderId, name: 'Docs' })
+    const share = await createShareRepo(db).create({ matterId: folderId, orgId, creatorId: userId, kind: 'landing' })
+
+    const res = await app.request(`/api/shares/${share.token}/readme`)
+
+    expect(res.status).toBe(404)
+    await expect(res.json()).resolves.toMatchObject({ error: { message: 'README.md not found' } })
   })
 
   it('GET /r/unknown-prefix returns 404 for unknown token without auth', async () => {

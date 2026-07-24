@@ -58,6 +58,7 @@ import {
   getProfile,
   getSession,
   getShare,
+  getShareReadme,
   getSiteConfig,
   getSiteInvitation,
   getSiteSettings,
@@ -2653,6 +2654,7 @@ describe('api', () => {
         downloadLimit: null,
         matter: { name: 'photo.jpg', type: 'image/jpeg', size: 1024, isFolder: false },
         creatorName: 'Alice',
+        creatorUsername: 'alice',
         requiresPassword: false,
         expired: false,
         exhausted: false,
@@ -2810,6 +2812,26 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Password required' }, false, 401))
 
       await expect(listShareObjects('tok123')).rejects.toThrow('Password required')
+    })
+  })
+
+  describe('getShareReadme', () => {
+    it('calls GET /api/shares/:token/readme and returns Markdown content', async () => {
+      const payload = { content: '# Shared folder' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getShareReadme('tok123')
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/shares/tok123/readme')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws ApiError when README.md is missing', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'README.md not found' }, false, 404))
+
+      await expect(getShareReadme('tok123')).rejects.toThrow('README.md not found')
     })
   })
 

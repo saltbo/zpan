@@ -509,6 +509,7 @@ export interface ShareView {
   downloadLimit: number | null
   matter: { name: string; type: string; size: number; isFolder: boolean }
   creatorName: string
+  creatorUsername: string | null
   requiresPassword: boolean
   expired: boolean
   exhausted: boolean

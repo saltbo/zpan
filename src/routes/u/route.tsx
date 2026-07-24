@@ -1,11 +1,11 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/layout/public-layout'
 
-export const Route = createFileRoute('/s')({
-  component: ShareRouteLayout,
+export const Route = createFileRoute('/u')({
+  component: PublicProfileLayout,
 })
 
-function ShareRouteLayout() {
+function PublicProfileLayout() {
   return (
     <PublicLayout>
       <Outlet />

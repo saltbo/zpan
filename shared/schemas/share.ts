@@ -69,6 +69,12 @@ export const shareObjectsResponseSchema = z.object({
 export type ShareObjectItem = z.infer<typeof shareObjectItemSchema>
 export type ShareObjectsResponse = z.infer<typeof shareObjectsResponseSchema>
 
+export const shareReadmeResponseSchema = z.object({
+  content: z.string(),
+})
+
+export type ShareReadmeResponse = z.infer<typeof shareReadmeResponseSchema>
+
 export const saveShareRequestSchema = z.object({
   targetOrgId: z.string().min(1),
   targetParent: z.string().default(''),

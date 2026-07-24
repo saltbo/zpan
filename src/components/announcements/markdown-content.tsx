@@ -24,7 +24,7 @@ const markdownComponents: Components = {
   hr: () => <hr className="my-4" />,
 }
 
-export function AnnouncementMarkdown({ content }: { content: string }) {
+export function MarkdownContent({ content }: { content: string }) {
   return (
     <div className="break-words text-sm">
       <Markdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
@@ -32,4 +32,8 @@ export function AnnouncementMarkdown({ content }: { content: string }) {
       </Markdown>
     </div>
   )
+}
+
+export function AnnouncementMarkdown({ content }: { content: string }) {
+  return <MarkdownContent content={content} />
 }

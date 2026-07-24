@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as DeviceRouteImport } from './routes/device'
+import { Route as URouteRouteImport } from './routes/u/route'
 import { Route as SRouteRouteImport } from './routes/s/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
@@ -66,6 +67,11 @@ const DeviceRoute = DeviceRouteImport.update({
   path: '/device',
   getParentRoute: () => rootRouteImport,
 } as any)
+const URouteRoute = URouteRouteImport.update({
+  id: '/u',
+  path: '/u',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SRouteRoute = SRouteRouteImport.update({
   id: '/s',
   path: '/s',
@@ -81,9 +87,9 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const UUsernameRoute = UUsernameRouteImport.update({
-  id: '/u/$username',
-  path: '/u/$username',
-  getParentRoute: () => rootRouteImport,
+  id: '/$username',
+  path: '/$username',
+  getParentRoute: () => URouteRoute,
 } as any)
 const StoreCheckoutRoute = StoreCheckoutRouteImport.update({
   id: '/store/checkout',
@@ -350,6 +356,7 @@ const AuthenticatedAdminSettingsEmailRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/s': typeof SRouteRouteWithChildren
+  '/u': typeof URouteRouteWithChildren
   '/device': typeof DeviceRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
@@ -401,6 +408,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/s': typeof SRouteRouteWithChildren
+  '/u': typeof URouteRouteWithChildren
   '/device': typeof DeviceRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/reset-password': typeof authResetPasswordRoute
@@ -452,6 +460,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/s': typeof SRouteRouteWithChildren
+  '/u': typeof URouteRouteWithChildren
   '/device': typeof DeviceRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
@@ -507,6 +516,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/s'
+    | '/u'
     | '/device'
     | '/admin'
     | '/settings'
@@ -558,6 +568,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/s'
+    | '/u'
     | '/device'
     | '/forgot-password'
     | '/reset-password'
@@ -608,6 +619,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/s'
+    | '/u'
     | '/device'
     | '/_authenticated/admin'
     | '/_authenticated/settings'
@@ -662,13 +674,13 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   SRouteRoute: typeof SRouteRouteWithChildren
+  URouteRoute: typeof URouteRouteWithChildren
   DeviceRoute: typeof DeviceRoute
   authForgotPasswordRoute: typeof authForgotPasswordRoute
   authResetPasswordRoute: typeof authResetPasswordRoute
   authSignInRoute: typeof authSignInRoute
   authSignUpRoute: typeof authSignUpRoute
   StoreCheckoutRoute: typeof StoreCheckoutRoute
-  UUsernameRoute: typeof UUsernameRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -678,6 +690,13 @@ declare module '@tanstack/react-router' {
       path: '/device'
       fullPath: '/device'
       preLoaderRoute: typeof DeviceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/u': {
+      id: '/u'
+      path: '/u'
+      fullPath: '/u'
+      preLoaderRoute: typeof URouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/s': {
@@ -703,10 +722,10 @@ declare module '@tanstack/react-router' {
     }
     '/u/$username': {
       id: '/u/$username'
-      path: '/u/$username'
+      path: '/$username'
       fullPath: '/u/$username'
       preLoaderRoute: typeof UUsernameRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof URouteRoute
     }
     '/store/checkout': {
       id: '/store/checkout'
@@ -1174,16 +1193,27 @@ const SRouteRouteChildren: SRouteRouteChildren = {
 const SRouteRouteWithChildren =
   SRouteRoute._addFileChildren(SRouteRouteChildren)
 
+interface URouteRouteChildren {
+  UUsernameRoute: typeof UUsernameRoute
+}
+
+const URouteRouteChildren: URouteRouteChildren = {
+  UUsernameRoute: UUsernameRoute,
+}
+
+const URouteRouteWithChildren =
+  URouteRoute._addFileChildren(URouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   SRouteRoute: SRouteRouteWithChildren,
+  URouteRoute: URouteRouteWithChildren,
   DeviceRoute: DeviceRoute,
   authForgotPasswordRoute: authForgotPasswordRoute,
   authResetPasswordRoute: authResetPasswordRoute,
   authSignInRoute: authSignInRoute,
   authSignUpRoute: authSignUpRoute,
   StoreCheckoutRoute: StoreCheckoutRoute,
-  UUsernameRoute: UUsernameRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

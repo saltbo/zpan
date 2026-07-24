@@ -13,6 +13,7 @@ const folderShare = {
   downloadLimit: null,
   matter: { name: 'Client Files', type: 'application/x-directory', size: 0, isFolder: true },
   creatorName: 'E2E Admin',
+  creatorUsername: 'e2e-admin',
   requiresPassword: false,
   expired: false,
   exhausted: false,
@@ -30,6 +31,7 @@ const fileShare = {
   downloadLimit: null,
   matter: { name: 'Brief.txt', type: 'text/plain', size: 50, isFolder: false },
   creatorName: 'E2E Admin',
+  creatorUsername: 'e2e-admin',
   requiresPassword: false,
   expired: false,
   exhausted: false,
@@ -92,6 +94,9 @@ async function mockFolderShare(page: Page) {
   await page.route(`**/api/shares/${folderShare.token}/objects/*`, (route) =>
     route.fulfill({ path: path.join(fixturesDir, 'sample.txt'), contentType: 'text/plain' }),
   )
+  await page.route(`**/api/shares/${folderShare.token}/readme`, (route) =>
+    route.fulfill({ json: { content: '# Client files\n\nShared project documentation.' } }),
+  )
 }
 
 async function mockFileShare(page: Page) {
@@ -138,7 +143,12 @@ test.describe('Share access page shell', () => {
     await expect(page.getByTestId('page-header')).toContainText('Client Files')
     await expect(page.getByText('overview.txt')).toBeVisible()
     await expect(page.getByText('Reports')).toBeVisible()
-    await expect(page.getByText('E2E Admin')).toBeVisible()
+    await expect(page.getByText('E2E Admin').first()).toBeVisible()
+    await expect(page.getByRole('link', { name: 'E2E Admin' }).first()).toHaveAttribute('href', '/u/e2e-admin')
+    await expect(page.getByRole('link', { name: /sign in/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Client files', exact: true })).toBeVisible()
+    await expect(page.getByText('Shared project documentation.')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Share information' })).toHaveCount(0)
 
     await expect(page.getByText('Public access page')).toHaveCount(0)
     await expect(page.getByText('Open workspace')).toHaveCount(0)
@@ -168,8 +178,8 @@ test.describe('Share access page shell', () => {
     await mockFileShare(page)
     await page.goto(`/s/${fileShare.token}`)
 
-    await expect(page.getByTestId('page-header')).toContainText('Brief.txt')
-    await expect(page.getByText('E2E Admin')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Brief.txt' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'E2E Admin' }).first()).toHaveAttribute('href', '/u/e2e-admin')
     await expect(page.getByRole('link', { name: /download/i })).toBeVisible()
     await expect(page.getByText('Hello, this is a plain text file')).toBeVisible({ timeout: 10000 })
 
@@ -183,7 +193,7 @@ test.describe('Share access page shell', () => {
     await mockOfficeShare(page)
     await page.goto(`/s/${officeShare.token}`)
 
-    await expect(page.getByTestId('page-header')).toContainText('Quarterly Report.docx')
+    await expect(page.getByRole('heading', { name: 'Quarterly Report.docx' })).toBeVisible()
     const frame = page.frameLocator('iframe[title="Quarterly Report.docx"]')
     await expect(frame.owner()).toBeVisible()
 
@@ -199,8 +209,9 @@ test.describe('Share access page shell', () => {
     await mockFolderShare(page)
     await page.goto(`/s/${folderShare.token}`)
 
-    await expect(page.locator('header').getByRole('button').first()).toBeVisible()
-    await page.locator('header').getByRole('button').first().click()
+    const accountMenu = page.locator('header').getByRole('button', { name: /e2e/i })
+    await expect(accountMenu).toBeVisible()
+    await accountMenu.click()
 
     await expect(page.getByRole('menuitem', { name: /settings/i })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: /teams/i })).toHaveCount(0)
