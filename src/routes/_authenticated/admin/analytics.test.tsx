@@ -173,6 +173,40 @@ describe('Admin overview dashboard', () => {
     expect(screen.queryByText(/部分小时|数据下限|当前 700\/700|快照采样/)).toBeNull()
   })
 
+  it('keeps long pie chart legends within the chart and makes them scrollable', async () => {
+    vi.mocked(useEntitlement).mockReturnValue({
+      bound: true,
+      active: true,
+      edition: 'pro',
+      licenseId: 'license-1',
+      cloudDashboardUrl: null,
+      hasFeature: (feature) => feature === 'analytics',
+      isLoading: false,
+      isError: false,
+    })
+    const stats = growthStats({
+      status: 'complete',
+      expectedBuckets: 700,
+      completedBuckets: 700,
+      lowerBoundBuckets: 0,
+      quality: 'exact',
+      dataThrough: '2026-07-21T04:00:00.000Z',
+    })
+    stats.userStatus = Array.from({ length: 12 }, (_, index) => ({
+      name: `status-${index + 1}`,
+      value: index + 1,
+      percent: ((index + 1) / 78) * 100,
+    }))
+    vi.mocked(getAdminDashboardGrowthStats).mockResolvedValue(stats)
+
+    const { container } = renderOverviewPage()
+
+    expect(await screen.findByText('用户状态分布')).toBeTruthy()
+    const legend = container.querySelector('[data-slot="breakdown-legend"]')
+    expect(legend?.classList.contains('min-h-0')).toBe(true)
+    expect(legend?.classList.contains('overflow-y-auto')).toBe(true)
+  })
+
   it('renders available metrics when the selected range is incomplete', async () => {
     vi.mocked(useEntitlement).mockReturnValue({
       bound: true,

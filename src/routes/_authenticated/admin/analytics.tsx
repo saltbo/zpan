@@ -1148,7 +1148,7 @@ function BreakdownChart({
   return (
     <ChartCard title={title}>
       {hasPositiveBreakdown(rows) ? (
-        <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1fr)_230px]">
+        <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_230px]">
           <AnalyticsChartContainer>
             <PieChart>
               <Pie
@@ -1235,20 +1235,22 @@ function BarBreakdownChart({
 
 function PercentList({ items }: { items: Array<{ name: string; percent: number; valueLabel: string; fill: string }> }) {
   return (
-    <div className="flex flex-col justify-center gap-3">
-      {items.map((item) => (
-        <div key={item.name} className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.fill }} />
-              <span className="truncate font-medium">{item.name}</span>
-            </span>
-            <span className="shrink-0 tabular-nums text-muted-foreground">{item.valueLabel}</span>
+    <div data-slot="breakdown-legend" className="min-h-0 overflow-y-auto pr-2 [scrollbar-gutter:stable]">
+      <div className="flex min-h-full flex-col justify-center gap-3">
+        {items.map((item) => (
+          <div key={item.name} className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.fill }} />
+                <span className="truncate font-medium">{item.name}</span>
+              </span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">{item.valueLabel}</span>
+            </div>
+            <Progress value={clampPercent(item.percent)} className="h-1.5 bg-muted" />
+            <p className="text-right text-xs text-muted-foreground">{formatPercent(item.percent)}</p>
           </div>
-          <Progress value={clampPercent(item.percent)} className="h-1.5 bg-muted" />
-          <p className="text-right text-xs text-muted-foreground">{formatPercent(item.percent)}</p>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
