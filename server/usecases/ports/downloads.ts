@@ -168,7 +168,13 @@ export interface DownloaderRepo {
   getRecord(id: string): Promise<DownloaderRecord>
   findRecord(id: string): Promise<DownloaderRecord | null>
   update(id: string, fields: UpdateDownloaderFields, now: Date): Promise<void>
-  recordHeartbeat(id: string, fields: DownloaderHeartbeatFields, online: boolean, now: Date): Promise<void>
+  recordHeartbeat(
+    id: string,
+    fields: DownloaderHeartbeatFields,
+    online: boolean,
+    statusChanged: boolean,
+    now: Date,
+  ): Promise<void>
   delete(id: string): Promise<void>
   /** Online, enabled, under-capacity downloaders, ordered for assignment. */
   listAssignmentCandidates(leaseCutoff: Date): Promise<DownloaderRecord[]>

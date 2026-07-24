@@ -24,7 +24,7 @@ const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 const INSTANCE_TELEMETRY_INTERVAL_MS = 12 * 60 * 60 * 1000 // 12 hours
 const QUOTA_RESET_INTERVAL_MS = 24 * 60 * 60 * 1000 // daily; idempotent, resets only stale periods
 const TRASH_PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000 // daily; purges trash past the retention window
-const STATS_ROLLUP_INTERVAL_MS = 10 * 60 * 1000
+const STATS_ROLLUP_INTERVAL_MS = 60 * 60 * 1000
 const appVersionGlobalKey = '__ZPAN_APP_VERSION__'
 const appCommitGlobalKey = '__ZPAN_APP_COMMIT__'
 
@@ -153,7 +153,7 @@ function purgeExpiredTrashJob(): void {
 purgeExpiredTrashJob()
 setInterval(purgeExpiredTrashJob, TRASH_PURGE_INTERVAL_MS)
 
-console.log('stats.rollup.scheduler.started interval=10m')
+console.log('stats.rollup.scheduler.started interval=1h')
 function writeStatsRollup(): void {
   void (async () => {
     try {

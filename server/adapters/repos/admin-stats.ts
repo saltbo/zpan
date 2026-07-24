@@ -13,7 +13,7 @@ import type {
   AdminTopShare,
   AdminTransferDataQuality,
 } from '@shared/types'
-import { and, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, or, sql } from 'drizzle-orm'
 import { member, organization, user } from '../../db/auth-schema'
 import { auditEvents, matters, orgQuotas, shares, statsRollupsHourly } from '../../db/schema'
 import {
@@ -31,7 +31,7 @@ import {
   ensureAdminStatsIntegrityOpening,
   inspectAdminStatsSourceIntegrity,
 } from './admin-stats-integrity'
-import { captureAdminStatsSnapshot, rebuildAdminStatsHour } from './admin-stats-rollup'
+import { captureAdminStatsSnapshot, hasAdminStatsSnapshot, rebuildAdminStatsHour } from './admin-stats-rollup'
 import { createCloudTrafficReportRepo, trafficLedgerExactFrom } from './cloud-traffic-report'
 import { getEffectiveQuotasByOrg } from './quota'
 import {
@@ -237,13 +237,16 @@ async function refreshHourlyRollups(db: Database, now: Date) {
   }
   const repaired = []
   if (latestClosedHour >= firstExactHour) {
-    const latest = await rebuildAdminStatsHour(db, latestClosedHour, now)
-    repaired.push(latest)
+    if (!completed.has(latestClosedHour.getTime())) {
+      repaired.push(await rebuildAdminStatsHour(db, latestClosedHour, now))
+    }
     for (const bucketStart of repairTargets) repaired.push(await rebuildAdminStatsHour(db, bucketStart, now))
   }
-  const snapshot = await captureAdminStatsSnapshot(db, currentHour, now)
+  const snapshot = (await hasAdminStatsSnapshot(db, currentHour))
+    ? null
+    : await captureAdminStatsSnapshot(db, currentHour, now)
   assertAdminStatsSourceIntegrity(await inspectAdminStatsSourceIntegrity(db, integrityOpening))
-  return [...repaired, snapshot]
+  return snapshot ? [...repaired, snapshot] : repaired
 }
 
 async function getDashboardOverviewStats(
@@ -596,7 +599,7 @@ async function getDashboardStorageStats(
     getActivityMetricByDay(reader, metricSpec(['upload_confirm']), 'count'),
     getTransferDataQuality(reader, previousReader),
     getStorageDataQuality(reader),
-    getUsageBySpaceRows(db, reader),
+    getUsageBySpaceRows(db, now),
     getLatestGaugeDimensions(reader, ADMIN_STATS_METRICS.storageQuota, 'status'),
     getLatestInventoryBreakdown(reader, 'size_bucket'),
     getLatestInventoryBreakdown(reader, 'age_bucket'),
@@ -1576,34 +1579,39 @@ async function getTopSharesByActivity(db: Database): Promise<AdminTopShare[]> {
   }))
 }
 
-async function getUsageBySpaceRows(
-  db: Database,
-  reader: AdminStatsHourlyReader,
-): Promise<AdminDashboardStorageStats['topSpaces']> {
-  const topUsage = await reader.topSpaceUsage()
-  const topIds = topUsage.map((row) => row.orgId)
-  const orgRows =
-    topIds.length === 0
-      ? []
-      : await db
-          .select({
-            id: organization.id,
-            name: organization.name,
-            slug: organization.slug,
-            metadata: organization.metadata,
-          })
-          .from(organization)
-          .where(inArray(organization.id, topIds))
-  const orgById = new Map(orgRows.map((row) => [row.id, row]))
-  return topUsage.map((row) => {
-    const org = orgById.get(row.orgId)
-    return {
-      ...row,
-      orgName: org?.name ?? row.orgId,
-      orgType: org && isPersonalOrgLike({ slug: org.slug, metadata: org.metadata }) ? 'personal' : 'team',
-      utilization: row.quotaBytes > 0 ? percent(row.usedBytes, row.quotaBytes) : null,
-    }
-  })
+async function getUsageBySpaceRows(db: Database, now: Date): Promise<AdminDashboardStorageStats['topSpaces']> {
+  const orgRows = await db
+    .select({
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      metadata: organization.metadata,
+      usedBytes: sql<number>`COALESCE(${orgQuotas.used}, 0)`,
+    })
+    .from(organization)
+    .leftJoin(orgQuotas, eq(orgQuotas.orgId, organization.id))
+  const quotas = await getEffectiveQuotasByOrg(
+    db,
+    orgRows.map((row) => row.id),
+    now,
+  )
+  return orgRows
+    .map((org) => {
+      const quotaBytes = quotas.get(org.id)?.quota ?? 0
+      const usedBytes = Number(org.usedBytes)
+      return {
+        orgId: org.id,
+        usedBytes,
+        quotaBytes,
+        orgName: org.name,
+        orgType: isPersonalOrgLike({ slug: org.slug, metadata: org.metadata })
+          ? ('personal' as const)
+          : ('team' as const),
+        utilization: quotaBytes > 0 ? percent(usedBytes, quotaBytes) : null,
+      }
+    })
+    .sort((a, b) => b.usedBytes - a.usedBytes || a.orgId.localeCompare(b.orgId))
+    .slice(0, 8)
 }
 
 function percentRows<T extends { name: string }>(

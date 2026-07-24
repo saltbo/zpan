@@ -24,6 +24,7 @@ import type { Platform } from '../../platform/interface'
 import type {
   AuditEvent,
   AuditRepo,
+  DownloaderRecord,
   DownloaderRepo,
   DownloadTaskRecord,
   DownloadTaskRepo,
@@ -62,6 +63,7 @@ export type DownloadsDeps = {
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
 const UPLOAD_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 const DOWNLOADER_HEARTBEAT_LEASE_MS = 90_000
+const DOWNLOADER_HEARTBEAT_PERSIST_MS = 60_000
 const QUEUE_ASSIGN_BATCH = 20
 const CONTROL_TASK_PAGE_SIZE = 100
 const DOWNLOADER_ACTIVE_NEXT_POLL_SECONDS = 5
@@ -214,7 +216,10 @@ export async function recordDownloaderHeartbeat(
 ): Promise<DownloaderHeartbeatResult> {
   const downloader = await deps.downloaders.getRecord(downloaderId) // throws not_found
   const now = new Date()
-  await deps.downloaders.recordHeartbeat(downloaderId, heartbeat, downloader.enabled, now)
+  const persistence = downloaderHeartbeatPersistence(downloader, now)
+  if (persistence.required) {
+    await deps.downloaders.recordHeartbeat(downloaderId, heartbeat, downloader.enabled, persistence.statusChanged, now)
+  }
   await recoverStaleDownloaderAssignments(deps)
   if (downloader.enabled) {
     await claimQueuedTasksForDownloader(deps, {
@@ -252,6 +257,18 @@ export async function recordDownloaderHeartbeat(
         ? DOWNLOADER_ACTIVE_NEXT_POLL_SECONDS
         : DOWNLOADER_IDLE_NEXT_POLL_SECONDS,
   }
+}
+
+export function downloaderHeartbeatPersistence(
+  downloader: Pick<DownloaderRecord, 'enabled' | 'status' | 'lastHeartbeatAt'>,
+  now: Date,
+): { required: boolean; statusChanged: boolean } {
+  const expectedStatus = downloader.enabled ? 'online' : 'disabled'
+  const statusChanged = downloader.status !== expectedStatus
+  const checkpointDue =
+    downloader.lastHeartbeatAt === null ||
+    now.getTime() - downloader.lastHeartbeatAt.getTime() >= DOWNLOADER_HEARTBEAT_PERSIST_MS
+  return { required: statusChanged || checkpointDue, statusChanged }
 }
 
 // ─── Download task CRUD ──────────────────────────────────────────────────────

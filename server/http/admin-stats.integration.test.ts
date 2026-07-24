@@ -511,6 +511,21 @@ describe('site stats routes', () => {
     const secondNow = new Date('2026-07-10T18:05:00.000Z')
 
     await repo.refreshHourlyRollups(firstNow)
+    const firstRefreshRows = await db.all<{ id: string; updatedAt: number }>(sql`
+      SELECT id, updated_at AS updatedAt
+      FROM stats_rollups_hourly
+      WHERE bucket_start >= ${Date.UTC(2026, 6, 10, 3)}
+      ORDER BY id
+    `)
+    await repo.refreshHourlyRollups(new Date('2026-07-10T04:06:00.000Z'))
+    const retryRows = await db.all<{ id: string; updatedAt: number }>(sql`
+      SELECT id, updated_at AS updatedAt
+      FROM stats_rollups_hourly
+      WHERE bucket_start >= ${Date.UTC(2026, 6, 10, 3)}
+      ORDER BY id
+    `)
+    expect(retryRows).toEqual(firstRefreshRows)
+
     await repo.refreshHourlyRollups(secondNow)
     const rows = await db.all<{ bucketStart: number; bytes: number; metadata: string }>(sql`
       SELECT bucket_start AS bucketStart, bytes, metadata

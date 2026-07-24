@@ -160,11 +160,11 @@ export function createDownloaderRepo(db: Database): DownloaderRepo {
         .where(eq(downloaders.id, id))
     },
 
-    async recordHeartbeat(id, fields: DownloaderHeartbeatFields, online, now) {
+    async recordHeartbeat(id, fields: DownloaderHeartbeatFields, online, statusChanged, now) {
       await db
         .update(downloaders)
         .set({
-          status: online ? 'online' : 'disabled',
+          ...(statusChanged ? { status: online ? 'online' : 'disabled' } : {}),
           version: fields.version,
           hostname: fields.hostname,
           platform: fields.platform,

@@ -70,10 +70,20 @@ describe('handleScheduled', () => {
     expect(syncPendingRemoteDownloadUsageReports).toHaveBeenCalledWith(fakeDeps, {
       cloudBaseUrl: 'https://cloud.example',
     })
-    expect(refreshHourlyRollups).toHaveBeenCalledOnce()
+    expect(refreshHourlyRollups).not.toHaveBeenCalled()
     expect(reconcileFreePlanBaselines).toHaveBeenCalledOnce()
     expect(runLicensingRefresh).not.toHaveBeenCalled()
     expect(reportInstanceTelemetry).not.toHaveBeenCalled()
+  })
+
+  it('refreshes hourly rollups on the dedicated stats cron only', async () => {
+    await handleScheduled({ cron: '10 * * * *' }, { DB: {} as D1Database })
+
+    expect(refreshHourlyRollups).toHaveBeenCalledOnce()
+    expect(reconcileFreePlanBaselines).not.toHaveBeenCalled()
+    expect(syncPendingCloudTrafficReports).not.toHaveBeenCalled()
+    expect(syncPendingRemoteDownloadUsageReports).not.toHaveBeenCalled()
+    expect(runLicensingRefresh).not.toHaveBeenCalled()
   })
 
   it('refreshes licensing on the licensing cron only', async () => {

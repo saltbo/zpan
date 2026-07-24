@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DownloaderRecord, DownloaderRepo } from '../ports'
 import { type AppError, DownloadError } from '../ports'
 import { loadBindingState } from '../site/licensing'
-import { type DownloadsDeps, updateDownloaderCreditBilling } from './downloads'
+import { type DownloadsDeps, downloaderHeartbeatPersistence, updateDownloaderCreditBilling } from './downloads'
 
 vi.mock('../site/licensing', () => ({ loadBindingState: vi.fn() }))
 
@@ -76,6 +76,49 @@ function makeDeps(downloaders: Partial<DownloaderRepo> = {}) {
 }
 
 beforeEach(() => vi.clearAllMocks())
+
+describe('downloaderHeartbeatPersistence', () => {
+  const now = new Date('2026-07-24T19:00:00.000Z')
+
+  it('skips active polls inside the persistence window', () => {
+    expect(
+      downloaderHeartbeatPersistence(
+        {
+          enabled: true,
+          status: 'online',
+          lastHeartbeatAt: new Date(now.getTime() - 5_000),
+        },
+        now,
+      ),
+    ).toEqual({ required: false, statusChanged: false })
+  })
+
+  it('persists the minute checkpoint without rewriting the status index', () => {
+    expect(
+      downloaderHeartbeatPersistence(
+        {
+          enabled: true,
+          status: 'online',
+          lastHeartbeatAt: new Date(now.getTime() - 60_000),
+        },
+        now,
+      ),
+    ).toEqual({ required: true, statusChanged: false })
+  })
+
+  it('persists status transitions immediately', () => {
+    expect(
+      downloaderHeartbeatPersistence(
+        {
+          enabled: true,
+          status: 'offline',
+          lastHeartbeatAt: new Date(now.getTime() - 5_000),
+        },
+        now,
+      ),
+    ).toEqual({ required: true, statusChanged: true })
+  })
+})
 
 describe('updateDownloaderCreditBilling', () => {
   it('updates credit billing fields through the downloader repo', async () => {

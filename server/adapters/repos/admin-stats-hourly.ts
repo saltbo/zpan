@@ -18,7 +18,6 @@ import type { Database } from '../../platform/interface'
 import type { AdminStatsDateRange } from '../../usecases/ports'
 
 const HOUR_MS = 3_600_000
-const DASHBOARD_RANKING_LIMIT = 8
 
 export interface HourlyMetricRow {
   bucketStart: Date
@@ -75,61 +74,6 @@ export class AdminStatsHourlyReader {
     const rows = await this.rows(metric, dimensionKeys)
     const latest = rows.reduce((value, row) => Math.max(value, row.bucketStart.getTime()), Number.NEGATIVE_INFINITY)
     return rows.filter((row) => row.bucketStart.getTime() === latest)
-  }
-
-  async topSpaceUsage(
-    options: { limit?: number; personalOnly?: boolean } = {},
-  ): Promise<Array<{ orgId: string; usedBytes: number; quotaBytes: number }>> {
-    if (this.queryFrom >= this.snapshotQueryTo) return []
-    const limit = options.limit ?? DASHBOARD_RANKING_LIMIT
-    const personalFilter = options.personalOnly
-      ? sql`AND (org.slug LIKE 'personal-%' OR (json_valid(org.metadata) = 1 AND json_extract(org.metadata, '$.type') = 'personal'))`
-      : sql``
-    const rows = await this.db.all<{ orgId: string; usedBytes: number; quotaBytes: number }>(sql`
-      WITH latest AS (
-        SELECT MAX(bucket_start) AS bucketStart
-        FROM stats_rollups_hourly
-        WHERE org_id = ''
-          AND metric_key = ${ADMIN_STATS_METRICS.statsRollupRun}
-          AND dimension_key = ''
-          AND dimension_value = ''
-          AND bucket_start >= ${this.queryFrom.getTime()}
-          AND bucket_start < ${this.snapshotQueryTo.getTime()}
-          AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.version') END = ${ROLLUP_VERSION}
-          AND CASE WHEN json_valid(metadata) = 1 THEN json_extract(metadata, '$.scope') END IN ('snapshots', 'full')
-          AND CASE WHEN json_valid(metadata) = 1 THEN
-            COALESCE(json_extract(metadata, '$.snapshotQuality'), json_extract(metadata, '$.quality'))
-          END = 'exact'
-      )
-      SELECT used.org_id AS orgId, used.bytes AS usedBytes, quota.bytes AS quotaBytes
-      FROM stats_rollups_hourly used
-      INNER JOIN stats_rollups_hourly quota
-        ON quota.bucket_start = used.bucket_start
-        AND quota.org_id = used.org_id
-        AND quota.metric_key = ${ADMIN_STATS_METRICS.storageQuota}
-        AND quota.dimension_key = ''
-        AND quota.dimension_value = ''
-        AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.version') END = ${ROLLUP_VERSION}
-        AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.scope') END IN ('snapshots', 'full')
-        AND CASE WHEN json_valid(quota.metadata) = 1 THEN json_extract(quota.metadata, '$.quality') END = 'exact'
-      INNER JOIN organization org ON org.id = used.org_id
-      WHERE used.bucket_start = (SELECT bucketStart FROM latest)
-        AND used.org_id <> ''
-        AND used.metric_key = ${ADMIN_STATS_METRICS.storageUsed}
-        AND used.dimension_key = ''
-        AND used.dimension_value = ''
-        AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.version') END = ${ROLLUP_VERSION}
-        AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.scope') END IN ('snapshots', 'full')
-        AND CASE WHEN json_valid(used.metadata) = 1 THEN json_extract(used.metadata, '$.quality') END = 'exact'
-        ${personalFilter}
-      ORDER BY used.bytes DESC, used.org_id
-      LIMIT ${limit}
-    `)
-    return rows.map((row: { orgId: string; usedBytes: number; quotaBytes: number }) => ({
-      orgId: row.orgId,
-      usedBytes: Number(row.usedBytes),
-      quotaBytes: Number(row.quotaBytes),
-    }))
   }
 
   async coverage(

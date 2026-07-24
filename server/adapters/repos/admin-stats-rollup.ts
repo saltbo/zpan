@@ -50,7 +50,6 @@ const GAUGE_METRICS: AdminStatsMetric[] = [
   M.userInventory,
   M.webhookSnapshot,
 ]
-
 type RollupValue = {
   metric: AdminStatsMetric
   orgId: string
@@ -224,6 +223,7 @@ export async function captureAdminStatsSnapshot(
       .where(
         and(
           eq(statsRollupsHourly.bucketStart, bucketStart),
+          eq(statsRollupsHourly.orgId, ''),
           or(
             inArray(statsRollupsHourly.metricKey, GAUGE_METRICS),
             and(eq(statsRollupsHourly.metricKey, M.statsRollupRun), ne(statsRollupsHourly.dimensionKey, D.metric)),
@@ -258,6 +258,10 @@ async function compatibleSnapshotMarker(
   const metadata = parseAdminStatsRollupMetadata(rows[0]?.metadata ?? null)
   if ((metadata?.scope !== 'snapshots' && metadata?.scope !== 'full') || !metadata.snapshotObservedAt) return null
   return { quality: metadata.snapshotQuality ?? metadata.quality, observedAt: metadata.snapshotObservedAt }
+}
+
+export async function hasAdminStatsSnapshot(db: Database, bucketStart: Date): Promise<boolean> {
+  return (await compatibleSnapshotMarker(db, bucketStart)) !== null
 }
 
 async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now: Date): Promise<void> {
@@ -468,35 +472,26 @@ async function addSnapshotMetrics(db: Database, rollups: RollupAccumulator, now:
     const effective = effectiveQuotas.get(row.orgId)
     if (!effective) throw new Error(`stats_effective_quota_missing:${row.orgId}`)
     const quota = row.quotaId ? effective.quota : 0
-    rollups.setGauge(M.storageUsed, row.orgId, 0, row.used)
-    rollups.setGauge(M.storageQuota, row.orgId, 0, quota)
     rollups.incrementGauge(M.storageUsed, '', 0, row.used)
     rollups.incrementGauge(M.storageQuota, '', 1, quota)
     const status = quota <= 0 ? 'invalid' : row.used >= quota ? 'over' : row.used >= quota * 0.8 ? 'near' : 'healthy'
     rollups.incrementGauge(M.storageQuota, '', 1, 0, 'status', status)
   }
   for (const row of [...inventoryRows, ...inventoryByType, ...inventoryBySize, ...inventoryByAge]) {
-    rollups.incrementGauge(M.storageInventory, row.orgId, row.files, row.bytes, row.dimensionKey, row.dimensionValue)
     rollups.incrementGauge(M.storageInventory, '', row.files, row.bytes, row.dimensionKey, row.dimensionValue)
   }
   for (const row of trashRows) {
-    rollups.incrementGauge(M.storageTrashSnapshot, row.orgId, row.files, row.bytes)
     rollups.incrementGauge(M.storageTrashSnapshot, '', row.files, row.bytes)
-    rollups.incrementGauge(M.storageTrashSnapshot, row.orgId, row.files, row.bytes, 'storage_id', row.storageId)
     rollups.incrementGauge(M.storageTrashSnapshot, '', row.files, row.bytes, 'storage_id', row.storageId)
   }
   for (const row of shareRows) {
-    rollups.incrementGauge(M.shareInventory, row.orgId, Number(row.count), 0)
-    rollups.incrementGauge(M.shareInventory, row.orgId, Number(row.count), 0, 'lifecycle', row.lifecycle)
     rollups.incrementGauge(M.shareInventory, '', Number(row.count), 0)
     rollups.incrementGauge(M.shareInventory, '', Number(row.count), 0, 'lifecycle', row.lifecycle)
   }
   for (const row of jobRows) {
-    rollups.incrementGauge(M.backgroundJobSnapshot, row.orgId, Number(row.count), 0)
     rollups.incrementGauge(M.backgroundJobSnapshot, '', Number(row.count), 0)
   }
   for (const row of taskRows) {
-    rollups.incrementGauge(M.remoteDownloadTaskSnapshot, row.orgId, Number(row.count), 0)
     rollups.incrementGauge(M.remoteDownloadTaskSnapshot, '', Number(row.count), 0)
   }
   for (const row of downloaderRows) {
