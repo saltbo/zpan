@@ -46,6 +46,7 @@ type TaskRunner struct {
 	attempts   map[string]int
 	wg         sync.WaitGroup
 	mu         sync.Mutex
+	attemptMu  sync.Mutex
 }
 
 type transferSpeeds struct {
@@ -446,6 +447,9 @@ func (w *TaskRunner) resetTaskForAttempt(ctx context.Context, task client.Downlo
 		w.setMemoryAttempt(task.ID, attempt)
 		return nil
 	}
+	w.attemptMu.Lock()
+	defer w.attemptMu.Unlock()
+
 	ledger, err := loadAttemptLedger(w.cfg.StateDir)
 	if err != nil {
 		return fmt.Errorf("load attempt ledger: %w", err)

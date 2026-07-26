@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1365,6 +1366,42 @@ func TestResetTaskForRestartAttemptSkipsAlreadyRecordedAttempt(t *testing.T) {
 	}
 	if eng.resetCalls != 0 {
 		t.Fatalf("expected no reset for recorded attempt, got %d", eng.resetCalls)
+	}
+}
+
+func TestResetTaskForAttemptSerializesLedgerUpdates(t *testing.T) {
+	const taskCount = 64
+
+	stateDir := t.TempDir()
+	w := NewTaskRunnerWithAPI(config.Config{StateDir: stateDir}, nil)
+	start := make(chan struct{})
+	errs := make(chan error, taskCount)
+	var wg sync.WaitGroup
+	for i := range taskCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			task := clientTaskWithStatus("task-"+strconv.Itoa(i), "assigned")
+			errs <- w.resetTaskForAttempt(context.Background(), task, w.logger)
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ledger, err := loadAttemptLedger(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ledger.Attempts) != taskCount {
+		t.Fatalf("expected %d attempt records, got %d", taskCount, len(ledger.Attempts))
 	}
 }
 
