@@ -1,5 +1,5 @@
 import { createMiddleware } from 'hono/factory'
-import { ApiKeyRateLimitError, forbidden, rateLimited, unauthorized } from '../usecases/ports'
+import { ApiKeyRateLimitError, type CachePolicy, forbidden, rateLimited, unauthorized } from '../usecases/ports'
 import type { Env } from './platform'
 
 // 'member' is the better-auth schema default; map it to viewer level so
@@ -9,6 +9,16 @@ const ROLE_LEVELS: Record<string, number> = {
   editor: 2,
   viewer: 1,
   member: 1,
+}
+
+const MEMBER_ROLE_CACHE_POLICY: CachePolicy<string | null> = {
+  namespace: 'member-role',
+  version: 1,
+  ttlMs: 30_000,
+  negativeTtlMs: 5_000,
+  maxEntries: 1024,
+  distributed: false,
+  validate: (value): value is string | null => value === null || typeof value === 'string',
 }
 
 type SessionWithPlugins = {
@@ -112,14 +122,21 @@ export const requireAuth = createMiddleware<Env>(async (c, next) => {
 })
 
 export const requireAdmin = createMiddleware<Env>(async (c, next) => {
-  const result = (await c.get('auth').api.getSession({
+  const method = c.req.method.toUpperCase()
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+    const principal = c.get('principal')
+    if (principal?.kind !== 'user') throw unauthorized('Unauthorized')
+    if (principal.role !== 'admin') throw forbidden('Forbidden')
+    await next()
+    return
+  }
+
+  const freshSession = (await c.get('auth').api.getSession({
     headers: c.req.raw.headers,
     query: { disableCookieCache: true },
   })) as SessionWithPlugins | null
-  if (!result?.user?.id) {
-    throw unauthorized('Unauthorized')
-  }
-  if (result.user.role !== 'admin') {
+  if (!freshSession?.user?.id) throw unauthorized('Unauthorized')
+  if (freshSession.user.role !== 'admin') {
     throw forbidden('Forbidden')
   }
   await next()
@@ -136,10 +153,17 @@ export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
       throw unauthorized('Unauthorized')
     }
 
-    // Query member role first — avoids an extra DB round trip for the common case.
-    // Personal org owners always have a member row (guaranteed by findPersonalOrg),
-    // so isPersonalOrg is only needed as a fallback when no member row exists.
-    const role = await c.get('deps').org.getMemberRole(orgId, userId)
+    const method = c.req.method.toUpperCase()
+    const role =
+      method === 'GET' || method === 'HEAD' || method === 'OPTIONS'
+        ? (
+            await c
+              .get('deps')
+              .cache.getOrLoad(MEMBER_ROLE_CACHE_POLICY, `${orgId}:${userId}`, () =>
+                c.get('deps').org.getMemberRole(orgId, userId),
+              )
+          ).value
+        : await c.get('deps').org.getMemberRole(orgId, userId)
     if (role !== null) {
       const userLevel = ROLE_LEVELS[role] ?? 0
       if (userLevel < ROLE_LEVELS[minRole]) {

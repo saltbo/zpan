@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lte } from 'drizzle-orm'
+import { and, count, desc, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { organization, user } from '../../db/auth-schema'
 import { auditEvents } from '../../db/schema'
@@ -89,9 +89,6 @@ export function createAuditRepo(db: Database): AuditRepo {
       const page = opts.page ?? 1
       const pageSize = opts.pageSize ?? 20
       const offset = (page - 1) * pageSize
-      const countRows = await db.select({ count: count() }).from(auditEvents).where(eq(auditEvents.orgId, orgId))
-      const total = countRows[0]?.count ?? 0
-
       const rows = await db
         .select({
           id: auditEvents.id,
@@ -107,6 +104,7 @@ export function createAuditRepo(db: Database): AuditRepo {
           createdAt: auditEvents.createdAt,
           userName: user.name,
           userImage: user.image,
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
         })
         .from(auditEvents)
         .leftJoin(user, eq(auditEvents.userId, user.id))
@@ -115,6 +113,11 @@ export function createAuditRepo(db: Database): AuditRepo {
         .limit(pageSize)
         .offset(offset)
 
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && page > 1) {
+        const countRows = await db.select({ count: count() }).from(auditEvents).where(eq(auditEvents.orgId, orgId))
+        total = countRows[0]?.count ?? 0
+      }
       const items = rows.map((row) => {
         const actorType = normalizeActorType(row.actorType, row.userId)
         return {
@@ -155,9 +158,6 @@ export function createAuditRepo(db: Database): AuditRepo {
       ].filter(Boolean) as Parameters<typeof and>
 
       const whereClause = and(...filters)
-      const countRows = await db.select({ count: count() }).from(auditEvents).where(whereClause)
-      const total = countRows[0]?.count ?? 0
-
       const rows = await db
         .select({
           id: auditEvents.id,
@@ -174,6 +174,7 @@ export function createAuditRepo(db: Database): AuditRepo {
           userName: user.name,
           userImage: user.image,
           orgName: organization.name,
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
         })
         .from(auditEvents)
         .leftJoin(user, eq(auditEvents.userId, user.id))
@@ -183,6 +184,11 @@ export function createAuditRepo(db: Database): AuditRepo {
         .limit(pageSize)
         .offset(offset)
 
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && page > 1) {
+        const countRows = await db.select({ count: count() }).from(auditEvents).where(whereClause)
+        total = countRows[0]?.count ?? 0
+      }
       const items = rows.map((row) => {
         const actorType = normalizeActorType(row.actorType, row.userId)
         return {
@@ -219,23 +225,28 @@ export function createAuditRepo(db: Database): AuditRepo {
         eq(auditEvents.targetId, opts.targetId),
       )
 
-      const [countRows, rows] = await Promise.all([
-        db.select({ count: count() }).from(auditEvents).where(whereClause),
-        db
-          .select()
-          .from(auditEvents)
-          .where(whereClause)
-          .orderBy(desc(auditEvents.createdAt))
-          .limit(pageSize)
-          .offset(offset),
-      ])
+      const rows = await db
+        .select({
+          ...getTableColumns(auditEvents),
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+        })
+        .from(auditEvents)
+        .where(whereClause)
+        .orderBy(desc(auditEvents.createdAt))
+        .limit(pageSize)
+        .offset(offset)
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && page > 1) {
+        const countRows = await db.select({ count: count() }).from(auditEvents).where(whereClause)
+        total = countRows[0]?.count ?? 0
+      }
 
       return {
-        items: rows.map((row) => ({
+        items: rows.map(({ pageTotal: _, ...row }) => ({
           ...row,
           actorType: normalizeActorType(row.actorType, row.userId),
         })),
-        total: countRows[0]?.count ?? 0,
+        total,
         page,
         pageSize,
       }

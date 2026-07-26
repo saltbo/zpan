@@ -27,5 +27,6 @@ export interface WebDavPathRepo {
   listUserWorkspaces(userId: string): Promise<WebDavWorkspace[]>
   listChildren(orgId: string, parent: string): Promise<Matter[]>
   resolveWebDavPath(userId: string, rawPath: string): Promise<WebDavTarget>
+  resolveWithChildren(userId: string, rawPath: string): Promise<{ target: WebDavTarget; children: Matter[] }>
   resolveExistingWebDavPath(userId: string, rawPath: string): Promise<WebDavTarget>
 }

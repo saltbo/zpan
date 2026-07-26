@@ -33,6 +33,32 @@ describe('background job service', () => {
     })
   })
 
+  it('summarizes active jobs without loading their rows', async () => {
+    const { db } = await createTestApp()
+    const repo = createBackgroundJobRepo(db)
+    const queued = await repo.create({
+      orgId: 'org-summary',
+      userId: 'user-summary',
+      type: 'remote_download',
+      progress: { processedBytes: 10 },
+    })
+    const completed = await repo.create({
+      orgId: 'org-summary',
+      userId: 'user-summary',
+      type: 'archive_compress',
+      progress: { processedBytes: 20 },
+    })
+    await repo.update('org-summary', completed.id, { status: 'completed' })
+
+    const before = await repo.activeSummary('org-summary')
+    await repo.update('org-summary', queued.id, { progress: { processedBytes: 11 } })
+    const after = await repo.activeSummary('org-summary')
+
+    expect(before.count).toBe(1)
+    expect(after.count).toBe(1)
+    expect(after.fingerprint).not.toBe(before.fingerprint)
+  })
+
   it('updates nullable fields and terminal timestamps explicitly', async () => {
     const { db } = await createTestApp()
     const job = await createBackgroundJobRepo(db).create({

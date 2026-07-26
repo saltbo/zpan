@@ -384,7 +384,7 @@ export async function createAuth(
     session: {
       cookieCache: {
         enabled: true,
-        maxAge: 60,
+        maxAge: 300,
       },
     },
     socialProviders: Object.fromEntries(

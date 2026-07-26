@@ -45,6 +45,7 @@ export class BackgroundJobError extends Error {
 export interface BackgroundJobRepo {
   create(input: CreateBackgroundJobInput): Promise<BackgroundJob>
   list(orgId: string, opts: ListBackgroundJobsOptions): Promise<{ items: BackgroundJob[]; total: number }>
+  activeSummary(orgId: string): Promise<{ count: number; fingerprint: string }>
   get(orgId: string, id: string): Promise<BackgroundJob>
   update(orgId: string, id: string, input: UpdateBackgroundJobInput): Promise<BackgroundJob>
   cancel(orgId: string, id: string): Promise<BackgroundJob>

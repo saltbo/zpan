@@ -1,5 +1,5 @@
 import type { AnnouncementInput } from '@shared/schemas'
-import { count, desc, eq, ne } from 'drizzle-orm'
+import { count, desc, eq, getTableColumns, ne, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { announcements } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -49,17 +49,27 @@ export function createAnnouncementRepo(db: Database): AnnouncementRepo {
     async listAdmin(opts) {
       const { limit, offset } = pageParams(opts.page, opts.pageSize)
       const where = opts.status ? eq(announcements.status, opts.status) : undefined
-      const [items, totalRows] = await Promise.all([
-        db
-          .select()
-          .from(announcements)
-          .where(where)
-          .orderBy(desc(announcements.priority), desc(announcements.createdAt))
-          .limit(limit)
-          .offset(offset),
-        db.select({ count: count() }).from(announcements).where(where),
-      ])
-      return { items: items.map(toRecord), total: totalRows[0]?.count ?? 0, page: opts.page, pageSize: opts.pageSize }
+      const rows = await db
+        .select({
+          ...getTableColumns(announcements),
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+        })
+        .from(announcements)
+        .where(where)
+        .orderBy(desc(announcements.priority), desc(announcements.createdAt))
+        .limit(limit)
+        .offset(offset)
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && opts.page > 1) {
+        const totalRows = await db.select({ count: count() }).from(announcements).where(where)
+        total = totalRows[0]?.count ?? 0
+      }
+      return {
+        items: rows.map(({ pageTotal: _, ...row }) => toRecord(row)),
+        total,
+        page: opts.page,
+        pageSize: opts.pageSize,
+      }
     },
 
     async get(id) {
@@ -97,17 +107,27 @@ export function createAnnouncementRepo(db: Database): AnnouncementRepo {
     async listUser(opts) {
       const { limit, offset } = pageParams(opts.page, opts.pageSize)
       const baseCondition = opts.activeOnly ? eq(announcements.status, 'published') : ne(announcements.status, 'draft')
-      const [items, totalRows] = await Promise.all([
-        db
-          .select()
-          .from(announcements)
-          .where(baseCondition)
-          .orderBy(desc(announcements.priority), desc(announcements.publishedAt), desc(announcements.updatedAt))
-          .limit(limit)
-          .offset(offset),
-        db.select({ count: count() }).from(announcements).where(baseCondition),
-      ])
-      return { items: items.map(toRecord), total: totalRows[0]?.count ?? 0, page: opts.page, pageSize: opts.pageSize }
+      const rows = await db
+        .select({
+          ...getTableColumns(announcements),
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+        })
+        .from(announcements)
+        .where(baseCondition)
+        .orderBy(desc(announcements.priority), desc(announcements.publishedAt), desc(announcements.updatedAt))
+        .limit(limit)
+        .offset(offset)
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && opts.page > 1) {
+        const totalRows = await db.select({ count: count() }).from(announcements).where(baseCondition)
+        total = totalRows[0]?.count ?? 0
+      }
+      return {
+        items: rows.map(({ pageTotal: _, ...row }) => toRecord(row)),
+        total,
+        page: opts.page,
+        pageSize: opts.pageSize,
+      }
     },
   }
 }

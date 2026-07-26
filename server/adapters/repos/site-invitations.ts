@@ -1,6 +1,6 @@
 import { DEFAULT_SITE_NAME } from '@shared/constants'
 import type { SiteInvitation } from '@shared/types'
-import { and, count, desc, eq, gt, isNull } from 'drizzle-orm'
+import { and, count, desc, eq, gt, isNull, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import * as authSchema from '../../db/auth-schema'
 import { siteInvitations, systemOptions } from '../../db/schema'
@@ -48,33 +48,36 @@ async function listSiteInvitations(
   page: number,
   pageSize: number,
 ): Promise<{ items: SiteInvitation[]; total: number }> {
-  const [totalResult, rows] = await Promise.all([
-    db.select({ count: count() }).from(siteInvitations),
-    db
-      .select({
-        id: siteInvitations.id,
-        email: siteInvitations.email,
-        token: siteInvitations.token,
-        invitedBy: siteInvitations.invitedBy,
-        acceptedBy: siteInvitations.acceptedBy,
-        acceptedAt: siteInvitations.acceptedAt,
-        revokedBy: siteInvitations.revokedBy,
-        revokedAt: siteInvitations.revokedAt,
-        expiresAt: siteInvitations.expiresAt,
-        createdAt: siteInvitations.createdAt,
-        updatedAt: siteInvitations.updatedAt,
-        invitedByName: authSchema.user.name,
-      })
-      .from(siteInvitations)
-      .leftJoin(authSchema.user, eq(authSchema.user.id, siteInvitations.invitedBy))
-      .orderBy(desc(siteInvitations.createdAt))
-      .limit(pageSize)
-      .offset((page - 1) * pageSize),
-  ])
+  const rows = await db
+    .select({
+      id: siteInvitations.id,
+      email: siteInvitations.email,
+      token: siteInvitations.token,
+      invitedBy: siteInvitations.invitedBy,
+      acceptedBy: siteInvitations.acceptedBy,
+      acceptedAt: siteInvitations.acceptedAt,
+      revokedBy: siteInvitations.revokedBy,
+      revokedAt: siteInvitations.revokedAt,
+      expiresAt: siteInvitations.expiresAt,
+      createdAt: siteInvitations.createdAt,
+      updatedAt: siteInvitations.updatedAt,
+      invitedByName: authSchema.user.name,
+      pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+    })
+    .from(siteInvitations)
+    .leftJoin(authSchema.user, eq(authSchema.user.id, siteInvitations.invitedBy))
+    .orderBy(desc(siteInvitations.createdAt))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
 
+  let total = Number(rows[0]?.pageTotal ?? 0)
+  if (rows.length === 0 && page > 1) {
+    const totalResult = await db.select({ count: count() }).from(siteInvitations)
+    total = totalResult[0]?.count ?? 0
+  }
   return {
-    items: rows.map(mapInvitation),
-    total: totalResult[0]?.count ?? 0,
+    items: rows.map(({ pageTotal: _, ...row }) => mapInvitation(row)),
+    total,
   }
 }
 

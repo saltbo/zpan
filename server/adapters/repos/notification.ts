@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull } from 'drizzle-orm'
+import { and, count, desc, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { notifications } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -36,25 +36,37 @@ export function createNotificationRepo(db: Database): NotificationRepo {
         ? and(eq(notifications.userId, userId), isNull(notifications.readAt))
         : eq(notifications.userId, userId)
 
-      const [items, totalRows, unreadRows] = await Promise.all([
-        db
-          .select()
-          .from(notifications)
-          .where(baseCondition)
-          .orderBy(desc(notifications.createdAt))
-          .limit(pageSize)
-          .offset(offset),
-        db.select({ count: count() }).from(notifications).where(baseCondition),
-        db
-          .select({ count: count() })
-          .from(notifications)
-          .where(and(eq(notifications.userId, userId), isNull(notifications.readAt))),
-      ])
+      const rows = await db
+        .select({
+          ...getTableColumns(notifications),
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+          pageUnread: sql<number>`SUM(CASE WHEN ${notifications.readAt} IS NULL THEN 1 ELSE 0 END) OVER()`.as(
+            'page_unread',
+          ),
+        })
+        .from(notifications)
+        .where(baseCondition)
+        .orderBy(desc(notifications.createdAt))
+        .limit(pageSize)
+        .offset(offset)
 
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      let unreadCount = Number(rows[0]?.pageUnread ?? 0)
+      if (rows.length === 0 && page > 1) {
+        const summaryRows = await db
+          .select({
+            total: count(),
+            unreadCount: sql<number>`SUM(CASE WHEN ${notifications.readAt} IS NULL THEN 1 ELSE 0 END)`,
+          })
+          .from(notifications)
+          .where(eq(notifications.userId, userId))
+        unreadCount = Number(summaryRows[0]?.unreadCount ?? 0)
+        total = unreadOnly ? unreadCount : (summaryRows[0]?.total ?? 0)
+      }
       return {
-        items: items.map(toRecord),
-        total: totalRows[0]?.count ?? 0,
-        unreadCount: unreadRows[0]?.count ?? 0,
+        items: rows.map(({ pageTotal: _, pageUnread: __, ...row }) => toRecord(row)),
+        total,
+        unreadCount,
       }
     },
 

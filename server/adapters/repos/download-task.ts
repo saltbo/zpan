@@ -6,6 +6,7 @@ import {
   count,
   desc,
   eq,
+  getTableColumns,
   gte,
   inArray,
   isNotNull,
@@ -47,6 +48,17 @@ function parseTaskRuntime(value: string | null): DownloadTaskRuntime | null {
 
 function nextValue<T>(value: T | undefined, column: SQL): SQL {
   return value === undefined ? column : sql`${value}`
+}
+
+function downloadTaskWhere(filters: ListDownloadTasksFilters): SQL | undefined {
+  const conditions: SQL[] = [isNull(downloadTasks.deletedAt)]
+  if (filters.orgId) conditions.push(eq(downloadTasks.orgId, filters.orgId))
+  if (filters.downloaderId) conditions.push(eq(downloadTasks.assignedDownloaderId, filters.downloaderId))
+  if (filters.statuses?.length) conditions.push(inArray(downloadTasks.status, filters.statuses))
+  else if (filters.status) conditions.push(eq(downloadTasks.status, filters.status))
+  if (filters.category) conditions.push(eq(downloadTasks.category, filters.category))
+  if (filters.tag) conditions.push(like(downloadTasks.tags, `%${JSON.stringify(filters.tag)}%`))
+  return conditions.length ? and(...conditions) : undefined
 }
 
 function appendStatusEvent(
@@ -339,30 +351,41 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
 
     async list(filters: ListDownloadTasksFilters) {
       const offset = (filters.page - 1) * filters.pageSize
-      const conditions: SQL[] = []
-      conditions.push(isNull(downloadTasks.deletedAt))
-      if (filters.orgId) conditions.push(eq(downloadTasks.orgId, filters.orgId))
-      if (filters.downloaderId) conditions.push(eq(downloadTasks.assignedDownloaderId, filters.downloaderId))
-      if (filters.statuses?.length) conditions.push(inArray(downloadTasks.status, filters.statuses))
-      else if (filters.status) conditions.push(eq(downloadTasks.status, filters.status))
-      if (filters.category) conditions.push(eq(downloadTasks.category, filters.category))
-      if (filters.tag) conditions.push(like(downloadTasks.tags, `%${JSON.stringify(filters.tag)}%`))
-      const where = conditions.length ? and(...conditions) : undefined
-      const [rows, totalRows] = await Promise.all([
-        db
-          .select()
-          .from(downloadTasks)
-          .where(where)
-          .orderBy(orderBy(filters.sortBy ?? 'createdAt', filters.sortDir ?? 'desc'))
-          .limit(filters.pageSize)
-          .offset(offset),
-        db.select({ count: count() }).from(downloadTasks).where(where),
-      ])
-      return {
-        items: rows.map((row) => toDownloadTask(row)),
-        total: totalRows[0]?.count ?? 0,
-        rows: rows.map((row) => toRecord(row)),
+      const where = downloadTaskWhere(filters)
+      const rows = await db
+        .select({
+          ...getTableColumns(downloadTasks),
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+        })
+        .from(downloadTasks)
+        .where(where)
+        .orderBy(orderBy(filters.sortBy ?? 'createdAt', filters.sortDir ?? 'desc'))
+        .limit(filters.pageSize)
+        .offset(offset)
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && filters.page > 1) {
+        const totalRows = await db.select({ count: count() }).from(downloadTasks).where(where)
+        total = totalRows[0]?.count ?? 0
       }
+      const taskRows = rows.map(({ pageTotal: _, ...row }) => row)
+      return {
+        items: taskRows.map((row) => toDownloadTask(row)),
+        total,
+        rows: taskRows.map((row) => toRecord(row)),
+      }
+    },
+
+    async changeFingerprint(filters) {
+      const rows = await db
+        .select({
+          count: count(),
+          lastUpdatedAt: sql<number | null>`MAX(${downloadTasks.updatedAt})`,
+        })
+        .from(downloadTasks)
+        .where(downloadTaskWhere(filters))
+      const row = rows[0]
+      const taskCount = row?.count ?? 0
+      return taskCount === 0 ? '' : `${taskCount}:${row?.lastUpdatedAt ?? 0}`
     },
 
     async get(orgId, id) {

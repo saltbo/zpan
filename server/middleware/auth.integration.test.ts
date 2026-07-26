@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 import { requireAdmin, requireTeamRole } from './auth.js'
@@ -11,8 +11,8 @@ type TestApp = TestCtx['app']
 
 async function createAdminTestApp() {
   const { app, db, auth } = await createTestApp()
-  // Add a test-only route protected by requireAdmin
   app.get('/api/admin-only', requireAdmin, (c) => c.json({ ok: true }))
+  app.post('/api/admin-only', requireAdmin, (c) => c.json({ ok: true }))
   return { app, db, auth }
 }
 
@@ -76,6 +76,29 @@ describe('requireAdmin middleware', () => {
     const res = await app.request('/api/admin-only', { headers })
     const body = (await res.json()) as { ok: boolean }
     expect(body.ok).toBe(true)
+  })
+
+  it('reuses the session already resolved by auth middleware for safe methods', async () => {
+    const { app, auth } = await createAdminTestApp()
+    const headers = await authedHeadersWithFreshSession(app, 'admin@example.com', 'password123456', 'Admin')
+    const getSession = vi.spyOn(auth.api, 'getSession')
+
+    const res = await app.request('/api/admin-only', { headers })
+
+    expect(res.status).toBe(200)
+    expect(getSession).toHaveBeenCalledOnce()
+  })
+
+  it('forces a fresh session check for admin writes', async () => {
+    const { app, auth } = await createAdminTestApp()
+    const headers = await authedHeadersWithFreshSession(app, 'admin@example.com', 'password123456', 'Admin')
+    const getSession = vi.spyOn(auth.api, 'getSession')
+
+    const res = await app.request('/api/admin-only', { method: 'POST', headers })
+
+    expect(res.status).toBe(200)
+    expect(getSession).toHaveBeenCalledTimes(2)
+    expect(getSession).toHaveBeenLastCalledWith(expect.objectContaining({ query: { disableCookieCache: true } }))
   })
 })
 
@@ -200,10 +223,10 @@ async function setActiveOrg(app: TestApp, cookies: string, orgId: string): Promi
 }
 
 function createTeamRoleTestApp() {
-  return createTestApp().then(({ app, db }) => {
+  return createTestApp().then(({ app, db, deps }) => {
     app.get('/api/test/viewer', requireTeamRole('viewer'), (c) => c.json({ ok: true }))
     app.post('/api/test/editor', requireTeamRole('editor'), (c) => c.json({ ok: true }))
-    return { app, db }
+    return { app, db, deps }
   })
 }
 
@@ -224,6 +247,28 @@ describe('requireTeamRole — personal org bypass', () => {
 })
 
 describe('requireTeamRole — team org with owner role', () => {
+  it('caches repeated safe-method membership checks but not writes', async () => {
+    const { app, db, deps } = await createTeamRoleTestApp()
+    const { userId, cookies } = await signUpAndGetSession(app, db, 'owner-cache@example.com')
+    const teamOrgId = await insertOrg(db, `team-${nanoid()}`)
+    await insertMember(db, teamOrgId, userId, 'owner')
+    const updatedCookies = await setActiveOrg(app, cookies, teamOrgId)
+    const getMemberRole = vi.spyOn(deps.org, 'getMemberRole')
+
+    expect((await app.request('/api/test/viewer', { headers: { Cookie: updatedCookies } })).status).toBe(200)
+    expect((await app.request('/api/test/viewer', { headers: { Cookie: updatedCookies } })).status).toBe(200)
+    expect(getMemberRole).toHaveBeenCalledOnce()
+
+    await db
+      .update(authSchema.member)
+      .set({ role: 'viewer' })
+      .where(and(eq(authSchema.member.organizationId, teamOrgId), eq(authSchema.member.userId, userId)))
+    expect(
+      (await app.request('/api/test/editor', { method: 'POST', headers: { Cookie: updatedCookies } })).status,
+    ).toBe(403)
+    expect(getMemberRole).toHaveBeenCalledTimes(2)
+  })
+
   it('viewer-level route passes for owner', async () => {
     const { app, db } = await createTeamRoleTestApp()
     const { userId, cookies } = await signUpAndGetSession(app, db, 'owner@example.com')

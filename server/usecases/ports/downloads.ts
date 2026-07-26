@@ -191,6 +191,7 @@ export interface DownloaderRepo {
 export interface DownloadTaskRepo {
   insert(input: CreateDownloadTaskRecordInput): Promise<void>
   list(filters: ListDownloadTasksFilters): Promise<{ items: DownloadTask[]; total: number; rows: DownloadTaskRecord[] }>
+  changeFingerprint(filters: ListDownloadTasksFilters): Promise<string>
   /** API DTO scoped to org; throws DownloadError('not_found') when missing. */
   get(orgId: string, id: string): Promise<DownloadTask>
   /** Raw record scoped to org; throws DownloadError('not_found') when missing. */

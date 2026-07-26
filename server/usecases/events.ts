@@ -20,7 +20,6 @@ const POLL_INTERVAL_MS = 2000
 // How long the stream may stay silent before emitting a keep-alive. Decoupled
 // from POLL_INTERVAL_MS so an idle connection isn't chatty.
 const HEARTBEAT_INTERVAL_MS = 25_000
-const ACTIVE_JOB_SCAN_SIZE = 100
 const DOWNLOAD_TASK_PAGE_SIZE = 50
 
 // A single named SSE event the handler will serialize to the wire. `event` is
@@ -106,16 +105,10 @@ export async function streamEvents(
       let changed = false
 
       if (scope === 'user' && orgId) {
-        const [queued, running] = await Promise.all([
-          deps.backgroundJobs.list(orgId, { status: 'queued', page: 1, pageSize: ACTIVE_JOB_SCAN_SIZE }),
-          deps.backgroundJobs.list(orgId, { status: 'running', page: 1, pageSize: ACTIVE_JOB_SCAN_SIZE }),
-        ])
-        const fingerprint = [...queued.items, ...running.items]
-          .map((job) => `${job.id}:${job.status}:${job.updatedAt}:${job.progress.processedBytes}`)
-          .join('|')
-        if (fingerprint !== jobsFingerprint) {
-          jobsFingerprint = fingerprint
-          send({ event: 'jobs', data: { activeCount: queued.total + running.total } })
+        const summary = await deps.backgroundJobs.activeSummary(orgId)
+        if (summary.fingerprint !== jobsFingerprint) {
+          jobsFingerprint = summary.fingerprint
+          send({ event: 'jobs', data: { activeCount: summary.count } })
           changed = true
         }
       }
@@ -131,7 +124,7 @@ export async function streamEvents(
       }
 
       if (wantsDownloadTasks && orgId) {
-        const result = await listDownloadTasks(deps, platform, {
+        const filters = {
           orgId,
           status: dtStatus,
           category: dtCategory,
@@ -140,10 +133,11 @@ export async function streamEvents(
           sortDir: dtSortDir,
           page: 1,
           pageSize: DOWNLOAD_TASK_PAGE_SIZE,
-        })
-        const fingerprint = result.items.map((task) => `${task.id}:${task.status.updatedAt}`).join('|')
+        }
+        const fingerprint = await deps.downloadTasks.changeFingerprint(filters)
         if (fingerprint !== downloadTasksFingerprint) {
           downloadTasksFingerprint = fingerprint
+          const result = await listDownloadTasks(deps, platform, filters)
           send({
             event: 'download-tasks',
             data: {

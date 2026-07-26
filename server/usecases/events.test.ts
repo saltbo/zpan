@@ -1,4 +1,4 @@
-import type { BackgroundJob, DownloadTask } from '@shared/types'
+import type { DownloadTask } from '@shared/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Platform } from '../platform/interface'
 import type { Deps } from './deps'
@@ -13,25 +13,22 @@ vi.mock('./downloads/downloads', () => ({ listDownloadTasks: vi.fn() }))
 
 const platform = {} as Platform
 
-const job = (over: Partial<BackgroundJob> = {}): BackgroundJob =>
-  ({ id: 'j1', status: 'running', updatedAt: 't0', progress: { processedBytes: 0 }, ...over }) as BackgroundJob
-
 const task = (id: string, updatedAt: string): DownloadTask => ({ id, status: { updatedAt } }) as unknown as DownloadTask
 
-// Build a fake deps whose three subscribed ports return canned values. Each port
+// Build a fake deps whose subscribed ports return canned values. Each port
 // method is a fresh spy so a test can assert call counts and swap return values.
-// `jobs` supplies the "running" list (queued is always empty here).
-function makeDeps(over: { jobs?: () => { items: BackgroundJob[]; total: number }; unread?: () => number } = {}) {
-  const list = vi.fn(async (_orgId: string, opts: { status?: string }) =>
-    opts.status === 'queued' ? { items: [], total: 0 } : (over.jobs?.() ?? { items: [], total: 0 }),
-  )
+function makeDeps(
+  over: { jobs?: () => { count: number; fingerprint: string }; unread?: () => number; downloads?: () => string } = {},
+) {
+  const activeSummary = vi.fn(async () => over.jobs?.() ?? { count: 0, fingerprint: '' })
   const unreadCount = vi.fn(async () => over.unread?.() ?? 0)
+  const changeFingerprint = vi.fn(async () => over.downloads?.() ?? '1:t0')
   const deps = {
-    backgroundJobs: { list } as unknown as BackgroundJobRepo,
+    backgroundJobs: { activeSummary } as unknown as BackgroundJobRepo,
     notifications: { unreadCount } as unknown as NotificationRepo,
-    downloadTasks: {} as Deps['downloadTasks'],
+    downloadTasks: { changeFingerprint } as unknown as Deps['downloadTasks'],
   } as Deps
-  return { deps, list, unreadCount }
+  return { deps, activeSummary, unreadCount, changeFingerprint }
 }
 
 const POLL = 2000
@@ -75,7 +72,7 @@ async function run(
 
 describe('streamEvents', () => {
   it('emits jobs + notifications on the first tick', async () => {
-    const { deps } = makeDeps({ jobs: () => ({ items: [job()], total: 2 }), unread: () => 3 })
+    const { deps } = makeDeps({ jobs: () => ({ count: 2, fingerprint: '2:t0:0' }), unread: () => 3 })
     const { events } = await run(deps, baseParams(), 1)
     expect(events).toEqual([
       { event: 'jobs', data: { activeCount: 2 } },
@@ -84,7 +81,7 @@ describe('streamEvents', () => {
   })
 
   it('dedups when fingerprints are unchanged across ticks', async () => {
-    const { deps } = makeDeps({ jobs: () => ({ items: [job()], total: 2 }), unread: () => 3 })
+    const { deps } = makeDeps({ jobs: () => ({ count: 2, fingerprint: '2:t0:0' }), unread: () => 3 })
     const { events } = await run(deps, baseParams(), 5)
     // Steady state: each domain emits exactly once despite many polls.
     expect(events.filter((e) => e.event === 'jobs')).toHaveLength(1)
@@ -93,7 +90,7 @@ describe('streamEvents', () => {
 
   it('re-emits when a fingerprint changes', async () => {
     let count = 1
-    const { deps } = makeDeps({ unread: () => count, jobs: () => ({ items: [], total: 0 }) })
+    const { deps } = makeDeps({ unread: () => count })
     const controller = new AbortController()
     const events: EventsMessage[] = []
     const done = streamEvents(deps, baseParams(), controller.signal, (m) => events.push(m))
@@ -120,25 +117,24 @@ describe('streamEvents', () => {
   })
 
   it('does not heartbeat on a tick that already emitted a domain change', async () => {
-    const { deps } = makeDeps({ unread: () => 5, jobs: () => ({ items: [], total: 0 }) })
+    const { deps } = makeDeps({ unread: () => 5 })
     const { events } = await run(deps, baseParams({ heartbeatIntervalMs: 0 }), 1)
     // First (and only) tick changed (unread 5) → no heartbeat that tick.
     expect(events).toEqual([{ event: 'notifications', data: { unreadCount: 5 } }])
   })
 
   it('emits an error event when a domain query throws, then keeps polling', async () => {
-    const list = vi.fn(async (_orgId: string, opts: { status?: string }) => {
-      if (opts.status === 'queued') return { items: [], total: 0 }
+    const activeSummary = vi.fn(async () => {
       throw new Error('db down')
     })
     const deps = {
-      backgroundJobs: { list } as unknown as BackgroundJobRepo,
+      backgroundJobs: { activeSummary } as unknown as BackgroundJobRepo,
       notifications: { unreadCount: vi.fn(async () => 0) } as unknown as NotificationRepo,
       downloadTasks: {} as Deps['downloadTasks'],
     } as Deps
     const { events } = await run(deps, baseParams(), 3)
     expect(events.some((e) => e.event === 'error' && (e.data as { message: string }).message === 'db down')).toBe(true)
-    expect(list.mock.calls.length).toBeGreaterThan(2) // loop survived the throw
+    expect(activeSummary.mock.calls.length).toBeGreaterThan(2) // loop survived the throw
   })
 
   it('stops polling once the signal aborts', async () => {
@@ -155,19 +151,19 @@ describe('streamEvents', () => {
   })
 
   it('skips jobs/notifications when orgId/userId are null', async () => {
-    const { deps, list, unreadCount } = makeDeps()
+    const { deps, activeSummary, unreadCount } = makeDeps()
     await run(deps, baseParams({ orgId: null, userId: null }), 2)
-    expect(list).not.toHaveBeenCalled()
+    expect(activeSummary).not.toHaveBeenCalled()
     expect(unreadCount).not.toHaveBeenCalled()
   })
 
   it('limits download-tasks-only scope to the org-scoped download-task domain', async () => {
     vi.mocked(listDownloadTasks).mockResolvedValue({ items: [task('d1', 't0')], total: 1 })
-    const { deps, list, unreadCount } = makeDeps()
+    const { deps, activeSummary, unreadCount } = makeDeps()
 
     const { events } = await run(deps, baseParams({ scope: 'download-tasks-only', wantsDownloadTasks: true }), 2)
 
-    expect(list).not.toHaveBeenCalled()
+    expect(activeSummary).not.toHaveBeenCalled()
     expect(unreadCount).not.toHaveBeenCalled()
     expect(listDownloadTasks).toHaveBeenCalledWith(deps, platform, expect.objectContaining({ orgId: 'o1' }))
     expect(events.filter((event) => event.event === 'download-tasks')).toEqual([
@@ -196,8 +192,19 @@ describe('streamEvents', () => {
       vi.mocked(listDownloadTasks)
         .mockResolvedValueOnce({ items: [task('d1', 't0')], total: 1 })
         .mockResolvedValue({ items: [task('d1', 't1')], total: 1 })
-      const { deps } = makeDeps()
-      const { events } = await run(deps, baseParams({ wantsDownloadTasks: true }), 4)
+      let fingerprint = '1:t0'
+      const { deps } = makeDeps({ downloads: () => fingerprint })
+      const controller = new AbortController()
+      const events: EventsMessage[] = []
+      const done = streamEvents(deps, baseParams({ wantsDownloadTasks: true }), controller.signal, (m) =>
+        events.push(m),
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      fingerprint = '1:t1'
+      await vi.advanceTimersByTimeAsync(POLL)
+      controller.abort()
+      await vi.advanceTimersByTimeAsync(0)
+      await done
       const dt = events.filter((e) => e.event === 'download-tasks')
       expect(dt.length).toBeGreaterThanOrEqual(2)
     })

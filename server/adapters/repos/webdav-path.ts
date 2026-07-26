@@ -1,5 +1,5 @@
 import { ObjectStatus } from '@shared/constants'
-import { and, asc, desc, eq, getTableColumns, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, getTableColumns, isNull, or } from 'drizzle-orm'
 import { member, organization } from '../../db/auth-schema'
 import { matters } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -94,28 +94,80 @@ export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDav
     return { workspace, mountRoot: false, parent, name, matter }
   }
 
+  function listChildren(orgId: string, parent: string): Promise<Matter[]> {
+    return db
+      .select()
+      .from(matters)
+      .where(
+        and(
+          eq(matters.orgId, orgId),
+          eq(matters.parent, parent),
+          eq(matters.status, ObjectStatus.ACTIVE),
+          isNull(matters.trashedAt),
+          isNull(matters.purgedAt),
+        ),
+      )
+      .orderBy(desc(matters.dirtype), asc(matters.name))
+  }
+
   return {
     async listUserWorkspaces(userId) {
       return listUserWorkspaces(userId)
     },
 
     async listChildren(orgId, parent) {
-      return db
+      return listChildren(orgId, parent)
+    },
+
+    resolveWebDavPath,
+
+    async resolveWithChildren(userId, rawPath) {
+      const parts = decodeDavPath(rawPath)
+      if (parts.length === 0) {
+        return {
+          target: { workspace: null, mountRoot: true, parent: '', name: '', matter: null },
+          children: [],
+        }
+      }
+
+      const cachedWorkspaces = cache ? await cache.get(WEB_DAV_WORKSPACES_CACHE_POLICY, userId) : undefined
+      if (!cachedWorkspaces) {
+        const target = await resolveWebDavPath(userId, rawPath)
+        if (!target.workspace) return { target, children: [] }
+        const childParent = target.matter ? buildMatterPath(target.parent, target.name) : ''
+        return { target, children: await listChildren(target.workspace.id, childParent) }
+      }
+
+      const workspace = findWorkspace(cachedWorkspaces.value, parts[0])
+      if (!workspace) throw new WebDavPathError('Workspace not found', 404)
+      const matterParts = parts.slice(1)
+      const name = matterParts.at(-1) ?? ''
+      const parent = matterParts.slice(0, -1).join('/')
+      const childParent = matterParts.join('/')
+      const rows = await db
         .select()
         .from(matters)
         .where(
           and(
-            eq(matters.orgId, orgId),
-            eq(matters.parent, parent),
+            eq(matters.orgId, workspace.id),
             eq(matters.status, ObjectStatus.ACTIVE),
             isNull(matters.trashedAt),
             isNull(matters.purgedAt),
+            matterParts.length === 0
+              ? eq(matters.parent, '')
+              : or(and(eq(matters.parent, parent), eq(matters.name, name)), eq(matters.parent, childParent)),
           ),
         )
         .orderBy(desc(matters.dirtype), asc(matters.name))
-    },
 
-    resolveWebDavPath,
+      const matter =
+        matterParts.length === 0 ? null : (rows.find((row) => row.parent === parent && row.name === name) ?? null)
+      const children = rows.filter((row) => row.parent === childParent && row.id !== matter?.id)
+      return {
+        target: { workspace, mountRoot: false, parent, name, matter },
+        children,
+      }
+    },
 
     async resolveExistingWebDavPath(userId, rawPath) {
       const target = await resolveWebDavPath(userId, rawPath)
@@ -123,6 +175,10 @@ export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDav
       return target
     },
   }
+}
+
+function buildMatterPath(parent: string, name: string): string {
+  return parent ? `${parent}/${name}` : name
 }
 
 function findWorkspace(workspaces: WebDavWorkspace[], segment: string): WebDavWorkspace | null {

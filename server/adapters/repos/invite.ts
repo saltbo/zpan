@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, isNull, or } from 'drizzle-orm'
+import { and, count, desc, eq, getTableColumns, gt, isNull, or, sql } from 'drizzle-orm'
 import { customAlphabet, nanoid } from 'nanoid'
 import { inviteCodes } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -55,16 +55,21 @@ export function createInviteRepo(db: Database): InviteRepo {
     },
 
     async list(page, pageSize) {
-      const [totalResult, items] = await Promise.all([
-        db.select({ count: count() }).from(inviteCodes),
-        db
-          .select()
-          .from(inviteCodes)
-          .orderBy(desc(inviteCodes.createdAt))
-          .limit(pageSize)
-          .offset((page - 1) * pageSize),
-      ])
-      return { items, total: totalResult[0]?.count ?? 0 }
+      const rows = await db
+        .select({
+          ...getTableColumns(inviteCodes),
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+        })
+        .from(inviteCodes)
+        .orderBy(desc(inviteCodes.createdAt))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize)
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && page > 1) {
+        const totalResult = await db.select({ count: count() }).from(inviteCodes)
+        total = totalResult[0]?.count ?? 0
+      }
+      return { items: rows.map(({ pageTotal: _, ...row }) => row), total }
     },
 
     async delete(codeId) {

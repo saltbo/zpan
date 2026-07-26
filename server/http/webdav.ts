@@ -52,7 +52,6 @@ import {
   getWebDavObjectBody,
   listDeadPropertiesForResources,
   listUserWebDavWorkspaces,
-  listWebDavChildren,
   meterWebDavDownload,
   moveWebDavMatter,
   putWebDavFile,
@@ -64,6 +63,7 @@ import {
   resolveWebDavAuth,
   resolveWebDavDownload,
   resolveWebDavPath,
+  resolveWebDavPathWithChildren,
 } from '../usecases/webdav'
 
 const READ_METHODS = new Set(['OPTIONS', 'PROPFIND', 'GET', 'HEAD'])
@@ -861,13 +861,20 @@ async function dispatchWebDavRequest(c: DavContext, auth: DavAuth): Promise<Resp
 
 async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
   try {
-    let startedAt = performance.now()
-    const target = await resolveWebDavPath(c.get('deps'), { userId: auth.userId, rawPath: davPath(c) })
-    c.get('webDavTrace').push(`resolve:${Math.round(performance.now() - startedAt)}`)
     const depth = c.req.header('Depth') ?? '1'
     if (depth !== '0' && depth !== '1') {
       return xmlResponse(errorXml('propfind-finite-depth', 'Depth infinity is not supported for PROPFIND.'), 403)
     }
+    let startedAt = performance.now()
+    const resolved =
+      depth === '0'
+        ? {
+            target: await resolveWebDavPath(c.get('deps'), { userId: auth.userId, rawPath: davPath(c) }),
+            children: [],
+          }
+        : await resolveWebDavPathWithChildren(c.get('deps'), { userId: auth.userId, rawPath: davPath(c) })
+    const { target, children } = resolved
+    c.get('webDavTrace').push(`resolve:${Math.round(performance.now() - startedAt)}`)
     const request = parsePropfindXml(await c.req.text())
     c.get('webDavTrace').push(
       `props:${request.mode}/${propfindNeedsDeadProperties(request) ? 'dead' : '-'}/${propfindNeedsLocks(request) ? 'locks' : '-'}`,
@@ -888,7 +895,7 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
       const workspace = requireWorkspace(target)
       targets.push(target)
       if (depth !== '0') {
-        for (const matter of await listWebDavChildren(c.get('deps'), { orgId: workspace.id, parent: '' })) {
+        for (const matter of children) {
           targets.push({ workspace, mountRoot: false, parent: matter.parent, name: matter.name, matter })
         }
       }
@@ -896,8 +903,7 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
       const workspace = requireWorkspace(target)
       targets.push(target)
       if (depth !== '0' && target.matter.dirtype !== DirType.FILE) {
-        const parent = joinMatterPath(target.matter.parent, target.matter.name)
-        for (const matter of await listWebDavChildren(c.get('deps'), { orgId: workspace.id, parent })) {
+        for (const matter of children) {
           targets.push({ workspace, mountRoot: false, parent: matter.parent, name: matter.name, matter })
         }
       }

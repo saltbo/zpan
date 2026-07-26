@@ -1,6 +1,21 @@
 import { DirType, ObjectStatus } from '@shared/constants'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, like, lt, ne, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  isNull,
+  like,
+  lt,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { matters } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
@@ -325,18 +340,24 @@ export function createMatterRepo(db: Database): MatterRepo {
       }
       const where = and(...conditions)
 
-      const countRows = await db.select({ count: count() }).from(matters).where(where)
-      const total = countRows[0]?.count ?? 0
-
-      const items = await db
-        .select()
+      const rows = await db
+        .select({
+          ...getTableColumns(matters),
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+        })
         .from(matters)
         .where(where)
         .orderBy(desc(matters.dirtype), asc(matters.createdAt))
         .limit(filters.pageSize)
         .offset(offset)
 
-      return { items: items.map(toMatter), total, page: filters.page, pageSize: filters.pageSize }
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && filters.page > 1) {
+        const countRows = await db.select({ count: count() }).from(matters).where(where)
+        total = countRows[0]?.count ?? 0
+      }
+      const items = rows.map(({ pageTotal: _, ...row }) => toMatter(row))
+      return { items, total, page: filters.page, pageSize: filters.pageSize }
     },
 
     get(id, orgId) {

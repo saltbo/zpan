@@ -30,6 +30,7 @@ function makeDeps(
   const backgroundJobs: BackgroundJobRepo = {
     create: vi.fn(async () => sampleJob),
     list: vi.fn(async () => ({ items: [], total: 0 })),
+    activeSummary: vi.fn(async () => ({ count: 0, fingerprint: '' })),
     get: vi.fn(async () => sampleJob),
     update: vi.fn(async () => sampleJob),
     cancel: vi.fn(async () => sampleJob),

@@ -98,6 +98,13 @@ export function resolveWebDavPath(
   return deps.webdavPath.resolveWebDavPath(params.userId, params.rawPath)
 }
 
+export function resolveWebDavPathWithChildren(
+  deps: Pick<Deps, 'webdavPath'>,
+  params: { userId: string; rawPath: string },
+): Promise<{ target: WebDavTarget; children: Matter[] }> {
+  return deps.webdavPath.resolveWithChildren(params.userId, params.rawPath)
+}
+
 export function resolveExistingWebDavPath(
   deps: Pick<Deps, 'webdavPath'>,
   params: { userId: string; rawPath: string },

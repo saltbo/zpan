@@ -229,9 +229,6 @@ export function createShareRepo(db: Database): ShareRepo {
       if (opts.status) conditions.push(eq(shares.status, opts.status))
       const where = and(...conditions)
 
-      const [countRow] = await db.select({ count: count() }).from(shares).where(where)
-      const total = countRow?.count ?? 0
-
       const offset = (opts.page - 1) * opts.pageSize
       const rows = await db
         .select({
@@ -252,6 +249,7 @@ export function createShareRepo(db: Database): ShareRepo {
           matterType: matters.type,
           matterDirtype: matters.dirtype,
           recipientCount: count(shareRecipients.id),
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
         })
         .from(shares)
         .leftJoin(matters, eq(shares.matterId, matters.id))
@@ -262,8 +260,13 @@ export function createShareRepo(db: Database): ShareRepo {
         .limit(opts.pageSize)
         .offset(offset)
 
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && opts.page > 1) {
+        const [countRow] = await db.select({ count: count() }).from(shares).where(where)
+        total = countRow?.count ?? 0
+      }
       const items: ShareListItem[] = rows.map(
-        ({ matterName, matterType, matterDirtype, recipientCount, ...share }) => ({
+        ({ matterName, matterType, matterDirtype, recipientCount, pageTotal: _, ...share }) => ({
           ...share,
           matter: { name: matterName ?? '', type: matterType ?? '', dirtype: matterDirtype ?? 0 },
           recipientCount,
@@ -282,13 +285,6 @@ export function createShareRepo(db: Database): ShareRepo {
         ? or(eq(shareRecipients.recipientUserId, userId), eq(shareRecipients.recipientEmail, userEmail))
         : eq(shareRecipients.recipientUserId, userId)
       const where = and(eq(shares.status, 'active'), recipientMatch)
-
-      const [countRow] = await db
-        .select({ count: sql<number>`COUNT(DISTINCT ${shares.id})` })
-        .from(shares)
-        .innerJoin(shareRecipients, eq(shareRecipients.shareId, shares.id))
-        .where(where)
-      const total = countRow?.count ?? 0
 
       const offset = (opts.page - 1) * opts.pageSize
       const rows = await db
@@ -310,6 +306,7 @@ export function createShareRepo(db: Database): ShareRepo {
           matterType: matters.type,
           matterDirtype: matters.dirtype,
           creatorName: sql<string | null>`(SELECT name FROM user WHERE user.id = ${shares.creatorId})`,
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
         })
         .from(shares)
         .innerJoin(shareRecipients, eq(shareRecipients.shareId, shares.id))
@@ -320,12 +317,23 @@ export function createShareRepo(db: Database): ShareRepo {
         .limit(opts.pageSize)
         .offset(offset)
 
-      const items: ShareListItem[] = rows.map(({ matterName, matterType, matterDirtype, creatorName, ...share }) => ({
-        ...share,
-        matter: { name: matterName ?? '', type: matterType ?? '', dirtype: matterDirtype ?? 0 },
-        recipientCount: 0,
-        creatorName: creatorName ?? undefined,
-      }))
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && opts.page > 1) {
+        const [countRow] = await db
+          .select({ count: sql<number>`COUNT(DISTINCT ${shares.id})` })
+          .from(shares)
+          .innerJoin(shareRecipients, eq(shareRecipients.shareId, shares.id))
+          .where(where)
+        total = countRow?.count ?? 0
+      }
+      const items: ShareListItem[] = rows.map(
+        ({ matterName, matterType, matterDirtype, creatorName, pageTotal: _, ...share }) => ({
+          ...share,
+          matter: { name: matterName ?? '', type: matterType ?? '', dirtype: matterDirtype ?? 0 },
+          recipientCount: 0,
+          creatorName: creatorName ?? undefined,
+        }),
+      )
 
       return { items, total }
     },

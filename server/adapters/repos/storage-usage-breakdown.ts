@@ -1,5 +1,5 @@
 import { classifyStorageUsage, STORAGE_USAGE_CATEGORIES, type StorageUsageCategory } from '@shared/storage-usage'
-import { and, asc, count, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, getTableColumns, isNotNull, isNull, sql } from 'drizzle-orm'
 import { DirType } from '../../../shared/constants'
 import { imageHostings, matters, storageUsageBreakdowns } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -103,16 +103,21 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
               ? imageHostings.createdAt
               : imageHostings.size
         const order = sortDir === 'asc' ? asc(sortColumn) : desc(sortColumn)
-        const [rows, totals] = await Promise.all([
-          db
-            .select()
-            .from(imageHostings)
-            .where(where)
-            .orderBy(order, asc(imageHostings.id))
-            .limit(pageSize)
-            .offset(offset),
-          db.select({ count: count() }).from(imageHostings).where(where),
-        ])
+        const rows = await db
+          .select({
+            ...getTableColumns(imageHostings),
+            pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+          })
+          .from(imageHostings)
+          .where(where)
+          .orderBy(order, asc(imageHostings.id))
+          .limit(pageSize)
+          .offset(offset)
+        let total = Number(rows[0]?.pageTotal ?? 0)
+        if (rows.length === 0 && page > 1) {
+          const totals = await db.select({ count: count() }).from(imageHostings).where(where)
+          total = totals[0]?.count ?? 0
+        }
         return {
           items: rows.map((row) => {
             const location = splitPath(row.path)
@@ -127,7 +132,7 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
               source: 'image_hosting' as const,
             }
           }),
-          total: totals[0]?.count ?? 0,
+          total,
         }
       }
       const where = and(
@@ -144,10 +149,21 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
             ? matters.updatedAt
             : matters.size
       const order = sortDir === 'asc' ? asc(sortColumn) : desc(sortColumn)
-      const [rows, totals] = await Promise.all([
-        db.select().from(matters).where(where).orderBy(order, asc(matters.id)).limit(pageSize).offset(offset),
-        db.select({ count: count() }).from(matters).where(where),
-      ])
+      const rows = await db
+        .select({
+          ...getTableColumns(matters),
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+        })
+        .from(matters)
+        .where(where)
+        .orderBy(order, asc(matters.id))
+        .limit(pageSize)
+        .offset(offset)
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && page > 1) {
+        const totals = await db.select({ count: count() }).from(matters).where(where)
+        total = totals[0]?.count ?? 0
+      }
       return {
         items: rows.map((row) => ({
           id: row.id,
@@ -159,7 +175,7 @@ export function createStorageUsageBreakdownRepo(db: Database): StorageUsageBreak
           updatedAt: row.updatedAt.toISOString(),
           source: category === 'trash' ? ('trash' as const) : ('files' as const),
         })),
-        total: totals[0]?.count ?? 0,
+        total,
       }
     },
   }

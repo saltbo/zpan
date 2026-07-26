@@ -1,5 +1,5 @@
 import type { BackgroundJob, BackgroundJobStatus } from '@shared/types'
-import { and, count, desc, eq, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, getTableColumns, inArray, type SQL, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { backgroundJobs } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -111,17 +111,42 @@ export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
     async list(orgId, opts) {
       const offset = (opts.page - 1) * opts.pageSize
       const where = backgroundJobWhere(orgId, opts)
-      const [rows, totalRows] = await Promise.all([
-        db
-          .select()
-          .from(backgroundJobs)
-          .where(where)
-          .orderBy(desc(backgroundJobs.createdAt))
-          .limit(opts.pageSize)
-          .offset(offset),
-        db.select({ count: count() }).from(backgroundJobs).where(where),
-      ])
-      return { items: rows.map(toBackgroundJob), total: totalRows[0]?.count ?? 0 }
+      const rows = await db
+        .select({
+          ...getTableColumns(backgroundJobs),
+          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
+        })
+        .from(backgroundJobs)
+        .where(where)
+        .orderBy(desc(backgroundJobs.createdAt))
+        .limit(opts.pageSize)
+        .offset(offset)
+      let total = Number(rows[0]?.pageTotal ?? 0)
+      if (rows.length === 0 && opts.page > 1) {
+        const totalRows = await db.select({ count: count() }).from(backgroundJobs).where(where)
+        total = totalRows[0]?.count ?? 0
+      }
+      return {
+        items: rows.map(({ pageTotal: _, ...row }) => toBackgroundJob(row)),
+        total,
+      }
+    },
+
+    async activeSummary(orgId) {
+      const rows = await db
+        .select({
+          count: count(),
+          lastUpdatedAt: sql<number | null>`MAX(${backgroundJobs.updatedAt})`,
+          processedBytes: sql<number>`COALESCE(SUM(${backgroundJobs.processedBytes}), 0)`,
+        })
+        .from(backgroundJobs)
+        .where(and(eq(backgroundJobs.orgId, orgId), inArray(backgroundJobs.status, ACTIVE_STATUSES)))
+      const row = rows[0]
+      const activeCount = row?.count ?? 0
+      return {
+        count: activeCount,
+        fingerprint: activeCount === 0 ? '' : `${activeCount}:${row?.lastUpdatedAt ?? 0}:${row?.processedBytes ?? 0}`,
+      }
     },
 
     async get(orgId, id) {
