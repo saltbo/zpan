@@ -55,4 +55,37 @@ describe('[CF] WebDAV locks on D1', () => {
 
     expect(await db.select().from(webdavLocks).where(eq(webdavLocks.id, expired.id))).toHaveLength(0)
   })
+
+  it('atomically rejects conflicting lock creation', async () => {
+    const { repo } = buildRepo()
+    const orgId = `org-${nanoid(8)}`
+    const input = {
+      orgId,
+      resourcePath: 'Folder/file.txt',
+      owner: 'tester',
+      depth: '0',
+      timeoutSeconds: 3600,
+    }
+
+    const attempts = await Promise.all([repo.tryCreateLock(input), repo.tryCreateLock(input)])
+
+    expect(attempts.filter(Boolean)).toHaveLength(1)
+    expect(await repo.activeLocks(orgId, input.resourcePath)).toHaveLength(1)
+  })
+
+  it('refreshes and removes a lock only when it applies to the request path', async () => {
+    const { repo } = buildRepo()
+    const orgId = `org-${nanoid(8)}`
+    const lock = await repo.createLock({
+      orgId,
+      resourcePath: 'Folder',
+      owner: 'tester',
+      depth: '0',
+      timeoutSeconds: 3600,
+    })
+
+    expect(await repo.refreshLock(orgId, 'Folder/child.txt', lock.token, 3600)).toBeNull()
+    expect(await repo.removeLock(orgId, 'Folder/child.txt', lock.token)).toBe(false)
+    expect(await repo.removeLock(orgId, 'Folder', lock.token)).toBe(true)
+  })
 })

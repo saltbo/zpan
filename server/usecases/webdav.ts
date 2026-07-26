@@ -267,7 +267,9 @@ export function getWebDavObjectBody(
 
 // ─── PUT ───────────────────────────────────────────────────────────────────────
 
-export type PutWebDavOutcome = { ok: true; status: 201 | 204 } | { ok: false; reason: 'no_storage' }
+export type PutWebDavOutcome =
+  | { ok: true; status: 201 | 204; matterId: string; storageId: string; bytes: number }
+  | { ok: false; reason: 'no_storage' }
 
 // Persists a PUT body to storage and the matter row, reserving quota for the
 // (known) size delta and rolling back the S3 write if the row write fails. When
@@ -300,7 +302,7 @@ export async function putWebDavFile(
   const knownSizeDelta =
     contentLength === null ? 0 : target.matter ? contentLength - (target.matter.size ?? 0) : contentLength
 
-  const status = await withStorageUsageReservation(
+  const persisted = await withStorageUsageReservation(
     deps,
     { orgId, storageId: storage.id, bytes: Math.max(0, knownSizeDelta) },
     async (ctx) => {
@@ -340,7 +342,13 @@ export async function putWebDavFile(
       return result
     },
   )
-  return { ok: true, status }
+  return {
+    ok: true,
+    status: persisted.status,
+    matterId: persisted.matterId,
+    storageId: storage.id,
+    bytes: persisted.bytes,
+  }
 }
 
 async function persistWebDavUpload(
@@ -355,15 +363,15 @@ async function persistWebDavUpload(
     contentType: string
     uploadedSize: number
   },
-): Promise<201 | 204> {
+): Promise<{ status: 201 | 204; matterId: string; bytes: number }> {
   const { orgId, target, fileName, parent, storage, objectKey, contentType, uploadedSize } = params
   if (target.matter) {
     await deps.matter.applyUpload(orgId, target.matter.id, { type: contentType, size: uploadedSize, object: objectKey })
     if (objectKey !== target.matter.object) await deps.s3.deleteObject(storage, target.matter.object)
-    return 204
+    return { status: 204, matterId: target.matter.id, bytes: uploadedSize }
   }
 
-  await deps.matter.create({
+  const matter = await deps.matter.create({
     orgId,
     name: fileName,
     type: contentType,
@@ -374,7 +382,7 @@ async function persistWebDavUpload(
     storageId: storage.id,
     status: ObjectStatus.ACTIVE,
   })
-  return 201
+  return { status: 201, matterId: matter.id, bytes: uploadedSize }
 }
 
 // ─── MKCOL ───────────────────────────────────────────────────────────────────
@@ -651,25 +659,37 @@ export async function createWebDavLock(
     depth: string
     timeoutSeconds: number
   },
-): Promise<{ lock: DavLock; created: boolean }> {
+): Promise<{ lock: DavLock; created: boolean } | null> {
   const { orgId, userId, target } = params
   const created = !target.matter && Boolean(target.name)
-  if (created) {
-    const storage = await deps.storages.select()
-    const objectKey = buildObjectKey({ uid: userId, orgId, rawExt: fileExt(target.name) })
-    await deps.s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
-    await deps.matter.create({
+  if (!created) {
+    const lock = await deps.webdavState.tryCreateLock({
       orgId,
-      name: target.name,
-      type: 'application/octet-stream',
-      size: 0,
-      dirtype: DirType.FILE,
-      parent: target.parent,
-      object: objectKey,
-      storageId: storage.id,
-      status: ObjectStatus.ACTIVE,
+      resourcePath: params.resourcePath,
+      owner: params.owner,
+      depth: params.depth,
+      timeoutSeconds: params.timeoutSeconds,
     })
+    return lock ? { lock, created: false } : null
   }
+
+  const conflicts = await deps.webdavState.conflictingLocks(orgId, params.resourcePath)
+  if (conflicts.length > 0) return null
+
+  const storage = await deps.storages.select()
+  const objectKey = buildObjectKey({ uid: userId, orgId, rawExt: fileExt(target.name) })
+  await deps.s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
+  await deps.matter.create({
+    orgId,
+    name: target.name,
+    type: 'application/octet-stream',
+    size: 0,
+    dirtype: DirType.FILE,
+    parent: target.parent,
+    object: objectKey,
+    storageId: storage.id,
+    status: ObjectStatus.ACTIVE,
+  })
   const lock = await deps.webdavState.createLock({
     orgId,
     resourcePath: params.resourcePath,

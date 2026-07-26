@@ -43,7 +43,6 @@ import {
   activeLocks,
   activeLocksForResources,
   applyWebDavDeadProperties,
-  conflictingLocks,
   copyWebDavCollection,
   copyWebDavFile,
   createWebDavCollection,
@@ -650,16 +649,14 @@ app.use('*', async (c, next) => {
 app.use('*', async (c, next) => {
   const userId = c.get('userId')
   if (!userId) throw new Error('webdav_authenticated_user_missing')
-  const preparedPut = c.req.method === 'PUT' ? await prepareWebDavPutAudit(c, userId) : null
   const preparedAction = await prepareWebDavActionAudit(c, userId)
   await next()
-  await waitUntilOrAwait(c, 'audit', processWebDavAudit(c, userId, preparedPut, preparedAction))
+  await waitUntilOrAwait(c, 'audit', processWebDavAudit(c, userId, preparedAction))
 })
 
 async function processWebDavAudit(
   c: DavContext,
   userId: string,
-  preparedPut: TransferAuditTarget | null,
   preparedAction: WebDavActionAuditContext | null,
 ): Promise<void> {
   const actor = transferAuditActor(c.get('principal'))
@@ -678,12 +675,13 @@ async function processWebDavAudit(
 
   if (c.req.method !== 'PUT') return
   if (c.res.status === 201 || c.res.status === 204) {
-    const target = await webDavUploadedTarget(c, userId)
+    const target = c.get('webDavUploadAuditTarget')
     if (!target) throw new Error('transfer_audit_context_missing:webdav_upload')
     await recordUploadResult(c.get('deps'), actor, target)
     return
   }
 
+  const preparedPut = putAuditTarget(c.get('webDavResolvedPutTarget'))
   if (!preparedPut || !isUploadFailureStatus(c.res.status)) return
   const bytes = exactRequestContentLength(c)
   if (bytes === null) return
@@ -783,15 +781,8 @@ app.on(
   },
 )
 
-async function prepareWebDavPutAudit(c: DavContext, userId: string | null): Promise<TransferAuditTarget | null> {
-  if (!userId) return null
-  let target: WebDavTarget
-  try {
-    target = await resolveWebDavPath(c.get('deps'), { userId, rawPath: davPath(c) })
-  } catch (error) {
-    if (error instanceof WebDavPathError) return null
-    throw error
-  }
+function putAuditTarget(target: WebDavTarget | null): TransferAuditTarget | null {
+  if (!target) return null
   if (!target.workspace || !target.name) return null
   return {
     orgId: target.workspace.id,
@@ -804,20 +795,6 @@ async function prepareWebDavPutAudit(c: DavContext, userId: string | null): Prom
       matterId: target.matter?.id,
       storageId: target.matter?.storageId,
     },
-  }
-}
-
-async function webDavUploadedTarget(c: DavContext, userId: string): Promise<TransferAuditTarget | null> {
-  const target = await resolveExistingWebDavPath(c.get('deps'), { userId, rawPath: davPath(c) })
-  if (!target.workspace || !target.matter || target.matter.dirtype !== DirType.FILE) return null
-  return {
-    orgId: target.workspace.id,
-    targetType: 'file',
-    targetId: target.matter.id,
-    targetName: target.matter.name,
-    bytes: target.matter.size ?? 0,
-    source: 'webdav_upload',
-    metadata: { matterId: target.matter.id, storageId: target.matter.storageId },
   }
 }
 
@@ -1204,7 +1181,10 @@ async function reserveWebDavTraffic(
 
 async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
   try {
+    let startedAt = performance.now()
     const target = await resolveWebDavPath(c.get('deps'), { userId: auth.userId, rawPath: davPath(c) })
+    c.set('webDavResolvedPutTarget', target)
+    c.get('webDavTrace').push(`resolve:${Math.round(performance.now() - startedAt)}`)
     const workspace = requireWorkspace(target)
     if (!target.name) return c.text('Cannot PUT a collection root', 405)
     if (target.matter && target.matter.dirtype !== DirType.FILE)
@@ -1224,6 +1204,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
     const contentType = c.req.header('Content-Type') ?? 'application/octet-stream'
 
     try {
+      startedAt = performance.now()
       const result = await putWebDavFile(c.get('deps'), {
         orgId: workspace.id,
         userId: auth.userId,
@@ -1234,7 +1215,17 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
         contentLength,
         body,
       })
+      c.get('webDavTrace').push(`upload:${Math.round(performance.now() - startedAt)}`)
       if (!result.ok) return c.text('Storage not found', 404)
+      c.set('webDavUploadAuditTarget', {
+        orgId: workspace.id,
+        targetType: 'file',
+        targetId: result.matterId,
+        targetName: target.name,
+        bytes: result.bytes,
+        source: 'webdav_upload',
+        metadata: { matterId: result.matterId, storageId: result.storageId },
+      })
       return new Response(null, { status: result.status })
     } catch (e) {
       const mapped = mapDomainError(e)
@@ -1423,7 +1414,9 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
 
 async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
   try {
+    let startedAt = performance.now()
     const target = await resolveWebDavPath(c.get('deps'), { userId: auth.userId, rawPath: davPath(c) })
+    c.get('webDavTrace').push(`resolve:${Math.round(performance.now() - startedAt)}`)
     const workspace = requireWorkspace(target)
     const body = await c.req.text()
     const existingToken = lockRefreshToken(c)
@@ -1443,8 +1436,6 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     const depth = c.req.header('Depth') ?? 'infinity'
     if (depth !== '0' && depth !== 'infinity') return xmlResponse(errorXml('bad-depth'), 400)
     const path = resourcePath(target)
-    const conflicts = await conflictingLocks(c.get('deps'), { orgId: workspace.id, resourcePath: path })
-    if (conflicts.length > 0) return xmlResponse(errorXml('no-conflicting-lock'), 423)
     let lockInfo: { owner: string }
     try {
       lockInfo = parseLockInfoXml(body)
@@ -1455,7 +1446,8 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     if (isCreate) {
       await ensureParentCollection(c, auth.userId, workspace.slug, target.parent)
     }
-    const { lock, created } = await createWebDavLock(c.get('deps'), {
+    startedAt = performance.now()
+    const acquired = await createWebDavLock(c.get('deps'), {
       orgId: workspace.id,
       userId: auth.userId,
       resourcePath: path,
@@ -1464,6 +1456,9 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       depth,
       timeoutSeconds: parseTimeout(c.req.header('Timeout')),
     })
+    c.get('webDavTrace').push(`lock:${Math.round(performance.now() - startedAt)}`)
+    if (!acquired) return xmlResponse(errorXml('no-conflicting-lock'), 423)
+    const { lock, created } = acquired
     return xmlResponse(lockDiscoveryXml(lock), created ? 201 : 200, { 'Lock-Token': `<${lock.token}>` })
   } catch (e) {
     return davError(c, e)
@@ -1472,15 +1467,19 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 
 async function unlockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
   try {
+    let startedAt = performance.now()
     const target = await resolveExistingWebDavPath(c.get('deps'), { userId: auth.userId, rawPath: davPath(c) })
+    c.get('webDavTrace').push(`resolve:${Math.round(performance.now() - startedAt)}`)
     const workspace = requireWorkspace(target)
     const token = lockTokenHeader(c)
     if (!token) return xmlResponse(errorXml('lock-token-submitted'), 400)
+    startedAt = performance.now()
     const removed = await removeWebDavLock(c.get('deps'), {
       orgId: workspace.id,
       resourcePath: resourcePath(target),
       token,
     })
+    c.get('webDavTrace').push(`unlock:${Math.round(performance.now() - startedAt)}`)
     if (!removed) return xmlResponse(errorXml('lock-token-matches-request-uri'), 409)
     return new Response(null, { status: 204 })
   } catch (e) {

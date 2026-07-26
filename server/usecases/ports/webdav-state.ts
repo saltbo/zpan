@@ -15,8 +15,7 @@ export interface CreateLockInput {
 }
 
 // WebDAV lock + dead-property state. Reads exclude expired locks; scheduled
-// cleanup removes their rows. Depth-infinity scoping is resolved in the repo
-// (D1 cannot express the dynamic LIKE the scope check needs).
+// cleanup removes their rows.
 export interface WebDavStateRepo {
   listDeadPropertiesForResources(orgId: string, resourcePaths: string[]): Promise<Map<string, DavDeadProperty[]>>
   applyDeadPropertyUpdate(orgId: string, resourcePath: string, operations: DeadPropertyUpdate[]): Promise<void>
@@ -27,6 +26,7 @@ export interface WebDavStateRepo {
   activeLocksForResources(orgId: string, resourcePaths: string[]): Promise<Map<string, DavLock[]>>
   conflictingLocks(orgId: string, resourcePath: string): Promise<DavLock[]>
   createLock(input: CreateLockInput): Promise<DavLock>
+  tryCreateLock(input: CreateLockInput): Promise<DavLock | null>
   refreshLock(orgId: string, resourcePath: string, token: string, timeoutSeconds: number): Promise<DavLock | null>
   removeLock(orgId: string, resourcePath: string, token: string): Promise<boolean>
   purgeExpiredLocks(now?: number): Promise<void>

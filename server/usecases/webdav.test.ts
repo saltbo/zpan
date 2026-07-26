@@ -190,6 +190,7 @@ function makeDeps(
       deleteWebDavState: async () => {},
       moveWebDavState: async () => {},
       createLock: async () => lock,
+      tryCreateLock: async () => lock,
       refreshLock: async () => lock,
       removeLock: async () => true,
       purgeExpiredLocks: async () => {},
@@ -492,7 +493,7 @@ describe('webdav usecase', () => {
       const putObject = vi.fn(async () => 9)
       const deps = makeDeps({ matter: { create }, s3: { putObject } })
       const out = await putWebDavFile(deps, putParams())
-      expect(out).toEqual({ ok: true, status: 201 })
+      expect(out).toEqual({ ok: true, status: 201, matterId: 'new', storageId: 'st-1', bytes: 9 })
       expect(putObject).toHaveBeenCalledWith(storage, expect.any(String), expect.any(Uint8Array), 'text/plain', 9)
       expect(create).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'new.txt', size: 9, dirtype: DirType.FILE, status: 'active' }),
@@ -505,7 +506,7 @@ describe('webdav usecase', () => {
       const existing = file('m1', { object: 'objects/m1.txt', size: 20 })
       const deps = makeDeps({ matter: { applyUpload }, s3: { deleteObject, putObject: async () => 5 } })
       const out = await putWebDavFile(deps, putParams({ target: target({ matter: existing }), contentLength: 5 }))
-      expect(out).toEqual({ ok: true, status: 204 })
+      expect(out).toEqual({ ok: true, status: 204, matterId: 'm1', storageId: 'st-1', bytes: 5 })
       // Same object key is reused (known length + existing object), so no delete.
       expect(applyUpload).toHaveBeenCalledWith('ws-1', 'm1', {
         type: 'text/plain',
@@ -536,7 +537,7 @@ describe('webdav usecase', () => {
         quota: { incrementUsageIfEffectiveQuotaAllows },
       })
       const out = await putWebDavFile(deps, putParams({ contentLength: null, body: new Uint8Array() }))
-      expect(out).toEqual({ ok: true, status: 201 })
+      expect(out).toEqual({ ok: true, status: 201, matterId: 'new', storageId: 'st-1', bytes: 42 })
       // Known delta is 0 (unknown length) → reserved only after measuring 42 bytes.
       expect(reservations).toEqual([42])
       expect(create).toHaveBeenCalledWith(expect.objectContaining({ size: 42 }))
@@ -822,8 +823,8 @@ describe('webdav usecase', () => {
     it('acquires a lock on an existing resource without creating anything', async () => {
       const create = vi.fn()
       const putObject = vi.fn()
-      const createLock = vi.fn(async () => lock)
-      const deps = makeDeps({ matter: { create }, s3: { putObject }, webdavState: { createLock } })
+      const tryCreateLock = vi.fn(async () => lock)
+      const deps = makeDeps({ matter: { create }, s3: { putObject }, webdavState: { tryCreateLock } })
       const out = await createWebDavLock(deps, {
         orgId: 'ws-1',
         userId: 'u1',
@@ -836,7 +837,7 @@ describe('webdav usecase', () => {
       expect(out).toEqual({ lock, created: false })
       expect(create).not.toHaveBeenCalled()
       expect(putObject).not.toHaveBeenCalled()
-      expect(createLock).toHaveBeenCalledWith({
+      expect(tryCreateLock).toHaveBeenCalledWith({
         orgId: 'ws-1',
         resourcePath: 'doc.txt',
         owner: 'tester',
@@ -858,6 +859,8 @@ describe('webdav usecase', () => {
         depth: 'infinity',
         timeoutSeconds: 3600,
       })
+      expect(out).not.toBeNull()
+      if (!out) throw new Error('Expected lock to be created')
       expect(out.created).toBe(true)
       expect(putObject).toHaveBeenCalledWith(
         storage,

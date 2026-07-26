@@ -1,4 +1,4 @@
-import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { webdavDeadProperties, webdavLocks } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
@@ -209,62 +209,112 @@ export function createWebDavStateRepo(db: Database): WebDavStateRepo {
     },
 
     async createLock(input) {
-      const now = new Date()
-      const lock: DavLock = {
-        id: nanoid(),
-        token: `opaquelocktoken:${crypto.randomUUID()}`,
-        orgId: input.orgId,
-        resourcePath: input.resourcePath,
-        owner: input.owner,
-        depth: input.depth,
-        expiresAt: new Date(now.getTime() + input.timeoutSeconds * 1000),
-        createdAt: now,
-        updatedAt: now,
-      }
+      const lock = newLock(input)
       await db.insert(webdavLocks).values(lock)
       return lock
+    },
+
+    async tryCreateLock(input) {
+      const lock = newLock(input)
+      const conflicts = lockConflictsSql(input.resourcePath, lock.createdAt.getTime())
+      const rows = await db
+        .insert(webdavLocks)
+        .select(
+          sql`SELECT ${lock.id}, ${lock.token}, ${lock.orgId}, ${lock.resourcePath}, ${lock.owner}, ${lock.depth}, ${lock.expiresAt.getTime()}, ${lock.createdAt.getTime()}, ${lock.updatedAt.getTime()}
+              WHERE NOT EXISTS (
+                SELECT 1
+                FROM ${webdavLocks}
+                WHERE ${webdavLocks.orgId} = ${input.orgId}
+                  AND ${conflicts}
+              )`,
+        )
+        .returning()
+      return rows[0] ?? null
     },
 
     async refreshLock(orgId, resourcePath, token, timeoutSeconds) {
       const now = new Date()
       const expiresAt = new Date(now.getTime() + timeoutSeconds * 1000)
       const rows = await db
-        .select()
-        .from(webdavLocks)
+        .update(webdavLocks)
+        .set({ expiresAt, updatedAt: now })
         .where(
           and(
             eq(webdavLocks.orgId, orgId),
             eq(webdavLocks.token, token),
             sql`${webdavLocks.expiresAt} > ${now.getTime()}`,
+            lockAppliesSql(resourcePath),
           ),
         )
-      const lock = rows.find((row) => lockAppliesToResource(row, resourcePath))
-      if (!lock) return null
-      await db.update(webdavLocks).set({ expiresAt, updatedAt: now }).where(eq(webdavLocks.id, lock.id))
-      return { ...lock, expiresAt, updatedAt: now }
+        .returning()
+      return rows[0] ?? null
     },
 
     async removeLock(orgId, resourcePath, token) {
       const rows = await db
-        .select()
-        .from(webdavLocks)
+        .delete(webdavLocks)
         .where(
           and(
             eq(webdavLocks.orgId, orgId),
             eq(webdavLocks.token, token),
             sql`${webdavLocks.expiresAt} > ${Date.now()}`,
+            lockAppliesSql(resourcePath),
           ),
         )
-      const lock = rows.find((row) => lockAppliesToResource(row, resourcePath))
-      if (!lock) return false
-      await db.delete(webdavLocks).where(eq(webdavLocks.id, lock.id))
-      return true
+        .returning({ id: webdavLocks.id })
+      return rows.length > 0
     },
 
     async purgeExpiredLocks(now = Date.now()) {
       await db.delete(webdavLocks).where(sql`${webdavLocks.expiresAt} <= ${now}`)
     },
   }
+}
+
+function newLock(input: {
+  orgId: string
+  resourcePath: string
+  owner: string
+  depth: string
+  timeoutSeconds: number
+}): DavLock {
+  const now = new Date()
+  return {
+    id: nanoid(),
+    token: `opaquelocktoken:${crypto.randomUUID()}`,
+    orgId: input.orgId,
+    resourcePath: input.resourcePath,
+    owner: input.owner,
+    depth: input.depth,
+    expiresAt: new Date(now.getTime() + input.timeoutSeconds * 1000),
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+function lockAppliesSql(resourcePath: string): SQL {
+  return sql`(
+    ${webdavLocks.resourcePath} = ${resourcePath}
+    OR (
+      ${webdavLocks.depth} = 'infinity'
+      AND (
+        ${webdavLocks.resourcePath} = ''
+        OR substr(${resourcePath}, 1, length(${webdavLocks.resourcePath}) + 1) = ${webdavLocks.resourcePath} || '/'
+      )
+    )
+  )`
+}
+
+function lockConflictsSql(resourcePath: string, now: number): SQL {
+  return sql`${webdavLocks.expiresAt} > ${now}
+    AND (
+      ${lockAppliesSql(resourcePath)}
+      OR (
+        ${resourcePath} = ''
+        AND ${webdavLocks.resourcePath} <> ''
+      )
+      OR substr(${webdavLocks.resourcePath}, 1, length(${resourcePath}) + 1) = ${resourcePath} || '/'
+    )`
 }
 
 function lockAppliesToResource(lock: DavLock, resourcePath: string): boolean {

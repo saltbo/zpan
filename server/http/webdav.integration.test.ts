@@ -1122,12 +1122,13 @@ describe('WebDAV API', () => {
   })
 
   it('PUT creates a file matter and writes through configured storage [spec: webdav/put-create]', async () => {
-    const { app, db, auth } = await createTestApp()
+    const { app, db, auth, deps } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
     const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const resolve = vi.spyOn(deps.webdavPath, 'resolveWebDavPath')
 
     const res = await app.request(`/dav/${workspace.slug}/upload.txt`, {
       method: 'PUT',
@@ -1135,6 +1136,7 @@ describe('WebDAV API', () => {
       body: 'hello dav',
     })
     expect(res.status).toBe(201)
+    expect(resolve).toHaveBeenCalledTimes(1)
     expect(S3Service.prototype.putObject).toHaveBeenCalledWith(
       expect.objectContaining({ id: storage.id }),
       expect.any(String),
