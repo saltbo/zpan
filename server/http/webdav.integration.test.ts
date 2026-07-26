@@ -1846,7 +1846,7 @@ describe('WebDAV API', () => {
   })
 
   it('LOCK and UNLOCK expose Class 2 state and enforce write tokens [spec: webdav/lock-unlock]', async () => {
-    const { app, db, auth } = await createTestApp()
+    const { app, db, auth, deps } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
     const workspace = await org(db)
@@ -1895,6 +1895,7 @@ describe('WebDAV API', () => {
     })
     expect(accepted.status).toBe(204)
 
+    const activeLocks = vi.spyOn(deps.webdavState, 'activeLocks')
     const acceptedWithIfToken = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'PUT',
       headers: basicHeaders(account.email, key, {
@@ -1905,6 +1906,7 @@ describe('WebDAV API', () => {
       body: 'allowed by if',
     })
     expect(acceptedWithIfToken.status).toBe(204)
+    expect(activeLocks).toHaveBeenCalledTimes(1)
 
     const refreshed = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'LOCK',

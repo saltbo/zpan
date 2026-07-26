@@ -514,12 +514,22 @@ function lockRefreshToken(c: DavContext): string | Response | null {
 }
 
 async function lockPrecondition(c: DavContext, target: WebDavTarget): Promise<Response | null> {
-  const workspace = requireWorkspace(target)
-  const locks = await activeLocks(c.get('deps'), { orgId: workspace.id, resourcePath: resourcePath(target) })
+  const locks = await targetActiveLocks(c, target)
   if (locks.length === 0) return null
   const tokens = submittedLockTokens(c)
   if (locks.every((lock) => tokens.has(lock.token))) return null
   return xmlResponse(errorXml('lock-token-submitted', 'A matching lock token is required.'), 423)
+}
+
+async function targetActiveLocks(c: DavContext, target: WebDavTarget) {
+  const workspace = requireWorkspace(target)
+  const path = resourcePath(target)
+  const key = `${workspace.id}\0${path}`
+  const cached = c.get('webDavLocksByResource').get(key)
+  if (cached) return cached
+  const locks = await activeLocks(c.get('deps'), { orgId: workspace.id, resourcePath: path })
+  c.get('webDavLocksByResource').set(key, locks)
+  return locks
 }
 
 async function ifHeaderPrecondition(c: DavContext, auth: DavAuth, target: WebDavTarget): Promise<Response | null> {
@@ -540,11 +550,8 @@ async function evaluateIfHeader(
   for (const clause of clauses) {
     const target = clause[1] ? await ifTaggedTarget(c, auth, clause[1]) : fallback
     if (!target) continue
-    const workspace = target.workspace
     const etag = target.matter ? matterEtag(target.matter) : null
-    const locks = workspace
-      ? await activeLocks(c.get('deps'), { orgId: workspace.id, resourcePath: resourcePath(target) })
-      : []
+    const locks = target.workspace ? await targetActiveLocks(c, target) : []
     const lockTokens = new Set(locks.map((lock) => lock.token))
     const list = clause[2]
     const conditions = [...list.matchAll(/(Not\s+)?(?:\[([^\]]+)\]|<([^>]+)>)/gi)]
@@ -1189,10 +1196,12 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (!target.name) return c.text('Cannot PUT a collection root', 405)
     if (target.matter && target.matter.dirtype !== DirType.FILE)
       return c.text('Cannot replace collection with file', 409)
+    startedAt = performance.now()
     const locked = await lockPrecondition(c, target)
     if (locked) return locked
     const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
+    c.get('webDavTrace').push(`preconditions:${Math.round(performance.now() - startedAt)}`)
     const precondition = target.matter ? preconditionResponse(c, target.matter) : missingPreconditionResponse(c)
     if (precondition) return precondition
     await ensureParentCollection(c, auth.userId, workspace.slug, target.parent)

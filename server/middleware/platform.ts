@@ -1,5 +1,6 @@
 import { createMiddleware } from 'hono/factory'
 import type { Auth } from '../auth'
+import type { DavLock } from '../domain/webdav'
 import type { WebDavMountPath } from '../domain/webdav-public-url'
 import type { Platform } from '../platform/interface'
 import type { Deps } from '../usecases/deps'
@@ -23,6 +24,7 @@ export type Env = {
     webDavDownloadAuditTarget: TransferAuditTarget | null
     webDavResolvedPutTarget: WebDavTarget | null
     webDavUploadAuditTarget: TransferAuditTarget | null
+    webDavLocksByResource: Map<string, DavLock[]>
     // Structured detail for the access log on a failed request. Set by `jsonError`
     // (via `app.onError`); read by the accessLog middleware so every 4xx/5xx carries
     // its reason + full message, not just unhandled crashes.
@@ -78,5 +80,6 @@ export const platformMiddleware = (platform: Platform, auth: Auth) =>
     c.set('webDavDownloadAuditTarget', null)
     c.set('webDavResolvedPutTarget', null)
     c.set('webDavUploadAuditTarget', null)
+    c.set('webDavLocksByResource', new Map())
     await next()
   })

@@ -109,16 +109,11 @@ describe('API keys', () => {
     expect(listed.apiKeys.every((key) => key.referenceId === userId)).toBe(true)
   })
 
-  it('defers Better Auth WebDAV key bookkeeping when the native limiter is authoritative', async () => {
+  it('defers Better Auth WebDAV database bookkeeping when the native limiter is authoritative', async () => {
     const backgroundTasks: Promise<unknown>[] = []
-    const stored = new Map<string, string>()
-    const get = vi.fn(async (key: string) => stored.get(key) ?? null)
-    const put = vi.fn(async (key: string, value: string) => {
-      stored.set(key, value)
-    })
-    const remove = vi.fn(async (key: string) => {
-      stored.delete(key)
-    })
+    const get = vi.fn(async () => null)
+    const put = vi.fn(async () => {})
+    const remove = vi.fn(async () => {})
     const { app, db, auth } = await createTestApp(
       {},
       {
@@ -134,24 +129,21 @@ describe('API keys', () => {
       body: { configId: 'webdav', userId },
     })) as { key: string }
     await Promise.all(backgroundTasks.splice(0))
-    stored.clear()
     get.mockClear()
     put.mockClear()
 
     await expect(
       apiKeys.verifyApiKeyForPermission(auth, db, webdav.key, 'webdav', 'read', 'webdav'),
     ).resolves.toMatchObject({ referenceId: userId })
-    expect(get).toHaveBeenCalledOnce()
-    expect(get.mock.calls[0][0]).toMatch(/^better-auth:api-key:/)
-    expect(put).toHaveBeenCalled()
+    expect(get).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
     expect(backgroundTasks.length).toBeGreaterThan(0)
     await Promise.all(backgroundTasks)
 
-    get.mockClear()
-    await expect(
-      apiKeys.verifyApiKeyForPermission(auth, db, webdav.key, 'webdav', 'read', 'webdav'),
-    ).resolves.toMatchObject({ referenceId: userId })
-    expect(get).toHaveBeenCalledOnce()
+    const rows = await db.all<{ lastRequest: number | null }>(
+      sql`SELECT last_request AS lastRequest FROM apikey WHERE config_id = 'webdav'`,
+    )
+    expect(rows[0]?.lastRequest).not.toBeNull()
   })
 
   it('persists the configured defaults for each API key template', async () => {
