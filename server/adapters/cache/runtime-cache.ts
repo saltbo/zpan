@@ -87,6 +87,10 @@ export function createRuntimeCache(options: RuntimeCacheOptions): CacheService {
     return `zpan:v${policy.version}:${policy.namespace}:${key}`
   }
 
+  function usesDistributed<T>(policy: CachePolicy<T>): boolean {
+    return options.mode === 'distributed' && policy.distributed !== false
+  }
+
   async function distributedGet<T>(policy: CachePolicy<T>, key: string): Promise<T | undefined> {
     if (!options.distributed) return undefined
     try {
@@ -147,7 +151,7 @@ export function createRuntimeCache(options: RuntimeCacheOptions): CacheService {
       const inMemory = memoryGet(policy, key)
       if (inMemory !== undefined) return observed(policy.namespace, 'memory', startedAt, inMemory)
 
-      if (options.mode === 'distributed') {
+      if (usesDistributed(policy)) {
         const distributed = await distributedGet(policy, key)
         if (distributed !== undefined) return observed(policy.namespace, 'distributed', startedAt, distributed)
       }
@@ -155,7 +159,7 @@ export function createRuntimeCache(options: RuntimeCacheOptions): CacheService {
       const value = await loader()
       const freshUntil = now() + ttlFor(policy, value)
       memoryPut(policy, key, value, freshUntil)
-      if (options.mode === 'distributed') await distributedPut(policy, key, value, freshUntil)
+      if (usesDistributed(policy)) await distributedPut(policy, key, value, freshUntil)
       return observed(policy.namespace, 'source', startedAt, value)
     },
 
@@ -163,12 +167,12 @@ export function createRuntimeCache(options: RuntimeCacheOptions): CacheService {
       if (options.mode === 'off') return
       const freshUntil = now() + ttlFor(policy, value)
       memoryPut(policy, key, value, freshUntil)
-      if (options.mode === 'distributed') await distributedPut(policy, key, value, freshUntil)
+      if (usesDistributed(policy)) await distributedPut(policy, key, value, freshUntil)
     },
 
     async invalidate<T>(policy: CachePolicy<T>, key: string): Promise<void> {
       memoryStore(policy.namespace).delete(key)
-      if (options.mode !== 'distributed' || !options.distributed) return
+      if (!usesDistributed(policy) || !options.distributed) return
       try {
         await options.distributed.delete(cacheKey(policy, key))
       } catch (error) {

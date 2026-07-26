@@ -5,6 +5,7 @@ import { serve } from '@hono/node-server'
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createClient } from 'webdav'
+import { WEBDAV_RATE_LIMITER_BINDING } from '../../shared/api-key-templates.js'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { storages } from '../db/schema.js'
 import { currentTrafficPeriod } from '../domain/quota.js'
@@ -160,6 +161,41 @@ async function folder(db: TestApp['db'], orgId: string, opts: { id: string; name
 }
 
 describe('WebDAV API', () => {
+  it('uses the native limiter for every request and reuses successful auth briefly', async () => {
+    const limit = vi.fn(async () => ({ success: true }))
+    const { app, db, auth, deps } = await createTestApp({}, { [WEBDAV_RATE_LIMITER_BINDING]: { limit } })
+    await authedHeaders(app)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const verify = vi.spyOn(deps.apiKeys, 'verifyApiKeyForPermission')
+    const headers = basicHeaders(account.email, key, { Depth: '0' })
+
+    const first = await app.request('/dav/', { method: 'PROPFIND', headers })
+    const second = await app.request('/dav/', { method: 'PROPFIND', headers })
+
+    expect(first.status).toBe(207)
+    expect(second.status).toBe(207)
+    expect(limit).toHaveBeenCalledTimes(2)
+    expect(verify).toHaveBeenCalledTimes(1)
+    expect(second.headers.get('Server-Timing')).toContain('webdav-auth:memory')
+  })
+
+  it('rejects native WebDAV rate limits before API-key verification', async () => {
+    const limit = vi.fn(async () => ({ success: false }))
+    const { app, deps } = await createTestApp({}, { [WEBDAV_RATE_LIMITER_BINDING]: { limit } })
+    const verify = vi.spyOn(deps.apiKeys, 'verifyApiKeyForPermission')
+
+    const response = await app.request('/dav/', {
+      method: 'PROPFIND',
+      headers: basicHeaders('user@example.com', 'secret'),
+    })
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('60')
+    expect(limit).toHaveBeenCalledTimes(1)
+    expect(verify).not.toHaveBeenCalled()
+  })
+
   it('does not count API-key WebDAV requests as Better Auth session activity', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)

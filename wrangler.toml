@@ -18,6 +18,14 @@ migrations_dir = "./migrations"
 binding = "CACHE_KV"
 id = "2721f9d7b47d433d8a0e02171e276f57"
 
+[[ratelimits]]
+name = "WEBDAV_RATE_LIMITER"
+namespace_id = "2801"
+
+[ratelimits.simple]
+limit = 3600
+period = 60
+
 [vars]
 ZPAN_CACHE_MODE = "distributed"
 
@@ -73,6 +81,14 @@ migrations_dir = "./migrations"
 [[env.staging.kv_namespaces]]
 binding = "CACHE_KV"
 id = "7d8625bacbc54e23a46ca4464a9f64a0"
+
+[[env.staging.ratelimits]]
+name = "WEBDAV_RATE_LIMITER"
+namespace_id = "2802"
+
+[env.staging.ratelimits.simple]
+limit = 3600
+period = 60
 
 [[env.staging.r2_buckets]]
 binding = "PUBLIC_IMAGES"

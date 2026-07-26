@@ -26,6 +26,7 @@ import {
   WEBDAV_API_KEY_PERMISSIONS,
   WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
   WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,
+  WEBDAV_RATE_LIMITER_BINDING,
 } from '../shared/api-key-templates'
 import { DEFAULT_ORG_QUOTA, DEFAULT_ORG_TRAFFIC_QUOTA, SignupMode } from '../shared/constants'
 import {
@@ -327,6 +328,7 @@ export async function createAuth(
   const systemOptionsRepo = createSystemOptionsRepo(db)
   const email = createEmailGateway(systemOptionsRepo)
   const providerConfigs = await loadProviderConfigs(rawDb)
+  const usesNativeWebDavRateLimit = Boolean(authPlatform.getBinding(WEBDAV_RATE_LIMITER_BINDING))
   const authOptions = {
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,
@@ -567,7 +569,7 @@ export async function createAuth(
           references: 'user',
           enableMetadata: true,
           rateLimit: {
-            enabled: true,
+            enabled: !usesNativeWebDavRateLimit,
             // Filesystem clients such as macOS Finder issue bursts of PROPFIND
             // and stat requests while browsing mounted folders.
             timeWindow: WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,

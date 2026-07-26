@@ -8,6 +8,7 @@ export interface CachePolicy<T> {
   ttlMs: number
   negativeTtlMs?: number
   maxEntries: number
+  distributed?: boolean
   validate(value: unknown): value is T
 }
 

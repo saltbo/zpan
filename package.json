@@ -152,6 +152,9 @@
       "CACHE_KV": {
         "description": "Workers KV namespace for distributed application caches"
       },
+      "WEBDAV_RATE_LIMITER": {
+        "description": "Workers native rate limiter for WebDAV credentials"
+      },
       "ZPAN_CACHE_MODE": {
         "description": "Cache mode: off, memory, or distributed"
       }

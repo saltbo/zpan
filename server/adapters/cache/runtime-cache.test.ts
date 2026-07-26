@@ -84,6 +84,27 @@ describe('runtime cache', () => {
     expect(loader).not.toHaveBeenCalled()
   })
 
+  it('keeps memory-only policies out of the distributed backend', async () => {
+    const { backend } = fakeBackend()
+    const cache = createRuntimeCache({ mode: 'distributed', distributed: backend })
+    const memoryOnlyPolicy = { ...stringPolicy, namespace: 'sensitive', distributed: false }
+
+    expect(await cache.getOrLoad(memoryOnlyPolicy, 'a', async () => 'source')).toMatchObject({
+      value: 'source',
+      tier: 'source',
+    })
+    expect(await cache.getOrLoad(memoryOnlyPolicy, 'a', async () => 'unexpected')).toMatchObject({
+      value: 'source',
+      tier: 'memory',
+    })
+    await cache.replace(memoryOnlyPolicy, 'b', 'replacement')
+    await cache.invalidate(memoryOnlyPolicy, 'a')
+
+    expect(backend.get).not.toHaveBeenCalled()
+    expect(backend.put).not.toHaveBeenCalled()
+    expect(backend.delete).not.toHaveBeenCalled()
+  })
+
   it('rejects expired or invalid distributed envelopes and refreshes them from source', async () => {
     const { backend, values } = fakeBackend()
     values.set('zpan:v2:test:expired', JSON.stringify({ freshUntil: 999, value: 'old' }))

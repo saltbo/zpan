@@ -37,6 +37,7 @@ export function parseApiKeyScope(metadata: unknown): ApiKeyScope | null {
 
 export const WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS = 60_000
 export const WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS = 3600
+export const WEBDAV_RATE_LIMITER_BINDING = 'WEBDAV_RATE_LIMITER'
 
 export const IHOST_API_KEY_PERMISSIONS = { ihost: ['upload'] } satisfies ApiKeyPermissions
 export const WEBDAV_API_KEY_PERMISSIONS = { webdav: ['read', 'write'] } satisfies ApiKeyPermissions
