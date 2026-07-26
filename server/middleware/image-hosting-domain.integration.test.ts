@@ -131,8 +131,8 @@ describe('imageHostingDomain middleware — app-host passthrough', () => {
     const res = await app.request('/api/health', {
       headers: { host: 'unknown.external.com' },
     })
-    // no DB entry → next() → /api/health returns 200
     expect(res.status).toBe(200)
+    expect(res.headers.get('Server-Timing')).not.toContain('image-domain')
   })
 })
 
@@ -160,6 +160,24 @@ describe('imageHostingDomain middleware — unverified domain', () => {
 // ─── Custom domain redirect ───────────────────────────────────────────────────
 
 describe('imageHostingDomain middleware — custom domain redirect', () => {
+  it('reserves application paths even when a custom domain has a matching image path', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'reserved-api-image', path: 'api/health' })
+    await insertImageHostingConfig(db, orgId, { customDomain: 'img.reserved.com' })
+
+    const res = await app.request('/api/health', {
+      headers: { host: 'img.reserved.com' },
+      redirect: 'manual',
+    })
+
+    expect(res.status).toBe(200)
+    expect(await getAccessCount(db, 'reserved-api-image')).toBe(0)
+    expect(res.headers.get('Server-Timing')).not.toContain('image-domain')
+  })
+
   it('only reserves the exact WebDAV hostname, not its subdomains', async () => {
     const { app, db, deps } = await createTestApp()
     await deps.systemOptions.set('site_public_origin', 'https://example.com')

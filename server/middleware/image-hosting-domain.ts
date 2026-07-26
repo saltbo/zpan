@@ -141,6 +141,8 @@ function recordImageDownloadFailure(
 
 // biome-ignore lint/suspicious/noConfusingVoidType: Next returns void; union with Response is intentional
 export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<Response | void> {
+  if (isApplicationPath(c.req.path)) return next()
+
   const rawHost = c.req.header('host')
   if (!rawHost) return next()
 
@@ -163,4 +165,8 @@ export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<R
   if (!virtualPath) throw notFound('path required')
 
   return handleImageByPath(c, orgId, virtualPath)
+}
+
+function isApplicationPath(path: string): boolean {
+  return path === '/api' || path.startsWith('/api/') || path === '/dav' || path.startsWith('/dav/')
 }
