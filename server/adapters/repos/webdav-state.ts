@@ -171,7 +171,6 @@ export function createWebDavStateRepo(db: Database): WebDavStateRepo {
     },
 
     async activeLocks(orgId, resourcePath) {
-      await purgeExpiredLocks(db)
       const now = Date.now()
       const rows = await db
         .select()
@@ -185,7 +184,6 @@ export function createWebDavStateRepo(db: Database): WebDavStateRepo {
       const result = new Map(uniquePaths.map((path) => [path, [] as DavLock[]]))
       if (uniquePaths.length === 0) return result
 
-      await purgeExpiredLocks(db)
       const now = Date.now()
       const rows = await db
         .select()
@@ -202,7 +200,6 @@ export function createWebDavStateRepo(db: Database): WebDavStateRepo {
     },
 
     async conflictingLocks(orgId, resourcePath) {
-      await purgeExpiredLocks(db)
       const now = Date.now()
       const rows = await db
         .select()
@@ -229,7 +226,6 @@ export function createWebDavStateRepo(db: Database): WebDavStateRepo {
     },
 
     async refreshLock(orgId, resourcePath, token, timeoutSeconds) {
-      await purgeExpiredLocks(db)
       const now = new Date()
       const expiresAt = new Date(now.getTime() + timeoutSeconds * 1000)
       const rows = await db
@@ -249,7 +245,6 @@ export function createWebDavStateRepo(db: Database): WebDavStateRepo {
     },
 
     async removeLock(orgId, resourcePath, token) {
-      await purgeExpiredLocks(db)
       const rows = await db
         .select()
         .from(webdavLocks)
@@ -265,11 +260,11 @@ export function createWebDavStateRepo(db: Database): WebDavStateRepo {
       await db.delete(webdavLocks).where(eq(webdavLocks.id, lock.id))
       return true
     },
-  }
-}
 
-async function purgeExpiredLocks(db: Database): Promise<void> {
-  await db.delete(webdavLocks).where(sql`${webdavLocks.expiresAt} <= ${Date.now()}`)
+    async purgeExpiredLocks(now = Date.now()) {
+      await db.delete(webdavLocks).where(sql`${webdavLocks.expiresAt} <= ${now}`)
+    },
+  }
 }
 
 function lockAppliesToResource(lock: DavLock, resourcePath: string): boolean {

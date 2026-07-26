@@ -599,6 +599,56 @@ describe('WebDAV API', () => {
     })
   })
 
+  it('returns a streamed GET before Workers background bookkeeping completes', async () => {
+    const { app, db, auth, deps } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    await file(db, workspace.id, { id: 'background-read', name: 'background.txt', size: 12 })
+
+    const originalRecord = deps.audit.record
+    let releaseAudit: (() => void) | undefined
+    const auditGate = new Promise<void>((resolve) => {
+      releaseAudit = resolve
+    })
+    vi.spyOn(deps.audit, 'record').mockImplementation(async (event) => {
+      if (event.action === 'webdav_download') await auditGate
+      await originalRecord(event)
+    })
+
+    const backgroundTasks: Promise<unknown>[] = []
+    const executionCtx = {
+      waitUntil(task: Promise<unknown>) {
+        backgroundTasks.push(task)
+      },
+      passThroughOnException() {},
+      props: undefined,
+    }
+    const response = await app.fetch(
+      new Request(`http://localhost/dav/${workspace.slug}/background.txt`, {
+        method: 'GET',
+        headers: basicHeaders(account.email, key),
+      }),
+      undefined,
+      executionCtx,
+    )
+
+    expect(response.status).toBe(200)
+    expect(backgroundTasks.length).toBeGreaterThan(0)
+    expect(await response.text()).toBe('hello webdav')
+
+    releaseAudit?.()
+    await Promise.all(backgroundTasks)
+    expect(
+      await db.all(sql`
+        SELECT action FROM audit_events
+        WHERE target_id = 'background-read' AND action = 'webdav_download'
+      `),
+    ).toEqual([{ action: 'webdav_download' }])
+  })
+
   it('GET consumes WebDAV traffic while HEAD does not [spec: webdav/get-traffic]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)

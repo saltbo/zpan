@@ -127,7 +127,7 @@ function makeDeps(
     } as unknown as ApiKeyGateway,
     userAdmin: {
       isBanned: async () => false,
-      matchesUsername: async () => true,
+      matchesActiveUsername: async () => true,
       ...overrides.userAdmin,
     } as unknown as UserAdminRepo,
     matter: {
@@ -192,6 +192,7 @@ function makeDeps(
       createLock: async () => lock,
       refreshLock: async () => lock,
       removeLock: async () => true,
+      purgeExpiredLocks: async () => {},
       ...overrides.webdavState,
     } as unknown as WebDavStateRepo,
     downloadTasks: {
@@ -236,12 +237,12 @@ describe('webdav usecase', () => {
     })
 
     it('is unauthorized when the key owner is disabled', async () => {
-      const deps = makeDeps({ userAdmin: { isBanned: async () => true } })
+      const deps = makeDeps({ userAdmin: { matchesActiveUsername: async () => false } })
       expect(await resolveWebDavAuth(deps, authParams)).toEqual({ ok: false, reason: 'unauthorized' })
     })
 
     it('is unauthorized when the username does not match the key owner', async () => {
-      const deps = makeDeps({ userAdmin: { matchesUsername: async () => false } })
+      const deps = makeDeps({ userAdmin: { matchesActiveUsername: async () => false } })
       expect(await resolveWebDavAuth(deps, authParams)).toEqual({ ok: false, reason: 'unauthorized' })
     })
 

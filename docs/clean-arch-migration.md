@@ -82,7 +82,7 @@ rewired callers to `c.get('deps')`), the orchestrator wired the 3 barrels and ra
 `server/services/` is empty and removed. Every drizzle access lives in `adapters/repos/`; every route
 gets its dependencies from `c.get('deps')`. **The ratchet is empty and removed** — including the final two
 files: `http/webdav.ts` (listDescendants/proppatch/PUT-overwrite/Basic-Auth → MatterRepo.{listActiveDescendants,
-trashByIds,restoreActiveByIds,touch,applyUpload} + UserAdminRepo.{isBanned,matchesUsername}) and
+trashByIds,restoreActiveByIds,touch,applyUpload} + UserAdminRepo.{isBanned,matchesActiveUsername}) and
 `middleware/auth.ts` (disabled-user check → UserAdminRepo.isBanned). Gates green: `typecheck`,
 `lint:arch` (267 modules, **no-circular + drizzle-only-in-repos fully enforced, zero exemptions**),
 `lint:spec`, `lint`, `test` (3810), `test:cf` (57).

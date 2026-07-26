@@ -50,6 +50,7 @@ export async function reportTrafficEgress(
     source: TrafficReportSource
     sourceId: string
     eventId?: string
+    eventIdIsNew?: boolean
     now?: Date
   },
 ): Promise<{ status: CloudTrafficReportStatus; eventId: string; duplicate: boolean }> {
@@ -63,7 +64,7 @@ export async function reportTrafficEgress(
 
   const eventId = params.eventId ?? `traffic_${nanoid()}`
   await deps.cloudTrafficReports.ensureLedgerOpening(now)
-  const existing = await deps.cloudTrafficReports.findByEventId(eventId)
+  const existing = params.eventIdIsNew ? undefined : await deps.cloudTrafficReports.findByEventId(eventId)
   const period = existing?.period ?? currentTrafficPeriod(now)
   if (existing) {
     assertSameReport(existing, {
@@ -278,6 +279,7 @@ export type DownloadTrafficParams = {
   source: TrafficReportSource
   sourceId: string
   eventId?: string
+  eventIdIsNew?: boolean
   // Compensating action run when traffic is rejected (quota or egress).
   onRejected?: () => Promise<void>
 }
@@ -319,6 +321,7 @@ export async function reportDownloadEgress(
       source: params.source,
       sourceId: params.sourceId,
       eventId: params.eventId,
+      eventIdIsNew: params.eventIdIsNew ?? params.eventId === undefined,
     })
     return { ok: true }
   } catch (error) {

@@ -1,7 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import {
-  WEBDAV_API_KEY_LEGACY_RATE_LIMIT_MAX_REQUESTS,
   WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
   WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,
 } from '../../../shared/api-key-templates.js'
@@ -250,36 +249,6 @@ describe('API keys', () => {
     const body = (await limited.json()) as { error: { message: string; status: string } }
     expect(body.error.message).toBe('Rate limit exceeded.')
     expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
-  })
-
-  it('upgrades legacy WebDAV default rate limits before verification', async () => {
-    const { app, db, auth } = await createTestApp()
-    await authedHeaders(app)
-    const { userId } = await getUserAndOrg(db)
-    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
-    const apiKey = (await (auth.api as any).createApiKey({
-      body: {
-        configId: 'webdav',
-        userId,
-        permissions: { webdav: ['read'] },
-      },
-    })) as { key: string; id: string }
-
-    await db.run(sql`
-      UPDATE apikey
-      SET rate_limit_max = ${WEBDAV_API_KEY_LEGACY_RATE_LIMIT_MAX_REQUESTS},
-          request_count = ${WEBDAV_API_KEY_LEGACY_RATE_LIMIT_MAX_REQUESTS},
-          last_request = ${Date.now()}
-      WHERE id = ${apiKey.id}
-    `)
-
-    await expect(
-      apiKeys.verifyApiKeyForPermission(auth, db, apiKey.key, 'webdav', 'read', 'webdav'),
-    ).resolves.toMatchObject({ id: apiKey.id })
-    expect(await getApiKeyRow(db, apiKey.id)).toMatchObject({
-      rate_limit_max: WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
-      request_count: WEBDAV_API_KEY_LEGACY_RATE_LIMIT_MAX_REQUESTS + 1,
-    })
   })
 
   it('WebDAV surfaces a custom rate-limited API key as too many requests', async () => {

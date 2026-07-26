@@ -1,0 +1,2 @@
+CREATE INDEX `matters_webdav_path_idx` ON `matters` (`org_id`,`parent`,`name`,`status`,`trashed_at`,`purged_at`);--> statement-breakpoint
+CREATE INDEX `matters_webdav_children_idx` ON `matters` (`org_id`,`parent`,`status`,`trashed_at`,`purged_at`,"dirtype" desc,`name`);

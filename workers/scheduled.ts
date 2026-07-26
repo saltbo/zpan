@@ -44,7 +44,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
   }
 
   if (event.cron === STATS_ROLLUP_CRON) {
-    await deps.adminStats.refreshHourlyRollups(new Date())
+    await Promise.all([deps.adminStats.refreshHourlyRollups(new Date()), deps.webdavState.purgeExpiredLocks()])
     return
   }
 

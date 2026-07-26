@@ -271,57 +271,33 @@ async function consumeTrafficIfQuotaAllows(
 ): Promise<boolean> {
   if (bytes <= 0) return true
   const period = currentTrafficPeriod(now)
-  const quotaRows = await db
-    .select({ id: orgQuotas.id, trafficPeriod: orgQuotas.trafficPeriod, trafficQuota: orgQuotas.trafficQuota })
-    .from(orgQuotas)
-    .where(eq(orgQuotas.orgId, orgId))
-    .limit(1)
-  if (quotaRows.length === 0) return false
-
-  const trafficOverageAllowed = await hasActiveTrafficOverage(db, orgId, now)
-  const overageAllowedSql = trafficOverageAllowed ? sql`1 = 1` : sql`1 = 0`
-
-  if (quotaRows[0].trafficPeriod !== period) {
-    const limitBytes = activeEntitlementBytesSql(orgId, 'traffic', now)
-    const hasPlan = activePlanEntitlementExistsSql(orgId, 'traffic', now)
-    const updated = await db
+  const limitBytes = activeEntitlementBytesSql(orgId, 'traffic', now)
+  const hasPlan = activePlanEntitlementExistsSql(orgId, 'traffic', now)
+  const overageAllowed = activeTrafficOverageAllowedSql(orgId, now)
+  const nextUsed = sql`CASE
+    WHEN ${orgQuotas.trafficPeriod} = ${period} THEN ${orgQuotas.trafficUsed} + ${bytes}
+    ELSE ${bytes}
+  END`
+  const consume = () =>
+    db
       .update(orgQuotas)
-      .set({ trafficUsed: bytes, trafficPeriod: period })
+      .set({ trafficUsed: nextUsed, trafficPeriod: period })
       .where(
         sql`${orgQuotas.orgId} = ${orgId}
-          AND ${orgQuotas.trafficPeriod} != ${period}
           AND (
             (${limitBytes} = 0 AND ${hasPlan})
-            OR ${overageAllowedSql}
-            OR ${bytes} <= ${limitBytes}
+            OR ${overageAllowed}
+            OR ${nextUsed} <= ${limitBytes}
           )`,
       )
       .returning({ id: orgQuotas.id })
-    if (updated.length > 0) return true
-  }
 
-  const limitBytes = activeEntitlementBytesSql(orgId, 'traffic', now)
-  const hasPlan = activePlanEntitlementExistsSql(orgId, 'traffic', now)
-  const updated = await db
-    .update(orgQuotas)
-    .set({ trafficUsed: sql`${orgQuotas.trafficUsed} + ${bytes}` })
-    .where(
-      sql`${orgQuotas.orgId} = ${orgId}
-        AND ${orgQuotas.trafficPeriod} = ${period}
-        AND (
-          (${limitBytes} = 0 AND ${hasPlan})
-          OR ${overageAllowedSql}
-          OR ${orgQuotas.trafficUsed} + ${bytes} <= ${limitBytes}
-        )`,
-    )
-    .returning({ id: orgQuotas.id })
+  const updated = await consume()
+  if (updated.length > 0) return true
 
-  return updated.length > 0
-}
-
-async function hasActiveTrafficOverage(db: Database, orgId: string, now: Date) {
-  const trafficPlan = await activePlanEntitlement(db, orgId, 'traffic', now)
-  return (trafficPlan?.trafficOveragePriceCents ?? 0) > 0
+  // A concurrent rollover may have changed the row while the first statement
+  // was executing. Retry once against the new current-period value.
+  return (await consume()).length > 0
 }
 
 async function refundTraffic(db: Database, orgId: string, bytes: number, now = new Date()): Promise<void> {
@@ -463,6 +439,29 @@ function activePlanEntitlementExistsSql(orgId: string, resourceType: 'storage' |
       AND ${orgQuotaEntitlements.startsAt} <= ${timestamp}
       AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
   )`
+}
+
+function activeTrafficOverageAllowedSql(orgId: string, now: Date) {
+  const timestamp = now.getTime()
+  return sql`COALESCE((
+    SELECT CASE
+      WHEN json_valid(${orgQuotaEntitlements.metadata}) = 1
+        THEN CAST(json_extract(${orgQuotaEntitlements.metadata}, '$.trafficOveragePriceCents') AS INTEGER)
+      ELSE 0
+    END
+    FROM ${orgQuotaEntitlements}
+    WHERE ${orgQuotaEntitlements.orgId} = ${orgId}
+      AND ${orgQuotaEntitlements.resourceType} = 'traffic'
+      AND ${orgQuotaEntitlements.entitlementType} = 'plan'
+      AND ${orgQuotaEntitlements.status} = 'active'
+      AND ${orgQuotaEntitlements.startsAt} <= ${timestamp}
+      AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
+    ORDER BY
+      CASE WHEN ${orgQuotaEntitlements.source} = 'free_plan' THEN 1 ELSE 0 END,
+      ${orgQuotaEntitlements.bytes} DESC,
+      ${orgQuotaEntitlements.startsAt} DESC
+    LIMIT 1
+  ), 0) > 0`
 }
 
 interface PlanEntitlement {

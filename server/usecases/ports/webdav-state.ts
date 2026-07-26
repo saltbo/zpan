@@ -14,9 +14,9 @@ export interface CreateLockInput {
   timeoutSeconds: number
 }
 
-// WebDAV lock + dead-property state. Locks expire on a wall-clock TTL, so reads
-// purge expired rows before returning; depth-infinity scoping is resolved in the
-// repo (D1 cannot express the dynamic LIKE the scope check needs).
+// WebDAV lock + dead-property state. Reads exclude expired locks; scheduled
+// cleanup removes their rows. Depth-infinity scoping is resolved in the repo
+// (D1 cannot express the dynamic LIKE the scope check needs).
 export interface WebDavStateRepo {
   listDeadPropertiesForResources(orgId: string, resourcePaths: string[]): Promise<Map<string, DavDeadProperty[]>>
   applyDeadPropertyUpdate(orgId: string, resourcePath: string, operations: DeadPropertyUpdate[]): Promise<void>
@@ -29,4 +29,5 @@ export interface WebDavStateRepo {
   createLock(input: CreateLockInput): Promise<DavLock>
   refreshLock(orgId: string, resourcePath: string, token: string, timeoutSeconds: number): Promise<DavLock | null>
   removeLock(orgId: string, resourcePath: string, token: string): Promise<boolean>
+  purgeExpiredLocks(now?: number): Promise<void>
 }

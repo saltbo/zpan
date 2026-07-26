@@ -12,11 +12,13 @@ vi.mock('../server/platform/cloudflare', () => ({
 }))
 
 const refreshHourlyRollups = vi.fn()
+const purgeExpiredLocks = vi.fn()
 const reconcileFreePlanBaselines = vi.fn()
 const fakeDeps = {
   instance: 'instance',
   systemOptions: 'system-options',
   adminStats: { refreshHourlyRollups },
+  webdavState: { purgeExpiredLocks },
   quota: { reconcileFreePlanBaselines },
 }
 vi.mock('../server/composition', () => ({
@@ -60,6 +62,7 @@ describe('handleScheduled', () => {
     vi.mocked(runLicensingRefresh).mockReset()
     mockResetExpiredTrafficQuotas.mockReset()
     refreshHourlyRollups.mockReset()
+    purgeExpiredLocks.mockReset()
     reconcileFreePlanBaselines.mockReset()
   })
 
@@ -80,6 +83,7 @@ describe('handleScheduled', () => {
     await handleScheduled({ cron: '10 * * * *' }, { DB: {} as D1Database })
 
     expect(refreshHourlyRollups).toHaveBeenCalledOnce()
+    expect(purgeExpiredLocks).toHaveBeenCalledOnce()
     expect(reconcileFreePlanBaselines).not.toHaveBeenCalled()
     expect(syncPendingCloudTrafficReports).not.toHaveBeenCalled()
     expect(syncPendingRemoteDownloadUsageReports).not.toHaveBeenCalled()

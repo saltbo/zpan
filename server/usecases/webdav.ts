@@ -70,8 +70,7 @@ export async function resolveWebDavAuth(
       params.configId,
     )
     if (!key) return { ok: false, reason: 'unauthorized' }
-    if (await deps.userAdmin.isBanned(key.referenceId)) return { ok: false, reason: 'unauthorized' }
-    if (!(await deps.userAdmin.matchesUsername(key.referenceId, params.username))) {
+    if (!(await deps.userAdmin.matchesActiveUsername(key.referenceId, params.username))) {
       return { ok: false, reason: 'unauthorized' }
     }
     return {
@@ -217,6 +216,7 @@ export async function meterWebDavDownload(
     source: WEBDAV_DOWNLOAD_SOURCE,
     sourceId: params.matterId,
     eventId: params.trafficEventId,
+    eventIdIsNew: true,
   })
   return outcome
 }

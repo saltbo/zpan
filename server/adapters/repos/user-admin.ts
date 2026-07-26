@@ -17,14 +17,14 @@ async function isBanned(db: Database, userId: string): Promise<boolean> {
   return Boolean(rows[0]?.banned)
 }
 
-async function matchesUsername(db: Database, userId: string, username: string): Promise<boolean> {
+async function matchesActiveUsername(db: Database, userId: string, username: string): Promise<boolean> {
   const rows = await db
-    .select({ email: user.email, username: user.username })
+    .select({ banned: user.banned, email: user.email, username: user.username })
     .from(user)
     .where(eq(user.id, userId))
     .limit(1)
   const account = rows[0]
-  if (!account) return false
+  if (!account || account.banned) return false
   return account.email.toLowerCase() === username.toLowerCase() || account.username === username
 }
 
@@ -220,7 +220,7 @@ function mergeGrantMetadata(existing: string | null, patch: Record<string, unkno
 export function createUserAdminRepo(db: Database): UserAdminRepo {
   return {
     isBanned: (userId) => isBanned(db, userId),
-    matchesUsername: (userId, username) => matchesUsername(db, userId, username),
+    matchesActiveUsername: (userId, username) => matchesActiveUsername(db, userId, username),
     listUserPersonalEntitlements: (userId) => listUserPersonalEntitlements(db, userId),
     grantUserPersonalEntitlement: (input) => grantUserPersonalEntitlement(db, input),
     updateUserPersonalEntitlement: (input) => updateUserPersonalEntitlement(db, input),

@@ -21,7 +21,19 @@ export const matters = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
   },
-  (t) => [index('matters_status_dir_created_idx').on(t.status, t.dirtype, t.createdAt)],
+  (t) => [
+    index('matters_status_dir_created_idx').on(t.status, t.dirtype, t.createdAt),
+    index('matters_webdav_path_idx').on(t.orgId, t.parent, t.name, t.status, t.trashedAt, t.purgedAt),
+    index('matters_webdav_children_idx').on(
+      t.orgId,
+      t.parent,
+      t.status,
+      t.trashedAt,
+      t.purgedAt,
+      sql`${t.dirtype} desc`,
+      t.name,
+    ),
+  ],
 )
 
 export const webdavDeadProperties = sqliteTable(

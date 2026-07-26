@@ -30,7 +30,6 @@ import {
   WebDavPathError,
   type WebDavTarget,
 } from '../usecases/ports'
-import { getSiteWebDavRuntimeConfig } from '../usecases/site/settings'
 import {
   recordAuditEvent,
   recordDownloadFailure,
@@ -414,41 +413,15 @@ function fixedLengthResponseBody(body: BodyInit, contentLength: number): BodyIni
   if (!ctor || !isReadableBodyStream(body)) return body
 
   const { readable, writable } = new ctor(contentLength)
-  void bridgeFixedLengthStream(body, writable)
+  void body.pipeTo(writable).catch((error) => {
+    if (isExpectedStreamCancellation(error)) return
+    console.error(JSON.stringify({ message: 'webdav.response_stream.error', error: errorMessage(error) }))
+  })
   return readable
 }
 
 function isReadableBodyStream(body: BodyInit): body is ReadableStream<Uint8Array> {
   return typeof (body as ReadableStream<Uint8Array>).getReader === 'function'
-}
-
-async function bridgeFixedLengthStream(
-  body: ReadableStream<Uint8Array>,
-  writable: WritableStream<ArrayBuffer | ArrayBufferView>,
-): Promise<void> {
-  const reader = body.getReader()
-  const writer = writable.getWriter()
-  try {
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      await writer.write(value)
-    }
-    await writer.close()
-  } catch (error) {
-    await Promise.allSettled([cancelStreamReader(reader, error), writer.abort(error)])
-  } finally {
-    releaseStreamLock(reader)
-    releaseStreamLock(writer)
-  }
-}
-
-async function cancelStreamReader(reader: ReadableStreamDefaultReader<Uint8Array>, reason: unknown): Promise<void> {
-  try {
-    await reader.cancel(reason)
-  } catch {
-    return
-  }
 }
 
 function releaseStreamLock(stream: { releaseLock: () => void }): void {
@@ -598,23 +571,24 @@ async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEn
     }
   }
 
-  for (const { workspace, targets: workspaceTargets } of byWorkspace.values()) {
-    const paths = workspaceTargets.map(resourcePath)
-    const [deadPropertiesByPath, locksByPath] = await Promise.all([
-      listDeadPropertiesForResources(c.get('deps'), { orgId: workspace.id, resourcePaths: paths }),
-      activeLocksForResources(c.get('deps'), { orgId: workspace.id, resourcePaths: paths }),
-    ])
-    for (const target of workspaceTargets) {
-      const path = resourcePath(target)
-      const deadProperties = deadPropertiesByPath.get(path) ?? []
-      const locks = locksByPath.get(path) ?? []
-      entries.push(
-        target.matter
+  const workspaceEntries = await Promise.all(
+    [...byWorkspace.values()].map(async ({ workspace, targets: workspaceTargets }) => {
+      const paths = workspaceTargets.map(resourcePath)
+      const [deadPropertiesByPath, locksByPath] = await Promise.all([
+        listDeadPropertiesForResources(c.get('deps'), { orgId: workspace.id, resourcePaths: paths }),
+        activeLocksForResources(c.get('deps'), { orgId: workspace.id, resourcePaths: paths }),
+      ])
+      return workspaceTargets.map((target) => {
+        const path = resourcePath(target)
+        const deadProperties = deadPropertiesByPath.get(path) ?? []
+        const locks = locksByPath.get(path) ?? []
+        return target.matter
           ? matterEntry(workspace, target.matter, deadProperties, locks, mountPath)
-          : workspaceEntry(workspace, deadProperties, locks, mountPath),
-      )
-    }
-  }
+          : workspaceEntry(workspace, deadProperties, locks, mountPath)
+      })
+    }),
+  )
+  for (const resolved of workspaceEntries) entries.push(...resolved)
 
   return entries
 }
@@ -622,8 +596,7 @@ async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEn
 const app = new Hono<Env>()
 
 app.use('*', async (c, next) => {
-  const config = await getSiteWebDavRuntimeConfig(c.get('deps'))
-  if (!config.enabled) return c.notFound()
+  if (!c.get('webDavEnabled')) return c.notFound()
   await next()
 })
 
@@ -639,7 +612,15 @@ app.use('*', async (c, next) => {
   const preparedPut = c.req.method === 'PUT' ? await prepareWebDavPutAudit(c, userId) : null
   const preparedAction = await prepareWebDavActionAudit(c, userId)
   await next()
+  await waitUntilOrAwait(c, 'audit', processWebDavAudit(c, userId, preparedPut, preparedAction))
+})
 
+async function processWebDavAudit(
+  c: DavContext,
+  userId: string,
+  preparedPut: TransferAuditTarget | null,
+  preparedAction: WebDavActionAuditContext | null,
+): Promise<void> {
   const actor = transferAuditActor(c.get('principal'))
   if (c.req.method === 'GET' && isDownloadFailureStatus(c.res.status)) {
     const target = await webDavDownloadAuditTarget(c, userId)
@@ -666,7 +647,7 @@ app.use('*', async (c, next) => {
   const bytes = exactRequestContentLength(c)
   if (bytes === null) return
   await recordUploadResult(c.get('deps'), actor, { ...preparedPut, bytes }, transferFailureReason(c))
-})
+}
 
 type WebDavActionAuditContext = {
   method: 'MKCOL' | 'DELETE' | 'MOVE' | 'COPY'
@@ -985,15 +966,19 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       if (reservation.error) return reservation.error
       try {
         const body = await getWebDavObjectBody(c.get('deps'), { storage, object: matter.object })
-        await finishWebDavDownload(c, {
-          orgId: workspace.id,
-          userId: auth.userId,
-          matterId: matter.id,
-          matterName: matter.name,
-          storageId: storage.id,
-          bytes: size,
-          trafficEventId: reservation.trafficEventId,
-        })
+        await waitUntilOrAwait(
+          c,
+          'download_finish',
+          finishWebDavDownload(c, {
+            orgId: workspace.id,
+            userId: auth.userId,
+            matterId: matter.id,
+            matterName: matter.name,
+            storageId: storage.id,
+            bytes: size,
+            trafficEventId: reservation.trafficEventId,
+          }),
+        )
         return new Response(fixedLengthResponseBody(body, size), { headers })
       } catch (e) {
         await refundWebDavTraffic(c.get('deps'), {
@@ -1018,15 +1003,19 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       headers.set('Content-Length', String(contentLength))
       headers.delete('Content-Range')
       try {
-        await finishWebDavDownload(c, {
-          orgId: workspace.id,
-          userId: auth.userId,
-          matterId: matter.id,
-          matterName: matter.name,
-          storageId: storage.id,
-          bytes: trafficBytes,
-          trafficEventId: reservation.trafficEventId,
-        })
+        await waitUntilOrAwait(
+          c,
+          'download_finish',
+          finishWebDavDownload(c, {
+            orgId: workspace.id,
+            userId: auth.userId,
+            matterId: matter.id,
+            matterName: matter.name,
+            storageId: storage.id,
+            bytes: trafficBytes,
+            trafficEventId: reservation.trafficEventId,
+          }),
+        )
       } catch (error) {
         await refundWebDavTraffic(c.get('deps'), {
           orgId: workspace.id,
@@ -1058,15 +1047,19 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     headers.set('Content-Length', String(contentLength))
     headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
     try {
-      await finishWebDavDownload(c, {
-        orgId: workspace.id,
-        userId: auth.userId,
-        matterId: matter.id,
-        matterName: matter.name,
-        storageId: storage.id,
-        bytes: contentLength,
-        trafficEventId: reservation.trafficEventId,
-      })
+      await waitUntilOrAwait(
+        c,
+        'download_finish',
+        finishWebDavDownload(c, {
+          orgId: workspace.id,
+          userId: auth.userId,
+          matterId: matter.id,
+          matterName: matter.name,
+          storageId: storage.id,
+          bytes: contentLength,
+          trafficEventId: reservation.trafficEventId,
+        }),
+      )
     } catch (error) {
       await refundWebDavTraffic(c.get('deps'), {
         orgId: workspace.id,
@@ -1093,25 +1086,48 @@ async function finishWebDavDownload(
     trafficEventId: string
   },
 ): Promise<void> {
-  await recordWebDavDownloadIssued(c.get('deps'), params)
-  await recordDownloadIssued(
-    c.get('deps'),
-    transferAuditActor(c.get('principal')),
-    'webdav_download',
-    {
-      orgId: params.orgId,
-      targetType: 'file',
-      targetId: params.matterId,
-      targetName: params.matterName,
-      bytes: params.bytes,
-      source: 'webdav_download',
-      metadata: {
-        matterId: params.matterId,
-        storageId: params.storageId,
+  await Promise.all([
+    recordWebDavDownloadIssued(c.get('deps'), params),
+    recordDownloadIssued(
+      c.get('deps'),
+      transferAuditActor(c.get('principal')),
+      'webdav_download',
+      {
+        orgId: params.orgId,
+        targetType: 'file',
+        targetId: params.matterId,
+        targetName: params.matterName,
+        bytes: params.bytes,
+        source: 'webdav_download',
+        metadata: {
+          matterId: params.matterId,
+          storageId: params.storageId,
+        },
       },
-    },
-    params.trafficEventId,
-  )
+      params.trafficEventId,
+    ),
+  ])
+}
+
+async function waitUntilOrAwait(c: DavContext, operation: string, task: Promise<void>): Promise<void> {
+  const loggedTask = task.catch((error) => {
+    console.error(JSON.stringify({ message: 'webdav.background.error', operation, error: errorMessage(error) }))
+    throw error
+  })
+  try {
+    c.executionCtx.waitUntil(loggedTask)
+  } catch {
+    await loggedTask
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function isExpectedStreamCancellation(error: unknown): boolean {
+  const message = errorMessage(error)
+  return message === 'Network connection lost.' || message.includes('destination stream aborted')
 }
 
 // Meters a WebDAV download (consume traffic quota → report egress) and renders
