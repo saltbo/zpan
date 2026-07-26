@@ -30,6 +30,35 @@ describe('Site configuration API', () => {
     expect(body).toHaveProperty('branding')
   })
 
+  it('caches configz in memory and supports conditional requests', async () => {
+    const { app } = await createTestApp()
+    const first = await app.request('https://pan.example.com/api/configz')
+    const etag = first.headers.get('etag')
+
+    expect(first.headers.get('x-zpan-cache')).toBe('source')
+    expect(first.headers.get('cache-control')).toContain('s-maxage=60')
+    expect(etag).toMatch(/^"[a-f0-9]{64}"$/)
+
+    const second = await app.request('https://pan.example.com/api/configz')
+    expect(second.headers.get('x-zpan-cache')).toBe('memory')
+
+    const conditional = await app.request('https://pan.example.com/api/configz', {
+      headers: { 'If-None-Match': etag ?? '' },
+    })
+    expect(conditional.status).toBe(304)
+    expect(await conditional.text()).toBe('')
+  })
+
+  it('disables configz caching in off mode', async () => {
+    const { app } = await createTestApp({ ZPAN_CACHE_MODE: 'off' })
+    const first = await app.request('https://pan.example.com/api/configz')
+    const second = await app.request('https://pan.example.com/api/configz')
+
+    expect(first.headers.get('cache-control')).toBe('no-store')
+    expect(first.headers.get('x-zpan-cache')).toBe('bypass')
+    expect(second.headers.get('x-zpan-cache')).toBe('bypass')
+  })
+
   it('requires admin for structured settings and removes generic Options [spec: system/settings-admin-only]', async () => {
     const { app } = await createTestApp()
     expect((await app.request('/api/site/settings')).status).toBe(401)

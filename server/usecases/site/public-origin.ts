@@ -1,18 +1,12 @@
-import { normalizePublicOrigin, originFromRequestUrl, SITE_PUBLIC_ORIGIN_KEY } from '../../domain/site-public-origin'
-import type { SystemOptionsRepo } from '../ports'
-
-// Resolved origin, cached for the lifetime of the isolate/process. Only the
-// settled value is cached — never a pending promise, which on Cloudflare
-// Workers would hang any request that awaited it after its creating request
-// ended. One worker serves one site, so a single slot is enough; staleness is
-// harmless because the middleware only acts when the row is first created.
-let cachedOrigin: string | null = null
+import { originFromRequestUrl, SITE_PUBLIC_ORIGIN_KEY } from '../../domain/site-public-origin'
+import type { CacheService, SystemOptionsRepo } from '../ports'
+import { getSiteRoutingConfig, refreshSiteRoutingConfig } from './routing-config'
 
 export function resetSitePublicOriginCache() {
-  cachedOrigin = null
+  // Kept for test compatibility. Cache lifetime now belongs to each runtime.
 }
 
-export type SitePublicOriginDeps = { systemOptions: SystemOptionsRepo }
+export type SitePublicOriginDeps = { systemOptions: SystemOptionsRepo; cache?: CacheService }
 
 export interface EnsureSitePublicOriginResult {
   origin: string | null
@@ -20,18 +14,15 @@ export interface EnsureSitePublicOriginResult {
 }
 
 export async function getSitePublicOrigin(deps: SitePublicOriginDeps): Promise<string | null> {
-  return normalizePublicOrigin(await deps.systemOptions.getValue(SITE_PUBLIC_ORIGIN_KEY))
+  return (await getSiteRoutingConfig(deps)).publicOrigin
 }
 
 export async function ensureSitePublicOrigin(
   deps: SitePublicOriginDeps,
   requestUrl: string,
 ): Promise<EnsureSitePublicOriginResult> {
-  if (cachedOrigin) return { origin: cachedOrigin, created: false }
-
   const existing = await getSitePublicOrigin(deps)
   if (existing) {
-    cachedOrigin = existing
     return { origin: existing, created: false }
   }
 
@@ -42,7 +33,6 @@ export async function ensureSitePublicOrigin(
   // so the re-read below settles on the persisted value either way.
   await deps.systemOptions.set(SITE_PUBLIC_ORIGIN_KEY, origin)
 
-  const saved = await getSitePublicOrigin(deps)
-  if (saved) cachedOrigin = saved
+  const saved = (await refreshSiteRoutingConfig(deps)).publicOrigin
   return { origin: saved, created: saved === origin }
 }

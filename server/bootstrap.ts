@@ -1,8 +1,10 @@
 import { createApp } from './app'
 import { createAuth } from './auth'
+import { createDeps } from './composition'
 import type { Platform } from './platform/interface'
+import type { Deps } from './usecases/deps'
 
-export async function createBootstrap(platform: Platform) {
+export async function createBootstrap(platform: Platform, deps: Deps = createDeps(platform)) {
   const secret = platform.getEnv('BETTER_AUTH_SECRET')
   if (!secret) {
     throw new Error('BETTER_AUTH_SECRET is required. Set it in the environment before starting the server.')
@@ -16,5 +18,5 @@ export async function createBootstrap(platform: Platform) {
     .filter(Boolean) || ['http://localhost:5185']
 
   const auth = await createAuth(platform, secret, baseURL, trustedOrigins)
-  return createApp(platform, auth)
+  return createApp(platform, auth, deps)
 }

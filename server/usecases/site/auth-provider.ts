@@ -20,12 +20,21 @@ import {
 import type { SiteConfig } from '@shared/schemas'
 import type { AuthProvider } from '@shared/types'
 import { hasFeature } from '../../domain/licensing'
-import { type AppError, badRequest, featureBlocked, type LicenseBindingRepo, type SystemOptionsRepo } from '../ports'
+import {
+  type AppError,
+  badRequest,
+  type CacheService,
+  featureBlocked,
+  type LicenseBindingRepo,
+  type SystemOptionsRepo,
+} from '../ports'
+import { invalidateSiteConfig } from './config-cache'
 import { loadBindingState } from './licensing'
 
 export type AuthProviderDeps = {
   systemOptions: SystemOptionsRepo
   licenseBinding: LicenseBindingRepo
+  cache?: CacheService
 }
 
 function optionKey(providerId: string): string {
@@ -158,14 +167,16 @@ export async function upsertAuthProvider(
     await deps.systemOptions.set(key, value)
   }
 
+  await invalidateSiteConfig(deps)
   return { ok: true, config: toAuthProvider(config, authOrigin) }
 }
 
 export async function deleteAuthProvider(
-  deps: Pick<AuthProviderDeps, 'systemOptions'>,
+  deps: Pick<AuthProviderDeps, 'systemOptions' | 'cache'>,
   providerId: string,
 ): Promise<DeleteProviderOutcome> {
   if (!isValidProviderId(providerId)) return { ok: false, error: badRequest(INVALID_PROVIDER_ID_MESSAGE) }
   await deps.systemOptions.delete(optionKey(providerId))
+  await invalidateSiteConfig(deps)
   return { ok: true }
 }

@@ -1,3 +1,4 @@
+import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
 import worker from './bootstrap'
@@ -47,6 +48,23 @@ describe('[CF] Worker fetch handler', () => {
 
     const primary = await worker.fetch(new Request('https://pan.example.com/api/health'), testEnv)
     expect(primary.status).toBe(200)
+  })
+
+  it('serves public config from the Worker response cache after the first request', async () => {
+    const request = new Request('https://cache-test.example.com/api/configz')
+    const firstCtx = createExecutionContext()
+    const first = await worker.fetch(request, testEnv, firstCtx)
+    await waitOnExecutionContext(firstCtx)
+
+    expect(first.status).toBe(200)
+    expect(first.headers.get('x-zpan-cache')).not.toBe('edge')
+
+    const secondCtx = createExecutionContext()
+    const second = await worker.fetch(request, testEnv, secondCtx)
+    await waitOnExecutionContext(secondCtx)
+
+    expect(second.status).toBe(200)
+    expect(second.headers.get('x-zpan-cache')).toBe('edge')
   })
 })
 

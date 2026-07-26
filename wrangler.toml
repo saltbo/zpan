@@ -14,6 +14,13 @@ database_name = "zpan-db"
 database_id = "5bd64957-fa49-4da0-8b7b-6e0ad84037e7"
 migrations_dir = "./migrations"
 
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "2721f9d7b47d433d8a0e02171e276f57"
+
+[vars]
+ZPAN_CACHE_MODE = "distributed"
+
 [[send_email]]
 name = "EMAIL"
 
@@ -55,12 +62,17 @@ crons = ["*/10 * * * *", "10 * * * *", "0 */6 * * *", "0 */12 * * *", "0 0 1 * *
 [env.staging.vars]
 BETTER_AUTH_URL = "https://zpan-staging.saltbo.workers.dev"
 ZPAN_CLOUD_URL = "https://zpan-cloud-staging.saltbo.workers.dev"
+ZPAN_CACHE_MODE = "distributed"
 
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "zpan-db-staging"
 database_id = "a9197d7a-6524-42f0-b646-e714dcb30b3b"
 migrations_dir = "./migrations"
+
+[[env.staging.kv_namespaces]]
+binding = "CACHE_KV"
+id = "7d8625bacbc54e23a46ca4464a9f64a0"
 
 [[env.staging.r2_buckets]]
 binding = "PUBLIC_IMAGES"

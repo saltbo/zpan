@@ -86,15 +86,17 @@ beforeEach(() => {
 
 describe('imageHostingDomain middleware — app-host passthrough', () => {
   it('default app host → next(), normal routing works', async () => {
-    const { app } = await createTestApp({ PUBLIC_APP_HOST: 'zpan.example.com' })
+    const { app, deps } = await createTestApp()
+    await deps.systemOptions.set('site_public_origin', 'https://zpan.example.com')
     const res = await app.request('/api/health', {
       headers: { host: 'zpan.example.com' },
     })
     expect(res.status).toBe(200)
   })
 
-  it('subdomain of app host → next()', async () => {
-    const { app } = await createTestApp({ PUBLIC_APP_HOST: 'zpan.example.com' })
+  it('unclaimed subdomain of app host → next()', async () => {
+    const { app, deps } = await createTestApp()
+    await deps.systemOptions.set('site_public_origin', 'https://zpan.example.com')
     const res = await app.request('/api/health', {
       headers: { host: 'sub.zpan.example.com' },
     })

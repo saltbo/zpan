@@ -1,12 +1,16 @@
+import { createCloudflareKvBackend } from '../server/adapters/cache/cloudflare-kv'
+import { createRuntimeCache, resolveCacheMode } from '../server/adapters/cache/runtime-cache'
 import { createArchiveJobsGateway } from '../server/adapters/gateways/archive-jobs'
 import { createShareRepo } from '../server/adapters/repos/share'
 import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
+import { createDeps } from '../server/composition'
 import { isPotentialWebDavPublicRequest } from '../server/domain/webdav-public-url'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { platformContext } from '../server/platform/context'
-import type { ArchiveJobMessage } from '../server/usecases/ports'
+import type { Deps } from '../server/usecases/deps'
+import type { ArchiveJobMessage, CacheService } from '../server/usecases/ports'
 import { DirType } from '../shared/constants'
 import { handleScheduled } from './scheduled'
 
@@ -16,6 +20,7 @@ interface Env {
   BETTER_AUTH_URL?: string
   TRUSTED_ORIGINS?: string
   ASSETS: Fetcher
+  CACHE_KV?: KVNamespace
   [key: string]: unknown
 }
 
@@ -28,7 +33,69 @@ const SHARE_TOKEN_RE = /^\/s\/([^/?#]+)/
 // request on the WebDAV hostname from fixing the primary app base URL without
 // allowing arbitrary Host headers to grow the cache. Changes to OAuth provider
 // configs or env vars take effect on isolate recycle.
-const cachedAuthBySlot = new Map<'configured' | 'primary' | 'webdav', Auth>()
+type AuthSlot = 'configured' | 'primary' | 'webdav'
+
+interface WorkerRuntime {
+  platform: ReturnType<typeof createCloudflarePlatform>
+  deps: Deps
+  cache: CacheService
+  authBySlot: Map<AuthSlot, Auth>
+  appBySlot: Map<AuthSlot, ReturnType<typeof createApp>>
+}
+
+let cachedRuntime: WorkerRuntime | undefined
+const responseCache = (
+  caches as unknown as {
+    default: {
+      match(request: Request): Promise<Response | undefined>
+      put(request: Request, response: Response): Promise<void>
+    }
+  }
+).default
+
+function runtimeFor(env: Env): WorkerRuntime {
+  if (cachedRuntime) return cachedRuntime
+
+  const platform = createCloudflarePlatform(env)
+  const distributed = env.CACHE_KV ? createCloudflareKvBackend(env.CACHE_KV) : undefined
+  const cache = createRuntimeCache({
+    mode: resolveCacheMode(env.ZPAN_CACHE_MODE as string | undefined, !!distributed),
+    distributed,
+  })
+  cachedRuntime = {
+    platform,
+    cache,
+    deps: createDeps(platform, { cache }),
+    authBySlot: new Map(),
+    appBySlot: new Map(),
+  }
+  return cachedRuntime
+}
+
+async function appForRequest(
+  runtime: WorkerRuntime,
+  request: Request,
+  env: Env,
+): Promise<ReturnType<typeof createApp>> {
+  const origin = new URL(request.url).origin
+  const webDavRequest = isPotentialWebDavPublicRequest(request.url)
+  const inferredOrigin = origin
+  const baseURL = env.BETTER_AUTH_URL || inferredOrigin
+  const trustedOrigins = env.TRUSTED_ORIGINS?.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean) || [inferredOrigin]
+  const slot: AuthSlot = env.BETTER_AUTH_URL ? 'configured' : webDavRequest ? 'webdav' : 'primary'
+
+  const cachedApp = runtime.appBySlot.get(slot)
+  const cachedAuth = runtime.authBySlot.get(slot)
+  if (cachedApp && cachedAuth) return cachedApp
+
+  const auth = await createAuth(runtime.platform, env.BETTER_AUTH_SECRET, baseURL, trustedOrigins)
+  const app = createApp(runtime.platform, auth, runtime.deps)
+  runtime.authBySlot.set(slot, auth)
+  runtime.appBySlot.set(slot, app)
+  return app
+}
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -36,31 +103,22 @@ export default {
     if (!BETTER_AUTH_SECRET) {
       throw new Error('BETTER_AUTH_SECRET is not configured for this deployment.')
     }
-    const platform = createCloudflarePlatform(env)
-    const origin = new URL(request.url).origin
-    const webDavRequest = isPotentialWebDavPublicRequest(request.url)
-    const inferredOrigin = origin
-    const baseURL = env.BETTER_AUTH_URL || inferredOrigin
-    const trustedOrigins = env.TRUSTED_ORIGINS?.split(',')
-      .map((o) => o.trim())
-      .filter(Boolean) || [inferredOrigin]
-    const authSlot = env.BETTER_AUTH_URL ? 'configured' : webDavRequest ? 'webdav' : 'primary'
+    const runtime = runtimeFor(env)
+    const edgeCached = await matchConfigzResponseCache(request, runtime.cache)
+    if (edgeCached) return edgeCached
+    const app = await appForRequest(runtime, request, env)
 
-    let auth = cachedAuthBySlot.get(authSlot)
-    if (!auth) {
-      auth = await createAuth(platform, BETTER_AUTH_SECRET, baseURL, trustedOrigins)
-      cachedAuthBySlot.set(authSlot, auth)
-    }
-
-    return platformContext.run(platform, async () => {
+    return platformContext.run(runtime.platform, async () => {
       const url = new URL(request.url)
       const shareMatch = SHARE_TOKEN_RE.exec(url.pathname)
 
       if (shareMatch && request.method === 'GET') {
-        return handleShareSsr(request, env, ctx, shareMatch[1], platform, auth)
+        return handleShareSsr(request, env, ctx, shareMatch[1], runtime.platform, app)
       }
 
-      return createApp(platform, auth).fetch(request, env, ctx)
+      const response = await app.fetch(request, env, ctx)
+      cacheConfigzResponse(request, response, runtime.cache, ctx)
+      return response
     })
   },
 
@@ -76,6 +134,54 @@ export default {
       message.ack()
     }
   },
+}
+
+function configzCacheKey(request: Request, includeValidators = false): Request | null {
+  if (request.method !== 'GET') return null
+  const url = new URL(request.url)
+  if (url.pathname !== '/api/configz' && url.pathname !== '/api/configz/') return null
+  url.search = ''
+  const ifNoneMatch = request.headers.get('If-None-Match')
+  return new Request(url.toString(), {
+    method: 'GET',
+    headers: includeValidators && ifNoneMatch ? { 'If-None-Match': ifNoneMatch } : undefined,
+  })
+}
+
+async function matchConfigzResponseCache(request: Request, cache: CacheService): Promise<Response | null> {
+  if (cache.mode !== 'distributed') return null
+  const key = configzCacheKey(request, true)
+  if (!key) return null
+  try {
+    const matched = await responseCache.match(key)
+    if (!matched) return null
+    const response = new Response(matched.body, matched)
+    response.headers.set('X-ZPan-Cache', 'edge')
+    return response
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        message: 'cache.response.get.error',
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    )
+    return null
+  }
+}
+
+function cacheConfigzResponse(request: Request, response: Response, cache: CacheService, ctx: ExecutionContext): void {
+  if (cache.mode !== 'distributed' || response.status !== 200) return
+  const key = configzCacheKey(request)
+  if (!key) return
+  const task = responseCache.put(key, response.clone()).catch((error: unknown) => {
+    console.error(
+      JSON.stringify({
+        message: 'cache.response.put.error',
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    )
+  })
+  ctx.waitUntil(task)
 }
 
 interface ShareMeta {
@@ -139,7 +245,7 @@ async function handleShareSsr(
   ctx: ExecutionContext,
   token: string,
   platform: ReturnType<typeof createCloudflarePlatform>,
-  auth: Auth,
+  app: ReturnType<typeof createApp>,
 ): Promise<Response> {
   const url = new URL(request.url)
   const origin = url.origin
@@ -150,7 +256,7 @@ async function handleShareSsr(
   ])
 
   if (!spaRes.ok) {
-    return createApp(platform, auth).fetch(request, env, ctx)
+    return app.fetch(request, env, ctx)
   }
 
   const html = await spaRes.text()

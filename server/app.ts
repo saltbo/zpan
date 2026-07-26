@@ -4,6 +4,7 @@ import { Scalar } from '@scalar/hono-api-reference'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
+import { cacheServerTiming, runWithCacheEvents } from './cache/context'
 import { createDeps } from './composition'
 import { isPotentialWebDavPublicRequest, isWebDavPublicRequest } from './domain/webdav-public-url'
 import { adminOverview } from './http/admin-overview'
@@ -51,28 +52,32 @@ import type { Platform } from './platform/interface'
 import { getDeployPlatform } from './runtime-platform'
 import type { Deps } from './usecases/deps'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/site/instance-telemetry'
-import { ensureSitePublicOrigin, getSitePublicOrigin } from './usecases/site/public-origin'
-import { getSiteWebDavRuntimeConfig } from './usecases/site/settings'
+import { ensureSitePublicOrigin } from './usecases/site/public-origin'
+import { getSiteRoutingConfig } from './usecases/site/routing-config'
 
 export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
   const app = new OpenAPIHono<Env>()
   const corsOrigins = getCorsOrigins(platform)
 
   app.use('/*', platformMiddleware(platform, auth))
+  app.use('/*', async (c, next) =>
+    runWithCacheEvents(async () => {
+      await next()
+      const serverTiming = cacheServerTiming()
+      if (serverTiming) c.res.headers.append('Server-Timing', serverTiming)
+    }),
+  )
   app.use('/*', async (c, next) => {
     c.set('deps', deps)
     await next()
   })
   app.use('/*', async (c, next) => {
     if (isPotentialWebDavPublicRequest(c.req.url)) {
-      const [sitePublicOrigin, webDavConfig] = await Promise.all([
-        getSitePublicOrigin(deps),
-        getSiteWebDavRuntimeConfig(deps),
-      ])
-      c.set('webDavEnabled', webDavConfig.enabled)
-      c.set('webDavDomain', webDavConfig.domain)
-      const routingOrigin = sitePublicOrigin ?? (webDavConfig.domain ? new URL(c.req.url).origin : null)
-      if (webDavConfig.enabled && isWebDavPublicRequest(c.req.url, routingOrigin, webDavConfig.domain)) {
+      const routing = await getSiteRoutingConfig(deps)
+      c.set('webDavEnabled', routing.webDavEnabled)
+      c.set('webDavDomain', routing.webDavDomain)
+      const routingOrigin = routing.publicOrigin ?? (routing.webDavDomain ? new URL(c.req.url).origin : null)
+      if (routing.webDavEnabled && isWebDavPublicRequest(c.req.url, routingOrigin, routing.webDavDomain)) {
         c.set('sitePublicOrigin', routingOrigin)
         c.set('webDavMountPath', '')
         await next()
@@ -83,6 +88,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       console.error(`site.public_origin.detect.error code=${formatError(err)}`)
       return { origin: null, created: false }
     })
+    c.set('sitePublicOrigin', result.origin)
 
     if (result.created && result.origin && shouldReportInitialTelemetry(c.req.url)) {
       const task = reportInstanceTelemetry(deps, {
@@ -188,13 +194,31 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
 
   app.route('/dav', webdav)
 
-  // Resolve the caller's principal for every /api/* route. authMiddleware is
+  // Resolve the caller's principal for API routes that can use it. Public,
+  // identity-independent health/config responses skip session resolution so
+  // their hot path does not touch auth tables.
+  const skipsPrincipalResolution = (path: string) =>
+    path === '/api/configz' || path === '/api/configz/' || path === '/api/health'
+
+  // authMiddleware is
   // soft-fail: it populates userId/orgId/principal (or null) and never rejects an
   // anonymous caller — per-route guards (requireAuth/requireAdmin/requireTeamRole,
   // or a shared-secret/signature check) do the gating. Running it ahead of every
   // /api route lets one router per resource mix public and authed endpoints.
-  app.use('/api/*', authMiddleware)
-  app.use('/api/*', auditMiddleware)
+  app.use('/api/*', async (c, next) => {
+    if (skipsPrincipalResolution(c.req.path)) {
+      await next()
+      return
+    }
+    await authMiddleware(c, next)
+  })
+  app.use('/api/*', async (c, next) => {
+    if (skipsPrincipalResolution(c.req.path)) {
+      await next()
+      return
+    }
+    await auditMiddleware(c, next)
+  })
 
   // Public routes — no per-route auth guard.
   // /api/shares/:token endpoints are covered by run_worker_first=["/api/*"] in wrangler.toml.

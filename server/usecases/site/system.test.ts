@@ -33,7 +33,9 @@ beforeEach(() => vi.clearAllMocks())
 describe('system usecase', () => {
   describe('resolveInstanceInfo', () => {
     it('uses the stored site origin when present', async () => {
-      const deps = makeDeps({ getValue: async () => 'https://files.example.com' })
+      const deps = makeDeps({
+        getMany: async () => [{ key: 'site_public_origin', value: 'https://files.example.com' }],
+      })
       const info = await resolveInstanceInfo(deps, {
         requestUrl: 'https://req.example.com/api/system/instance',
         runtime,

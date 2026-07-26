@@ -10,15 +10,17 @@ import type { SiteBranding, SiteConfig } from '@shared/schemas'
 import { readCaptchaConfig } from '../../domain/captcha'
 import { normalizePublicOrigin } from '../../domain/site-public-origin'
 import { effectiveWebDavUrl } from '../../domain/webdav-public-url'
-import type { LicenseBindingRepo, SystemOptionsRepo } from '../ports'
+import type { CacheService, LicenseBindingRepo, SystemOptionsRepo } from '../ports'
 import { listPublicAuthProviders } from './auth-provider'
 import { readBranding } from './branding'
+import { SITE_CONFIG_CACHE_KEY, SITE_CONFIG_CACHE_POLICY } from './config-cache'
 import { resolveEffectiveSignupMode } from './licensing'
-import { SITE_SETTING_KEYS } from './settings'
+import { SITE_SETTING_KEYS } from './setting-keys'
 
 export type ConfigzDeps = {
   systemOptions: SystemOptionsRepo
   licenseBinding: LicenseBindingRepo
+  cache?: CacheService
 }
 
 const CONFIG_KEYS = [
@@ -59,7 +61,7 @@ function brandingView(config: Awaited<ReturnType<typeof readBranding>>): SiteBra
   }
 }
 
-export async function getSiteConfig(deps: ConfigzDeps, requestUrl: string): Promise<SiteConfig> {
+async function loadSiteConfig(deps: ConfigzDeps, requestUrl: string): Promise<SiteConfig> {
   const [rows, branding, providers] = await Promise.all([
     deps.systemOptions.getMany(CONFIG_KEYS),
     readBranding(deps),
@@ -99,4 +101,11 @@ export async function getSiteConfig(deps: ConfigzDeps, requestUrl: string): Prom
       },
     },
   }
+}
+
+export async function getSiteConfig(deps: ConfigzDeps, requestUrl: string): Promise<SiteConfig> {
+  if (!deps.cache) return loadSiteConfig(deps, requestUrl)
+  return (
+    await deps.cache.getOrLoad(SITE_CONFIG_CACHE_POLICY, SITE_CONFIG_CACHE_KEY, () => loadSiteConfig(deps, requestUrl))
+  ).value
 }

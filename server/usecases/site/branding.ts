@@ -5,10 +5,12 @@ import {
   type BrandingThemeMode,
   isBrandingThemePresetId,
 } from '@shared/types'
-import type { SystemOptionsRepo } from '../ports'
+import type { CacheService, SystemOptionsRepo } from '../ports'
+import { invalidateSiteConfig } from './config-cache'
 
 export type BrandingDeps = {
   systemOptions: SystemOptionsRepo
+  cache?: CacheService
 }
 
 const LOGO_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'] as const
@@ -126,6 +128,7 @@ export async function applyBrandingUpdate(
     changedFields.push(field)
   }
 
+  if (changedFields.length > 0) await invalidateSiteConfig(deps)
   return { ok: true, config: await readBranding(deps), changedFields }
 }
 
@@ -140,6 +143,7 @@ export async function resetBranding(deps: BrandingDeps, params: { field: Brandin
   } else {
     await resetBrandingField(deps, field as keyof typeof BRANDING_KEYS)
   }
+  await invalidateSiteConfig(deps)
 }
 
 // Encodes the uploaded file as a `data:` URI and stores it in the branding

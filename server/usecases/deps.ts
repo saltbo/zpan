@@ -10,6 +10,7 @@ import type {
   ArchiveTargetFolderRepo,
   AuditRepo,
   BackgroundJobRepo,
+  CacheService,
   CfHostnamesProvider,
   ChangelogProvider,
   CloudStoreRepo,
@@ -58,6 +59,7 @@ export interface Deps {
   archiveJobs: ArchiveJobsGateway
   archiveTargetFolders: ArchiveTargetFolderRepo
   backgroundJobs: BackgroundJobRepo
+  cache: CacheService
   cfHostnames: CfHostnamesProvider
   changelog: ChangelogProvider
   cloudStore: CloudStoreRepo

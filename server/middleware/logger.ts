@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
+import { cacheLogSummary } from '../cache/context'
 import type { Env } from './platform'
 
 // The request boundary for /api and /dav: one structured line per request, logged
@@ -28,6 +29,7 @@ function accessLogFields(c: Context<Env>, start: number): Array<[string, string 
     ['status', status],
     ['ms', Date.now() - start],
     ['uid', c.get('userId') ?? '-'],
+    ['cache', cacheLogSummary()],
   ]
 
   if (c.req.path.startsWith('/dav/')) {

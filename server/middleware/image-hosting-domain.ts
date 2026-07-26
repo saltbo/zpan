@@ -2,6 +2,7 @@ import type { Context, Next } from 'hono'
 import { PRESIGN_TTL_SECS } from '../http/share-utils'
 import { reportTrafficForDownload } from '../http/store/traffic-metering'
 import type { Env } from '../middleware/platform'
+import { resolveCachedImageDomain } from '../usecases/image-hosting/domain-cache'
 import { forbidden, notFound, quotaExceeded, storageNotFound } from '../usecases/ports'
 import { confirmDownloadTraffic, reverseDownloadTraffic } from '../usecases/store/traffic-metering'
 import { createTrafficEventId, recordDownloadFailure, recordDownloadIssued } from '../usecases/transfer-activity'
@@ -20,13 +21,9 @@ function normalizeHost(raw: string): string | null {
 
 function getAppHostCandidates(c: Context<Env>): string[] {
   const candidates = ['workers.dev'] // *.workers.dev covers preview deployments
-  const appHost = c.get('platform').getEnv('PUBLIC_APP_HOST')
-  if (appHost) {
-    const bare = appHost
-      .replace(/^https?:\/\//, '')
-      .split('/')[0]
-      .toLowerCase()
-    if (bare) candidates.push(bare)
+  const publicOrigin = c.get('sitePublicOrigin')
+  if (publicOrigin) {
+    candidates.push(new URL(publicOrigin).hostname.toLowerCase())
   }
   return candidates
 }
@@ -153,11 +150,13 @@ export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<R
   if (c.get('webDavMountPath') === '') return next()
 
   const appHosts = getAppHostCandidates(c)
-  if (appHosts.some((h) => host === h || host.endsWith(`.${h}`))) {
+  if (
+    appHosts.some((candidate) => host === candidate || (candidate === 'workers.dev' && host.endsWith('.workers.dev')))
+  ) {
     return next()
   }
 
-  const orgId = await c.get('deps').imageHosting.resolveCustomDomain(host)
+  const orgId = await resolveCachedImageDomain(c.get('deps'), host)
   if (!orgId) return next()
 
   const virtualPath = c.req.path.replace(/^\/+/, '')

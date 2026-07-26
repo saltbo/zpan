@@ -34,7 +34,10 @@ describe('ensureSitePublicOrigin', () => {
     await ensureSitePublicOrigin(deps, 'https://pan.example.com/files')
 
     // Any DB access would throw on a null handle — the cache must answer.
-    const result = await ensureSitePublicOrigin({ systemOptions: null as never }, 'https://other.example.com/files')
+    const result = await ensureSitePublicOrigin(
+      { cache: deps.cache, systemOptions: null as never },
+      'https://other.example.com/files',
+    )
 
     expect(result).toEqual({ origin: 'https://pan.example.com', created: false })
   })

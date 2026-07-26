@@ -28,37 +28,22 @@ import type {
 } from '@shared/schemas'
 import { readCaptchaConfig } from '../../domain/captcha'
 import { hasFeature } from '../../domain/licensing'
-import { normalizePublicOrigin, SITE_PUBLIC_ORIGIN_KEY } from '../../domain/site-public-origin'
+import { normalizePublicOrigin } from '../../domain/site-public-origin'
 import { WEBDAV_AUTH_CHALLENGE, webDavPathUrl, webDavPublicUrl } from '../../domain/webdav-public-url'
 import { badRequest, featureBlocked, type LicenseBindingRepo, type SystemOptionsRepo } from '../ports'
+import { invalidateSiteConfig } from './config-cache'
 import { loadBindingState, resolveEffectiveSignupMode } from './licensing'
-import { resetSitePublicOriginCache } from './public-origin'
+import { getSiteRoutingConfig, refreshSiteRoutingConfig } from './routing-config'
+import { SITE_SETTING_KEYS } from './setting-keys'
 
-export const SITE_SETTING_KEYS = {
-  name: 'site_name',
-  description: 'site_description',
-  publicOrigin: SITE_PUBLIC_ORIGIN_KEY,
-  signupMode: 'auth_signup_mode',
-  captchaEnabled: CAPTCHA_ENABLED_KEY,
-  captchaProvider: CAPTCHA_PROVIDER_KEY,
-  captchaSiteKey: CAPTCHA_SITE_KEY_KEY,
-  captchaSecretKey: CAPTCHA_SECRET_OPTION_KEY,
-  captchaMinScore: CAPTCHA_MIN_SCORE_KEY,
-  defaultOrgQuota: 'default_org_quota',
-  defaultTeamQuota: 'default_team_quota',
-  defaultMonthlyTrafficQuota: 'default_org_monthly_traffic_quota',
-  webdavVerifiedOrigin: 'webdav_verified_origin',
-  webdavVerifiedAt: 'webdav_verified_at',
-  webdavVerificationError: 'webdav_verification_error',
-  webdavEnabled: 'webdav_enabled',
-  webdavDomain: 'webdav_domain',
-} as const
+export { SITE_SETTING_KEYS } from './setting-keys'
 
 const ALL_SETTING_KEYS = Object.values(SITE_SETTING_KEYS)
 
 export type SiteSettingsDeps = {
   systemOptions: SystemOptionsRepo
   licenseBinding: LicenseBindingRepo
+  cache?: import('../ports').CacheService
 }
 
 function optionMap(rows: Array<{ key: string; value: string }>): Map<string, string> {
@@ -150,14 +135,12 @@ function webdavFrom(values: Map<string, string>, requestUrl: string): SiteWebDav
 }
 
 export async function getSiteWebDavRuntimeConfig(
-  deps: Pick<SiteSettingsDeps, 'systemOptions'>,
+  deps: Pick<SiteSettingsDeps, 'systemOptions' | 'cache'>,
 ): Promise<{ enabled: boolean; domain: string }> {
-  const values = optionMap(
-    await deps.systemOptions.getMany([SITE_SETTING_KEYS.webdavEnabled, SITE_SETTING_KEYS.webdavDomain]),
-  )
+  const config = await getSiteRoutingConfig(deps)
   return {
-    enabled: isWebDavEnabled(values),
-    domain: values.get(SITE_SETTING_KEYS.webdavDomain)?.trim() ?? '',
+    enabled: config.webDavEnabled,
+    domain: config.webDavDomain,
   }
 }
 
@@ -225,12 +208,13 @@ export async function updateSiteIdentity(
         ]
       : []),
   ])
-  resetSitePublicOriginCache()
+  await refreshSiteRoutingConfig(deps)
+  await invalidateSiteConfig(deps)
   return { ...input, publicUrl }
 }
 
 export async function verifySiteWebDav(
-  deps: Pick<SiteSettingsDeps, 'systemOptions'>,
+  deps: Pick<SiteSettingsDeps, 'systemOptions' | 'cache'>,
   requestUrl: string,
   fetcher: typeof fetch,
 ): Promise<SiteWebDavSettings> {
@@ -269,12 +253,13 @@ export async function verifySiteWebDav(
     { key: SITE_SETTING_KEYS.webdavVerifiedAt, value: verifiedAt },
     { key: SITE_SETTING_KEYS.webdavVerificationError, value: error ?? '' },
   ])
+  await invalidateSiteConfig(deps)
   const updatedValues = optionMap(await deps.systemOptions.getMany(ALL_SETTING_KEYS))
   return webdavFrom(updatedValues, requestUrl)
 }
 
 export async function updateSiteWebDav(
-  deps: Pick<SiteSettingsDeps, 'systemOptions'>,
+  deps: Pick<SiteSettingsDeps, 'systemOptions' | 'cache'>,
   input: UpdateSiteWebDavInput,
   requestUrl: string,
 ): Promise<SiteWebDavSettings> {
@@ -293,6 +278,8 @@ export async function updateSiteWebDav(
         ]
       : []),
   ])
+  await refreshSiteRoutingConfig(deps)
+  await invalidateSiteConfig(deps)
 
   return webdavFrom(optionMap(await deps.systemOptions.getMany(ALL_SETTING_KEYS)), requestUrl)
 }
@@ -310,6 +297,7 @@ export async function updateSiteRegistration(
     }
   }
   await deps.systemOptions.set(SITE_SETTING_KEYS.signupMode, input.mode)
+  await invalidateSiteConfig(deps)
   return {
     configuredMode: input.mode,
     effectiveMode: await resolveEffectiveSignupMode(deps, input.mode),
@@ -336,6 +324,7 @@ export async function updateSiteCaptcha(
   }
 
   await deps.systemOptions.setMany(Object.entries(values).map(([key, value]) => ({ key, value })))
+  await invalidateSiteConfig(deps)
   return captchaFrom(optionMap(Object.entries(values).map(([key, value]) => ({ key, value }))))
 }
 

@@ -477,7 +477,7 @@ describe('public redirect cloud traffic reporting', () => {
   })
 
   it('reports custom-domain image-hosting redirects to Cloud', async () => {
-    const { app, db } = await createTestApp({ PUBLIC_APP_HOST: 'zpan.example.com' })
+    const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
     await authedHeaders(app)
@@ -498,7 +498,7 @@ describe('public redirect cloud traffic reporting', () => {
   })
 
   it('still redirects custom-domain images when access-count recording fails after local traffic queue', async () => {
-    const { app, db } = await createTestApp({ PUBLIC_APP_HOST: 'zpan.example.com' })
+    const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)

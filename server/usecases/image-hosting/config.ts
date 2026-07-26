@@ -22,10 +22,12 @@ import {
   type ImageHostingConfigRecord,
   type ImageHostingConfigRepo,
 } from '../ports'
+import { cacheVerifiedImageDomain, invalidateImageDomain } from './domain-cache'
 
 export type ImageHostingConfigDeps = {
   imageHostingConfigs: ImageHostingConfigRepo
   cfHostnames: CfHostnamesProvider
+  cache?: import('../ports').CacheService
 }
 
 // The request-scoped Cloudflare settings the http layer resolves from the
@@ -63,6 +65,7 @@ export async function getImageHostingConfig(
       const now = new Date()
       await deps.imageHostingConfigs.update(orgId, { domainVerifiedAt: now })
       row.domainVerifiedAt = now
+      await cacheVerifiedImageDomain(deps, row.customDomain, orgId)
     }
   }
 
@@ -118,6 +121,7 @@ export async function putImageHostingConfig(
       if (isUniqueViolation(e)) return { ok: false, error: domainConflictError() }
       throw e
     }
+    await invalidateImageDomain(deps, newDomain)
 
     return {
       ok: true,
@@ -183,6 +187,7 @@ export async function putImageHostingConfig(
     if (isUniqueViolation(e)) return { ok: false, error: domainConflictError() }
     throw e
   }
+  await Promise.all([invalidateImageDomain(deps, oldDomain), invalidateImageDomain(deps, newDomain)])
 
   return {
     ok: true,
@@ -216,4 +221,5 @@ export async function deleteImageHostingConfig(deps: ImageHostingConfigDeps, org
   }
 
   await deps.imageHostingConfigs.delete(orgId)
+  await invalidateImageDomain(deps, row.customDomain)
 }

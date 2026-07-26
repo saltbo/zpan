@@ -148,6 +148,12 @@
       },
       "DB": {
         "description": "D1 database for storing users, files, and settings"
+      },
+      "CACHE_KV": {
+        "description": "Workers KV namespace for distributed application caches"
+      },
+      "ZPAN_CACHE_MODE": {
+        "description": "Cache mode: off, memory, or distributed"
       }
     }
   },

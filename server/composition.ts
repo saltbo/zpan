@@ -4,6 +4,8 @@
 // entrypoints can reuse it; request-bound capabilities are passed to usecases as
 // function parameters, never stored here.
 
+import { type CloudflareKvNamespaceLike, createCloudflareKvBackend } from './adapters/cache/cloudflare-kv'
+import { createRuntimeCache, resolveCacheMode } from './adapters/cache/runtime-cache'
 import { createArchiveJobsGateway } from './adapters/gateways/archive-jobs'
 import { createEmailGateway } from './adapters/gateways/email'
 import { createImageUploadGateway } from './adapters/gateways/image-upload'
@@ -51,8 +53,13 @@ import { createWebDavStateRepo } from './adapters/repos/webdav-state'
 import { createZipPlanRepo } from './adapters/repos/zip'
 import type { Platform } from './platform/interface'
 import type { Deps } from './usecases/deps'
+import type { CacheService } from './usecases/ports'
 
-export function createDeps(platform: Platform): Deps {
+export interface CreateDepsOptions {
+  cache?: CacheService
+}
+
+export function createDeps(platform: Platform, options: CreateDepsOptions = {}): Deps {
   const { db } = platform
   // Shared stateless instances reused by multiple ports below.
   const s3 = new S3Service()
@@ -60,6 +67,13 @@ export function createDeps(platform: Platform): Deps {
   const systemOptions = createSystemOptionsRepo(db)
   const licenseBinding = createLicenseBindingRepo(db)
   const licensingCloud = createLicensingCloudGateway()
+  const cacheNamespace = platform.getBinding<CloudflareKvNamespaceLike>('CACHE_KV')
+  const cache =
+    options.cache ??
+    createRuntimeCache({
+      mode: resolveCacheMode(platform.getEnv('ZPAN_CACHE_MODE'), !!cacheNamespace),
+      distributed: cacheNamespace ? createCloudflareKvBackend(cacheNamespace) : undefined,
+    })
   return {
     audit: createAuditRepo(db),
     adminStats: createAdminStatsRepo(db),
@@ -68,6 +82,7 @@ export function createDeps(platform: Platform): Deps {
     archiveJobs: createArchiveJobsGateway(platform),
     archiveTargetFolders: createArchiveTargetFolderRepo(db),
     backgroundJobs: createBackgroundJobRepo(db),
+    cache,
     cfHostnames: createCfClient((key) => platform.getEnv(key)),
     changelog: createChangelogProvider(),
     cloudStore: createCloudStoreRepo(db),

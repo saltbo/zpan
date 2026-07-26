@@ -58,7 +58,7 @@ const platform = process.env.TURSO_DATABASE_URL
   : createNodePlatform()
 
 const deps = createDeps(platform)
-const app = await createBootstrap(platform)
+const app = await createBootstrap(platform, deps)
 
 const server = new Hono()
 server.route('/', app)
