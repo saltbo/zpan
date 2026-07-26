@@ -947,7 +947,9 @@ async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
 
 async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
   try {
+    let startedAt = performance.now()
     const resolved = await resolveWebDavDownload(c.get('deps'), { userId: auth.userId, rawPath: davPath(c) })
+    c.get('webDavTrace').push(`download-resolve:${Math.round(performance.now() - startedAt)}`)
     if (!resolved.ok) {
       switch (resolved.reason) {
         case 'not_found':
@@ -991,10 +993,15 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       : { action: 'ignore' }
 
     if (rangeRequest.action === 'none' || rangeRequest.action === 'ignore') {
+      startedAt = performance.now()
       const reservation = await reserveWebDavTraffic(c, auth.userId, workspace.id, matter, storage, size)
+      c.get('webDavTrace').push(`traffic:${Math.round(performance.now() - startedAt)}`)
       if (reservation.error) return reservation.error
       try {
+        startedAt = performance.now()
         const body = await getWebDavObjectBody(c.get('deps'), { storage, object: matter.object })
+        c.get('webDavTrace').push(`s3:${Math.round(performance.now() - startedAt)}`)
+        startedAt = performance.now()
         await waitUntilOrAwait(
           c,
           'download_finish',
@@ -1008,6 +1015,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
             trafficEventId: reservation.trafficEventId,
           }),
         )
+        c.get('webDavTrace').push(`finish:${Math.round(performance.now() - startedAt)}`)
         return new Response(fixedLengthResponseBody(body, size), { headers })
       } catch (e) {
         await refundWebDavTraffic(c.get('deps'), {
@@ -1022,7 +1030,9 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (rangeRequest.action === 'reject') return rangeNotSatisfiable(size)
     if (rangeRequest.action !== 'serve') throw new Error('Unexpected range request action')
     const trafficBytes = rangeContentBytes(rangeRequest.ranges)
+    startedAt = performance.now()
     const reservation = await reserveWebDavTraffic(c, auth.userId, workspace.id, matter, storage, trafficBytes)
+    c.get('webDavTrace').push(`traffic:${Math.round(performance.now() - startedAt)}`)
     if (reservation.error) return reservation.error
     if (rangeRequest.ranges.length > 1) {
       const boundary = `zpan-webdav-${matter.id}`
@@ -1032,6 +1042,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       headers.set('Content-Length', String(contentLength))
       headers.delete('Content-Range')
       try {
+        startedAt = performance.now()
         await waitUntilOrAwait(
           c,
           'download_finish',
@@ -1045,6 +1056,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
             trafficEventId: reservation.trafficEventId,
           }),
         )
+        c.get('webDavTrace').push(`finish:${Math.round(performance.now() - startedAt)}`)
       } catch (error) {
         await refundWebDavTraffic(c.get('deps'), {
           orgId: workspace.id,
@@ -1060,11 +1072,13 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     const contentLength = range.end - range.start + 1
     let body: BodyInit
     try {
+      startedAt = performance.now()
       body = await getWebDavObjectBody(c.get('deps'), {
         storage,
         object: matter.object,
         range: `bytes=${range.start}-${range.end}`,
       })
+      c.get('webDavTrace').push(`s3:${Math.round(performance.now() - startedAt)}`)
     } catch (e) {
       await refundWebDavTraffic(c.get('deps'), {
         orgId: workspace.id,
@@ -1076,6 +1090,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     headers.set('Content-Length', String(contentLength))
     headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
     try {
+      startedAt = performance.now()
       await waitUntilOrAwait(
         c,
         'download_finish',
@@ -1089,6 +1104,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
           trafficEventId: reservation.trafficEventId,
         }),
       )
+      c.get('webDavTrace').push(`finish:${Math.round(performance.now() - startedAt)}`)
     } catch (error) {
       await refundWebDavTraffic(c.get('deps'), {
         orgId: workspace.id,
