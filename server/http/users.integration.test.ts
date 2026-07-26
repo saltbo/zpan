@@ -82,20 +82,6 @@ describe('User entitlements API (admin)', () => {
     expect(res.status).toBe(404)
   })
 
-  it('auth middleware rejects a banned user on an existing session [spec: users/disabled-session-rejected]', async () => {
-    const { app, db } = await createTestApp()
-
-    // Capture a live session, then ban the user. Admin ban/unban is served by
-    // better-auth's /admin/ban-user; here we only assert our middleware enforces it.
-    const userHeaders = await authedHeaders(app, 'banned@example.com')
-    await db.run(sql`UPDATE user SET banned = 1 WHERE email = 'banned@example.com'`)
-
-    const res = await app.request('/api/quotas/me', { headers: userHeaders })
-    expect(res.status).toBe(403)
-    const body = (await res.json()) as { error: { message: string } }
-    expect(body.error.message).toBe('Account disabled')
-  })
-
   it('POST /api/users/:id/entitlements grants storage entitlement for a personal org [spec: users/grant-entitlement]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)

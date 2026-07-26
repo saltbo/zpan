@@ -26,7 +26,6 @@ import { isDownloadFailureStatus, transferAuditActor, transferFailureReason } fr
 import type { Env } from '../middleware/platform'
 import {
   ApiKeyRateLimitError,
-  type CachePolicy,
   insufficientCredits,
   type RecordAuditEventInput,
   type StorageRecord,
@@ -80,39 +79,8 @@ type DavAuth = {
   permissions: Record<string, string[]> | null
 }
 
-type VerifiedWebDavAuth = Extract<Awaited<ReturnType<typeof resolveWebDavAuth>>, { ok: true }>
-
 interface NativeRateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>
-}
-
-// The native limiter still counts every request. This only collapses repeated D1
-// verification inside a Finder burst; memory-only storage bounds revocation lag
-// to one second and keeps credential-derived keys out of KV.
-const WEBDAV_AUTH_CACHE_POLICY: CachePolicy<VerifiedWebDavAuth> = {
-  namespace: 'webdav-auth',
-  version: 1,
-  ttlMs: 1_000,
-  maxEntries: 256,
-  distributed: false,
-  validate(value): value is VerifiedWebDavAuth {
-    if (typeof value !== 'object' || value === null) return false
-    const auth = value as Partial<VerifiedWebDavAuth>
-    return (
-      auth.ok === true &&
-      typeof auth.userId === 'string' &&
-      typeof auth.keyId === 'string' &&
-      typeof auth.configId === 'string' &&
-      (auth.permissions === null ||
-        (typeof auth.permissions === 'object' && auth.permissions !== null && !Array.isArray(auth.permissions)))
-    )
-  },
-}
-
-class WebDavAuthRejected extends Error {
-  constructor(readonly outcome: Exclude<Awaited<ReturnType<typeof resolveWebDavAuth>>, { ok: true }>) {
-    super('WebDAV authentication rejected')
-  }
 }
 
 const cloudBaseUrl = (c: DavContext): string => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
@@ -135,29 +103,16 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
   }
 
   const startedAt = performance.now()
-  const loadAuth = async () => {
-    const result = await resolveWebDavAuth(c.get('deps'), {
-      auth: c.get('auth'),
-      db: c.get('platform').db,
-      username: credentials.username,
-      password: credentials.password,
-      resource: WEBDAV_RESOURCE,
-      action,
-      configId: ApiKeyTemplate.WEBDAV,
-    })
-    if (!result.ok) throw new WebDavAuthRejected(result)
-    return result
-  }
-  let result: Awaited<ReturnType<typeof resolveWebDavAuth>>
-  try {
-    result =
-      nativeRateLimiter && credentialKey
-        ? (await c.get('deps').cache.getOrLoad(WEBDAV_AUTH_CACHE_POLICY, `${credentialKey}:${action}`, loadAuth)).value
-        : await loadAuth()
-  } catch (error) {
-    if (!(error instanceof WebDavAuthRejected)) throw error
-    result = error.outcome
-  }
+  const result = await resolveWebDavAuth(c.get('deps'), {
+    auth: c.get('auth'),
+    db: c.get('platform').db,
+    username: credentials.username,
+    password: credentials.password,
+    resource: WEBDAV_RESOURCE,
+    action,
+    configId: ApiKeyTemplate.WEBDAV,
+    cacheKey: nativeRateLimiter && credentialKey ? `${credentialKey}:${action}` : undefined,
+  })
   c.get('webDavTrace').push(`auth:${Math.round(performance.now() - startedAt)}`)
   if (!result.ok) {
     if (result.reason === 'rate_limited')

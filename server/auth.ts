@@ -38,7 +38,7 @@ import {
 } from '../shared/oauth-providers'
 import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
 import { createEmailGateway } from './adapters/gateways/email'
-import { deleteApiKeysScopedToOrganization, normalizeLegacyApiKeysForUser } from './adapters/repos/api-key-scopes'
+import { deleteApiKeysScopedToOrganization } from './adapters/repos/api-key-scopes'
 import { createAuditRepo } from './adapters/repos/audit'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createLicenseBindingRepo } from './adapters/repos/license-binding'
@@ -311,6 +311,7 @@ export async function createAuth(
   secret: string,
   baseURL?: string,
   trustedOrigins?: string[],
+  backgroundTaskHandler?: (promise: Promise<unknown>) => void,
 ) {
   const isPlatform = 'db' in initialSource
   const rawPlatform = isPlatform ? initialSource : null
@@ -347,6 +348,7 @@ export async function createAuth(
       // better-auth silently disables it under NODE_ENV=test, so tests would
       // never exercise the real CSRF/origin behavior.
       disableOriginCheck: false,
+      ...(backgroundTaskHandler ? { backgroundTasks: { handler: backgroundTaskHandler } } : {}),
     },
     user: {
       additionalFields: {
@@ -382,7 +384,7 @@ export async function createAuth(
     session: {
       cookieCache: {
         enabled: true,
-        maxAge: 60 * 5,
+        maxAge: 60,
       },
     },
     socialProviders: Object.fromEntries(
@@ -392,11 +394,6 @@ export async function createAuth(
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === '/delete-user') {
           throw new APIError('FORBIDDEN', { message: 'Self-service account deletion is not available' })
-        }
-        if (ctx.path === '/api-key/list') {
-          const session = await getSessionFromCtx(ctx)
-          if (session?.user.id) await normalizeLegacyApiKeysForUser(db, session.user.id)
-          return
         }
         if (ctx.path !== '/api-key/create') return
 
@@ -568,6 +565,10 @@ export async function createAuth(
           configId: ApiKeyTemplate.WEBDAV,
           references: 'user',
           enableMetadata: true,
+          // Cloudflare's native limiter remains the authoritative synchronous
+          // rate limit. Better Auth can therefore move its bookkeeping write
+          // off the response path without weakening enforcement.
+          deferUpdates: usesNativeWebDavRateLimit && backgroundTaskHandler !== undefined,
           rateLimit: {
             enabled: !usesNativeWebDavRateLimit,
             // Filesystem clients such as macOS Finder issue bursts of PROPFIND

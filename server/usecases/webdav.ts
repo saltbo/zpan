@@ -21,6 +21,7 @@ import { assertFolderNotUsedByDownload } from './downloads/download-folders'
 import {
   type ApiKeyAuth,
   ApiKeyRateLimitError,
+  type CachePolicy,
   type DavDeadProperty,
   type DavLock,
   type DeadPropertyUpdate,
@@ -48,7 +49,65 @@ export type WebDavAuthOutcome =
   | { ok: false; reason: 'unauthorized' }
   | { ok: false; reason: 'rate_limited'; retryAfterMs?: number; message: string }
 
+type VerifiedWebDavAuth = Extract<WebDavAuthOutcome, { ok: true }>
+
+const WEBDAV_AUTH_CACHE_POLICY: CachePolicy<VerifiedWebDavAuth> = {
+  namespace: 'webdav-auth',
+  version: 1,
+  ttlMs: 1_000,
+  maxEntries: 256,
+  distributed: false,
+  validate(value): value is VerifiedWebDavAuth {
+    if (typeof value !== 'object' || value === null) return false
+    const auth = value as Partial<VerifiedWebDavAuth>
+    return (
+      auth.ok === true &&
+      typeof auth.userId === 'string' &&
+      typeof auth.keyId === 'string' &&
+      typeof auth.configId === 'string' &&
+      (auth.permissions === null ||
+        (typeof auth.permissions === 'object' && auth.permissions !== null && !Array.isArray(auth.permissions)))
+    )
+  },
+}
+
+class WebDavAuthRejected extends Error {
+  constructor(readonly outcome: Exclude<WebDavAuthOutcome, { ok: true }>) {
+    super('WebDAV authentication rejected')
+  }
+}
+
 export async function resolveWebDavAuth(
+  deps: Pick<Deps, 'apiKeys' | 'cache' | 'userAdmin'>,
+  params: {
+    auth: ApiKeyAuth
+    db: Database
+    username: string
+    password: string
+    resource: string
+    action: 'read' | 'write'
+    configId: string
+    cacheKey?: string
+  },
+): Promise<WebDavAuthOutcome> {
+  const load = () => verifyWebDavAuth(deps, params)
+  if (!params.cacheKey) return load()
+
+  try {
+    return (
+      await deps.cache.getOrLoad(WEBDAV_AUTH_CACHE_POLICY, params.cacheKey, async () => {
+        const result = await load()
+        if (!result.ok) throw new WebDavAuthRejected(result)
+        return result
+      })
+    ).value
+  } catch (error) {
+    if (error instanceof WebDavAuthRejected) return error.outcome
+    throw error
+  }
+}
+
+async function verifyWebDavAuth(
   deps: Pick<Deps, 'apiKeys' | 'userAdmin'>,
   params: {
     auth: ApiKeyAuth

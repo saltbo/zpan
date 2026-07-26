@@ -1,3 +1,4 @@
+import { waitUntil } from 'cloudflare:workers'
 import { createCloudflareKvBackend } from '../server/adapters/cache/cloudflare-kv'
 import { createRuntimeCache, resolveCacheMode } from '../server/adapters/cache/runtime-cache'
 import { createArchiveJobsGateway } from '../server/adapters/gateways/archive-jobs'
@@ -90,7 +91,7 @@ async function appForRequest(
   const cachedAuth = runtime.authBySlot.get(slot)
   if (cachedApp && cachedAuth) return cachedApp
 
-  const auth = await createAuth(runtime.platform, env.BETTER_AUTH_SECRET, baseURL, trustedOrigins)
+  const auth = await createAuth(runtime.platform, env.BETTER_AUTH_SECRET, baseURL, trustedOrigins, waitUntil)
   const app = createApp(runtime.platform, auth, runtime.deps)
   runtime.authBySlot.set(slot, auth)
   runtime.appBySlot.set(slot, app)

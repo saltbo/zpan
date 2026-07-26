@@ -628,6 +628,7 @@ const APP_SCHEMA_SQL = `
 export async function createTestApp(
   envOverrides: Record<string, string> = {},
   bindingOverrides: Record<string, unknown> = {},
+  backgroundTaskHandler?: (promise: Promise<unknown>) => void,
 ) {
   // Each test app is a brand-new site; drop origin state cached by a previous
   // app in the same test file.
@@ -643,7 +644,7 @@ export async function createTestApp(
     getEnv: (key: string) => envOverrides[key],
     getBinding: <T = unknown>(key: string) => bindingOverrides[key] as T | undefined,
   }
-  const auth = await createAuth(platform, 'test-secret', 'http://localhost:3000')
+  const auth = await createAuth(platform, 'test-secret', 'http://localhost:3000', undefined, backgroundTaskHandler)
   const deps = createDeps(platform)
   const app = createApp(platform, auth, deps)
 

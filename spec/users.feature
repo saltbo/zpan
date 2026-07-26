@@ -1,8 +1,8 @@
 Feature: User administration
   Admin user management runs through better-auth's admin plugin
   (/api/auth/admin/*). ZPan owns the per-user storage quota and the entitlement
-  grants against each user's personal org, and enforces bans in its auth
-  middleware.
+  grants against each user's personal org. Better Auth owns ban enforcement and
+  session revocation.
 
   @users/admin-only @api
   Scenario: Non-admins cannot administer users
@@ -35,10 +35,10 @@ Feature: User administration
     Then the API responds 404
 
   @users/disabled-session-rejected @api
-  Scenario: A disabled user's existing session is rejected
+  Scenario: A disabled user's server session is revoked
     Given a user disabled mid-session
-    When they make an authenticated request
-    Then the auth middleware rejects it
+    When authentication bypasses the bounded signed-cookie cache
+    Then Better Auth rejects the revoked session
 
   @users/delete @api
   Scenario: Admins delete a user

@@ -77,12 +77,6 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   const auth = c.get('auth')
   const result = (await auth.api.getSession({ headers: c.req.raw.headers })) as SessionWithPlugins | null
 
-  if (result?.user?.id) {
-    if (await c.get('deps').userAdmin.isBanned(result.user.id)) {
-      throw forbidden('Account disabled')
-    }
-  }
-
   c.set('userId', result?.user?.id ?? null)
   c.set('userRole', result?.user?.role ?? null)
 
@@ -118,12 +112,14 @@ export const requireAuth = createMiddleware<Env>(async (c, next) => {
 })
 
 export const requireAdmin = createMiddleware<Env>(async (c, next) => {
-  const userId = c.get('userId')
-  if (!userId) {
+  const result = (await c.get('auth').api.getSession({
+    headers: c.req.raw.headers,
+    query: { disableCookieCache: true },
+  })) as SessionWithPlugins | null
+  if (!result?.user?.id) {
     throw unauthorized('Unauthorized')
   }
-  const userRole = c.get('userRole')
-  if (userRole !== 'admin') {
+  if (result.user.role !== 'admin') {
     throw forbidden('Forbidden')
   }
   await next()

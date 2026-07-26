@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { apikey } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
 import { type ApiKeyAuth, type ApiKeyGateway, ApiKeyRateLimitError, type VerifiedApiKey } from '../../usecases/ports'
-import { normalizeLegacyApiKey } from './api-key-scopes'
+import { scopeForApiKey } from './api-key-scopes'
 
 type VerifyApiKeyResult = {
   valid: boolean
@@ -25,7 +25,7 @@ export function createApiKeyGateway(): ApiKeyGateway {
       if (!resolvedConfigId) return null
       const result = await verify(auth, { configId: resolvedConfigId, key })
       throwIfRateLimited(result)
-      if (result?.valid && result.key) return normalizeVerifiedApiKey(db, result.key)
+      if (result?.valid && result.key) return normalizeVerifiedApiKey(result.key)
       return null
     },
 
@@ -38,7 +38,7 @@ export function createApiKeyGateway(): ApiKeyGateway {
         permissions: { [resource]: [action] },
       })
       throwIfRateLimited(result)
-      if (result?.valid && result.key) return normalizeVerifiedApiKey(db, result.key)
+      if (result?.valid && result.key) return normalizeVerifiedApiKey(result.key)
       return null
     },
 
@@ -48,17 +48,14 @@ export function createApiKeyGateway(): ApiKeyGateway {
   }
 }
 
-async function normalizeVerifiedApiKey(
-  db: Database,
-  key: NonNullable<VerifyApiKeyResult['key']>,
-): Promise<VerifiedApiKey | null> {
-  const normalized = await normalizeLegacyApiKey(db, key)
-  if (!normalized) return null
+async function normalizeVerifiedApiKey(key: NonNullable<VerifyApiKeyResult['key']>): Promise<VerifiedApiKey | null> {
+  const scope = scopeForApiKey(key.configId, key.metadata)
+  if (!scope) return null
   return {
     id: key.id,
     configId: key.configId,
-    referenceId: normalized.referenceId,
-    scope: normalized.scope,
+    referenceId: key.referenceId,
+    scope,
     permissions: key.permissions,
   }
 }

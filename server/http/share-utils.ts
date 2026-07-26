@@ -26,9 +26,6 @@ export function escapeLike(s: string): string {
   return s.replace(/[\\%_]/g, '\\$&')
 }
 
-export async function readUserId(c: Context<Env>): Promise<string | null> {
-  const session = (await c.get('auth').api.getSession({ headers: c.req.raw.headers })) as {
-    user: { id: string }
-  } | null
-  return session?.user?.id ?? null
+export function readUserId(c: Context<Env>): string | null {
+  return c.get('userId')
 }

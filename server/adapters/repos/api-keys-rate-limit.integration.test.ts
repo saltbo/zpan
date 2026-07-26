@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
   WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,
+  WEBDAV_RATE_LIMITER_BINDING,
 } from '../../../shared/api-key-templates.js'
 import { authedHeaders, createTestApp } from '../../test/setup.js'
 import { ApiKeyRateLimitError } from '../../usecases/ports'
@@ -108,6 +109,26 @@ describe('API keys', () => {
     expect(listed.apiKeys.every((key) => key.referenceId === userId)).toBe(true)
   })
 
+  it('defers Better Auth WebDAV key bookkeeping when the native limiter is authoritative', async () => {
+    const backgroundTasks: Promise<unknown>[] = []
+    const { app, db, auth } = await createTestApp({}, { [WEBDAV_RATE_LIMITER_BINDING]: {} }, (task) =>
+      backgroundTasks.push(task),
+    )
+    await authedHeaders(app)
+    const { userId } = await getUserAndOrg(db)
+    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
+    const webdav = (await (auth.api as any).createApiKey({
+      body: { configId: 'webdav', userId },
+    })) as { key: string }
+    await Promise.all(backgroundTasks.splice(0))
+
+    await expect(
+      apiKeys.verifyApiKeyForPermission(auth, db, webdav.key, 'webdav', 'read', 'webdav'),
+    ).resolves.toMatchObject({ referenceId: userId })
+    expect(backgroundTasks.length).toBeGreaterThan(0)
+    await Promise.all(backgroundTasks)
+  })
+
   it('persists the configured defaults for each API key template', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
@@ -159,7 +180,7 @@ describe('API keys', () => {
     })
   })
 
-  it('normalizes a legacy organization-owned key to the current owner', async () => {
+  it('rejects legacy API keys instead of upgrading them during verification', async () => {
     const { app, db, auth } = await createTestApp()
     const headers = await authedHeaders(app)
     const { orgId, userId } = await getUserAndOrg(db)
@@ -176,32 +197,18 @@ describe('API keys', () => {
     `)
     await db.run(sql`UPDATE apikey SET metadata = '{}' WHERE id = ${webdav.id}`)
 
-    await expect(apiKeys.verifyApiKey(auth, db, remoteDownload.key, 'remote-download')).resolves.toMatchObject({
-      referenceId: userId,
-      scope: { mode: 'workspace', orgId },
-    })
+    await expect(apiKeys.verifyApiKey(auth, db, remoteDownload.key, 'remote-download')).resolves.toBeNull()
     const row = await getApiKeyRow(db, remoteDownload.id)
-    expect(row.reference_id).toBe(userId)
-    expect(JSON.parse(row.metadata as string)).toEqual({ scope: { mode: 'workspace', orgId } })
+    expect(row.reference_id).toBe(orgId)
+    expect(JSON.parse(row.metadata as string)).toEqual({})
 
     const listResponse = await app.request('/api/auth/api-key/list', { headers })
     expect(listResponse.status).toBe(200)
     const listed = (await listResponse.json()) as {
       apiKeys: Array<{ id: string; metadata: { scope: { mode: string; orgId?: string } } }>
     }
-    expect(listed.apiKeys).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: ihost.id,
-          metadata: { scope: { mode: 'workspace', orgId } },
-        }),
-        expect.objectContaining({
-          id: webdav.id,
-          metadata: { scope: { mode: 'user-workspaces' } },
-        }),
-      ]),
-    )
-    expect(await getApiKeyRow(db, ihost.id)).toMatchObject({ reference_id: userId })
+    expect(listed.apiKeys).toEqual([expect.objectContaining({ id: webdav.id, metadata: {} })])
+    expect(await getApiKeyRow(db, ihost.id)).toMatchObject({ reference_id: orgId })
   })
 
   it('deletes workspace-scoped keys with their organization but preserves WebDAV keys', async () => {

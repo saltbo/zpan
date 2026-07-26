@@ -42,8 +42,8 @@ describe('better-auth admin user endpoints (migration target)', () => {
     expect(res.status).toBe(403)
   })
 
-  it('POST /api/auth/admin/ban-user sets banned, and our middleware then rejects the user [spec: users/disable]', async () => {
-    const { app, db } = await createTestApp()
+  it('POST /api/auth/admin/ban-user sets banned and revokes the Better Auth session [spec: users/disable] [spec: users/disabled-session-rejected]', async () => {
+    const { app, db, auth } = await createTestApp()
     const headers = await adminCookie(app)
     const memberHeaders = await authedHeaders(app, 'ban-me@example.com', 'password123456')
     const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'ban-me@example.com'`)
@@ -68,9 +68,17 @@ describe('better-auth admin user endpoints (migration target)', () => {
     )
     expect(disableEvt).toEqual([{ user_id: adminId, target_id: userId }])
 
-    // The banned user's existing session is rejected by our auth middleware.
-    const blocked = await app.request('/api/quotas/me', { headers: memberHeaders })
-    expect(blocked.status).toBe(403)
+    // Better Auth's signed cookie cache has a bounded revocation window, so
+    // ordinary routes can still use this one-minute cached session.
+    const cached = await app.request('/api/quotas/me', { headers: memberHeaders })
+    expect(cached.status).toBe(200)
+
+    // Bypassing the cookie cache proves that Better Auth deleted the session.
+    const revoked = await auth.api.getSession({
+      headers: new Headers(memberHeaders),
+      query: { disableCookieCache: true },
+    })
+    expect(revoked).toBeNull()
 
     // Unban restores access and is audited as user_enable.
     const unban = await app.request('/api/auth/admin/unban-user', {
