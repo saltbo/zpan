@@ -1,5 +1,5 @@
 import { isPersonalOrgLike } from '@shared/org-slugs'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../../db/auth-schema'
 import { orgQuotaEntitlements } from '../../db/schema'
@@ -17,15 +17,19 @@ async function isBanned(db: Database, userId: string): Promise<boolean> {
   return Boolean(rows[0]?.banned)
 }
 
-async function matchesActiveUsername(db: Database, userId: string, username: string): Promise<boolean> {
+async function findActiveUserIdByUsername(db: Database, username: string): Promise<string | null> {
+  const normalizedEmail = username.toLowerCase()
   const rows = await db
-    .select({ banned: user.banned, email: user.email, username: user.username })
+    .select({ id: user.id })
     .from(user)
-    .where(eq(user.id, userId))
+    .where(
+      and(
+        or(eq(user.email, username), eq(user.email, normalizedEmail), eq(user.username, username)),
+        or(eq(user.banned, false), isNull(user.banned)),
+      ),
+    )
     .limit(1)
-  const account = rows[0]
-  if (!account || account.banned) return false
-  return account.email.toLowerCase() === username.toLowerCase() || account.username === username
+  return rows[0]?.id ?? null
 }
 
 async function listUserPersonalEntitlements(
@@ -220,7 +224,7 @@ function mergeGrantMetadata(existing: string | null, patch: Record<string, unkno
 export function createUserAdminRepo(db: Database): UserAdminRepo {
   return {
     isBanned: (userId) => isBanned(db, userId),
-    matchesActiveUsername: (userId, username) => matchesActiveUsername(db, userId, username),
+    findActiveUserIdByUsername: (username) => findActiveUserIdByUsername(db, username),
     listUserPersonalEntitlements: (userId) => listUserPersonalEntitlements(db, userId),
     grantUserPersonalEntitlement: (input) => grantUserPersonalEntitlement(db, input),
     updateUserPersonalEntitlement: (input) => updateUserPersonalEntitlement(db, input),

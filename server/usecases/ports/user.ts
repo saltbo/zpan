@@ -51,9 +51,8 @@ export interface UserAdminRepo {
   // Whether the user is banned/disabled — checked by the auth middleware on every
   // authenticated request to reject sessions of users disabled mid-session.
   isBanned(userId: string): Promise<boolean>
-  // Whether the user is active and `username` matches their email or username
-  // (WebDAV Basic Auth check).
-  matchesActiveUsername(userId: string, username: string): Promise<boolean>
+  // Resolve an active user by email or username for WebDAV Basic Auth.
+  findActiveUserIdByUsername(username: string): Promise<string | null>
 
   listUserPersonalEntitlements(
     userId: string,

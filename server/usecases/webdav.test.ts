@@ -127,7 +127,7 @@ function makeDeps(
     } as unknown as ApiKeyGateway,
     userAdmin: {
       isBanned: async () => false,
-      matchesActiveUsername: async () => true,
+      findActiveUserIdByUsername: async () => 'u1',
       ...overrides.userAdmin,
     } as unknown as UserAdminRepo,
     matter: {
@@ -225,10 +225,15 @@ describe('webdav usecase', () => {
         scope: { mode: 'user-workspaces' as const },
         permissions: null,
       }))
-      const deps = makeDeps({ apiKeys: { verifyApiKeyForPermission } })
+      const findActiveUserIdByUsername = vi.fn(async () => 'u9')
+      const deps = makeDeps({
+        apiKeys: { verifyApiKeyForPermission },
+        userAdmin: { findActiveUserIdByUsername },
+      })
       const out = await resolveWebDavAuth(deps, authParams)
       expect(out).toEqual({ ok: true, userId: 'u9', keyId: 'k1', configId: 'webdav', permissions: null })
       expect(verifyApiKeyForPermission).toHaveBeenCalledWith({}, {}, 'secret', 'webdav', 'read', 'webdav')
+      expect(findActiveUserIdByUsername).toHaveBeenCalledWith('user@example.com')
     })
 
     it('is unauthorized when the key does not verify', async () => {
@@ -237,12 +242,12 @@ describe('webdav usecase', () => {
     })
 
     it('is unauthorized when the key owner is disabled', async () => {
-      const deps = makeDeps({ userAdmin: { matchesActiveUsername: async () => false } })
+      const deps = makeDeps({ userAdmin: { findActiveUserIdByUsername: async () => null } })
       expect(await resolveWebDavAuth(deps, authParams)).toEqual({ ok: false, reason: 'unauthorized' })
     })
 
     it('is unauthorized when the username does not match the key owner', async () => {
-      const deps = makeDeps({ userAdmin: { matchesActiveUsername: async () => false } })
+      const deps = makeDeps({ userAdmin: { findActiveUserIdByUsername: async () => 'other-user' } })
       expect(await resolveWebDavAuth(deps, authParams)).toEqual({ ok: false, reason: 'unauthorized' })
     })
 
