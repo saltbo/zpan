@@ -1265,13 +1265,24 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+
+    const before = await app.request(`/dav/${workspace.slug}/`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '1' }),
+    })
+    expect(before.status).toBe(207)
 
     const res = await app.request(`/dav/${workspace.slug}/Projects`, {
       method: 'MKCOL',
       headers: basicHeaders(account.email, key),
     })
     expect(res.status).toBe(201)
+    const created = await app.request(`/dav/${workspace.slug}/Projects`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '0' }),
+    })
+    expect(created.status).toBe(207)
     const rows = await db.all<{ dirtype: number }>(
       sql`SELECT dirtype FROM matters WHERE org_id = ${workspace.id} AND name = 'Projects'`,
     )

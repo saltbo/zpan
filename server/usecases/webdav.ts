@@ -112,6 +112,13 @@ export function resolveExistingWebDavPath(
   return deps.webdavPath.resolveExistingWebDavPath(params.userId, params.rawPath)
 }
 
+export function invalidateWebDavPaths(
+  deps: Pick<Deps, 'webdavPath'>,
+  params: { userId: string; rawPaths: string[] },
+): Promise<void> {
+  return deps.webdavPath.invalidatePaths(params.userId, params.rawPaths)
+}
+
 export function listUserWebDavWorkspaces(deps: Pick<Deps, 'webdavPath'>, userId: string): Promise<WebDavWorkspace[]> {
   return deps.webdavPath.listUserWorkspaces(userId)
 }

@@ -50,6 +50,7 @@ import {
   deleteWebDavMatter,
   ensureParentCollection as ensureParentCollectionUsecase,
   getWebDavObjectBody,
+  invalidateWebDavPaths,
   listDeadPropertiesForResources,
   listUserWebDavWorkspaces,
   meterWebDavDownload,
@@ -658,8 +659,21 @@ app.use('*', async (c, next) => {
   if (!userId) throw new Error('webdav_authenticated_user_missing')
   const preparedAction = await prepareWebDavActionAudit(c, userId)
   await next()
+  await invalidateWebDavReadCache(c, userId)
   await waitUntilOrAwait(c, 'audit', processWebDavAudit(c, userId, preparedAction))
 })
+
+async function invalidateWebDavReadCache(c: DavContext, userId: string): Promise<void> {
+  if (c.res.status >= 400) return
+  const method = c.req.method.toUpperCase()
+  if (method !== 'PUT' && method !== 'DELETE' && method !== 'MKCOL' && method !== 'MOVE' && method !== 'COPY') return
+  const rawPaths = [davPath(c)]
+  if (method === 'MOVE' || method === 'COPY') {
+    const destination = validDestinationPath(c)
+    if (destination) rawPaths.push(destination)
+  }
+  await invalidateWebDavPaths(c.get('deps'), { userId, rawPaths })
+}
 
 async function processWebDavAudit(
   c: DavContext,

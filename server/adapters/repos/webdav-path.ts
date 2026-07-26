@@ -41,7 +41,39 @@ const WEB_DAV_WORKSPACES_CACHE_POLICY: CachePolicy<WebDavWorkspace[]> = {
   },
 }
 
+const WEB_DAV_CHILDREN_CACHE_POLICY: CachePolicy<Matter[]> = {
+  namespace: 'webdav-children',
+  version: 1,
+  ttlMs: 5_000,
+  maxEntries: 512,
+  distributed: false,
+  validate(value): value is Matter[] {
+    return (
+      Array.isArray(value) &&
+      value.every(
+        (matter) =>
+          typeof matter === 'object' &&
+          matter !== null &&
+          typeof matter.id === 'string' &&
+          typeof matter.orgId === 'string' &&
+          typeof matter.parent === 'string' &&
+          typeof matter.name === 'string',
+      )
+    )
+  },
+}
+
 export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDavPathRepo {
+  const childrenCacheKey = (orgId: string, parent: string) => JSON.stringify([orgId, parent])
+
+  async function cachedChildren(orgId: string, parent: string): Promise<Matter[] | undefined> {
+    return (await cache?.get(WEB_DAV_CHILDREN_CACHE_POLICY, childrenCacheKey(orgId, parent)))?.value
+  }
+
+  async function replaceCachedChildren(orgId: string, parent: string, children: Matter[]): Promise<void> {
+    await cache?.replace(WEB_DAV_CHILDREN_CACHE_POLICY, childrenCacheKey(orgId, parent), children)
+  }
+
   async function listUserWorkspaces(userId: string): Promise<WebDavWorkspace[]> {
     if (!cache) return toWebDavWorkspaces(await userWorkspaceRows(db, userId))
     return (
@@ -64,6 +96,11 @@ export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDav
         const workspace = findWorkspace(cachedWorkspaces.value, parts[0])
         if (!workspace) throw new WebDavPathError('Workspace not found', 404)
         if (parts.length === 1) return { workspace, mountRoot: false, parent: '', name: '', matter: null }
+        const children = await cachedChildren(workspace.id, parent)
+        if (children) {
+          const matter = children.find((candidate) => candidate.name === name) ?? null
+          return { workspace, mountRoot: false, parent, name, matter }
+        }
         const matter = await workspaceMatterRow(db, workspace.id, parent, name)
         return { workspace, mountRoot: false, parent, name, matter }
       }
@@ -94,7 +131,7 @@ export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDav
     return { workspace, mountRoot: false, parent, name, matter }
   }
 
-  function listChildren(orgId: string, parent: string): Promise<Matter[]> {
+  async function loadChildren(orgId: string, parent: string): Promise<Matter[]> {
     return db
       .select()
       .from(matters)
@@ -108,6 +145,14 @@ export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDav
         ),
       )
       .orderBy(desc(matters.dirtype), asc(matters.name))
+  }
+
+  async function listChildren(orgId: string, parent: string): Promise<Matter[]> {
+    const children = await cachedChildren(orgId, parent)
+    if (children) return children
+    const loaded = await loadChildren(orgId, parent)
+    await replaceCachedChildren(orgId, parent, loaded)
+    return loaded
   }
 
   return {
@@ -144,6 +189,25 @@ export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDav
       const name = matterParts.at(-1) ?? ''
       const parent = matterParts.slice(0, -1).join('/')
       const childParent = matterParts.join('/')
+      const [cachedSiblings, cachedDirectChildren] = await Promise.all([
+        matterParts.length === 0 ? Promise.resolve(undefined) : cachedChildren(workspace.id, parent),
+        cachedChildren(workspace.id, childParent),
+      ])
+      const cachedMatter =
+        matterParts.length === 0 ? null : (cachedSiblings?.find((candidate) => candidate.name === name) ?? null)
+      if ((matterParts.length === 0 || cachedSiblings) && cachedDirectChildren) {
+        return {
+          target: { workspace, mountRoot: false, parent, name, matter: cachedMatter },
+          children: cachedDirectChildren,
+        }
+      }
+      if (matterParts.length === 0 || cachedSiblings) {
+        const children = await listChildren(workspace.id, childParent)
+        return {
+          target: { workspace, mountRoot: false, parent, name, matter: cachedMatter },
+          children,
+        }
+      }
       const rows = await db
         .select()
         .from(matters)
@@ -163,6 +227,7 @@ export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDav
       const matter =
         matterParts.length === 0 ? null : (rows.find((row) => row.parent === parent && row.name === name) ?? null)
       const children = rows.filter((row) => row.parent === childParent && row.id !== matter?.id)
+      await replaceCachedChildren(workspace.id, childParent, children)
       return {
         target: { workspace, mountRoot: false, parent, name, matter },
         children,
@@ -173,6 +238,23 @@ export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDav
       const target = await resolveWebDavPath(userId, rawPath)
       if (!target.matter) throw new WebDavPathError('Not found', 404)
       return target
+    },
+
+    async invalidatePaths(userId, rawPaths) {
+      if (!cache || rawPaths.length === 0) return
+      const cachedWorkspaces = await cache.get(WEB_DAV_WORKSPACES_CACHE_POLICY, userId)
+      if (!cachedWorkspaces) return
+      const keys = new Set<string>()
+      for (const rawPath of rawPaths) {
+        const parts = decodeDavPath(rawPath)
+        if (parts.length === 0) continue
+        const workspace = findWorkspace(cachedWorkspaces.value, parts[0])
+        if (!workspace) continue
+        const matterParts = parts.slice(1)
+        keys.add(childrenCacheKey(workspace.id, matterParts.slice(0, -1).join('/')))
+        keys.add(childrenCacheKey(workspace.id, matterParts.join('/')))
+      }
+      await Promise.all([...keys].map((key) => cache.invalidate(WEB_DAV_CHILDREN_CACHE_POLICY, key)))
     },
   }
 }

@@ -29,4 +29,5 @@ export interface WebDavPathRepo {
   resolveWebDavPath(userId: string, rawPath: string): Promise<WebDavTarget>
   resolveWithChildren(userId: string, rawPath: string): Promise<{ target: WebDavTarget; children: Matter[] }>
   resolveExistingWebDavPath(userId: string, rawPath: string): Promise<WebDavTarget>
+  invalidatePaths(userId: string, rawPaths: string[]): Promise<void>
 }
