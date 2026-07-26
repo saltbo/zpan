@@ -117,7 +117,7 @@ export interface MatterRepo {
   // Bump updatedAt only (WebDAV PROPPATCH touches the matter's mtime).
   touch(orgId: string, id: string): Promise<void>
   // Overwrite a file matter's content fields after a WebDAV PUT to an existing path.
-  applyUpload(orgId: string, id: string, fields: { type: string; size: number; object: string }): Promise<void>
+  applyUpload(orgId: string, matter: Matter, fields: { type: string; size: number; object: string }): Promise<void>
   listTrashedRoots(orgId: string): Promise<Matter[]>
   /** Distinct orgIds holding at least one trashed matter older than the cutoff (epoch ms). */
   listOrgIdsWithExpiredTrash(cutoff: number): Promise<string[]>

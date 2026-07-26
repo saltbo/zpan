@@ -508,7 +508,7 @@ describe('webdav usecase', () => {
       const out = await putWebDavFile(deps, putParams({ target: target({ matter: existing }), contentLength: 5 }))
       expect(out).toEqual({ ok: true, status: 204, matterId: 'm1', storageId: 'st-1', bytes: 5 })
       // Same object key is reused (known length + existing object), so no delete.
-      expect(applyUpload).toHaveBeenCalledWith('ws-1', 'm1', {
+      expect(applyUpload).toHaveBeenCalledWith('ws-1', existing, {
         type: 'text/plain',
         size: 5,
         object: 'objects/m1.txt',

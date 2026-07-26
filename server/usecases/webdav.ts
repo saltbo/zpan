@@ -288,10 +288,13 @@ export async function putWebDavFile(
     contentType: string
     contentLength: number | null
     body: ReadableStream | Uint8Array
+    onTiming?: (phase: 'storage' | 's3' | 'persist', durationMs: number) => void
   },
 ): Promise<PutWebDavOutcome> {
   const { orgId, userId, target, fileName, parent, contentType, contentLength, body } = params
+  let startedAt = performance.now()
   const storage = target.matter ? await deps.storages.get(target.matter.storageId) : await deps.storages.select()
+  params.onTiming?.('storage', performance.now() - startedAt)
   if (!storage) return { ok: false, reason: 'no_storage' }
 
   const objectKey =
@@ -306,7 +309,9 @@ export async function putWebDavFile(
     deps,
     { orgId, storageId: storage.id, bytes: Math.max(0, knownSizeDelta) },
     async (ctx) => {
+      startedAt = performance.now()
       const uploadedSize = await deps.s3.putObject(storage, objectKey, body, contentType, contentLength ?? undefined)
+      params.onTiming?.('s3', performance.now() - startedAt)
       const sizeDelta = target.matter ? uploadedSize - (target.matter.size ?? 0) : uploadedSize
 
       if (!target.matter || objectKey !== target.matter.object) {
@@ -315,29 +320,33 @@ export async function putWebDavFile(
 
       if (contentLength === null && sizeDelta > 0) {
         return withStorageUsageReservation(deps, { orgId, storageId: storage.id, bytes: sizeDelta }, () =>
-          persistWebDavUpload(deps, {
-            orgId,
-            target,
-            fileName,
-            parent,
-            storage,
-            objectKey,
-            contentType,
-            uploadedSize,
-          }),
+          timedPersist(params.onTiming, () =>
+            persistWebDavUpload(deps, {
+              orgId,
+              target,
+              fileName,
+              parent,
+              storage,
+              objectKey,
+              contentType,
+              uploadedSize,
+            }),
+          ),
         )
       }
 
-      const result = await persistWebDavUpload(deps, {
-        orgId,
-        target,
-        fileName,
-        parent,
-        storage,
-        objectKey,
-        contentType,
-        uploadedSize,
-      })
+      const result = await timedPersist(params.onTiming, () =>
+        persistWebDavUpload(deps, {
+          orgId,
+          target,
+          fileName,
+          parent,
+          storage,
+          objectKey,
+          contentType,
+          uploadedSize,
+        }),
+      )
       if (sizeDelta < 0) await deps.storageUsage.reconcile(orgId, [storage.id])
       return result
     },
@@ -349,6 +358,16 @@ export async function putWebDavFile(
     storageId: storage.id,
     bytes: persisted.bytes,
   }
+}
+
+async function timedPersist<T>(
+  onTiming: ((phase: 'storage' | 's3' | 'persist', durationMs: number) => void) | undefined,
+  persist: () => Promise<T>,
+): Promise<T> {
+  const startedAt = performance.now()
+  const result = await persist()
+  onTiming?.('persist', performance.now() - startedAt)
+  return result
 }
 
 async function persistWebDavUpload(
@@ -366,7 +385,7 @@ async function persistWebDavUpload(
 ): Promise<{ status: 201 | 204; matterId: string; bytes: number }> {
   const { orgId, target, fileName, parent, storage, objectKey, contentType, uploadedSize } = params
   if (target.matter) {
-    await deps.matter.applyUpload(orgId, target.matter.id, { type: contentType, size: uploadedSize, object: objectKey })
+    await deps.matter.applyUpload(orgId, target.matter, { type: contentType, size: uploadedSize, object: objectKey })
     if (objectKey !== target.matter.object) await deps.s3.deleteObject(storage, target.matter.object)
     return { status: 204, matterId: target.matter.id, bytes: uploadedSize }
   }

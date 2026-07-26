@@ -130,7 +130,7 @@ describe('storage usage breakdown projection', () => {
     const copy = await matter.copy(source, '', 'guide-copy.pdf')
     await expectStorageUsageConsistent(db, orgId, 'copy')
 
-    await matter.applyUpload(orgId, copy.id, { type: 'video/mp4', size: 240, object: 'guide-copy.mp4' })
+    await matter.applyUpload(orgId, copy, { type: 'video/mp4', size: 240, object: 'guide-copy.mp4' })
     await expectStorageUsageConsistent(db, orgId, 'resize and MIME change')
 
     const draft = await matter.create({
@@ -297,7 +297,9 @@ describe('storage usage breakdown projection', () => {
       } else if (operation === 3 && activeIds.length > 0) {
         const id = activeIds[next() % activeIds.length]
         const type = next() % 2 === 0 ? 'image/webp' : 'application/pdf'
-        await matter.applyUpload(orgId, id, {
+        const existing = await matter.get(id, orgId)
+        if (!existing) throw new Error(`state_machine_missing_resize_target:${id}`)
+        await matter.applyUpload(orgId, existing, {
           type,
           size: (next() % 8192) + 1,
           object: `updated-${step}`,

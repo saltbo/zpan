@@ -60,7 +60,7 @@ describe('[CF] storage usage projection invariant', () => {
     })
     await expectStorageUsageConsistent(db, orgId, 'D1 create')
 
-    await matter.applyUpload(orgId, file.id, {
+    await matter.applyUpload(orgId, file, {
       type: 'video/mp4',
       size: 2048,
       object: 'cloudflare.mp4',

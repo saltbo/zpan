@@ -674,19 +674,17 @@ export function createMatterRepo(db: Database): MatterRepo {
         .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt)))
     },
 
-    async applyUpload(orgId, id, fields): Promise<void> {
-      const existing = await getMatter(id, orgId)
-      if (!existing) return
+    async applyUpload(orgId, matter, fields): Promise<void> {
       const now = new Date()
       const writes: AtomicQuery[] = [
-        storageUsageOpeningBalanceQuery(db, orgId, existing.storageId, now),
-        ...matterRemovedProjectionQueries(db, orgId, [id]),
-        matterResizeLedgerQuery(db, orgId, id, fields.size, now),
+        storageUsageOpeningBalanceQuery(db, orgId, matter.storageId, now),
+        ...matterRemovedProjectionQueries(db, orgId, [matter.id]),
+        matterResizeLedgerQuery(db, orgId, matter.id, fields.size, now),
         db
           .update(matters)
           .set({ type: fields.type, size: fields.size, object: fields.object, updatedAt: now })
-          .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
-        ...matterAddedProjectionQueries(db, orgId, id),
+          .where(and(eq(matters.id, matter.id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
+        ...matterAddedProjectionQueries(db, orgId, matter.id),
       ]
       await executeWriteTransaction(db, writes)
     },

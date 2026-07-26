@@ -1214,6 +1214,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
         contentType,
         contentLength,
         body,
+        onTiming: (phase, durationMs) => c.get('webDavTrace').push(`${phase}:${Math.round(durationMs)}`),
       })
       c.get('webDavTrace').push(`upload:${Math.round(performance.now() - startedAt)}`)
       if (!result.ok) return c.text('Storage not found', 404)
