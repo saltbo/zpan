@@ -1,6 +1,8 @@
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import { storages } from '../../db/schema.js'
 import { createTestApp } from '../../test/setup.js'
+import { createRuntimeCache } from '../cache/runtime-cache.js'
 import { createStorageRepo } from './storage.js'
 
 describe('createStorage', () => {
@@ -333,5 +335,27 @@ describe('deleteStorage', () => {
     `)
     const result = await createStorageRepo(db).delete(created.id)
     expect(result).toBe('in_use')
+  })
+})
+
+describe('storage connection cache', () => {
+  it('keeps connection records in memory and refreshes them after repository writes', async () => {
+    const { db } = await createTestApp()
+    const cache = createRuntimeCache({ mode: 'memory' })
+    const repo = createStorageRepo(db, cache)
+    const created = await repo.create({
+      bucket: 'original',
+      endpoint: 'https://s3.example.com',
+      region: 'us-east-1',
+      accessKey: 'K',
+      secretKey: 'S',
+      capacity: 0,
+    })
+
+    await db.update(storages).set({ bucket: 'outside-repository' }).where(eq(storages.id, created.id))
+    expect((await repo.get(created.id))?.bucket).toBe('original')
+
+    await repo.patch(created.id, { bucket: 'repository-update' })
+    expect((await repo.get(created.id))?.bucket).toBe('repository-update')
   })
 })

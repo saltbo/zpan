@@ -2,7 +2,7 @@ import { and, asc, count, eq, isNull, lt, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { matters, storages } from '../../db/schema'
 import type { Database } from '../../platform/interface'
-import type { StorageRecord, StorageRepo } from '../../usecases/ports'
+import type { CachePolicy, CacheService, StorageRecord, StorageRepo } from '../../usecases/ports'
 
 type StorageRow = typeof storages.$inferSelect
 const CONNECTION_FIELDS = [
@@ -15,11 +15,33 @@ const CONNECTION_FIELDS = [
   'forcePathStyle',
 ] as const
 
+const STORAGE_CACHE_POLICY: CachePolicy<StorageRecord | null> = {
+  namespace: 'storage-connection',
+  version: 1,
+  ttlMs: 30_000,
+  negativeTtlMs: 1_000,
+  maxEntries: 64,
+  distributed: false,
+  validate(value): value is StorageRecord | null {
+    if (value === null) return true
+    if (typeof value !== 'object') return false
+    const storage = value as Partial<StorageRecord>
+    return (
+      typeof storage.id === 'string' &&
+      typeof storage.bucket === 'string' &&
+      typeof storage.accessKey === 'string' &&
+      typeof storage.secretKey === 'string' &&
+      storage.createdAt instanceof Date &&
+      storage.updatedAt instanceof Date
+    )
+  },
+}
+
 function toRecord(row: StorageRow): StorageRecord {
   return row as StorageRecord
 }
 
-export function createStorageRepo(db: Database): StorageRepo {
+export function createStorageRepo(db: Database, cache?: CacheService): StorageRepo {
   async function getRow(id: string): Promise<StorageRow | null> {
     const rows = await db.select().from(storages).where(eq(storages.id, id))
     return rows[0] ?? null
@@ -32,8 +54,16 @@ export function createStorageRepo(db: Database): StorageRepo {
     },
 
     async get(id) {
-      const row = await getRow(id)
-      return row ? toRecord(row) : null
+      if (!cache) {
+        const row = await getRow(id)
+        return row ? toRecord(row) : null
+      }
+      return (
+        await cache.getOrLoad(STORAGE_CACHE_POLICY, id, async () => {
+          const row = await getRow(id)
+          return row ? toRecord(row) : null
+        })
+      ).value
     },
 
     async create(input) {
@@ -62,7 +92,9 @@ export function createStorageRepo(db: Database): StorageRepo {
         updatedAt: now,
       }
       await db.insert(storages).values(row)
-      return toRecord(row)
+      const record = toRecord(row)
+      await cache?.replace(STORAGE_CACHE_POLICY, record.id, record)
+      return record
     },
 
     async count() {
@@ -84,7 +116,9 @@ export function createStorageRepo(db: Database): StorageRepo {
       }
 
       await db.update(storages).set(updated).where(eq(storages.id, id))
-      return toRecord({ ...existing, ...updated })
+      const record = toRecord({ ...existing, ...updated })
+      await cache?.replace(STORAGE_CACHE_POLICY, id, record)
+      return record
     },
 
     async patch(id, input) {
@@ -106,7 +140,9 @@ export function createStorageRepo(db: Database): StorageRepo {
       }
 
       await db.update(storages).set(updated).where(eq(storages.id, id))
-      return toRecord({ ...existing, ...updated })
+      const record = toRecord({ ...existing, ...updated })
+      await cache?.replace(STORAGE_CACHE_POLICY, id, record)
+      return record
     },
 
     async delete(id) {
@@ -120,6 +156,7 @@ export function createStorageRepo(db: Database): StorageRepo {
       if ((refs[0]?.count ?? 0) > 0) return 'in_use'
 
       await db.delete(storages).where(eq(storages.id, id))
+      await cache?.invalidate(STORAGE_CACHE_POLICY, id)
       return 'ok'
     },
 

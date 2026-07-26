@@ -63,7 +63,6 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
   const { db } = platform
   // Shared stateless instances reused by multiple ports below.
   const s3 = new S3Service()
-  const storages = createStorageRepo(db)
   const systemOptions = createSystemOptionsRepo(db)
   const licenseBinding = createLicenseBindingRepo(db)
   const licensingCloud = createLicensingCloudGateway()
@@ -74,6 +73,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
       mode: resolveCacheMode(platform.getEnv('ZPAN_CACHE_MODE'), !!cacheNamespace),
       distributed: cacheNamespace ? createCloudflareKvBackend(cacheNamespace) : undefined,
     })
+  const storages = createStorageRepo(db, cache)
   return {
     audit: createAuditRepo(db),
     adminStats: createAdminStatsRepo(db),

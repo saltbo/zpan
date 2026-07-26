@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { cloudTrafficReports } from '../../db/schema'
+import { executeWriteTransaction } from '../../db/transaction'
 import { currentTrafficPeriod } from '../../domain/quota'
 import type { Database } from '../../platform/interface'
 import type {
@@ -42,28 +43,7 @@ function toRecord(row: typeof cloudTrafficReports.$inferSelect): CloudTrafficRep
 export function createCloudTrafficReportRepo(db: Database): CloudTrafficReportRepo {
   return {
     async ensureLedgerOpening(now) {
-      await db
-        .insert(cloudTrafficReports)
-        .values({
-          id: TRAFFIC_LEDGER_OPENING_EVENT_ID,
-          orgId: '',
-          period: currentTrafficPeriod(now),
-          source: 'object_download',
-          sourceId: TRAFFIC_LEDGER_OPENING_EVENT_ID,
-          eventId: TRAFFIC_LEDGER_OPENING_EVENT_ID,
-          bytes: 0,
-          storageId: null,
-          unitBytes: null,
-          creditsPerUnit: null,
-          status: 'ledger_opening',
-          error: null,
-          attemptCount: 0,
-          nextRetryAt: null,
-          issuedAt: null,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoNothing({ target: cloudTrafficReports.eventId })
+      await ledgerOpeningInsert(db, now)
     },
 
     async getLedgerOpening() {
@@ -81,25 +61,28 @@ export function createCloudTrafficReportRepo(db: Database): CloudTrafficReportRe
     },
 
     async insert(input: InsertCloudTrafficReportInput) {
-      await db.insert(cloudTrafficReports).values({
-        id: nanoid(),
-        orgId: input.orgId,
-        period: input.period,
-        source: input.source,
-        sourceId: input.sourceId,
-        eventId: input.eventId,
-        bytes: input.bytes,
-        storageId: input.storageId,
-        unitBytes: input.unitBytes,
-        creditsPerUnit: input.creditsPerUnit,
-        status: input.status,
-        error: null,
-        attemptCount: 0,
-        nextRetryAt: null,
-        issuedAt: null,
-        createdAt: input.now,
-        updatedAt: input.now,
-      })
+      await executeWriteTransaction(db, [
+        ledgerOpeningInsert(db, input.now),
+        db.insert(cloudTrafficReports).values({
+          id: nanoid(),
+          orgId: input.orgId,
+          period: input.period,
+          source: input.source,
+          sourceId: input.sourceId,
+          eventId: input.eventId,
+          bytes: input.bytes,
+          storageId: input.storageId,
+          unitBytes: input.unitBytes,
+          creditsPerUnit: input.creditsPerUnit,
+          status: input.status,
+          error: null,
+          attemptCount: 0,
+          nextRetryAt: null,
+          issuedAt: null,
+          createdAt: input.now,
+          updatedAt: input.now,
+        }),
+      ])
     },
 
     async markIssued(eventId, now) {
@@ -154,4 +137,29 @@ export function createCloudTrafficReportRepo(db: Database): CloudTrafficReportRe
       return rows.map(toRecord)
     },
   }
+}
+
+function ledgerOpeningInsert(db: Database, now: Date) {
+  return db
+    .insert(cloudTrafficReports)
+    .values({
+      id: TRAFFIC_LEDGER_OPENING_EVENT_ID,
+      orgId: '',
+      period: currentTrafficPeriod(now),
+      source: 'object_download',
+      sourceId: TRAFFIC_LEDGER_OPENING_EVENT_ID,
+      eventId: TRAFFIC_LEDGER_OPENING_EVENT_ID,
+      bytes: 0,
+      storageId: null,
+      unitBytes: null,
+      creditsPerUnit: null,
+      status: 'ledger_opening',
+      error: null,
+      attemptCount: 0,
+      nextRetryAt: null,
+      issuedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing({ target: cloudTrafficReports.eventId })
 }

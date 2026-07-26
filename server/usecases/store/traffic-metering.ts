@@ -63,7 +63,6 @@ export async function reportTrafficEgress(
   }
 
   const eventId = params.eventId ?? `traffic_${nanoid()}`
-  await deps.cloudTrafficReports.ensureLedgerOpening(now)
   const existing = params.eventIdIsNew ? undefined : await deps.cloudTrafficReports.findByEventId(eventId)
   const period = existing?.period ?? currentTrafficPeriod(now)
   if (existing) {
