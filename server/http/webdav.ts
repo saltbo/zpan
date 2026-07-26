@@ -5,6 +5,7 @@ import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { encodeDavPathSegment, joinMatterPath, workspaceHref } from '../domain/webdav'
 import { WEBDAV_AUTH_CHALLENGE, type WebDavMountPath, webDavPublicUrl } from '../domain/webdav-public-url'
 import {
+  DAV_NAMESPACE,
   type DavEntry,
   davEtag,
   errorXml,
@@ -12,6 +13,7 @@ import {
   matterEntry,
   mountRootEntry,
   multistatus,
+  type PropfindRequest,
   parseLockInfoXml,
   parsePropfindXml,
   parseProppatchXml,
@@ -87,6 +89,7 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
   const credentials = parseBasicAuth(c.req.raw.headers.get('Authorization'))
   if (!credentials) return unauthorized()
 
+  const startedAt = performance.now()
   const result = await resolveWebDavAuth(c.get('deps'), {
     auth: c.get('auth'),
     db: c.get('platform').db,
@@ -96,6 +99,7 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
     action,
     configId: ApiKeyTemplate.WEBDAV,
   })
+  c.get('webDavTrace').push(`auth:${Math.round(performance.now() - startedAt)}`)
   if (!result.ok) {
     if (result.reason === 'rate_limited')
       return rateLimited(new ApiKeyRateLimitError(result.message, result.retryAfterMs))
@@ -552,10 +556,24 @@ async function ifTaggedTarget(c: DavContext, auth: DavAuth, tag: string): Promis
   }
 }
 
-async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEntry[]> {
+function propfindNeedsDeadProperties(request: PropfindRequest): boolean {
+  return request.mode !== 'prop' || request.properties.some((property) => property.namespace !== DAV_NAMESPACE)
+}
+
+function propfindNeedsLocks(request: PropfindRequest): boolean {
+  if (request.mode === 'allprop') return true
+  if (request.mode === 'propname') return false
+  return request.properties.some(
+    (property) => property.namespace === DAV_NAMESPACE && property.name === 'lockdiscovery',
+  )
+}
+
+async function davEntries(c: DavContext, targets: WebDavTarget[], request: PropfindRequest): Promise<DavEntry[]> {
   const entries: DavEntry[] = []
   const mountPath = publicMountPath(c)
   const byWorkspace = new Map<string, { workspace: NonNullable<WebDavTarget['workspace']>; targets: WebDavTarget[] }>()
+  const needsDeadProperties = propfindNeedsDeadProperties(request)
+  const needsLocks = propfindNeedsLocks(request)
 
   for (const target of targets) {
     if (target.mountRoot) {
@@ -575,8 +593,12 @@ async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEn
     [...byWorkspace.values()].map(async ({ workspace, targets: workspaceTargets }) => {
       const paths = workspaceTargets.map(resourcePath)
       const [deadPropertiesByPath, locksByPath] = await Promise.all([
-        listDeadPropertiesForResources(c.get('deps'), { orgId: workspace.id, resourcePaths: paths }),
-        activeLocksForResources(c.get('deps'), { orgId: workspace.id, resourcePaths: paths }),
+        needsDeadProperties
+          ? listDeadPropertiesForResources(c.get('deps'), { orgId: workspace.id, resourcePaths: paths })
+          : Promise.resolve(new Map()),
+        needsLocks
+          ? activeLocksForResources(c.get('deps'), { orgId: workspace.id, resourcePaths: paths })
+          : Promise.resolve(new Map()),
       ])
       return workspaceTargets.map((target) => {
         const path = resourcePath(target)
@@ -850,14 +872,20 @@ async function dispatchWebDavRequest(c: DavContext, auth: DavAuth): Promise<Resp
 
 async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
   try {
+    let startedAt = performance.now()
     const target = await resolveWebDavPath(c.get('deps'), { userId: auth.userId, rawPath: davPath(c) })
+    c.get('webDavTrace').push(`resolve:${Math.round(performance.now() - startedAt)}`)
     const depth = c.req.header('Depth') ?? '1'
     if (depth !== '0' && depth !== '1') {
       return xmlResponse(errorXml('propfind-finite-depth', 'Depth infinity is not supported for PROPFIND.'), 403)
     }
     const request = parsePropfindXml(await c.req.text())
+    c.get('webDavTrace').push(
+      `props:${request.mode}/${propfindNeedsDeadProperties(request) ? 'dead' : '-'}/${propfindNeedsLocks(request) ? 'locks' : '-'}`,
+    )
     const targets: WebDavTarget[] = []
 
+    startedAt = performance.now()
     if (target.mountRoot) {
       targets.push(target)
       if (depth !== '0') {
@@ -885,8 +913,11 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
         }
       }
     }
+    c.get('webDavTrace').push(`list:${Math.round(performance.now() - startedAt)}`)
 
-    const entries = await davEntries(c, targets)
+    startedAt = performance.now()
+    const entries = await davEntries(c, targets, request)
+    c.get('webDavTrace').push(`state:${Math.round(performance.now() - startedAt)}`)
     return xmlResponse(multistatus(entries, request), 207)
   } catch (e) {
     if (e instanceof Error && (e.message.includes('XML') || e.message.includes('PROPFIND'))) {

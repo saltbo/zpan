@@ -17,6 +17,7 @@ export type Env = {
     webDavEnabled: boolean
     webDavDomain: string
     webDavMountPath: WebDavMountPath
+    webDavTrace: string[]
     // Structured detail for the access log on a failed request. Set by `jsonError`
     // (via `app.onError`); read by the accessLog middleware so every 4xx/5xx carries
     // its reason + full message, not just unhandled crashes.
@@ -68,5 +69,6 @@ export const platformMiddleware = (platform: Platform, auth: Auth) =>
     c.set('webDavEnabled', false)
     c.set('webDavDomain', '')
     c.set('webDavMountPath', '/dav')
+    c.set('webDavTrace', [])
     await next()
   })

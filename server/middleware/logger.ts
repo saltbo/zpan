@@ -41,6 +41,7 @@ function accessLogFields(c: Context<Env>, start: number): Array<[string, string 
       ['contentLength', c.req.header('Content-Length') ?? '-'],
       ['contentRange', c.res.headers.get('Content-Range') ?? '-'],
       ['userAgent', c.req.header('User-Agent') ?? '-'],
+      ['trace', c.get('webDavTrace').join(',') || '-'],
     )
   }
 
