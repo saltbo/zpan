@@ -4,6 +4,8 @@ import { member, organization } from '../../db/auth-schema'
 import { matters } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import {
+  type CachePolicy,
+  type CacheService,
   type Matter,
   WebDavPathError,
   type WebDavPathRepo,
@@ -17,7 +19,38 @@ type WorkspaceMatterRow = {
   matter: Matter | null
 }
 
-export function createWebDavPathRepo(db: Database): WebDavPathRepo {
+const WEB_DAV_WORKSPACES_CACHE_POLICY: CachePolicy<WebDavWorkspace[]> = {
+  namespace: 'webdav-workspaces',
+  version: 1,
+  ttlMs: 1_000,
+  maxEntries: 256,
+  distributed: false,
+  validate(value): value is WebDavWorkspace[] {
+    return (
+      Array.isArray(value) &&
+      value.every(
+        (workspace) =>
+          typeof workspace === 'object' &&
+          workspace !== null &&
+          typeof workspace.id === 'string' &&
+          typeof workspace.name === 'string' &&
+          typeof workspace.slug === 'string' &&
+          typeof workspace.pathSegment === 'string',
+      )
+    )
+  },
+}
+
+export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDavPathRepo {
+  async function listUserWorkspaces(userId: string): Promise<WebDavWorkspace[]> {
+    if (!cache) return toWebDavWorkspaces(await userWorkspaceRows(db, userId))
+    return (
+      await cache.getOrLoad(WEB_DAV_WORKSPACES_CACHE_POLICY, userId, async () =>
+        toWebDavWorkspaces(await userWorkspaceRows(db, userId)),
+      )
+    ).value
+  }
+
   async function resolveWebDavPath(userId: string, rawPath: string): Promise<WebDavTarget> {
     const parts = decodeDavPath(rawPath)
     if (parts.length === 0) return { workspace: null, mountRoot: true, parent: '', name: '', matter: null }
@@ -25,15 +58,21 @@ export function createWebDavPathRepo(db: Database): WebDavPathRepo {
     const matterParts = parts.slice(1)
     const name = matterParts.at(-1) ?? ''
     const parent = matterParts.slice(0, -1).join('/')
+    if (cache) {
+      const workspaces = await listUserWorkspaces(userId)
+      const workspace = findWorkspace(workspaces, parts[0])
+      if (!workspace) throw new WebDavPathError('Workspace not found', 404)
+      if (parts.length === 1) return { workspace, mountRoot: false, parent: '', name: '', matter: null }
+      const matter = await workspaceMatterRow(db, workspace.id, parent, name)
+      return { workspace, mountRoot: false, parent, name, matter }
+    }
+
     const rows =
       parts.length === 1
         ? (await userWorkspaceRows(db, userId)).map((workspace) => ({ workspace, matter: null }))
         : await userWorkspaceMatterRows(db, userId, parent, name)
     const workspaces = toWebDavWorkspaces(rows.map((row) => row.workspace))
-    const workspace =
-      workspaces.find(
-        (candidate) => candidate.slug === parts[0] || candidate.id === parts[0] || candidate.pathSegment === parts[0],
-      ) ?? null
+    const workspace = findWorkspace(workspaces, parts[0])
     if (!workspace) throw new WebDavPathError('Workspace not found', 404)
     if (parts.length === 1) return { workspace, mountRoot: false, parent: '', name: '', matter: null }
 
@@ -43,7 +82,7 @@ export function createWebDavPathRepo(db: Database): WebDavPathRepo {
 
   return {
     async listUserWorkspaces(userId) {
-      return toWebDavWorkspaces(await userWorkspaceRows(db, userId))
+      return listUserWorkspaces(userId)
     },
 
     async listChildren(orgId, parent) {
@@ -70,6 +109,32 @@ export function createWebDavPathRepo(db: Database): WebDavPathRepo {
       return target
     },
   }
+}
+
+function findWorkspace(workspaces: WebDavWorkspace[], segment: string): WebDavWorkspace | null {
+  return (
+    workspaces.find(
+      (candidate) => candidate.slug === segment || candidate.id === segment || candidate.pathSegment === segment,
+    ) ?? null
+  )
+}
+
+async function workspaceMatterRow(db: Database, orgId: string, parent: string, name: string): Promise<Matter | null> {
+  const rows = await db
+    .select()
+    .from(matters)
+    .where(
+      and(
+        eq(matters.orgId, orgId),
+        eq(matters.parent, parent),
+        eq(matters.name, name),
+        eq(matters.status, ObjectStatus.ACTIVE),
+        isNull(matters.trashedAt),
+        isNull(matters.purgedAt),
+      ),
+    )
+    .limit(1)
+  return rows[0] ?? null
 }
 
 async function userWorkspaceRows(db: Database, userId: string): Promise<WorkspaceRow[]> {

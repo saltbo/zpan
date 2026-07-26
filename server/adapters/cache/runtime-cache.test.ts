@@ -48,6 +48,20 @@ describe('runtime cache', () => {
     expect(await cache.getOrLoad(stringPolicy, 'a', loader)).toMatchObject({ value: 'value-2', tier: 'source' })
   })
 
+  it('coalesces concurrent loads for the same key', async () => {
+    let release: (value: string) => void = () => undefined
+    const loader = vi.fn(() => new Promise<string>((resolve) => (release = resolve)))
+    const cache = createRuntimeCache({ mode: 'memory' })
+
+    const first = cache.getOrLoad(stringPolicy, 'a', loader)
+    const second = cache.getOrLoad(stringPolicy, 'a', loader)
+    expect(loader).toHaveBeenCalledTimes(1)
+
+    release('shared')
+    expect(await first).toMatchObject({ value: 'shared', tier: 'source' })
+    expect(await second).toMatchObject({ value: 'shared', tier: 'coalesced' })
+  })
+
   it('uses the shorter negative-cache TTL', async () => {
     let now = 1_000
     const loader = vi.fn(async () => null)

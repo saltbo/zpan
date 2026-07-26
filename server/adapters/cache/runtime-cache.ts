@@ -44,6 +44,7 @@ export function createRuntimeCache(options: RuntimeCacheOptions): CacheService {
   }
 
   const stores = new Map<string, Map<string, MemoryEntry>>()
+  const loads = new Map<string, Promise<CacheResult<unknown>>>()
   const now = options.now ?? Date.now
 
   function memoryStore(namespace: string): Map<string, MemoryEntry> {
@@ -151,16 +152,32 @@ export function createRuntimeCache(options: RuntimeCacheOptions): CacheService {
       const inMemory = memoryGet(policy, key)
       if (inMemory !== undefined) return observed(policy.namespace, 'memory', startedAt, inMemory)
 
-      if (usesDistributed(policy)) {
-        const distributed = await distributedGet(policy, key)
-        if (distributed !== undefined) return observed(policy.namespace, 'distributed', startedAt, distributed)
+      const loadKey = cacheKey(policy, key)
+      const existing = loads.get(loadKey) as Promise<CacheResult<T>> | undefined
+      if (existing) {
+        const result = await existing
+        return observed(policy.namespace, 'coalesced', startedAt, result.value)
       }
 
-      const value = await loader()
-      const freshUntil = now() + ttlFor(policy, value)
-      memoryPut(policy, key, value, freshUntil)
-      if (usesDistributed(policy)) await distributedPut(policy, key, value, freshUntil)
-      return observed(policy.namespace, 'source', startedAt, value)
+      const load = (async (): Promise<CacheResult<T>> => {
+        if (usesDistributed(policy)) {
+          const distributed = await distributedGet(policy, key)
+          if (distributed !== undefined) return { value: distributed, tier: 'distributed' }
+        }
+
+        const value = await loader()
+        const freshUntil = now() + ttlFor(policy, value)
+        memoryPut(policy, key, value, freshUntil)
+        if (usesDistributed(policy)) await distributedPut(policy, key, value, freshUntil)
+        return { value, tier: 'source' }
+      })()
+      loads.set(loadKey, load as Promise<CacheResult<unknown>>)
+      try {
+        const result = await load
+        return observed(policy.namespace, result.tier, startedAt, result.value)
+      } finally {
+        if (loads.get(loadKey) === load) loads.delete(loadKey)
+      }
     },
 
     async replace<T>(policy: CachePolicy<T>, key: string, value: T): Promise<void> {

@@ -117,7 +117,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     teams: createTeamRepo(db),
     teamInvites: createTeamInviteRepo(db),
     userAdmin: createUserAdminRepo(db),
-    webdavPath: createWebDavPathRepo(db),
+    webdavPath: createWebDavPathRepo(db, cache),
     webdavState: createWebDavStateRepo(db),
     zip: createZipGateway(),
     zipPlan: createZipPlanRepo(db),
