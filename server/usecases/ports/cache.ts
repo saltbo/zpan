@@ -25,6 +25,7 @@ export interface DistributedCacheBackend {
 
 export interface CacheService {
   readonly mode: CacheMode
+  get<T>(policy: CachePolicy<T>, key: string): Promise<CacheResult<T> | undefined>
   getOrLoad<T>(policy: CachePolicy<T>, key: string, loader: () => Promise<T>): Promise<CacheResult<T>>
   replace<T>(policy: CachePolicy<T>, key: string, value: T): Promise<void>
   invalidate<T>(policy: CachePolicy<T>, key: string): Promise<void>

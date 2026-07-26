@@ -48,6 +48,14 @@ describe('runtime cache', () => {
     expect(await cache.getOrLoad(stringPolicy, 'a', loader)).toMatchObject({ value: 'value-2', tier: 'source' })
   })
 
+  it('reads an existing value without loading a missing value', async () => {
+    const cache = createRuntimeCache({ mode: 'memory' })
+
+    expect(await cache.get(stringPolicy, 'missing')).toBeUndefined()
+    await cache.replace(stringPolicy, 'present', 'value')
+    expect(await cache.get(stringPolicy, 'present')).toMatchObject({ value: 'value', tier: 'memory' })
+  })
+
   it('coalesces concurrent loads for the same key', async () => {
     let release: (value: string) => void = () => undefined
     const loader = vi.fn(() => new Promise<string>((resolve) => (release = resolve)))

@@ -22,7 +22,7 @@ type WorkspaceMatterRow = {
 const WEB_DAV_WORKSPACES_CACHE_POLICY: CachePolicy<WebDavWorkspace[]> = {
   namespace: 'webdav-workspaces',
   version: 1,
-  ttlMs: 1_000,
+  ttlMs: 5_000,
   maxEntries: 256,
   distributed: false,
   validate(value): value is WebDavWorkspace[] {
@@ -59,11 +59,25 @@ export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDav
     const name = matterParts.at(-1) ?? ''
     const parent = matterParts.slice(0, -1).join('/')
     if (cache) {
-      const workspaces = await listUserWorkspaces(userId)
+      const cachedWorkspaces = await cache.get(WEB_DAV_WORKSPACES_CACHE_POLICY, userId)
+      if (cachedWorkspaces) {
+        const workspace = findWorkspace(cachedWorkspaces.value, parts[0])
+        if (!workspace) throw new WebDavPathError('Workspace not found', 404)
+        if (parts.length === 1) return { workspace, mountRoot: false, parent: '', name: '', matter: null }
+        const matter = await workspaceMatterRow(db, workspace.id, parent, name)
+        return { workspace, mountRoot: false, parent, name, matter }
+      }
+
+      const rows =
+        parts.length === 1
+          ? (await userWorkspaceRows(db, userId)).map((workspace) => ({ workspace, matter: null }))
+          : await userWorkspaceMatterRows(db, userId, parent, name)
+      const workspaces = toWebDavWorkspaces(rows.map((row) => row.workspace))
+      await cache.replace(WEB_DAV_WORKSPACES_CACHE_POLICY, userId, workspaces)
       const workspace = findWorkspace(workspaces, parts[0])
       if (!workspace) throw new WebDavPathError('Workspace not found', 404)
       if (parts.length === 1) return { workspace, mountRoot: false, parent: '', name: '', matter: null }
-      const matter = await workspaceMatterRow(db, workspace.id, parent, name)
+      const matter = rows.find((row) => row.workspace.id === workspace.id)?.matter ?? null
       return { workspace, mountRoot: false, parent, name, matter }
     }
 

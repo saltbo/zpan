@@ -145,6 +145,16 @@ export function createRuntimeCache(options: RuntimeCacheOptions): CacheService {
   return {
     mode: options.mode,
 
+    async get<T>(policy: CachePolicy<T>, key: string): Promise<CacheResult<T> | undefined> {
+      if (options.mode === 'off') return undefined
+      const startedAt = performance.now()
+      const inMemory = memoryGet(policy, key)
+      if (inMemory !== undefined) return observed(policy.namespace, 'memory', startedAt, inMemory)
+      if (!usesDistributed(policy)) return undefined
+      const distributed = await distributedGet(policy, key)
+      return distributed === undefined ? undefined : observed(policy.namespace, 'distributed', startedAt, distributed)
+    },
+
     async getOrLoad<T>(policy: CachePolicy<T>, key: string, loader: () => Promise<T>): Promise<CacheResult<T>> {
       const startedAt = performance.now()
       if (options.mode === 'off') return observed(policy.namespace, 'bypass', startedAt, await loader())
