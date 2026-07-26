@@ -161,7 +161,7 @@ async function folder(db: TestApp['db'], orgId: string, opts: { id: string; name
 }
 
 describe('WebDAV API', () => {
-  it('uses the native limiter for every request and reuses successful auth briefly', async () => {
+  it('uses the native limiter and Better Auth verification for every request', async () => {
     const limit = vi.fn(async () => ({ success: true }))
     const { app, db, auth, deps } = await createTestApp({}, { [WEBDAV_RATE_LIMITER_BINDING]: { limit } })
     await authedHeaders(app)
@@ -176,8 +176,7 @@ describe('WebDAV API', () => {
     expect(first.status).toBe(207)
     expect(second.status).toBe(207)
     expect(limit).toHaveBeenCalledTimes(2)
-    expect(verify).toHaveBeenCalledTimes(1)
-    expect(second.headers.get('Server-Timing')).toContain('webdav-auth:memory')
+    expect(verify).toHaveBeenCalledTimes(2)
   })
 
   it('rejects native WebDAV rate limits before API-key verification', async () => {

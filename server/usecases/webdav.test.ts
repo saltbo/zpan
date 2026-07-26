@@ -4,7 +4,6 @@ import type { Database } from '../platform/interface'
 import type {
   ApiKeyAuth,
   ApiKeyGateway,
-  CacheService,
   CloudTrafficReportRepo,
   DavLock,
   DownloadTaskRecord,
@@ -126,12 +125,6 @@ function makeDeps(
       verifyApiKeyForPermission: async () => ({ id: 'k1', configId: 'webdav', referenceId: 'u1', permissions: null }),
       ...overrides.apiKeys,
     } as unknown as ApiKeyGateway,
-    cache: {
-      mode: 'off',
-      getOrLoad: async (_policy, _key, loader) => ({ value: await loader(), tier: 'bypass' }),
-      replace: async () => {},
-      invalidate: async () => {},
-    } as CacheService,
     userAdmin: {
       isBanned: async () => false,
       matchesActiveUsername: async () => true,

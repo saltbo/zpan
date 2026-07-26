@@ -111,7 +111,6 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
     resource: WEBDAV_RESOURCE,
     action,
     configId: ApiKeyTemplate.WEBDAV,
-    cacheKey: nativeRateLimiter && credentialKey ? `${credentialKey}:${action}` : undefined,
   })
   c.get('webDavTrace').push(`auth:${Math.round(performance.now() - startedAt)}`)
   if (!result.ok) {

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
   WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,
@@ -111,8 +111,21 @@ describe('API keys', () => {
 
   it('defers Better Auth WebDAV key bookkeeping when the native limiter is authoritative', async () => {
     const backgroundTasks: Promise<unknown>[] = []
-    const { app, db, auth } = await createTestApp({}, { [WEBDAV_RATE_LIMITER_BINDING]: {} }, (task) =>
-      backgroundTasks.push(task),
+    const stored = new Map<string, string>()
+    const get = vi.fn(async (key: string) => stored.get(key) ?? null)
+    const put = vi.fn(async (key: string, value: string) => {
+      stored.set(key, value)
+    })
+    const remove = vi.fn(async (key: string) => {
+      stored.delete(key)
+    })
+    const { app, db, auth } = await createTestApp(
+      {},
+      {
+        [WEBDAV_RATE_LIMITER_BINDING]: {},
+        CACHE_KV: { get, put, delete: remove },
+      },
+      (task) => backgroundTasks.push(task),
     )
     await authedHeaders(app)
     const { userId } = await getUserAndOrg(db)
@@ -121,12 +134,24 @@ describe('API keys', () => {
       body: { configId: 'webdav', userId },
     })) as { key: string }
     await Promise.all(backgroundTasks.splice(0))
+    stored.clear()
+    get.mockClear()
+    put.mockClear()
 
     await expect(
       apiKeys.verifyApiKeyForPermission(auth, db, webdav.key, 'webdav', 'read', 'webdav'),
     ).resolves.toMatchObject({ referenceId: userId })
+    expect(get).toHaveBeenCalledOnce()
+    expect(get.mock.calls[0][0]).toMatch(/^better-auth:api-key:/)
+    expect(put).toHaveBeenCalled()
     expect(backgroundTasks.length).toBeGreaterThan(0)
     await Promise.all(backgroundTasks)
+
+    get.mockClear()
+    await expect(
+      apiKeys.verifyApiKeyForPermission(auth, db, webdav.key, 'webdav', 'read', 'webdav'),
+    ).resolves.toMatchObject({ referenceId: userId })
+    expect(get).toHaveBeenCalledOnce()
   })
 
   it('persists the configured defaults for each API key template', async () => {

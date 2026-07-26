@@ -37,6 +37,7 @@ import {
   parseProviderConfig,
 } from '../shared/oauth-providers'
 import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
+import { type CloudflareKvNamespaceLike, createBetterAuthApiKeyStorage } from './adapters/cache/cloudflare-kv'
 import { createEmailGateway } from './adapters/gateways/email'
 import { deleteApiKeysScopedToOrganization } from './adapters/repos/api-key-scopes'
 import { createAuditRepo } from './adapters/repos/audit'
@@ -330,6 +331,8 @@ export async function createAuth(
   const email = createEmailGateway(systemOptionsRepo)
   const providerConfigs = await loadProviderConfigs(rawDb)
   const usesNativeWebDavRateLimit = Boolean(authPlatform.getBinding(WEBDAV_RATE_LIMITER_BINDING))
+  const apiKeyKv = authPlatform.getBinding<CloudflareKvNamespaceLike>('CACHE_KV')
+  const webDavApiKeyStorage = apiKeyKv ? createBetterAuthApiKeyStorage(apiKeyKv) : undefined
   const authOptions = {
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,
@@ -565,6 +568,13 @@ export async function createAuth(
           configId: ApiKeyTemplate.WEBDAV,
           references: 'user',
           enableMetadata: true,
+          ...(webDavApiKeyStorage
+            ? {
+                storage: 'secondary-storage' as const,
+                fallbackToDatabase: true,
+                customStorage: webDavApiKeyStorage,
+              }
+            : {}),
           // Cloudflare's native limiter remains the authoritative synchronous
           // rate limit. Better Auth can therefore move its bookkeeping write
           // off the response path without weakening enforcement.
