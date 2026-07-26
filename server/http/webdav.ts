@@ -664,7 +664,7 @@ async function processWebDavAudit(
 ): Promise<void> {
   const actor = transferAuditActor(c.get('principal'))
   if (c.req.method === 'GET' && isDownloadFailureStatus(c.res.status)) {
-    const target = await webDavDownloadAuditTarget(c, userId)
+    const target = c.get('webDavDownloadAuditTarget')
     if (target) {
       await recordDownloadFailure(c.get('deps'), actor, target, transferFailureReason(c))
     }
@@ -818,20 +818,6 @@ async function webDavUploadedTarget(c: DavContext, userId: string): Promise<Tran
     bytes: target.matter.size ?? 0,
     source: 'webdav_upload',
     metadata: { matterId: target.matter.id, storageId: target.matter.storageId },
-  }
-}
-
-async function webDavDownloadAuditTarget(c: DavContext, userId: string): Promise<TransferAuditTarget | null> {
-  const resolved = await resolveWebDavDownload(c.get('deps'), { userId, rawPath: davPath(c) })
-  if (!resolved.ok) return null
-  return {
-    orgId: resolved.workspace.id,
-    targetType: 'file',
-    targetId: resolved.matter.id,
-    targetName: resolved.matter.name,
-    bytes: requestedWebDavBytes(c, resolved.matter),
-    source: 'webdav_download',
-    metadata: { matterId: resolved.matter.id, storageId: resolved.storage.id },
   }
 }
 
@@ -991,6 +977,15 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       }
     }
     const { matter, workspace, storage } = resolved
+    c.set('webDavDownloadAuditTarget', {
+      orgId: workspace.id,
+      targetType: 'file',
+      targetId: matter.id,
+      targetName: matter.name,
+      bytes: requestedWebDavBytes(c, matter),
+      source: 'webdav_download',
+      metadata: { matterId: matter.id, storageId: storage.id },
+    })
     const precondition = preconditionResponse(c, matter)
     if (precondition) return precondition
 

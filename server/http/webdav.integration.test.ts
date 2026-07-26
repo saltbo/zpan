@@ -799,6 +799,25 @@ describe('WebDAV API', () => {
     ])
   })
 
+  it('does not resolve a missing GET target again for failure auditing', async () => {
+    const { app, db, auth, deps } = await createTestApp()
+    await authedHeaders(app)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const resolve = vi.spyOn(deps.webdavPath, 'resolveExistingWebDavPath')
+
+    const res = await app.request(`/dav/${workspace.slug}/._missing.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, {
+        'User-Agent': 'WebDAVFS/3.0.0 (03008000) Darwin/24.6.0 (arm64)',
+      }),
+    })
+
+    expect(res.status).toBe(404)
+    expect(resolve).toHaveBeenCalledTimes(1)
+  })
+
   it('GET supports valid byte ranges and rejects invalid ranges [spec: webdav/get-range]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)

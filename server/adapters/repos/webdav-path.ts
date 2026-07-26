@@ -1,5 +1,5 @@
 import { ObjectStatus } from '@shared/constants'
-import { and, asc, desc, eq, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, getTableColumns, isNull } from 'drizzle-orm'
 import { member, organization } from '../../db/auth-schema'
 import { matters } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -12,30 +12,32 @@ import {
 } from '../../usecases/ports'
 
 type WorkspaceRow = Pick<WebDavWorkspace, 'id' | 'name' | 'slug'>
+type WorkspaceMatterRow = {
+  workspace: WorkspaceRow
+  matter: Matter | null
+}
 
 export function createWebDavPathRepo(db: Database): WebDavPathRepo {
-  async function getUserWorkspace(userId: string, pathSegment: string): Promise<WebDavWorkspace | null> {
-    const workspaces = toWebDavWorkspaces(await userWorkspaceRows(db, userId))
-    return (
-      workspaces.find(
-        (workspace) =>
-          workspace.slug === pathSegment || workspace.id === pathSegment || workspace.pathSegment === pathSegment,
-      ) ?? null
-    )
-  }
-
   async function resolveWebDavPath(userId: string, rawPath: string): Promise<WebDavTarget> {
     const parts = decodeDavPath(rawPath)
     if (parts.length === 0) return { workspace: null, mountRoot: true, parent: '', name: '', matter: null }
 
-    const workspace = await getUserWorkspace(userId, parts[0])
-    if (!workspace) throw new WebDavPathError('Workspace not found', 404)
-    if (parts.length === 1) return { workspace, mountRoot: false, parent: '', name: '', matter: null }
-
     const matterParts = parts.slice(1)
     const name = matterParts.at(-1) ?? ''
     const parent = matterParts.slice(0, -1).join('/')
-    const matter = await findMatterByPath(db, workspace.id, parent, name)
+    const rows =
+      parts.length === 1
+        ? (await userWorkspaceRows(db, userId)).map((workspace) => ({ workspace, matter: null }))
+        : await userWorkspaceMatterRows(db, userId, parent, name)
+    const workspaces = toWebDavWorkspaces(rows.map((row) => row.workspace))
+    const workspace =
+      workspaces.find(
+        (candidate) => candidate.slug === parts[0] || candidate.id === parts[0] || candidate.pathSegment === parts[0],
+      ) ?? null
+    if (!workspace) throw new WebDavPathError('Workspace not found', 404)
+    if (parts.length === 1) return { workspace, mountRoot: false, parent: '', name: '', matter: null }
+
+    const matter = rows.find((row) => row.workspace.id === workspace.id)?.matter ?? null
     return { workspace, mountRoot: false, parent, name, matter }
   }
 
@@ -75,6 +77,34 @@ async function userWorkspaceRows(db: Database, userId: string): Promise<Workspac
     .select({ id: organization.id, name: organization.name, slug: organization.slug })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(eq(member.userId, userId))
+    .orderBy(asc(organization.name), asc(organization.slug))
+}
+
+async function userWorkspaceMatterRows(
+  db: Database,
+  userId: string,
+  parent: string,
+  name: string,
+): Promise<WorkspaceMatterRow[]> {
+  return db
+    .select({
+      workspace: { id: organization.id, name: organization.name, slug: organization.slug },
+      matter: getTableColumns(matters),
+    })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .leftJoin(
+      matters,
+      and(
+        eq(matters.orgId, organization.id),
+        eq(matters.parent, parent),
+        eq(matters.name, name),
+        eq(matters.status, ObjectStatus.ACTIVE),
+        isNull(matters.trashedAt),
+        isNull(matters.purgedAt),
+      ),
+    )
     .where(eq(member.userId, userId))
     .orderBy(asc(organization.name), asc(organization.slug))
 }
@@ -133,22 +163,4 @@ function decodeSegment(segment: string): string {
 
 function isSafeDavPathSegment(segment: string): boolean {
   return Boolean(segment) && segment !== '.' && segment !== '..' && !segment.includes('/') && !segment.includes('\\')
-}
-
-async function findMatterByPath(db: Database, orgId: string, parent: string, name: string): Promise<Matter | null> {
-  const rows = await db
-    .select()
-    .from(matters)
-    .where(
-      and(
-        eq(matters.orgId, orgId),
-        eq(matters.parent, parent),
-        eq(matters.name, name),
-        eq(matters.status, ObjectStatus.ACTIVE),
-        isNull(matters.trashedAt),
-        isNull(matters.purgedAt),
-      ),
-    )
-    .limit(1)
-  return rows[0] ?? null
 }
