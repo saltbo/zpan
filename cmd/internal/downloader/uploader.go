@@ -147,13 +147,7 @@ func (u *Uploader) uploadObjectSlices(
 		if remaining := size - offset; remaining < length {
 			length = remaining
 		}
-		contentType := ""
-		contentDisposition := ""
-		if len(upload.URLs) == 1 {
-			contentType = "application/octet-stream"
-			contentDisposition = upload.ContentDisposition
-		}
-		etag, err := uploadFilePart(ctx, url, file, offset, length, contentType, contentDisposition, func(written int64) error {
+		etag, err := uploadFilePart(ctx, url, file, offset, length, func(written int64) error {
 			return u.reportUploadProgress(ctx, log, task, progress, written)
 		})
 		if err != nil {
@@ -332,7 +326,7 @@ func joinObjectPath(parent string, name string) string {
 	return parent + "/" + name
 }
 
-func uploadFilePart(ctx context.Context, url string, file *os.File, offset int64, length int64, contentType string, contentDisposition string, progress func(written int64) error) (string, error) {
+func uploadFilePart(ctx context.Context, url string, file *os.File, offset int64, length int64, progress func(written int64) error) (string, error) {
 	reader := io.NewSectionReader(file, offset, length)
 	var body io.Reader = reader
 	if progress != nil {
@@ -343,12 +337,6 @@ func uploadFilePart(ctx context.Context, url string, file *os.File, offset int64
 		return "", err
 	}
 	req.ContentLength = length
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	if contentDisposition != "" {
-		req.Header.Set("Content-Disposition", contentDisposition)
-	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err

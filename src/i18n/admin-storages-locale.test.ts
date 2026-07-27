@@ -99,11 +99,8 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.secretKeyPlaceholder',
   'admin.storages.showSecretKey',
   'admin.storages.hideSecretKey',
-  'admin.storages.fieldCustomHost',
-  'admin.storages.customHostHint',
   'admin.storages.fieldForcePathStyle',
   'admin.storages.forcePathStyleHint',
-  'admin.storages.customHostPlaceholder',
   'admin.storages.fieldCapacity',
   'admin.storages.capacityPlaceholder',
   'admin.storages.capacityHint',
@@ -153,21 +150,6 @@ describe('admin.storages locale keys — presence', () => {
 
     it(`zh.json contains key "${key}"`, () => {
       expect(Object.hasOwn(zhLocale, key)).toBe(true)
-    })
-  }
-})
-
-describe('admin.storages CORS guidance — required upload headers', () => {
-  for (const [locale, messages] of [
-    ['en', enLocale],
-    ['zh', zhLocale],
-  ] as const) {
-    it(`${locale} explains the signed upload header requirements`, () => {
-      const guidance = `${messages['admin.storages.testCorsFailure']} ${messages['admin.storages.testCorsCaveat']}`
-
-      expect(guidance).toContain('Content-Type')
-      expect(guidance).toContain('Content-Disposition')
-      expect(guidance).toContain('ETag')
     })
   }
 })

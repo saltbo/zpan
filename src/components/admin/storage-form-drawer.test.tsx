@@ -50,7 +50,6 @@ const storage: Storage = {
   accessKey: 'access-key',
   secretKey: 'secret-key',
   filePath: '',
-  customHost: null,
   capacity: 2 * 1024 * 1024 * 1024,
   forcePathStyle: true,
   egressCreditBillingEnabled: true,
@@ -221,23 +220,5 @@ describe('StorageFormDrawer', () => {
 
     expect(screen.getByText('https://new-bucket.storage.example.com/example-object')).toBeTruthy()
     expect(screen.getByText('admin.storages.previewVirtualHostedStyle')).toBeTruthy()
-  })
-
-  it('previews the public URL with custom host without replacing the SDK request URL', () => {
-    vi.stubGlobal('ResizeObserver', TestResizeObserver)
-    renderStorageFormDrawer()
-
-    fireEvent.change(screen.getByLabelText('admin.storages.fieldBucket'), { target: { value: 'new-bucket' } })
-    fireEvent.change(screen.getByLabelText('admin.storages.fieldEndpoint'), {
-      target: { value: 'https://storage.example.com' },
-    })
-    fireEvent.change(screen.getByLabelText('admin.storages.fieldCustomHost'), {
-      target: { value: 'cdn.example.com' },
-    })
-
-    expect(screen.getByText('admin.storages.previewRequestUrl')).toBeTruthy()
-    expect(screen.getByText('https://storage.example.com/new-bucket/example-object')).toBeTruthy()
-    expect(screen.getByText('admin.storages.previewPublicUrl')).toBeTruthy()
-    expect(screen.getByText('https://cdn.example.com/example-object')).toBeTruthy()
   })
 })

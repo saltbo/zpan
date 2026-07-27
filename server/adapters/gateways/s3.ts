@@ -60,34 +60,20 @@ export class S3Service implements S3Gateway {
     return url
   }
 
-  async createMultipartUpload(
-    storage: S3StorageCredentials,
-    key: string,
-    contentType?: string,
-    filename?: string,
-  ): Promise<string> {
+  async createMultipartUpload(storage: S3StorageCredentials, key: string, contentType?: string): Promise<string> {
     const client = this.createClient(storage)
-    const contentDisposition = filename ? attachmentContentDisposition(filename) : undefined
     const url = await getSignedUrl(
       client,
       new CreateMultipartUploadCommand({
         Bucket: storage.bucket,
         Key: key,
         ...(contentType ? { ContentType: contentType } : {}),
-        ...(contentDisposition ? { ContentDisposition: contentDisposition } : {}),
       }),
       { expiresIn: DEFAULT_EXPIRES_IN },
     )
     const response = await fetch(url, {
       method: 'POST',
-      ...(contentType || contentDisposition
-        ? {
-            headers: {
-              ...(contentType ? { 'Content-Type': contentType } : {}),
-              ...(contentDisposition ? { 'Content-Disposition': contentDisposition } : {}),
-            },
-          }
-        : {}),
+      ...(contentType ? { headers: { 'Content-Type': contentType } } : {}),
     })
     const body = await response.text()
     if (!response.ok) throw new Error(`S3 multipart upload create failed: ${response.status}: ${body.trim()}`)
@@ -171,7 +157,7 @@ export class S3Service implements S3Gateway {
       ResponseContentDisposition: attachmentContentDisposition(filename),
     })
     const url = await getSignedUrl(client, command, { expiresIn })
-    return this.applyCustomHost(storage, url)
+    return url
   }
 
   async presignInline(
@@ -188,31 +174,7 @@ export class S3Service implements S3Gateway {
       ResponseContentType: mime,
     })
     const url = await getSignedUrl(client, command, { expiresIn })
-    return this.applyCustomHost(storage, url)
-  }
-
-  private applyCustomHost(storage: S3StorageCredentials, url: string): string {
-    if (!storage.customHost) return url
-
-    let customHost = storage.customHost.trim()
-    if (!/^https?:\/\//i.test(customHost)) {
-      customHost = `https://${customHost}`
-    }
-
-    const parsed = new URL(url)
-    const custom = new URL(customHost)
-
-    parsed.protocol = custom.protocol
-    parsed.host = custom.host
-
-    const bucketPrefix = `/${storage.bucket}/`
-    if (parsed.pathname.startsWith(bucketPrefix)) {
-      parsed.pathname = `/${parsed.pathname.slice(bucketPrefix.length)}`
-    } else if (parsed.pathname === `/${storage.bucket}`) {
-      parsed.pathname = '/'
-    }
-
-    return parsed.toString()
+    return url
   }
 
   async headObject(

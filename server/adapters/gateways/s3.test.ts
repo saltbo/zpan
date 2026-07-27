@@ -101,7 +101,6 @@ function makeStorage(overrides: Partial<Storage> = {}): Storage {
     accessKey: 'AKID',
     secretKey: 'SECRET',
     filePath: '',
-    customHost: '',
     capacity: 0,
     egressCreditBillingEnabled: false,
     egressCreditUnitBytes: 104857600,
@@ -189,21 +188,6 @@ describe('S3Service', () => {
         expect.anything(),
       )
     })
-
-    it('does not apply customHost to the signed URL to support PUT write uploads', async () => {
-      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
-      vi.mocked(getSignedUrl).mockResolvedValueOnce('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
-      const s = makeStorage({ customHost: 'https://cdn.example.com' })
-      const url = await service.presignUpload(s, 'test.jpg', 'image/jpeg')
-      expect(url).toBe('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
-    })
-
-    it('leaves URL unchanged when customHost is empty', async () => {
-      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
-      vi.mocked(getSignedUrl).mockResolvedValueOnce('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
-      const url = await service.presignUpload(storage, 'test.jpg', 'image/jpeg')
-      expect(url).toBe('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
-    })
   })
 
   describe('presignDownload', () => {
@@ -222,12 +206,21 @@ describe('S3Service', () => {
       )
     })
 
-    it('applies customHost to the signed URL and omits the bucket name from the path', async () => {
+    it('returns the original signed S3 URL for private bucket downloads', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       vi.mocked(getSignedUrl).mockResolvedValueOnce('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
-      const s = makeStorage({ customHost: 'https://cdn.example.com' })
-      const url = await service.presignDownload(s, 'test.jpg', 'test.jpg')
-      expect(url).toBe('https://cdn.example.com/test.jpg?X-Amz-Signature=abc')
+      const url = await service.presignDownload(storage, 'test.jpg', '中文 图片.jpg')
+      expect(url).toBe('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
+      expect(getSignedUrl).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          input: expect.objectContaining({
+            ResponseContentDisposition:
+              'attachment; filename="__ __.jpg"; filename*=UTF-8\'\'%E4%B8%AD%E6%96%87%20%E5%9B%BE%E7%89%87.jpg',
+          }),
+        }),
+        expect.anything(),
+      )
     })
   })
 
@@ -254,14 +247,13 @@ describe('S3Service', () => {
       expect(getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), { expiresIn: 600 })
     })
 
-    it('applies customHost to the signed URL and omits the bucket name from the path', async () => {
+    it('returns the original signed S3 URL for inline previews', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       vi.mocked(getSignedUrl).mockResolvedValueOnce(
         'https://s3.example.com/my-bucket/images/photo.jpg?X-Amz-Signature=abc',
       )
-      const s = makeStorage({ customHost: 'https://cdn.example.com' })
-      const url = await service.presignInline(s, 'images/photo.jpg', 'image/jpeg')
-      expect(url).toBe('https://cdn.example.com/images/photo.jpg?X-Amz-Signature=abc')
+      const url = await service.presignInline(storage, 'images/photo.jpg', 'image/jpeg')
+      expect(url).toBe('https://s3.example.com/my-bucket/images/photo.jpg?X-Amz-Signature=abc')
     })
   })
 
@@ -274,27 +266,12 @@ describe('S3Service', () => {
         )
       vi.stubGlobal('fetch', fetchMock)
 
-      await expect(service.createMultipartUpload(storage, 'video.mp4', 'video/mp4', 'movie.mp4')).resolves.toBe(
-        'upload-1',
-      )
+      await expect(service.createMultipartUpload(storage, 'video.mp4', 'video/mp4')).resolves.toBe('upload-1')
 
       expect(fetchMock).toHaveBeenCalledWith('https://signed-url.example.com', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'video/mp4',
-          'Content-Disposition': 'attachment; filename="movie.mp4"; filename*=UTF-8\'\'movie.mp4',
-        },
+        headers: { 'Content-Type': 'video/mp4' },
       })
-      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
-      expect(getSignedUrl).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          input: expect.objectContaining({
-            ContentDisposition: 'attachment; filename="movie.mp4"; filename*=UTF-8\'\'movie.mp4',
-          }),
-        }),
-        expect.anything(),
-      )
       expect(mockSend).not.toHaveBeenCalled()
     })
 

@@ -1327,7 +1327,6 @@ export interface UploadPartOptions {
   onProgress?: (progress: UploadProgress) => void
   signal?: AbortSignal
   contentType?: string
-  contentDisposition?: string
 }
 
 /**
@@ -1375,7 +1374,6 @@ export function uploadPartToS3(url: string, blob: Blob, options: UploadPartOptio
     }
     xhr.open('PUT', url)
     if (options.contentType) xhr.setRequestHeader('Content-Type', options.contentType)
-    if (options.contentDisposition) xhr.setRequestHeader('Content-Disposition', options.contentDisposition)
     xhr.send(blob)
   })
 }

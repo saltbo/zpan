@@ -2299,7 +2299,6 @@ describe('WebDAV over real HTTP (npm client)', () => {
     accessKey: 'key',
     secretKey: 'secret',
     filePath: '',
-    customHost: '',
     capacity: 0,
     used: 0,
     status: 'active',

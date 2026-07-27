@@ -92,6 +92,8 @@ export const storages = sqliteTable('storages', {
   accessKey: text('access_key').notNull(),
   secretKey: text('secret_key').notNull(),
   filePath: text('file_path').notNull().default(''),
+  // Legacy v1 public-bucket setting. Kept physically for downgrade safety;
+  // it is intentionally absent from the storage API and runtime S3 gateway.
   customHost: text('custom_host').default(''),
   capacity: integer('capacity').notNull().default(0),
   egressCreditBillingEnabled: integer('egress_credit_billing_enabled', { mode: 'boolean' }).notNull().default(false),

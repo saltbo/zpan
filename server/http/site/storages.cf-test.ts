@@ -44,7 +44,6 @@ const validStorage = {
 const validReplacement = {
   provider: '',
   ...validStorage,
-  customHost: '',
   capacity: 0,
   forcePathStyle: true,
   egressCreditBillingEnabled: false,

@@ -32,7 +32,6 @@ describe('Admin overview API', () => {
       accessKey: 'access-key',
       secretKey: 'secret-key',
       filePath: '',
-      customHost: '',
       capacity: 1000,
       used: 400,
       enabled: true,
