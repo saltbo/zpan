@@ -17,7 +17,6 @@ import type { S3Gateway, S3StorageCredentials } from '../../usecases/ports'
 const DEFAULT_EXPIRES_IN = 3600
 const MULTIPART_PART_SIZE = 5 * 1024 * 1024
 const SMALL_STREAM_PUT_BUFFER_SIZE = 256 * 1024
-const UNSIGNABLE_UPLOAD_METADATA_HEADERS = new Set(['content-disposition'])
 
 export class S3Service implements S3Gateway {
   createClient(storage: S3StorageCredentials): S3Client {
@@ -40,11 +39,8 @@ export class S3Service implements S3Gateway {
     filenameOrExpiresIn?: string | number,
     expiresIn = DEFAULT_EXPIRES_IN,
   ): Promise<string> {
-    let filename: string | undefined
     let ttl = expiresIn
-    if (typeof filenameOrExpiresIn === 'string') {
-      filename = filenameOrExpiresIn
-    } else if (typeof filenameOrExpiresIn === 'number') {
+    if (typeof filenameOrExpiresIn === 'number') {
       ttl = filenameOrExpiresIn
     }
 
@@ -53,15 +49,11 @@ export class S3Service implements S3Gateway {
       Bucket: storage.bucket,
       Key: key,
       ...(contentType ? { ContentType: contentType } : {}),
-      ...(filename ? { ContentDisposition: attachmentContentDisposition(filename) } : {}),
     })
-    // Content-Disposition is still serialized into the PUT request and stored as
-    // object metadata. Keep it out of SignedHeaders because R2 does not calculate
-    // the same signature for RFC 6266 values containing filename parameters.
-    const url = await getSignedUrl(client, command, {
-      expiresIn: ttl,
-      unsignableHeaders: UNSIGNABLE_UPLOAD_METADATA_HEADERS,
-    })
+    // The client adds Content-Disposition after signing. S3 stores ordinary
+    // unsigned request headers as object metadata, while R2 rejects signatures
+    // produced from a command that contains RFC 6266 filename parameters.
+    const url = await getSignedUrl(client, command, { expiresIn: ttl })
     return url
   }
 
@@ -79,12 +71,8 @@ export class S3Service implements S3Gateway {
         Bucket: storage.bucket,
         Key: key,
         ...(contentType ? { ContentType: contentType } : {}),
-        ...(contentDisposition ? { ContentDisposition: contentDisposition } : {}),
       }),
-      {
-        expiresIn: DEFAULT_EXPIRES_IN,
-        unsignableHeaders: UNSIGNABLE_UPLOAD_METADATA_HEADERS,
-      },
+      { expiresIn: DEFAULT_EXPIRES_IN },
     )
     const response = await fetch(url, {
       method: 'POST',

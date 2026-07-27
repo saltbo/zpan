@@ -156,10 +156,7 @@ describe('S3Service', () => {
       expect(getSignedUrl).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'test.jpg', ContentType: 'image/jpeg' } }),
-        {
-          expiresIn: 3600,
-          unsignableHeaders: new Set(['content-disposition']),
-        },
+        { expiresIn: 3600 },
       )
     })
 
@@ -169,36 +166,25 @@ describe('S3Service', () => {
       expect(getSignedUrl).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'unknown.bin' } }),
-        {
-          expiresIn: 3600,
-          unsignableHeaders: new Set(['content-disposition']),
-        },
+        { expiresIn: 3600 },
       )
     })
 
     it('respects custom expiresIn', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       await service.presignUpload(storage, 'test.jpg', 'image/jpeg', 600)
-      expect(getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
-        expiresIn: 600,
-        unsignableHeaders: new Set(['content-disposition']),
-      })
+      expect(getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), { expiresIn: 600 })
     })
 
-    it('includes Content-Disposition metadata when filename is provided', async () => {
+    it('keeps Content-Disposition out of the presigned command when filename is provided', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       await service.presignUpload(storage, 'test.jpg', 'image/jpeg', 'my file.jpg')
       expect(getSignedUrl).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
-          input: expect.objectContaining({
-            ContentDisposition: 'attachment; filename="my file.jpg"; filename*=UTF-8\'\'my%20file.jpg',
-          }),
+          input: { Bucket: 'my-bucket', Key: 'test.jpg', ContentType: 'image/jpeg' },
         }),
-        {
-          expiresIn: 3600,
-          unsignableHeaders: new Set(['content-disposition']),
-        },
+        { expiresIn: 3600 },
       )
     })
 
@@ -301,14 +287,9 @@ describe('S3Service', () => {
       expect(getSignedUrl).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
-          input: expect.objectContaining({
-            ContentDisposition: 'attachment; filename="movie.mp4"; filename*=UTF-8\'\'movie.mp4',
-          }),
+          input: { Bucket: 'my-bucket', Key: 'video.mp4', ContentType: 'video/mp4' },
         }),
-        {
-          expiresIn: 3600,
-          unsignableHeaders: new Set(['content-disposition']),
-        },
+        { expiresIn: 3600 },
       )
       expect(mockSend).not.toHaveBeenCalled()
     })
@@ -327,10 +308,7 @@ describe('S3Service', () => {
       expect(getSignedUrl).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'unknown.bin' } }),
-        {
-          expiresIn: 3600,
-          unsignableHeaders: new Set(['content-disposition']),
-        },
+        { expiresIn: 3600 },
       )
       expect(fetchMock).toHaveBeenCalledWith('https://signed-url.example.com', { method: 'POST' })
     })
