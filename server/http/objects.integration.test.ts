@@ -221,7 +221,7 @@ describe('Objects API', () => {
     expect(((await res.json()) as { pageSize: number }).pageSize).toBe(500)
   })
 
-  it('GET /api/objects lists folders with hasChildren [spec: objects/list-folders]', async () => {
+  it('GET /api/objects lists folders with hasChildren', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -251,7 +251,7 @@ describe('Objects API', () => {
     )
   })
 
-  it('GET /api/objects composes folder and search filters [spec: objects/list-folders-search]', async () => {
+  it('GET /api/objects composes folder and search filters', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
