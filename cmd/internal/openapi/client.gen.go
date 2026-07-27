@@ -249,6 +249,105 @@ func (e DownloadTaskStatusState) Valid() bool {
 	}
 }
 
+// Defines values for DownloadTaskListItemSpecSourceType.
+const (
+	DownloadTaskListItemSpecSourceTypeHttp       DownloadTaskListItemSpecSourceType = "http"
+	DownloadTaskListItemSpecSourceTypeMagnet     DownloadTaskListItemSpecSourceType = "magnet"
+	DownloadTaskListItemSpecSourceTypeTorrentUrl DownloadTaskListItemSpecSourceType = "torrent_url"
+)
+
+// Valid indicates whether the value is a known member of the DownloadTaskListItemSpecSourceType enum.
+func (e DownloadTaskListItemSpecSourceType) Valid() bool {
+	switch e {
+	case DownloadTaskListItemSpecSourceTypeHttp:
+		return true
+	case DownloadTaskListItemSpecSourceTypeMagnet:
+		return true
+	case DownloadTaskListItemSpecSourceTypeTorrentUrl:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DownloadTaskListItemStatusRuntimePhase.
+const (
+	DownloadTaskListItemStatusRuntimePhaseCompleted   DownloadTaskListItemStatusRuntimePhase = "completed"
+	DownloadTaskListItemStatusRuntimePhaseDownloading DownloadTaskListItemStatusRuntimePhase = "downloading"
+	DownloadTaskListItemStatusRuntimePhaseError       DownloadTaskListItemStatusRuntimePhase = "error"
+	DownloadTaskListItemStatusRuntimePhaseMetadata    DownloadTaskListItemStatusRuntimePhase = "metadata"
+	DownloadTaskListItemStatusRuntimePhaseSeeding     DownloadTaskListItemStatusRuntimePhase = "seeding"
+	DownloadTaskListItemStatusRuntimePhaseUploading   DownloadTaskListItemStatusRuntimePhase = "uploading"
+)
+
+// Valid indicates whether the value is a known member of the DownloadTaskListItemStatusRuntimePhase enum.
+func (e DownloadTaskListItemStatusRuntimePhase) Valid() bool {
+	switch e {
+	case DownloadTaskListItemStatusRuntimePhaseCompleted:
+		return true
+	case DownloadTaskListItemStatusRuntimePhaseDownloading:
+		return true
+	case DownloadTaskListItemStatusRuntimePhaseError:
+		return true
+	case DownloadTaskListItemStatusRuntimePhaseMetadata:
+		return true
+	case DownloadTaskListItemStatusRuntimePhaseSeeding:
+		return true
+	case DownloadTaskListItemStatusRuntimePhaseUploading:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DownloadTaskListItemStatusState.
+const (
+	DownloadTaskListItemStatusStateAssigned    DownloadTaskListItemStatusState = "assigned"
+	DownloadTaskListItemStatusStateCanceled    DownloadTaskListItemStatusState = "canceled"
+	DownloadTaskListItemStatusStateCanceling   DownloadTaskListItemStatusState = "canceling"
+	DownloadTaskListItemStatusStateCompleted   DownloadTaskListItemStatusState = "completed"
+	DownloadTaskListItemStatusStateDownloading DownloadTaskListItemStatusState = "downloading"
+	DownloadTaskListItemStatusStateFailed      DownloadTaskListItemStatusState = "failed"
+	DownloadTaskListItemStatusStateInterrupted DownloadTaskListItemStatusState = "interrupted"
+	DownloadTaskListItemStatusStatePaused      DownloadTaskListItemStatusState = "paused"
+	DownloadTaskListItemStatusStatePausing     DownloadTaskListItemStatusState = "pausing"
+	DownloadTaskListItemStatusStateQueued      DownloadTaskListItemStatusState = "queued"
+	DownloadTaskListItemStatusStateSuspended   DownloadTaskListItemStatusState = "suspended"
+	DownloadTaskListItemStatusStateUploading   DownloadTaskListItemStatusState = "uploading"
+)
+
+// Valid indicates whether the value is a known member of the DownloadTaskListItemStatusState enum.
+func (e DownloadTaskListItemStatusState) Valid() bool {
+	switch e {
+	case DownloadTaskListItemStatusStateAssigned:
+		return true
+	case DownloadTaskListItemStatusStateCanceled:
+		return true
+	case DownloadTaskListItemStatusStateCanceling:
+		return true
+	case DownloadTaskListItemStatusStateCompleted:
+		return true
+	case DownloadTaskListItemStatusStateDownloading:
+		return true
+	case DownloadTaskListItemStatusStateFailed:
+		return true
+	case DownloadTaskListItemStatusStateInterrupted:
+		return true
+	case DownloadTaskListItemStatusStatePaused:
+		return true
+	case DownloadTaskListItemStatusStatePausing:
+		return true
+	case DownloadTaskListItemStatusStateQueued:
+		return true
+	case DownloadTaskListItemStatusStateSuspended:
+		return true
+	case DownloadTaskListItemStatusStateUploading:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DownloadTaskTimelineItemSeverity.
 const (
 	DownloadTaskTimelineItemSeverityError   DownloadTaskTimelineItemSeverity = "error"
@@ -876,21 +975,6 @@ func (e RecordDownloaderHeartbeatJSONBodyEngine) Valid() bool {
 	}
 }
 
-// Defines values for ListDownloadTasksParamsAssignedTo.
-const (
-	Me ListDownloadTasksParamsAssignedTo = "me"
-)
-
-// Valid indicates whether the value is a known member of the ListDownloadTasksParamsAssignedTo enum.
-func (e ListDownloadTasksParamsAssignedTo) Valid() bool {
-	switch e {
-	case Me:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CreateDownloadTaskJSONBodySourceType.
 const (
 	CreateDownloadTaskJSONBodySourceTypeHttp       CreateDownloadTaskJSONBodySourceType = "http"
@@ -1385,13 +1469,13 @@ func (e SaveEmailConfigJSONBody0Provider) Valid() bool {
 
 // Defines values for SaveEmailConfigJSONBody1Provider.
 const (
-	Http SaveEmailConfigJSONBody1Provider = "http"
+	SaveEmailConfigJSONBody1ProviderHttp SaveEmailConfigJSONBody1Provider = "http"
 )
 
 // Valid indicates whether the value is a known member of the SaveEmailConfigJSONBody1Provider enum.
 func (e SaveEmailConfigJSONBody1Provider) Valid() bool {
 	switch e {
-	case Http:
+	case SaveEmailConfigJSONBody1ProviderHttp:
 		return true
 	default:
 		return false
@@ -1993,6 +2077,67 @@ type DownloadTaskStatusRuntimePhase string
 
 // DownloadTaskStatusState defines model for DownloadTask.Status.State.
 type DownloadTaskStatusState string
+
+// DownloadTaskListItem defines model for DownloadTaskListItem.
+type DownloadTaskListItem struct {
+	CreatedAt string `json:"createdAt"`
+	Id        string `json:"id"`
+	Spec      struct {
+		Destination struct {
+			Folder string  `json:"folder"`
+			Name   *string `json:"name"`
+		} `json:"destination"`
+		Labels struct {
+			Category *string  `json:"category"`
+			Tags     []string `json:"tags"`
+		} `json:"labels"`
+		Source struct {
+			Type DownloadTaskListItemSpecSourceType `json:"type"`
+			Uri  string                             `json:"uri"`
+		} `json:"source"`
+	} `json:"spec"`
+	Status struct {
+		Progress struct {
+			Download struct {
+				Bytes          int64  `json:"bytes"`
+				BytesPerSecond int64  `json:"bytesPerSecond"`
+				TotalBytes     *int64 `json:"totalBytes,omitempty"`
+			} `json:"download"`
+			Upload struct {
+				Bytes          int64  `json:"bytes"`
+				BytesPerSecond int64  `json:"bytesPerSecond"`
+				TotalBytes     *int64 `json:"totalBytes,omitempty"`
+			} `json:"upload"`
+		} `json:"progress"`
+		Runtime *struct {
+			EtaSeconds *int                                    `json:"etaSeconds,omitempty"`
+			Phase      *DownloadTaskListItemStatusRuntimePhase `json:"phase,omitempty"`
+			Torrent    *struct {
+				InfoHash *string `json:"infoHash,omitempty"`
+				Leechers *int    `json:"leechers,omitempty"`
+				Name     *string `json:"name,omitempty"`
+				Peers    *int    `json:"peers,omitempty"`
+				Seeders  *int    `json:"seeders,omitempty"`
+			} `json:"torrent,omitempty"`
+		} `json:"runtime"`
+		State DownloadTaskListItemStatusState `json:"state"`
+	} `json:"status"`
+}
+
+// DownloadTaskListItemSpecSourceType defines model for DownloadTaskListItem.Spec.Source.Type.
+type DownloadTaskListItemSpecSourceType string
+
+// DownloadTaskListItemStatusRuntimePhase defines model for DownloadTaskListItem.Status.Runtime.Phase.
+type DownloadTaskListItemStatusRuntimePhase string
+
+// DownloadTaskListItemStatusState defines model for DownloadTaskListItem.Status.State.
+type DownloadTaskListItemStatusState string
+
+// DownloadTaskListPage defines model for DownloadTaskListPage.
+type DownloadTaskListPage struct {
+	Items         []DownloadTaskListItem `json:"items"`
+	NextPageToken *string                `json:"nextPageToken"`
+}
 
 // DownloadTaskPage defines model for DownloadTaskPage.
 type DownloadTaskPage struct {
@@ -3711,6 +3856,15 @@ type RecordDownloaderHeartbeatJSONBody struct {
 // RecordDownloaderHeartbeatJSONBodyEngine defines parameters for RecordDownloaderHeartbeat.
 type RecordDownloaderHeartbeatJSONBodyEngine string
 
+// ListDownloaderTasksParams defines parameters for ListDownloaderTasks.
+type ListDownloaderTasksParams struct {
+	Status    *string `form:"status,omitempty" json:"status,omitempty"`
+	Category  *string `form:"category,omitempty" json:"category,omitempty"`
+	Tag       *string `form:"tag,omitempty" json:"tag,omitempty"`
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+}
+
 // UpdateDownloaderJSONBody defines parameters for UpdateDownloader.
 type UpdateDownloaderJSONBody struct {
 	Enabled                            *bool   `json:"enabled,omitempty"`
@@ -3729,16 +3883,12 @@ type UpdateDownloaderCreditBillingJSONBody struct {
 
 // ListDownloadTasksParams defines parameters for ListDownloadTasks.
 type ListDownloadTasksParams struct {
-	Status     *string                            `form:"status,omitempty" json:"status,omitempty"`
-	AssignedTo *ListDownloadTasksParamsAssignedTo `form:"assignedTo,omitempty" json:"assignedTo,omitempty"`
-	Category   *string                            `form:"category,omitempty" json:"category,omitempty"`
-	Tag        *string                            `form:"tag,omitempty" json:"tag,omitempty"`
-	PageSize   *int                               `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-	PageToken  *string                            `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+	Status    *string `form:"status,omitempty" json:"status,omitempty"`
+	Category  *string `form:"category,omitempty" json:"category,omitempty"`
+	Tag       *string `form:"tag,omitempty" json:"tag,omitempty"`
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
-
-// ListDownloadTasksParamsAssignedTo defines parameters for ListDownloadTasks.
-type ListDownloadTasksParamsAssignedTo string
 
 // CreateDownloadTaskJSONBody defines parameters for CreateDownloadTask.
 type CreateDownloadTaskJSONBody struct {
@@ -5384,6 +5534,9 @@ type ClientInterface interface {
 	RecordDownloaderHeartbeatWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	RecordDownloaderHeartbeat(ctx context.Context, body RecordDownloaderHeartbeatJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListDownloaderTasks request
+	ListDownloaderTasks(ctx context.Context, params *ListDownloaderTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteDownloader request
 	DeleteDownloader(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7714,6 +7867,18 @@ func (c *Client) RecordDownloaderHeartbeatWithBody(ctx context.Context, contentT
 
 func (c *Client) RecordDownloaderHeartbeat(ctx context.Context, body RecordDownloaderHeartbeatJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRecordDownloaderHeartbeatRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListDownloaderTasks(ctx context.Context, params *ListDownloaderTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDownloaderTasksRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -13680,6 +13845,108 @@ func NewRecordDownloaderHeartbeatRequestWithBody(server string, contentType stri
 	return req, nil
 }
 
+// NewListDownloaderTasksRequest generates requests for ListDownloaderTasks
+func NewListDownloaderTasksRequest(server string, params *ListDownloaderTasksParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/downloaders/me/tasks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Category != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "category", *params.Category, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Tag != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "tag", *params.Tag, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDeleteDownloaderRequest generates requests for DeleteDownloader
 func NewDeleteDownloaderRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -13839,18 +14106,6 @@ func NewListDownloadTasksRequest(server string, params *ListDownloadTasksParams)
 		if params.Status != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.AssignedTo != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "assignedTo", *params.AssignedTo, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -19607,6 +19862,9 @@ type ClientWithResponsesInterface interface {
 
 	RecordDownloaderHeartbeatWithResponse(ctx context.Context, body RecordDownloaderHeartbeatJSONRequestBody, reqEditors ...RequestEditorFn) (*RecordDownloaderHeartbeatResponse, error)
 
+	// ListDownloaderTasksWithResponse request
+	ListDownloaderTasksWithResponse(ctx context.Context, params *ListDownloaderTasksParams, reqEditors ...RequestEditorFn) (*ListDownloaderTasksResponse, error)
+
 	// DeleteDownloaderWithResponse request
 	DeleteDownloaderWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteDownloaderResponse, error)
 
@@ -24946,6 +25204,38 @@ func (r RecordDownloaderHeartbeatResponse) ContentType() string {
 	return ""
 }
 
+type ListDownloaderTasksResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DownloadTaskPage
+	JSON400      *Error
+	JSON401      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDownloaderTasksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDownloaderTasksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListDownloaderTasksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type DeleteDownloaderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -25043,7 +25333,7 @@ func (r UpdateDownloaderCreditBillingResponse) ContentType() string {
 type ListDownloadTasksResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *DownloadTaskPage
+	JSON200      *DownloadTaskListPage
 	JSON400      *Error
 	JSON401      *Error
 }
@@ -30420,6 +30710,15 @@ func (c *ClientWithResponses) RecordDownloaderHeartbeatWithResponse(ctx context.
 		return nil, err
 	}
 	return ParseRecordDownloaderHeartbeatResponse(rsp)
+}
+
+// ListDownloaderTasksWithResponse request returning *ListDownloaderTasksResponse
+func (c *ClientWithResponses) ListDownloaderTasksWithResponse(ctx context.Context, params *ListDownloaderTasksParams, reqEditors ...RequestEditorFn) (*ListDownloaderTasksResponse, error) {
+	rsp, err := c.ListDownloaderTasks(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDownloaderTasksResponse(rsp)
 }
 
 // DeleteDownloaderWithResponse request returning *DeleteDownloaderResponse
@@ -39438,6 +39737,46 @@ func ParseRecordDownloaderHeartbeatResponse(rsp *http.Response) (*RecordDownload
 	return response, nil
 }
 
+// ParseListDownloaderTasksResponse parses an HTTP response from a ListDownloaderTasksWithResponse call
+func ParseListDownloaderTasksResponse(rsp *http.Response) (*ListDownloaderTasksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDownloaderTasksResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DownloadTaskPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseDeleteDownloaderResponse parses an HTTP response from a DeleteDownloaderWithResponse call
 func ParseDeleteDownloaderResponse(rsp *http.Response) (*DeleteDownloaderResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -39559,7 +39898,7 @@ func ParseListDownloadTasksResponse(rsp *http.Response) (*ListDownloadTasksRespo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DownloadTaskPage
+		var dest DownloadTaskListPage
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

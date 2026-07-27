@@ -2,6 +2,7 @@ import { DirType } from '@shared/constants'
 import type {
   DownloadTask,
   DownloadTaskAction,
+  DownloadTaskListItem,
   DownloadTaskStatus,
   DownloadTaskTimelineItem,
   StorageObject,
@@ -89,15 +90,22 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
-import { createDownloadTask, listDownloadTaskEvents, listDownloadTasks, runDownloadTaskAction } from '@/lib/api'
+import {
+  createDownloadTask,
+  getDownloadTask,
+  listDownloadTaskEvents,
+  listDownloadTasks,
+  runDownloadTaskAction,
+} from '@/lib/api'
+import { DOWNLOAD_TASKS_QUERY_KEY, type DownloadTaskChange, syncDownloadTaskChange } from '@/lib/download-task-cache'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/downloads/')({
   component: DownloadsPage,
 })
 
-const QUERY_KEY = ['download-tasks']
-const EMPTY_DOWNLOAD_TASKS: DownloadTask[] = []
+const QUERY_KEY = DOWNLOAD_TASKS_QUERY_KEY
+const EMPTY_DOWNLOAD_TASKS: DownloadTaskListItem[] = []
 const PAUSABLE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'downloading'])
 const DEFAULT_COLUMN_ORDER = ['select', 'source', 'status', 'progress', 'eta', 'category', 'tags']
 const STATUS_FILTERS: Array<{ value: DownloadTaskStatus | 'all'; labelKey: string }> = [
@@ -116,7 +124,7 @@ type DownloadTaskDisplayStatus = DownloadTaskStatus | 'seeding'
 type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['status']['runtime']>['phase']>
 type DetailTab = 'overview' | 'trackers' | 'peers' | 'files' | 'events'
 type PanelDragState = { startY: number; startDetailHeight: number; containerHeight: number }
-type PendingTaskAction = { tasks: DownloadTask[]; action: DownloadTaskAction }
+type PendingTaskAction = { tasks: DownloadTaskListItem[]; action: DownloadTaskAction }
 type DetailTableColumn<T> = {
   id: string
   label: ReactNode
@@ -152,7 +160,7 @@ const DETAIL_TABS: Array<{ id: DetailTab; labelKey: string; icon: ReactNode }> =
   { id: 'events', labelKey: 'downloads.detail.tabs.events', icon: <History className="size-4" /> },
 ]
 
-function DownloadsPage() {
+export function DownloadsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [sourceType, setSourceType] = useState<'http' | 'magnet' | 'torrent_url'>('http')
@@ -241,9 +249,10 @@ function DownloadsPage() {
     return () => observer.disconnect()
   }, [])
 
-  useServerEventSubscription('download-tasks', ['download_task'], () =>
-    queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
-  )
+  useServerEventSubscription('download-tasks', ['download_task'], (data) => {
+    const change = data as DownloadTaskChange
+    void syncDownloadTaskChange(queryClient, change)
+  })
 
   useEffect(() => {
     if (!panelDrag) return
@@ -289,7 +298,7 @@ function DownloadsPage() {
   })
 
   const actionMutation = useMutation({
-    mutationFn: async ({ tasks, action }: { tasks: DownloadTask[]; action: DownloadTaskAction }) => {
+    mutationFn: async ({ tasks, action }: { tasks: DownloadTaskListItem[]; action: DownloadTaskAction }) => {
       const actionable = tasks.filter((task) => taskActions(task).includes(action))
       await Promise.all(actionable.map((task) => runDownloadTaskAction(task.id, action)))
       return { action, count: actionable.length }
@@ -313,7 +322,7 @@ function DownloadsPage() {
     })
   }
 
-  function handleTaskAction(task: DownloadTask, action: DownloadTaskAction) {
+  function handleTaskAction(task: DownloadTaskListItem, action: DownloadTaskAction) {
     requestTaskAction({ tasks: [task], action })
   }
 
@@ -321,7 +330,7 @@ function DownloadsPage() {
     requestTaskAction({ tasks: selectedTasks, action })
   }
 
-  function handlePrimaryTaskAction(task: DownloadTask) {
+  function handlePrimaryTaskAction(task: DownloadTaskListItem) {
     const action = primaryTaskAction(task)
     if (action) handleTaskAction(task, action)
   }
@@ -353,7 +362,10 @@ function DownloadsPage() {
     setPendingTaskAction(null)
   }
 
-  const tasks = tasksQuery.data?.pages.flatMap((page) => page.items) ?? EMPTY_DOWNLOAD_TASKS
+  const tasks = useMemo(
+    () => tasksQuery.data?.pages.flatMap((page) => page.items) ?? EMPTY_DOWNLOAD_TASKS,
+    [tasksQuery.data],
+  )
   const nonSourceTableWidth =
     DOWNLOAD_SELECT_COLUMN_WIDTH +
     downloadColumnWidth(columnSizing, 'status') +
@@ -378,8 +390,13 @@ function DownloadsPage() {
     enableRowSelection: true,
     columnResizeMode: 'onChange',
   })
-  const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null
-  const activeSelectedTaskId = selectedTask?.id ?? null
+  const selectedListItem = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null
+  const activeSelectedTaskId = selectedListItem?.id ?? null
+  const selectedTaskQuery = useQuery({
+    queryKey: ['download-task', activeSelectedTaskId],
+    queryFn: () => getDownloadTask(activeSelectedTaskId as string),
+    enabled: activeSelectedTaskId !== null,
+  })
   const selectedTasks = table.getSelectedRowModel().rows.map((row) => row.original)
 
   function handlePanelResizeStart(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -633,7 +650,12 @@ function DownloadsPage() {
         </button>
 
         <section className="min-h-0 overflow-hidden rounded-md border bg-background">
-          <DownloadInspector task={selectedTask} tab={detailTab} onTabChange={setDetailTab} />
+          <DownloadInspector
+            task={selectedTaskQuery.data ?? null}
+            loading={selectedTaskQuery.isLoading}
+            tab={detailTab}
+            onTabChange={setDetailTab}
+          />
         </section>
       </div>
     </div>
@@ -734,7 +756,7 @@ function DownloadTableHead({
   onDragStart,
   onDrop,
 }: {
-  header: Header<DownloadTask, unknown>
+  header: Header<DownloadTaskListItem, unknown>
   draggedColumnId: string | null
   onDragStart: (columnId: string | null) => void
   onDrop: (columnId: string) => void
@@ -799,7 +821,7 @@ function DownloadTableHead({
 function getDownloadColumns(
   t: ReturnType<typeof useTranslation>['t'],
   sourceColumnWidth: number,
-): ColumnDef<DownloadTask>[] {
+): ColumnDef<DownloadTaskListItem>[] {
   return [
     {
       id: 'select',
@@ -901,7 +923,7 @@ function TagsCell({ tags }: { tags: string[] }) {
   return <span className="block min-w-0 truncate text-xs text-muted-foreground">{tags.join(' / ')}</span>
 }
 
-function ProgressCell({ task }: { task: DownloadTask }) {
+function ProgressCell({ task }: { task: DownloadTaskListItem }) {
   const { t } = useTranslation()
   const progress = transferProgress(task)
   const activeTransfer = currentTransferProgress(task)
@@ -932,7 +954,7 @@ function BulkTaskActions({
   onAction,
   onClear,
 }: {
-  tasks: DownloadTask[]
+  tasks: DownloadTaskListItem[]
   pending: boolean
   onAction: (action: DownloadTaskAction) => void
   onClear: () => void
@@ -1162,7 +1184,7 @@ function TaskRow({
   onPrimaryAction,
   onAction,
 }: {
-  row: Row<DownloadTask>
+  row: Row<DownloadTaskListItem>
   selected: boolean
   actionPending: boolean
   onSelect: () => void
@@ -1202,7 +1224,7 @@ function TaskContextMenu({
   pending,
   onAction,
 }: {
-  task: DownloadTask
+  task: DownloadTaskListItem
   pending: boolean
   onAction: (action: DownloadTaskAction) => void
 }) {
@@ -1261,7 +1283,7 @@ function TaskMenuItem({
   )
 }
 
-function taskActions(task: DownloadTask): DownloadTaskAction[] {
+function taskActions(task: DownloadTaskListItem): DownloadTaskAction[] {
   if (PAUSABLE_STATUSES.has(task.status.state)) return ['pause', 'cancel']
   if (task.status.state === 'paused') return ['resume', 'restart', 'cancel']
   if (task.status.state === 'suspended') return ['resume', 'restart', 'cancel']
@@ -1273,12 +1295,12 @@ function taskActions(task: DownloadTask): DownloadTaskAction[] {
   return []
 }
 
-function availableBulkActions(tasks: DownloadTask[]): DownloadTaskAction[] {
+function availableBulkActions(tasks: DownloadTaskListItem[]): DownloadTaskAction[] {
   const orderedActions: DownloadTaskAction[] = ['pause', 'resume', 'cancel', 'retry', 'restart', 'delete']
   return orderedActions.filter((action) => tasks.some((task) => taskActions(task).includes(action)))
 }
 
-function primaryTaskAction(task: DownloadTask): DownloadTaskAction | null {
+function primaryTaskAction(task: DownloadTaskListItem): DownloadTaskAction | null {
   if (PAUSABLE_STATUSES.has(task.status.state)) return 'pause'
   if (task.status.state === 'paused' || task.status.state === 'suspended') return 'resume'
   if (task.status.state === 'interrupted') return 'restart'
@@ -1295,7 +1317,7 @@ function TaskActionIcon({ action }: { action: DownloadTaskAction }) {
   return <XCircle />
 }
 
-function TransferProgress({ task, className }: { task: DownloadTask; className?: string }) {
+function TransferProgress({ task, className }: { task: DownloadTaskListItem; className?: string }) {
   const progress = transferProgress(task)
   return (
     <div
@@ -1316,17 +1338,17 @@ function TransferProgress({ task, className }: { task: DownloadTask; className?:
   )
 }
 
-function transferProgress(task: DownloadTask) {
+function transferProgress(task: DownloadTaskListItem) {
   const download = transferPercent(task.status.progress.download, task.status.state === 'completed')
   const upload = transferPercent(task.status.progress.upload, task.status.state === 'completed')
   return { download, upload, overall: task.status.state === 'uploading' || upload > 0 ? upload : download }
 }
 
-function currentTransferProgress(task: DownloadTask) {
+function currentTransferProgress(task: DownloadTaskListItem) {
   return task.status.state === 'uploading' ? task.status.progress.upload : task.status.progress.download
 }
 
-function transferPercent(progress: DownloadTask['status']['progress']['download'], complete: boolean) {
+function transferPercent(progress: DownloadTaskListItem['status']['progress']['download'], complete: boolean) {
   if (complete) return 100
   if (!progress.totalBytes || progress.totalBytes <= 0) return 0
   return Math.min(100, Math.round((progress.bytes / progress.totalBytes) * 100))
@@ -1334,10 +1356,12 @@ function transferPercent(progress: DownloadTask['status']['progress']['download'
 
 function DownloadInspector({
   task,
+  loading,
   tab,
   onTabChange,
 }: {
   task: DownloadTask | null
+  loading: boolean
   tab: DetailTab
   onTabChange: (tab: DetailTab) => void
 }) {
@@ -1346,7 +1370,7 @@ function DownloadInspector({
   if (!task) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center text-sm text-muted-foreground">
-        {t('downloads.detail.noSelection')}
+        {loading ? t('common.loading') : t('downloads.detail.noSelection')}
       </div>
     )
   }
@@ -1864,17 +1888,17 @@ function timelineDetail(event: DownloadTaskTimelineItem, t: ReturnType<typeof us
   return event.detail
 }
 
-function SourceIcon({ type }: { type: DownloadTask['spec']['source']['type'] }) {
+function SourceIcon({ type }: { type: DownloadTaskListItem['spec']['source']['type'] }) {
   if (type === 'magnet') return <Magnet className="size-4 shrink-0 text-amber-500" />
   if (type === 'torrent_url') return <FileDown className="size-4 shrink-0 text-violet-500" />
   return <LinkIcon className="size-4 shrink-0 text-blue-500" />
 }
 
-function sourceType(task: DownloadTask): DownloadTask['spec']['source']['type'] {
+function sourceType(task: DownloadTaskListItem): DownloadTaskListItem['spec']['source']['type'] {
   return task.spec.source.type
 }
 
-function sourceUri(task: DownloadTask): string {
+function sourceUri(task: DownloadTaskListItem): string {
   return task.spec.source.uri
 }
 
@@ -1907,7 +1931,7 @@ function EmptyPanel({ text }: { text: string }) {
   )
 }
 
-function getTaskTitle(task: DownloadTask) {
+function getTaskTitle(task: DownloadTaskListItem) {
   return (
     task.status.runtime?.torrent?.name ||
     task.spec.destination.name ||
@@ -1930,7 +1954,7 @@ function filenameFromUri(uri: string) {
   }
 }
 
-function sourceTypeKey(task: DownloadTask) {
+function sourceTypeKey(task: DownloadTaskListItem) {
   if (sourceType(task) === 'torrent_url') return 'torrentUrl'
   return sourceType(task)
 }
@@ -1953,7 +1977,7 @@ function formatDate(value: string | null | undefined) {
   }).format(date)
 }
 
-function displayStatus(task: DownloadTask): DownloadTaskDisplayStatus {
+function displayStatus(task: DownloadTaskListItem): DownloadTaskDisplayStatus {
   if (task.status.state === 'completed' && task.status.runtime?.phase === 'seeding') return 'seeding'
   return task.status.state
 }

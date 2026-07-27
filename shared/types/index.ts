@@ -273,6 +273,7 @@ export type DownloadTaskBillingState = 'none' | 'ok' | 'insufficient_credits'
 export type {
   DownloadTask,
   DownloadTaskEvent,
+  DownloadTaskListItem,
   DownloadTaskTimeline,
   DownloadTaskTimelineItem,
 } from '../schemas/downloads'

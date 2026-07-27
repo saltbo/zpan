@@ -167,7 +167,7 @@ func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
 	var status string
 	var requests int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/downloads/tasks" {
+		if r.URL.Path != "/api/downloads/downloaders/me/tasks" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		requests++
@@ -232,8 +232,8 @@ func TestAssignedControlTasksFetchesControlStatuses(t *testing.T) {
 func TestLocalResultTasksFetchesRetryableStatuses(t *testing.T) {
 	var status string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("assignedTo") != "me" {
-			t.Fatalf("expected assignedTo=me, got %q", r.URL.Query().Get("assignedTo"))
+		if r.URL.Path != "/api/downloads/downloaders/me/tasks" {
+			t.Fatalf("expected assigned tasks path, got %q", r.URL.Path)
 		}
 		status = r.URL.Query().Get("status")
 		w.Header().Set("Content-Type", "application/json")
@@ -608,7 +608,7 @@ func TestClientErrorResponsesIncludeProblemBody(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected assigned tasks error")
 	}
-	if !strings.Contains(err.Error(), "GET /api/downloads/tasks failed") || !strings.Contains(err.Error(), "not authorized") {
+	if !strings.Contains(err.Error(), "GET /api/downloads/downloaders/me/tasks failed") || !strings.Contains(err.Error(), "not authorized") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

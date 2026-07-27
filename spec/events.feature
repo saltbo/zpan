@@ -11,14 +11,14 @@ Feature: Event stream
   @events/stream @api
   Scenario: A browser session receives its multiplexed event stream
     Given an authenticated user
-    When they open the event stream with download tasks enabled
+    When they open the global event stream
     Then job, notification, and download-task events are streamed to them
 
   @events/api-key-download-tasks @api
   Scenario: An authorized organization API key receives only its organization's download tasks
     Given an organization API key with remoteDownload read permission
     And download tasks exist in its organization and another organization
-    When it opens the event stream with download tasks enabled
+    When it opens the global event stream
     Then its organization receives a download-tasks event
     And the stream contains no notification, job, or other-organization task data
 
@@ -37,7 +37,7 @@ Feature: Event stream
   @events/api-key-invalid @api
   Scenario: An invalid API key cannot open the event stream
     Given an invalid API key
-    When it opens the event stream with download tasks enabled
+    When it opens the global event stream
     Then the API responds 401
 
   @events/abort @api

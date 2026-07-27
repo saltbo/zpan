@@ -187,6 +187,27 @@ export const downloadTaskSchema = z
 
 export type DownloadTask = z.infer<typeof downloadTaskSchema>
 
+export const downloadTaskListItemRuntimeSchema = downloadTaskRuntimeSchema.pick({
+  phase: true,
+  etaSeconds: true,
+  torrent: true,
+})
+
+export const downloadTaskListItemSchema = z
+  .object({
+    id: downloadTaskSchema.shape.id,
+    spec: downloadTaskSchema.shape.spec,
+    status: z.object({
+      state: downloadTaskStatusSchema,
+      progress: downloadTaskProgressSchema,
+      runtime: downloadTaskListItemRuntimeSchema.nullable(),
+    }),
+    createdAt: downloadTaskSchema.shape.createdAt,
+  })
+  .openapi('DownloadTaskListItem')
+
+export type DownloadTaskListItem = z.infer<typeof downloadTaskListItemSchema>
+
 export const downloadTaskTimelineItemSchema = z
   .object({
     id: z.string(),
@@ -217,6 +238,13 @@ export const downloadTaskPageSchema = z
     nextPageToken: z.string().nullable(),
   })
   .openapi('DownloadTaskPage')
+
+export const downloadTaskListPageSchema = z
+  .object({
+    items: z.array(downloadTaskListItemSchema),
+    nextPageToken: z.string().nullable(),
+  })
+  .openapi('DownloadTaskListPage')
 
 export const downloaderHeartbeatSchema = z.object({
   version: z.string().min(1).max(80),
@@ -390,7 +418,6 @@ export const downloadTaskAttemptSchema = z.object({
 
 export const listDownloadTasksQuerySchema = z.object({
   status: z.string().optional(),
-  assignedTo: z.enum(['me']).optional(),
   category: z.string().trim().min(1).max(120).optional(),
   tag: z.string().trim().min(1).max(80).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),

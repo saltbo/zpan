@@ -12,7 +12,7 @@ import { adminStats } from './http/admin-stats'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
 import { configz } from './http/configz'
-import downloadTasks from './http/downloads/download-tasks'
+import downloadTasks, { downloaderTasksRoute } from './http/downloads/download-tasks'
 import downloaders, { downloaderSelfRoute } from './http/downloads/downloaders'
 import { events } from './http/events'
 import ihostConfig from './http/image-hosting/config'
@@ -267,6 +267,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/downloads/tasks', downloadTasks)
   app.route('/api/events', events)
   app.route('/api/downloads/downloaders', downloaderSelfRoute)
+  app.route('/api/downloads/downloaders', downloaderTasksRoute)
   app.route('/api/image-hosting', ihost)
   app.route('/api/image-hosting/config', ihostConfig)
   app.route('/api/site/licensing', licensingAdmin)
@@ -378,6 +379,7 @@ export type DownloadTasksRoute = typeof downloadTasks
 export type EventsRoute = typeof events
 export type DownloadersRoute = typeof downloaders
 export type DownloaderSelfRoute = typeof downloaderSelfRoute
+export type DownloaderTasksRoute = typeof downloaderTasksRoute
 export type IhostRoute = typeof ihost
 export type IhostConfigRoute = typeof ihostConfig
 export type AnnouncementsRoute = typeof announcements

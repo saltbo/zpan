@@ -1,4 +1,4 @@
-import type { Downloader, DownloadTask } from '@shared/types'
+import type { Downloader, DownloadTask, DownloadTaskListItem } from '@shared/types'
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
 // Thrown by the repos (not_found/forbidden) and the orchestration state machine
@@ -194,6 +194,10 @@ export interface DownloadTaskRepo {
   list(filters: ListDownloadTasksFilters): Promise<{
     items: DownloadTask[]
     rows: DownloadTaskRecord[]
+    nextBoundary: { createdAt: Date; id: string } | null
+  }>
+  listItems(filters: ListDownloadTasksFilters): Promise<{
+    items: DownloadTaskListItem[]
     nextBoundary: { createdAt: Date; id: string } | null
   }>
   /** API DTO scoped to org; throws DownloadError('not_found') when missing. */

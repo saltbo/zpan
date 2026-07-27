@@ -52,10 +52,22 @@ the resource state change. The row contains:
 - resource type and id;
 - change type, action, optional metadata, and occurrence time.
 
-The stream sends `resource-change` invalidation facts, never rendered rows or a
-replacement page. TanStack Query remains the read authority and refetches the
-affected collection. This avoids trying to splice a changed record into an
-arbitrary filtered or partially loaded page.
+The stream sends `resource-change` facts, never rendered rows or replacement
+pages. TanStack Query remains the read authority:
+
+- download-task updates fetch that task through the detail endpoint, update its
+  detail cache, and project the list fields into already-loaded cursor pages;
+- creates, wildcard changes, retention gaps, and changes that may enter an
+  unloaded filtered result reset the affected collection.
+
+List items contain only fields needed to render and operate a row. Detail-only
+arrays such as task files, peers, and trackers are returned only by the
+single-task detail endpoint. Small detail collections remain ordinary lists;
+they are not virtualized.
+
+The downloader agent uses a separate assigned-task endpoint because it needs
+the full execution contract, including upload credentials. Browser list
+contracts never expose those fields.
 
 `Last-Event-ID` resumes after a disconnect. Changes are retained for seven
 days. If a client asks for a sequence older than retained history, the stream
