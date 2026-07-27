@@ -2385,12 +2385,31 @@ type NotificationPage struct {
 	Total    int            `json:"total"`
 }
 
+// ObjectListItem defines model for ObjectListItem.
+type ObjectListItem struct {
+	Alias       string `json:"alias"`
+	CreatedAt   string `json:"createdAt"`
+	Dirtype     *int   `json:"dirtype"`
+	HasChildren bool   `json:"hasChildren"`
+	Id          string `json:"id"`
+	Name        string `json:"name"`
+	Object      string `json:"object"`
+	OrgId       string `json:"orgId"`
+	Parent      string `json:"parent"`
+	Size        *int   `json:"size"`
+	Status      string `json:"status"`
+	StorageId   string `json:"storageId"`
+	TrashedAt   *int   `json:"trashedAt"`
+	Type        string `json:"type"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
 // ObjectPage defines model for ObjectPage.
 type ObjectPage struct {
-	Items    []Matter `json:"items"`
-	Page     int      `json:"page"`
-	PageSize int      `json:"pageSize"`
-	Total    int      `json:"total"`
+	Items    []ObjectListItem `json:"items"`
+	Page     int              `json:"page"`
+	PageSize int              `json:"pageSize"`
+	Total    int              `json:"total"`
 }
 
 // Organization defines model for Organization.
