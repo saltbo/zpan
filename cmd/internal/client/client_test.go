@@ -173,9 +173,20 @@ func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
 		requests++
 		w.Header().Set("Content-Type", "application/json")
 		status = r.URL.Query().Get("status")
-		_ = json.NewEncoder(w).Encode(Page[DownloadTask]{
-			Items: []DownloadTask{downloadTaskFixture("task-assigned", "assigned")},
-		})
+		switch r.URL.Query().Get("pageToken") {
+		case "":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items":         []DownloadTask{downloadTaskFixture("task-assigned", "assigned")},
+				"nextPageToken": "next",
+			})
+		case "next":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items":         []DownloadTask{downloadTaskFixture("task-downloading", "downloading")},
+				"nextPageToken": nil,
+			})
+		default:
+			t.Fatalf("unexpected page token: %q", r.URL.Query().Get("pageToken"))
+		}
 	}))
 	defer server.Close()
 
@@ -183,15 +194,15 @@ func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if requests != 1 {
-		t.Fatalf("expected one request, got %d", requests)
+	if requests != 2 {
+		t.Fatalf("expected two requests, got %d", requests)
 	}
 	expected := "assigned,downloading,interrupted,uploading"
 	if status != expected {
 		t.Fatalf("expected status query %q, got %q", expected, status)
 	}
-	if len(tasks) != 1 {
-		t.Fatalf("expected one task, got %d", len(tasks))
+	if len(tasks) != 2 || tasks[0].ID != "task-assigned" || tasks[1].ID != "task-downloading" {
+		t.Fatalf("unexpected tasks: %#v", tasks)
 	}
 }
 
@@ -202,7 +213,7 @@ func TestAssignedControlTasksFetchesControlStatuses(t *testing.T) {
 		requests++
 		w.Header().Set("Content-Type", "application/json")
 		status = r.URL.Query().Get("status")
-		_ = json.NewEncoder(w).Encode(Page[DownloadTask]{Items: []DownloadTask{}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []DownloadTask{}, "nextPageToken": nil})
 	}))
 	defer server.Close()
 
@@ -226,7 +237,10 @@ func TestLocalResultTasksFetchesRetryableStatuses(t *testing.T) {
 		}
 		status = r.URL.Query().Get("status")
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(Page[DownloadTask]{Items: []DownloadTask{downloadTaskFixture("task-1", "failed")}})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items":         []DownloadTask{downloadTaskFixture("task-1", "failed")},
+			"nextPageToken": nil,
+		})
 	}))
 	defer server.Close()
 
@@ -252,7 +266,10 @@ func TestSeedingTasksFiltersCompletedSeedingPhase(t *testing.T) {
 		seeding.Status.Runtime = &DownloadTaskRuntime{Phase: "seeding"}
 		plain := downloadTaskFixture("done-1", "completed")
 		plain.Status.Runtime = &DownloadTaskRuntime{Phase: "completed"}
-		_ = json.NewEncoder(w).Encode(Page[DownloadTask]{Items: []DownloadTask{seeding, plain}})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items":         []DownloadTask{seeding, plain},
+			"nextPageToken": nil,
+		})
 	}))
 	defer server.Close()
 

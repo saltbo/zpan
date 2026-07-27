@@ -239,7 +239,7 @@ export function FileManager({
   })
   const mutations = useFileMutations(currentPath)
   const conflict = useConflictResolver()
-  const items = query.data?.pages.flatMap((page) => page.items) ?? []
+  const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data?.pages])
   useEffect(() => {
     const target = loadMoreRef.current
     if (!target || !query.hasNextPage) return

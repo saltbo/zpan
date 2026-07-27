@@ -120,7 +120,7 @@ test.describe('Preview with mocked files', () => {
 
     await setupPreviewMocks(page, { name: 'notes.txt', type: 'text/plain', size: 50, fixture: 'sample.txt' })
     await page.reload()
-    await expect(page.getByText('notes.txt')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'notes.txt' })).toBeVisible({ timeout: 10000 })
 
     await page.getByRole('button', { name: 'notes.txt' }).click()
 

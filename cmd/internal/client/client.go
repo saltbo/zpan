@@ -16,13 +16,6 @@ type Client struct {
 	api   *openapi.ClientWithResponses
 }
 
-type Page[T any] struct {
-	Items    []T `json:"items"`
-	Total    int `json:"total"`
-	Page     int `json:"page"`
-	PageSize int `json:"pageSize"`
-}
-
 type DownloadTask struct {
 	ID      string               `json:"id"`
 	Spec    DownloadTaskSpec     `json:"spec"`
@@ -365,47 +358,17 @@ func (c *Client) AssignedControlTasks(ctx context.Context) ([]DownloadTask, erro
 }
 
 func (c *Client) assignedTasksByStatuses(ctx context.Context, statuses []string) ([]DownloadTask, error) {
-	page := 1
 	pageSize := 100
 	assignedTo := openapi.Me
 	status := strings.Join(statuses, ",")
-	res, err := c.api.ListDownloadTasksWithResponse(ctx, &openapi.ListDownloadTasksParams{
-		AssignedTo: &assignedTo,
-		Status:     &status,
-		Page:       &page,
-		PageSize:   &pageSize,
-	}, bearer(c.token))
-	if err != nil {
-		return nil, err
-	}
-	if err := expectStatus("GET", "/api/downloads/tasks", res.StatusCode(), res.Body, http.StatusOK); err != nil {
-		return nil, err
-	}
-	if res.JSON200 == nil {
-		return nil, fmt.Errorf("GET /api/downloads/tasks failed: empty response")
-	}
-	tasks, err := downloadTasksFromOpenAPI(res.JSON200.Items)
-	if err != nil {
-		return nil, fmt.Errorf("GET /api/downloads/tasks failed: %w", err)
-	}
-	return tasks, nil
-}
-
-// SeedingTasks returns this downloader's completed tasks whose runtime still
-// reports the seeding phase. Used to reconcile stale "seeding" state the server
-// kept after a seed was cleaned up without a stopped report.
-func (c *Client) SeedingTasks(ctx context.Context) ([]DownloadTask, error) {
-	seeding := make([]DownloadTask, 0)
-	assignedTo := openapi.Me
-	status := "completed"
-	pageSize := 100
-	for page := 1; page <= 20; page++ {
-		pageNum := page
+	var pageToken *string
+	var tasks []DownloadTask
+	for {
 		res, err := c.api.ListDownloadTasksWithResponse(ctx, &openapi.ListDownloadTasksParams{
 			AssignedTo: &assignedTo,
 			Status:     &status,
-			Page:       &pageNum,
 			PageSize:   &pageSize,
+			PageToken:  pageToken,
 		}, bearer(c.token))
 		if err != nil {
 			return nil, err
@@ -416,17 +379,30 @@ func (c *Client) SeedingTasks(ctx context.Context) ([]DownloadTask, error) {
 		if res.JSON200 == nil {
 			return nil, fmt.Errorf("GET /api/downloads/tasks failed: empty response")
 		}
-		for _, item := range res.JSON200.Items {
-			task, err := downloadTaskFromOpenAPI(item)
-			if err != nil {
-				return nil, fmt.Errorf("GET /api/downloads/tasks failed: %w", err)
-			}
-			if runtime := task.Runtime(); runtime != nil && runtime.Phase == "seeding" {
-				seeding = append(seeding, task)
-			}
+		pageTasks, err := downloadTasksFromOpenAPI(res.JSON200.Items)
+		if err != nil {
+			return nil, fmt.Errorf("GET /api/downloads/tasks failed: %w", err)
 		}
-		if len(res.JSON200.Items) < pageSize {
-			break
+		tasks = append(tasks, pageTasks...)
+		pageToken = res.JSON200.NextPageToken
+		if pageToken == nil {
+			return tasks, nil
+		}
+	}
+}
+
+// SeedingTasks returns this downloader's completed tasks whose runtime still
+// reports the seeding phase. Used to reconcile stale "seeding" state the server
+// kept after a seed was cleaned up without a stopped report.
+func (c *Client) SeedingTasks(ctx context.Context) ([]DownloadTask, error) {
+	tasks, err := c.assignedTasksByStatuses(ctx, []string{"completed"})
+	if err != nil {
+		return nil, err
+	}
+	seeding := make([]DownloadTask, 0)
+	for _, task := range tasks {
+		if runtime := task.Runtime(); runtime != nil && runtime.Phase == "seeding" {
+			seeding = append(seeding, task)
 		}
 	}
 	return seeding, nil
