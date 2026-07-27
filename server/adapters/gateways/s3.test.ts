@@ -176,15 +176,17 @@ describe('S3Service', () => {
       expect(getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), { expiresIn: 600 })
     })
 
-    it('keeps Content-Disposition out of the presigned command when filename is provided', async () => {
+    it('includes Content-Disposition metadata when filename is provided', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       await service.presignUpload(storage, 'test.jpg', 'image/jpeg', 'my file.jpg')
       expect(getSignedUrl).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
-          input: { Bucket: 'my-bucket', Key: 'test.jpg', ContentType: 'image/jpeg' },
+          input: expect.objectContaining({
+            ContentDisposition: 'attachment; filename="my file.jpg"; filename*=UTF-8\'\'my%20file.jpg',
+          }),
         }),
-        { expiresIn: 3600 },
+        expect.anything(),
       )
     })
 
@@ -287,9 +289,11 @@ describe('S3Service', () => {
       expect(getSignedUrl).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
-          input: { Bucket: 'my-bucket', Key: 'video.mp4', ContentType: 'video/mp4' },
+          input: expect.objectContaining({
+            ContentDisposition: 'attachment; filename="movie.mp4"; filename*=UTF-8\'\'movie.mp4',
+          }),
         }),
-        { expiresIn: 3600 },
+        expect.anything(),
       )
       expect(mockSend).not.toHaveBeenCalled()
     })

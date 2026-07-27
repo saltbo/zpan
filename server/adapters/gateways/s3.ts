@@ -39,20 +39,23 @@ export class S3Service implements S3Gateway {
     filenameOrExpiresIn?: string | number,
     expiresIn = DEFAULT_EXPIRES_IN,
   ): Promise<string> {
+    let filename: string | undefined
     let ttl = expiresIn
-    if (typeof filenameOrExpiresIn === 'number') {
+    if (typeof filenameOrExpiresIn === 'string') {
+      filename = filenameOrExpiresIn
+    } else if (typeof filenameOrExpiresIn === 'number') {
       ttl = filenameOrExpiresIn
     }
 
     const client = this.createClient(storage)
+    // Only sign ContentType/ContentDisposition when provided. A signed header must
+    // be sent verbatim by the client or S3 rejects the PUT.
     const command = new PutObjectCommand({
       Bucket: storage.bucket,
       Key: key,
       ...(contentType ? { ContentType: contentType } : {}),
+      ...(filename ? { ContentDisposition: attachmentContentDisposition(filename) } : {}),
     })
-    // The client adds Content-Disposition after signing. S3 stores ordinary
-    // unsigned request headers as object metadata, while R2 rejects signatures
-    // produced from a command that contains RFC 6266 filename parameters.
     const url = await getSignedUrl(client, command, { expiresIn: ttl })
     return url
   }
@@ -71,6 +74,7 @@ export class S3Service implements S3Gateway {
         Bucket: storage.bucket,
         Key: key,
         ...(contentType ? { ContentType: contentType } : {}),
+        ...(contentDisposition ? { ContentDisposition: contentDisposition } : {}),
       }),
       { expiresIn: DEFAULT_EXPIRES_IN },
     )
