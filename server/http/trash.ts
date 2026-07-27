@@ -1,5 +1,6 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { pageQuerySchema, pageSchema, restoreObjectSchema } from '@shared/schemas'
+import { cursorPageQuerySchema, cursorPageSchema, restoreObjectSchema } from '@shared/schemas'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../domain/page-token'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deleteObject, getTrashObject, listTrashedObjects, restoreObject } from '../usecases/object'
@@ -48,7 +49,7 @@ function toMatterDTO(m: Matter): MatterDTO {
   }
 }
 
-const trashPageSchema = pageSchema(matterSchema, 'TrashObjectPage')
+const trashPageSchema = cursorPageSchema(matterSchema, 'TrashObjectPage')
 const idParam = z.object({ id: z.string() })
 
 const listTrashRoute = createRoute({
@@ -58,7 +59,7 @@ const listTrashRoute = createRoute({
   method: 'get',
   path: '/objects',
   middleware: [requireTeamRole('viewer')] as const,
-  request: { query: pageQuerySchema },
+  request: { query: cursorPageQuerySchema },
   responses: {
     200: jsonContent(trashPageSchema, 'Trashed objects (roots only)'),
     400: errorResponse('No active organization'),
@@ -119,8 +120,40 @@ const trash = app
     const orgId = c.get('orgId')
     if (!orgId) throw badRequest('No active organization')
     const query = c.req.valid('query')
-    const result = await listTrashedObjects(c.get('deps'), { orgId, page: query.page, pageSize: query.pageSize })
-    return c.json({ ...result.result, items: result.result.items.map(toMatterDTO) }, 200)
+    const fingerprint = await pageQueryFingerprint({ orgId, pageSize: query.pageSize })
+    let after: { trashedAt: number; createdAt: Date; id: string } | undefined
+    if (query.pageToken) {
+      const boundary = await decodePageToken(c.get('platform'), query.pageToken, { query: fingerprint })
+      if (
+        typeof boundary.trashedAt !== 'number' ||
+        typeof boundary.createdAt !== 'number' ||
+        typeof boundary.id !== 'string'
+      ) {
+        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
+      }
+      after = {
+        trashedAt: boundary.trashedAt,
+        createdAt: new Date(boundary.createdAt),
+        id: boundary.id,
+      }
+    }
+    const result = await listTrashedObjects(c.get('deps'), { orgId, pageSize: query.pageSize, after })
+    return c.json(
+      {
+        items: result.result.items.map(toMatterDTO),
+        nextPageToken: result.result.nextBoundary
+          ? await encodePageToken(c.get('platform'), {
+              query: fingerprint,
+              boundary: {
+                trashedAt: result.result.nextBoundary.trashedAt,
+                createdAt: result.result.nextBoundary.createdAt.getTime(),
+                id: result.result.nextBoundary.id,
+              },
+            })
+          : null,
+      },
+      200,
+    )
   })
   .openapi(getTrashObjectRoute, async (c) => {
     const orgId = c.get('orgId')

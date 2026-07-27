@@ -23,7 +23,7 @@ describe('shares API wrappers (integration)', () => {
 
   describe('listShares', () => {
     it('calls /api/shares with default params and returns payload', async () => {
-      const payload = { items: [], total: 0, page: 1, pageSize: 20 }
+      const payload = { items: [], nextPageToken: null }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listShares()
@@ -31,18 +31,18 @@ describe('shares API wrappers (integration)', () => {
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
       expect(url).toContain('/api/shares')
-      expect(url).toContain('page=1')
       expect(url).toContain('pageSize=20')
+      expect(url).not.toContain('pageToken=')
     })
 
-    it('forwards page, pageSize, and status query params', async () => {
-      const payload = { items: [], total: 3, page: 2, pageSize: 10 }
+    it('forwards pageToken, pageSize, and status query params', async () => {
+      const payload = { items: [], nextPageToken: 'later-token' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      await listShares(2, 10, 'active')
+      await listShares('current-token', 10, 'active')
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=current-token')
       expect(url).toContain('pageSize=10')
       expect(url).toContain('status=active')
     })

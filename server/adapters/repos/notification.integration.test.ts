@@ -61,11 +61,10 @@ describe('listNotifications', () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    const result = await createNotificationRepo(db).list(userId, { page: 1, pageSize: 20 })
+    const result = await createNotificationRepo(db).list(userId, { pageSize: 20 })
 
     expect(result.items).toHaveLength(0)
-    expect(result.total).toBe(0)
-    expect(result.unreadCount).toBe(0)
+    expect(result.nextBoundary).toBeNull()
   })
 
   it('paginates correctly', async () => {
@@ -76,15 +75,18 @@ describe('listNotifications', () => {
       await createNotificationRepo(db).create({ userId, type: 'share_received', title: `Notification ${i}` })
     }
 
-    const page1 = await createNotificationRepo(db).list(userId, { page: 1, pageSize: 3 })
+    const page1 = await createNotificationRepo(db).list(userId, { pageSize: 3 })
     expect(page1.items).toHaveLength(3)
-    expect(page1.total).toBe(5)
+    expect(page1.nextBoundary).not.toBeNull()
 
-    const page2 = await createNotificationRepo(db).list(userId, { page: 2, pageSize: 3 })
+    const page2 = await createNotificationRepo(db).list(userId, {
+      pageSize: 3,
+      after: page1.nextBoundary ?? undefined,
+    })
     expect(page2.items).toHaveLength(2)
   })
 
-  it('returns accurate unreadCount regardless of filter', async () => {
+  it('returns the unread count independently of pagination', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
@@ -92,9 +94,7 @@ describe('listNotifications', () => {
     await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'B' })
     await createNotificationRepo(db).markAsRead(userId, n1.id)
 
-    const result = await createNotificationRepo(db).list(userId, { page: 1, pageSize: 20 })
-    expect(result.total).toBe(2)
-    expect(result.unreadCount).toBe(1)
+    expect(await createNotificationRepo(db).unreadCount(userId)).toBe(1)
   })
 
   it('filters unread only when requested', async () => {
@@ -105,7 +105,7 @@ describe('listNotifications', () => {
     await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'B' })
     await createNotificationRepo(db).markAsRead(userId, n1.id)
 
-    const result = await createNotificationRepo(db).list(userId, { page: 1, pageSize: 20, unreadOnly: true })
+    const result = await createNotificationRepo(db).list(userId, { pageSize: 20, unreadOnly: true })
     expect(result.items).toHaveLength(1)
     expect(result.items[0].title).toBe('B')
   })
@@ -117,7 +117,7 @@ describe('listNotifications', () => {
 
     await createNotificationRepo(db).create({ userId: user1, type: 'share_received', title: 'For user1' })
 
-    const result = await createNotificationRepo(db).list(user2, { page: 1, pageSize: 20 })
+    const result = await createNotificationRepo(db).list(user2, { pageSize: 20 })
     expect(result.items).toHaveLength(0)
   })
 })

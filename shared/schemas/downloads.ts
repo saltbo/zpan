@@ -214,9 +214,7 @@ export type DownloadTaskTimeline = z.infer<typeof downloadTaskTimelineSchema>
 export const downloadTaskPageSchema = z
   .object({
     items: z.array(downloadTaskSchema),
-    total: z.number().int(),
-    page: z.number().int(),
-    pageSize: z.number().int(),
+    nextPageToken: z.string().nullable(),
   })
   .openapi('DownloadTaskPage')
 
@@ -390,17 +388,13 @@ export const downloadTaskAttemptSchema = z.object({
   fresh: z.boolean().optional(),
 })
 
-export const downloadTaskSortBySchema = z.enum(['createdAt', 'source', 'category', 'tags', 'status', 'progress', 'eta'])
-
 export const listDownloadTasksQuerySchema = z.object({
   status: z.string().optional(),
   assignedTo: z.enum(['me']).optional(),
   category: z.string().trim().min(1).max(120).optional(),
   tag: z.string().trim().min(1).max(80).optional(),
-  sortBy: downloadTaskSortBySchema.default('createdAt'),
-  sortDir: z.enum(['asc', 'desc']).default('desc'),
-  page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  pageToken: z.string().min(1).optional(),
 })
 
 // Re-presign expired part URLs mid-upload (multipart sessions only). The happy

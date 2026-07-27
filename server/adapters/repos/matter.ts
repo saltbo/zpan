@@ -4,11 +4,11 @@ import {
   aliasedTable,
   and,
   asc,
-  count,
   desc,
   eq,
   exists,
   getTableColumns,
+  gt,
   inArray,
   isNotNull,
   isNull,
@@ -36,6 +36,7 @@ import type {
   UpdateMatterInput,
 } from '../../usecases/ports'
 import { NameConflictError } from '../../usecases/ports'
+import { resourceChangeQuery } from './resource-change'
 import {
   matterActivationLedgerQuery,
   matterPurgeLedgerQuery,
@@ -88,6 +89,25 @@ function typeFilterCondition(typeFilter: string): SQL | undefined {
 }
 
 export function createMatterRepo(db: Database): MatterRepo {
+  const matterChanges = (
+    orgId: string,
+    ids: string[],
+    now: Date,
+    action: string,
+    changeType: 'upsert' | 'delete' = 'upsert',
+  ) => [
+    resourceChangeQuery(db, {
+      scopeType: 'organization',
+      scopeId: orgId,
+      resourceType: 'matter',
+      resourceId: ids.length === 1 ? ids[0]! : '*',
+      changeType,
+      action,
+      metadata: ids.length === 1 ? undefined : { affectedCount: ids.length },
+      occurredAt: now,
+    }),
+  ]
+
   async function getMatter(id: string, orgId: string): Promise<Matter | null> {
     const rows = await db
       .select()
@@ -299,6 +319,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         const writes: AtomicQuery[] = [
           storageUsageOpeningBalanceQuery(db, row.orgId, row.storageId, now),
           db.insert(matters).values(row),
+          ...matterChanges(row.orgId, [row.id], now, 'created'),
           ...matterAddedProjectionQueries(db, row.orgId, row.id),
           ...(row.size && row.size > 0
             ? [
@@ -317,14 +338,16 @@ export function createMatterRepo(db: Database): MatterRepo {
         ]
         await executeWriteTransaction(db, writes)
       } else {
-        await db.insert(matters).values(row)
+        await executeWriteTransaction(db, [
+          db.insert(matters).values(row),
+          ...matterChanges(row.orgId, [row.id], now, 'created'),
+        ])
       }
 
       return toMatter(row)
     },
 
     async list(orgId: string, filters: MatterListFilters): Promise<MatterListResult> {
-      const offset = (filters.page - 1) * filters.pageSize
       const childMatters = aliasedTable(matters, 'child')
       const folderPath = sql<string>`CASE
         WHEN ${matters.parent} = '' THEN ${matters.name}
@@ -363,6 +386,20 @@ export function createMatterRepo(db: Database): MatterRepo {
       if (!filters.search && (!typeCond || filters.typeFilter === 'folder')) {
         conditions.push(eq(matters.parent, filters.parent ?? ''))
       }
+      if (filters.after) {
+        conditions.push(
+          or(
+            lt(matters.dirtype, filters.after.dirtype),
+            and(
+              eq(matters.dirtype, filters.after.dirtype),
+              or(
+                gt(matters.createdAt, filters.after.createdAt),
+                and(eq(matters.createdAt, filters.after.createdAt), gt(matters.id, filters.after.id)),
+              ),
+            ),
+          ) as SQL,
+        )
+      }
       const where = and(...conditions)
 
       const rows = await db
@@ -372,24 +409,24 @@ export function createMatterRepo(db: Database): MatterRepo {
             WHEN ${matters.dirtype} = ${DirType.FILE} THEN 0
             ELSE ${hasFolderChildren}
           END`.as('has_children'),
-          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
         })
         .from(matters)
         .where(where)
-        .orderBy(desc(matters.dirtype), asc(matters.createdAt))
-        .limit(filters.pageSize)
-        .offset(offset)
+        .orderBy(desc(matters.dirtype), asc(matters.createdAt), asc(matters.id))
+        .limit(filters.pageSize + 1)
 
-      let total = Number(rows[0]?.pageTotal ?? 0)
-      if (rows.length === 0 && filters.page > 1) {
-        const countRows = await db.select({ count: count() }).from(matters).where(where)
-        total = countRows[0]?.count ?? 0
-      }
-      const items = rows.map(({ pageTotal: _, hasChildren, ...row }) => ({
+      const hasMore = rows.length > filters.pageSize
+      const page = hasMore ? rows.slice(0, filters.pageSize) : rows
+      const items = page.map(({ hasChildren, ...row }) => ({
         ...toMatter(row),
         hasChildren: Boolean(hasChildren),
       }))
-      return { items, total, page: filters.page, pageSize: filters.pageSize }
+      const last = page.at(-1)
+      return {
+        items,
+        nextBoundary:
+          hasMore && last ? { dirtype: last.dirtype ?? DirType.FILE, createdAt: last.createdAt, id: last.id } : null,
+      }
     },
 
     get(id, orgId) {
@@ -441,10 +478,13 @@ export function createMatterRepo(db: Database): MatterRepo {
         await cascadeParentPath(orgId, oldPath, newPath)
       }
 
-      await db
-        .update(matters)
-        .set({ name: newName, parent: newParent, updatedAt: now })
-        .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt)))
+      await executeWriteTransaction(db, [
+        db
+          .update(matters)
+          .set({ name: newName, parent: newParent, updatedAt: now })
+          .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
+        ...matterChanges(orgId, [id], now, moved ? 'moved' : renamed ? 'renamed' : 'updated'),
+      ])
 
       const updated = { ...existing, name: newName, parent: newParent, updatedAt: now }
 
@@ -488,6 +528,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       await executeWriteTransaction(db, [
         storageUsageOpeningBalanceQuery(db, row.orgId, row.storageId, now),
         db.insert(matters).values(row),
+        ...matterChanges(row.orgId, [row.id], now, 'copied'),
         ...(row.dirtype === DirType.FILE ? matterAddedProjectionQueries(db, row.orgId, row.id) : []),
         ...(row.dirtype === DirType.FILE && row.size && row.size > 0
           ? [
@@ -555,6 +596,7 @@ export function createMatterRepo(db: Database): MatterRepo {
               isNull(matters.purgedAt),
             ),
           ),
+        ...matterChanges(orgId, allIds, now, 'trashed', 'delete'),
       ])
       const trashed = { ...existing, trashedAt: nowTs, updatedAt: now }
 
@@ -615,6 +657,7 @@ export function createMatterRepo(db: Database): MatterRepo {
               isNull(matters.purgedAt),
             ),
           ),
+        ...matterChanges(orgId, allIds, now, 'restored'),
       ])
 
       const restored = { ...existing, name: finalName, trashedAt: null, updatedAt: now }
@@ -663,6 +706,13 @@ export function createMatterRepo(db: Database): MatterRepo {
               isNull(matters.purgedAt),
             ),
           ),
+        ...matterChanges(
+          orgId,
+          rows.map((row) => row.id),
+          now,
+          'purged',
+          'delete',
+        ),
       ])
     },
 
@@ -686,11 +736,12 @@ export function createMatterRepo(db: Database): MatterRepo {
 
     async trashByIds(orgId, ids): Promise<void> {
       if (ids.length === 0) return
+      const now = new Date()
       await executeWriteTransaction(db, [
         ...matterTrashedProjectionQueries(db, orgId, ids),
         db
           .update(matters)
-          .set({ trashedAt: Date.now(), updatedAt: new Date() })
+          .set({ trashedAt: now.getTime(), updatedAt: now })
           .where(
             and(
               eq(matters.orgId, orgId),
@@ -699,16 +750,18 @@ export function createMatterRepo(db: Database): MatterRepo {
               isNull(matters.purgedAt),
             ),
           ),
+        ...matterChanges(orgId, ids, now, 'trashed', 'delete'),
       ])
     },
 
     async restoreActiveByIds(orgId, ids): Promise<void> {
       if (ids.length === 0) return
+      const now = new Date()
       await executeWriteTransaction(db, [
         ...matterRestoredProjectionQueries(db, orgId, ids),
         db
           .update(matters)
-          .set({ trashedAt: null, updatedAt: new Date() })
+          .set({ trashedAt: null, updatedAt: now })
           .where(
             and(
               eq(matters.orgId, orgId),
@@ -717,6 +770,7 @@ export function createMatterRepo(db: Database): MatterRepo {
               isNull(matters.purgedAt),
             ),
           ),
+        ...matterChanges(orgId, ids, now, 'restored'),
       ])
     },
 
@@ -738,6 +792,7 @@ export function createMatterRepo(db: Database): MatterRepo {
           .set({ type: fields.type, size: fields.size, object: fields.object, updatedAt: now })
           .where(and(eq(matters.id, matter.id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
         ...matterAddedProjectionQueries(db, orgId, matter.id),
+        ...matterChanges(orgId, [matter.id], now, 'updated'),
       ]
       await executeWriteTransaction(db, writes)
     },
@@ -765,6 +820,60 @@ export function createMatterRepo(db: Database): MatterRepo {
           return b.createdAt.getTime() - a.createdAt.getTime()
         })
         .map(toMatter)
+    },
+
+    async listTrashedRootPage(orgId, opts) {
+      const cursor = opts.after
+        ? or(
+            lt(matters.trashedAt, opts.after.trashedAt),
+            and(
+              eq(matters.trashedAt, opts.after.trashedAt),
+              or(
+                lt(matters.createdAt, opts.after.createdAt),
+                and(eq(matters.createdAt, opts.after.createdAt), lt(matters.id, opts.after.id)),
+              ),
+            ),
+          )
+        : undefined
+      const rows = await db
+        .select()
+        .from(matters)
+        .where(
+          and(
+            eq(matters.orgId, orgId),
+            eq(matters.status, ObjectStatus.ACTIVE),
+            isNotNull(matters.trashedAt),
+            isNull(matters.purgedAt),
+            sql`NOT EXISTS (
+              SELECT 1
+              FROM matters AS trashed_parent
+              WHERE trashed_parent.org_id = ${orgId}
+                AND trashed_parent.status = ${ObjectStatus.ACTIVE}
+                AND trashed_parent.trashed_at IS NOT NULL
+                AND trashed_parent.purged_at IS NULL
+                AND (
+                  CASE
+                    WHEN trashed_parent.parent = '' THEN trashed_parent.name
+                    ELSE trashed_parent.parent || '/' || trashed_parent.name
+                  END
+                ) = ${matters.parent}
+            )`,
+            cursor,
+          ),
+        )
+        .orderBy(desc(matters.trashedAt), desc(matters.createdAt), desc(matters.id))
+        .limit(opts.pageSize + 1)
+
+      const hasMore = rows.length > opts.pageSize
+      const page = hasMore ? rows.slice(0, opts.pageSize) : rows
+      const last = page.at(-1)
+      return {
+        items: page.map(toMatter),
+        nextBoundary:
+          hasMore && last && last.trashedAt !== null
+            ? { trashedAt: last.trashedAt, createdAt: last.createdAt, id: last.id }
+            : null,
+      }
     },
 
     async listOrgIdsWithExpiredTrash(cutoff): Promise<string[]> {
@@ -801,6 +910,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft'), isNull(matters.purgedAt)))
         .returning({ id: matters.id })
       const writes: AtomicQuery[] = [activateQuery, matterActivationLedgerQuery(db, orgId, id, now)]
+      writes.push(...matterChanges(orgId, [id], now, 'activated'))
       writes.push(...matterAddedProjectionQueries(db, orgId, id))
       const results = await executeWriteTransactionWithResults(db, writes, [0])
       const updated = results[0] as { id: string }[]

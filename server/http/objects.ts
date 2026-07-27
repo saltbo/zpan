@@ -3,9 +3,9 @@ import {
   completeObjectUploadSchema,
   copyObjectBodySchema,
   createMatterSchema,
+  cursorPageQuerySchema,
+  cursorPageSchema,
   objectUploadInstructionsSchema,
-  pageQuerySchema,
-  pageSchema,
   patchMatterSchema,
   presignObjectUploadPartsResponseSchema,
   presignObjectUploadPartsSchema,
@@ -14,6 +14,7 @@ import {
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../domain/page-token'
 import { transferAuditActor } from '../middleware/audit-transfers'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -93,7 +94,7 @@ function toObjectListItemDTO(item: MatterListItem): ObjectListItemDTO {
   return { ...toMatterDTO(item), hasChildren: item.hasChildren }
 }
 
-const objectPageSchema = pageSchema(objectListItemSchema, 'ObjectPage')
+const objectPageSchema = cursorPageSchema(objectListItemSchema, 'ObjectPage')
 
 // POST / returns the created object plus, for a file draft, the upload
 // instructions: the server-decided part size and the presigned URLs to PUT each
@@ -110,8 +111,7 @@ const objectWithDownloadSchema = matterSchema.extend({ downloadUrl: z.string().o
 // whole folder client-side (no UI paging, FILES_PAGE_SIZE=500), so this list
 // overrides the shared pageSize cap of 100 with a higher ceiling — the rest of the
 // API keeps the 100 default. Live objects only — the recycle bin is GET /trash/objects.
-const listObjectsQuerySchema = pageQuerySchema.extend({
-  pageSize: z.coerce.number().int().min(1).max(1000).default(20),
+const listObjectsQuerySchema = cursorPageQuerySchema.extend({
   parent: z.string().optional(),
   path: z.string().optional(),
   type: z.string().optional(),
@@ -355,6 +355,29 @@ const objects = app
     if (!orgId) throw badRequest('No active organization')
 
     const query = c.req.valid('query')
+    const fingerprint = await pageQueryFingerprint({
+      orgId: query.orgId ?? orgId,
+      parent: query.path ?? query.parent ?? '',
+      type: query.type ?? null,
+      search: query.search ?? null,
+      pageSize: query.pageSize,
+    })
+    let after: { dirtype: number; createdAt: Date; id: string } | undefined
+    if (query.pageToken) {
+      const boundary = await decodePageToken(c.get('platform'), query.pageToken, { query: fingerprint })
+      if (
+        typeof boundary.dirtype !== 'number' ||
+        typeof boundary.createdAt !== 'number' ||
+        typeof boundary.id !== 'string'
+      ) {
+        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
+      }
+      after = {
+        dirtype: boundary.dirtype,
+        createdAt: new Date(boundary.createdAt),
+        id: boundary.id,
+      }
+    }
     const result = await listObjects(c.get('deps'), {
       orgId,
       userId: c.get('userId')!,
@@ -363,12 +386,27 @@ const objects = app
         parent: query.path ?? query.parent ?? '',
         typeFilter: query.type,
         search: query.search,
-        page: query.page,
         pageSize: query.pageSize,
+        after,
       },
     })
     if (!result.ok) throw result.error
-    return c.json({ ...result.result, items: result.result.items.map(toObjectListItemDTO) }, 200)
+    return c.json(
+      {
+        items: result.result.items.map(toObjectListItemDTO),
+        nextPageToken: result.result.nextBoundary
+          ? await encodePageToken(c.get('platform'), {
+              query: fingerprint,
+              boundary: {
+                dirtype: result.result.nextBoundary.dirtype,
+                createdAt: result.result.nextBoundary.createdAt.getTime(),
+                id: result.result.nextBoundary.id,
+              },
+            })
+          : null,
+      },
+      200,
+    )
   })
   .openapi(createObjectRoute, async (c) => {
     const orgId = c.get('orgId')

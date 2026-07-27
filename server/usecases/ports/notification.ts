@@ -25,13 +25,15 @@ export interface CreateNotificationInput {
 
 export interface ListNotificationsResult {
   items: NotificationRecord[]
-  total: number
-  unreadCount: number
+  nextBoundary: { createdAt: Date; id: string } | null
 }
 
 export interface NotificationRepo {
   create(input: CreateNotificationInput): Promise<NotificationRecord>
-  list(userId: string, opts: { page: number; pageSize: number; unreadOnly?: boolean }): Promise<ListNotificationsResult>
+  list(
+    userId: string,
+    opts: { pageSize: number; unreadOnly?: boolean; after?: { createdAt: Date; id: string } },
+  ): Promise<ListNotificationsResult>
   markAsRead(userId: string, id: string): Promise<boolean>
   markAllAsRead(userId: string): Promise<{ count: number }>
   unreadCount(userId: string): Promise<number>

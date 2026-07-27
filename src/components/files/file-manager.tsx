@@ -1,6 +1,6 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   getCoreRowModel,
@@ -23,6 +23,7 @@ import { Card } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
+import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import { createBackgroundJob, deleteObject, getObject, listObjectsByPath, updateObject } from '@/lib/api'
 import { runSequentialOperation } from '@/lib/sequential-operation'
 import { cn } from '@/lib/utils'
@@ -39,7 +40,7 @@ import { useViewMode } from './hooks/use-view-mode'
 import { TransferSpaceDialog } from './transfer-space-dialog'
 import type { BreadcrumbItem, FileActionHandlers } from './types'
 
-const FILES_PAGE_SIZE = 500
+const FILES_PAGE_SIZE = 100
 
 export interface FileManagerHeaderMeta {
   label: string
@@ -114,7 +115,11 @@ interface FileManagerProps {
   onNavigatePath?: (path: string) => void
   dataSource?: {
     queryKeyPrefix: readonly unknown[]
-    list: (path: string, opts: { filterType?: string; search?: string }) => Promise<{ items: StorageObject[] }>
+    resourceTypes: string[]
+    list: (
+      path: string,
+      opts: { filterType?: string; search?: string; pageToken?: string },
+    ) => Promise<{ items: StorageObject[]; nextPageToken: string | null }>
     getPreviewFile?: (item: StorageObject) => Promise<PreviewFile | null>
     download?: (item: StorageObject) => Promise<void> | void
     upload?: (file: File, ctx: UploadRunnerContext) => Promise<void>
@@ -164,8 +169,13 @@ export function FileManager({
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const dropzoneRef = useRef<UploadDropzoneHandle>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   const currentPath = initialPath ?? ''
+  const resourceTypes = dataSource?.resourceTypes ?? ['matter']
+  useServerEventSubscription('file-manager', resourceTypes, () => {
+    void queryClient.invalidateQueries({ queryKey: dataSource?.queryKeyPrefix ?? ['objects'] })
+  })
   const breadcrumb = pathToBreadcrumb(currentPath, rootName ?? t('files.title'))
   const resolvedCapabilities = useMemo(
     () => ({
@@ -217,17 +227,31 @@ export function FileManager({
   const uploadMenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const musicPlayer = useMusicPlayer()
 
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: [...(dataSource?.queryKeyPrefix ?? ['objects', 'active', 'path']), currentPath, filterType ?? ''],
-    queryFn: () =>
-      dataSource?.list(currentPath, { filterType }) ??
-      listObjectsByPath(currentPath, 1, FILES_PAGE_SIZE, {
+    queryFn: ({ pageParam }) =>
+      dataSource?.list(currentPath, { filterType, pageToken: pageParam }) ??
+      listObjectsByPath(currentPath, pageParam, FILES_PAGE_SIZE, {
         type: filterType,
       }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
   })
   const mutations = useFileMutations(currentPath)
   const conflict = useConflictResolver()
-  const items = query.data?.items ?? []
+  const items = query.data?.pages.flatMap((page) => page.items) ?? []
+  useEffect(() => {
+    const target = loadMoreRef.current
+    if (!target || !query.hasNextPage) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !query.isFetchingNextPage) void query.fetchNextPage()
+      },
+      { rootMargin: '320px 0px' },
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [query.fetchNextPage, query.hasNextPage, query.isFetchingNextPage])
   const operationCancelRef = useRef(false)
   const [operationState, setOperationState] = useState<OperationProgressState | null>(null)
   const archiveMutation = useMutation({
@@ -637,6 +661,11 @@ export function FileManager({
               selectionEnabled={resolvedCapabilities.selection}
               getThumbnailUrl={getThumbnailUrl}
             />
+          </div>
+        )}
+        {query.hasNextPage && (
+          <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground">
+            {query.isFetchingNextPage ? t('common.loading') : ''}
           </div>
         )}
       </FileManagerSurface>

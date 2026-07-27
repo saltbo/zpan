@@ -51,9 +51,7 @@ function folder(id: string, name: string, parent = '', hasChildren = false): Obj
 function page(items: ObjectListItem[]) {
   return {
     items,
-    total: items.length,
-    page: 1,
-    pageSize: 100,
+    nextPageToken: null,
   }
 }
 
@@ -88,29 +86,25 @@ afterEach(() => {
 describe('FolderTree', () => {
   it('loads every page of folders', async () => {
     mocks.currentPath = ''
-    vi.mocked(listObjectsByPath).mockImplementation(async (path, requestedPage) => {
+    vi.mocked(listObjectsByPath).mockImplementation(async (path, pageToken) => {
       if (path !== '') return page([])
-      if (requestedPage === 1) {
+      if (pageToken === undefined) {
         return {
           items: [folder('first', 'first')],
-          total: 101,
-          page: 1,
-          pageSize: 100,
+          nextPageToken: 'next',
         }
       }
       return {
         items: [folder('last', 'last')],
-        total: 101,
-        page: 2,
-        pageSize: 100,
+        nextPageToken: null,
       }
     })
 
     const view = renderFolderTree()
     await view.findByText('last')
 
-    expect(listObjectsByPath).toHaveBeenNthCalledWith(1, '', 1, 100, { type: 'folder' })
-    expect(listObjectsByPath).toHaveBeenNthCalledWith(2, '', 2, 100, { type: 'folder' })
+    expect(listObjectsByPath).toHaveBeenNthCalledWith(1, '', undefined, 100, { type: 'folder' })
+    expect(listObjectsByPath).toHaveBeenNthCalledWith(2, '', 'next', 100, { type: 'folder' })
   })
 
   it('loads only the root and expanded branches', async () => {
@@ -120,13 +114,13 @@ describe('FolderTree', () => {
     await view.findByText('parent')
 
     expect(listObjectsByPath).toHaveBeenCalledTimes(1)
-    expect(listObjectsByPath).toHaveBeenCalledWith('', 1, 100, { type: 'folder' })
+    expect(listObjectsByPath).toHaveBeenCalledWith('', undefined, 100, { type: 'folder' })
 
     fireEvent.click(await view.findByRole('button', { name: 'parent' }))
     await view.findByText('child')
 
     expect(listObjectsByPath).toHaveBeenCalledTimes(2)
-    expect(listObjectsByPath).toHaveBeenCalledWith('parent', 1, 100, { type: 'folder' })
+    expect(listObjectsByPath).toHaveBeenCalledWith('parent', undefined, 100, { type: 'folder' })
     expect(view.queryByRole('button', { name: 'child' })).toBeNull()
   })
 

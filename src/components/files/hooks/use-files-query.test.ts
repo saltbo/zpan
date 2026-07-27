@@ -1,10 +1,10 @@
 import { DirType } from '@shared/constants'
-import type { PaginatedResponse, StorageObject } from '@shared/types'
+import type { CursorPage, StorageObject } from '@shared/types'
 import { describe, expect, it } from 'vitest'
 
 // The select function is the pure logic inside useFilesQuery.
 // We test it directly without rendering any React hook.
-function selectSortFoldersFirst(data: PaginatedResponse<StorageObject>) {
+function selectSortFoldersFirst(data: CursorPage<StorageObject>) {
   const folders = data.items.filter((i) => i.dirtype !== DirType.FILE)
   const files = data.items.filter((i) => i.dirtype === DirType.FILE)
   return { ...data, items: [...folders, ...files] }
@@ -24,8 +24,8 @@ function makeObject(id: string, dirtype: number): StorageObject {
   } as unknown as StorageObject
 }
 
-function makePage(items: StorageObject[]): PaginatedResponse<StorageObject> {
-  return { items, total: items.length, page: 1, pageSize: 500 }
+function makePage(items: StorageObject[]): CursorPage<StorageObject> {
+  return { items, nextPageToken: null }
 }
 
 describe('useFilesQuery — select function (sort folders before files)', () => {
@@ -83,19 +83,15 @@ describe('useFilesQuery — select function (sort folders before files)', () => 
     expect(result.items[1].id).toBe('file1')
   })
 
-  it('preserves total, page, and pageSize metadata unchanged', () => {
-    const data: PaginatedResponse<StorageObject> = {
+  it('preserves the next page token', () => {
+    const data: CursorPage<StorageObject> = {
       items: [makeObject('f', DirType.FILE)],
-      total: 42,
-      page: 3,
-      pageSize: 20,
+      nextPageToken: 'next',
     }
 
     const result = selectSortFoldersFirst(data)
 
-    expect(result.total).toBe(42)
-    expect(result.page).toBe(3)
-    expect(result.pageSize).toBe(20)
+    expect(result.nextPageToken).toBe('next')
   })
 
   it('handles mixed multiple folders and multiple files in correct section order', () => {

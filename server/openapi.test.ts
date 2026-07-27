@@ -62,7 +62,7 @@ describe('global OpenAPI document', () => {
     expect(events?.responses?.['403']?.description).toBe('Forbidden')
     expect(events?.description).toContain('Workspace-scoped API keys')
     expect(events?.description).toContain('remoteDownload:read')
-    expect(events?.description).toContain('?downloadTasks=1')
+    expect(events?.description).toContain('resource-change')
   })
 
   it('documents the concrete public profile contract without the removed objects placeholder', async () => {

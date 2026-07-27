@@ -213,7 +213,7 @@ export function listImageHostings(
   deps: Pick<ImageHostingDeps, 'imageHosting'>,
   orgId: string,
   opts: ListImageHostingsOptions,
-): Promise<{ items: ImageHostingRecord[]; nextCursor: string | null }> {
+): Promise<{ items: ImageHostingRecord[]; nextBoundary: { createdAt: Date; id: string } | null }> {
   return deps.imageHosting.list(orgId, opts)
 }
 

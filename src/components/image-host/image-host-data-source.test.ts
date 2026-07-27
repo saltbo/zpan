@@ -59,7 +59,7 @@ function makeUploadCtx(overrides: Partial<UploadRunnerContext> = {}): UploadRunn
 
 describe('imageHostDataSource.list', () => {
   beforeEach(() => {
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [], nextPageToken: null })
   })
 
   afterEach(() => {
@@ -69,12 +69,12 @@ describe('imageHostDataSource.list', () => {
   it('calls listIhostImages with limit 200', async () => {
     await imageHostDataSource.list('', {})
 
-    expect(listIhostImages).toHaveBeenCalledWith({ limit: 200 })
+    expect(listIhostImages).toHaveBeenCalledWith({ pageSize: 100, pageToken: undefined })
   })
 
   it('returns items mapped to IhostItems', async () => {
     const img = makeImageHosting()
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -84,7 +84,7 @@ describe('imageHostDataSource.list', () => {
 
   it('maps name from the last segment of path', async () => {
     const img = makeImageHosting({ path: 'folder/photo.png' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -93,7 +93,7 @@ describe('imageHostDataSource.list', () => {
 
   it('maps type from mime', async () => {
     const img = makeImageHosting({ mime: 'image/jpeg' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -102,7 +102,7 @@ describe('imageHostDataSource.list', () => {
 
   it('maps size correctly', async () => {
     const img = makeImageHosting({ size: 2048 })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -111,7 +111,7 @@ describe('imageHostDataSource.list', () => {
 
   it('sets dirtype to FILE', async () => {
     const img = makeImageHosting()
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -120,7 +120,7 @@ describe('imageHostDataSource.list', () => {
 
   it('maps token from img.token', async () => {
     const img = makeImageHosting({ token: 'tok_xyz' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -131,7 +131,7 @@ describe('imageHostDataSource.list', () => {
 
   it('computes url from token and extension for png mime', async () => {
     const img = makeImageHosting({ token: 'tok_abc', mime: 'image/png' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -141,7 +141,7 @@ describe('imageHostDataSource.list', () => {
 
   it('computes url with jpg ext for image/jpeg mime', async () => {
     const img = makeImageHosting({ token: 'tok_jpg', mime: 'image/jpeg' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -151,7 +151,7 @@ describe('imageHostDataSource.list', () => {
 
   it('computes url with gif ext for image/gif mime', async () => {
     const img = makeImageHosting({ token: 'tok_gif', mime: 'image/gif' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -161,7 +161,7 @@ describe('imageHostDataSource.list', () => {
 
   it('computes url with webp ext for image/webp mime', async () => {
     const img = makeImageHosting({ token: 'tok_webp', mime: 'image/webp' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -171,7 +171,7 @@ describe('imageHostDataSource.list', () => {
 
   it('computes url with bin ext for unknown mime', async () => {
     const img = makeImageHosting({ token: 'tok_unk', mime: 'application/octet-stream' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -181,7 +181,7 @@ describe('imageHostDataSource.list', () => {
 
   it('computes dimensions string when width and height are set', async () => {
     const img = makeImageHosting({ width: 800, height: 600 })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -191,7 +191,7 @@ describe('imageHostDataSource.list', () => {
 
   it('sets dimensions to null when width is null', async () => {
     const img = makeImageHosting({ width: null, height: 600 })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -201,7 +201,7 @@ describe('imageHostDataSource.list', () => {
 
   it('sets dimensions to null when height is null', async () => {
     const img = makeImageHosting({ width: 800, height: null })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -211,7 +211,7 @@ describe('imageHostDataSource.list', () => {
 
   it('maps accessCount correctly', async () => {
     const img = makeImageHosting({ accessCount: 42 })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -220,7 +220,7 @@ describe('imageHostDataSource.list', () => {
   })
 
   it('returns empty items when listIhostImages returns empty', async () => {
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
@@ -229,7 +229,7 @@ describe('imageHostDataSource.list', () => {
 
   it('uses full path as name when path has no slash', async () => {
     const img = makeImageHosting({ path: 'photo.png' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextCursor: null })
+    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 

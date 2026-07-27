@@ -6,7 +6,7 @@ import type {
   DownloadTaskTimelineItem,
   StorageObject,
 } from '@shared/types'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   type ColumnDef,
@@ -17,13 +17,10 @@ import {
   type Header,
   type Row,
   type RowSelectionState,
-  type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
 import {
   AlertCircle,
-  ArrowDown,
-  ArrowUp,
   Check,
   ChevronRight,
   Clock,
@@ -101,7 +98,6 @@ export const Route = createFileRoute('/_authenticated/downloads/')({
 const QUERY_KEY = ['download-tasks']
 const EMPTY_DOWNLOAD_TASKS: DownloadTask[] = []
 const PAUSABLE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'downloading'])
-const SORTABLE_COLUMN_IDS = new Set(['source', 'status', 'progress', 'eta', 'category', 'tags'])
 const DEFAULT_COLUMN_ORDER = ['select', 'source', 'status', 'progress', 'eta', 'category', 'tags']
 const STATUS_FILTERS: Array<{ value: DownloadTaskStatus | 'all'; labelKey: string }> = [
   { value: 'all', labelKey: 'downloads.statusFilter.all' },
@@ -170,7 +166,6 @@ function DownloadsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
-  const [sorting, setSorting] = useState<SortingState>([])
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(DEFAULT_COLUMN_ORDER)
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({})
   const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null)
@@ -181,38 +176,28 @@ function DownloadsPage() {
   const [panelDrag, setPanelDrag] = useState<PanelDragState | null>(null)
   const panelsRef = useRef<HTMLDivElement>(null)
   const tableFrameRef = useRef<HTMLElement>(null)
+  const loadMoreRef = useRef<HTMLTableRowElement>(null)
   const [tableFrameWidth, setTableFrameWidth] = useState(0)
   const categoryFilterValue = filterCategory.trim() || undefined
   const tagFilterValue = filterTag.trim() || undefined
   const statusFilterValue = filterStatus === 'all' ? undefined : filterStatus
-  const sortBy = toDownloadTaskSortBy(sorting[0]?.id)
-  const sortDir = sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : 'desc'
   const queryKey = useMemo(
-    () =>
-      [
-        ...QUERY_KEY,
-        statusFilterValue ?? '',
-        categoryFilterValue ?? '',
-        tagFilterValue ?? '',
-        sortBy,
-        sortDir,
-      ] as const,
-    [categoryFilterValue, sortBy, sortDir, statusFilterValue, tagFilterValue],
+    () => [...QUERY_KEY, statusFilterValue ?? '', categoryFilterValue ?? '', tagFilterValue ?? ''] as const,
+    [categoryFilterValue, statusFilterValue, tagFilterValue],
   )
 
-  const tasksQuery = useQuery({
+  const tasksQuery = useInfiniteQuery({
     queryKey,
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       listDownloadTasks({
-        page: 1,
         pageSize: 50,
+        pageToken: pageParam,
         status: statusFilterValue,
         category: categoryFilterValue,
         tag: tagFilterValue,
-        sortBy,
-        sortDir,
       }),
-    placeholderData: (previousData) => previousData,
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
   })
 
   useEffect(() => {
@@ -248,18 +233,23 @@ function DownloadsPage() {
     return () => observer.disconnect()
   }, [])
 
-  useServerEventSubscription(
-    'download-tasks',
-    {
-      downloadTasks: '1',
-      ...(statusFilterValue ? { dtStatus: statusFilterValue } : {}),
-      ...(categoryFilterValue ? { dtCategory: categoryFilterValue } : {}),
-      ...(tagFilterValue ? { dtTag: tagFilterValue } : {}),
-      dtSortBy: sortBy,
-      dtSortDir: sortDir,
-    },
-    (data) => queryClient.setQueryData(queryKey, data as Awaited<ReturnType<typeof listDownloadTasks>>),
+  useServerEventSubscription('download-tasks', ['download_task'], () =>
+    queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
   )
+
+  useEffect(() => {
+    const target = loadMoreRef.current
+    const root = tableFrameRef.current?.querySelector('[data-slot="table-container"]')
+    if (!target || !root || !tasksQuery.hasNextPage) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !tasksQuery.isFetchingNextPage) void tasksQuery.fetchNextPage()
+      },
+      { root, rootMargin: '240px 0px' },
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [tasksQuery.fetchNextPage, tasksQuery.hasNextPage, tasksQuery.isFetchingNextPage])
 
   useEffect(() => {
     if (!panelDrag) return
@@ -369,7 +359,7 @@ function DownloadsPage() {
     setPendingTaskAction(null)
   }
 
-  const tasks = tasksQuery.data?.items ?? EMPTY_DOWNLOAD_TASKS
+  const tasks = tasksQuery.data?.pages.flatMap((page) => page.items) ?? EMPTY_DOWNLOAD_TASKS
   const nonSourceTableWidth =
     DOWNLOAD_SELECT_COLUMN_WIDTH +
     downloadColumnWidth(columnSizing, 'status') +
@@ -397,16 +387,6 @@ function DownloadsPage() {
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null
   const activeSelectedTaskId = selectedTask?.id ?? null
   const selectedTasks = table.getSelectedRowModel().rows.map((row) => row.original)
-
-  function handleSortColumn(columnId: string) {
-    if (!SORTABLE_COLUMN_IDS.has(columnId)) return
-    setSorting((current) => {
-      const active = current[0]
-      if (active?.id !== columnId) return [{ id: columnId, desc: false }]
-      if (!active.desc) return [{ id: columnId, desc: true }]
-      return []
-    })
-  }
 
   function handlePanelResizeStart(event: ReactPointerEvent<HTMLButtonElement>) {
     event.preventDefault()
@@ -607,9 +587,7 @@ function DownloadsPage() {
                     <DownloadTableHead
                       key={header.id}
                       header={header}
-                      sorting={sorting}
                       draggedColumnId={draggedColumnId}
-                      onSort={handleSortColumn}
                       onDragStart={setDraggedColumnId}
                       onDrop={handleColumnDrop}
                     />
@@ -636,6 +614,13 @@ function DownloadsPage() {
                   onAction={(action) => handleTaskAction(row.original, action)}
                 />
               ))}
+              {tasksQuery.hasNextPage && (
+                <TableRow ref={loadMoreRef}>
+                  <TableCell colSpan={table.getAllColumns().length} className="h-10 text-center text-muted-foreground">
+                    {tasksQuery.isFetchingNextPage ? t('common.loading') : ''}
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </section>
@@ -749,27 +734,14 @@ function DownloadFilters({
   )
 }
 
-function SortIndicator({ direction }: { direction: false | 'asc' | 'desc' }) {
-  if (!direction) return null
-  return direction === 'asc' ? (
-    <ArrowUp className="size-3 shrink-0 text-muted-foreground" />
-  ) : (
-    <ArrowDown className="size-3 shrink-0 text-muted-foreground" />
-  )
-}
-
 function DownloadTableHead({
   header,
-  sorting,
   draggedColumnId,
-  onSort,
   onDragStart,
   onDrop,
 }: {
   header: Header<DownloadTask, unknown>
-  sorting: SortingState
   draggedColumnId: string | null
-  onSort: (columnId: string) => void
   onDragStart: (columnId: string | null) => void
   onDrop: (columnId: string) => void
 }) {
@@ -780,16 +752,13 @@ function DownloadTableHead({
     onDrop(header.column.id)
   }
 
-  const canSort = SORTABLE_COLUMN_IDS.has(header.column.id)
   const canResize = header.column.getCanResize()
-  const activeSort = sorting[0]?.id === header.column.id ? (sorting[0].desc ? 'desc' : 'asc') : false
 
   return (
     <TableHead
       className={cn(
         'sticky top-0 z-20 h-8 overflow-hidden bg-muted px-2',
         header.column.columnDef.meta?.className,
-        canSort && 'select-none',
         draggedColumnId === header.column.id && 'opacity-50',
       )}
       style={{ width: header.column.getSize() }}
@@ -800,20 +769,9 @@ function DownloadTableHead({
       onDragEnd={() => onDragStart(null)}
     >
       <div className="flex min-w-0 items-center gap-1">
-        {canSort ? (
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-center gap-1 text-left"
-            onClick={() => onSort(header.column.id)}
-          >
-            <span className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</span>
-            <SortIndicator direction={activeSort} />
-          </button>
-        ) : (
-          <span className="min-w-0 flex-1 truncate">
-            {flexRender(header.column.columnDef.header, header.getContext())}
-          </span>
-        )}
+        <span className="min-w-0 flex-1 truncate">
+          {flexRender(header.column.columnDef.header, header.getContext())}
+        </span>
         {reorderable && (
           <button
             type="button"
@@ -1092,16 +1050,6 @@ function reorderColumn(columnOrder: ColumnOrderState, movingColumnId: string, ta
   nextOrder.splice(movingIndex, 1)
   nextOrder.splice(targetIndex, 0, movingColumnId)
   return nextOrder
-}
-
-function toDownloadTaskSortBy(columnId: string | undefined) {
-  if (columnId === 'source') return 'source'
-  if (columnId === 'category') return 'category'
-  if (columnId === 'tags') return 'tags'
-  if (columnId === 'status') return 'status'
-  if (columnId === 'progress') return 'progress'
-  if (columnId === 'eta') return 'eta'
-  return 'createdAt'
 }
 
 function FolderPicker({ value, onChange }: { value: string; onChange: (path: string) => void }) {

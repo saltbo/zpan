@@ -1035,9 +1035,9 @@ describe('GET /api/image-hosting/images', () => {
 
     const res = await app.request('/api/image-hosting/images', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; nextCursor: unknown }
+    const body = (await res.json()) as { items: unknown[]; nextPageToken: unknown }
     expect(body.items).toEqual([])
-    expect(body.nextCursor).toBeNull()
+    expect(body.nextPageToken).toBeNull()
   })
 
   it('filters by pathPrefix', async () => {
@@ -1089,17 +1089,19 @@ describe('GET /api/image-hosting/images', () => {
       await insertImageHosting(db, orgId, { path: `cursor-item${i}.png` })
     }
 
-    const page1 = await app.request('/api/image-hosting/images?limit=2', { headers })
+    const page1 = await app.request('/api/image-hosting/images?pageSize=2', { headers })
     expect(page1.status).toBe(200)
-    const body1 = (await page1.json()) as { items: unknown[]; nextCursor: string | null }
+    const body1 = (await page1.json()) as { items: unknown[]; nextPageToken: string | null }
     expect(body1.items).toHaveLength(2)
-    expect(body1.nextCursor).toBeTruthy()
+    expect(body1.nextPageToken).toBeTruthy()
 
-    const page2 = await app.request(`/api/image-hosting/images?limit=2&cursor=${body1.nextCursor}`, { headers })
+    const page2 = await app.request(`/api/image-hosting/images?pageSize=2&pageToken=${body1.nextPageToken}`, {
+      headers,
+    })
     expect(page2.status).toBe(200)
-    const body2 = (await page2.json()) as { items: unknown[]; nextCursor: string | null }
+    const body2 = (await page2.json()) as { items: unknown[]; nextPageToken: string | null }
     expect(body2.items).toHaveLength(1)
-    expect(body2.nextCursor).toBeNull()
+    expect(body2.nextPageToken).toBeNull()
   })
 })
 

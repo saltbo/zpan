@@ -10,7 +10,11 @@ type NotificationDeps = { notifications: NotificationRepo }
 export function listNotifications(
   deps: NotificationDeps,
   userId: string,
-  opts: { page: number; pageSize: number; unreadOnly: boolean },
+  opts: {
+    pageSize: number
+    unreadOnly: boolean
+    after?: { createdAt: Date; id: string }
+  },
 ): Promise<ListNotificationsResult> {
   return deps.notifications.list(userId, opts)
 }

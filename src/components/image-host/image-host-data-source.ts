@@ -77,10 +77,11 @@ async function uploadImage(file: File, ctx: UploadRunnerContext): Promise<void> 
 
 export const imageHostDataSource = {
   queryKeyPrefix: ['ihost', 'images'] as const,
+  resourceTypes: ['image_hosting'],
 
-  async list(_path: string, _opts: { filterType?: string; search?: string }) {
-    const result = await listIhostImages({ limit: 200 })
-    return { items: result.items.map(toIhostItem) }
+  async list(_path: string, opts: { filterType?: string; search?: string; pageToken?: string }) {
+    const result = await listIhostImages({ pageSize: 100, pageToken: opts.pageToken })
+    return { items: result.items.map(toIhostItem), nextPageToken: result.nextPageToken }
   },
 
   upload: uploadImage,

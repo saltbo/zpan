@@ -29,7 +29,7 @@ function makeDeps(
 ) {
   const backgroundJobs: BackgroundJobRepo = {
     create: vi.fn(async () => sampleJob),
-    list: vi.fn(async () => ({ items: [], total: 0 })),
+    list: vi.fn(async () => ({ items: [], nextBoundary: null })),
     activeSummary: vi.fn(async () => ({ count: 0, fingerprint: '' })),
     get: vi.fn(async () => sampleJob),
     update: vi.fn(async () => sampleJob),
@@ -47,10 +47,11 @@ beforeEach(() => vi.clearAllMocks())
 describe('background-job usecase', () => {
   describe('listBackgroundJobs', () => {
     it('forwards the repo result and options', async () => {
-      const list = vi.fn(async () => ({ items: [sampleJob], total: 1 }))
+      const result = { items: [sampleJob], nextBoundary: null }
+      const list = vi.fn(async () => result)
       const { deps } = makeDeps({ backgroundJobs: { list } })
-      const opts = { status: 'queued' as const, type: 'archive_extract', page: 2, pageSize: 5 }
-      expect(await listBackgroundJobs(deps, 'org-1', opts)).toEqual({ items: [sampleJob], total: 1 })
+      const opts = { status: 'queued' as const, type: 'archive_extract', pageSize: 5 }
+      expect(await listBackgroundJobs(deps, 'org-1', opts)).toEqual(result)
       expect(list).toHaveBeenCalledWith('org-1', opts)
     })
   })

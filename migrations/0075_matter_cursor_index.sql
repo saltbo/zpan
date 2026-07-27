@@ -1,0 +1,1 @@
+CREATE INDEX `matters_list_page_idx` ON `matters` (`org_id`,`parent`,`status`,`trashed_at`,`purged_at`,"dirtype" desc,`created_at`,`id`);

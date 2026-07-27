@@ -8,6 +8,7 @@ import {
   MAX_IMAGE_SIZE,
 } from '../../../shared/schemas'
 import { buildImageUrl, validatePath } from '../../domain/image-hosting'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../../domain/page-token'
 import { mapDomainError } from '../../lib/http-errors'
 import { mimeToExt } from '../../lib/mime-utils'
 import { requireAuth, requireTeamRole } from '../../middleware/auth'
@@ -74,7 +75,7 @@ const imageDraftSchema = z
   .openapi('ImageHostingDraft')
 
 const imageListSchema = z
-  .object({ items: z.array(imageHostingSchema), nextCursor: z.string().nullable() })
+  .object({ items: z.array(imageHostingSchema), nextPageToken: z.string().nullable() })
   .openapi('ImageHostingList')
 
 // Derive a storage path from the upload's filename, falling back to a random name.
@@ -328,9 +329,29 @@ const ihost = app
     const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
     if (!enabled.ok) throw enabled.error
 
-    const { pathPrefix, cursor, limit } = c.req.valid('query')
-    const result = await listImageHostings(c.get('deps'), orgId, { pathPrefix, cursor, limit })
-    return c.json({ items: result.items.map(toImageHostingDTO), nextCursor: result.nextCursor }, 200)
+    const { pathPrefix, pageToken, pageSize } = c.req.valid('query')
+    const fingerprint = await pageQueryFingerprint({ orgId, pathPrefix: pathPrefix ?? null, pageSize })
+    let after: { createdAt: Date; id: string } | undefined
+    if (pageToken) {
+      const boundary = await decodePageToken(c.get('platform'), pageToken, { query: fingerprint })
+      if (typeof boundary.createdAt !== 'number' || typeof boundary.id !== 'string') {
+        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
+      }
+      after = { createdAt: new Date(boundary.createdAt), id: boundary.id }
+    }
+    const result = await listImageHostings(c.get('deps'), orgId, { pathPrefix, after, limit: pageSize })
+    return c.json(
+      {
+        items: result.items.map(toImageHostingDTO),
+        nextPageToken: result.nextBoundary
+          ? await encodePageToken(c.get('platform'), {
+              query: fingerprint,
+              boundary: { createdAt: result.nextBoundary.createdAt.getTime(), id: result.nextBoundary.id },
+            })
+          : null,
+      },
+      200,
+    )
   })
   .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')

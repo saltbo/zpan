@@ -3,15 +3,14 @@ import type { DownloadTask, DownloadTaskRuntime } from '@shared/types'
 import {
   and,
   asc,
-  count,
   desc,
   eq,
-  getTableColumns,
   gte,
   inArray,
   isNotNull,
   isNull,
   like,
+  lt,
   ne,
   notInArray,
   or,
@@ -19,6 +18,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { downloaders, downloadTasks } from '../../db/schema'
+import { executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { parseDownloadTaskEvents } from '../../domain/download-task-events'
 import type { Database } from '../../platform/interface'
 import {
@@ -29,6 +29,7 @@ import {
   type ListDownloadTasksFilters,
   type UpdateDownloadTaskFields,
 } from '../../usecases/ports'
+import { resourceChangeQuery } from './resource-change'
 
 type DownloadTaskRow = typeof downloadTasks.$inferSelect
 
@@ -58,6 +59,14 @@ function downloadTaskWhere(filters: ListDownloadTasksFilters): SQL | undefined {
   else if (filters.status) conditions.push(eq(downloadTasks.status, filters.status))
   if (filters.category) conditions.push(eq(downloadTasks.category, filters.category))
   if (filters.tag) conditions.push(like(downloadTasks.tags, `%${JSON.stringify(filters.tag)}%`))
+  if (filters.after) {
+    conditions.push(
+      or(
+        lt(downloadTasks.createdAt, filters.after.createdAt),
+        and(eq(downloadTasks.createdAt, filters.after.createdAt), lt(downloadTasks.id, filters.after.id)),
+      ) as SQL,
+    )
+  }
   return conditions.length ? and(...conditions) : undefined
 }
 
@@ -278,30 +287,6 @@ function toDownloadTask(row: DownloadTaskRow, control?: { action: 'delete'; requ
   }
 }
 
-function orderBy(sortBy: NonNullable<ListDownloadTasksFilters['sortBy']>, sortDir: 'asc' | 'desc'): SQL {
-  const direction = sortDir === 'asc' ? asc : desc
-  if (sortBy === 'source') return direction(downloadTasks.sourceUri)
-  if (sortBy === 'category') return direction(downloadTasks.category)
-  if (sortBy === 'tags') return direction(downloadTasks.tags)
-  if (sortBy === 'status') return direction(downloadTasks.status)
-  if (sortBy === 'progress') {
-    return direction(sql<number>`
-      case
-        when json_extract(${downloadTasks.runtime}, '$.progress.download.totalBytes') is null
-          or json_extract(${downloadTasks.runtime}, '$.progress.download.totalBytes') = 0 then 0
-        else (
-          json_extract(${downloadTasks.runtime}, '$.progress.download.bytes') * 1000000 /
-          json_extract(${downloadTasks.runtime}, '$.progress.download.totalBytes')
-        )
-      end
-    `)
-  }
-  if (sortBy === 'eta') {
-    return direction(sql<number>`coalesce(json_extract(${downloadTasks.runtime}, '$.etaSeconds'), 9223372036854775807)`)
-  }
-  return direction(downloadTasks.createdAt)
-}
-
 export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
   async function findRow(id: string): Promise<DownloadTaskRow | null> {
     const rows = await db
@@ -312,9 +297,39 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
     return rows[0] ?? null
   }
 
+  async function changeTargets(where: SQL | undefined) {
+    return db.select({ id: downloadTasks.id, orgId: downloadTasks.orgId }).from(downloadTasks).where(where)
+  }
+
+  function changeQueries(
+    rows: Array<{ id: string; orgId: string }>,
+    now: Date,
+    action: string,
+    changeType: 'upsert' | 'delete' = 'upsert',
+  ) {
+    const byOrg = new Map<string, Array<{ id: string; orgId: string }>>()
+    for (const row of rows) {
+      const orgRows = byOrg.get(row.orgId)
+      if (orgRows) orgRows.push(row)
+      else byOrg.set(row.orgId, [row])
+    }
+    return [...byOrg].map(([orgId, orgRows]) =>
+      resourceChangeQuery(db, {
+        scopeType: 'organization',
+        scopeId: orgId,
+        resourceType: 'download_task',
+        resourceId: orgRows.length === 1 ? orgRows[0]!.id : '*',
+        changeType,
+        action,
+        metadata: orgRows.length === 1 ? undefined : { affectedCount: orgRows.length },
+        occurredAt: now,
+      }),
+    )
+  }
+
   return {
     async insert(input: CreateDownloadTaskRecordInput) {
-      await db.insert(downloadTasks).values({
+      const insert = db.insert(downloadTasks).values({
         id: input.id,
         orgId: input.orgId,
         createdByUserId: input.createdByUserId,
@@ -347,45 +362,35 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         updatedAt: input.now,
         assignedAt: input.assignedAt,
       })
+      await executeWriteTransaction(db, [
+        insert,
+        resourceChangeQuery(db, {
+          scopeType: 'organization',
+          scopeId: input.orgId,
+          resourceType: 'download_task',
+          resourceId: input.id,
+          changeType: 'upsert',
+          action: 'created',
+          occurredAt: input.now,
+        }),
+      ])
     },
 
     async list(filters: ListDownloadTasksFilters) {
-      const offset = (filters.page - 1) * filters.pageSize
-      const where = downloadTaskWhere(filters)
       const rows = await db
-        .select({
-          ...getTableColumns(downloadTasks),
-          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
-        })
-        .from(downloadTasks)
-        .where(where)
-        .orderBy(orderBy(filters.sortBy ?? 'createdAt', filters.sortDir ?? 'desc'))
-        .limit(filters.pageSize)
-        .offset(offset)
-      let total = Number(rows[0]?.pageTotal ?? 0)
-      if (rows.length === 0 && filters.page > 1) {
-        const totalRows = await db.select({ count: count() }).from(downloadTasks).where(where)
-        total = totalRows[0]?.count ?? 0
-      }
-      const taskRows = rows.map(({ pageTotal: _, ...row }) => row)
-      return {
-        items: taskRows.map((row) => toDownloadTask(row)),
-        total,
-        rows: taskRows.map((row) => toRecord(row)),
-      }
-    },
-
-    async changeFingerprint(filters) {
-      const rows = await db
-        .select({
-          count: count(),
-          lastUpdatedAt: sql<number | null>`MAX(${downloadTasks.updatedAt})`,
-        })
+        .select()
         .from(downloadTasks)
         .where(downloadTaskWhere(filters))
-      const row = rows[0]
-      const taskCount = row?.count ?? 0
-      return taskCount === 0 ? '' : `${taskCount}:${row?.lastUpdatedAt ?? 0}`
+        .orderBy(desc(downloadTasks.createdAt), desc(downloadTasks.id))
+        .limit(filters.pageSize + 1)
+      const hasMore = rows.length > filters.pageSize
+      const taskRows = hasMore ? rows.slice(0, filters.pageSize) : rows
+      const last = taskRows.at(-1)
+      return {
+        items: taskRows.map((row) => toDownloadTask(row)),
+        rows: taskRows.map((row) => toRecord(row)),
+        nextBoundary: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
+      }
     },
 
     async get(orgId, id) {
@@ -458,7 +463,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
       const events = parseDownloadTaskEvents(row.events)
       if (!events.some((event) => event.type === 'cleanup_requested')) throw new DownloadError('invalid_state')
       if (events.some((event) => event.type === 'cleanup_completed')) return toRecord(row)
-      const updated = await db
+      const update = db
         .update(downloadTasks)
         .set({
           events: appendCleanupEvent(sql`${downloadTasks.events}`, 'cleanup_completed', now),
@@ -476,7 +481,24 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           ),
         )
         .returning()
-      if (updated[0]) return toRecord(updated[0])
+      const results = await executeWriteTransactionWithResults(
+        db,
+        [
+          update,
+          resourceChangeQuery(db, {
+            scopeType: 'organization',
+            scopeId: row.orgId,
+            resourceType: 'download_task',
+            resourceId: id,
+            changeType: 'upsert',
+            action: 'cleanup_completed',
+            occurredAt: now,
+          }),
+        ],
+        [0],
+      )
+      const updated = results[0] as DownloadTaskRow[] | undefined
+      if (updated?.[0]) return toRecord(updated[0])
       const concurrent = await db.select().from(downloadTasks).where(eq(downloadTasks.id, id)).limit(1)
       if (!concurrent[0]) throw new DownloadError('not_found')
       return toRecord(concurrent[0])
@@ -544,14 +566,28 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           errorMessage: fields.errorMessage,
         })
       }
-      await db
+      const update = db
         .update(downloadTasks)
         .set({ ...fields, events })
         .where(and(eq(downloadTasks.id, id), isNull(downloadTasks.deletedAt)))
+      await executeWriteTransaction(db, [
+        update,
+        resourceChangeQuery(db, {
+          scopeType: 'organization',
+          scopeId: row.orgId,
+          resourceType: 'download_task',
+          resourceId: id,
+          changeType: 'upsert',
+          action: fields.status === undefined ? 'updated' : 'status_changed',
+          occurredAt: now,
+        }),
+      ])
     },
 
     async claimQueued(id, downloaderId, now) {
-      const rows = await db
+      const row = await findRow(id)
+      if (!row || row.status !== 'queued' || row.assignedDownloaderId !== null) return false
+      const update = db
         .update(downloadTasks)
         .set({
           status: 'assigned',
@@ -571,11 +607,30 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           ),
         )
         .returning({ id: downloadTasks.id })
-      return rows.length > 0
+      const results = await executeWriteTransactionWithResults(
+        db,
+        [
+          update,
+          resourceChangeQuery(db, {
+            scopeType: 'organization',
+            scopeId: row.orgId,
+            resourceType: 'download_task',
+            resourceId: id,
+            changeType: 'upsert',
+            action: 'assigned',
+            occurredAt: now,
+          }),
+        ],
+        [0],
+      )
+      const rows = results[0] as Array<{ id: string }> | undefined
+      return (rows?.length ?? 0) > 0
     },
 
     async delete(id, now) {
-      const rows = await db
+      const row = await findRow(id)
+      if (!row) throw new DownloadError('not_found')
+      const update = db
         .update(downloadTasks)
         .set({
           deletedAt: now,
@@ -592,7 +647,24 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         })
         .where(and(eq(downloadTasks.id, id), isNull(downloadTasks.deletedAt)))
         .returning({ id: downloadTasks.id })
-      if (rows.length === 0) throw new DownloadError('not_found')
+      const results = await executeWriteTransactionWithResults(
+        db,
+        [
+          update,
+          resourceChangeQuery(db, {
+            scopeType: 'organization',
+            scopeId: row.orgId,
+            resourceType: 'download_task',
+            resourceId: id,
+            changeType: 'delete',
+            action: 'deleted',
+            occurredAt: now,
+          }),
+        ],
+        [0],
+      )
+      const rows = results[0] as Array<{ id: string }> | undefined
+      if (!rows?.length) throw new DownloadError('not_found')
     },
 
     async listQueued(limit) {
@@ -606,7 +678,13 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
     },
 
     async requeueAssignedTo(downloaderId, statuses, now) {
-      await db
+      const where = and(
+        eq(downloadTasks.assignedDownloaderId, downloaderId),
+        inArray(downloadTasks.status, statuses),
+        isNull(downloadTasks.deletedAt),
+      )
+      const targets = await changeTargets(where)
+      const update = db
         .update(downloadTasks)
         .set({
           status: 'queued',
@@ -616,18 +694,19 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           updatedAt: now,
           events: statusEventExpression(sql`${downloadTasks.events}`, 'queued', now, 'downloader_deleted'),
         })
-        .where(
-          and(
-            eq(downloadTasks.assignedDownloaderId, downloaderId),
-            inArray(downloadTasks.status, statuses),
-            isNull(downloadTasks.deletedAt),
-          ),
-        )
+        .where(where)
+      await executeWriteTransaction(db, [update, ...changeQueries(targets, now, 'requeued')])
     },
 
     async requeueAssignedToMany(downloaderIds, statuses, now) {
       if (downloaderIds.length === 0) return
-      await db
+      const where = and(
+        inArray(downloadTasks.assignedDownloaderId, downloaderIds),
+        inArray(downloadTasks.status, statuses),
+        isNull(downloadTasks.deletedAt),
+      )
+      const targets = await changeTargets(where)
+      const update = db
         .update(downloadTasks)
         .set({
           status: 'queued',
@@ -637,19 +716,20 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           updatedAt: now,
           events: statusEventExpression(sql`${downloadTasks.events}`, 'queued', now, 'downloader_unreachable'),
         })
-        .where(
-          and(
-            inArray(downloadTasks.assignedDownloaderId, downloaderIds),
-            inArray(downloadTasks.status, statuses),
-            isNull(downloadTasks.deletedAt),
-          ),
-        )
+        .where(where)
+      await executeWriteTransaction(db, [update, ...changeQueries(targets, now, 'requeued')])
     },
 
     async resolveControlAssignedToMany(downloaderIds, now) {
       if (downloaderIds.length === 0) return
       // A canceling task whose downloader vanished is effectively canceled.
-      await db
+      const cancelingWhere = and(
+        inArray(downloadTasks.assignedDownloaderId, downloaderIds),
+        eq(downloadTasks.status, 'canceling'),
+        isNull(downloadTasks.deletedAt),
+      )
+      const cancelingTargets = await changeTargets(cancelingWhere)
+      const cancelingUpdate = db
         .update(downloadTasks)
         .set({
           status: 'canceled',
@@ -660,15 +740,15 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           updatedAt: now,
           events: statusEventExpression(sql`${downloadTasks.events}`, 'canceled', now, 'downloader_unreachable'),
         })
-        .where(
-          and(
-            inArray(downloadTasks.assignedDownloaderId, downloaderIds),
-            eq(downloadTasks.status, 'canceling'),
-            isNull(downloadTasks.deletedAt),
-          ),
-        )
+        .where(cancelingWhere)
       // A pausing task whose downloader vanished settles to paused (resumable).
-      await db
+      const pausingWhere = and(
+        inArray(downloadTasks.assignedDownloaderId, downloaderIds),
+        eq(downloadTasks.status, 'pausing'),
+        isNull(downloadTasks.deletedAt),
+      )
+      const pausingTargets = await changeTargets(pausingWhere)
+      const pausingUpdate = db
         .update(downloadTasks)
         .set({
           status: 'paused',
@@ -678,13 +758,13 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           updatedAt: now,
           events: statusEventExpression(sql`${downloadTasks.events}`, 'paused', now, 'downloader_unreachable'),
         })
-        .where(
-          and(
-            inArray(downloadTasks.assignedDownloaderId, downloaderIds),
-            eq(downloadTasks.status, 'pausing'),
-            isNull(downloadTasks.deletedAt),
-          ),
-        )
+        .where(pausingWhere)
+      await executeWriteTransaction(db, [
+        cancelingUpdate,
+        ...changeQueries(cancelingTargets, now, 'canceled'),
+        pausingUpdate,
+        ...changeQueries(pausingTargets, now, 'paused'),
+      ])
     },
 
     async clearStaleSeedingRuntime(leaseCutoff, now) {
@@ -699,23 +779,21 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         .select({ id: downloaders.id })
         .from(downloaders)
         .where(gte(downloaders.lastHeartbeatAt, leaseCutoff))
-      await db
+      const where = and(
+        eq(downloadTasks.status, 'completed'),
+        isNull(downloadTasks.deletedAt),
+        like(downloadTasks.runtime, '%"phase":"seeding"%'),
+        or(isNull(downloadTasks.assignedDownloaderId), notInArray(downloadTasks.assignedDownloaderId, liveDownloaders)),
+      )
+      const targets = await changeTargets(where)
+      const update = db
         .update(downloadTasks)
         .set({
           runtime: sql`json_remove(json_set(${downloadTasks.runtime}, '$.phase', 'completed'), '$.seeding')`,
           updatedAt: now,
         })
-        .where(
-          and(
-            eq(downloadTasks.status, 'completed'),
-            isNull(downloadTasks.deletedAt),
-            like(downloadTasks.runtime, '%"phase":"seeding"%'),
-            or(
-              isNull(downloadTasks.assignedDownloaderId),
-              notInArray(downloadTasks.assignedDownloaderId, liveDownloaders),
-            ),
-          ),
-        )
+        .where(where)
+      await executeWriteTransaction(db, [update, ...changeQueries(targets, now, 'seeding_stopped')])
     },
   }
 }

@@ -50,11 +50,9 @@ describe('GET /api/notifications', () => {
 
     const res = await app.request('/api/notifications', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
+    const body = (await res.json()) as { items: unknown[]; nextPageToken: string | null }
     expect(body.items).toEqual([])
-    expect(body.total).toBe(0)
-    expect(body.page).toBe(1)
-    expect(typeof body.pageSize).toBe('number')
+    expect(body.nextPageToken).toBeNull()
   })
 
   it('returns notifications with pagination [spec: notifications/list]', async () => {
@@ -67,11 +65,9 @@ describe('GET /api/notifications', () => {
 
     const res = await app.request('/api/notifications?page=1&pageSize=3', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
+    const body = (await res.json()) as { items: unknown[]; nextPageToken: string | null }
     expect(body.items).toHaveLength(3)
-    expect(body.total).toBe(5)
-    expect(body.page).toBe(1)
-    expect(body.pageSize).toBe(3)
+    expect(body.nextPageToken).toBeTruthy()
   })
 
   it('filters unread notifications [spec: notifications/unread-filter]', async () => {

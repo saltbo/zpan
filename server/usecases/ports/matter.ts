@@ -42,10 +42,14 @@ export interface CreateMatterInput {
 // bin is served separately by listTrashedRoots.
 export interface MatterListFilters {
   parent?: string
-  page: number
   pageSize: number
   typeFilter?: string
   search?: string
+  after?: {
+    dirtype: number
+    createdAt: Date
+    id: string
+  }
 }
 
 export interface MatterListItem extends Matter {
@@ -54,9 +58,7 @@ export interface MatterListItem extends Matter {
 
 export interface MatterListResult {
   items: MatterListItem[]
-  total: number
-  page: number
-  pageSize: number
+  nextBoundary: { dirtype: number; createdAt: Date; id: string } | null
 }
 
 export interface UpdateMatterInput {
@@ -123,6 +125,13 @@ export interface MatterRepo {
   // Overwrite a file matter's content fields after a WebDAV PUT to an existing path.
   applyUpload(orgId: string, matter: Matter, fields: { type: string; size: number; object: string }): Promise<void>
   listTrashedRoots(orgId: string): Promise<Matter[]>
+  listTrashedRootPage(
+    orgId: string,
+    opts: { pageSize: number; after?: { trashedAt: number; createdAt: Date; id: string } },
+  ): Promise<{
+    items: Matter[]
+    nextBoundary: { trashedAt: number; createdAt: Date; id: string } | null
+  }>
   /** Distinct orgIds holding at least one trashed matter older than the cutoff (epoch ms). */
   listOrgIdsWithExpiredTrash(cutoff: number): Promise<string[]>
   // Conflict-resolution primitives the confirmUpload usecase composes between

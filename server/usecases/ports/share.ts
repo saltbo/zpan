@@ -85,13 +85,13 @@ export interface ShareRepo {
   listPublicProfileShares(username: string, now: Date): Promise<PublicProfileShare[]>
   listForApi(
     creatorId: string,
-    opts: { page: number; pageSize: number; status?: string },
-  ): Promise<{ items: ShareListItem[]; total: number }>
+    opts: { pageSize: number; status?: string; after?: { createdAt: Date; id: string } },
+  ): Promise<{ items: ShareListItem[]; nextBoundary: { createdAt: Date; id: string } | null }>
   listReceivedForApi(
     userId: string,
     userEmail: string | null,
-    opts: { page: number; pageSize: number },
-  ): Promise<{ items: ShareListItem[]; total: number }>
+    opts: { pageSize: number; after?: { createdAt: Date; id: string } },
+  ): Promise<{ items: ShareListItem[]; nextBoundary: { createdAt: Date; id: string } | null }>
   // Matter reads supporting the save-to-drive flow. They read the matters table
   // and are co-located in the share repo while matter remains unmigrated.
   computeSourceBytes(matter: Matter): Promise<number>

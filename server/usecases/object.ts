@@ -506,18 +506,25 @@ export async function getObject(
 // cascade-marked subtree). Paginated over the root set.
 export async function listTrashedObjects(
   deps: Pick<Deps, 'matter'>,
-  params: { orgId: string; page: number; pageSize: number },
-): Promise<{ ok: true; result: { items: Matter[]; total: number; page: number; pageSize: number } }> {
-  const roots = await deps.matter.listTrashedRoots(params.orgId)
-  const offset = (params.page - 1) * params.pageSize
+  params: {
+    orgId: string
+    pageSize: number
+    after?: { trashedAt: number; createdAt: Date; id: string }
+  },
+): Promise<{
+  ok: true
+  result: {
+    items: Matter[]
+    nextBoundary: { trashedAt: number; createdAt: Date; id: string } | null
+  }
+}> {
+  const result = await deps.matter.listTrashedRootPage(params.orgId, {
+    pageSize: params.pageSize,
+    after: params.after,
+  })
   return {
     ok: true,
-    result: {
-      items: roots.slice(offset, offset + params.pageSize),
-      total: roots.length,
-      page: params.page,
-      pageSize: params.pageSize,
-    },
+    result,
   }
 }
 

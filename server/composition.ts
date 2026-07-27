@@ -38,6 +38,7 @@ import { createOrgRepo } from './adapters/repos/org'
 import { createProfileRepo } from './adapters/repos/profile'
 import { createQuotaRepo } from './adapters/repos/quota'
 import { createRemoteDownloadUsageRepo } from './adapters/repos/remote-download-usage'
+import { createResourceChangeRepo } from './adapters/repos/resource-change'
 import { createShareRepo } from './adapters/repos/share'
 import { createShareNotificationRepo } from './adapters/repos/share-notification'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
@@ -106,6 +107,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     profiles: createProfileRepo(db),
     quota: createQuotaRepo(db),
     remoteDownloadUsage: createRemoteDownloadUsageRepo(db),
+    resourceChanges: createResourceChangeRepo(db),
     s3,
     shareNotifications: createShareNotificationRepo(db),
     share: createShareRepo(db),

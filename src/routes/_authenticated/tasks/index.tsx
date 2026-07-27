@@ -1,8 +1,8 @@
 import type { BackgroundJobStatus } from '@shared/types'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { ListChecks } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { type BackgroundTaskFilter, BackgroundTaskList } from '@/components/background-tasks/task-list'
@@ -20,12 +20,28 @@ function TasksPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<BackgroundTaskFilter>('active')
+  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   const status = statusForFilter(filter)
-  const jobsQuery = useQuery({
+  const jobsQuery = useInfiniteQuery({
     queryKey: [...QUERY_KEY, status],
-    queryFn: () => listBackgroundJobs({ status, page: 1, pageSize: PAGE_SIZE }),
+    queryFn: ({ pageParam }) => listBackgroundJobs({ status, pageToken: pageParam, pageSize: PAGE_SIZE }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
   })
+
+  useEffect(() => {
+    const target = loadMoreRef.current
+    if (!target || !jobsQuery.hasNextPage) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !jobsQuery.isFetchingNextPage) void jobsQuery.fetchNextPage()
+      },
+      { rootMargin: '320px 0px' },
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [jobsQuery.fetchNextPage, jobsQuery.hasNextPage, jobsQuery.isFetchingNextPage])
 
   const cancelMutation = useMutation({
     mutationFn: cancelBackgroundJob,
@@ -58,7 +74,7 @@ function TasksPage() {
     )
   }
 
-  const jobs = jobsQuery.data?.items ?? []
+  const jobs = jobsQuery.data?.pages.flatMap((page) => page.items) ?? []
   const visibleJobs =
     filter === 'active' ? jobs.filter((job) => job.status === 'queued' || job.status === 'running') : jobs
 
@@ -75,7 +91,7 @@ function TasksPage() {
 
       <BackgroundTaskList
         jobs={visibleJobs}
-        total={filter === 'active' ? visibleJobs.length : (jobsQuery.data?.total ?? 0)}
+        total={visibleJobs.length}
         filter={filter}
         onFilterChange={setFilter}
         onCancel={(id) => cancelMutation.mutate(id)}
@@ -83,6 +99,11 @@ function TasksPage() {
         cancelingId={cancelMutation.variables}
         retryingId={retryMutation.variables}
       />
+      {jobsQuery.hasNextPage && (
+        <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground">
+          {jobsQuery.isFetchingNextPage ? t('common.loading') : ''}
+        </div>
+      )}
     </div>
   )
 }

@@ -8,38 +8,6 @@ import { forbidden, unauthorized } from '../usecases/ports'
 
 const encoder = new TextEncoder()
 
-// Per-connection subscription, carried in the EventSource URL. Always-on domains
-// (jobs, notifications) need no opt-in; page-scoped domains (download tasks) are
-// polled only when the client asks for them, so an idle browser tab doesn't make
-// the server scan resources no page is showing.
-const eventsQuerySchema = z.object({
-  downloadTasks: z.string().optional(),
-  dtStatus: z.string().optional(),
-  dtCategory: z.string().optional(),
-  dtTag: z.string().optional(),
-  dtSortBy: z
-    .enum(['createdAt', 'source', 'category', 'tags', 'status', 'progress', 'eta'])
-    .optional()
-    .catch(undefined),
-  dtSortDir: z.enum(['asc', 'desc']).optional().catch(undefined),
-})
-
-// The wire/doc contract for the query string. Kept to lenient optional strings
-// (no enum, no `.catch()`): the OpenAPI generator can't map a ZodCatch, and a
-// malformed sort param must be silently ignored — never 400 an always-on stream.
-// The strict coercion still happens in the handler via `eventsQuerySchema`.
-const eventsQueryDocSchema = z.object({
-  downloadTasks: z.string().optional().openapi({ description: 'Set to "1" to subscribe to download-task events.' }),
-  dtStatus: z.string().optional(),
-  dtCategory: z.string().optional(),
-  dtTag: z.string().optional(),
-  dtSortBy: z
-    .string()
-    .optional()
-    .openapi({ description: 'One of: createdAt | source | category | tags | status | progress | eta' }),
-  dtSortDir: z.string().optional().openapi({ description: 'asc | desc' }),
-})
-
 const requireEventsAccess = createMiddleware<Env>(async (c, next) => {
   const principal = c.get('principal')
   if (principal?.kind === 'user') {
@@ -47,7 +15,7 @@ const requireEventsAccess = createMiddleware<Env>(async (c, next) => {
     return
   }
   if (principal?.kind === 'api-key') {
-    if (!principal.orgId || c.req.query('downloadTasks') !== '1') throw forbidden('Forbidden')
+    if (!principal.orgId) throw forbidden('Forbidden')
     await next()
     return
   }
@@ -67,15 +35,13 @@ const eventStreamRoute = createRoute({
   description: [
     'A single SSE connection multiplexing several domains via named events:',
     '',
-    '- `jobs` → `{ activeCount }` — background-job set changed (browser users only, always on)',
-    '- `notifications` → `{ unreadCount }` — unread count changed (browser users only, always on)',
-    '- `download-tasks` → `{ items, total, page, pageSize }` — download tasks changed (opt-in via `?downloadTasks=1`)',
+    '- `resource-change` → `{ sequence, resourceType, resourceId, changeType, action, metadata, occurredAt }`',
+    '- `resync` → `{ sequence }` — the resume cursor is older than retained changes; invalidate active queries',
     '- `heartbeat` → `{ at }` — keep-alive emitted when nothing changed for a while',
     '- `error` → `{ message }` — a domain query failed this tick',
     '',
-    'Workspace-scoped API keys require `?downloadTasks=1` and `remoteDownload:read`. Their stream is limited to `download-tasks` data from the key workspace plus heartbeat and error control events.',
+    'Workspace-scoped API keys require `remoteDownload:read`. Their stream is limited to download-task changes from the key workspace plus heartbeat and error control events.',
   ].join('\n'),
-  request: { query: eventsQueryDocSchema },
   responses: {
     200: {
       content: { 'text/event-stream': { schema: z.string() } },
@@ -87,9 +53,8 @@ const eventStreamRoute = createRoute({
 })
 
 // One SSE stream multiplexing several domains via named events:
-//   event: jobs           → { activeCount }                 browser user's background jobs changed
-//   event: notifications  → { unreadCount }                 browser user's unread count changed
-//   event: download-tasks → { items, total, page, pageSize } download tasks changed (opt-in via ?downloadTasks=1)
+//   event: resource-change → durable invalidation event
+//   event: resync          → retention gap; refetch active queries
 //   event: heartbeat      → { at }                          no change for HEARTBEAT_INTERVAL_MS
 //   event: error          → { message }                     a domain query failed this tick
 //
@@ -101,8 +66,6 @@ const eventStreamRoute = createRoute({
 // polling / fingerprint / change-detection lives in streamEvents (usecases/events.ts).
 export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, (c) => {
   const deps = c.get('deps')
-  const query = eventsQuerySchema.parse(c.req.query())
-
   // One controller, aborted from BOTH teardown paths. In Workers the request
   // signal and ReadableStream.cancel() are independent: passing c.req.raw.signal
   // straight to the usecase would leak the poll loop when only the body consumer
@@ -115,12 +78,7 @@ export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, (c) => {
     scope: c.get('principal')?.kind === 'api-key' ? ('download-tasks-only' as const) : ('user' as const),
     orgId: c.get('orgId'),
     userId: c.get('userId'),
-    wantsDownloadTasks: query.downloadTasks === '1',
-    dtStatus: query.dtStatus,
-    dtCategory: query.dtCategory,
-    dtTag: query.dtTag,
-    dtSortBy: query.dtSortBy,
-    dtSortDir: query.dtSortDir,
+    afterSequence: parseLastEventId(c.req.header('Last-Event-ID')),
   }
 
   // One teardown signal fed from both independent Workers paths (request abort
@@ -131,7 +89,8 @@ export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, (c) => {
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const emit = (message: EventsMessage) => {
-        controller.enqueue(encoder.encode(`event: ${message.event}\ndata: ${JSON.stringify(message.data)}\n\n`))
+        const id = message.id === undefined ? '' : `id: ${message.id}\n`
+        controller.enqueue(encoder.encode(`${id}event: ${message.event}\ndata: ${JSON.stringify(message.data)}\n\n`))
       }
       abort.signal.addEventListener('abort', () => {
         if (streamClosed) return
@@ -154,5 +113,11 @@ export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, (c) => {
     },
   })
 })
+
+function parseLastEventId(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  const sequence = Number(value)
+  return Number.isSafeInteger(sequence) && sequence >= 0 ? sequence : undefined
+}
 
 export default events

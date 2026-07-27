@@ -5,8 +5,7 @@
 // across the router Outlet boundary without provider plumbing.
 
 export type ServerEventSubscription = {
-  // Extra query params appended to the EventSource URL while this subscription is active.
-  query: Record<string, string>
+  resourceTypes: string[]
   // Invoked with the parsed payload when the server emits an event named after the topic.
   onEvent: (data: unknown) => void
 }
@@ -36,13 +35,4 @@ export function subscribeServerEventStore(listener: () => void) {
   return () => {
     listeners.delete(listener)
   }
-}
-
-// useSyncExternalStore snapshot: the merged query params serialized with sorted
-// keys. Stable by value, and changes exactly when the connection URL must — so
-// it doubles as the effect dependency that drives reconnects.
-export function getServerEventQueryKey() {
-  const merged: Record<string, string> = {}
-  for (const subscription of subscriptions.values()) Object.assign(merged, subscription.query)
-  return JSON.stringify(merged, Object.keys(merged).sort())
 }

@@ -446,12 +446,12 @@ describe('GET /api/shares', () => {
     const res = await app.request('/api/shares', { headers })
     expect(res.status).toBe(200)
 
-    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
+    const body = (await res.json()) as { items: unknown[]; nextPageToken: string | null }
     expect(body.items).toHaveLength(0)
-    expect(body.total).toBe(0)
+    expect(body.nextPageToken).toBeNull()
   })
 
-  it('returns shares with pagination fields in response [spec: shares/list-pagination]', async () => {
+  it('continues shares with an opaque page token [spec: shares/list-pagination]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -462,14 +462,18 @@ describe('GET /api/shares', () => {
     await createShare(app, headers, { matterId: 'pg1', kind: 'landing' })
     await createShare(app, headers, { matterId: 'pg2', kind: 'landing' })
 
-    const res = await app.request('/api/shares?page=1&pageSize=1', { headers })
-    expect(res.status).toBe(200)
+    const first = await app.request('/api/shares?pageSize=1', { headers })
+    expect(first.status).toBe(200)
+    const firstBody = (await first.json()) as { items: Array<{ id: string }>; nextPageToken: string | null }
+    expect(firstBody.items).toHaveLength(1)
+    expect(firstBody.nextPageToken).toEqual(expect.any(String))
 
-    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
-    expect(body.page).toBe(1)
-    expect(body.pageSize).toBe(1)
-    expect(body.items).toHaveLength(1)
-    expect(body.total).toBe(2)
+    const second = await app.request(`/api/shares?pageSize=1&pageToken=${firstBody.nextPageToken}`, { headers })
+    expect(second.status).toBe(200)
+    const secondBody = (await second.json()) as { items: Array<{ id: string }>; nextPageToken: string | null }
+    expect(secondBody.items).toHaveLength(1)
+    expect(secondBody.items[0]?.id).not.toBe(firstBody.items[0]?.id)
+    expect(secondBody.nextPageToken).toBeNull()
   })
 
   it('does not return shares belonging to another user [spec: shares/list-isolation]', async () => {
@@ -487,8 +491,7 @@ describe('GET /api/shares', () => {
     const res = await app.request('/api/shares', { headers: headersB })
     expect(res.status).toBe(200)
 
-    const body = (await res.json()) as { items: unknown[]; total: number }
-    expect(body.total).toBe(0)
+    const body = (await res.json()) as { items: unknown[] }
     expect(body.items).toHaveLength(0)
   })
 
@@ -535,12 +538,12 @@ describe('GET /api/shares', () => {
     await revokeRequest(app, body2.token as string, headers)
 
     const resActive = await app.request('/api/shares?status=active', { headers })
-    const activeBody = (await resActive.json()) as { items: unknown[]; total: number }
-    expect(activeBody.total).toBe(1)
+    const activeBody = (await resActive.json()) as { items: unknown[] }
+    expect(activeBody.items).toHaveLength(1)
 
     const resRevoked = await app.request('/api/shares?status=revoked', { headers })
-    const revokedBody = (await resRevoked.json()) as { items: unknown[]; total: number }
-    expect(revokedBody.total).toBe(1)
+    const revokedBody = (await resRevoked.json()) as { items: unknown[] }
+    expect(revokedBody.items).toHaveLength(1)
   })
 })
 
@@ -1125,15 +1128,14 @@ describe('GET /api/shares?box=received', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       items: Array<{ matter: { name: string }; creatorName?: string }>
-      total: number
     }
-    expect(body.total).toBe(2)
+    expect(body.items).toHaveLength(2)
     expect(body.items.map((item) => item.matter.name).sort()).toEqual(['for-email.txt', 'for-user.txt'])
     expect(body.items[0].creatorName).toBeTruthy()
 
     const bystander = await app.request('/api/shares?box=received', { headers: bystanderHeaders })
-    const bystanderBody = (await bystander.json()) as { total: number }
-    expect(bystanderBody.total).toBe(0)
+    const bystanderBody = (await bystander.json()) as { items: unknown[] }
+    expect(bystanderBody.items).toHaveLength(0)
   })
 
   it('excludes revoked shares from the received list [spec: shares/received-excludes-revoked]', async () => {
@@ -1155,8 +1157,8 @@ describe('GET /api/shares?box=received', () => {
     expect(revoke.status).toBe(200)
 
     const res = await app.request('/api/shares?box=received', { headers: recipientHeaders })
-    const body = (await res.json()) as { total: number }
-    expect(body.total).toBe(0)
+    const body = (await res.json()) as { items: unknown[] }
+    expect(body.items).toHaveLength(0)
   })
 })
 
@@ -2050,23 +2052,40 @@ describe('Public share routes', () => {
       expect(body.error.message).toBe('Invalid path')
     })
 
-    it('respects explicit page and pageSize query params', async () => {
+    it('continues a folder listing with an opaque page token', async () => {
       const { app, db } = await createTestApp()
       await authedHeaders(app)
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
       await insertFolder(db, orgId, { id: 'pg-dir', name: 'Paged' })
+      await insertFile(db, orgId, { id: 'pg-1', name: 'a.txt', parent: 'Paged' })
+      await insertFile(db, orgId, { id: 'pg-2', name: 'b.txt', parent: 'Paged' })
+      await insertFile(db, orgId, { id: 'pg-3', name: 'c.txt', parent: 'Paged' })
       const share = await createShareRepo(db).create({ matterId: 'pg-dir', orgId, creatorId, kind: 'landing' })
 
-      const res = await app.request(`/api/shares/${share.token}/objects?page=2&pageSize=10`)
-      expect(res.status).toBe(200)
-      const body = (await res.json()) as { page: number; pageSize: number }
-      expect(body.page).toBe(2)
-      expect(body.pageSize).toBe(10)
+      const first = await app.request(`/api/shares/${share.token}/objects?pageSize=2`)
+      expect(first.status).toBe(200)
+      const firstBody = (await first.json()) as {
+        items: Array<{ name: string }>
+        nextPageToken: string | null
+      }
+      expect(firstBody.items.map((item) => item.name)).toEqual(['a.txt', 'b.txt'])
+      expect(firstBody.nextPageToken).toEqual(expect.any(String))
+
+      const second = await app.request(
+        `/api/shares/${share.token}/objects?pageSize=2&pageToken=${encodeURIComponent(firstBody.nextPageToken!)}`,
+      )
+      expect(second.status).toBe(200)
+      const secondBody = (await second.json()) as {
+        items: Array<{ name: string }>
+        nextPageToken: string | null
+      }
+      expect(secondBody.items.map((item) => item.name)).toEqual(['c.txt'])
+      expect(secondBody.nextPageToken).toBeNull()
     })
 
-    it('falls back to defaults when page/pageSize are non-numeric', async () => {
+    it('rejects an invalid page size', async () => {
       const { app, db } = await createTestApp()
       await authedHeaders(app)
       await insertStorage(db)
@@ -2075,11 +2094,8 @@ describe('Public share routes', () => {
       await insertFolder(db, orgId, { id: 'nan-dir', name: 'NaN' })
       const share = await createShareRepo(db).create({ matterId: 'nan-dir', orgId, creatorId, kind: 'landing' })
 
-      const res = await app.request(`/api/shares/${share.token}/objects?page=abc&pageSize=xyz`)
-      expect(res.status).toBe(200)
-      const body = (await res.json()) as { page: number; pageSize: number }
-      expect(body.page).toBe(1)
-      expect(body.pageSize).toBe(50)
+      const res = await app.request(`/api/shares/${share.token}/objects?pageSize=xyz`)
+      expect(res.status).toBe(400)
     })
   })
 

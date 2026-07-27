@@ -239,9 +239,7 @@ describe('background jobs API', () => {
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({
-      total: 1,
-      page: 1,
-      pageSize: 1,
+      nextPageToken: null,
       items: [{ id: running.id, orgId, type: 'archive_extract', status: 'running' }],
     })
   })

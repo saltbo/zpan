@@ -234,14 +234,12 @@ export async function recordDownloaderHeartbeat(
     listDownloadTasks(deps, platform, {
       downloaderId,
       statuses: ['assigned', 'downloading', 'interrupted', 'uploading'],
-      page: 1,
       pageSize: Math.max(heartbeat.maxConcurrentTasks, heartbeat.currentTasks, 1),
       includeUploadToken: true,
     }),
     listDownloadTasks(deps, platform, {
       downloaderId,
       statuses: ['pausing', 'canceling', 'suspended'],
-      page: 1,
       pageSize: CONTROL_TASK_PAGE_SIZE,
       includeUploadToken: true,
     }),
@@ -307,13 +305,16 @@ export async function listDownloadTasks(
   deps: DownloadsDeps,
   platform: Platform,
   opts: ListDownloadTasksFilters & { includeUploadToken?: boolean },
-): Promise<{ items: DownloadTask[]; total: number }> {
-  const { items, total, rows } = await deps.downloadTasks.list(opts)
-  if (!opts.includeUploadToken) return { items, total }
+): Promise<{
+  items: DownloadTask[]
+  nextBoundary: { createdAt: Date; id: string } | null
+}> {
+  const { items, rows, nextBoundary } = await deps.downloadTasks.list(opts)
+  if (!opts.includeUploadToken) return { items, nextBoundary }
   const decorated = await Promise.all(
     items.map((task, index) => decorateWithUploadToken(deps, platform, task, rows[index])),
   )
-  return { items: decorated, total }
+  return { items: decorated, nextBoundary }
 }
 
 export function getDownloadTask(deps: DownloadsDeps, orgId: string, id: string): Promise<DownloadTask> {

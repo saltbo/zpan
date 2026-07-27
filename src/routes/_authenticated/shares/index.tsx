@@ -1,7 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { ChevronDown, ClipboardCopy, FileIcon, FolderIcon, Globe2, Lock, Share2, XCircle } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
@@ -18,12 +18,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useClipboard } from '@/hooks/use-clipboard'
+import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import { listReceivedShares, listShares, revokeShare, type ShareListItem, setSharePrivacy } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/shares/')({
   validateSearch: (search: Record<string, unknown>) => ({
     status: (search.status as StatusFilter) ?? 'all',
-    page: Number(search.page) || 1,
     box: (search.box as ShareBox) ?? 'sent',
   }),
   component: SharesPage,
@@ -55,18 +55,38 @@ export function SharesPage() {
   const { copy } = useClipboard()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { status: statusFilter, page, box } = useSearch({ from: '/_authenticated/shares/' })
+  const { status: statusFilter, box } = useSearch({ from: '/_authenticated/shares/' })
+  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   const [detailShare, setDetailShare] = useState<ShareListItem | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<ShareListItem | null>(null)
 
   const backendStatus = getBackendStatus(statusFilter)
 
-  const sharesQuery = useQuery({
-    queryKey: ['shares', box, page, PAGE_SIZE, backendStatus],
-    queryFn: () =>
-      box === 'received' ? listReceivedShares(page, PAGE_SIZE) : listShares(page, PAGE_SIZE, backendStatus),
+  useServerEventSubscription('shares-page', ['share', 'matter', 'notification'], () => {
+    queryClient.invalidateQueries({ queryKey: ['shares'] })
   })
+
+  const sharesQuery = useInfiniteQuery({
+    queryKey: ['shares', box, PAGE_SIZE, backendStatus],
+    queryFn: ({ pageParam }) =>
+      box === 'received' ? listReceivedShares(pageParam, PAGE_SIZE) : listShares(pageParam, PAGE_SIZE, backendStatus),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
+  })
+
+  useEffect(() => {
+    const target = loadMoreRef.current
+    if (!target || !sharesQuery.hasNextPage) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !sharesQuery.isFetchingNextPage) void sharesQuery.fetchNextPage()
+      },
+      { rootMargin: '320px 0px' },
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [sharesQuery.fetchNextPage, sharesQuery.hasNextPage, sharesQuery.isFetchingNextPage])
 
   const revokeMutation = useMutation({
     mutationFn: (token: string) => revokeShare(token),
@@ -91,7 +111,7 @@ export function SharesPage() {
   })
 
   const filteredItems = useMemo(() => {
-    const items = sharesQuery.data?.items ?? []
+    const items = sharesQuery.data?.pages.flatMap((page) => page.items) ?? []
     if (statusFilter === 'active') {
       return items.filter((s) => computeDisplayStatus(s) === 'active')
     }
@@ -101,19 +121,14 @@ export function SharesPage() {
     return items
   }, [sharesQuery.data, statusFilter])
 
-  const total = sharesQuery.data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
-  function setPage(newPage: number) {
-    navigate({ to: '/shares', search: { status: statusFilter, page: newPage, box } })
-  }
+  const items = sharesQuery.data?.pages.flatMap((page) => page.items) ?? []
 
   function setStatus(status: StatusFilter) {
-    navigate({ to: '/shares', search: { status, page: 1, box } })
+    navigate({ to: '/shares', search: { status, box } })
   }
 
   function setBox(nextBox: ShareBox) {
-    navigate({ to: '/shares', search: { status: 'all', page: 1, box: nextBox } })
+    navigate({ to: '/shares', search: { status: 'all', box: nextBox } })
   }
 
   const statusLabel = {
@@ -198,7 +213,7 @@ export function SharesPage() {
               </DropdownMenu>
             )}
           </div>
-          <span className="text-sm text-muted-foreground">{t('shares.count', { count: total })}</span>
+          <span className="text-sm text-muted-foreground">{t('shares.count', { count: items.length })}</span>
         </div>
         <div className="overflow-x-auto">
           {box === 'received' ? (
@@ -212,10 +227,10 @@ export function SharesPage() {
                 </tr>
               </thead>
               <tbody>
-                {(sharesQuery.data?.items ?? []).map((share) => (
+                {items.map((share) => (
                   <ReceivedShareRow key={share.token} share={share} />
                 ))}
-                {(sharesQuery.data?.items ?? []).length === 0 && (
+                {items.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground">
                       <p className="font-medium">{t('shares.receivedEmptyState')}</p>
@@ -270,15 +285,9 @@ export function SharesPage() {
         </div>
       </Card>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            {t('shares.prevPage')}
-          </Button>
-          <span className="text-sm text-muted-foreground">{t('shares.pageInfo', { page, total: totalPages })}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
-            {t('shares.nextPage')}
-          </Button>
+      {sharesQuery.hasNextPage && (
+        <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground">
+          {sharesQuery.isFetchingNextPage ? t('common.loading') : ''}
         </div>
       )}
 

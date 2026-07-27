@@ -1,5 +1,6 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { listNotificationsQuerySchema, pageSchema } from '@shared/schemas'
+import { cursorPageSchema, listNotificationsQuerySchema } from '@shared/schemas'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../domain/page-token'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -8,7 +9,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '../usecases/notification'
-import { type NotificationRecord, notFound } from '../usecases/ports'
+import { badRequest, type NotificationRecord, notFound } from '../usecases/ports'
 import { errorResponse, jsonContent } from './openapi'
 
 const notificationSchema = z
@@ -47,7 +48,7 @@ function toNotificationDTO(n: NotificationRecord): NotificationDTO {
 
 // The unread count is intentionally NOT part of the list envelope — it lives only
 // at GET /stats so the list shares the one Page<T> shape with every other resource.
-const notificationPageSchema = pageSchema(notificationSchema, 'NotificationPage')
+const notificationPageSchema = cursorPageSchema(notificationSchema, 'NotificationPage')
 
 const listRoute = createRoute({
   operationId: 'listNotifications',
@@ -95,18 +96,31 @@ app.use(requireAuth)
 
 export const notifications = app
   .openapi(listRoute, async (c) => {
-    const { page, pageSize, unread } = c.req.valid('query')
+    const { pageToken, pageSize, unread } = c.req.valid('query')
+    const userId = c.get('userId')!
+    const fingerprint = await pageQueryFingerprint({ userId, unread: unread === 'true', pageSize })
+    let after: { createdAt: Date; id: string } | undefined
+    if (pageToken) {
+      const boundary = await decodePageToken(c.get('platform'), pageToken, { query: fingerprint })
+      if (typeof boundary.createdAt !== 'number' || typeof boundary.id !== 'string') {
+        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
+      }
+      after = { createdAt: new Date(boundary.createdAt), id: boundary.id }
+    }
     const result = await listNotifications(c.get('deps'), c.get('userId')!, {
-      page,
       pageSize,
       unreadOnly: unread === 'true',
+      after,
     })
     return c.json(
       {
         items: result.items.map(toNotificationDTO),
-        total: result.total,
-        page,
-        pageSize,
+        nextPageToken: result.nextBoundary
+          ? await encodePageToken(c.get('platform'), {
+              query: fingerprint,
+              boundary: { createdAt: result.nextBoundary.createdAt.getTime(), id: result.nextBoundary.id },
+            })
+          : null,
       },
       200,
     )

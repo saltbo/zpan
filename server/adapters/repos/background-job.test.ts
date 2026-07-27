@@ -17,12 +17,11 @@ describe('background job service', () => {
 
     const listed = await createBackgroundJobRepo(db).list('org-service', {
       type: 'remote_download',
-      page: 1,
       pageSize: 10,
     })
     const loaded = await createBackgroundJobRepo(db).get('org-service', job.id)
 
-    expect(listed).toMatchObject({ total: 1, items: [{ id: job.id }] })
+    expect(listed).toMatchObject({ nextBoundary: null, items: [{ id: job.id }] })
     expect(loaded).toMatchObject({
       id: job.id,
       type: 'remote_download',

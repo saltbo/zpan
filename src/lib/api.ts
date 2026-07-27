@@ -60,6 +60,7 @@ import type {
   CloudOrder,
   CloudProduct,
   CloudStoreTarget,
+  CursorPage,
   Downloader,
   DownloadTask,
   DownloadTaskTimeline,
@@ -279,15 +280,16 @@ async function discard(promise: Promise<Response>): Promise<void> {
 
 export function listObjectsByPath(
   path: string,
-  page = 1,
-  pageSize = 500,
+  pageToken: string | undefined = undefined,
+  pageSize = 100,
   opts?: { type?: string; search?: string; orgId?: string },
 ) {
-  const query: Record<string, string> = { path, page: String(page), pageSize: String(pageSize) }
+  const query: Record<string, string> = { path, pageSize: String(pageSize) }
+  if (pageToken) query.pageToken = pageToken
   if (opts?.type) query.type = opts.type
   if (opts?.search) query.search = opts.search
   if (opts?.orgId) query.orgId = opts.orgId
-  return unwrap<PaginatedResponse<ObjectListItem>>(objects.index.$get({ query }))
+  return unwrap<CursorPage<ObjectListItem>>(objects.index.$get({ query }))
 }
 
 export function getObject(id: string) {
@@ -370,9 +372,14 @@ export function transferObject(
 // ── Trash (the /objects grouping for trashed items) ──────────────────────────
 
 // Lists trashed objects, roots only (a trashed folder is one entry).
-export function listTrash(page = 1, pageSize = 20) {
-  return unwrap<PaginatedResponse<StorageObject>>(
-    trash.objects.$get({ query: { page: String(page), pageSize: String(pageSize) } }),
+export function listTrash(opts: { pageToken?: string; pageSize?: number } = {}) {
+  return unwrap<CursorPage<StorageObject>>(
+    trash.objects.$get({
+      query: {
+        pageSize: String(opts.pageSize ?? 20),
+        ...(opts.pageToken ? { pageToken: opts.pageToken } : {}),
+      },
+    }),
   )
 }
 
@@ -396,24 +403,20 @@ export interface ListDownloadTasksOptions {
   assignedTo?: 'me'
   category?: string
   tag?: string
-  sortBy?: 'createdAt' | 'source' | 'category' | 'tags' | 'status' | 'progress' | 'eta'
-  sortDir?: 'asc' | 'desc'
-  page?: number
   pageSize?: number
+  pageToken?: string
 }
 
 export function listDownloadTasks(opts: ListDownloadTasksOptions = {}) {
   const query: Record<string, string> = {
-    page: String(opts.page ?? 1),
     pageSize: String(opts.pageSize ?? 50),
   }
   if (opts.status) query.status = opts.status
   if (opts.assignedTo) query.assignedTo = opts.assignedTo
   if (opts.category) query.category = opts.category
   if (opts.tag) query.tag = opts.tag
-  if (opts.sortBy) query.sortBy = opts.sortBy
-  if (opts.sortDir) query.sortDir = opts.sortDir
-  return unwrap<PaginatedResponse<DownloadTask>>(downloadTasksApi.index.$get({ query }))
+  if (opts.pageToken) query.pageToken = opts.pageToken
+  return unwrap<CursorPage<DownloadTask>>(downloadTasksApi.index.$get({ query }))
 }
 
 export function createDownloadTask(data: CreateDownloadTaskInput) {
@@ -476,19 +479,23 @@ export function sendDownloaderHeartbeat(data: DownloaderHeartbeatInput) {
 export interface ListBackgroundJobsOptions {
   status?: BackgroundJobStatus
   type?: string
-  page?: number
   pageSize?: number
+  pageToken?: string
 }
 
 export function listBackgroundJobs(opts: ListBackgroundJobsOptions = {}) {
   const query: Record<string, string> = {
-    page: String(opts.page ?? 1),
     pageSize: String(opts.pageSize ?? 20),
   }
   if (opts.status) query.status = opts.status
   if (opts.type) query.type = opts.type
+  if (opts.pageToken) query.pageToken = opts.pageToken
 
-  return unwrap<PaginatedResponse<BackgroundJob>>(backgroundJobsApi.index.$get({ query }))
+  return unwrap<CursorPage<BackgroundJob>>(backgroundJobsApi.index.$get({ query }))
+}
+
+export function getActiveBackgroundJobCount() {
+  return unwrap<{ activeCount: number }>(backgroundJobsApi.stats.$get())
 }
 
 export function createBackgroundJob(data: CreateBackgroundJobRequest) {
@@ -895,15 +902,17 @@ export function listTeamActivities(teamId: string, page = 1, pageSize = 20) {
 
 export type NotificationListResult = {
   items: Notification[]
-  total: number
-  page: number
-  pageSize: number
+  nextPageToken: string | null
 }
 
-export function listNotifications(page = 1, pageSize = 20, unreadOnly = false) {
+export function listNotifications(opts: { pageToken?: string; pageSize?: number; unreadOnly?: boolean } = {}) {
   return unwrap<NotificationListResult>(
     notificationsApi.index.$get({
-      query: { page: String(page), pageSize: String(pageSize), unread: String(unreadOnly) },
+      query: {
+        pageSize: String(opts.pageSize ?? 20),
+        unread: String(opts.unreadOnly ?? false),
+        ...(opts.pageToken ? { pageToken: opts.pageToken } : {}),
+      },
     }),
   )
 }
@@ -975,19 +984,17 @@ export function deleteAnnouncement(id: string) {
 
 export type { ShareListItem, ShareView }
 
-export function listShares(page = 1, pageSize = 20, status?: 'active' | 'revoked') {
-  const query: Record<string, string> = { page: String(page), pageSize: String(pageSize) }
+export function listShares(pageToken?: string, pageSize = 20, status?: 'active' | 'revoked') {
+  const query: Record<string, string> = { pageSize: String(pageSize) }
+  if (pageToken) query.pageToken = pageToken
   if (status) query.status = status
-  return unwrap<{ items: ShareListItem[]; total: number; page: number; pageSize: number }>(
-    authedSharesApi.index.$get({ query }),
-  )
+  return unwrap<CursorPage<ShareListItem>>(authedSharesApi.index.$get({ query }))
 }
 
-export function listReceivedShares(page = 1, pageSize = 20) {
-  const query: Record<string, string> = { page: String(page), pageSize: String(pageSize), box: 'received' }
-  return unwrap<{ items: ShareListItem[]; total: number; page: number; pageSize: number }>(
-    authedSharesApi.index.$get({ query }),
-  )
+export function listReceivedShares(pageToken?: string, pageSize = 20) {
+  const query: Record<string, string> = { pageSize: String(pageSize), box: 'received' }
+  if (pageToken) query.pageToken = pageToken
+  return unwrap<CursorPage<ShareListItem>>(authedSharesApi.index.$get({ query }))
 }
 
 export function getShare(token: string) {
@@ -1024,11 +1031,11 @@ export function verifySharePassword(token: string, password: string) {
 export type ShareChildItem = ShareObjectItem
 export type ShareChildrenResponse = ShareObjectsResponse
 
-export function listShareObjects(token: string, parent = '', page = 1, pageSize = 50) {
+export function listShareObjects(token: string, parent = '', pageToken?: string, pageSize = 50) {
   return unwrap<ShareChildrenResponse>(
     publicSharesApi[':token'].objects.$get({
       param: { token },
-      query: { parent, page: String(page), pageSize: String(pageSize) },
+      query: { parent, pageSize: String(pageSize), ...(pageToken ? { pageToken } : {}) },
     }),
   )
 }
@@ -1400,7 +1407,7 @@ export type { ImageHosting }
 
 export interface IhostImageListResult {
   items: ImageHosting[]
-  nextCursor: string | null
+  nextPageToken: string | null
 }
 
 export interface IhostImageDraft {
@@ -1411,11 +1418,11 @@ export interface IhostImageDraft {
   storageKey: string
 }
 
-export function listIhostImages(opts?: { pathPrefix?: string; cursor?: string; limit?: number }) {
+export function listIhostImages(opts?: { pathPrefix?: string; pageToken?: string; pageSize?: number }) {
   const query: Record<string, string> = {}
   if (opts?.pathPrefix) query.pathPrefix = opts.pathPrefix
-  if (opts?.cursor) query.cursor = opts.cursor
-  if (opts?.limit != null) query.limit = String(opts.limit)
+  if (opts?.pageToken) query.pageToken = opts.pageToken
+  if (opts?.pageSize != null) query.pageSize = String(opts.pageSize)
   return unwrap<IhostImageListResult>(ihostApi.images.$get({ query }))
 }
 

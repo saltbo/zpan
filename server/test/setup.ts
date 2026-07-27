@@ -137,6 +137,8 @@ const APP_SCHEMA_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS matters_active_name_uniq
     ON matters(org_id, parent, LOWER(name))
     WHERE status = 'active' AND trashed_at IS NULL;
+  CREATE INDEX IF NOT EXISTS matters_list_page_idx
+    ON matters(org_id, parent, status, trashed_at, purged_at, dirtype DESC, created_at, id);
   CREATE TABLE IF NOT EXISTS webdav_dead_properties (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
@@ -524,6 +526,25 @@ const APP_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS download_tasks_org_tags_idx ON download_tasks(org_id, tags);
   CREATE INDEX IF NOT EXISTS download_tasks_downloader_idx ON download_tasks(assigned_downloader_id, status);
   CREATE INDEX IF NOT EXISTS download_tasks_org_deleted_created_idx ON download_tasks(org_id, deleted_at, created_at);
+  CREATE INDEX IF NOT EXISTS download_tasks_org_page_idx ON download_tasks(org_id, deleted_at, created_at, id);
+  CREATE INDEX IF NOT EXISTS download_tasks_downloader_page_idx
+    ON download_tasks(assigned_downloader_id, deleted_at, created_at, id);
+  CREATE TABLE IF NOT EXISTS resource_changes (
+    sequence INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    scope_type TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    change_type TEXT NOT NULL,
+    action TEXT,
+    metadata TEXT,
+    occurred_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS resource_changes_scope_sequence_idx
+    ON resource_changes(scope_type, scope_id, sequence);
+  CREATE INDEX IF NOT EXISTS resource_changes_resource_sequence_idx
+    ON resource_changes(resource_type, resource_id, sequence);
+  CREATE INDEX IF NOT EXISTS resource_changes_occurred_idx ON resource_changes(occurred_at);
   CREATE TABLE IF NOT EXISTS object_upload_sessions (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
@@ -641,7 +662,7 @@ export async function createTestApp(
   const db = drizzle(sqlite, { schema: { ...schema, ...authSchema } })
   const platform: Platform = {
     db,
-    getEnv: (key: string) => envOverrides[key],
+    getEnv: (key: string) => envOverrides[key] ?? (key === 'BETTER_AUTH_SECRET' ? 'test-secret' : undefined),
     getBinding: <T = unknown>(key: string) => bindingOverrides[key] as T | undefined,
   }
   const auth = await createAuth(platform, 'test-secret', 'http://localhost:3000', undefined, backgroundTaskHandler)

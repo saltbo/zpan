@@ -1,50 +1,24 @@
-// The events resource usecase. Owns the multiplexed-SSE *domain* side of the
-// /api/events stream: it polls every subscribed domain on a fixed interval,
-// fingerprints each one, and emits a domain event only when a fingerprint
-// changes — a pure change-notifier with no pub/sub. Keep-alive cadence and the
-// change-detection logic live here so the http handler is left with nothing but
-// the wire format.
-//
-// All deps-port access (background jobs, notifications, download tasks) is
-// confined to this file. The handler owns the ReadableStream / Response / SSE
-// framing and never touches a port. Mirrors the streaming convention of
-// hono-cf-clean-arch: `(deps, params, signal, emit)`, resolves on abort.
-
-import type { Platform } from '../platform/interface'
 import type { Deps } from './deps'
-import { listDownloadTasks } from './downloads/downloads'
+import type { ResourceChange, ResourceChangeScopeType } from './ports'
 
-// How often the stream re-reads each subscribed domain to detect changes. Kept
-// short so background-job progress and download transfers surface quickly.
 const POLL_INTERVAL_MS = 2000
-// How long the stream may stay silent before emitting a keep-alive. Decoupled
-// from POLL_INTERVAL_MS so an idle connection isn't chatty.
 const HEARTBEAT_INTERVAL_MS = 25_000
-const DOWNLOAD_TASK_PAGE_SIZE = 50
+const CHANGE_BATCH_SIZE = 100
 
-// A single named SSE event the handler will serialize to the wire. `event` is
-// the SSE event name; `data` is JSON-stringified into the data field.
-export type EventsMessage = { event: string; data: unknown }
-
+export type EventsMessage = { event: string; data: unknown; id?: number }
 export type EventsEmit = (message: EventsMessage) => void
 
-// Per-connection subscription resolved from the authenticated principal and
-// EventSource URL. User streams include jobs and notifications; API-key streams
-// use the least-privilege download-tasks-only scope. Download tasks are polled
-// only when the client opts in, so an idle browser tab does not scan them.
+type ChangeFeed = {
+  scopeType: ResourceChangeScopeType
+  scopeId: string
+  resourceTypes?: string[]
+}
+
 export type EventsParams = {
-  platform: Platform
   scope: 'user' | 'download-tasks-only'
   orgId: string | null
   userId: string | null
-  wantsDownloadTasks: boolean
-  dtStatus?: string
-  dtCategory?: string
-  dtTag?: string
-  dtSortBy?: 'createdAt' | 'source' | 'category' | 'tags' | 'status' | 'progress' | 'eta'
-  dtSortDir?: 'asc' | 'desc'
-  // Overridable so tests can drive the loop deterministically with tiny/zero
-  // intervals. Production callers omit them and get the constants above.
+  afterSequence?: number
   pollIntervalMs?: number
   heartbeatIntervalMs?: number
 }
@@ -64,101 +38,102 @@ const delay = (ms: number, signal: AbortSignal): Promise<void> =>
     signal.addEventListener('abort', onAbort)
   })
 
-// Streams domain-change events until `signal` aborts. Polls each subscribed
-// domain every `pollIntervalMs`, emits on fingerprint change, and inserts a
-// `heartbeat` whenever no change has been sent for `heartbeatIntervalMs`. A
-// failed tick emits a single `error` event and the loop continues. Resolves
-// once the signal aborts (the caller's ReadableStream owns teardown).
+function feedsFor(params: EventsParams): ChangeFeed[] {
+  const feeds: ChangeFeed[] = []
+  if (params.orgId) {
+    feeds.push({
+      scopeType: 'organization',
+      scopeId: params.orgId,
+      resourceTypes: params.scope === 'download-tasks-only' ? ['download_task'] : undefined,
+    })
+  }
+  if (params.scope === 'user' && params.userId) {
+    feeds.push({ scopeType: 'user', scopeId: params.userId })
+  }
+  return feeds
+}
+
+function wireChange(change: ResourceChange) {
+  return {
+    sequence: change.sequence,
+    scopeType: change.scopeType,
+    resourceType: change.resourceType,
+    resourceId: change.resourceId,
+    changeType: change.changeType,
+    action: change.action,
+    metadata: change.metadata,
+    occurredAt: change.occurredAt.toISOString(),
+  }
+}
+
+async function latestSequence(deps: Deps, feeds: ChangeFeed[]): Promise<number> {
+  const values = await Promise.all(
+    feeds.map((feed) => deps.resourceChanges.latestSequence({ scopeType: feed.scopeType, scopeId: feed.scopeId })),
+  )
+  return Math.max(0, ...values)
+}
+
+async function readChanges(deps: Deps, feeds: ChangeFeed[], sequence: number): Promise<ResourceChange[]> {
+  const pages = await Promise.all(
+    feeds.map((feed) =>
+      deps.resourceChanges.listAfter({
+        ...feed,
+        sequence,
+        limit: CHANGE_BATCH_SIZE,
+      }),
+    ),
+  )
+  return pages
+    .flat()
+    .sort((left, right) => left.sequence - right.sequence)
+    .slice(0, CHANGE_BATCH_SIZE)
+}
+
+async function retentionGap(deps: Deps, feeds: ChangeFeed[], sequence: number): Promise<boolean> {
+  if (sequence === 0) return false
+  const oldest = await Promise.all(feeds.map((feed) => deps.resourceChanges.oldestSequence(feed)))
+  return oldest.some((value) => value !== null && sequence < value - 1)
+}
+
 export async function streamEvents(
   deps: Deps,
   params: EventsParams,
   signal: AbortSignal,
   emit: EventsEmit,
 ): Promise<void> {
-  const {
-    platform,
-    scope,
-    orgId,
-    userId,
-    wantsDownloadTasks,
-    dtStatus,
-    dtCategory,
-    dtTag,
-    dtSortBy,
-    dtSortDir,
-    pollIntervalMs = POLL_INTERVAL_MS,
-    heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
-  } = params
-
+  const feeds = feedsFor(params)
+  const pollIntervalMs = params.pollIntervalMs ?? POLL_INTERVAL_MS
+  const heartbeatIntervalMs = params.heartbeatIntervalMs ?? HEARTBEAT_INTERVAL_MS
+  let sequence = params.afterSequence ?? (await latestSequence(deps, feeds))
   let lastEmitAt = Date.now()
-  let jobsFingerprint = ''
-  let unreadFingerprint = ''
-  let downloadTasksFingerprint = ''
 
   const send: EventsEmit = (message) => {
     emit(message)
     lastEmitAt = Date.now()
   }
 
+  if (params.afterSequence !== undefined && (await retentionGap(deps, feeds, sequence))) {
+    sequence = await latestSequence(deps, feeds)
+    send({ event: 'resync', data: { sequence }, id: sequence })
+  }
+
   while (!signal.aborted) {
     try {
       let changed = false
-
-      if (scope === 'user' && orgId) {
-        const summary = await deps.backgroundJobs.activeSummary(orgId)
-        if (summary.fingerprint !== jobsFingerprint) {
-          jobsFingerprint = summary.fingerprint
-          send({ event: 'jobs', data: { activeCount: summary.count } })
-          changed = true
-        }
-      }
-
-      if (scope === 'user' && userId) {
-        const count = await deps.notifications.unreadCount(userId)
-        const fingerprint = String(count)
-        if (fingerprint !== unreadFingerprint) {
-          unreadFingerprint = fingerprint
-          send({ event: 'notifications', data: { unreadCount: count } })
-          changed = true
-        }
-      }
-
-      if (wantsDownloadTasks && orgId) {
-        const filters = {
-          orgId,
-          status: dtStatus,
-          category: dtCategory,
-          tag: dtTag,
-          sortBy: dtSortBy,
-          sortDir: dtSortDir,
-          page: 1,
-          pageSize: DOWNLOAD_TASK_PAGE_SIZE,
-        }
-        const fingerprint = await deps.downloadTasks.changeFingerprint(filters)
-        if (fingerprint !== downloadTasksFingerprint) {
-          downloadTasksFingerprint = fingerprint
-          const result = await listDownloadTasks(deps, platform, filters)
-          send({
-            event: 'download-tasks',
-            data: {
-              items: result.items,
-              total: result.total,
-              page: 1,
-              pageSize: DOWNLOAD_TASK_PAGE_SIZE,
-            },
-          })
-          changed = true
-        }
+      const changes = await readChanges(deps, feeds, sequence)
+      for (const change of changes) {
+        sequence = change.sequence
+        send({ event: 'resource-change', data: wireChange(change), id: change.sequence })
+        changed = true
       }
 
       if (!changed && Date.now() - lastEmitAt >= heartbeatIntervalMs) {
-        send({ event: 'heartbeat', data: { at: new Date().toISOString() } })
+        send({ event: 'heartbeat', data: { at: new Date().toISOString(), sequence }, id: sequence })
       }
     } catch (error) {
       send({ event: 'error', data: { message: error instanceof Error ? error.message : 'unknown error' } })
     }
 
-    if (signal.aborted) break
-    await delay(pollIntervalMs, signal)
+    if (!signal.aborted) await delay(pollIntervalMs, signal)
   }
 }

@@ -1,7 +1,8 @@
 import type { BackgroundJob, BackgroundJobStatus } from '@shared/types'
-import { and, count, desc, eq, getTableColumns, inArray, type SQL, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, lt, or, type SQL, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { backgroundJobs } from '../../db/schema'
+import { executeWriteTransaction } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
 import {
   BackgroundJobError,
@@ -9,6 +10,7 @@ import {
   type BackgroundJobRepo,
   type ListBackgroundJobsOptions,
 } from '../../usecases/ports'
+import { resourceChangeQuery } from './resource-change'
 
 type BackgroundJobRow = typeof backgroundJobs.$inferSelect
 
@@ -18,6 +20,14 @@ function backgroundJobWhere(orgId: string, opts: ListBackgroundJobsOptions): SQL
   const filters = [eq(backgroundJobs.orgId, orgId)]
   if (opts.status) filters.push(eq(backgroundJobs.status, opts.status))
   if (opts.type) filters.push(eq(backgroundJobs.type, opts.type))
+  if (opts.after) {
+    filters.push(
+      or(
+        lt(backgroundJobs.createdAt, opts.after.createdAt),
+        and(eq(backgroundJobs.createdAt, opts.after.createdAt), lt(backgroundJobs.id, opts.after.id)),
+      )!,
+    )
+  }
   return and(...filters)
 }
 
@@ -104,31 +114,35 @@ export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
         startedAt: null,
         finishedAt: null,
       }
-      await db.insert(backgroundJobs).values(row)
+      await executeWriteTransaction(db, [
+        db.insert(backgroundJobs).values(row),
+        resourceChangeQuery(db, {
+          scopeType: 'organization',
+          scopeId: input.orgId,
+          resourceType: 'background_job',
+          resourceId: row.id,
+          changeType: 'upsert',
+          action: 'created',
+          occurredAt: now,
+        }),
+      ])
       return toBackgroundJob(row as BackgroundJobRow)
     },
 
     async list(orgId, opts) {
-      const offset = (opts.page - 1) * opts.pageSize
       const where = backgroundJobWhere(orgId, opts)
       const rows = await db
-        .select({
-          ...getTableColumns(backgroundJobs),
-          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
-        })
+        .select()
         .from(backgroundJobs)
         .where(where)
-        .orderBy(desc(backgroundJobs.createdAt))
-        .limit(opts.pageSize)
-        .offset(offset)
-      let total = Number(rows[0]?.pageTotal ?? 0)
-      if (rows.length === 0 && opts.page > 1) {
-        const totalRows = await db.select({ count: count() }).from(backgroundJobs).where(where)
-        total = totalRows[0]?.count ?? 0
-      }
+        .orderBy(desc(backgroundJobs.createdAt), desc(backgroundJobs.id))
+        .limit(opts.pageSize + 1)
+      const hasMore = rows.length > opts.pageSize
+      const page = hasMore ? rows.slice(0, opts.pageSize) : rows
+      const last = page.at(-1)
       return {
-        items: rows.map(({ pageTotal: _, ...row }) => toBackgroundJob(row)),
-        total,
+        items: page.map(toBackgroundJob),
+        nextBoundary: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
       }
     },
 
@@ -178,7 +192,18 @@ export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
         finishedAt: input.finishedAt === undefined ? finishedAtFor(nextStatus, row.finishedAt, now) : input.finishedAt,
         updatedAt: now,
       }
-      await db.update(backgroundJobs).set(values).where(eq(backgroundJobs.id, id))
+      await executeWriteTransaction(db, [
+        db.update(backgroundJobs).set(values).where(eq(backgroundJobs.id, id)),
+        resourceChangeQuery(db, {
+          scopeType: 'organization',
+          scopeId: orgId,
+          resourceType: 'background_job',
+          resourceId: id,
+          changeType: 'upsert',
+          action: 'updated',
+          occurredAt: now,
+        }),
+      ])
       return repo.get(orgId, id)
     },
 
@@ -189,10 +214,21 @@ export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
         throw new BackgroundJobError('not_cancelable')
       }
       const now = new Date()
-      await db
-        .update(backgroundJobs)
-        .set({ status: 'canceled', updatedAt: now, finishedAt: now })
-        .where(eq(backgroundJobs.id, id))
+      await executeWriteTransaction(db, [
+        db
+          .update(backgroundJobs)
+          .set({ status: 'canceled', updatedAt: now, finishedAt: now })
+          .where(eq(backgroundJobs.id, id)),
+        resourceChangeQuery(db, {
+          scopeType: 'organization',
+          scopeId: orgId,
+          resourceType: 'background_job',
+          resourceId: id,
+          changeType: 'upsert',
+          action: 'canceled',
+          occurredAt: now,
+        }),
+      ])
       return repo.get(orgId, id)
     },
 
@@ -226,7 +262,18 @@ export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
         startedAt: null,
         finishedAt: null,
       }
-      await db.insert(backgroundJobs).values(retry)
+      await executeWriteTransaction(db, [
+        db.insert(backgroundJobs).values(retry),
+        resourceChangeQuery(db, {
+          scopeType: 'organization',
+          scopeId: orgId,
+          resourceType: 'background_job',
+          resourceId: retry.id,
+          changeType: 'upsert',
+          action: 'retried',
+          occurredAt: now,
+        }),
+      ])
       return toBackgroundJob(retry as BackgroundJobRow)
     },
   }

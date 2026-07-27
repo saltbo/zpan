@@ -7,7 +7,7 @@ import { SharesPage } from './index'
 
 const router = vi.hoisted(() => ({
   navigate: vi.fn(),
-  search: { status: 'all', page: 1, box: 'sent' },
+  search: { status: 'all', box: 'sent' },
 }))
 
 vi.mock('react-i18next', () => ({
@@ -103,8 +103,8 @@ function renderPage() {
 }
 
 beforeEach(() => {
-  vi.mocked(listShares).mockResolvedValue({ items: shares, total: shares.length, page: 1, pageSize: 20 })
-  vi.mocked(listReceivedShares).mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 })
+  vi.mocked(listShares).mockResolvedValue({ items: shares, nextPageToken: null })
+  vi.mocked(listReceivedShares).mockResolvedValue({ items: [], nextPageToken: null })
   vi.mocked(setSharePrivacy).mockResolvedValue({ private: true })
   vi.mocked(revokeShare).mockResolvedValue({} as never)
 })
@@ -149,9 +149,7 @@ describe('authenticated Shares privacy actions', () => {
     })
     vi.mocked(listShares).mockResolvedValue({
       items: [expiredPublic],
-      total: 1,
-      page: 1,
-      pageSize: 20,
+      nextPageToken: null,
     })
 
     renderPage()

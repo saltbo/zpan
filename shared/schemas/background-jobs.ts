@@ -33,8 +33,8 @@ export type CreateBackgroundJobRequest = z.infer<typeof createBackgroundJobReque
 export const listBackgroundJobsQuerySchema = z.object({
   status: backgroundJobStatusSchema.optional(),
   type: backgroundJobTypeSchema.optional(),
-  page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  pageToken: z.string().min(1).optional(),
 })
 
 export type ListBackgroundJobsQuery = z.infer<typeof listBackgroundJobsQuerySchema>
