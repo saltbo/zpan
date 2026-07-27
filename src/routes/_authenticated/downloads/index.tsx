@@ -362,7 +362,10 @@ export function DownloadsPage() {
     setPendingTaskAction(null)
   }
 
-  const tasks = tasksQuery.data?.pages.flatMap((page) => page.items) ?? EMPTY_DOWNLOAD_TASKS
+  const tasks = useMemo(
+    () => tasksQuery.data?.pages.flatMap((page) => page.items) ?? EMPTY_DOWNLOAD_TASKS,
+    [tasksQuery.data],
+  )
   const nonSourceTableWidth =
     DOWNLOAD_SELECT_COLUMN_WIDTH +
     downloadColumnWidth(columnSizing, 'status') +

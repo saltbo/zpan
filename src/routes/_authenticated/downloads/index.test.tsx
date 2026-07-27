@@ -1,7 +1,8 @@
 import { toDownloadTaskListItem } from '@shared/download-task'
 import type { DownloadTask } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Profiler } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDownloadTask, listDownloadTasks } from '@/lib/api'
 import { DownloadsPage } from './index'
@@ -86,7 +87,7 @@ function task(id: string, name: string): DownloadTask {
   }
 }
 
-function renderDownloadsPage() {
+function renderDownloadsPage(onRender: () => void) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -95,7 +96,9 @@ function renderDownloadsPage() {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <DownloadsPage />
+      <Profiler id="downloads-page" onRender={onRender}>
+        <DownloadsPage />
+      </Profiler>
     </QueryClientProvider>,
   )
 }
@@ -124,8 +127,11 @@ describe('DownloadsPage task selection', () => {
       if (id === second.id) return second
       throw new Error(`Unexpected task id: ${id}`)
     })
+    let renderCount = 0
 
-    renderDownloadsPage()
+    renderDownloadsPage(() => {
+      renderCount += 1
+    })
 
     await waitFor(() => expect(getDownloadTask).toHaveBeenCalledTimes(1))
     expect(getDownloadTask).toHaveBeenLastCalledWith(first.id)
@@ -142,5 +148,9 @@ describe('DownloadsPage task selection', () => {
     expect(getDownloadTask).toHaveBeenLastCalledWith(first.id)
     await screen.findByText('task-a detail')
     expect(screen.queryByText('task-b detail')).toBeNull()
+
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(getDownloadTask).toHaveBeenCalledTimes(3)
+    expect(renderCount).toBeLessThan(30)
   })
 })
