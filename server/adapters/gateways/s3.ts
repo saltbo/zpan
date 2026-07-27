@@ -17,6 +17,7 @@ import type { S3Gateway, S3StorageCredentials } from '../../usecases/ports'
 const DEFAULT_EXPIRES_IN = 3600
 const MULTIPART_PART_SIZE = 5 * 1024 * 1024
 const SMALL_STREAM_PUT_BUFFER_SIZE = 256 * 1024
+const UNSIGNABLE_UPLOAD_METADATA_HEADERS = new Set(['content-disposition'])
 
 export class S3Service implements S3Gateway {
   createClient(storage: S3StorageCredentials): S3Client {
@@ -48,15 +49,19 @@ export class S3Service implements S3Gateway {
     }
 
     const client = this.createClient(storage)
-    // Only sign ContentType/ContentDisposition when provided. A signed header must
-    // be sent verbatim by the client or S3 rejects the PUT.
     const command = new PutObjectCommand({
       Bucket: storage.bucket,
       Key: key,
       ...(contentType ? { ContentType: contentType } : {}),
       ...(filename ? { ContentDisposition: attachmentContentDisposition(filename) } : {}),
     })
-    const url = await getSignedUrl(client, command, { expiresIn: ttl })
+    // Content-Disposition is still serialized into the PUT request and stored as
+    // object metadata. Keep it out of SignedHeaders because R2 does not calculate
+    // the same signature for RFC 6266 values containing filename parameters.
+    const url = await getSignedUrl(client, command, {
+      expiresIn: ttl,
+      unsignableHeaders: UNSIGNABLE_UPLOAD_METADATA_HEADERS,
+    })
     return url
   }
 
@@ -76,7 +81,10 @@ export class S3Service implements S3Gateway {
         ...(contentType ? { ContentType: contentType } : {}),
         ...(contentDisposition ? { ContentDisposition: contentDisposition } : {}),
       }),
-      { expiresIn: DEFAULT_EXPIRES_IN },
+      {
+        expiresIn: DEFAULT_EXPIRES_IN,
+        unsignableHeaders: UNSIGNABLE_UPLOAD_METADATA_HEADERS,
+      },
     )
     const response = await fetch(url, {
       method: 'POST',
