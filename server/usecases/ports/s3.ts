@@ -18,7 +18,12 @@ export interface S3Gateway {
     filenameOrExpiresIn?: string | number,
     expiresIn?: number,
   ): Promise<string>
-  createMultipartUpload(storage: S3StorageCredentials, key: string, contentType?: string): Promise<string>
+  createMultipartUpload(
+    storage: S3StorageCredentials,
+    key: string,
+    contentType?: string,
+    filename?: string,
+  ): Promise<string>
   presignUploadPart(
     storage: S3StorageCredentials,
     key: string,

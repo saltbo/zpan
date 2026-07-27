@@ -248,6 +248,7 @@ export const objectUploadInstructionsSchema = z.object({
   sessionId: z.string(),
   partSize: z.number().int(),
   urls: z.array(z.string()),
+  contentDisposition: z.string(),
 })
 
 export const presignedObjectUploadPartSchema = z.object({

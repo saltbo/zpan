@@ -274,12 +274,27 @@ describe('S3Service', () => {
         )
       vi.stubGlobal('fetch', fetchMock)
 
-      await expect(service.createMultipartUpload(storage, 'video.mp4', 'video/mp4')).resolves.toBe('upload-1')
+      await expect(service.createMultipartUpload(storage, 'video.mp4', 'video/mp4', 'movie.mp4')).resolves.toBe(
+        'upload-1',
+      )
 
       expect(fetchMock).toHaveBeenCalledWith('https://signed-url.example.com', {
         method: 'POST',
-        headers: { 'Content-Type': 'video/mp4' },
+        headers: {
+          'Content-Type': 'video/mp4',
+          'Content-Disposition': 'attachment; filename="movie.mp4"; filename*=UTF-8\'\'movie.mp4',
+        },
       })
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+      expect(getSignedUrl).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          input: expect.objectContaining({
+            ContentDisposition: 'attachment; filename="movie.mp4"; filename*=UTF-8\'\'movie.mp4',
+          }),
+        }),
+        expect.anything(),
+      )
       expect(mockSend).not.toHaveBeenCalled()
     })
 

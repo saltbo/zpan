@@ -426,6 +426,7 @@ export interface ObjectUploadInstructions {
   sessionId: string
   partSize: number
   urls: string[]
+  contentDisposition: string
 }
 
 export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled'

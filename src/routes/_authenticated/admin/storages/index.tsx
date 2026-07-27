@@ -234,7 +234,10 @@ export function StoragesPage() {
     setTestHealth({ status: 'testing' })
     setTestStep('creating')
     setTestFailedStep(null)
-    let draft: { id: string; upload?: { sessionId: string; urls: string[] } } | null = null
+    let draft: {
+      id: string
+      upload?: { sessionId: string; urls: string[]; contentDisposition: string }
+    } | null = null
     let result: StorageHealth | null = null
     let currentStep: StorageTestStep = 'creating'
     let failedStep: StorageTestStep | null = null
@@ -262,7 +265,10 @@ export function StoragesPage() {
       try {
         uploadResponse = await fetch(upload.urls[0], {
           method: 'PUT',
-          headers: { 'Content-Type': 'text/plain' },
+          headers: {
+            'Content-Type': 'text/plain',
+            'Content-Disposition': upload.contentDisposition,
+          },
           body: blob,
         })
       } catch {

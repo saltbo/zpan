@@ -60,20 +60,34 @@ export class S3Service implements S3Gateway {
     return url
   }
 
-  async createMultipartUpload(storage: S3StorageCredentials, key: string, contentType?: string): Promise<string> {
+  async createMultipartUpload(
+    storage: S3StorageCredentials,
+    key: string,
+    contentType?: string,
+    filename?: string,
+  ): Promise<string> {
     const client = this.createClient(storage)
+    const contentDisposition = filename ? attachmentContentDisposition(filename) : undefined
     const url = await getSignedUrl(
       client,
       new CreateMultipartUploadCommand({
         Bucket: storage.bucket,
         Key: key,
         ...(contentType ? { ContentType: contentType } : {}),
+        ...(contentDisposition ? { ContentDisposition: contentDisposition } : {}),
       }),
       { expiresIn: DEFAULT_EXPIRES_IN },
     )
     const response = await fetch(url, {
       method: 'POST',
-      ...(contentType ? { headers: { 'Content-Type': contentType } } : {}),
+      ...(contentType || contentDisposition
+        ? {
+            headers: {
+              ...(contentType ? { 'Content-Type': contentType } : {}),
+              ...(contentDisposition ? { 'Content-Disposition': contentDisposition } : {}),
+            },
+          }
+        : {}),
     })
     const body = await response.text()
     if (!response.ok) throw new Error(`S3 multipart upload create failed: ${response.status}: ${body.trim()}`)

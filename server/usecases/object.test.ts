@@ -308,8 +308,9 @@ describe('object usecase', () => {
         expect(out.upload.sessionId).toBe('sess-1')
         expect(out.upload.urls).toEqual(['https://up'])
         expect(out.upload.partSize).toBe(2048)
+        expect(out.upload.contentDisposition).toBe('attachment; filename="photo.jpg"; filename*=UTF-8\'\'photo.jpg')
         expect(out.matter.status).toBe('draft')
-        expect(presignUpload).toHaveBeenCalledWith(storage, expect.any(String), 'image/jpeg')
+        expect(presignUpload).toHaveBeenCalledWith(storage, expect.any(String), 'image/jpeg', 'photo.jpg')
       } else {
         throw new Error('expected upload outcome')
       }
@@ -330,7 +331,25 @@ describe('object usecase', () => {
 
       expect(out.ok).toBe(true)
       expect(create).toHaveBeenCalledWith(expect.objectContaining({ type: '' }))
-      expect(presignUpload).toHaveBeenCalledWith(storage, expect.any(String), undefined)
+      expect(presignUpload).toHaveBeenCalledWith(storage, expect.any(String), undefined, 'unknown.bin')
+    })
+
+    it('returns an RFC 6266 attachment header for a Chinese filename', async () => {
+      const presignUpload = vi.fn(async () => 'https://up')
+      const { deps } = makeDeps({ s3: { presignUpload } })
+
+      const out = await createObject(deps, {
+        orgId: 'o1',
+        actor: user,
+        input: { name: '音乐 示例.mp3', type: 'audio/mpeg', size: 10, dirtype: DirType.FILE, parent: '' },
+      })
+
+      expect(out.ok).toBe(true)
+      if (!out.ok || !('upload' in out)) throw new Error('expected upload outcome')
+      expect(out.upload.contentDisposition).toBe(
+        'attachment; filename="__ __.mp3"; filename*=UTF-8\'\'%E9%9F%B3%E4%B9%90%20%E7%A4%BA%E4%BE%8B.mp3',
+      )
+      expect(presignUpload).toHaveBeenCalledWith(storage, expect.any(String), 'audio/mpeg', '音乐 示例.mp3')
     })
 
     it('uses an eligible requested storage for a file draft', async () => {
@@ -419,7 +438,12 @@ describe('object usecase', () => {
       if (out.ok && 'upload' in out) {
         expect(out.upload.partSize).toBe(fiveGiB)
         expect(out.upload.urls).toHaveLength(2)
-        expect(createMultipartUpload).toHaveBeenCalled()
+        expect(createMultipartUpload).toHaveBeenCalledWith(
+          storage,
+          expect.any(String),
+          'application/octet-stream',
+          'big.bin',
+        )
       } else {
         throw new Error('expected upload outcome')
       }
