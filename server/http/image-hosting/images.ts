@@ -8,7 +8,6 @@ import {
   MAX_IMAGE_SIZE,
 } from '../../../shared/schemas'
 import { buildImageUrl, validatePath } from '../../domain/image-hosting'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../../domain/page-token'
 import { mapDomainError } from '../../lib/http-errors'
 import { mimeToExt } from '../../lib/mime-utils'
 import { requireAuth, requireTeamRole } from '../../middleware/auth'
@@ -32,6 +31,7 @@ import {
   unsupportedMediaType,
 } from '../../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../page-token'
 
 // The stored image's wire shape — timestamps as ISO strings (the record carries
 // them as Date).

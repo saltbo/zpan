@@ -11,7 +11,6 @@ import {
   shareReadmeResponseSchema,
   shareRecipientViewSchema,
 } from '../../shared/schemas/share'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../domain/page-token'
 import { transferAuditActor } from '../middleware/audit-transfers'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -32,6 +31,7 @@ import {
 } from '../usecases/share'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from './page-token'
 import { cookieName, decodeChildRef, readUserId, viewCookieName } from './share-utils'
 
 function shareUrls(kind: string, token: string): { landing?: string; direct?: string } {

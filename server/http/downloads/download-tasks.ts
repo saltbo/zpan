@@ -9,7 +9,6 @@ import {
   listDownloadTasksQuerySchema,
   updateDownloadTaskSchema,
 } from '@shared/schemas'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../../domain/page-token'
 import { requirePermission } from '../../middleware/authz'
 import type { Env } from '../../middleware/platform'
 import {
@@ -22,6 +21,7 @@ import {
 } from '../../usecases/downloads/downloads'
 import { badRequest, unauthorized } from '../../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../page-token'
 
 const downloadTaskStatuses = new Set([
   'queued',

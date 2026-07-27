@@ -35,8 +35,8 @@ not add offset pagination preemptively.
 - Token contents are an implementation detail. API consumers must not decode,
   persist indefinitely, synthesize, or compare them.
 
-The shared contract lives in `shared/schemas/pagination.ts`; signing lives in
-`server/domain/page-token.ts`.
+The shared contract lives in `shared/schemas/pagination.ts`; HTTP token signing
+lives in `server/http/page-token.ts`.
 
 ## Realtime Model
 
@@ -76,4 +76,3 @@ problems.
 
 Old rows are operational invalidation data, not domain audit history, and are
 purged by the hourly scheduler.
-

@@ -1,6 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { createBackgroundJobRequestSchema, cursorPageSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../domain/page-token'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -12,6 +11,7 @@ import {
 } from '../usecases/background-job'
 import { BackgroundJobError, badRequest, notFound } from '../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from './page-token'
 
 // BackgroundJob is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const backgroundJobProgressSchema = z.object({

@@ -1,11 +1,11 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { cursorPageQuerySchema, cursorPageSchema, restoreObjectSchema } from '@shared/schemas'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../domain/page-token'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deleteObject, getTrashObject, listTrashedObjects, restoreObject } from '../usecases/object'
 import { badRequest, type Matter, notFound } from '../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from './page-token'
 
 // The trashed-object wire shape mirrors the live Matter model; trash is a
 // grouping/view of `objects`, not a separate resource.

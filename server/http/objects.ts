@@ -14,7 +14,6 @@ import {
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../domain/page-token'
 import { transferAuditActor } from '../middleware/audit-transfers'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -37,6 +36,7 @@ import {
 import { badRequest, forbidden, type Matter, type MatterListItem, unauthorized } from '../usecases/ports'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from './page-token'
 
 // The wire shape of a file/folder — exactly what the API serializes. Timestamps
 // are strings here (the domain `Matter` carries them as `Date`); `toMatterDTO`

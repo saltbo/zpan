@@ -1,6 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { cursorPageSchema, listNotificationsQuerySchema } from '@shared/schemas'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../domain/page-token'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -11,6 +10,7 @@ import {
 } from '../usecases/notification'
 import { badRequest, type NotificationRecord, notFound } from '../usecases/ports'
 import { errorResponse, jsonContent } from './openapi'
+import { decodePageToken, encodePageToken, pageQueryFingerprint } from './page-token'
 
 const notificationSchema = z
   .object({
