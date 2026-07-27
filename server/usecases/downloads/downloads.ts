@@ -13,6 +13,7 @@ import type {
   Downloader,
   DownloadTask,
   DownloadTaskEvent,
+  DownloadTaskListItem,
   DownloadTaskRuntime,
   DownloadTaskTimelineItem,
 } from '@shared/types'
@@ -315,6 +316,16 @@ export async function listDownloadTasks(
     items.map((task, index) => decorateWithUploadToken(deps, platform, task, rows[index])),
   )
   return { items: decorated, nextBoundary }
+}
+
+export async function listDownloadTaskItems(
+  deps: DownloadsDeps,
+  opts: ListDownloadTasksFilters,
+): Promise<{
+  items: DownloadTaskListItem[]
+  nextBoundary: { createdAt: Date; id: string } | null
+}> {
+  return deps.downloadTasks.listItems(opts)
 }
 
 export function getDownloadTask(deps: DownloadsDeps, orgId: string, id: string): Promise<DownloadTask> {

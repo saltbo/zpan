@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   createDownloadTaskSchema,
   downloadTaskAttemptSchema,
+  downloadTaskListPageSchema,
   downloadTaskPageSchema,
   downloadTaskSchema,
   downloadTaskStatusUpdateSchema,
@@ -15,6 +16,7 @@ import {
   createDownloadTask,
   getDownloadTask,
   getDownloadTaskTimeline,
+  listDownloadTaskItems,
   listDownloadTasks,
   performDownloadTaskAction,
   updateDownloadTask,
@@ -43,7 +45,7 @@ const downloadTaskStatuses = new Set([
   'canceled',
 ])
 
-async function listPage(
+async function resolvePage(
   c: {
     get(name: 'deps'): Env['Variables']['deps']
     get(name: 'platform'): Env['Variables']['platform']
@@ -65,14 +67,18 @@ async function listPage(
     query,
     codec: createdAtIdCursorCodec,
   })
-  const result = await listDownloadTasks(c.get('deps'), c.get('platform'), { ...filters, after })
-  return {
-    items: result.items,
-    nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
-      query,
-      codec: createdAtIdCursorCodec,
-    }),
-  }
+  return { filters: { ...filters, after }, query }
+}
+
+async function pageTokenFor(
+  c: { get(name: 'platform'): Env['Variables']['platform'] },
+  nextBoundary: { createdAt: Date; id: string } | null,
+  query: string,
+) {
+  return encodeNextPageToken(c.get('platform'), nextBoundary, {
+    query,
+    codec: createdAtIdCursorCodec,
+  })
 }
 
 function parseStatuses(value: string | undefined): string[] | undefined {
@@ -104,10 +110,25 @@ const listRoute = createRoute({
   tags: ['Download Tasks'],
   method: 'get',
   path: '/',
+  middleware: [requirePermission('remoteDownload', 'read')] as const,
+  request: { query: listDownloadTasksQuerySchema },
+  responses: {
+    200: jsonContent(downloadTaskListPageSchema, 'Download task list'),
+    400: errorResponse('Invalid query'),
+    401: errorResponse('Unauthorized'),
+  },
+})
+
+const assignedListRoute = createRoute({
+  operationId: 'listAssignedDownloadTasks',
+  summary: 'List tasks assigned to the authenticated downloader',
+  tags: ['Download Tasks'],
+  method: 'get',
+  path: '/assigned',
   middleware: [requirePermission('remoteDownload', 'read', { allowDownloader: true })] as const,
   request: { query: listDownloadTasksQuerySchema },
   responses: {
-    200: jsonContent(downloadTaskPageSchema, 'Download tasks'),
+    200: jsonContent(downloadTaskPageSchema, 'Assigned download tasks'),
     400: errorResponse('Invalid query'),
     401: errorResponse('Unauthorized'),
   },
@@ -213,44 +234,55 @@ const deleteRoute = createRoute({
 
 const downloadTasksRoute = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
-    const principal = c.get('principal')
     const query = c.req.valid('query')
     const statuses = parseStatuses(query.status)
-    if (query.assignedTo === 'me') {
-      if (principal?.kind !== 'downloader') throw unauthorized()
-      return c.json(
-        await listPage(
-          c,
-          {
-            downloaderId: principal.downloaderId,
-            status: statuses?.length === 1 ? statuses[0] : undefined,
-            statuses,
-            category: query.category,
-            tag: query.tag,
-            pageSize: query.pageSize,
-            includeUploadToken: true,
-          },
-          query.pageToken,
-        ),
-        200,
-      )
-    }
-
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized()
+    const page = await resolvePage(
+      c,
+      {
+        orgId,
+        status: statuses?.length === 1 ? statuses[0] : undefined,
+        statuses,
+        category: query.category,
+        tag: query.tag,
+        pageSize: query.pageSize,
+      },
+      query.pageToken,
+    )
+    const result = await listDownloadTaskItems(c.get('deps'), page.filters)
     return c.json(
-      await listPage(
-        c,
-        {
-          orgId,
-          status: statuses?.length === 1 ? statuses[0] : undefined,
-          statuses,
-          category: query.category,
-          tag: query.tag,
-          pageSize: query.pageSize,
-        },
-        query.pageToken,
-      ),
+      {
+        items: result.items,
+        nextPageToken: await pageTokenFor(c, result.nextBoundary, page.query),
+      },
+      200,
+    )
+  })
+  .openapi(assignedListRoute, async (c) => {
+    const principal = c.get('principal')
+    if (principal?.kind !== 'downloader') throw unauthorized()
+    const query = c.req.valid('query')
+    const statuses = parseStatuses(query.status)
+    const page = await resolvePage(
+      c,
+      {
+        downloaderId: principal.downloaderId,
+        status: statuses?.length === 1 ? statuses[0] : undefined,
+        statuses,
+        category: query.category,
+        tag: query.tag,
+        pageSize: query.pageSize,
+        includeUploadToken: true,
+      },
+      query.pageToken,
+    )
+    const result = await listDownloadTasks(c.get('deps'), c.get('platform'), page.filters)
+    return c.json(
+      {
+        items: result.items,
+        nextPageToken: await pageTokenFor(c, result.nextBoundary, page.query),
+      },
       200,
     )
   })

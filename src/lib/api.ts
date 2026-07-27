@@ -63,6 +63,7 @@ import type {
   CursorPage,
   Downloader,
   DownloadTask,
+  DownloadTaskListItem,
   DownloadTaskTimeline,
   IhostConfigResponse,
   ImageHosting,
@@ -400,7 +401,6 @@ export function purgeTrashObject(id: string) {
 
 export interface ListDownloadTasksOptions {
   status?: string
-  assignedTo?: 'me'
   category?: string
   tag?: string
   pageSize?: number
@@ -412,11 +412,14 @@ export function listDownloadTasks(opts: ListDownloadTasksOptions = {}) {
     pageSize: String(opts.pageSize ?? 50),
   }
   if (opts.status) query.status = opts.status
-  if (opts.assignedTo) query.assignedTo = opts.assignedTo
   if (opts.category) query.category = opts.category
   if (opts.tag) query.tag = opts.tag
   if (opts.pageToken) query.pageToken = opts.pageToken
-  return unwrap<CursorPage<DownloadTask>>(downloadTasksApi.index.$get({ query }))
+  return unwrap<CursorPage<DownloadTaskListItem>>(downloadTasksApi.index.$get({ query }))
+}
+
+export function getDownloadTask(id: string) {
+  return unwrap<DownloadTask>(downloadTasksApi[':id'].$get({ param: { id } }))
 }
 
 export function createDownloadTask(data: CreateDownloadTaskInput) {
@@ -445,13 +448,9 @@ export function runDownloadTaskAction(id: string, action: DownloadTaskActionInpu
   return unwrap<DownloadTask>(downloadTasksApi[':id'].status.$put({ param: { id }, json: { status } }))
 }
 
-// Unified server-sent events stream (background jobs, notifications, and the
-// opt-in download-tasks domain). Consumed by a raw EventSource in useServerEvents,
-// so this only builds the URL; `query` carries the active page subscriptions.
-export function serverEventsUrl(query: Record<string, string> = {}) {
-  const url = eventsUrlApi.index.$url()
-  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
-  return url
+// Unified server-sent events stream consumed by the authenticated application shell.
+export function serverEventsUrl() {
+  return eventsUrlApi.index.$url()
 }
 
 export function listDownloaders() {

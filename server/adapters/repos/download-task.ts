@@ -1,3 +1,4 @@
+import { toDownloadTaskListItem } from '@shared/download-task'
 import { downloadTaskRuntimeSchema } from '@shared/schemas'
 import type { DownloadTask, DownloadTaskRuntime } from '@shared/types'
 import {
@@ -297,6 +298,32 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
     return rows[0] ?? null
   }
 
+  async function getRow(orgId: string, id: string): Promise<DownloadTaskRow> {
+    const rows = await db
+      .select()
+      .from(downloadTasks)
+      .where(and(eq(downloadTasks.id, id), eq(downloadTasks.orgId, orgId), isNull(downloadTasks.deletedAt)))
+      .limit(1)
+    if (!rows[0]) throw new DownloadError('not_found')
+    return rows[0]
+  }
+
+  async function listRows(filters: ListDownloadTasksFilters) {
+    const rows = await db
+      .select()
+      .from(downloadTasks)
+      .where(downloadTaskWhere(filters))
+      .orderBy(desc(downloadTasks.createdAt), desc(downloadTasks.id))
+      .limit(filters.pageSize + 1)
+    const hasMore = rows.length > filters.pageSize
+    const items = hasMore ? rows.slice(0, filters.pageSize) : rows
+    const last = items.at(-1)
+    return {
+      items,
+      nextBoundary: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
+    }
+  }
+
   async function changeTargets(where: SQL | undefined) {
     return db.select({ id: downloadTasks.id, orgId: downloadTasks.orgId }).from(downloadTasks).where(where)
   }
@@ -377,30 +404,24 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
     },
 
     async list(filters: ListDownloadTasksFilters) {
-      const rows = await db
-        .select()
-        .from(downloadTasks)
-        .where(downloadTaskWhere(filters))
-        .orderBy(desc(downloadTasks.createdAt), desc(downloadTasks.id))
-        .limit(filters.pageSize + 1)
-      const hasMore = rows.length > filters.pageSize
-      const taskRows = hasMore ? rows.slice(0, filters.pageSize) : rows
-      const last = taskRows.at(-1)
+      const page = await listRows(filters)
       return {
-        items: taskRows.map((row) => toDownloadTask(row)),
-        rows: taskRows.map((row) => toRecord(row)),
-        nextBoundary: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
+        items: page.items.map((row) => toDownloadTask(row)),
+        rows: page.items.map((row) => toRecord(row)),
+        nextBoundary: page.nextBoundary,
+      }
+    },
+
+    async listItems(filters: ListDownloadTasksFilters) {
+      const page = await listRows(filters)
+      return {
+        items: page.items.map((row) => toDownloadTaskListItem(toDownloadTask(row))),
+        nextBoundary: page.nextBoundary,
       }
     },
 
     async get(orgId, id) {
-      const rows = await db
-        .select()
-        .from(downloadTasks)
-        .where(and(eq(downloadTasks.id, id), eq(downloadTasks.orgId, orgId), isNull(downloadTasks.deletedAt)))
-        .limit(1)
-      if (!rows[0]) throw new DownloadError('not_found')
-      return toDownloadTask(rows[0])
+      return toDownloadTask(await getRow(orgId, id))
     },
 
     async getRecord(orgId, id) {
@@ -570,6 +591,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         .update(downloadTasks)
         .set({ ...fields, events })
         .where(and(eq(downloadTasks.id, id), isNull(downloadTasks.deletedAt)))
+      const statusChanged = fields.status !== undefined && fields.status !== row.status
       await executeWriteTransaction(db, [
         update,
         resourceChangeQuery(db, {
@@ -578,7 +600,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           resourceType: 'download_task',
           resourceId: id,
           changeType: 'upsert',
-          action: fields.status === undefined ? 'updated' : 'status_changed',
+          action: statusChanged ? 'status_changed' : 'updated',
           occurredAt: now,
         }),
       ])

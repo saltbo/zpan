@@ -99,6 +99,12 @@ Feature: Remote download tasks
     When it reports runtime state
     Then reports are stored as snapshots and progress remains patchable
 
+  @download-tasks/list-detail @api
+  Scenario: Browser lists return only list fields
+    Given a task with runtime files, peers, and trackers
+    When a user lists tasks and then opens one task
+    Then the list returns only its required fields and the detail returns the full runtime
+
   @download-tasks/events @api
   Scenario: Task events expose lifecycle and audit history
     Given a task with lifecycle timestamps and audit events

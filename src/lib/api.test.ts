@@ -51,6 +51,7 @@ import {
   getBackgroundJob,
   getChangelog,
   getCloudCredits,
+  getDownloadTask,
   getEmailConfig,
   getIhostConfig,
   getInstanceInfo,
@@ -1133,7 +1134,6 @@ describe('api', () => {
 
       const result = await listDownloadTasks({
         status: 'downloading',
-        assignedTo: 'me',
         category: 'movies',
         tag: '4k',
         pageSize: 10,
@@ -1144,12 +1144,27 @@ describe('api', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/downloads/tasks?')
       expect(url).toContain('status=downloading')
-      expect(url).toContain('assignedTo=me')
       expect(url).toContain('category=movies')
       expect(url).toContain('tag=4k')
       expect(url).toContain('pageSize=10')
       expect(url).toContain('pageToken=current-token')
       expect(init.method).toBe('GET')
+    })
+
+    it('gets a download task', async () => {
+      const payload = { id: 'task-1', status: { runtime: { files: [] } } }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await expect(getDownloadTask('task-1')).resolves.toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/downloads/tasks/task-1')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws when getting a download task fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(getDownloadTask('missing')).rejects.toThrow('not found')
     })
 
     it('creates a download task', async () => {
@@ -1278,12 +1293,6 @@ describe('api', () => {
 
     it('builds the unified server events URL from RPC client', () => {
       expect(serverEventsUrl().pathname).toBe('/api/events')
-
-      const url = serverEventsUrl({ downloadTasks: '1', dtStatus: 'downloading', dtSortDir: 'desc' })
-      expect(url.pathname).toBe('/api/events')
-      expect(url.searchParams.get('downloadTasks')).toBe('1')
-      expect(url.searchParams.get('dtStatus')).toBe('downloading')
-      expect(url.searchParams.get('dtSortDir')).toBe('desc')
     })
 
     it('lists admin downloaders', async () => {
