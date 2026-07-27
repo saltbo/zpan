@@ -21,7 +21,7 @@ test.describe
 
       await expect
         .poll(async () => {
-          const status = await page.request.get('/api/site/licensing/status')
+          const status = await page.request.get('/api/site/licensing/binding')
           return ((await status.json()) as { bound: boolean }).bound
         })
         .toBe(false)

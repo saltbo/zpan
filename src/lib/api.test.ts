@@ -55,6 +55,7 @@ import {
   getEmailConfig,
   getIhostConfig,
   getInstanceInfo,
+  getLicenseEntitlements,
   getLicensingStatus,
   getObject,
   getProfile,
@@ -2158,7 +2159,7 @@ describe('api', () => {
 
       await expect(verifySiteWebDav()).resolves.toEqual(result)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site/settings/webdav/verification')
+      expect(url).toContain('/api/site/settings/webdav/verifications')
       expect(init.method).toBe('POST')
     })
 
@@ -3548,7 +3549,7 @@ describe('api', () => {
       await getLicensingStatus()
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site/licensing/status')
+      expect(url).toContain('/api/site/licensing/binding')
     })
 
     it('returns unbound state', async () => {
@@ -3579,6 +3580,24 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Internal Server Error' }, false, 500))
 
       await expect(getLicensingStatus()).rejects.toThrow()
+    })
+  })
+
+  describe('getLicenseEntitlements', () => {
+    it('GETs the authenticated entitlement projection', async () => {
+      const payload = { bound: false, active: false, edition: null, features: [] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await expect(getLicenseEntitlements()).resolves.toEqual(payload)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/licensing/entitlements')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
+      await expect(getLicenseEntitlements()).rejects.toThrow('Unauthorized')
     })
   })
 
@@ -3784,7 +3803,7 @@ describe('api', () => {
   })
 
   describe('saveBranding', () => {
-    it('sends PUT /api/site/branding as multipart', async () => {
+    it('sends PUT /api/site/settings/branding as multipart', async () => {
       const payload = {
         logo_url: null,
         favicon_url: null,
@@ -3797,7 +3816,7 @@ describe('api', () => {
       await saveBranding({ wordmark_text: 'MyCloud' })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site/branding')
+      expect(url).toContain('/api/site/settings/branding')
       expect(init.method).toBe('PUT')
       expect(init.body).toBeInstanceOf(FormData)
     })
@@ -3895,13 +3914,13 @@ describe('api', () => {
   })
 
   describe('resetBrandingField', () => {
-    it('sends DELETE /api/site/branding/:field', async () => {
+    it('sends DELETE /api/site/settings/branding/:field', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ field: 'logo', reset: true }))
 
       await resetBrandingField('logo')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site/branding/logo')
+      expect(url).toContain('/api/site/settings/branding/logo')
       expect(init.method).toBe('DELETE')
     })
 
@@ -3926,7 +3945,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site/email')
+      expect(url).toContain('/api/site/settings/email')
       expect(init.method).toBe('GET')
     })
 
@@ -3942,7 +3961,7 @@ describe('api', () => {
       await saveEmailConfig(payload)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site/email')
+      expect(url).toContain('/api/site/settings/email')
       expect(init.method).toBe('PUT')
       expect(init.body).toBe(JSON.stringify(payload))
     })
@@ -3966,7 +3985,7 @@ describe('api', () => {
       await testEmail('user@example.com')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site/email/test-messages')
+      expect(url).toContain('/api/site/settings/email/test-messages')
       expect(init.method).toBe('POST')
       expect(init.body).toBe(JSON.stringify({ to: 'user@example.com' }))
     })
@@ -3990,16 +4009,20 @@ describe('api', () => {
       timeZone: 'UTC' as const,
     }
     const dashboardEndpoints = [
-      { name: 'getAdminDashboardOverviewStats', path: '/api/site/stats/overview', fn: getAdminDashboardOverviewStats },
+      {
+        name: 'getAdminDashboardOverviewStats',
+        path: '/api/site/analytics/overview',
+        fn: getAdminDashboardOverviewStats,
+      },
       {
         name: 'getAdminDashboardOperationsStats',
-        path: '/api/site/stats/operations',
+        path: '/api/site/analytics/operations',
         fn: getAdminDashboardOperationsStats,
       },
-      { name: 'getAdminDashboardGrowthStats', path: '/api/site/stats/growth', fn: getAdminDashboardGrowthStats },
-      { name: 'getAdminDashboardStorageStats', path: '/api/site/stats/storage', fn: getAdminDashboardStorageStats },
-      { name: 'getAdminDashboardTrafficStats', path: '/api/site/stats/traffic', fn: getAdminDashboardTrafficStats },
-      { name: 'getAdminDashboardSharingStats', path: '/api/site/stats/sharing', fn: getAdminDashboardSharingStats },
+      { name: 'getAdminDashboardGrowthStats', path: '/api/site/analytics/growth', fn: getAdminDashboardGrowthStats },
+      { name: 'getAdminDashboardStorageStats', path: '/api/site/analytics/storage', fn: getAdminDashboardStorageStats },
+      { name: 'getAdminDashboardTrafficStats', path: '/api/site/analytics/traffic', fn: getAdminDashboardTrafficStats },
+      { name: 'getAdminDashboardSharingStats', path: '/api/site/analytics/sharing', fn: getAdminDashboardSharingStats },
     ] as const
 
     for (const endpoint of dashboardEndpoints) {
@@ -4057,7 +4080,7 @@ describe('api', () => {
       await expect(getAdminOverview()).resolves.toEqual(overview)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/site/overview')
+      expect(url).toBe('/api/site/analytics')
       expect(init.method).toBe('GET')
     })
 

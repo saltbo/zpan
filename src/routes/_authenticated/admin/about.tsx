@@ -11,8 +11,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { useEntitlement } from '@/hooks/useEntitlement'
-import { getChangelog, getInstanceInfo } from '@/lib/api'
+import { licenseBindingQueryKey, useEntitlement } from '@/hooks/useEntitlement'
+import { getChangelog, getInstanceInfo, getLicensingStatus } from '@/lib/api'
 import { EDITION_COLORS, editionKey } from '@/lib/license-edition'
 
 export const Route = createFileRoute('/_authenticated/admin/about')({
@@ -46,7 +46,7 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
 
 function AboutPage() {
   const { t } = useTranslation()
-  const { bound, active, edition, licenseId, cloudDashboardUrl } = useEntitlement()
+  const { bound, active, edition } = useEntitlement()
   const [changelogOpen, setChangelogOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const queryClient = useQueryClient()
@@ -59,6 +59,11 @@ function AboutPage() {
     queryKey: ['system', 'changelog'],
     queryFn: () => getChangelog(),
     staleTime: 60 * 60 * 1000,
+  })
+  const { data: binding } = useQuery({
+    queryKey: licenseBindingQueryKey,
+    queryFn: getLicensingStatus,
+    staleTime: 60 * 1000,
   })
 
   // Bypass the server-side cache (?refresh=true) and replace the cached data so
@@ -81,6 +86,8 @@ function AboutPage() {
 
   // When the instance holds a valid license, deep-link the cloud CTA straight to
   // the certificate detail page; otherwise nudge toward upgrading.
+  const licenseId = binding?.license_id
+  const cloudDashboardUrl = binding?.cloud_dashboard_url
   const cloudBase = cloudDashboardUrl?.replace(/\/dashboard\/?$/, '') ?? ZPAN_CLOUD_URL_DEFAULT
   const authorized = bound && active && Boolean(licenseId)
   const cloudUrl = authorized ? `${cloudBase}/licenses/${licenseId}` : (cloudDashboardUrl ?? ZPAN_CLOUD_URL_DEFAULT)

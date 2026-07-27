@@ -198,7 +198,7 @@ describe('site settings usecase', () => {
 
     const result = await verifySiteWebDav(
       deps,
-      'https://files.example.com/api/site/settings/webdav/verification',
+      'https://files.example.com/api/site/settings/webdav/verifications',
       fetcher,
     )
 
@@ -230,7 +230,7 @@ describe('site settings usecase', () => {
 
     const result = await verifySiteWebDav(
       deps,
-      'https://files.example.com/api/site/settings/webdav/verification',
+      'https://files.example.com/api/site/settings/webdav/verifications',
       fetcher,
     )
 
@@ -274,7 +274,7 @@ describe('site settings usecase', () => {
     await expect(
       verifySiteWebDav(
         deps,
-        'https://files.example.com/api/site/settings/webdav/verification',
+        'https://files.example.com/api/site/settings/webdav/verifications',
         vi.fn() as unknown as typeof fetch,
       ),
     ).rejects.toMatchObject({ httpStatus: 400 })
@@ -286,7 +286,7 @@ describe('site settings usecase', () => {
 
     const result = await verifySiteWebDav(
       deps,
-      'https://files.example.com/api/site/settings/webdav/verification',
+      'https://files.example.com/api/site/settings/webdav/verifications',
       fetcher,
     )
 

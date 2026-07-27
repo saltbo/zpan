@@ -94,7 +94,7 @@ const verifyWebDavRoute = createRoute({
   summary: 'Verify the configured or derived WebDAV domain',
   tags: ['Site Settings'],
   method: 'post',
-  path: '/webdav/verification',
+  path: '/webdav/verifications',
   middleware: [requireAdmin] as const,
   responses: { 200: jsonContent(siteWebDavSettingsSchema, 'Current WebDAV verification status') },
 })

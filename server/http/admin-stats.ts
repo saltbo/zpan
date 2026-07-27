@@ -1,6 +1,12 @@
-import { zValidator } from '@hono/zod-validator'
-import { Hono } from 'hono'
-import { z } from 'zod'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import {
+  adminAnalyticsGrowthSchema,
+  adminAnalyticsOperationsSchema,
+  adminAnalyticsOverviewSchema,
+  adminAnalyticsSharingSchema,
+  adminAnalyticsStorageSchema,
+  adminAnalyticsTrafficSchema,
+} from '@shared/schemas'
 import { addCalendarDays, utcDateStart } from '../domain/admin-stats-time'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -13,6 +19,7 @@ import {
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
 } from '../usecases/admin-stats'
+import { jsonContent } from './openapi'
 
 const dashboardDateSchema = z
   .string()
@@ -46,22 +53,82 @@ function parseDashboardDate(value: string, boundary: 'start' | 'end'): Date {
   return new Date(value)
 }
 
-export const adminStats = new Hono<Env>()
-  .get('/overview', requireAdmin, zValidator('query', rangeQuerySchema), async (c) =>
+function analyticsRoute(
+  operationId: string,
+  summary: string,
+  path: string,
+  schema: Parameters<typeof jsonContent>[0],
+  gated = true,
+) {
+  return createRoute({
+    operationId,
+    summary,
+    tags: ['Site Analytics'],
+    method: 'get',
+    path,
+    middleware: (gated ? [requireAdmin, requireFeature('analytics')] : [requireAdmin]) as [
+      typeof requireAdmin,
+      ...Array<ReturnType<typeof requireFeature>>,
+    ],
+    request: { query: rangeQuerySchema },
+    responses: { 200: jsonContent(schema, summary) },
+  })
+}
+
+const overviewRoute = analyticsRoute(
+  'getAdminAnalyticsOverview',
+  'Get analytics overview',
+  '/overview',
+  adminAnalyticsOverviewSchema,
+  false,
+)
+const operationsRoute = analyticsRoute(
+  'getAdminAnalyticsOperations',
+  'Get operations analytics',
+  '/operations',
+  adminAnalyticsOperationsSchema,
+)
+const growthRoute = analyticsRoute(
+  'getAdminAnalyticsGrowth',
+  'Get growth analytics',
+  '/growth',
+  adminAnalyticsGrowthSchema,
+)
+const storageRoute = analyticsRoute(
+  'getAdminAnalyticsStorage',
+  'Get storage analytics',
+  '/storage',
+  adminAnalyticsStorageSchema,
+)
+const trafficRoute = analyticsRoute(
+  'getAdminAnalyticsTraffic',
+  'Get traffic analytics',
+  '/traffic',
+  adminAnalyticsTrafficSchema,
+)
+const sharingRoute = analyticsRoute(
+  'getAdminAnalyticsSharing',
+  'Get sharing analytics',
+  '/sharing',
+  adminAnalyticsSharingSchema,
+)
+
+export const adminStats = new OpenAPIHono<Env>()
+  .openapi(overviewRoute, async (c) =>
     c.json(await getAdminDashboardOverviewStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
   )
-  .get('/operations', requireAdmin, requireFeature('analytics'), zValidator('query', rangeQuerySchema), async (c) =>
+  .openapi(operationsRoute, async (c) =>
     c.json(await getAdminDashboardOperationsStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
   )
-  .get('/growth', requireAdmin, requireFeature('analytics'), zValidator('query', rangeQuerySchema), async (c) =>
+  .openapi(growthRoute, async (c) =>
     c.json(await getAdminDashboardGrowthStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
   )
-  .get('/storage', requireAdmin, requireFeature('analytics'), zValidator('query', rangeQuerySchema), async (c) =>
+  .openapi(storageRoute, async (c) =>
     c.json(await getAdminDashboardStorageStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
   )
-  .get('/traffic', requireAdmin, requireFeature('analytics'), zValidator('query', rangeQuerySchema), async (c) =>
+  .openapi(trafficRoute, async (c) =>
     c.json(await getAdminDashboardTrafficStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
   )
-  .get('/sharing', requireAdmin, requireFeature('analytics'), zValidator('query', rangeQuerySchema), async (c) =>
+  .openapi(sharingRoute, async (c) =>
     c.json(await getAdminDashboardSharingStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
   )

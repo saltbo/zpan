@@ -110,7 +110,7 @@ describe('Site configuration API', () => {
         headers: { 'WWW-Authenticate': 'Basic realm="ZPan WebDAV"' },
       }),
     )
-    const verification = await app.request('/api/site/settings/webdav/verification', {
+    const verification = await app.request('/api/site/settings/webdav/verifications', {
       method: 'POST',
       headers: admin,
     })
@@ -150,7 +150,7 @@ describe('Site configuration API', () => {
 
   it('requires admin for WebDAV verification', async () => {
     const { app } = await createTestApp()
-    const response = await app.request('/api/site/settings/webdav/verification', { method: 'POST' })
+    const response = await app.request('/api/site/settings/webdav/verifications', { method: 'POST' })
     expect(response.status).toBe(401)
   })
 

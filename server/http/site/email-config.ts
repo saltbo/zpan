@@ -1,53 +1,9 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { createTestEmailSchema, emailSettingsSchema, updateEmailSettingsSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { getEmailConfig, saveEmailConfig, sendTestEmail } from '../../usecases/site/email-config'
 import { errorResponse, jsonContent } from '../openapi'
-
-const smtpConfigSchema = z.object({
-  enabled: z.boolean(),
-  requireEmailVerification: z.boolean(),
-  provider: z.literal('smtp'),
-  from: z.string().email(),
-  smtp: z.object({
-    host: z.string().min(1),
-    port: z.number().int().min(1).max(65535),
-    user: z.string(),
-    pass: z.string(),
-    secure: z.boolean(),
-  }),
-})
-
-const httpConfigSchema = z.object({
-  enabled: z.boolean(),
-  requireEmailVerification: z.boolean(),
-  provider: z.literal('http'),
-  from: z.string().email(),
-  http: z.object({ url: z.string().url(), apiKey: z.string().min(1) }),
-})
-
-const cloudflareConfigSchema = z.object({
-  enabled: z.boolean(),
-  requireEmailVerification: z.boolean(),
-  provider: z.literal('cloudflare'),
-  from: z.string().email(),
-})
-
-const emailConfigSchema = z.discriminatedUnion('provider', [smtpConfigSchema, httpConfigSchema, cloudflareConfigSchema])
-
-// The masked read shape is provider-polymorphic (secrets redacted). Documented
-// with the stable fields; provider-specific masked settings vary and are not
-// modeled field-for-field (no `additionalProperties` — oapi-codegen mishandles it).
-const emailSettingsSchema = z
-  .object({
-    enabled: z.boolean(),
-    requireEmailVerification: z.boolean(),
-    provider: z.string().nullable().optional(),
-    from: z.string().optional(),
-  })
-  .openapi('EmailSettings')
-
-const testEmailSchema = z.object({ to: z.string().email() })
 
 const successSchema = z.object({ success: z.boolean() })
 
@@ -68,7 +24,7 @@ const saveRoute = createRoute({
   method: 'put',
   path: '/',
   middleware: [requireAdmin] as const,
-  request: { body: { content: { 'application/json': { schema: emailConfigSchema } }, required: true } },
+  request: { body: { content: { 'application/json': { schema: updateEmailSettingsSchema } }, required: true } },
   responses: {
     200: jsonContent(successSchema, 'Saved'),
     400: errorResponse('Invalid email configuration'),
@@ -82,7 +38,7 @@ const testRoute = createRoute({
   method: 'post',
   path: '/test-messages',
   middleware: [requireAdmin] as const,
-  request: { body: { content: { 'application/json': { schema: testEmailSchema } }, required: true } },
+  request: { body: { content: { 'application/json': { schema: createTestEmailSchema } }, required: true } },
   responses: {
     200: jsonContent(successSchema, 'Sent'),
     400: errorResponse('Send failed'),

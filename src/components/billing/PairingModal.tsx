@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { entitlementQueryKey } from '@/hooks/useEntitlement'
+import { entitlementQueryKey, licenseBindingQueryKey } from '@/hooks/useEntitlement'
 import { ApiError, connectCloud, type PairingInfo, pollPairing } from '@/lib/api'
 
 type PairingState = 'loading' | 'waiting' | 'denied' | 'expired' | 'certError' | 'error'
@@ -78,8 +78,11 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
           if (result.status === 'pending') return
           stopPolling()
           if (result.status === 'approved') {
-            await queryClient.invalidateQueries({ queryKey: entitlementQueryKey })
-            const status = queryClient.getQueryData<{ account_email?: string }>(entitlementQueryKey)
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: entitlementQueryKey }),
+              queryClient.invalidateQueries({ queryKey: licenseBindingQueryKey }),
+            ])
+            const status = queryClient.getQueryData<{ account_email?: string }>(licenseBindingQueryKey)
             const email = status?.account_email ?? ''
             toast.success(t('settings.billing.pairing.connected', { email }))
             onOpenChange(false)

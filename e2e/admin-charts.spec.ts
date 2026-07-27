@@ -90,13 +90,13 @@ test('admin dashboard and analytics render chart geometry @desktop', async ({ pa
       invalidChartDimensions.push(message.text())
     }
   })
-  await page.route('**/api/site/overview', (route) => route.fulfill({ json: overview }))
-  await page.route('**/api/site/licensing/status', (route) =>
+  await page.route('**/api/site/analytics', (route) => route.fulfill({ json: overview }))
+  await page.route('**/api/site/licensing/entitlements', (route) =>
     route.fulfill({
-      json: { bound: true, active: true, edition: 'pro', license_id: 'test-license', features: ['analytics'] },
+      json: { bound: true, active: true, edition: 'pro', features: ['analytics'] },
     }),
   )
-  await page.route('**/api/site/stats/growth**', (route) => route.fulfill({ json: growth }))
+  await page.route('**/api/site/analytics/growth**', (route) => route.fulfill({ json: growth }))
 
   await signInAsAdmin(page)
   await page.goto('/admin/dashboard')

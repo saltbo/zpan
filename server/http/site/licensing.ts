@@ -1,25 +1,20 @@
-import { timingSafeEqual } from 'node:crypto'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import type { BindingState } from '../../../shared/types'
 import { originFromRequestUrl } from '../../domain/site-public-origin'
-import { requireAdmin } from '../../middleware/auth'
+import { requireAdmin, requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
-import { syncPendingRemoteDownloadUsageReports } from '../../usecases/downloads/remote-download-usage'
-import { unauthorized } from '../../usecases/ports'
-import { buildCloudInstanceInfo, runtimeInfo } from '../../usecases/site/instance-info'
+import { runtimeInfo } from '../../usecases/site/instance-info'
 import {
   initiatePairing,
   loadBindingState,
   normalizeHost,
   pollPairing,
-  runLicensingRefresh,
   triggerRefresh,
   unbindLicense,
 } from '../../usecases/site/licensing'
 import { getSitePublicOrigin } from '../../usecases/site/public-origin'
-import { syncPendingCloudTrafficReports } from '../../usecases/store/traffic-metering'
 import { errorResponse, jsonContent } from '../openapi'
 
 function getCloudBaseUrl(c: Context<Env>): string {
@@ -50,18 +45,6 @@ function cloudDashboardUrl(cloudBaseUrl: string): string {
   return `${cloudBaseUrl.replace(/\/$/, '')}/dashboard`
 }
 
-function secretsMatch(provided: string, expected: string): boolean {
-  if (provided.length !== expected.length) return false
-  const enc = new TextEncoder()
-  return timingSafeEqual(enc.encode(provided), enc.encode(expected))
-}
-
-function isAuthorizedCronRequest(c: Context<Env>) {
-  const expectedSecret = c.get('platform').getEnv('REFRESH_CRON_SECRET')
-  const provided = c.req.query('secret') ?? ''
-  return Boolean(expectedSecret && secretsMatch(provided, expectedSecret))
-}
-
 const bindingStateSchema = z
   .object({
     bound: z.boolean(),
@@ -78,6 +61,15 @@ const bindingStateSchema = z
   })
   .openapi('LicenseBindingState')
 
+const licenseEntitlementsSchema = z
+  .object({
+    bound: z.boolean(),
+    active: z.boolean(),
+    edition: z.enum(['pro', 'business']).nullable(),
+    features: z.array(z.string()),
+  })
+  .openapi('LicenseEntitlements')
+
 const pairingSchema = z
   .object({ code: z.string(), pairingUrl: z.string(), expiresAt: z.string() })
   .openapi('LicensePairing')
@@ -86,13 +78,24 @@ const pairingStatusSchema = z
   .object({ status: z.string(), edition: z.string().optional(), cloud_store_id: z.string().optional() })
   .openapi('LicensePairingStatus')
 
-const statusRoute = createRoute({
-  operationId: 'getLicensingStatus',
-  summary: 'Get licensing status',
+const entitlementsRoute = createRoute({
+  operationId: 'getLicenseEntitlements',
+  summary: 'Get the current user-visible license entitlements',
   tags: ['Licensing'],
   method: 'get',
-  path: '/status',
-  responses: { 200: jsonContent(bindingStateSchema, 'Binding state') },
+  path: '/entitlements',
+  middleware: [requireAuth] as const,
+  responses: { 200: jsonContent(licenseEntitlementsSchema, 'License entitlements') },
+})
+
+const bindingRoute = createRoute({
+  operationId: 'getLicenseBinding',
+  summary: 'Get license binding details',
+  tags: ['Licensing'],
+  method: 'get',
+  path: '/binding',
+  middleware: [requireAdmin] as const,
+  responses: { 200: jsonContent(bindingStateSchema, 'License binding') },
 })
 
 const initiatePairingRoute = createRoute({
@@ -144,43 +147,35 @@ const unbindRoute = createRoute({
   },
 })
 
-const publicApp = new OpenAPIHono<Env>()
-
-// Cron-secret-authorized sync endpoints — called by external schedulers, not SDK
-// users. Kept as plain routes, excluded from the OpenAPI document.
-publicApp.post('/refresh-cron', async (c) => {
-  if (!isAuthorizedCronRequest(c)) throw unauthorized()
-  const cloudBaseUrl = getCloudBaseUrl(c)
-  const origin = await getInstanceOrigin(c)
-  const instance = origin
-    ? await buildCloudInstanceInfo(c.get('deps'), { url: origin, runtime: runtimeInfo(c.get('platform')) })
-    : undefined
-  await runLicensingRefresh(c.get('deps'), cloudBaseUrl, instance)
-  return c.json({ ok: true })
-})
-publicApp.post('/traffic-sync-runs', async (c) => {
-  if (!isAuthorizedCronRequest(c)) throw unauthorized()
-  const cloudBaseUrl = getCloudBaseUrl(c)
-  const [traffic, remoteDownload] = await Promise.all([
-    syncPendingCloudTrafficReports(c.get('deps'), { cloudBaseUrl }),
-    syncPendingRemoteDownloadUsageReports(c.get('deps'), { cloudBaseUrl }),
-  ])
-  return c.json({ ok: true, ...traffic, remoteDownload })
-})
-
-export const licensing = publicApp.openapi(statusRoute, async (c) => {
+async function loadCurrentBinding(c: Context<Env>) {
   const cloudBaseUrl = getCloudBaseUrl(c)
   const currentHost =
     (await configuredPublicHost(c)) ??
     normalizeHost(c.req.header('x-forwarded-host') ?? c.req.header('host')) ??
     new URL(c.req.url).host
-  const state = await loadBindingState(c.get('deps'), { currentHost, cloudBaseUrl })
-  return c.json({ ...state, cloud_dashboard_url: cloudDashboardUrl(cloudBaseUrl) } satisfies BindingState, 200)
+  return {
+    ...(await loadBindingState(c.get('deps'), { currentHost, cloudBaseUrl })),
+    cloud_dashboard_url: cloudDashboardUrl(cloudBaseUrl),
+  } satisfies BindingState
+}
+
+export const licensing = new OpenAPIHono<Env>().openapi(entitlementsRoute, async (c) => {
+  const state = await loadCurrentBinding(c)
+  return c.json(
+    {
+      bound: state.bound,
+      active: state.active ?? false,
+      edition: state.edition ?? null,
+      features: state.features ?? [],
+    },
+    200,
+  )
 })
 
 const adminApp = new OpenAPIHono<Env>()
 
 export const licensingAdmin = adminApp
+  .openapi(bindingRoute, async (c) => c.json(await loadCurrentBinding(c), 200))
   .openapi(initiatePairingRoute, async (c) => {
     const pairing = await initiatePairing(c.get('deps'), {
       baseUrl: getCloudBaseUrl(c),

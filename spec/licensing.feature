@@ -1,7 +1,7 @@
 Feature: Licensing
   An instance can be bound to a license that unlocks paid features. Binding state
-  is read publicly; a cron endpoint periodically refreshes the cached certificate
-  and syncs pending traffic reports to the cloud.
+  is available to administrators, authenticated users receive a minimal entitlement
+  projection, and scheduler run resources refresh certificates and sync traffic.
 
   @licensing/state-unbound @api
   Scenario: An unbound instance reports no binding
@@ -21,50 +21,50 @@ Feature: Licensing
     When the licensing state is read
     Then it reports bound:true with no plan or features
 
-  @licensing/public @api
-  Scenario: Licensing state is public
+  @licensing/entitlements-auth @api
+  Scenario: License entitlements require authentication
     Given any instance
-    When the licensing state is read without authentication
-    Then it is still returned
+    When license entitlements are read without authentication
+    Then the API responds 401
 
   @licensing/refresh-auth @api
-  Scenario: The refresh cron endpoint requires its secret
-    Given the refresh cron endpoint
-    When it is called without the matching cron secret
+  Scenario: A licensing refresh run requires scheduler authorization
+    Given the licensing refresh run resource
+    When a run is created without the matching bearer token
     Then the API responds 401
 
   @licensing/refresh-noop @api
   Scenario: Refreshing an unbound instance is a no-op success
-    Given no license binding and the correct cron secret
-    When the refresh cron endpoint is called
+    Given no license binding and the correct scheduler bearer token
+    When a licensing refresh run is created
     Then it responds 200 ok without refreshing
 
   @licensing/refresh-runs @api
   Scenario: Refresh runs for a stale binding
-    Given a binding whose last refresh is old and the correct cron secret
-    When the refresh cron endpoint is called
+    Given a binding whose last refresh is old and the correct scheduler bearer token
+    When a licensing refresh run is created
     Then it refreshes the certificate and responds 200 ok
 
   @licensing/refresh-error-swallowed @api
   Scenario: A refresh failure never fails the cron
     Given a binding whose refresh throws
-    When the refresh cron endpoint is called
+    When a licensing refresh run is created
     Then it still responds 200 ok
 
   @licensing/traffic-cron-public @api
-  Scenario: The traffic-sync cron endpoint is reachable
-    Given the dedicated traffic cron endpoint
-    When it is called
+  Scenario: The traffic sync run resource is reachable
+    Given the traffic sync run resource
+    When a run is created with scheduler authorization
     Then it is served without a user session
 
   @licensing/traffic-sync @api
-  Scenario: The traffic cron syncs pending reports
-    Given pending traffic reports and the correct cron secret
-    When the traffic cron endpoint is called
+  Scenario: A traffic sync run syncs pending reports
+    Given pending traffic reports and the correct scheduler bearer token
+    When a traffic sync run is created
     Then the pending reports are synced to the cloud
 
   @licensing/traffic-cron-secret @api
-  Scenario: The traffic cron endpoint requires its secret
-    Given the dedicated traffic cron endpoint
-    When it is called without the cron secret
+  Scenario: A traffic sync run requires scheduler authorization
+    Given the traffic sync run resource
+    When a run is created without the scheduler bearer token
     Then the API responds 401

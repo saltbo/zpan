@@ -648,7 +648,14 @@ export interface ImageHosting {
 }
 
 export type { ChangelogInfo, InstanceInfo } from './instance'
-export type { BindingState, LicenseAssertion, LicenseEdition, LicenseFeature, ProFeature } from './licensing'
+export type {
+  BindingState,
+  LicenseAssertion,
+  LicenseEdition,
+  LicenseEntitlements,
+  LicenseFeature,
+  ProFeature,
+} from './licensing'
 
 export type BrandingThemePresetId = 'default' | 'ocean' | 'forest' | 'rose'
 

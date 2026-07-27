@@ -148,7 +148,7 @@ export async function resetBranding(deps: BrandingDeps, params: { field: Brandin
 
 // Encodes the uploaded file as a `data:` URI and stores it in the branding
 // system option. No S3 / public storage is involved — the data URI is served
-// inline by the public, cached GET /api/site/branding.
+// inline through the public, cached GET /api/configz response.
 export async function uploadBrandingImage(
   deps: Pick<BrandingDeps, 'systemOptions'>,
   field: 'logo' | 'favicon',

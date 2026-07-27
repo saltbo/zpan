@@ -157,18 +157,18 @@ If you prefer an explicit external trigger (e.g. to integrate with your monitori
 3. **Trigger a refresh or traffic sync** with HTTP POST:
 
    ```
-   POST https://your-domain.example/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>
+   POST https://your-domain.example/api/internal/licensing/refresh-runs
    ```
 
    ```
-   POST https://your-domain.example/api/licensing/traffic-sync-runs?secret=<REFRESH_CRON_SECRET>
+   POST https://your-domain.example/api/internal/traffic-sync-runs
    ```
 
    To run on a schedule via host cron, add to your crontab:
 
    ```cron
-   0 */6 * * * curl -s -X POST "https://your-domain.example/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>"
-   */10 * * * * curl -s -X POST "https://your-domain.example/api/licensing/traffic-sync-runs?secret=<REFRESH_CRON_SECRET>"
+   0 */6 * * * curl -s -X POST -H "Authorization: Bearer <REFRESH_CRON_SECRET>" "https://your-domain.example/api/internal/licensing/refresh-runs"
+   */10 * * * * curl -s -X POST -H "Authorization: Bearer <REFRESH_CRON_SECRET>" "https://your-domain.example/api/internal/traffic-sync-runs"
    ```
 
-If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.
+Send `Authorization: Bearer <REFRESH_CRON_SECRET>` with every scheduler request. If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.

@@ -6,13 +6,13 @@ import { adminHeaders, createTestApp } from '../test/setup.js'
 describe('Admin overview API', () => {
   it('requires authentication', async () => {
     const { app } = await createTestApp()
-    const response = await app.request('/api/site/overview')
+    const response = await app.request('/api/site/analytics')
     expect(response.status).toBe(401)
   })
 
   it('returns empty live resources when no backend or downloader is registered', async () => {
     const { app } = await createTestApp()
-    const response = await app.request('/api/site/overview', { headers: await adminHeaders(app) })
+    const response = await app.request('/api/site/analytics', { headers: await adminHeaders(app) })
     expect(response.status).toBe(200)
     const body = (await response.json()) as AdminOverview
     expect(body.storages).toMatchObject({ total: 0, used: 0, capacity: 0 })
@@ -65,7 +65,7 @@ describe('Admin overview API', () => {
       updatedAt: now,
     })
 
-    const response = await app.request('/api/site/overview', { headers })
+    const response = await app.request('/api/site/analytics', { headers })
     expect(response.status).toBe(200)
     const body = (await response.json()) as AdminOverview
     expect(body.storages).toMatchObject({ total: 1, writable: 1, used: 400, capacity: 1000 })

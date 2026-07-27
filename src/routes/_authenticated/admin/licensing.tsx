@@ -6,7 +6,7 @@ import { BoundStatusCard } from '@/components/billing/BoundStatusCard'
 import { ComparisonTable } from '@/components/billing/ComparisonTable'
 import { PairingModal } from '@/components/billing/PairingModal'
 import { Button } from '@/components/ui/button'
-import { entitlementQueryKey } from '@/hooks/useEntitlement'
+import { licenseBindingQueryKey } from '@/hooks/useEntitlement'
 import { getLicensingStatus } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/licensing')({
@@ -18,7 +18,7 @@ function LicensingPage() {
   const [pairingOpen, setPairingOpen] = useState(false)
 
   const { data, isLoading } = useQuery({
-    queryKey: entitlementQueryKey,
+    queryKey: licenseBindingQueryKey,
     queryFn: getLicensingStatus,
     staleTime: 60 * 1000,
   })

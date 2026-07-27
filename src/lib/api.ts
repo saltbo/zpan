@@ -14,6 +14,7 @@ import type {
   DiscountQuote,
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
+  EmailSettings,
   PatchStorageInput,
   PresignObjectUploadPartsInput,
   PublicProfile,
@@ -28,6 +29,7 @@ import type {
   UpdateDownloaderCreditBillingInput,
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
+  UpdateEmailSettingsInput,
   UpdateSiteCaptchaInput,
   UpdateSiteIdentityInput,
   UpdateSiteQuotasInput,
@@ -68,6 +70,7 @@ import type {
   IhostConfigResponse,
   ImageHosting,
   InstanceInfo,
+  LicenseEntitlements,
   Notification,
   ObjectListItem,
   ObjectUploadInstructions,
@@ -176,7 +179,7 @@ export function updateSiteWebDav(input: UpdateSiteWebDavInput) {
 }
 
 export function verifySiteWebDav() {
-  return unwrap<SiteSettings['webdav']>(siteSettingsApi.webdav.verification.$post())
+  return unwrap<SiteSettings['webdav']>(siteSettingsApi.webdav.verifications.$post())
 }
 
 export type UserQuota = Pick<
@@ -836,41 +839,12 @@ export function getSiteInvitation(token: string) {
   return unwrap<SiteInvitation>(publicSiteInvitations[':token'].$get({ param: { token } }))
 }
 
-// Email Config API
+// Email settings API
 
-export interface SmtpEmailConfig {
-  enabled: boolean
-  requireEmailVerification: boolean
-  provider: 'smtp'
-  from: string
-  smtp: { host: string; port: number; user: string; pass: string; secure: boolean }
-}
-
-export interface HttpEmailConfig {
-  enabled: boolean
-  requireEmailVerification: boolean
-  provider: 'http'
-  from: string
-  http: { url: string; apiKey: string }
-}
-
-export interface CloudflareEmailConfig {
-  enabled: boolean
-  requireEmailVerification: boolean
-  provider: 'cloudflare'
-  from: string
-}
-
-export type EmailConfigData = SmtpEmailConfig | HttpEmailConfig | CloudflareEmailConfig
-
-export interface EmptyEmailConfigData {
-  enabled: boolean
-  requireEmailVerification: boolean
-  provider: null
-}
+export type EmailConfigData = UpdateEmailSettingsInput
 
 export function getEmailConfig() {
-  return unwrap<EmailConfigData | EmptyEmailConfigData>(emailConfig.index.$get())
+  return unwrap<EmailSettings>(emailConfig.index.$get())
 }
 
 export function saveEmailConfig(data: EmailConfigData) {
@@ -1209,7 +1183,11 @@ export interface PairingPollResult {
 }
 
 export function getLicensingStatus() {
-  return unwrap<BindingState>(licensingApi.status.$get())
+  return unwrap<BindingState>(licensingAdminApi.binding.$get())
+}
+
+export function getLicenseEntitlements() {
+  return unwrap<LicenseEntitlements>(licensingApi.entitlements.$get())
 }
 
 export function getInstanceInfo() {
@@ -1519,7 +1497,7 @@ export async function saveBranding(data: {
     form.set('theme_ring_color', data.theme_custom.ring_color)
   }
 
-  const res = await fetch('/api/site/branding', {
+  const res = await fetch('/api/site/settings/branding', {
     method: 'PUT',
     body: form,
     credentials: 'include',

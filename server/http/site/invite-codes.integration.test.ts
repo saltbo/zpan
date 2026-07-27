@@ -165,7 +165,7 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns 400 when trying to delete an already-used code [spec: invite-codes/delete-used]', async () => {
+  it('returns 409 when trying to delete an already-used code [spec: invite-codes/delete-used]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const [row] = await createInviteRepo(db).generate('admin-user', 1)
@@ -175,7 +175,7 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
       method: 'DELETE',
       headers,
     })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(409)
   })
 })
 

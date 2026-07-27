@@ -166,8 +166,9 @@ ZPan refreshes its entitlement certificate every 6 hours. On Cloud Run there is 
    ```sh
    gcloud scheduler jobs create http zpan-license-refresh \
      --schedule="0 */6 * * *" \
-     --uri="https://<your-cloud-run-url>/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>" \
+     --uri="https://<your-cloud-run-url>/api/internal/licensing/refresh-runs" \
      --http-method=POST \
+     --headers="Authorization=Bearer <your-secret>" \
      --location=<your-region>
    ```
 
@@ -175,9 +176,10 @@ ZPan refreshes its entitlement certificate every 6 hours. On Cloud Run there is 
    ```sh
    gcloud scheduler jobs create http zpan-traffic-sync \
      --schedule="*/10 * * * *" \
-     --uri="https://<your-cloud-run-url>/api/licensing/traffic-sync-runs?secret=<REFRESH_CRON_SECRET>" \
+     --uri="https://<your-cloud-run-url>/api/internal/traffic-sync-runs" \
      --http-method=POST \
+     --headers="Authorization=Bearer <your-secret>" \
      --location=<your-region>
    ```
 
-If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.
+Send `Authorization: Bearer <REFRESH_CRON_SECRET>` with every scheduler request. If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.

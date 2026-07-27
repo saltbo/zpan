@@ -1,13 +1,25 @@
 import type { ProFeature } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
-import { getLicensingStatus } from '@/lib/api'
+import { getLicenseEntitlements } from '@/lib/api'
 
-export const entitlementQueryKey = ['licensing', 'status'] as const
+export const entitlementQueryKey = ['licensing', 'entitlements'] as const
+export const licenseBindingQueryKey = ['licensing', 'binding'] as const
 
-export function useEntitlement() {
+interface EntitlementState {
+  bound: boolean
+  active: boolean
+  edition: 'pro' | 'business' | null
+  licenseId: string | null
+  cloudDashboardUrl: string | null
+  hasFeature: (name: ProFeature) => boolean
+  isLoading: boolean
+  isError: boolean
+}
+
+export function useEntitlement(): EntitlementState {
   const { data, isLoading, isError } = useQuery({
     queryKey: entitlementQueryKey,
-    queryFn: getLicensingStatus,
+    queryFn: getLicenseEntitlements,
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
   })
@@ -20,8 +32,8 @@ export function useEntitlement() {
     bound: data?.bound ?? false,
     active: data?.active ?? false,
     edition: data?.edition ?? null,
-    licenseId: data?.license_id ?? null,
-    cloudDashboardUrl: data?.cloud_dashboard_url ?? null,
+    licenseId: null,
+    cloudDashboardUrl: null,
     hasFeature,
     isLoading,
     isError,

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,1053 @@ import (
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AdminAnalyticsGrowthComparisonCoverageQuality.
+const (
+	AdminAnalyticsGrowthComparisonCoverageQualityExact      AdminAnalyticsGrowthComparisonCoverageQuality = "exact"
+	AdminAnalyticsGrowthComparisonCoverageQualityLowerBound AdminAnalyticsGrowthComparisonCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsGrowthComparisonCoverageQuality enum.
+func (e AdminAnalyticsGrowthComparisonCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsGrowthComparisonCoverageQualityExact:
+		return true
+	case AdminAnalyticsGrowthComparisonCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsGrowthComparisonCoverageStatus.
+const (
+	AdminAnalyticsGrowthComparisonCoverageStatusComplete AdminAnalyticsGrowthComparisonCoverageStatus = "complete"
+	AdminAnalyticsGrowthComparisonCoverageStatusEmpty    AdminAnalyticsGrowthComparisonCoverageStatus = "empty"
+	AdminAnalyticsGrowthComparisonCoverageStatusPartial  AdminAnalyticsGrowthComparisonCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsGrowthComparisonCoverageStatus enum.
+func (e AdminAnalyticsGrowthComparisonCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsGrowthComparisonCoverageStatusComplete:
+		return true
+	case AdminAnalyticsGrowthComparisonCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsGrowthComparisonCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsGrowthComparisonSnapshotCoverageQuality.
+const (
+	AdminAnalyticsGrowthComparisonSnapshotCoverageQualityExact      AdminAnalyticsGrowthComparisonSnapshotCoverageQuality = "exact"
+	AdminAnalyticsGrowthComparisonSnapshotCoverageQualityLowerBound AdminAnalyticsGrowthComparisonSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsGrowthComparisonSnapshotCoverageQuality enum.
+func (e AdminAnalyticsGrowthComparisonSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsGrowthComparisonSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsGrowthComparisonSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsGrowthComparisonSnapshotCoverageStatus.
+const (
+	AdminAnalyticsGrowthComparisonSnapshotCoverageStatusComplete AdminAnalyticsGrowthComparisonSnapshotCoverageStatus = "complete"
+	AdminAnalyticsGrowthComparisonSnapshotCoverageStatusEmpty    AdminAnalyticsGrowthComparisonSnapshotCoverageStatus = "empty"
+	AdminAnalyticsGrowthComparisonSnapshotCoverageStatusPartial  AdminAnalyticsGrowthComparisonSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsGrowthComparisonSnapshotCoverageStatus enum.
+func (e AdminAnalyticsGrowthComparisonSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsGrowthComparisonSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsGrowthComparisonSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsGrowthComparisonSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsGrowthCoverageQuality.
+const (
+	AdminAnalyticsGrowthCoverageQualityExact      AdminAnalyticsGrowthCoverageQuality = "exact"
+	AdminAnalyticsGrowthCoverageQualityLowerBound AdminAnalyticsGrowthCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsGrowthCoverageQuality enum.
+func (e AdminAnalyticsGrowthCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsGrowthCoverageQualityExact:
+		return true
+	case AdminAnalyticsGrowthCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsGrowthCoverageStatus.
+const (
+	AdminAnalyticsGrowthCoverageStatusComplete AdminAnalyticsGrowthCoverageStatus = "complete"
+	AdminAnalyticsGrowthCoverageStatusEmpty    AdminAnalyticsGrowthCoverageStatus = "empty"
+	AdminAnalyticsGrowthCoverageStatusPartial  AdminAnalyticsGrowthCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsGrowthCoverageStatus enum.
+func (e AdminAnalyticsGrowthCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsGrowthCoverageStatusComplete:
+		return true
+	case AdminAnalyticsGrowthCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsGrowthCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsGrowthSnapshotCoverageQuality.
+const (
+	AdminAnalyticsGrowthSnapshotCoverageQualityExact      AdminAnalyticsGrowthSnapshotCoverageQuality = "exact"
+	AdminAnalyticsGrowthSnapshotCoverageQualityLowerBound AdminAnalyticsGrowthSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsGrowthSnapshotCoverageQuality enum.
+func (e AdminAnalyticsGrowthSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsGrowthSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsGrowthSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsGrowthSnapshotCoverageStatus.
+const (
+	AdminAnalyticsGrowthSnapshotCoverageStatusComplete AdminAnalyticsGrowthSnapshotCoverageStatus = "complete"
+	AdminAnalyticsGrowthSnapshotCoverageStatusEmpty    AdminAnalyticsGrowthSnapshotCoverageStatus = "empty"
+	AdminAnalyticsGrowthSnapshotCoverageStatusPartial  AdminAnalyticsGrowthSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsGrowthSnapshotCoverageStatus enum.
+func (e AdminAnalyticsGrowthSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsGrowthSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsGrowthSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsGrowthSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsGrowthTimeZone.
+const (
+	AdminAnalyticsGrowthTimeZoneUTC AdminAnalyticsGrowthTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsGrowthTimeZone enum.
+func (e AdminAnalyticsGrowthTimeZone) Valid() bool {
+	switch e {
+	case AdminAnalyticsGrowthTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOperationsComparisonCoverageQuality.
+const (
+	AdminAnalyticsOperationsComparisonCoverageQualityExact      AdminAnalyticsOperationsComparisonCoverageQuality = "exact"
+	AdminAnalyticsOperationsComparisonCoverageQualityLowerBound AdminAnalyticsOperationsComparisonCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOperationsComparisonCoverageQuality enum.
+func (e AdminAnalyticsOperationsComparisonCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsOperationsComparisonCoverageQualityExact:
+		return true
+	case AdminAnalyticsOperationsComparisonCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOperationsComparisonCoverageStatus.
+const (
+	AdminAnalyticsOperationsComparisonCoverageStatusComplete AdminAnalyticsOperationsComparisonCoverageStatus = "complete"
+	AdminAnalyticsOperationsComparisonCoverageStatusEmpty    AdminAnalyticsOperationsComparisonCoverageStatus = "empty"
+	AdminAnalyticsOperationsComparisonCoverageStatusPartial  AdminAnalyticsOperationsComparisonCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOperationsComparisonCoverageStatus enum.
+func (e AdminAnalyticsOperationsComparisonCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsOperationsComparisonCoverageStatusComplete:
+		return true
+	case AdminAnalyticsOperationsComparisonCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsOperationsComparisonCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOperationsComparisonSnapshotCoverageQuality.
+const (
+	AdminAnalyticsOperationsComparisonSnapshotCoverageQualityExact      AdminAnalyticsOperationsComparisonSnapshotCoverageQuality = "exact"
+	AdminAnalyticsOperationsComparisonSnapshotCoverageQualityLowerBound AdminAnalyticsOperationsComparisonSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOperationsComparisonSnapshotCoverageQuality enum.
+func (e AdminAnalyticsOperationsComparisonSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsOperationsComparisonSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsOperationsComparisonSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOperationsComparisonSnapshotCoverageStatus.
+const (
+	AdminAnalyticsOperationsComparisonSnapshotCoverageStatusComplete AdminAnalyticsOperationsComparisonSnapshotCoverageStatus = "complete"
+	AdminAnalyticsOperationsComparisonSnapshotCoverageStatusEmpty    AdminAnalyticsOperationsComparisonSnapshotCoverageStatus = "empty"
+	AdminAnalyticsOperationsComparisonSnapshotCoverageStatusPartial  AdminAnalyticsOperationsComparisonSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOperationsComparisonSnapshotCoverageStatus enum.
+func (e AdminAnalyticsOperationsComparisonSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsOperationsComparisonSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsOperationsComparisonSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsOperationsComparisonSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOperationsCoverageQuality.
+const (
+	AdminAnalyticsOperationsCoverageQualityExact      AdminAnalyticsOperationsCoverageQuality = "exact"
+	AdminAnalyticsOperationsCoverageQualityLowerBound AdminAnalyticsOperationsCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOperationsCoverageQuality enum.
+func (e AdminAnalyticsOperationsCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsOperationsCoverageQualityExact:
+		return true
+	case AdminAnalyticsOperationsCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOperationsCoverageStatus.
+const (
+	AdminAnalyticsOperationsCoverageStatusComplete AdminAnalyticsOperationsCoverageStatus = "complete"
+	AdminAnalyticsOperationsCoverageStatusEmpty    AdminAnalyticsOperationsCoverageStatus = "empty"
+	AdminAnalyticsOperationsCoverageStatusPartial  AdminAnalyticsOperationsCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOperationsCoverageStatus enum.
+func (e AdminAnalyticsOperationsCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsOperationsCoverageStatusComplete:
+		return true
+	case AdminAnalyticsOperationsCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsOperationsCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOperationsSnapshotCoverageQuality.
+const (
+	AdminAnalyticsOperationsSnapshotCoverageQualityExact      AdminAnalyticsOperationsSnapshotCoverageQuality = "exact"
+	AdminAnalyticsOperationsSnapshotCoverageQualityLowerBound AdminAnalyticsOperationsSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOperationsSnapshotCoverageQuality enum.
+func (e AdminAnalyticsOperationsSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsOperationsSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsOperationsSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOperationsSnapshotCoverageStatus.
+const (
+	AdminAnalyticsOperationsSnapshotCoverageStatusComplete AdminAnalyticsOperationsSnapshotCoverageStatus = "complete"
+	AdminAnalyticsOperationsSnapshotCoverageStatusEmpty    AdminAnalyticsOperationsSnapshotCoverageStatus = "empty"
+	AdminAnalyticsOperationsSnapshotCoverageStatusPartial  AdminAnalyticsOperationsSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOperationsSnapshotCoverageStatus enum.
+func (e AdminAnalyticsOperationsSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsOperationsSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsOperationsSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsOperationsSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOperationsTimeZone.
+const (
+	AdminAnalyticsOperationsTimeZoneUTC AdminAnalyticsOperationsTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOperationsTimeZone enum.
+func (e AdminAnalyticsOperationsTimeZone) Valid() bool {
+	switch e {
+	case AdminAnalyticsOperationsTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOverviewComparisonCoverageQuality.
+const (
+	AdminAnalyticsOverviewComparisonCoverageQualityExact      AdminAnalyticsOverviewComparisonCoverageQuality = "exact"
+	AdminAnalyticsOverviewComparisonCoverageQualityLowerBound AdminAnalyticsOverviewComparisonCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOverviewComparisonCoverageQuality enum.
+func (e AdminAnalyticsOverviewComparisonCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsOverviewComparisonCoverageQualityExact:
+		return true
+	case AdminAnalyticsOverviewComparisonCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOverviewComparisonCoverageStatus.
+const (
+	AdminAnalyticsOverviewComparisonCoverageStatusComplete AdminAnalyticsOverviewComparisonCoverageStatus = "complete"
+	AdminAnalyticsOverviewComparisonCoverageStatusEmpty    AdminAnalyticsOverviewComparisonCoverageStatus = "empty"
+	AdminAnalyticsOverviewComparisonCoverageStatusPartial  AdminAnalyticsOverviewComparisonCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOverviewComparisonCoverageStatus enum.
+func (e AdminAnalyticsOverviewComparisonCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsOverviewComparisonCoverageStatusComplete:
+		return true
+	case AdminAnalyticsOverviewComparisonCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsOverviewComparisonCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOverviewComparisonSnapshotCoverageQuality.
+const (
+	AdminAnalyticsOverviewComparisonSnapshotCoverageQualityExact      AdminAnalyticsOverviewComparisonSnapshotCoverageQuality = "exact"
+	AdminAnalyticsOverviewComparisonSnapshotCoverageQualityLowerBound AdminAnalyticsOverviewComparisonSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOverviewComparisonSnapshotCoverageQuality enum.
+func (e AdminAnalyticsOverviewComparisonSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsOverviewComparisonSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsOverviewComparisonSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOverviewComparisonSnapshotCoverageStatus.
+const (
+	AdminAnalyticsOverviewComparisonSnapshotCoverageStatusComplete AdminAnalyticsOverviewComparisonSnapshotCoverageStatus = "complete"
+	AdminAnalyticsOverviewComparisonSnapshotCoverageStatusEmpty    AdminAnalyticsOverviewComparisonSnapshotCoverageStatus = "empty"
+	AdminAnalyticsOverviewComparisonSnapshotCoverageStatusPartial  AdminAnalyticsOverviewComparisonSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOverviewComparisonSnapshotCoverageStatus enum.
+func (e AdminAnalyticsOverviewComparisonSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsOverviewComparisonSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsOverviewComparisonSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsOverviewComparisonSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOverviewCoverageQuality.
+const (
+	AdminAnalyticsOverviewCoverageQualityExact      AdminAnalyticsOverviewCoverageQuality = "exact"
+	AdminAnalyticsOverviewCoverageQualityLowerBound AdminAnalyticsOverviewCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOverviewCoverageQuality enum.
+func (e AdminAnalyticsOverviewCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsOverviewCoverageQualityExact:
+		return true
+	case AdminAnalyticsOverviewCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOverviewCoverageStatus.
+const (
+	AdminAnalyticsOverviewCoverageStatusComplete AdminAnalyticsOverviewCoverageStatus = "complete"
+	AdminAnalyticsOverviewCoverageStatusEmpty    AdminAnalyticsOverviewCoverageStatus = "empty"
+	AdminAnalyticsOverviewCoverageStatusPartial  AdminAnalyticsOverviewCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOverviewCoverageStatus enum.
+func (e AdminAnalyticsOverviewCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsOverviewCoverageStatusComplete:
+		return true
+	case AdminAnalyticsOverviewCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsOverviewCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOverviewSnapshotCoverageQuality.
+const (
+	AdminAnalyticsOverviewSnapshotCoverageQualityExact      AdminAnalyticsOverviewSnapshotCoverageQuality = "exact"
+	AdminAnalyticsOverviewSnapshotCoverageQualityLowerBound AdminAnalyticsOverviewSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOverviewSnapshotCoverageQuality enum.
+func (e AdminAnalyticsOverviewSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsOverviewSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsOverviewSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOverviewSnapshotCoverageStatus.
+const (
+	AdminAnalyticsOverviewSnapshotCoverageStatusComplete AdminAnalyticsOverviewSnapshotCoverageStatus = "complete"
+	AdminAnalyticsOverviewSnapshotCoverageStatusEmpty    AdminAnalyticsOverviewSnapshotCoverageStatus = "empty"
+	AdminAnalyticsOverviewSnapshotCoverageStatusPartial  AdminAnalyticsOverviewSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOverviewSnapshotCoverageStatus enum.
+func (e AdminAnalyticsOverviewSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsOverviewSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsOverviewSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsOverviewSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsOverviewTimeZone.
+const (
+	AdminAnalyticsOverviewTimeZoneUTC AdminAnalyticsOverviewTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsOverviewTimeZone enum.
+func (e AdminAnalyticsOverviewTimeZone) Valid() bool {
+	switch e {
+	case AdminAnalyticsOverviewTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsSharingComparisonCoverageQuality.
+const (
+	AdminAnalyticsSharingComparisonCoverageQualityExact      AdminAnalyticsSharingComparisonCoverageQuality = "exact"
+	AdminAnalyticsSharingComparisonCoverageQualityLowerBound AdminAnalyticsSharingComparisonCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsSharingComparisonCoverageQuality enum.
+func (e AdminAnalyticsSharingComparisonCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsSharingComparisonCoverageQualityExact:
+		return true
+	case AdminAnalyticsSharingComparisonCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsSharingComparisonCoverageStatus.
+const (
+	AdminAnalyticsSharingComparisonCoverageStatusComplete AdminAnalyticsSharingComparisonCoverageStatus = "complete"
+	AdminAnalyticsSharingComparisonCoverageStatusEmpty    AdminAnalyticsSharingComparisonCoverageStatus = "empty"
+	AdminAnalyticsSharingComparisonCoverageStatusPartial  AdminAnalyticsSharingComparisonCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsSharingComparisonCoverageStatus enum.
+func (e AdminAnalyticsSharingComparisonCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsSharingComparisonCoverageStatusComplete:
+		return true
+	case AdminAnalyticsSharingComparisonCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsSharingComparisonCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsSharingComparisonSnapshotCoverageQuality.
+const (
+	AdminAnalyticsSharingComparisonSnapshotCoverageQualityExact      AdminAnalyticsSharingComparisonSnapshotCoverageQuality = "exact"
+	AdminAnalyticsSharingComparisonSnapshotCoverageQualityLowerBound AdminAnalyticsSharingComparisonSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsSharingComparisonSnapshotCoverageQuality enum.
+func (e AdminAnalyticsSharingComparisonSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsSharingComparisonSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsSharingComparisonSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsSharingComparisonSnapshotCoverageStatus.
+const (
+	AdminAnalyticsSharingComparisonSnapshotCoverageStatusComplete AdminAnalyticsSharingComparisonSnapshotCoverageStatus = "complete"
+	AdminAnalyticsSharingComparisonSnapshotCoverageStatusEmpty    AdminAnalyticsSharingComparisonSnapshotCoverageStatus = "empty"
+	AdminAnalyticsSharingComparisonSnapshotCoverageStatusPartial  AdminAnalyticsSharingComparisonSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsSharingComparisonSnapshotCoverageStatus enum.
+func (e AdminAnalyticsSharingComparisonSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsSharingComparisonSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsSharingComparisonSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsSharingComparisonSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsSharingCoverageQuality.
+const (
+	AdminAnalyticsSharingCoverageQualityExact      AdminAnalyticsSharingCoverageQuality = "exact"
+	AdminAnalyticsSharingCoverageQualityLowerBound AdminAnalyticsSharingCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsSharingCoverageQuality enum.
+func (e AdminAnalyticsSharingCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsSharingCoverageQualityExact:
+		return true
+	case AdminAnalyticsSharingCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsSharingCoverageStatus.
+const (
+	AdminAnalyticsSharingCoverageStatusComplete AdminAnalyticsSharingCoverageStatus = "complete"
+	AdminAnalyticsSharingCoverageStatusEmpty    AdminAnalyticsSharingCoverageStatus = "empty"
+	AdminAnalyticsSharingCoverageStatusPartial  AdminAnalyticsSharingCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsSharingCoverageStatus enum.
+func (e AdminAnalyticsSharingCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsSharingCoverageStatusComplete:
+		return true
+	case AdminAnalyticsSharingCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsSharingCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsSharingSnapshotCoverageQuality.
+const (
+	AdminAnalyticsSharingSnapshotCoverageQualityExact      AdminAnalyticsSharingSnapshotCoverageQuality = "exact"
+	AdminAnalyticsSharingSnapshotCoverageQualityLowerBound AdminAnalyticsSharingSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsSharingSnapshotCoverageQuality enum.
+func (e AdminAnalyticsSharingSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsSharingSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsSharingSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsSharingSnapshotCoverageStatus.
+const (
+	AdminAnalyticsSharingSnapshotCoverageStatusComplete AdminAnalyticsSharingSnapshotCoverageStatus = "complete"
+	AdminAnalyticsSharingSnapshotCoverageStatusEmpty    AdminAnalyticsSharingSnapshotCoverageStatus = "empty"
+	AdminAnalyticsSharingSnapshotCoverageStatusPartial  AdminAnalyticsSharingSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsSharingSnapshotCoverageStatus enum.
+func (e AdminAnalyticsSharingSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsSharingSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsSharingSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsSharingSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsSharingTimeZone.
+const (
+	AdminAnalyticsSharingTimeZoneUTC AdminAnalyticsSharingTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsSharingTimeZone enum.
+func (e AdminAnalyticsSharingTimeZone) Valid() bool {
+	switch e {
+	case AdminAnalyticsSharingTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsStorageComparisonCoverageQuality.
+const (
+	AdminAnalyticsStorageComparisonCoverageQualityExact      AdminAnalyticsStorageComparisonCoverageQuality = "exact"
+	AdminAnalyticsStorageComparisonCoverageQualityLowerBound AdminAnalyticsStorageComparisonCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsStorageComparisonCoverageQuality enum.
+func (e AdminAnalyticsStorageComparisonCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsStorageComparisonCoverageQualityExact:
+		return true
+	case AdminAnalyticsStorageComparisonCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsStorageComparisonCoverageStatus.
+const (
+	AdminAnalyticsStorageComparisonCoverageStatusComplete AdminAnalyticsStorageComparisonCoverageStatus = "complete"
+	AdminAnalyticsStorageComparisonCoverageStatusEmpty    AdminAnalyticsStorageComparisonCoverageStatus = "empty"
+	AdminAnalyticsStorageComparisonCoverageStatusPartial  AdminAnalyticsStorageComparisonCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsStorageComparisonCoverageStatus enum.
+func (e AdminAnalyticsStorageComparisonCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsStorageComparisonCoverageStatusComplete:
+		return true
+	case AdminAnalyticsStorageComparisonCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsStorageComparisonCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsStorageComparisonSnapshotCoverageQuality.
+const (
+	AdminAnalyticsStorageComparisonSnapshotCoverageQualityExact      AdminAnalyticsStorageComparisonSnapshotCoverageQuality = "exact"
+	AdminAnalyticsStorageComparisonSnapshotCoverageQualityLowerBound AdminAnalyticsStorageComparisonSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsStorageComparisonSnapshotCoverageQuality enum.
+func (e AdminAnalyticsStorageComparisonSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsStorageComparisonSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsStorageComparisonSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsStorageComparisonSnapshotCoverageStatus.
+const (
+	AdminAnalyticsStorageComparisonSnapshotCoverageStatusComplete AdminAnalyticsStorageComparisonSnapshotCoverageStatus = "complete"
+	AdminAnalyticsStorageComparisonSnapshotCoverageStatusEmpty    AdminAnalyticsStorageComparisonSnapshotCoverageStatus = "empty"
+	AdminAnalyticsStorageComparisonSnapshotCoverageStatusPartial  AdminAnalyticsStorageComparisonSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsStorageComparisonSnapshotCoverageStatus enum.
+func (e AdminAnalyticsStorageComparisonSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsStorageComparisonSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsStorageComparisonSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsStorageComparisonSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsStorageCoverageQuality.
+const (
+	AdminAnalyticsStorageCoverageQualityExact      AdminAnalyticsStorageCoverageQuality = "exact"
+	AdminAnalyticsStorageCoverageQualityLowerBound AdminAnalyticsStorageCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsStorageCoverageQuality enum.
+func (e AdminAnalyticsStorageCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsStorageCoverageQualityExact:
+		return true
+	case AdminAnalyticsStorageCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsStorageCoverageStatus.
+const (
+	AdminAnalyticsStorageCoverageStatusComplete AdminAnalyticsStorageCoverageStatus = "complete"
+	AdminAnalyticsStorageCoverageStatusEmpty    AdminAnalyticsStorageCoverageStatus = "empty"
+	AdminAnalyticsStorageCoverageStatusPartial  AdminAnalyticsStorageCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsStorageCoverageStatus enum.
+func (e AdminAnalyticsStorageCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsStorageCoverageStatusComplete:
+		return true
+	case AdminAnalyticsStorageCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsStorageCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsStorageSnapshotCoverageQuality.
+const (
+	AdminAnalyticsStorageSnapshotCoverageQualityExact      AdminAnalyticsStorageSnapshotCoverageQuality = "exact"
+	AdminAnalyticsStorageSnapshotCoverageQualityLowerBound AdminAnalyticsStorageSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsStorageSnapshotCoverageQuality enum.
+func (e AdminAnalyticsStorageSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsStorageSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsStorageSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsStorageSnapshotCoverageStatus.
+const (
+	AdminAnalyticsStorageSnapshotCoverageStatusComplete AdminAnalyticsStorageSnapshotCoverageStatus = "complete"
+	AdminAnalyticsStorageSnapshotCoverageStatusEmpty    AdminAnalyticsStorageSnapshotCoverageStatus = "empty"
+	AdminAnalyticsStorageSnapshotCoverageStatusPartial  AdminAnalyticsStorageSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsStorageSnapshotCoverageStatus enum.
+func (e AdminAnalyticsStorageSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsStorageSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsStorageSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsStorageSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsStorageTimeZone.
+const (
+	AdminAnalyticsStorageTimeZoneUTC AdminAnalyticsStorageTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsStorageTimeZone enum.
+func (e AdminAnalyticsStorageTimeZone) Valid() bool {
+	switch e {
+	case AdminAnalyticsStorageTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsTrafficComparisonCoverageQuality.
+const (
+	AdminAnalyticsTrafficComparisonCoverageQualityExact      AdminAnalyticsTrafficComparisonCoverageQuality = "exact"
+	AdminAnalyticsTrafficComparisonCoverageQualityLowerBound AdminAnalyticsTrafficComparisonCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsTrafficComparisonCoverageQuality enum.
+func (e AdminAnalyticsTrafficComparisonCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsTrafficComparisonCoverageQualityExact:
+		return true
+	case AdminAnalyticsTrafficComparisonCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsTrafficComparisonCoverageStatus.
+const (
+	AdminAnalyticsTrafficComparisonCoverageStatusComplete AdminAnalyticsTrafficComparisonCoverageStatus = "complete"
+	AdminAnalyticsTrafficComparisonCoverageStatusEmpty    AdminAnalyticsTrafficComparisonCoverageStatus = "empty"
+	AdminAnalyticsTrafficComparisonCoverageStatusPartial  AdminAnalyticsTrafficComparisonCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsTrafficComparisonCoverageStatus enum.
+func (e AdminAnalyticsTrafficComparisonCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsTrafficComparisonCoverageStatusComplete:
+		return true
+	case AdminAnalyticsTrafficComparisonCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsTrafficComparisonCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsTrafficComparisonSnapshotCoverageQuality.
+const (
+	AdminAnalyticsTrafficComparisonSnapshotCoverageQualityExact      AdminAnalyticsTrafficComparisonSnapshotCoverageQuality = "exact"
+	AdminAnalyticsTrafficComparisonSnapshotCoverageQualityLowerBound AdminAnalyticsTrafficComparisonSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsTrafficComparisonSnapshotCoverageQuality enum.
+func (e AdminAnalyticsTrafficComparisonSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsTrafficComparisonSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsTrafficComparisonSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsTrafficComparisonSnapshotCoverageStatus.
+const (
+	AdminAnalyticsTrafficComparisonSnapshotCoverageStatusComplete AdminAnalyticsTrafficComparisonSnapshotCoverageStatus = "complete"
+	AdminAnalyticsTrafficComparisonSnapshotCoverageStatusEmpty    AdminAnalyticsTrafficComparisonSnapshotCoverageStatus = "empty"
+	AdminAnalyticsTrafficComparisonSnapshotCoverageStatusPartial  AdminAnalyticsTrafficComparisonSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsTrafficComparisonSnapshotCoverageStatus enum.
+func (e AdminAnalyticsTrafficComparisonSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsTrafficComparisonSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsTrafficComparisonSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsTrafficComparisonSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsTrafficCoverageQuality.
+const (
+	AdminAnalyticsTrafficCoverageQualityExact      AdminAnalyticsTrafficCoverageQuality = "exact"
+	AdminAnalyticsTrafficCoverageQualityLowerBound AdminAnalyticsTrafficCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsTrafficCoverageQuality enum.
+func (e AdminAnalyticsTrafficCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsTrafficCoverageQualityExact:
+		return true
+	case AdminAnalyticsTrafficCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsTrafficCoverageStatus.
+const (
+	AdminAnalyticsTrafficCoverageStatusComplete AdminAnalyticsTrafficCoverageStatus = "complete"
+	AdminAnalyticsTrafficCoverageStatusEmpty    AdminAnalyticsTrafficCoverageStatus = "empty"
+	AdminAnalyticsTrafficCoverageStatusPartial  AdminAnalyticsTrafficCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsTrafficCoverageStatus enum.
+func (e AdminAnalyticsTrafficCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsTrafficCoverageStatusComplete:
+		return true
+	case AdminAnalyticsTrafficCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsTrafficCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsTrafficSnapshotCoverageQuality.
+const (
+	AdminAnalyticsTrafficSnapshotCoverageQualityExact      AdminAnalyticsTrafficSnapshotCoverageQuality = "exact"
+	AdminAnalyticsTrafficSnapshotCoverageQualityLowerBound AdminAnalyticsTrafficSnapshotCoverageQuality = "lower_bound"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsTrafficSnapshotCoverageQuality enum.
+func (e AdminAnalyticsTrafficSnapshotCoverageQuality) Valid() bool {
+	switch e {
+	case AdminAnalyticsTrafficSnapshotCoverageQualityExact:
+		return true
+	case AdminAnalyticsTrafficSnapshotCoverageQualityLowerBound:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsTrafficSnapshotCoverageStatus.
+const (
+	AdminAnalyticsTrafficSnapshotCoverageStatusComplete AdminAnalyticsTrafficSnapshotCoverageStatus = "complete"
+	AdminAnalyticsTrafficSnapshotCoverageStatusEmpty    AdminAnalyticsTrafficSnapshotCoverageStatus = "empty"
+	AdminAnalyticsTrafficSnapshotCoverageStatusPartial  AdminAnalyticsTrafficSnapshotCoverageStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsTrafficSnapshotCoverageStatus enum.
+func (e AdminAnalyticsTrafficSnapshotCoverageStatus) Valid() bool {
+	switch e {
+	case AdminAnalyticsTrafficSnapshotCoverageStatusComplete:
+		return true
+	case AdminAnalyticsTrafficSnapshotCoverageStatusEmpty:
+		return true
+	case AdminAnalyticsTrafficSnapshotCoverageStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAnalyticsTrafficTimeZone.
+const (
+	AdminAnalyticsTrafficTimeZoneUTC AdminAnalyticsTrafficTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the AdminAnalyticsTrafficTimeZone enum.
+func (e AdminAnalyticsTrafficTimeZone) Valid() bool {
+	switch e {
+	case AdminAnalyticsTrafficTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminDashboardDownloadersItemsStatus.
+const (
+	AdminDashboardDownloadersItemsStatusDisabled AdminDashboardDownloadersItemsStatus = "disabled"
+	AdminDashboardDownloadersItemsStatusOffline  AdminDashboardDownloadersItemsStatus = "offline"
+	AdminDashboardDownloadersItemsStatusOnline   AdminDashboardDownloadersItemsStatus = "online"
+)
+
+// Valid indicates whether the value is a known member of the AdminDashboardDownloadersItemsStatus enum.
+func (e AdminDashboardDownloadersItemsStatus) Valid() bool {
+	switch e {
+	case AdminDashboardDownloadersItemsStatusDisabled:
+		return true
+	case AdminDashboardDownloadersItemsStatusOffline:
+		return true
+	case AdminDashboardDownloadersItemsStatusOnline:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for AuditEventActorType.
 const (
@@ -87,6 +1135,21 @@ func (e CaptchaProvider) Valid() bool {
 	case GoogleRecaptcha:
 		return true
 	case Hcaptcha:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CloudflareEmailSettingsProvider.
+const (
+	Cloudflare CloudflareEmailSettingsProvider = "cloudflare"
+)
+
+// Valid indicates whether the value is a known member of the CloudflareEmailSettingsProvider enum.
+func (e CloudflareEmailSettingsProvider) Valid() bool {
+	switch e {
+	case Cloudflare:
 		return true
 	default:
 		return false
@@ -489,6 +1552,21 @@ func (e ErrorInfoType) Valid() bool {
 	}
 }
 
+// Defines values for HttpEmailSettingsProvider.
+const (
+	HttpEmailSettingsProviderHttp HttpEmailSettingsProvider = "http"
+)
+
+// Valid indicates whether the value is a known member of the HttpEmailSettingsProvider enum.
+func (e HttpEmailSettingsProvider) Valid() bool {
+	switch e {
+	case HttpEmailSettingsProviderHttp:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImageHostingConfigDomainStatus.
 const (
 	ImageHostingConfigDomainStatusNone     ImageHostingConfigDomainStatus = "none"
@@ -504,6 +1582,27 @@ func (e ImageHostingConfigDomainStatus) Valid() bool {
 	case ImageHostingConfigDomainStatusPending:
 		return true
 	case ImageHostingConfigDomainStatusVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LicenseEntitlementsEdition.
+const (
+	LicenseEntitlementsEditionBusiness    LicenseEntitlementsEdition = "business"
+	LicenseEntitlementsEditionLessThannil LicenseEntitlementsEdition = "<nil>"
+	LicenseEntitlementsEditionPro         LicenseEntitlementsEdition = "pro"
+)
+
+// Valid indicates whether the value is a known member of the LicenseEntitlementsEdition enum.
+func (e LicenseEntitlementsEdition) Valid() bool {
+	switch e {
+	case LicenseEntitlementsEditionBusiness:
+		return true
+	case LicenseEntitlementsEditionLessThannil:
+		return true
+	case LicenseEntitlementsEditionPro:
 		return true
 	default:
 		return false
@@ -591,6 +1690,21 @@ func (e SiteBrandingThemeMode) Valid() bool {
 	case Custom:
 		return true
 	case Preset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SmtpEmailSettingsProvider.
+const (
+	Smtp SmtpEmailSettingsProvider = "smtp"
+)
+
+// Valid indicates whether the value is a known member of the SmtpEmailSettingsProvider enum.
+func (e SmtpEmailSettingsProvider) Valid() bool {
+	switch e {
+	case Smtp:
 		return true
 	default:
 		return false
@@ -1353,6 +2467,96 @@ func (e RevokeShareJSONBodyStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetAdminAnalyticsGrowthParamsTimeZone.
+const (
+	GetAdminAnalyticsGrowthParamsTimeZoneUTC GetAdminAnalyticsGrowthParamsTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminAnalyticsGrowthParamsTimeZone enum.
+func (e GetAdminAnalyticsGrowthParamsTimeZone) Valid() bool {
+	switch e {
+	case GetAdminAnalyticsGrowthParamsTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminAnalyticsOperationsParamsTimeZone.
+const (
+	GetAdminAnalyticsOperationsParamsTimeZoneUTC GetAdminAnalyticsOperationsParamsTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminAnalyticsOperationsParamsTimeZone enum.
+func (e GetAdminAnalyticsOperationsParamsTimeZone) Valid() bool {
+	switch e {
+	case GetAdminAnalyticsOperationsParamsTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminAnalyticsOverviewParamsTimeZone.
+const (
+	GetAdminAnalyticsOverviewParamsTimeZoneUTC GetAdminAnalyticsOverviewParamsTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminAnalyticsOverviewParamsTimeZone enum.
+func (e GetAdminAnalyticsOverviewParamsTimeZone) Valid() bool {
+	switch e {
+	case GetAdminAnalyticsOverviewParamsTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminAnalyticsSharingParamsTimeZone.
+const (
+	GetAdminAnalyticsSharingParamsTimeZoneUTC GetAdminAnalyticsSharingParamsTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminAnalyticsSharingParamsTimeZone enum.
+func (e GetAdminAnalyticsSharingParamsTimeZone) Valid() bool {
+	switch e {
+	case GetAdminAnalyticsSharingParamsTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminAnalyticsStorageParamsTimeZone.
+const (
+	GetAdminAnalyticsStorageParamsTimeZoneUTC GetAdminAnalyticsStorageParamsTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminAnalyticsStorageParamsTimeZone enum.
+func (e GetAdminAnalyticsStorageParamsTimeZone) Valid() bool {
+	switch e {
+	case GetAdminAnalyticsStorageParamsTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminAnalyticsTrafficParamsTimeZone.
+const (
+	GetAdminAnalyticsTrafficParamsTimeZoneUTC GetAdminAnalyticsTrafficParamsTimeZone = "UTC"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminAnalyticsTrafficParamsTimeZone enum.
+func (e GetAdminAnalyticsTrafficParamsTimeZone) Valid() bool {
+	switch e {
+	case GetAdminAnalyticsTrafficParamsTimeZoneUTC:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListAnnouncementsParamsScope.
 const (
 	Active ListAnnouncementsParamsScope = "active"
@@ -1452,51 +2656,6 @@ func (e UpsertAuthProviderJSONBodyType) Valid() bool {
 	}
 }
 
-// Defines values for SaveEmailConfigJSONBody0Provider.
-const (
-	Smtp SaveEmailConfigJSONBody0Provider = "smtp"
-)
-
-// Valid indicates whether the value is a known member of the SaveEmailConfigJSONBody0Provider enum.
-func (e SaveEmailConfigJSONBody0Provider) Valid() bool {
-	switch e {
-	case Smtp:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SaveEmailConfigJSONBody1Provider.
-const (
-	SaveEmailConfigJSONBody1ProviderHttp SaveEmailConfigJSONBody1Provider = "http"
-)
-
-// Valid indicates whether the value is a known member of the SaveEmailConfigJSONBody1Provider enum.
-func (e SaveEmailConfigJSONBody1Provider) Valid() bool {
-	switch e {
-	case SaveEmailConfigJSONBody1ProviderHttp:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SaveEmailConfigJSONBody2Provider.
-const (
-	Cloudflare SaveEmailConfigJSONBody2Provider = "cloudflare"
-)
-
-// Valid indicates whether the value is a known member of the SaveEmailConfigJSONBody2Provider enum.
-func (e SaveEmailConfigJSONBody2Provider) Valid() bool {
-	switch e {
-	case Cloudflare:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for PatchStorageJSONBodyStatus.
 const (
 	PatchStorageJSONBodyStatusHealthy   PatchStorageJSONBodyStatus = "healthy"
@@ -1520,31 +2679,31 @@ func (e PatchStorageJSONBodyStatus) Valid() bool {
 
 // Defines values for PatchStorageJSONBodyStatusReason.
 const (
-	PatchStorageJSONBodyStatusReasonAuthenticationFailed PatchStorageJSONBodyStatusReason = "authentication_failed"
-	PatchStorageJSONBodyStatusReasonBucketNotFound       PatchStorageJSONBodyStatusReason = "bucket_not_found"
-	PatchStorageJSONBodyStatusReasonCors                 PatchStorageJSONBodyStatusReason = "cors"
-	PatchStorageJSONBodyStatusReasonLessThannil          PatchStorageJSONBodyStatusReason = "<nil>"
-	PatchStorageJSONBodyStatusReasonNetworkError         PatchStorageJSONBodyStatusReason = "network_error"
-	PatchStorageJSONBodyStatusReasonPermissionDenied     PatchStorageJSONBodyStatusReason = "permission_denied"
-	PatchStorageJSONBodyStatusReasonUnknown              PatchStorageJSONBodyStatusReason = "unknown"
+	AuthenticationFailed PatchStorageJSONBodyStatusReason = "authentication_failed"
+	BucketNotFound       PatchStorageJSONBodyStatusReason = "bucket_not_found"
+	Cors                 PatchStorageJSONBodyStatusReason = "cors"
+	LessThannil          PatchStorageJSONBodyStatusReason = "<nil>"
+	NetworkError         PatchStorageJSONBodyStatusReason = "network_error"
+	PermissionDenied     PatchStorageJSONBodyStatusReason = "permission_denied"
+	Unknown              PatchStorageJSONBodyStatusReason = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the PatchStorageJSONBodyStatusReason enum.
 func (e PatchStorageJSONBodyStatusReason) Valid() bool {
 	switch e {
-	case PatchStorageJSONBodyStatusReasonAuthenticationFailed:
+	case AuthenticationFailed:
 		return true
-	case PatchStorageJSONBodyStatusReasonBucketNotFound:
+	case BucketNotFound:
 		return true
-	case PatchStorageJSONBodyStatusReasonCors:
+	case Cors:
 		return true
-	case PatchStorageJSONBodyStatusReasonLessThannil:
+	case LessThannil:
 		return true
-	case PatchStorageJSONBodyStatusReasonNetworkError:
+	case NetworkError:
 		return true
-	case PatchStorageJSONBodyStatusReasonPermissionDenied:
+	case PermissionDenied:
 		return true
-	case PatchStorageJSONBodyStatusReasonUnknown:
+	case Unknown:
 		return true
 	default:
 		return false
@@ -1649,13 +2808,13 @@ func (e ListStorageUsageItems200JSONResponseBodyItemsSource) Valid() bool {
 
 // Defines values for CancelOrderJSONBodyStatus.
 const (
-	CancelOrderJSONBodyStatusCanceled CancelOrderJSONBodyStatus = "canceled"
+	Canceled CancelOrderJSONBodyStatus = "canceled"
 )
 
 // Valid indicates whether the value is a known member of the CancelOrderJSONBodyStatus enum.
 func (e CancelOrderJSONBodyStatus) Valid() bool {
 	switch e {
-	case CancelOrderJSONBodyStatusCanceled:
+	case Canceled:
 		return true
 	default:
 		return false
@@ -1753,6 +2912,799 @@ type ActivityPage struct {
 	PageSize int          `json:"pageSize"`
 	Total    int          `json:"total"`
 }
+
+// AdminAnalyticsGrowth defines model for AdminAnalyticsGrowth.
+type AdminAnalyticsGrowth struct {
+	ActiveUserTrend []struct {
+		Date string   `json:"date"`
+		Dau  *float32 `json:"dau"`
+		Mau  *float32 `json:"mau"`
+		Wau  *float32 `json:"wau"`
+	} `json:"activeUserTrend"`
+	ComparisonCoverage *struct {
+		CompletedBuckets  int                                           `json:"completedBuckets"`
+		DataThrough       *string                                       `json:"dataThrough"`
+		ExpectedBuckets   int                                           `json:"expectedBuckets"`
+		LowerBoundBuckets int                                           `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsGrowthComparisonCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsGrowthComparisonCoverageStatus  `json:"status"`
+	} `json:"comparisonCoverage,omitempty"`
+	ComparisonSnapshotCoverage *struct {
+		CompletedBuckets  int                                                   `json:"completedBuckets"`
+		DataThrough       *string                                               `json:"dataThrough"`
+		ExpectedBuckets   int                                                   `json:"expectedBuckets"`
+		LowerBoundBuckets int                                                   `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsGrowthComparisonSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsGrowthComparisonSnapshotCoverageStatus  `json:"status"`
+	} `json:"comparisonSnapshotCoverage,omitempty"`
+	Coverage struct {
+		CompletedBuckets  int                                 `json:"completedBuckets"`
+		DataThrough       *string                             `json:"dataThrough"`
+		ExpectedBuckets   int                                 `json:"expectedBuckets"`
+		LowerBoundBuckets int                                 `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsGrowthCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsGrowthCoverageStatus  `json:"status"`
+	} `json:"coverage"`
+	From                string `json:"from"`
+	GeneratedAt         string `json:"generatedAt"`
+	RegistrationSources []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"registrationSources"`
+	SnapshotCoverage *struct {
+		CompletedBuckets  int                                         `json:"completedBuckets"`
+		DataThrough       *string                                     `json:"dataThrough"`
+		ExpectedBuckets   int                                         `json:"expectedBuckets"`
+		LowerBoundBuckets int                                         `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsGrowthSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsGrowthSnapshotCoverageStatus  `json:"status"`
+	} `json:"snapshotCoverage,omitempty"`
+	Summary struct {
+		ActiveUserRate *float32 `json:"activeUserRate"`
+		ActiveUsers    struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"activeUsers"`
+		BannedUsers *float32 `json:"bannedUsers"`
+		NewUsers    struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"newUsers"`
+		SilentUserRate *float32 `json:"silentUserRate"`
+		SilentUsers    *float32 `json:"silentUsers"`
+		TotalUsers     *float32 `json:"totalUsers"`
+		VerifiedUsers  *float32 `json:"verifiedUsers"`
+	} `json:"summary"`
+	TimeZone       AdminAnalyticsGrowthTimeZone `json:"timeZone"`
+	To             string                       `json:"to"`
+	UserScaleTrend []struct {
+		Date       string   `json:"date"`
+		NewUsers   *float32 `json:"newUsers"`
+		TotalUsers *float32 `json:"totalUsers"`
+	} `json:"userScaleTrend"`
+	UserStatus []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"userStatus"`
+}
+
+// AdminAnalyticsGrowthComparisonCoverageQuality defines model for AdminAnalyticsGrowth.ComparisonCoverage.Quality.
+type AdminAnalyticsGrowthComparisonCoverageQuality string
+
+// AdminAnalyticsGrowthComparisonCoverageStatus defines model for AdminAnalyticsGrowth.ComparisonCoverage.Status.
+type AdminAnalyticsGrowthComparisonCoverageStatus string
+
+// AdminAnalyticsGrowthComparisonSnapshotCoverageQuality defines model for AdminAnalyticsGrowth.ComparisonSnapshotCoverage.Quality.
+type AdminAnalyticsGrowthComparisonSnapshotCoverageQuality string
+
+// AdminAnalyticsGrowthComparisonSnapshotCoverageStatus defines model for AdminAnalyticsGrowth.ComparisonSnapshotCoverage.Status.
+type AdminAnalyticsGrowthComparisonSnapshotCoverageStatus string
+
+// AdminAnalyticsGrowthCoverageQuality defines model for AdminAnalyticsGrowth.Coverage.Quality.
+type AdminAnalyticsGrowthCoverageQuality string
+
+// AdminAnalyticsGrowthCoverageStatus defines model for AdminAnalyticsGrowth.Coverage.Status.
+type AdminAnalyticsGrowthCoverageStatus string
+
+// AdminAnalyticsGrowthSnapshotCoverageQuality defines model for AdminAnalyticsGrowth.SnapshotCoverage.Quality.
+type AdminAnalyticsGrowthSnapshotCoverageQuality string
+
+// AdminAnalyticsGrowthSnapshotCoverageStatus defines model for AdminAnalyticsGrowth.SnapshotCoverage.Status.
+type AdminAnalyticsGrowthSnapshotCoverageStatus string
+
+// AdminAnalyticsGrowthTimeZone defines model for AdminAnalyticsGrowth.TimeZone.
+type AdminAnalyticsGrowthTimeZone string
+
+// AdminAnalyticsOperations defines model for AdminAnalyticsOperations.
+type AdminAnalyticsOperations struct {
+	BackgroundJobOutcomes []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"backgroundJobOutcomes"`
+	CloudReportStatus []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"cloudReportStatus"`
+	ComparisonCoverage *struct {
+		CompletedBuckets  int                                               `json:"completedBuckets"`
+		DataThrough       *string                                           `json:"dataThrough"`
+		ExpectedBuckets   int                                               `json:"expectedBuckets"`
+		LowerBoundBuckets int                                               `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsOperationsComparisonCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsOperationsComparisonCoverageStatus  `json:"status"`
+	} `json:"comparisonCoverage,omitempty"`
+	ComparisonSnapshotCoverage *struct {
+		CompletedBuckets  int                                                       `json:"completedBuckets"`
+		DataThrough       *string                                                   `json:"dataThrough"`
+		ExpectedBuckets   int                                                       `json:"expectedBuckets"`
+		LowerBoundBuckets int                                                       `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsOperationsComparisonSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsOperationsComparisonSnapshotCoverageStatus  `json:"status"`
+	} `json:"comparisonSnapshotCoverage,omitempty"`
+	Coverage struct {
+		CompletedBuckets  int                                     `json:"completedBuckets"`
+		DataThrough       *string                                 `json:"dataThrough"`
+		ExpectedBuckets   int                                     `json:"expectedBuckets"`
+		LowerBoundBuckets int                                     `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsOperationsCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsOperationsCoverageStatus  `json:"status"`
+	} `json:"coverage"`
+	DownloaderStatus []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"downloaderStatus"`
+	From                   string `json:"from"`
+	GeneratedAt            string `json:"generatedAt"`
+	RemoteDownloadOutcomes []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"remoteDownloadOutcomes"`
+	SnapshotCoverage *struct {
+		CompletedBuckets  int                                             `json:"completedBuckets"`
+		DataThrough       *string                                         `json:"dataThrough"`
+		ExpectedBuckets   int                                             `json:"expectedBuckets"`
+		LowerBoundBuckets int                                             `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsOperationsSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsOperationsSnapshotCoverageStatus  `json:"status"`
+	} `json:"snapshotCoverage,omitempty"`
+	Summary struct {
+		ActiveBackgroundJobs      *float32 `json:"activeBackgroundJobs"`
+		ActiveRemoteDownloads     *float32 `json:"activeRemoteDownloads"`
+		AlertCount                *float32 `json:"alertCount"`
+		BackgroundJobFailureRate  *float32 `json:"backgroundJobFailureRate"`
+		CloudReportBacklog        *float32 `json:"cloudReportBacklog"`
+		CloudReportDeadLetters    *float32 `json:"cloudReportDeadLetters"`
+		OfflineDownloaders        *float32 `json:"offlineDownloaders"`
+		OnlineDownloaders         *float32 `json:"onlineDownloaders"`
+		RemoteDownloadSuccessRate *float32 `json:"remoteDownloadSuccessRate"`
+		WebhookFailures           *float32 `json:"webhookFailures"`
+	} `json:"summary"`
+	TimeZone AdminAnalyticsOperationsTimeZone `json:"timeZone"`
+	To       string                           `json:"to"`
+	Trend    []struct {
+		CompletedJobs            float32 `json:"completedJobs"`
+		CompletedRemoteDownloads float32 `json:"completedRemoteDownloads"`
+		Date                     string  `json:"date"`
+		FailedJobs               float32 `json:"failedJobs"`
+		FailedRemoteDownloads    float32 `json:"failedRemoteDownloads"`
+	} `json:"trend"`
+}
+
+// AdminAnalyticsOperationsComparisonCoverageQuality defines model for AdminAnalyticsOperations.ComparisonCoverage.Quality.
+type AdminAnalyticsOperationsComparisonCoverageQuality string
+
+// AdminAnalyticsOperationsComparisonCoverageStatus defines model for AdminAnalyticsOperations.ComparisonCoverage.Status.
+type AdminAnalyticsOperationsComparisonCoverageStatus string
+
+// AdminAnalyticsOperationsComparisonSnapshotCoverageQuality defines model for AdminAnalyticsOperations.ComparisonSnapshotCoverage.Quality.
+type AdminAnalyticsOperationsComparisonSnapshotCoverageQuality string
+
+// AdminAnalyticsOperationsComparisonSnapshotCoverageStatus defines model for AdminAnalyticsOperations.ComparisonSnapshotCoverage.Status.
+type AdminAnalyticsOperationsComparisonSnapshotCoverageStatus string
+
+// AdminAnalyticsOperationsCoverageQuality defines model for AdminAnalyticsOperations.Coverage.Quality.
+type AdminAnalyticsOperationsCoverageQuality string
+
+// AdminAnalyticsOperationsCoverageStatus defines model for AdminAnalyticsOperations.Coverage.Status.
+type AdminAnalyticsOperationsCoverageStatus string
+
+// AdminAnalyticsOperationsSnapshotCoverageQuality defines model for AdminAnalyticsOperations.SnapshotCoverage.Quality.
+type AdminAnalyticsOperationsSnapshotCoverageQuality string
+
+// AdminAnalyticsOperationsSnapshotCoverageStatus defines model for AdminAnalyticsOperations.SnapshotCoverage.Status.
+type AdminAnalyticsOperationsSnapshotCoverageStatus string
+
+// AdminAnalyticsOperationsTimeZone defines model for AdminAnalyticsOperations.TimeZone.
+type AdminAnalyticsOperationsTimeZone string
+
+// AdminAnalyticsOverview defines model for AdminAnalyticsOverview.
+type AdminAnalyticsOverview struct {
+	ComparisonCoverage *struct {
+		CompletedBuckets  int                                             `json:"completedBuckets"`
+		DataThrough       *string                                         `json:"dataThrough"`
+		ExpectedBuckets   int                                             `json:"expectedBuckets"`
+		LowerBoundBuckets int                                             `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsOverviewComparisonCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsOverviewComparisonCoverageStatus  `json:"status"`
+	} `json:"comparisonCoverage,omitempty"`
+	ComparisonSnapshotCoverage *struct {
+		CompletedBuckets  int                                                     `json:"completedBuckets"`
+		DataThrough       *string                                                 `json:"dataThrough"`
+		ExpectedBuckets   int                                                     `json:"expectedBuckets"`
+		LowerBoundBuckets int                                                     `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsOverviewComparisonSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsOverviewComparisonSnapshotCoverageStatus  `json:"status"`
+	} `json:"comparisonSnapshotCoverage,omitempty"`
+	Coverage struct {
+		CompletedBuckets  int                                   `json:"completedBuckets"`
+		DataThrough       *string                               `json:"dataThrough"`
+		ExpectedBuckets   int                                   `json:"expectedBuckets"`
+		LowerBoundBuckets int                                   `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsOverviewCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsOverviewCoverageStatus  `json:"status"`
+	} `json:"coverage"`
+	DataQuality struct {
+		MissingBytesEvents                 int `json:"missingBytesEvents"`
+		MissingDownloadBytesEvents         int `json:"missingDownloadBytesEvents"`
+		MissingUploadBytesEvents           int `json:"missingUploadBytesEvents"`
+		PreviousMissingBytesEvents         int `json:"previousMissingBytesEvents"`
+		PreviousMissingDownloadBytesEvents int `json:"previousMissingDownloadBytesEvents"`
+		PreviousMissingUploadBytesEvents   int `json:"previousMissingUploadBytesEvents"`
+	} `json:"dataQuality"`
+	From             string `json:"from"`
+	GeneratedAt      string `json:"generatedAt"`
+	SnapshotCoverage *struct {
+		CompletedBuckets  int                                           `json:"completedBuckets"`
+		DataThrough       *string                                       `json:"dataThrough"`
+		ExpectedBuckets   int                                           `json:"expectedBuckets"`
+		LowerBoundBuckets int                                           `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsOverviewSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsOverviewSnapshotCoverageStatus  `json:"status"`
+	} `json:"snapshotCoverage,omitempty"`
+	TimeZone AdminAnalyticsOverviewTimeZone `json:"timeZone"`
+	To       string                         `json:"to"`
+	Totals   struct {
+		ActiveShares   *float32 `json:"activeShares"`
+		ActiveUserRate *float32 `json:"activeUserRate"`
+		ActiveUsers    struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"activeUsers"`
+		DownloadBytes struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"downloadBytes"`
+		NewUsers struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"newUsers"`
+		ShareDownloads struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"shareDownloads"`
+		StorageQuotaBytes  *float32 `json:"storageQuotaBytes"`
+		StorageUsedBytes   *float32 `json:"storageUsedBytes"`
+		StorageUtilization *float32 `json:"storageUtilization"`
+		TrafficBytes       struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"trafficBytes"`
+		UploadBytes struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"uploadBytes"`
+		Users *float32 `json:"users"`
+	} `json:"totals"`
+	Trends []struct {
+		ActiveUsers      *float32 `json:"activeUsers"`
+		Date             string   `json:"date"`
+		DownloadBytes    *float32 `json:"downloadBytes"`
+		NewUsers         *float32 `json:"newUsers"`
+		StorageUsedBytes *float32 `json:"storageUsedBytes"`
+		UploadBytes      *float32 `json:"uploadBytes"`
+	} `json:"trends"`
+}
+
+// AdminAnalyticsOverviewComparisonCoverageQuality defines model for AdminAnalyticsOverview.ComparisonCoverage.Quality.
+type AdminAnalyticsOverviewComparisonCoverageQuality string
+
+// AdminAnalyticsOverviewComparisonCoverageStatus defines model for AdminAnalyticsOverview.ComparisonCoverage.Status.
+type AdminAnalyticsOverviewComparisonCoverageStatus string
+
+// AdminAnalyticsOverviewComparisonSnapshotCoverageQuality defines model for AdminAnalyticsOverview.ComparisonSnapshotCoverage.Quality.
+type AdminAnalyticsOverviewComparisonSnapshotCoverageQuality string
+
+// AdminAnalyticsOverviewComparisonSnapshotCoverageStatus defines model for AdminAnalyticsOverview.ComparisonSnapshotCoverage.Status.
+type AdminAnalyticsOverviewComparisonSnapshotCoverageStatus string
+
+// AdminAnalyticsOverviewCoverageQuality defines model for AdminAnalyticsOverview.Coverage.Quality.
+type AdminAnalyticsOverviewCoverageQuality string
+
+// AdminAnalyticsOverviewCoverageStatus defines model for AdminAnalyticsOverview.Coverage.Status.
+type AdminAnalyticsOverviewCoverageStatus string
+
+// AdminAnalyticsOverviewSnapshotCoverageQuality defines model for AdminAnalyticsOverview.SnapshotCoverage.Quality.
+type AdminAnalyticsOverviewSnapshotCoverageQuality string
+
+// AdminAnalyticsOverviewSnapshotCoverageStatus defines model for AdminAnalyticsOverview.SnapshotCoverage.Status.
+type AdminAnalyticsOverviewSnapshotCoverageStatus string
+
+// AdminAnalyticsOverviewTimeZone defines model for AdminAnalyticsOverview.TimeZone.
+type AdminAnalyticsOverviewTimeZone string
+
+// AdminAnalyticsSharing defines model for AdminAnalyticsSharing.
+type AdminAnalyticsSharing struct {
+	ComparisonCoverage *struct {
+		CompletedBuckets  int                                            `json:"completedBuckets"`
+		DataThrough       *string                                        `json:"dataThrough"`
+		ExpectedBuckets   int                                            `json:"expectedBuckets"`
+		LowerBoundBuckets int                                            `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsSharingComparisonCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsSharingComparisonCoverageStatus  `json:"status"`
+	} `json:"comparisonCoverage,omitempty"`
+	ComparisonSnapshotCoverage *struct {
+		CompletedBuckets  int                                                    `json:"completedBuckets"`
+		DataThrough       *string                                                `json:"dataThrough"`
+		ExpectedBuckets   int                                                    `json:"expectedBuckets"`
+		LowerBoundBuckets int                                                    `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsSharingComparisonSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsSharingComparisonSnapshotCoverageStatus  `json:"status"`
+	} `json:"comparisonSnapshotCoverage,omitempty"`
+	Coverage struct {
+		CompletedBuckets  int                                  `json:"completedBuckets"`
+		DataThrough       *string                              `json:"dataThrough"`
+		ExpectedBuckets   int                                  `json:"expectedBuckets"`
+		LowerBoundBuckets int                                  `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsSharingCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsSharingCoverageStatus  `json:"status"`
+	} `json:"coverage"`
+	DataQuality struct {
+		UnlocatedDownloads *float32 `json:"unlocatedDownloads"`
+	} `json:"dataQuality"`
+	From             string `json:"from"`
+	GeneratedAt      string `json:"generatedAt"`
+	SnapshotCoverage *struct {
+		CompletedBuckets  int                                          `json:"completedBuckets"`
+		DataThrough       *string                                      `json:"dataThrough"`
+		ExpectedBuckets   int                                          `json:"expectedBuckets"`
+		LowerBoundBuckets int                                          `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsSharingSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsSharingSnapshotCoverageStatus  `json:"status"`
+	} `json:"snapshotCoverage,omitempty"`
+	SourceBreakdown []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"sourceBreakdown"`
+	Summary struct {
+		ActiveShares  *float32 `json:"activeShares"`
+		CreatedShares struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"createdShares"`
+		Downloads struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"downloads"`
+		Saves struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"saves"`
+		Views *float32 `json:"views"`
+	} `json:"summary"`
+	TimeZone  AdminAnalyticsSharingTimeZone `json:"timeZone"`
+	To        string                        `json:"to"`
+	TopShares []struct {
+		CreatorId       string  `json:"creatorId"`
+		CreatorName     string  `json:"creatorName"`
+		DownloadPercent float32 `json:"downloadPercent"`
+		Downloads       float32 `json:"downloads"`
+		Id              string  `json:"id"`
+		Name            string  `json:"name"`
+		Status          string  `json:"status"`
+		Token           string  `json:"token"`
+		ViewPercent     float32 `json:"viewPercent"`
+		Views           float32 `json:"views"`
+	} `json:"topShares"`
+	Trend []struct {
+		Date      string   `json:"date"`
+		Downloads *float32 `json:"downloads"`
+		Saves     *float32 `json:"saves"`
+	} `json:"trend"`
+	TypeBreakdown []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"typeBreakdown"`
+}
+
+// AdminAnalyticsSharingComparisonCoverageQuality defines model for AdminAnalyticsSharing.ComparisonCoverage.Quality.
+type AdminAnalyticsSharingComparisonCoverageQuality string
+
+// AdminAnalyticsSharingComparisonCoverageStatus defines model for AdminAnalyticsSharing.ComparisonCoverage.Status.
+type AdminAnalyticsSharingComparisonCoverageStatus string
+
+// AdminAnalyticsSharingComparisonSnapshotCoverageQuality defines model for AdminAnalyticsSharing.ComparisonSnapshotCoverage.Quality.
+type AdminAnalyticsSharingComparisonSnapshotCoverageQuality string
+
+// AdminAnalyticsSharingComparisonSnapshotCoverageStatus defines model for AdminAnalyticsSharing.ComparisonSnapshotCoverage.Status.
+type AdminAnalyticsSharingComparisonSnapshotCoverageStatus string
+
+// AdminAnalyticsSharingCoverageQuality defines model for AdminAnalyticsSharing.Coverage.Quality.
+type AdminAnalyticsSharingCoverageQuality string
+
+// AdminAnalyticsSharingCoverageStatus defines model for AdminAnalyticsSharing.Coverage.Status.
+type AdminAnalyticsSharingCoverageStatus string
+
+// AdminAnalyticsSharingSnapshotCoverageQuality defines model for AdminAnalyticsSharing.SnapshotCoverage.Quality.
+type AdminAnalyticsSharingSnapshotCoverageQuality string
+
+// AdminAnalyticsSharingSnapshotCoverageStatus defines model for AdminAnalyticsSharing.SnapshotCoverage.Status.
+type AdminAnalyticsSharingSnapshotCoverageStatus string
+
+// AdminAnalyticsSharingTimeZone defines model for AdminAnalyticsSharing.TimeZone.
+type AdminAnalyticsSharingTimeZone string
+
+// AdminAnalyticsStorage defines model for AdminAnalyticsStorage.
+type AdminAnalyticsStorage struct {
+	AgeBreakdown []struct {
+		Bytes   float32 `json:"bytes"`
+		Files   float32 `json:"files"`
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+	} `json:"ageBreakdown"`
+	ComparisonCoverage *struct {
+		CompletedBuckets  int                                            `json:"completedBuckets"`
+		DataThrough       *string                                        `json:"dataThrough"`
+		ExpectedBuckets   int                                            `json:"expectedBuckets"`
+		LowerBoundBuckets int                                            `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsStorageComparisonCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsStorageComparisonCoverageStatus  `json:"status"`
+	} `json:"comparisonCoverage,omitempty"`
+	ComparisonSnapshotCoverage *struct {
+		CompletedBuckets  int                                                    `json:"completedBuckets"`
+		DataThrough       *string                                                `json:"dataThrough"`
+		ExpectedBuckets   int                                                    `json:"expectedBuckets"`
+		LowerBoundBuckets int                                                    `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsStorageComparisonSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsStorageComparisonSnapshotCoverageStatus  `json:"status"`
+	} `json:"comparisonSnapshotCoverage,omitempty"`
+	Coverage struct {
+		CompletedBuckets  int                                  `json:"completedBuckets"`
+		DataThrough       *string                              `json:"dataThrough"`
+		ExpectedBuckets   int                                  `json:"expectedBuckets"`
+		LowerBoundBuckets int                                  `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsStorageCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsStorageCoverageStatus  `json:"status"`
+	} `json:"coverage"`
+	DataQuality struct {
+		LedgerDriftBytes                   *float32 `json:"ledgerDriftBytes"`
+		LedgerDriftSpaces                  *float32 `json:"ledgerDriftSpaces"`
+		MissingBytesEvents                 int      `json:"missingBytesEvents"`
+		MissingDownloadBytesEvents         int      `json:"missingDownloadBytesEvents"`
+		MissingUploadBytesEvents           int      `json:"missingUploadBytesEvents"`
+		PreviousMissingBytesEvents         int      `json:"previousMissingBytesEvents"`
+		PreviousMissingDownloadBytesEvents int      `json:"previousMissingDownloadBytesEvents"`
+		PreviousMissingUploadBytesEvents   int      `json:"previousMissingUploadBytesEvents"`
+		UsageDriftBytes                    *float32 `json:"usageDriftBytes"`
+		UsageDriftSpaces                   *float32 `json:"usageDriftSpaces"`
+	} `json:"dataQuality"`
+	From          string `json:"from"`
+	GeneratedAt   string `json:"generatedAt"`
+	SizeBreakdown []struct {
+		Bytes   float32 `json:"bytes"`
+		Files   float32 `json:"files"`
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+	} `json:"sizeBreakdown"`
+	SnapshotCoverage *struct {
+		CompletedBuckets  int                                          `json:"completedBuckets"`
+		DataThrough       *string                                      `json:"dataThrough"`
+		ExpectedBuckets   int                                          `json:"expectedBuckets"`
+		LowerBoundBuckets int                                          `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsStorageSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsStorageSnapshotCoverageStatus  `json:"status"`
+	} `json:"snapshotCoverage,omitempty"`
+	StorageTrend []struct {
+		Date      string   `json:"date"`
+		NewBytes  *float32 `json:"newBytes"`
+		NewFiles  *float32 `json:"newFiles"`
+		UsedBytes *float32 `json:"usedBytes"`
+	} `json:"storageTrend"`
+	Summary struct {
+		ColdFileBytes      *float32 `json:"coldFileBytes"`
+		ColdFilePercent    *float32 `json:"coldFilePercent"`
+		FileCount          *float32 `json:"fileCount"`
+		InvalidQuotaSpaces *float32 `json:"invalidQuotaSpaces"`
+		NearQuotaSpaces    *float32 `json:"nearQuotaSpaces"`
+		NewBytes           struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"newBytes"`
+		NewFiles struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"newFiles"`
+		OverQuotaSpaces    *float32 `json:"overQuotaSpaces"`
+		QuotaBytes         *float32 `json:"quotaBytes"`
+		StorageUsedBytes   *float32 `json:"storageUsedBytes"`
+		StorageUtilization *float32 `json:"storageUtilization"`
+		TrashBytes         *float32 `json:"trashBytes"`
+		TrashFileCount     *float32 `json:"trashFileCount"`
+	} `json:"summary"`
+	TimeZone  AdminAnalyticsStorageTimeZone `json:"timeZone"`
+	To        string                        `json:"to"`
+	TopSpaces []struct {
+		OrgId       string   `json:"orgId"`
+		OrgName     string   `json:"orgName"`
+		OrgType     string   `json:"orgType"`
+		QuotaBytes  float32  `json:"quotaBytes"`
+		UsedBytes   float32  `json:"usedBytes"`
+		Utilization *float32 `json:"utilization"`
+	} `json:"topSpaces"`
+	TypeBreakdown []struct {
+		Bytes   float32 `json:"bytes"`
+		Files   float32 `json:"files"`
+		Percent float32 `json:"percent"`
+		Type    string  `json:"type"`
+	} `json:"typeBreakdown"`
+}
+
+// AdminAnalyticsStorageComparisonCoverageQuality defines model for AdminAnalyticsStorage.ComparisonCoverage.Quality.
+type AdminAnalyticsStorageComparisonCoverageQuality string
+
+// AdminAnalyticsStorageComparisonCoverageStatus defines model for AdminAnalyticsStorage.ComparisonCoverage.Status.
+type AdminAnalyticsStorageComparisonCoverageStatus string
+
+// AdminAnalyticsStorageComparisonSnapshotCoverageQuality defines model for AdminAnalyticsStorage.ComparisonSnapshotCoverage.Quality.
+type AdminAnalyticsStorageComparisonSnapshotCoverageQuality string
+
+// AdminAnalyticsStorageComparisonSnapshotCoverageStatus defines model for AdminAnalyticsStorage.ComparisonSnapshotCoverage.Status.
+type AdminAnalyticsStorageComparisonSnapshotCoverageStatus string
+
+// AdminAnalyticsStorageCoverageQuality defines model for AdminAnalyticsStorage.Coverage.Quality.
+type AdminAnalyticsStorageCoverageQuality string
+
+// AdminAnalyticsStorageCoverageStatus defines model for AdminAnalyticsStorage.Coverage.Status.
+type AdminAnalyticsStorageCoverageStatus string
+
+// AdminAnalyticsStorageSnapshotCoverageQuality defines model for AdminAnalyticsStorage.SnapshotCoverage.Quality.
+type AdminAnalyticsStorageSnapshotCoverageQuality string
+
+// AdminAnalyticsStorageSnapshotCoverageStatus defines model for AdminAnalyticsStorage.SnapshotCoverage.Status.
+type AdminAnalyticsStorageSnapshotCoverageStatus string
+
+// AdminAnalyticsStorageTimeZone defines model for AdminAnalyticsStorage.TimeZone.
+type AdminAnalyticsStorageTimeZone string
+
+// AdminAnalyticsTraffic defines model for AdminAnalyticsTraffic.
+type AdminAnalyticsTraffic struct {
+	ComparisonCoverage *struct {
+		CompletedBuckets  int                                            `json:"completedBuckets"`
+		DataThrough       *string                                        `json:"dataThrough"`
+		ExpectedBuckets   int                                            `json:"expectedBuckets"`
+		LowerBoundBuckets int                                            `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsTrafficComparisonCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsTrafficComparisonCoverageStatus  `json:"status"`
+	} `json:"comparisonCoverage,omitempty"`
+	ComparisonSnapshotCoverage *struct {
+		CompletedBuckets  int                                                    `json:"completedBuckets"`
+		DataThrough       *string                                                `json:"dataThrough"`
+		ExpectedBuckets   int                                                    `json:"expectedBuckets"`
+		LowerBoundBuckets int                                                    `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsTrafficComparisonSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsTrafficComparisonSnapshotCoverageStatus  `json:"status"`
+	} `json:"comparisonSnapshotCoverage,omitempty"`
+	Coverage struct {
+		CompletedBuckets  int                                  `json:"completedBuckets"`
+		DataThrough       *string                              `json:"dataThrough"`
+		ExpectedBuckets   int                                  `json:"expectedBuckets"`
+		LowerBoundBuckets int                                  `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsTrafficCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsTrafficCoverageStatus  `json:"status"`
+	} `json:"coverage"`
+	DataQuality struct {
+		MissingBytesEvents                 int `json:"missingBytesEvents"`
+		MissingDownloadBytesEvents         int `json:"missingDownloadBytesEvents"`
+		MissingUploadBytesEvents           int `json:"missingUploadBytesEvents"`
+		PreviousMissingBytesEvents         int `json:"previousMissingBytesEvents"`
+		PreviousMissingDownloadBytesEvents int `json:"previousMissingDownloadBytesEvents"`
+		PreviousMissingUploadBytesEvents   int `json:"previousMissingUploadBytesEvents"`
+	} `json:"dataQuality"`
+	FailureReasons []struct {
+		Name    string  `json:"name"`
+		Percent float32 `json:"percent"`
+		Value   float32 `json:"value"`
+	} `json:"failureReasons"`
+	From        string `json:"from"`
+	GeneratedAt string `json:"generatedAt"`
+	IssueStatus []struct {
+		Count   float32 `json:"count"`
+		Percent float32 `json:"percent"`
+		Status  string  `json:"status"`
+	} `json:"issueStatus"`
+	SnapshotCoverage *struct {
+		CompletedBuckets  int                                          `json:"completedBuckets"`
+		DataThrough       *string                                      `json:"dataThrough"`
+		ExpectedBuckets   int                                          `json:"expectedBuckets"`
+		LowerBoundBuckets int                                          `json:"lowerBoundBuckets"`
+		Quality           AdminAnalyticsTrafficSnapshotCoverageQuality `json:"quality"`
+		Status            AdminAnalyticsTrafficSnapshotCoverageStatus  `json:"status"`
+	} `json:"snapshotCoverage,omitempty"`
+	SourceBreakdown []struct {
+		Bytes    float32 `json:"bytes"`
+		Name     string  `json:"name"`
+		Percent  float32 `json:"percent"`
+		Requests float32 `json:"requests"`
+	} `json:"sourceBreakdown"`
+	SuccessTrend []struct {
+		Date                string   `json:"date"`
+		DownloadSuccessRate *float32 `json:"downloadSuccessRate"`
+		UploadSuccessRate   *float32 `json:"uploadSuccessRate"`
+	} `json:"successTrend"`
+	Summary struct {
+		BlockedDownloads         *float32 `json:"blockedDownloads"`
+		DownloadIssueSuccessRate *float32 `json:"downloadIssueSuccessRate"`
+		IssuedDownloads          *float32 `json:"issuedDownloads"`
+		PeakDailyBytes           *float32 `json:"peakDailyBytes"`
+		RequestCount             struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"requestCount"`
+		TotalBytes struct {
+			Change        *float32 `json:"change"`
+			ChangePercent *float32 `json:"changePercent"`
+			PreviousValue *float32 `json:"previousValue"`
+			Value         *float32 `json:"value"`
+		} `json:"totalBytes"`
+	} `json:"summary"`
+	TimeZone     AdminAnalyticsTrafficTimeZone `json:"timeZone"`
+	To           string                        `json:"to"`
+	TrafficTrend []struct {
+		Date          string   `json:"date"`
+		DownloadBytes *float32 `json:"downloadBytes"`
+		Requests      *float32 `json:"requests"`
+		UploadBytes   *float32 `json:"uploadBytes"`
+	} `json:"trafficTrend"`
+}
+
+// AdminAnalyticsTrafficComparisonCoverageQuality defines model for AdminAnalyticsTraffic.ComparisonCoverage.Quality.
+type AdminAnalyticsTrafficComparisonCoverageQuality string
+
+// AdminAnalyticsTrafficComparisonCoverageStatus defines model for AdminAnalyticsTraffic.ComparisonCoverage.Status.
+type AdminAnalyticsTrafficComparisonCoverageStatus string
+
+// AdminAnalyticsTrafficComparisonSnapshotCoverageQuality defines model for AdminAnalyticsTraffic.ComparisonSnapshotCoverage.Quality.
+type AdminAnalyticsTrafficComparisonSnapshotCoverageQuality string
+
+// AdminAnalyticsTrafficComparisonSnapshotCoverageStatus defines model for AdminAnalyticsTraffic.ComparisonSnapshotCoverage.Status.
+type AdminAnalyticsTrafficComparisonSnapshotCoverageStatus string
+
+// AdminAnalyticsTrafficCoverageQuality defines model for AdminAnalyticsTraffic.Coverage.Quality.
+type AdminAnalyticsTrafficCoverageQuality string
+
+// AdminAnalyticsTrafficCoverageStatus defines model for AdminAnalyticsTraffic.Coverage.Status.
+type AdminAnalyticsTrafficCoverageStatus string
+
+// AdminAnalyticsTrafficSnapshotCoverageQuality defines model for AdminAnalyticsTraffic.SnapshotCoverage.Quality.
+type AdminAnalyticsTrafficSnapshotCoverageQuality string
+
+// AdminAnalyticsTrafficSnapshotCoverageStatus defines model for AdminAnalyticsTraffic.SnapshotCoverage.Status.
+type AdminAnalyticsTrafficSnapshotCoverageStatus string
+
+// AdminAnalyticsTrafficTimeZone defines model for AdminAnalyticsTraffic.TimeZone.
+type AdminAnalyticsTrafficTimeZone string
+
+// AdminDashboard defines model for AdminDashboard.
+type AdminDashboard struct {
+	Downloaders struct {
+		ActiveTasks    int     `json:"activeTasks"`
+		AvailableSlots int     `json:"availableSlots"`
+		DownloadBps    float32 `json:"downloadBps"`
+		Items          []struct {
+			CurrentTasks       int                                  `json:"currentTasks"`
+			DownloadBps        float32                              `json:"downloadBps"`
+			FreeDiskBytes      float32                              `json:"freeDiskBytes"`
+			Id                 string                               `json:"id"`
+			LastHeartbeatAt    *string                              `json:"lastHeartbeatAt"`
+			MaxConcurrentTasks int                                  `json:"maxConcurrentTasks"`
+			Name               string                               `json:"name"`
+			Status             AdminDashboardDownloadersItemsStatus `json:"status"`
+			UploadBps          float32                              `json:"uploadBps"`
+		} `json:"items"`
+		Online     int     `json:"online"`
+		Total      int     `json:"total"`
+		TotalSlots int     `json:"totalSlots"`
+		UploadBps  float32 `json:"uploadBps"`
+	} `json:"downloaders"`
+	ObservedAt string `json:"observedAt"`
+	Storages   struct {
+		Capacity float32 `json:"capacity"`
+		Items    []struct {
+			Bucket   string  `json:"bucket"`
+			Capacity float32 `json:"capacity"`
+			Enabled  bool    `json:"enabled"`
+			Id       string  `json:"id"`
+			Provider string  `json:"provider"`
+			Status   string  `json:"status"`
+			Used     float32 `json:"used"`
+			Writable bool    `json:"writable"`
+		} `json:"items"`
+		Total int `json:"total"`
+		Trend []struct {
+			Date          string   `json:"date"`
+			ReleasedBytes *float32 `json:"releasedBytes"`
+			UsedBytes     *float32 `json:"usedBytes"`
+			WrittenBytes  *float32 `json:"writtenBytes"`
+		} `json:"trend"`
+		Unbounded int     `json:"unbounded"`
+		Used      float32 `json:"used"`
+		Writable  int     `json:"writable"`
+	} `json:"storages"`
+	Users struct {
+		Active30Days *float32 `json:"active30Days"`
+		Activity     struct {
+			Inactive   *float32 `json:"inactive"`
+			Last30Days *float32 `json:"last30Days"`
+			Last7Days  *float32 `json:"last7Days"`
+			Today      *float32 `json:"today"`
+			Total      *float32 `json:"total"`
+		} `json:"activity"`
+		New7Days *float32 `json:"new7Days"`
+		TopUsage []struct {
+			Email       string   `json:"email"`
+			Name        string   `json:"name"`
+			QuotaBytes  float32  `json:"quotaBytes"`
+			UsedBytes   float32  `json:"usedBytes"`
+			UserId      string   `json:"userId"`
+			Utilization *float32 `json:"utilization"`
+		} `json:"topUsage"`
+		Total *float32 `json:"total"`
+		Trend []struct {
+			ActiveUsers *float32 `json:"activeUsers"`
+			Date        string   `json:"date"`
+			NewUsers    *float32 `json:"newUsers"`
+			TotalUsers  *float32 `json:"totalUsers"`
+		} `json:"trend"`
+	} `json:"users"`
+}
+
+// AdminDashboardDownloadersItemsStatus defines model for AdminDashboard.Downloaders.Items.Status.
+type AdminDashboardDownloadersItemsStatus string
 
 // AdminUserQuota defines model for AdminUserQuota.
 type AdminUserQuota struct {
@@ -1916,6 +3868,22 @@ type Changelog struct {
 
 // CloudStoreValue defines model for CloudStoreValue.
 type CloudStoreValue = interface{}
+
+// CloudflareEmailSettings defines model for CloudflareEmailSettings.
+type CloudflareEmailSettings struct {
+	Enabled                  bool                            `json:"enabled"`
+	From                     openapi_types.Email             `json:"from"`
+	Provider                 CloudflareEmailSettingsProvider `json:"provider"`
+	RequireEmailVerification bool                            `json:"requireEmailVerification"`
+}
+
+// CloudflareEmailSettingsProvider defines model for CloudflareEmailSettings.Provider.
+type CloudflareEmailSettingsProvider string
+
+// CreateTestEmail defines model for CreateTestEmail.
+type CreateTestEmail struct {
+	To openapi_types.Email `json:"to"`
+}
 
 // CreatedShare defines model for CreatedShare.
 type CreatedShare struct {
@@ -2274,10 +4242,14 @@ type EffectiveQuota struct {
 
 // EmailSettings defines model for EmailSettings.
 type EmailSettings struct {
-	Enabled                  bool    `json:"enabled"`
-	From                     *string `json:"from,omitempty"`
-	Provider                 *string `json:"provider,omitempty"`
-	RequireEmailVerification bool    `json:"requireEmailVerification"`
+	union json.RawMessage
+}
+
+// EmptyEmailSettings defines model for EmptyEmailSettings.
+type EmptyEmailSettings struct {
+	Enabled                  bool        `json:"enabled"`
+	Provider                 interface{} `json:"provider"`
+	RequireEmailVerification bool        `json:"requireEmailVerification"`
 }
 
 // EntitlementList defines model for EntitlementList.
@@ -2314,6 +4286,21 @@ type ErrorInfo struct {
 
 // ErrorInfoType defines model for ErrorInfo.Type.
 type ErrorInfoType string
+
+// HttpEmailSettings defines model for HttpEmailSettings.
+type HttpEmailSettings struct {
+	Enabled bool                `json:"enabled"`
+	From    openapi_types.Email `json:"from"`
+	Http    struct {
+		ApiKey string `json:"apiKey"`
+		Url    string `json:"url"`
+	} `json:"http"`
+	Provider                 HttpEmailSettingsProvider `json:"provider"`
+	RequireEmailVerification bool                      `json:"requireEmailVerification"`
+}
+
+// HttpEmailSettingsProvider defines model for HttpEmailSettings.Provider.
+type HttpEmailSettingsProvider string
 
 // ImageHosting defines model for ImageHosting.
 type ImageHosting struct {
@@ -2420,6 +4407,17 @@ type LicenseBindingState struct {
 	LicenseId            *string   `json:"license_id,omitempty"`
 	LicenseValidUntil    *int      `json:"license_valid_until,omitempty"`
 }
+
+// LicenseEntitlements defines model for LicenseEntitlements.
+type LicenseEntitlements struct {
+	Active   bool                        `json:"active"`
+	Bound    bool                        `json:"bound"`
+	Edition  *LicenseEntitlementsEdition `json:"edition"`
+	Features []string                    `json:"features"`
+}
+
+// LicenseEntitlementsEdition defines model for LicenseEntitlements.Edition.
+type LicenseEntitlementsEdition string
 
 // LicensePairing defines model for LicensePairing.
 type LicensePairing struct {
@@ -2866,6 +4864,24 @@ type SiteWebDavSettings struct {
 	Status         WebDavVerificationStatus `json:"status"`
 }
 
+// SmtpEmailSettings defines model for SmtpEmailSettings.
+type SmtpEmailSettings struct {
+	Enabled                  bool                      `json:"enabled"`
+	From                     openapi_types.Email       `json:"from"`
+	Provider                 SmtpEmailSettingsProvider `json:"provider"`
+	RequireEmailVerification bool                      `json:"requireEmailVerification"`
+	Smtp                     struct {
+		Host   string `json:"host"`
+		Pass   string `json:"pass"`
+		Port   int    `json:"port"`
+		Secure bool   `json:"secure"`
+		User   string `json:"user"`
+	} `json:"smtp"`
+}
+
+// SmtpEmailSettingsProvider defines model for SmtpEmailSettings.Provider.
+type SmtpEmailSettingsProvider string
+
 // Storage defines model for Storage.
 type Storage struct {
 	AccessKey                  string               `json:"accessKey"`
@@ -3000,6 +5016,11 @@ type TrashObject struct {
 type TrashObjectPage struct {
 	Items         []TrashObject `json:"items"`
 	NextPageToken *string       `json:"nextPageToken"`
+}
+
+// UpdateEmailSettings defines model for UpdateEmailSettings.
+type UpdateEmailSettings struct {
+	union json.RawMessage
 }
 
 // UpdateSiteCaptcha defines model for UpdateSiteCaptcha.
@@ -4180,6 +6201,66 @@ type RevokeShareJSONBody struct {
 // RevokeShareJSONBodyStatus defines parameters for RevokeShare.
 type RevokeShareJSONBodyStatus string
 
+// GetAdminAnalyticsGrowthParams defines parameters for GetAdminAnalyticsGrowth.
+type GetAdminAnalyticsGrowthParams struct {
+	From     *string                                `form:"from,omitempty" json:"from,omitempty"`
+	To       *string                                `form:"to,omitempty" json:"to,omitempty"`
+	TimeZone *GetAdminAnalyticsGrowthParamsTimeZone `form:"timeZone,omitempty" json:"timeZone,omitempty"`
+}
+
+// GetAdminAnalyticsGrowthParamsTimeZone defines parameters for GetAdminAnalyticsGrowth.
+type GetAdminAnalyticsGrowthParamsTimeZone string
+
+// GetAdminAnalyticsOperationsParams defines parameters for GetAdminAnalyticsOperations.
+type GetAdminAnalyticsOperationsParams struct {
+	From     *string                                    `form:"from,omitempty" json:"from,omitempty"`
+	To       *string                                    `form:"to,omitempty" json:"to,omitempty"`
+	TimeZone *GetAdminAnalyticsOperationsParamsTimeZone `form:"timeZone,omitempty" json:"timeZone,omitempty"`
+}
+
+// GetAdminAnalyticsOperationsParamsTimeZone defines parameters for GetAdminAnalyticsOperations.
+type GetAdminAnalyticsOperationsParamsTimeZone string
+
+// GetAdminAnalyticsOverviewParams defines parameters for GetAdminAnalyticsOverview.
+type GetAdminAnalyticsOverviewParams struct {
+	From     *string                                  `form:"from,omitempty" json:"from,omitempty"`
+	To       *string                                  `form:"to,omitempty" json:"to,omitempty"`
+	TimeZone *GetAdminAnalyticsOverviewParamsTimeZone `form:"timeZone,omitempty" json:"timeZone,omitempty"`
+}
+
+// GetAdminAnalyticsOverviewParamsTimeZone defines parameters for GetAdminAnalyticsOverview.
+type GetAdminAnalyticsOverviewParamsTimeZone string
+
+// GetAdminAnalyticsSharingParams defines parameters for GetAdminAnalyticsSharing.
+type GetAdminAnalyticsSharingParams struct {
+	From     *string                                 `form:"from,omitempty" json:"from,omitempty"`
+	To       *string                                 `form:"to,omitempty" json:"to,omitempty"`
+	TimeZone *GetAdminAnalyticsSharingParamsTimeZone `form:"timeZone,omitempty" json:"timeZone,omitempty"`
+}
+
+// GetAdminAnalyticsSharingParamsTimeZone defines parameters for GetAdminAnalyticsSharing.
+type GetAdminAnalyticsSharingParamsTimeZone string
+
+// GetAdminAnalyticsStorageParams defines parameters for GetAdminAnalyticsStorage.
+type GetAdminAnalyticsStorageParams struct {
+	From     *string                                 `form:"from,omitempty" json:"from,omitempty"`
+	To       *string                                 `form:"to,omitempty" json:"to,omitempty"`
+	TimeZone *GetAdminAnalyticsStorageParamsTimeZone `form:"timeZone,omitempty" json:"timeZone,omitempty"`
+}
+
+// GetAdminAnalyticsStorageParamsTimeZone defines parameters for GetAdminAnalyticsStorage.
+type GetAdminAnalyticsStorageParamsTimeZone string
+
+// GetAdminAnalyticsTrafficParams defines parameters for GetAdminAnalyticsTraffic.
+type GetAdminAnalyticsTrafficParams struct {
+	From     *string                                 `form:"from,omitempty" json:"from,omitempty"`
+	To       *string                                 `form:"to,omitempty" json:"to,omitempty"`
+	TimeZone *GetAdminAnalyticsTrafficParamsTimeZone `form:"timeZone,omitempty" json:"timeZone,omitempty"`
+}
+
+// GetAdminAnalyticsTrafficParamsTimeZone defines parameters for GetAdminAnalyticsTraffic.
+type GetAdminAnalyticsTrafficParamsTimeZone string
+
 // ListAnnouncementsParams defines parameters for ListAnnouncements.
 type ListAnnouncementsParams struct {
 	Page     *int                           `form:"page,omitempty" json:"page,omitempty"`
@@ -4244,60 +6325,6 @@ type UpsertAuthProviderJSONBodyType string
 // GetChangelogParams defines parameters for GetChangelog.
 type GetChangelogParams struct {
 	Refresh *string `form:"refresh,omitempty" json:"refresh,omitempty"`
-}
-
-// SaveEmailConfigJSONBody defines parameters for SaveEmailConfig.
-type SaveEmailConfigJSONBody struct {
-	union json.RawMessage
-}
-
-// SaveEmailConfigJSONBody0 defines parameters for SaveEmailConfig.
-type SaveEmailConfigJSONBody0 struct {
-	Enabled                  bool                             `json:"enabled"`
-	From                     openapi_types.Email              `json:"from"`
-	Provider                 SaveEmailConfigJSONBody0Provider `json:"provider"`
-	RequireEmailVerification bool                             `json:"requireEmailVerification"`
-	Smtp                     struct {
-		Host   string `json:"host"`
-		Pass   string `json:"pass"`
-		Port   int    `json:"port"`
-		Secure bool   `json:"secure"`
-		User   string `json:"user"`
-	} `json:"smtp"`
-}
-
-// SaveEmailConfigJSONBody0Provider defines parameters for SaveEmailConfig.
-type SaveEmailConfigJSONBody0Provider string
-
-// SaveEmailConfigJSONBody1 defines parameters for SaveEmailConfig.
-type SaveEmailConfigJSONBody1 struct {
-	Enabled bool                `json:"enabled"`
-	From    openapi_types.Email `json:"from"`
-	Http    struct {
-		ApiKey string `json:"apiKey"`
-		Url    string `json:"url"`
-	} `json:"http"`
-	Provider                 SaveEmailConfigJSONBody1Provider `json:"provider"`
-	RequireEmailVerification bool                             `json:"requireEmailVerification"`
-}
-
-// SaveEmailConfigJSONBody1Provider defines parameters for SaveEmailConfig.
-type SaveEmailConfigJSONBody1Provider string
-
-// SaveEmailConfigJSONBody2 defines parameters for SaveEmailConfig.
-type SaveEmailConfigJSONBody2 struct {
-	Enabled                  bool                             `json:"enabled"`
-	From                     openapi_types.Email              `json:"from"`
-	Provider                 SaveEmailConfigJSONBody2Provider `json:"provider"`
-	RequireEmailVerification bool                             `json:"requireEmailVerification"`
-}
-
-// SaveEmailConfigJSONBody2Provider defines parameters for SaveEmailConfig.
-type SaveEmailConfigJSONBody2Provider string
-
-// SendTestEmailJSONBody defines parameters for SendTestEmail.
-type SendTestEmailJSONBody struct {
-	To openapi_types.Email `json:"to"`
 }
 
 // ListSiteInvitationsParams defines parameters for ListSiteInvitations.
@@ -4772,12 +6799,6 @@ type UpdateAnnouncementJSONRequestBody UpdateAnnouncementJSONBody
 // UpsertAuthProviderJSONRequestBody defines body for UpsertAuthProvider for application/json ContentType.
 type UpsertAuthProviderJSONRequestBody UpsertAuthProviderJSONBody
 
-// SaveEmailConfigJSONRequestBody defines body for SaveEmailConfig for application/json ContentType.
-type SaveEmailConfigJSONRequestBody SaveEmailConfigJSONBody
-
-// SendTestEmailJSONRequestBody defines body for SendTestEmail for application/json ContentType.
-type SendTestEmailJSONRequestBody SendTestEmailJSONBody
-
 // CreateSiteInvitationJSONRequestBody defines body for CreateSiteInvitation for application/json ContentType.
 type CreateSiteInvitationJSONRequestBody CreateSiteInvitationJSONBody
 
@@ -4789,6 +6810,12 @@ type ValidateInviteCodeJSONRequestBody ValidateInviteCodeJSONBody
 
 // UpdateSiteCaptchaJSONRequestBody defines body for UpdateSiteCaptcha for application/json ContentType.
 type UpdateSiteCaptchaJSONRequestBody = UpdateSiteCaptcha
+
+// SaveEmailConfigJSONRequestBody defines body for SaveEmailConfig for application/json ContentType.
+type SaveEmailConfigJSONRequestBody = UpdateEmailSettings
+
+// SendTestEmailJSONRequestBody defines body for SendTestEmail for application/json ContentType.
+type SendTestEmailJSONRequestBody = CreateTestEmail
 
 // UpdateSiteIdentityJSONRequestBody defines body for UpdateSiteIdentity for application/json ContentType.
 type UpdateSiteIdentityJSONRequestBody = SiteIdentitySettings
@@ -4846,6 +6873,120 @@ type GrantUserEntitlementJSONRequestBody GrantUserEntitlementJSONBody
 
 // UpdateUserEntitlementJSONRequestBody defines body for UpdateUserEntitlement for application/json ContentType.
 type UpdateUserEntitlementJSONRequestBody UpdateUserEntitlementJSONBody
+
+// AsSmtpEmailSettings returns the union data inside the EmailSettings as a SmtpEmailSettings
+func (t EmailSettings) AsSmtpEmailSettings() (SmtpEmailSettings, error) {
+	var body SmtpEmailSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSmtpEmailSettings overwrites any union data inside the EmailSettings as the provided SmtpEmailSettings
+func (t *EmailSettings) FromSmtpEmailSettings(v SmtpEmailSettings) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSmtpEmailSettings performs a merge with any union data inside the EmailSettings, using the provided SmtpEmailSettings
+func (t *EmailSettings) MergeSmtpEmailSettings(v SmtpEmailSettings) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsHttpEmailSettings returns the union data inside the EmailSettings as a HttpEmailSettings
+func (t EmailSettings) AsHttpEmailSettings() (HttpEmailSettings, error) {
+	var body HttpEmailSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromHttpEmailSettings overwrites any union data inside the EmailSettings as the provided HttpEmailSettings
+func (t *EmailSettings) FromHttpEmailSettings(v HttpEmailSettings) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeHttpEmailSettings performs a merge with any union data inside the EmailSettings, using the provided HttpEmailSettings
+func (t *EmailSettings) MergeHttpEmailSettings(v HttpEmailSettings) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCloudflareEmailSettings returns the union data inside the EmailSettings as a CloudflareEmailSettings
+func (t EmailSettings) AsCloudflareEmailSettings() (CloudflareEmailSettings, error) {
+	var body CloudflareEmailSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCloudflareEmailSettings overwrites any union data inside the EmailSettings as the provided CloudflareEmailSettings
+func (t *EmailSettings) FromCloudflareEmailSettings(v CloudflareEmailSettings) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCloudflareEmailSettings performs a merge with any union data inside the EmailSettings, using the provided CloudflareEmailSettings
+func (t *EmailSettings) MergeCloudflareEmailSettings(v CloudflareEmailSettings) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEmptyEmailSettings returns the union data inside the EmailSettings as a EmptyEmailSettings
+func (t EmailSettings) AsEmptyEmailSettings() (EmptyEmailSettings, error) {
+	var body EmptyEmailSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEmptyEmailSettings overwrites any union data inside the EmailSettings as the provided EmptyEmailSettings
+func (t *EmailSettings) FromEmptyEmailSettings(v EmptyEmailSettings) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEmptyEmailSettings performs a merge with any union data inside the EmailSettings, using the provided EmptyEmailSettings
+func (t *EmailSettings) MergeEmptyEmailSettings(v EmptyEmailSettings) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EmailSettings) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EmailSettings) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // AsPublicCaptcha0 returns the union data inside the PublicCaptcha as a PublicCaptcha0
 func (t PublicCaptcha) AsPublicCaptcha0() (PublicCaptcha0, error) {
@@ -4909,6 +7050,125 @@ func (t *PublicCaptcha) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsSmtpEmailSettings returns the union data inside the UpdateEmailSettings as a SmtpEmailSettings
+func (t UpdateEmailSettings) AsSmtpEmailSettings() (SmtpEmailSettings, error) {
+	var body SmtpEmailSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSmtpEmailSettings overwrites any union data inside the UpdateEmailSettings as the provided SmtpEmailSettings
+func (t *UpdateEmailSettings) FromSmtpEmailSettings(v SmtpEmailSettings) error {
+	v.Provider = "smtp"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSmtpEmailSettings performs a merge with any union data inside the UpdateEmailSettings, using the provided SmtpEmailSettings
+func (t *UpdateEmailSettings) MergeSmtpEmailSettings(v SmtpEmailSettings) error {
+	v.Provider = "smtp"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsHttpEmailSettings returns the union data inside the UpdateEmailSettings as a HttpEmailSettings
+func (t UpdateEmailSettings) AsHttpEmailSettings() (HttpEmailSettings, error) {
+	var body HttpEmailSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromHttpEmailSettings overwrites any union data inside the UpdateEmailSettings as the provided HttpEmailSettings
+func (t *UpdateEmailSettings) FromHttpEmailSettings(v HttpEmailSettings) error {
+	v.Provider = "http"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeHttpEmailSettings performs a merge with any union data inside the UpdateEmailSettings, using the provided HttpEmailSettings
+func (t *UpdateEmailSettings) MergeHttpEmailSettings(v HttpEmailSettings) error {
+	v.Provider = "http"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCloudflareEmailSettings returns the union data inside the UpdateEmailSettings as a CloudflareEmailSettings
+func (t UpdateEmailSettings) AsCloudflareEmailSettings() (CloudflareEmailSettings, error) {
+	var body CloudflareEmailSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCloudflareEmailSettings overwrites any union data inside the UpdateEmailSettings as the provided CloudflareEmailSettings
+func (t *UpdateEmailSettings) FromCloudflareEmailSettings(v CloudflareEmailSettings) error {
+	v.Provider = "cloudflare"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCloudflareEmailSettings performs a merge with any union data inside the UpdateEmailSettings, using the provided CloudflareEmailSettings
+func (t *UpdateEmailSettings) MergeCloudflareEmailSettings(v CloudflareEmailSettings) error {
+	v.Provider = "cloudflare"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t UpdateEmailSettings) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"provider"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t UpdateEmailSettings) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "cloudflare":
+		return t.AsCloudflareEmailSettings()
+	case "http":
+		return t.AsHttpEmailSettings()
+	case "smtp":
+		return t.AsSmtpEmailSettings()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t UpdateEmailSettings) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *UpdateEmailSettings) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsCreateBackgroundJobJSONBody0 returns the union data inside the CreateBackgroundJobJSONBody as a CreateBackgroundJobJSONBody0
 func (t CreateBackgroundJobJSONBody) AsCreateBackgroundJobJSONBody0() (CreateBackgroundJobJSONBody0, error) {
 	var body CreateBackgroundJobJSONBody0
@@ -4967,94 +7227,6 @@ func (t CreateBackgroundJobJSONBody) MarshalJSON() ([]byte, error) {
 }
 
 func (t *CreateBackgroundJobJSONBody) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsSaveEmailConfigJSONBody0 returns the union data inside the SaveEmailConfigJSONBody as a SaveEmailConfigJSONBody0
-func (t SaveEmailConfigJSONBody) AsSaveEmailConfigJSONBody0() (SaveEmailConfigJSONBody0, error) {
-	var body SaveEmailConfigJSONBody0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSaveEmailConfigJSONBody0 overwrites any union data inside the SaveEmailConfigJSONBody as the provided SaveEmailConfigJSONBody0
-func (t *SaveEmailConfigJSONBody) FromSaveEmailConfigJSONBody0(v SaveEmailConfigJSONBody0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSaveEmailConfigJSONBody0 performs a merge with any union data inside the SaveEmailConfigJSONBody, using the provided SaveEmailConfigJSONBody0
-func (t *SaveEmailConfigJSONBody) MergeSaveEmailConfigJSONBody0(v SaveEmailConfigJSONBody0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsSaveEmailConfigJSONBody1 returns the union data inside the SaveEmailConfigJSONBody as a SaveEmailConfigJSONBody1
-func (t SaveEmailConfigJSONBody) AsSaveEmailConfigJSONBody1() (SaveEmailConfigJSONBody1, error) {
-	var body SaveEmailConfigJSONBody1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSaveEmailConfigJSONBody1 overwrites any union data inside the SaveEmailConfigJSONBody as the provided SaveEmailConfigJSONBody1
-func (t *SaveEmailConfigJSONBody) FromSaveEmailConfigJSONBody1(v SaveEmailConfigJSONBody1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSaveEmailConfigJSONBody1 performs a merge with any union data inside the SaveEmailConfigJSONBody, using the provided SaveEmailConfigJSONBody1
-func (t *SaveEmailConfigJSONBody) MergeSaveEmailConfigJSONBody1(v SaveEmailConfigJSONBody1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsSaveEmailConfigJSONBody2 returns the union data inside the SaveEmailConfigJSONBody as a SaveEmailConfigJSONBody2
-func (t SaveEmailConfigJSONBody) AsSaveEmailConfigJSONBody2() (SaveEmailConfigJSONBody2, error) {
-	var body SaveEmailConfigJSONBody2
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSaveEmailConfigJSONBody2 overwrites any union data inside the SaveEmailConfigJSONBody as the provided SaveEmailConfigJSONBody2
-func (t *SaveEmailConfigJSONBody) FromSaveEmailConfigJSONBody2(v SaveEmailConfigJSONBody2) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSaveEmailConfigJSONBody2 performs a merge with any union data inside the SaveEmailConfigJSONBody, using the provided SaveEmailConfigJSONBody2
-func (t *SaveEmailConfigJSONBody) MergeSaveEmailConfigJSONBody2(v SaveEmailConfigJSONBody2) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t SaveEmailConfigJSONBody) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *SaveEmailConfigJSONBody) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -5711,6 +7883,27 @@ type ClientInterface interface {
 
 	RevokeShare(ctx context.Context, token string, body RevokeShareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetSiteAnalytics request
+	GetSiteAnalytics(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminAnalyticsGrowth request
+	GetAdminAnalyticsGrowth(ctx context.Context, params *GetAdminAnalyticsGrowthParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminAnalyticsOperations request
+	GetAdminAnalyticsOperations(ctx context.Context, params *GetAdminAnalyticsOperationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminAnalyticsOverview request
+	GetAdminAnalyticsOverview(ctx context.Context, params *GetAdminAnalyticsOverviewParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminAnalyticsSharing request
+	GetAdminAnalyticsSharing(ctx context.Context, params *GetAdminAnalyticsSharingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminAnalyticsStorage request
+	GetAdminAnalyticsStorage(ctx context.Context, params *GetAdminAnalyticsStorageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminAnalyticsTraffic request
+	GetAdminAnalyticsTraffic(ctx context.Context, params *GetAdminAnalyticsTrafficParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAnnouncements request
 	ListAnnouncements(ctx context.Context, params *ListAnnouncementsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5744,27 +7937,8 @@ type ClientInterface interface {
 
 	UpsertAuthProvider(ctx context.Context, providerId string, body UpsertAuthProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateBranding request
-	UpdateBranding(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ResetBrandingField request
-	ResetBrandingField(ctx context.Context, field string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetChangelog request
 	GetChangelog(ctx context.Context, params *GetChangelogParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetEmailConfig request
-	GetEmailConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// SaveEmailConfigWithBody request with any body
-	SaveEmailConfigWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	SaveEmailConfig(ctx context.Context, body SaveEmailConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// SendTestEmailWithBody request with any body
-	SendTestEmailWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	SendTestEmail(ctx context.Context, body SendTestEmailJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetInstanceInfo request
 	GetInstanceInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5805,6 +7979,12 @@ type ClientInterface interface {
 	// UnbindLicense request
 	UnbindLicense(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetLicenseBinding request
+	GetLicenseBinding(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLicenseEntitlements request
+	GetLicenseEntitlements(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// InitiateLicensePairing request
 	InitiateLicensePairing(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5814,16 +7994,32 @@ type ClientInterface interface {
 	// RefreshLicense request
 	RefreshLicense(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetLicensingStatus request
-	GetLicensingStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetSiteSettings request
 	GetSiteSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateBranding request
+	UpdateBranding(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ResetBrandingField request
+	ResetBrandingField(ctx context.Context, field string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateSiteCaptchaWithBody request with any body
 	UpdateSiteCaptchaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateSiteCaptcha(ctx context.Context, body UpdateSiteCaptchaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEmailConfig request
+	GetEmailConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SaveEmailConfigWithBody request with any body
+	SaveEmailConfigWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SaveEmailConfig(ctx context.Context, body SaveEmailConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SendTestEmailWithBody request with any body
+	SendTestEmailWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SendTestEmail(ctx context.Context, body SendTestEmailJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateSiteIdentityWithBody request with any body
 	UpdateSiteIdentityWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -8657,6 +10853,90 @@ func (c *Client) RevokeShare(ctx context.Context, token string, body RevokeShare
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetSiteAnalytics(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSiteAnalyticsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminAnalyticsGrowth(ctx context.Context, params *GetAdminAnalyticsGrowthParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminAnalyticsGrowthRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminAnalyticsOperations(ctx context.Context, params *GetAdminAnalyticsOperationsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminAnalyticsOperationsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminAnalyticsOverview(ctx context.Context, params *GetAdminAnalyticsOverviewParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminAnalyticsOverviewRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminAnalyticsSharing(ctx context.Context, params *GetAdminAnalyticsSharingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminAnalyticsSharingRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminAnalyticsStorage(ctx context.Context, params *GetAdminAnalyticsStorageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminAnalyticsStorageRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAdminAnalyticsTraffic(ctx context.Context, params *GetAdminAnalyticsTrafficParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminAnalyticsTrafficRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListAnnouncements(ctx context.Context, params *ListAnnouncementsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAnnouncementsRequest(c.Server, params)
 	if err != nil {
@@ -8801,92 +11081,8 @@ func (c *Client) UpsertAuthProvider(ctx context.Context, providerId string, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateBranding(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateBrandingRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ResetBrandingField(ctx context.Context, field string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewResetBrandingFieldRequest(c.Server, field)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) GetChangelog(ctx context.Context, params *GetChangelogParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetChangelogRequest(c.Server, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetEmailConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetEmailConfigRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SaveEmailConfigWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSaveEmailConfigRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SaveEmailConfig(ctx context.Context, body SaveEmailConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSaveEmailConfigRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SendTestEmailWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSendTestEmailRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SendTestEmail(ctx context.Context, body SendTestEmailJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSendTestEmailRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -9065,6 +11261,30 @@ func (c *Client) UnbindLicense(ctx context.Context, reqEditors ...RequestEditorF
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetLicenseBinding(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLicenseBindingRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLicenseEntitlements(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLicenseEntitlementsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) InitiateLicensePairing(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewInitiateLicensePairingRequest(c.Server)
 	if err != nil {
@@ -9101,8 +11321,8 @@ func (c *Client) RefreshLicense(ctx context.Context, reqEditors ...RequestEditor
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetLicensingStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetLicensingStatusRequest(c.Server)
+func (c *Client) GetSiteSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSiteSettingsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -9113,8 +11333,20 @@ func (c *Client) GetLicensingStatus(ctx context.Context, reqEditors ...RequestEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetSiteSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetSiteSettingsRequest(c.Server)
+func (c *Client) UpdateBranding(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateBrandingRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ResetBrandingField(ctx context.Context, field string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewResetBrandingFieldRequest(c.Server, field)
 	if err != nil {
 		return nil, err
 	}
@@ -9139,6 +11371,66 @@ func (c *Client) UpdateSiteCaptchaWithBody(ctx context.Context, contentType stri
 
 func (c *Client) UpdateSiteCaptcha(ctx context.Context, body UpdateSiteCaptchaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateSiteCaptchaRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetEmailConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEmailConfigRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SaveEmailConfigWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSaveEmailConfigRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SaveEmailConfig(ctx context.Context, body SaveEmailConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSaveEmailConfigRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SendTestEmailWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSendTestEmailRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SendTestEmail(ctx context.Context, body SendTestEmailJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSendTestEmailRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -16043,6 +18335,501 @@ func NewRevokeShareRequestWithBody(server string, token string, contentType stri
 	return req, nil
 }
 
+// NewGetSiteAnalyticsRequest generates requests for GetSiteAnalytics
+func NewGetSiteAnalyticsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/analytics")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminAnalyticsGrowthRequest generates requests for GetAdminAnalyticsGrowth
+func NewGetAdminAnalyticsGrowthRequest(server string, params *GetAdminAnalyticsGrowthParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/analytics/growth")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.TimeZone != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "timeZone", *params.TimeZone, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminAnalyticsOperationsRequest generates requests for GetAdminAnalyticsOperations
+func NewGetAdminAnalyticsOperationsRequest(server string, params *GetAdminAnalyticsOperationsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/analytics/operations")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.TimeZone != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "timeZone", *params.TimeZone, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminAnalyticsOverviewRequest generates requests for GetAdminAnalyticsOverview
+func NewGetAdminAnalyticsOverviewRequest(server string, params *GetAdminAnalyticsOverviewParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/analytics/overview")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.TimeZone != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "timeZone", *params.TimeZone, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminAnalyticsSharingRequest generates requests for GetAdminAnalyticsSharing
+func NewGetAdminAnalyticsSharingRequest(server string, params *GetAdminAnalyticsSharingParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/analytics/sharing")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.TimeZone != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "timeZone", *params.TimeZone, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminAnalyticsStorageRequest generates requests for GetAdminAnalyticsStorage
+func NewGetAdminAnalyticsStorageRequest(server string, params *GetAdminAnalyticsStorageParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/analytics/storage")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.TimeZone != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "timeZone", *params.TimeZone, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminAnalyticsTrafficRequest generates requests for GetAdminAnalyticsTraffic
+func NewGetAdminAnalyticsTrafficRequest(server string, params *GetAdminAnalyticsTrafficParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/analytics/traffic")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.TimeZone != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "timeZone", *params.TimeZone, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListAnnouncementsRequest generates requests for ListAnnouncements
 func NewListAnnouncementsRequest(server string, params *ListAnnouncementsParams) (*http.Request, error) {
 	var err error
@@ -16534,67 +19321,6 @@ func NewUpsertAuthProviderRequestWithBody(server string, providerId string, cont
 	return req, nil
 }
 
-// NewUpdateBrandingRequest generates requests for UpdateBranding
-func NewUpdateBrandingRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/site/branding")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewResetBrandingFieldRequest generates requests for ResetBrandingField
-func NewResetBrandingFieldRequest(server string, field string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "field", field, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/site/branding/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetChangelogRequest generates requests for GetChangelog
 func NewGetChangelogRequest(server string, params *GetChangelogParams) (*http.Request, error) {
 	var err error
@@ -16645,113 +19371,6 @@ func NewGetChangelogRequest(server string, params *GetChangelogParams) (*http.Re
 	if err != nil {
 		return nil, err
 	}
-
-	return req, nil
-}
-
-// NewGetEmailConfigRequest generates requests for GetEmailConfig
-func NewGetEmailConfigRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/site/email")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewSaveEmailConfigRequest calls the generic SaveEmailConfig builder with application/json body
-func NewSaveEmailConfigRequest(server string, body SaveEmailConfigJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewSaveEmailConfigRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewSaveEmailConfigRequestWithBody generates requests for SaveEmailConfig with any type of body
-func NewSaveEmailConfigRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/site/email")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewSendTestEmailRequest calls the generic SendTestEmail builder with application/json body
-func NewSendTestEmailRequest(server string, body SendTestEmailJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewSendTestEmailRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewSendTestEmailRequestWithBody generates requests for SendTestEmail with any type of body
-func NewSendTestEmailRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/site/email/test-messages")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -17198,6 +19817,60 @@ func NewUnbindLicenseRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetLicenseBindingRequest generates requests for GetLicenseBinding
+func NewGetLicenseBindingRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/licensing/binding")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLicenseEntitlementsRequest generates requests for GetLicenseEntitlements
+func NewGetLicenseEntitlementsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/licensing/entitlements")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewInitiateLicensePairingRequest generates requests for InitiateLicensePairing
 func NewInitiateLicensePairingRequest(server string) (*http.Request, error) {
 	var err error
@@ -17286,33 +19959,6 @@ func NewRefreshLicenseRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewGetLicensingStatusRequest generates requests for GetLicensingStatus
-func NewGetLicensingStatusRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/site/licensing/status")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetSiteSettingsRequest generates requests for GetSiteSettings
 func NewGetSiteSettingsRequest(server string) (*http.Request, error) {
 	var err error
@@ -17333,6 +19979,67 @@ func NewGetSiteSettingsRequest(server string) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateBrandingRequest generates requests for UpdateBranding
+func NewUpdateBrandingRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/branding")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewResetBrandingFieldRequest generates requests for ResetBrandingField
+func NewResetBrandingFieldRequest(server string, field string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "field", field, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/branding/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -17371,6 +20078,113 @@ func NewUpdateSiteCaptchaRequestWithBody(server string, contentType string, body
 	}
 
 	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetEmailConfigRequest generates requests for GetEmailConfig
+func NewGetEmailConfigRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/email")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSaveEmailConfigRequest calls the generic SaveEmailConfig builder with application/json body
+func NewSaveEmailConfigRequest(server string, body SaveEmailConfigJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSaveEmailConfigRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSaveEmailConfigRequestWithBody generates requests for SaveEmailConfig with any type of body
+func NewSaveEmailConfigRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/email")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSendTestEmailRequest calls the generic SendTestEmail builder with application/json body
+func NewSendTestEmailRequest(server string, body SendTestEmailJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSendTestEmailRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSendTestEmailRequestWithBody generates requests for SendTestEmail with any type of body
+func NewSendTestEmailRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/email/test-messages")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -17549,7 +20363,7 @@ func NewVerifySiteWebDavRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/site/settings/webdav/verification")
+	operationPath := fmt.Sprintf("/api/site/settings/webdav/verifications")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -20038,6 +22852,27 @@ type ClientWithResponsesInterface interface {
 
 	RevokeShareWithResponse(ctx context.Context, token string, body RevokeShareJSONRequestBody, reqEditors ...RequestEditorFn) (*RevokeShareResponse, error)
 
+	// GetSiteAnalyticsWithResponse request
+	GetSiteAnalyticsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSiteAnalyticsResponse, error)
+
+	// GetAdminAnalyticsGrowthWithResponse request
+	GetAdminAnalyticsGrowthWithResponse(ctx context.Context, params *GetAdminAnalyticsGrowthParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsGrowthResponse, error)
+
+	// GetAdminAnalyticsOperationsWithResponse request
+	GetAdminAnalyticsOperationsWithResponse(ctx context.Context, params *GetAdminAnalyticsOperationsParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsOperationsResponse, error)
+
+	// GetAdminAnalyticsOverviewWithResponse request
+	GetAdminAnalyticsOverviewWithResponse(ctx context.Context, params *GetAdminAnalyticsOverviewParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsOverviewResponse, error)
+
+	// GetAdminAnalyticsSharingWithResponse request
+	GetAdminAnalyticsSharingWithResponse(ctx context.Context, params *GetAdminAnalyticsSharingParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsSharingResponse, error)
+
+	// GetAdminAnalyticsStorageWithResponse request
+	GetAdminAnalyticsStorageWithResponse(ctx context.Context, params *GetAdminAnalyticsStorageParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsStorageResponse, error)
+
+	// GetAdminAnalyticsTrafficWithResponse request
+	GetAdminAnalyticsTrafficWithResponse(ctx context.Context, params *GetAdminAnalyticsTrafficParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsTrafficResponse, error)
+
 	// ListAnnouncementsWithResponse request
 	ListAnnouncementsWithResponse(ctx context.Context, params *ListAnnouncementsParams, reqEditors ...RequestEditorFn) (*ListAnnouncementsResponse, error)
 
@@ -20071,27 +22906,8 @@ type ClientWithResponsesInterface interface {
 
 	UpsertAuthProviderWithResponse(ctx context.Context, providerId string, body UpsertAuthProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertAuthProviderResponse, error)
 
-	// UpdateBrandingWithResponse request
-	UpdateBrandingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UpdateBrandingResponse, error)
-
-	// ResetBrandingFieldWithResponse request
-	ResetBrandingFieldWithResponse(ctx context.Context, field string, reqEditors ...RequestEditorFn) (*ResetBrandingFieldResponse, error)
-
 	// GetChangelogWithResponse request
 	GetChangelogWithResponse(ctx context.Context, params *GetChangelogParams, reqEditors ...RequestEditorFn) (*GetChangelogResponse, error)
-
-	// GetEmailConfigWithResponse request
-	GetEmailConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetEmailConfigResponse, error)
-
-	// SaveEmailConfigWithBodyWithResponse request with any body
-	SaveEmailConfigWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SaveEmailConfigResponse, error)
-
-	SaveEmailConfigWithResponse(ctx context.Context, body SaveEmailConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*SaveEmailConfigResponse, error)
-
-	// SendTestEmailWithBodyWithResponse request with any body
-	SendTestEmailWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SendTestEmailResponse, error)
-
-	SendTestEmailWithResponse(ctx context.Context, body SendTestEmailJSONRequestBody, reqEditors ...RequestEditorFn) (*SendTestEmailResponse, error)
 
 	// GetInstanceInfoWithResponse request
 	GetInstanceInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetInstanceInfoResponse, error)
@@ -20132,6 +22948,12 @@ type ClientWithResponsesInterface interface {
 	// UnbindLicenseWithResponse request
 	UnbindLicenseWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UnbindLicenseResponse, error)
 
+	// GetLicenseBindingWithResponse request
+	GetLicenseBindingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetLicenseBindingResponse, error)
+
+	// GetLicenseEntitlementsWithResponse request
+	GetLicenseEntitlementsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetLicenseEntitlementsResponse, error)
+
 	// InitiateLicensePairingWithResponse request
 	InitiateLicensePairingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*InitiateLicensePairingResponse, error)
 
@@ -20141,16 +22963,32 @@ type ClientWithResponsesInterface interface {
 	// RefreshLicenseWithResponse request
 	RefreshLicenseWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*RefreshLicenseResponse, error)
 
-	// GetLicensingStatusWithResponse request
-	GetLicensingStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetLicensingStatusResponse, error)
-
 	// GetSiteSettingsWithResponse request
 	GetSiteSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSiteSettingsResponse, error)
+
+	// UpdateBrandingWithResponse request
+	UpdateBrandingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UpdateBrandingResponse, error)
+
+	// ResetBrandingFieldWithResponse request
+	ResetBrandingFieldWithResponse(ctx context.Context, field string, reqEditors ...RequestEditorFn) (*ResetBrandingFieldResponse, error)
 
 	// UpdateSiteCaptchaWithBodyWithResponse request with any body
 	UpdateSiteCaptchaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteCaptchaResponse, error)
 
 	UpdateSiteCaptchaWithResponse(ctx context.Context, body UpdateSiteCaptchaJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteCaptchaResponse, error)
+
+	// GetEmailConfigWithResponse request
+	GetEmailConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetEmailConfigResponse, error)
+
+	// SaveEmailConfigWithBodyWithResponse request with any body
+	SaveEmailConfigWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SaveEmailConfigResponse, error)
+
+	SaveEmailConfigWithResponse(ctx context.Context, body SaveEmailConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*SaveEmailConfigResponse, error)
+
+	// SendTestEmailWithBodyWithResponse request with any body
+	SendTestEmailWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SendTestEmailResponse, error)
+
+	SendTestEmailWithResponse(ctx context.Context, body SendTestEmailJSONRequestBody, reqEditors ...RequestEditorFn) (*SendTestEmailResponse, error)
 
 	// UpdateSiteIdentityWithBodyWithResponse request with any body
 	UpdateSiteIdentityWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteIdentityResponse, error)
@@ -26748,6 +29586,216 @@ func (r RevokeShareResponse) ContentType() string {
 	return ""
 }
 
+type GetSiteAnalyticsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminDashboard
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSiteAnalyticsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSiteAnalyticsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSiteAnalyticsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminAnalyticsGrowthResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminAnalyticsGrowth
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminAnalyticsGrowthResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminAnalyticsGrowthResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminAnalyticsGrowthResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminAnalyticsOperationsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminAnalyticsOperations
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminAnalyticsOperationsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminAnalyticsOperationsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminAnalyticsOperationsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminAnalyticsOverviewResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminAnalyticsOverview
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminAnalyticsOverviewResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminAnalyticsOverviewResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminAnalyticsOverviewResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminAnalyticsSharingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminAnalyticsSharing
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminAnalyticsSharingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminAnalyticsSharingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminAnalyticsSharingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminAnalyticsStorageResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminAnalyticsStorage
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminAnalyticsStorageResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminAnalyticsStorageResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminAnalyticsStorageResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminAnalyticsTrafficResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminAnalyticsTraffic
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminAnalyticsTrafficResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminAnalyticsTrafficResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminAnalyticsTrafficResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListAnnouncementsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -27024,70 +30072,6 @@ func (r UpsertAuthProviderResponse) ContentType() string {
 	return ""
 }
 
-type UpdateBrandingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *BrandingConfig
-	JSON400      *Error
-	JSON413      *Error
-	JSON415      *Error
-	JSON422      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateBrandingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateBrandingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UpdateBrandingResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ResetBrandingFieldResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r ResetBrandingFieldResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ResetBrandingFieldResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ResetBrandingFieldResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type GetChangelogResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -27112,102 +30096,6 @@ func (r GetChangelogResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetChangelogResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type GetEmailConfigResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *EmailSettings
-}
-
-// Status returns HTTPResponse.Status
-func (r GetEmailConfigResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetEmailConfigResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetEmailConfigResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type SaveEmailConfigResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Success bool `json:"success"`
-	}
-	JSON400 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r SaveEmailConfigResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r SaveEmailConfigResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r SaveEmailConfigResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type SendTestEmailResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Success bool `json:"success"`
-	}
-	JSON400 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r SendTestEmailResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r SendTestEmailResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r SendTestEmailResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -27500,8 +30388,8 @@ func (r ValidateInviteCodeResponse) ContentType() string {
 type DeleteInviteCodeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Error
 	JSON404      *Error
+	JSON409      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27552,6 +30440,66 @@ func (r UnbindLicenseResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r UnbindLicenseResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetLicenseBindingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LicenseBindingState
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLicenseBindingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLicenseBindingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLicenseBindingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetLicenseEntitlementsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LicenseEntitlements
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLicenseEntitlementsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLicenseEntitlementsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLicenseEntitlementsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -27652,36 +30600,6 @@ func (r RefreshLicenseResponse) ContentType() string {
 	return ""
 }
 
-type GetLicensingStatusResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *LicenseBindingState
-}
-
-// Status returns HTTPResponse.Status
-func (r GetLicensingStatusResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetLicensingStatusResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetLicensingStatusResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type GetSiteSettingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -27706,6 +30624,70 @@ func (r GetSiteSettingsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetSiteSettingsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateBrandingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *BrandingConfig
+	JSON400      *Error
+	JSON413      *Error
+	JSON415      *Error
+	JSON422      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateBrandingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateBrandingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateBrandingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ResetBrandingFieldResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ResetBrandingFieldResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ResetBrandingFieldResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ResetBrandingFieldResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -27737,6 +30719,102 @@ func (r UpdateSiteCaptchaResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r UpdateSiteCaptchaResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetEmailConfigResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EmailSettings
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEmailConfigResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEmailConfigResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetEmailConfigResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SaveEmailConfigResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success bool `json:"success"`
+	}
+	JSON400 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r SaveEmailConfigResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SaveEmailConfigResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SaveEmailConfigResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SendTestEmailResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success bool `json:"success"`
+	}
+	JSON400 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r SendTestEmailResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SendTestEmailResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SendTestEmailResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -31278,6 +34356,69 @@ func (c *ClientWithResponses) RevokeShareWithResponse(ctx context.Context, token
 	return ParseRevokeShareResponse(rsp)
 }
 
+// GetSiteAnalyticsWithResponse request returning *GetSiteAnalyticsResponse
+func (c *ClientWithResponses) GetSiteAnalyticsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSiteAnalyticsResponse, error) {
+	rsp, err := c.GetSiteAnalytics(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSiteAnalyticsResponse(rsp)
+}
+
+// GetAdminAnalyticsGrowthWithResponse request returning *GetAdminAnalyticsGrowthResponse
+func (c *ClientWithResponses) GetAdminAnalyticsGrowthWithResponse(ctx context.Context, params *GetAdminAnalyticsGrowthParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsGrowthResponse, error) {
+	rsp, err := c.GetAdminAnalyticsGrowth(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminAnalyticsGrowthResponse(rsp)
+}
+
+// GetAdminAnalyticsOperationsWithResponse request returning *GetAdminAnalyticsOperationsResponse
+func (c *ClientWithResponses) GetAdminAnalyticsOperationsWithResponse(ctx context.Context, params *GetAdminAnalyticsOperationsParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsOperationsResponse, error) {
+	rsp, err := c.GetAdminAnalyticsOperations(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminAnalyticsOperationsResponse(rsp)
+}
+
+// GetAdminAnalyticsOverviewWithResponse request returning *GetAdminAnalyticsOverviewResponse
+func (c *ClientWithResponses) GetAdminAnalyticsOverviewWithResponse(ctx context.Context, params *GetAdminAnalyticsOverviewParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsOverviewResponse, error) {
+	rsp, err := c.GetAdminAnalyticsOverview(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminAnalyticsOverviewResponse(rsp)
+}
+
+// GetAdminAnalyticsSharingWithResponse request returning *GetAdminAnalyticsSharingResponse
+func (c *ClientWithResponses) GetAdminAnalyticsSharingWithResponse(ctx context.Context, params *GetAdminAnalyticsSharingParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsSharingResponse, error) {
+	rsp, err := c.GetAdminAnalyticsSharing(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminAnalyticsSharingResponse(rsp)
+}
+
+// GetAdminAnalyticsStorageWithResponse request returning *GetAdminAnalyticsStorageResponse
+func (c *ClientWithResponses) GetAdminAnalyticsStorageWithResponse(ctx context.Context, params *GetAdminAnalyticsStorageParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsStorageResponse, error) {
+	rsp, err := c.GetAdminAnalyticsStorage(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminAnalyticsStorageResponse(rsp)
+}
+
+// GetAdminAnalyticsTrafficWithResponse request returning *GetAdminAnalyticsTrafficResponse
+func (c *ClientWithResponses) GetAdminAnalyticsTrafficWithResponse(ctx context.Context, params *GetAdminAnalyticsTrafficParams, reqEditors ...RequestEditorFn) (*GetAdminAnalyticsTrafficResponse, error) {
+	rsp, err := c.GetAdminAnalyticsTraffic(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminAnalyticsTrafficResponse(rsp)
+}
+
 // ListAnnouncementsWithResponse request returning *ListAnnouncementsResponse
 func (c *ClientWithResponses) ListAnnouncementsWithResponse(ctx context.Context, params *ListAnnouncementsParams, reqEditors ...RequestEditorFn) (*ListAnnouncementsResponse, error) {
 	rsp, err := c.ListAnnouncements(ctx, params, reqEditors...)
@@ -31383,24 +34524,6 @@ func (c *ClientWithResponses) UpsertAuthProviderWithResponse(ctx context.Context
 	return ParseUpsertAuthProviderResponse(rsp)
 }
 
-// UpdateBrandingWithResponse request returning *UpdateBrandingResponse
-func (c *ClientWithResponses) UpdateBrandingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UpdateBrandingResponse, error) {
-	rsp, err := c.UpdateBranding(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateBrandingResponse(rsp)
-}
-
-// ResetBrandingFieldWithResponse request returning *ResetBrandingFieldResponse
-func (c *ClientWithResponses) ResetBrandingFieldWithResponse(ctx context.Context, field string, reqEditors ...RequestEditorFn) (*ResetBrandingFieldResponse, error) {
-	rsp, err := c.ResetBrandingField(ctx, field, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseResetBrandingFieldResponse(rsp)
-}
-
 // GetChangelogWithResponse request returning *GetChangelogResponse
 func (c *ClientWithResponses) GetChangelogWithResponse(ctx context.Context, params *GetChangelogParams, reqEditors ...RequestEditorFn) (*GetChangelogResponse, error) {
 	rsp, err := c.GetChangelog(ctx, params, reqEditors...)
@@ -31408,49 +34531,6 @@ func (c *ClientWithResponses) GetChangelogWithResponse(ctx context.Context, para
 		return nil, err
 	}
 	return ParseGetChangelogResponse(rsp)
-}
-
-// GetEmailConfigWithResponse request returning *GetEmailConfigResponse
-func (c *ClientWithResponses) GetEmailConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetEmailConfigResponse, error) {
-	rsp, err := c.GetEmailConfig(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetEmailConfigResponse(rsp)
-}
-
-// SaveEmailConfigWithBodyWithResponse request with arbitrary body returning *SaveEmailConfigResponse
-func (c *ClientWithResponses) SaveEmailConfigWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SaveEmailConfigResponse, error) {
-	rsp, err := c.SaveEmailConfigWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSaveEmailConfigResponse(rsp)
-}
-
-func (c *ClientWithResponses) SaveEmailConfigWithResponse(ctx context.Context, body SaveEmailConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*SaveEmailConfigResponse, error) {
-	rsp, err := c.SaveEmailConfig(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSaveEmailConfigResponse(rsp)
-}
-
-// SendTestEmailWithBodyWithResponse request with arbitrary body returning *SendTestEmailResponse
-func (c *ClientWithResponses) SendTestEmailWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SendTestEmailResponse, error) {
-	rsp, err := c.SendTestEmailWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSendTestEmailResponse(rsp)
-}
-
-func (c *ClientWithResponses) SendTestEmailWithResponse(ctx context.Context, body SendTestEmailJSONRequestBody, reqEditors ...RequestEditorFn) (*SendTestEmailResponse, error) {
-	rsp, err := c.SendTestEmail(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSendTestEmailResponse(rsp)
 }
 
 // GetInstanceInfoWithResponse request returning *GetInstanceInfoResponse
@@ -31576,6 +34656,24 @@ func (c *ClientWithResponses) UnbindLicenseWithResponse(ctx context.Context, req
 	return ParseUnbindLicenseResponse(rsp)
 }
 
+// GetLicenseBindingWithResponse request returning *GetLicenseBindingResponse
+func (c *ClientWithResponses) GetLicenseBindingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetLicenseBindingResponse, error) {
+	rsp, err := c.GetLicenseBinding(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLicenseBindingResponse(rsp)
+}
+
+// GetLicenseEntitlementsWithResponse request returning *GetLicenseEntitlementsResponse
+func (c *ClientWithResponses) GetLicenseEntitlementsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetLicenseEntitlementsResponse, error) {
+	rsp, err := c.GetLicenseEntitlements(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLicenseEntitlementsResponse(rsp)
+}
+
 // InitiateLicensePairingWithResponse request returning *InitiateLicensePairingResponse
 func (c *ClientWithResponses) InitiateLicensePairingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*InitiateLicensePairingResponse, error) {
 	rsp, err := c.InitiateLicensePairing(ctx, reqEditors...)
@@ -31603,15 +34701,6 @@ func (c *ClientWithResponses) RefreshLicenseWithResponse(ctx context.Context, re
 	return ParseRefreshLicenseResponse(rsp)
 }
 
-// GetLicensingStatusWithResponse request returning *GetLicensingStatusResponse
-func (c *ClientWithResponses) GetLicensingStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetLicensingStatusResponse, error) {
-	rsp, err := c.GetLicensingStatus(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetLicensingStatusResponse(rsp)
-}
-
 // GetSiteSettingsWithResponse request returning *GetSiteSettingsResponse
 func (c *ClientWithResponses) GetSiteSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSiteSettingsResponse, error) {
 	rsp, err := c.GetSiteSettings(ctx, reqEditors...)
@@ -31619,6 +34708,24 @@ func (c *ClientWithResponses) GetSiteSettingsWithResponse(ctx context.Context, r
 		return nil, err
 	}
 	return ParseGetSiteSettingsResponse(rsp)
+}
+
+// UpdateBrandingWithResponse request returning *UpdateBrandingResponse
+func (c *ClientWithResponses) UpdateBrandingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UpdateBrandingResponse, error) {
+	rsp, err := c.UpdateBranding(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateBrandingResponse(rsp)
+}
+
+// ResetBrandingFieldWithResponse request returning *ResetBrandingFieldResponse
+func (c *ClientWithResponses) ResetBrandingFieldWithResponse(ctx context.Context, field string, reqEditors ...RequestEditorFn) (*ResetBrandingFieldResponse, error) {
+	rsp, err := c.ResetBrandingField(ctx, field, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseResetBrandingFieldResponse(rsp)
 }
 
 // UpdateSiteCaptchaWithBodyWithResponse request with arbitrary body returning *UpdateSiteCaptchaResponse
@@ -31636,6 +34743,49 @@ func (c *ClientWithResponses) UpdateSiteCaptchaWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseUpdateSiteCaptchaResponse(rsp)
+}
+
+// GetEmailConfigWithResponse request returning *GetEmailConfigResponse
+func (c *ClientWithResponses) GetEmailConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetEmailConfigResponse, error) {
+	rsp, err := c.GetEmailConfig(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEmailConfigResponse(rsp)
+}
+
+// SaveEmailConfigWithBodyWithResponse request with arbitrary body returning *SaveEmailConfigResponse
+func (c *ClientWithResponses) SaveEmailConfigWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SaveEmailConfigResponse, error) {
+	rsp, err := c.SaveEmailConfigWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSaveEmailConfigResponse(rsp)
+}
+
+func (c *ClientWithResponses) SaveEmailConfigWithResponse(ctx context.Context, body SaveEmailConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*SaveEmailConfigResponse, error) {
+	rsp, err := c.SaveEmailConfig(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSaveEmailConfigResponse(rsp)
+}
+
+// SendTestEmailWithBodyWithResponse request with arbitrary body returning *SendTestEmailResponse
+func (c *ClientWithResponses) SendTestEmailWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SendTestEmailResponse, error) {
+	rsp, err := c.SendTestEmailWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSendTestEmailResponse(rsp)
+}
+
+func (c *ClientWithResponses) SendTestEmailWithResponse(ctx context.Context, body SendTestEmailJSONRequestBody, reqEditors ...RequestEditorFn) (*SendTestEmailResponse, error) {
+	rsp, err := c.SendTestEmail(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSendTestEmailResponse(rsp)
 }
 
 // UpdateSiteIdentityWithBodyWithResponse request with arbitrary body returning *UpdateSiteIdentityResponse
@@ -41775,6 +44925,188 @@ func ParseRevokeShareResponse(rsp *http.Response) (*RevokeShareResponse, error) 
 	return response, nil
 }
 
+// ParseGetSiteAnalyticsResponse parses an HTTP response from a GetSiteAnalyticsWithResponse call
+func ParseGetSiteAnalyticsResponse(rsp *http.Response) (*GetSiteAnalyticsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSiteAnalyticsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminDashboard
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminAnalyticsGrowthResponse parses an HTTP response from a GetAdminAnalyticsGrowthWithResponse call
+func ParseGetAdminAnalyticsGrowthResponse(rsp *http.Response) (*GetAdminAnalyticsGrowthResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminAnalyticsGrowthResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminAnalyticsGrowth
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminAnalyticsOperationsResponse parses an HTTP response from a GetAdminAnalyticsOperationsWithResponse call
+func ParseGetAdminAnalyticsOperationsResponse(rsp *http.Response) (*GetAdminAnalyticsOperationsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminAnalyticsOperationsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminAnalyticsOperations
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminAnalyticsOverviewResponse parses an HTTP response from a GetAdminAnalyticsOverviewWithResponse call
+func ParseGetAdminAnalyticsOverviewResponse(rsp *http.Response) (*GetAdminAnalyticsOverviewResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminAnalyticsOverviewResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminAnalyticsOverview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminAnalyticsSharingResponse parses an HTTP response from a GetAdminAnalyticsSharingWithResponse call
+func ParseGetAdminAnalyticsSharingResponse(rsp *http.Response) (*GetAdminAnalyticsSharingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminAnalyticsSharingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminAnalyticsSharing
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminAnalyticsStorageResponse parses an HTTP response from a GetAdminAnalyticsStorageWithResponse call
+func ParseGetAdminAnalyticsStorageResponse(rsp *http.Response) (*GetAdminAnalyticsStorageResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminAnalyticsStorageResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminAnalyticsStorage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminAnalyticsTrafficResponse parses an HTTP response from a GetAdminAnalyticsTrafficWithResponse call
+func ParseGetAdminAnalyticsTrafficResponse(rsp *http.Response) (*GetAdminAnalyticsTrafficResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminAnalyticsTrafficResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminAnalyticsTraffic
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListAnnouncementsResponse parses an HTTP response from a ListAnnouncementsWithResponse call
 func ParseListAnnouncementsResponse(rsp *http.Response) (*ListAnnouncementsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -42051,86 +45383,6 @@ func ParseUpsertAuthProviderResponse(rsp *http.Response) (*UpsertAuthProviderRes
 	return response, nil
 }
 
-// ParseUpdateBrandingResponse parses an HTTP response from a UpdateBrandingWithResponse call
-func ParseUpdateBrandingResponse(rsp *http.Response) (*UpdateBrandingResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateBrandingResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BrandingConfig
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON413 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON415 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON422 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseResetBrandingFieldResponse parses an HTTP response from a ResetBrandingFieldWithResponse call
-func ParseResetBrandingFieldResponse(rsp *http.Response) (*ResetBrandingFieldResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ResetBrandingFieldResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseGetChangelogResponse parses an HTTP response from a GetChangelogWithResponse call
 func ParseGetChangelogResponse(rsp *http.Response) (*GetChangelogResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -42151,102 +45403,6 @@ func ParseGetChangelogResponse(rsp *http.Response) (*GetChangelogResponse, error
 			return nil, err
 		}
 		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetEmailConfigResponse parses an HTTP response from a GetEmailConfigWithResponse call
-func ParseGetEmailConfigResponse(rsp *http.Response) (*GetEmailConfigResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetEmailConfigResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EmailSettings
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseSaveEmailConfigResponse parses an HTTP response from a SaveEmailConfigWithResponse call
-func ParseSaveEmailConfigResponse(rsp *http.Response) (*SaveEmailConfigResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &SaveEmailConfigResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Success bool `json:"success"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseSendTestEmailResponse parses an HTTP response from a SendTestEmailWithResponse call
-func ParseSendTestEmailResponse(rsp *http.Response) (*SendTestEmailResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &SendTestEmailResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Success bool `json:"success"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
 
 	}
 
@@ -42562,19 +45718,19 @@ func ParseDeleteInviteCodeResponse(rsp *http.Response) (*DeleteInviteCodeRespons
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 
@@ -42601,6 +45757,58 @@ func ParseUnbindLicenseResponse(rsp *http.Response) (*UnbindLicenseResponse, err
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLicenseBindingResponse parses an HTTP response from a GetLicenseBindingWithResponse call
+func ParseGetLicenseBindingResponse(rsp *http.Response) (*GetLicenseBindingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLicenseBindingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LicenseBindingState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLicenseEntitlementsResponse parses an HTTP response from a GetLicenseEntitlementsWithResponse call
+func ParseGetLicenseEntitlementsResponse(rsp *http.Response) (*GetLicenseEntitlementsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLicenseEntitlementsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LicenseEntitlements
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 
@@ -42695,32 +45903,6 @@ func ParseRefreshLicenseResponse(rsp *http.Response) (*RefreshLicenseResponse, e
 	return response, nil
 }
 
-// ParseGetLicensingStatusResponse parses an HTTP response from a GetLicensingStatusWithResponse call
-func ParseGetLicensingStatusResponse(rsp *http.Response) (*GetLicensingStatusResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetLicensingStatusResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest LicenseBindingState
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseGetSiteSettingsResponse parses an HTTP response from a GetSiteSettingsWithResponse call
 func ParseGetSiteSettingsResponse(rsp *http.Response) (*GetSiteSettingsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -42747,6 +45929,86 @@ func ParseGetSiteSettingsResponse(rsp *http.Response) (*GetSiteSettingsResponse,
 	return response, nil
 }
 
+// ParseUpdateBrandingResponse parses an HTTP response from a UpdateBrandingWithResponse call
+func ParseUpdateBrandingResponse(rsp *http.Response) (*UpdateBrandingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateBrandingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BrandingConfig
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseResetBrandingFieldResponse parses an HTTP response from a ResetBrandingFieldWithResponse call
+func ParseResetBrandingFieldResponse(rsp *http.Response) (*ResetBrandingFieldResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ResetBrandingFieldResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseUpdateSiteCaptchaResponse parses an HTTP response from a UpdateSiteCaptchaWithResponse call
 func ParseUpdateSiteCaptchaResponse(rsp *http.Response) (*UpdateSiteCaptchaResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -42763,6 +46025,102 @@ func ParseUpdateSiteCaptchaResponse(rsp *http.Response) (*UpdateSiteCaptchaRespo
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest SiteCaptchaSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetEmailConfigResponse parses an HTTP response from a GetEmailConfigWithResponse call
+func ParseGetEmailConfigResponse(rsp *http.Response) (*GetEmailConfigResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEmailConfigResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EmailSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSaveEmailConfigResponse parses an HTTP response from a SaveEmailConfigWithResponse call
+func ParseSaveEmailConfigResponse(rsp *http.Response) (*SaveEmailConfigResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SaveEmailConfigResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success bool `json:"success"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSendTestEmailResponse parses an HTTP response from a SendTestEmailWithResponse call
+func ParseSendTestEmailResponse(rsp *http.Response) (*SendTestEmailResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SendTestEmailResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success bool `json:"success"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

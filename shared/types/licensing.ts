@@ -32,3 +32,10 @@ export interface BindingState {
   last_refresh_error?: string
   cloud_dashboard_url?: string
 }
+
+export interface LicenseEntitlements {
+  bound: boolean
+  active: boolean
+  edition: LicenseEdition | null
+  features: LicenseFeature[]
+}

@@ -230,14 +230,13 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.get('/api/avatar-blobs/:scope/:id', serveAvatarBlob)
   app.route('/r', redirect)
   app.route('/api/teams', publicTeams)
-  app.route('/api/site/auth-providers', authProviders)
-  app.route('/api/site/licensing', licensing)
   app.route('/api/site/invitations', publicSiteInvitations)
   app.route('/api/store', cloudStoreWebhooks)
   app.route('/api/internal', internal)
 
   app.route('/api/users', users)
   app.route('/api/site/announcements', announcements)
+  app.route('/api/site/licensing', licensing)
 
   // Mount routes separately to avoid deep type chain accumulation.
   // Each .route() call is independent — TypeScript doesn't stack types.
@@ -250,7 +249,8 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/teams', adminTeams)
   app.route('/api/site/storages', storages)
   app.route('/api/site/settings', siteSettings)
-  app.route('/api/site/email', emailConfig)
+  app.route('/api/site/settings/email', emailConfig)
+  app.route('/api/site/auth-providers', authProviders)
   // Public/user router mounts BEFORE the admin router on a shared path: a sub-app's
   // blanket `.use(requireAdmin)` becomes prefix-wide middleware, so mounting admin
   // first would gate the public routes too.
@@ -271,10 +271,10 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/image-hosting', ihost)
   app.route('/api/image-hosting/config', ihostConfig)
   app.route('/api/site/licensing', licensingAdmin)
-  app.route('/api/site/branding', brandingAdmin)
+  app.route('/api/site/settings/branding', brandingAdmin)
   app.route('/api/site/audit-events', adminAudit)
-  app.route('/api/site/overview', adminOverview)
-  app.route('/api/site/stats', adminStats)
+  app.route('/api/site/analytics', adminOverview)
+  app.route('/api/site/analytics', adminStats)
   app.route('/api/downloads/downloaders', downloaders)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))

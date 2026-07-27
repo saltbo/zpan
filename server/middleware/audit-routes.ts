@@ -109,10 +109,10 @@ const STANDARD_AUDIT_ROUTES: AuditRoute[] = [
     },
     { prepare: prepareStorage },
   ),
-  staticResourceRoute('PUT', '/api/site/branding', 'branding_update', 'branding', 'branding'),
+  staticResourceRoute('PUT', '/api/site/settings/branding', 'branding_update', 'branding', 'branding'),
   auditRoute(
     'DELETE',
-    '/api/site/branding/:field',
+    '/api/site/settings/branding/:field',
     'branding_reset',
     { type: 'branding', id: param('field'), name: param('field') },
     { metadata: { field: param('field') } },
@@ -257,7 +257,8 @@ function siteSettingsRoutes(): AuditRoute[] {
     ['PUT', 'captcha', 'site_captcha_update'],
     ['PUT', 'quotas', 'site_quotas_update'],
     ['PUT', 'webdav', 'site_webdav_update'],
-    ['POST', 'webdav/verification', 'site_webdav_verify'],
+    ['POST', 'webdav/verifications', 'site_webdav_verify'],
+    ['PUT', 'email', 'site_email_update'],
   ].map(([method, path, action]) =>
     staticResourceRoute(method, `/api/site/settings/${path}`, action, 'site_settings', action),
   )

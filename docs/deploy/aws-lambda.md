@@ -109,14 +109,14 @@ ZPan refreshes its entitlement certificate every 6 hours. On Lambda there is no 
    - **Rate**: `rate(6 hours)` or cron `0 */6 * * ? *`
    - **Target**: HTTPS `POST` to your Lambda Function URL:
      ```
-     POST https://<your-lambda-url>/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>
+     POST https://<your-lambda-url>/api/internal/licensing/refresh-runs
      ```
 
    Create a traffic sync schedule with:
    - **Rate**: `rate(10 minutes)` or cron `*/10 * * * ? *`
    - **Target**: HTTPS `POST` to your Lambda Function URL:
      ```
-     POST https://<your-lambda-url>/api/licensing/traffic-sync-runs?secret=<REFRESH_CRON_SECRET>
+     POST https://<your-lambda-url>/api/internal/traffic-sync-runs
      ```
 
-If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.
+Send `Authorization: Bearer <REFRESH_CRON_SECRET>` with every scheduler request. If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.
