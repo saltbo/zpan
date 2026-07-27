@@ -141,7 +141,7 @@ describe('admin storages CORS guidance', () => {
       {
         AllowedOrigins: ['https://preview.example.com'],
         AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD'],
-        AllowedHeaders: ['*'],
+        AllowedHeaders: ['Content-Type', 'Content-Disposition'],
         ExposeHeaders: ['ETag'],
         MaxAgeSeconds: 3600,
       },
@@ -277,6 +277,9 @@ describe('StoragesPage connection test action', () => {
     expect(document.body.textContent).toContain('"PUT"')
     expect(document.body.textContent).toContain('"POST"')
     expect(document.body.textContent).toContain('"HEAD"')
+    expect(document.body.textContent).toContain('"Content-Type"')
+    expect(document.body.textContent).toContain('"Content-Disposition"')
+    expect(document.body.textContent).toContain('"ETag"')
     expect(document.body.textContent).toContain('"MaxAgeSeconds": 3600')
     expect(abortObjectUpload).toHaveBeenCalledWith('object-1', 'session-1', { strictStorageCleanup: true })
   })

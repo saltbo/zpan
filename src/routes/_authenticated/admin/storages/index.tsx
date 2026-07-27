@@ -97,7 +97,7 @@ export function corsJsonForOrigin(origin: string) {
       {
         AllowedOrigins: [origin],
         AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD'],
-        AllowedHeaders: ['*'],
+        AllowedHeaders: ['Content-Type', 'Content-Disposition'],
         ExposeHeaders: ['ETag'],
         MaxAgeSeconds: 3600,
       },

@@ -157,6 +157,21 @@ describe('admin.storages locale keys — presence', () => {
   }
 })
 
+describe('admin.storages CORS guidance — required upload headers', () => {
+  for (const [locale, messages] of [
+    ['en', enLocale],
+    ['zh', zhLocale],
+  ] as const) {
+    it(`${locale} explains the signed upload header requirements`, () => {
+      const guidance = `${messages['admin.storages.testCorsFailure']} ${messages['admin.storages.testCorsCaveat']}`
+
+      expect(guidance).toContain('Content-Type')
+      expect(guidance).toContain('Content-Disposition')
+      expect(guidance).toContain('ETag')
+    })
+  }
+})
+
 describe('admin.storages locale keys — non-empty values', () => {
   for (const key of ALL_KEYS) {
     it(`en.json value for "${key}" is not empty`, () => {
