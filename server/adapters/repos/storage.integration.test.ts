@@ -76,6 +76,23 @@ describe('createStorage', () => {
     expect(fetched?.id).toBe(created.id)
     expect(fetched?.bucket).toBe('my-bucket')
   })
+
+  it('does not expose the legacy custom host column', async () => {
+    const { db } = await createTestApp()
+    const created = await createStorageRepo(db).create({
+      bucket: 'my-bucket',
+      endpoint: 'https://s3.example.com',
+      region: 'us-east-1',
+      accessKey: 'AKID',
+      secretKey: 'SECRET',
+      capacity: 0,
+    })
+    await db.update(storages).set({ customHost: 'https://legacy.example.com' }).where(eq(storages.id, created.id))
+
+    const fetched = await createStorageRepo(db).get(created.id)
+
+    expect(fetched).not.toHaveProperty('customHost')
+  })
 })
 
 describe('replaceStorage and patchStorage', () => {

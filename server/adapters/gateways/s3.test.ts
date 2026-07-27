@@ -191,15 +191,23 @@ describe('S3Service', () => {
   })
 
   describe('presignDownload', () => {
-    it('returns a signed URL with Content-Disposition', async () => {
+    it.each([
+      ['English MP3', 'song.mp3', 'attachment; filename="song.mp3"; filename*=UTF-8\'\'song.mp3'],
+      ['English MP4', 'movie.mp4', 'attachment; filename="movie.mp4"; filename*=UTF-8\'\'movie.mp4'],
+      [
+        'Chinese PNG',
+        '中文 图片.png',
+        'attachment; filename="__ __.png"; filename*=UTF-8\'\'%E4%B8%AD%E6%96%87%20%E5%9B%BE%E7%89%87.png',
+      ],
+    ])('signs Content-Disposition for %s downloads', async (_label, filename, expected) => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
-      const url = await service.presignDownload(storage, 'test.jpg', 'my photo.jpg')
+      const url = await service.presignDownload(storage, 'objects/test', filename)
       expect(url).toBe('https://signed-url.example.com')
       expect(getSignedUrl).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
           input: expect.objectContaining({
-            ResponseContentDisposition: 'attachment; filename="my photo.jpg"; filename*=UTF-8\'\'my%20photo.jpg',
+            ResponseContentDisposition: expected,
           }),
         }),
         expect.anything(),
