@@ -21,6 +21,10 @@ export function listBackgroundJobs(deps: Pick<Deps, 'backgroundJobs'>, orgId: st
   return deps.backgroundJobs.list(orgId, opts)
 }
 
+export async function getActiveBackgroundJobCount(deps: Pick<Deps, 'backgroundJobs'>, orgId: string): Promise<number> {
+  return (await deps.backgroundJobs.activeSummary(orgId)).count
+}
+
 export function getBackgroundJob(
   deps: Pick<Deps, 'backgroundJobs'>,
   orgId: string,

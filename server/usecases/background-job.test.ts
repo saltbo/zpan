@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   cancelBackgroundJob,
   createBackgroundJob,
+  getActiveBackgroundJobCount,
   getBackgroundJob,
   listBackgroundJobs,
   retryBackgroundJob,
@@ -53,6 +54,15 @@ describe('background-job usecase', () => {
       const opts = { status: 'queued' as const, type: 'archive_extract', pageSize: 5 }
       expect(await listBackgroundJobs(deps, 'org-1', opts)).toEqual(result)
       expect(list).toHaveBeenCalledWith('org-1', opts)
+    })
+  })
+
+  describe('getActiveBackgroundJobCount', () => {
+    it('returns the active count from the repo summary', async () => {
+      const activeSummary = vi.fn(async () => ({ count: 7, fingerprint: 'summary' }))
+      const { deps } = makeDeps({ backgroundJobs: { activeSummary } })
+      expect(await getActiveBackgroundJobCount(deps, 'org-1')).toBe(7)
+      expect(activeSummary).toHaveBeenCalledWith('org-1')
     })
   })
 

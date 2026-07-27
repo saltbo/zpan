@@ -5,6 +5,7 @@ import type { Env } from '../middleware/platform'
 import {
   cancelBackgroundJob,
   createBackgroundJob,
+  getActiveBackgroundJobCount,
   getBackgroundJob,
   listBackgroundJobs,
   retryBackgroundJob,
@@ -174,8 +175,8 @@ const backgroundJobs = app
     )
   })
   .openapi(statsRoute, async (c) => {
-    const summary = await c.get('deps').backgroundJobs.activeSummary(requireOrg(c))
-    return c.json({ activeCount: summary.count }, 200)
+    const activeCount = await getActiveBackgroundJobCount(c.get('deps'), requireOrg(c))
+    return c.json({ activeCount }, 200)
   })
   .openapi(createJobRoute, async (c) => {
     const orgId = requireOrg(c)
