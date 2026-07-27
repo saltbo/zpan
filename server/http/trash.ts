@@ -5,7 +5,7 @@ import type { Env } from '../middleware/platform'
 import { deleteObject, getTrashObject, listTrashedObjects, restoreObject } from '../usecases/object'
 import { badRequest, type Matter, notFound } from '../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from './page-token'
+import { decodeOptionalPageToken, encodeNextPageToken, pageQueryFingerprint, trashCursorCodec } from './page-token'
 
 // The trashed-object wire shape mirrors the live Matter model; trash is a
 // grouping/view of `objects`, not a separate resource.
@@ -121,36 +121,18 @@ const trash = app
     if (!orgId) throw badRequest('No active organization')
     const query = c.req.valid('query')
     const fingerprint = await pageQueryFingerprint({ orgId, pageSize: query.pageSize })
-    let after: { trashedAt: number; createdAt: Date; id: string } | undefined
-    if (query.pageToken) {
-      const boundary = await decodePageToken(c.get('platform'), query.pageToken, { query: fingerprint })
-      if (
-        typeof boundary.trashedAt !== 'number' ||
-        typeof boundary.createdAt !== 'number' ||
-        typeof boundary.id !== 'string'
-      ) {
-        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
-      }
-      after = {
-        trashedAt: boundary.trashedAt,
-        createdAt: new Date(boundary.createdAt),
-        id: boundary.id,
-      }
-    }
+    const after = await decodeOptionalPageToken(c.get('platform'), query.pageToken, {
+      query: fingerprint,
+      codec: trashCursorCodec,
+    })
     const result = await listTrashedObjects(c.get('deps'), { orgId, pageSize: query.pageSize, after })
     return c.json(
       {
         items: result.result.items.map(toMatterDTO),
-        nextPageToken: result.result.nextBoundary
-          ? await encodePageToken(c.get('platform'), {
-              query: fingerprint,
-              boundary: {
-                trashedAt: result.result.nextBoundary.trashedAt,
-                createdAt: result.result.nextBoundary.createdAt.getTime(),
-                id: result.result.nextBoundary.id,
-              },
-            })
-          : null,
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.result.nextBoundary, {
+          query: fingerprint,
+          codec: trashCursorCodec,
+        }),
       },
       200,
     )

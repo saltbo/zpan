@@ -8,9 +8,14 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '../usecases/notification'
-import { badRequest, type NotificationRecord, notFound } from '../usecases/ports'
+import { type NotificationRecord, notFound } from '../usecases/ports'
 import { errorResponse, jsonContent } from './openapi'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from './page-token'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from './page-token'
 
 const notificationSchema = z
   .object({
@@ -99,14 +104,10 @@ export const notifications = app
     const { pageToken, pageSize, unread } = c.req.valid('query')
     const userId = c.get('userId')!
     const fingerprint = await pageQueryFingerprint({ userId, unread: unread === 'true', pageSize })
-    let after: { createdAt: Date; id: string } | undefined
-    if (pageToken) {
-      const boundary = await decodePageToken(c.get('platform'), pageToken, { query: fingerprint })
-      if (typeof boundary.createdAt !== 'number' || typeof boundary.id !== 'string') {
-        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
-      }
-      after = { createdAt: new Date(boundary.createdAt), id: boundary.id }
-    }
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, {
+      query: fingerprint,
+      codec: createdAtIdCursorCodec,
+    })
     const result = await listNotifications(c.get('deps'), c.get('userId')!, {
       pageSize,
       unreadOnly: unread === 'true',
@@ -115,12 +116,10 @@ export const notifications = app
     return c.json(
       {
         items: result.items.map(toNotificationDTO),
-        nextPageToken: result.nextBoundary
-          ? await encodePageToken(c.get('platform'), {
-              query: fingerprint,
-              boundary: { createdAt: result.nextBoundary.createdAt.getTime(), id: result.nextBoundary.id },
-            })
-          : null,
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
+          query: fingerprint,
+          codec: createdAtIdCursorCodec,
+        }),
       },
       200,
     )

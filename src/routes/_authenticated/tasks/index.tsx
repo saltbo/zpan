@@ -2,11 +2,12 @@ import type { BackgroundJobStatus } from '@shared/types'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { ListChecks } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { type BackgroundTaskFilter, BackgroundTaskList } from '@/components/background-tasks/task-list'
 import { PageHeader } from '@/components/layout/page-header'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { cancelBackgroundJob, listBackgroundJobs, retryBackgroundJob } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/tasks/')({
@@ -20,7 +21,6 @@ function TasksPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<BackgroundTaskFilter>('active')
-  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   const status = statusForFilter(filter)
   const jobsQuery = useInfiniteQuery({
@@ -29,19 +29,11 @@ function TasksPage() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
   })
-
-  useEffect(() => {
-    const target = loadMoreRef.current
-    if (!target || !jobsQuery.hasNextPage) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !jobsQuery.isFetchingNextPage) void jobsQuery.fetchNextPage()
-      },
-      { rootMargin: '320px 0px' },
-    )
-    observer.observe(target)
-    return () => observer.disconnect()
-  }, [jobsQuery.fetchNextPage, jobsQuery.hasNextPage, jobsQuery.isFetchingNextPage])
+  const loadMoreRef = useInfiniteScroll<HTMLDivElement>({
+    hasNextPage: jobsQuery.hasNextPage,
+    isFetchingNextPage: jobsQuery.isFetchingNextPage,
+    fetchNextPage: jobsQuery.fetchNextPage,
+  })
 
   const cancelMutation = useMutation({
     mutationFn: cancelBackgroundJob,

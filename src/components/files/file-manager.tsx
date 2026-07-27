@@ -23,6 +23,7 @@ import { Card } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import { createBackgroundJob, deleteObject, getObject, listObjectsByPath, updateObject } from '@/lib/api'
 import { runSequentialOperation } from '@/lib/sequential-operation'
@@ -169,7 +170,6 @@ export function FileManager({
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const dropzoneRef = useRef<UploadDropzoneHandle>(null)
-  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   const currentPath = initialPath ?? ''
   const resourceTypes = dataSource?.resourceTypes ?? ['matter']
@@ -240,18 +240,11 @@ export function FileManager({
   const mutations = useFileMutations(currentPath)
   const conflict = useConflictResolver()
   const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data?.pages])
-  useEffect(() => {
-    const target = loadMoreRef.current
-    if (!target || !query.hasNextPage) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !query.isFetchingNextPage) void query.fetchNextPage()
-      },
-      { rootMargin: '320px 0px' },
-    )
-    observer.observe(target)
-    return () => observer.disconnect()
-  }, [query.fetchNextPage, query.hasNextPage, query.isFetchingNextPage])
+  const loadMoreRef = useInfiniteScroll<HTMLDivElement>({
+    hasNextPage: query.hasNextPage,
+    isFetchingNextPage: query.isFetchingNextPage,
+    fetchNextPage: query.fetchNextPage,
+  })
   const operationCancelRef = useRef(false)
   const [operationState, setOperationState] = useState<OperationProgressState | null>(null)
   const archiveMutation = useMutation({

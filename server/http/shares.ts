@@ -14,7 +14,7 @@ import {
 import { transferAuditActor } from '../middleware/audit-transfers'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { badRequest, type Matter, type ShareListItem } from '../usecases/ports'
+import type { Matter, ShareListItem } from '../usecases/ports'
 import {
   createShare,
   downloadShareObject,
@@ -31,7 +31,13 @@ import {
 } from '../usecases/share'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from './page-token'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  directoryCursorCodec,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from './page-token'
 import { cookieName, decodeChildRef, readUserId, viewCookieName } from './share-utils'
 
 function shareUrls(kind: string, token: string): { landing?: string; direct?: string } {
@@ -349,22 +355,10 @@ export const publicShares = pub
     const viewerId = await readUserId(c)
     const { parent: relativePath = '', pageToken, pageSize } = c.req.valid('query')
     const fingerprint = await pageQueryFingerprint({ token, relativePath, pageSize })
-    let after: { dirtype: number; createdAt: Date; id: string } | undefined
-    if (pageToken) {
-      const boundary = await decodePageToken(c.get('platform'), pageToken, { query: fingerprint })
-      if (
-        typeof boundary.dirtype !== 'number' ||
-        typeof boundary.createdAt !== 'number' ||
-        typeof boundary.id !== 'string'
-      ) {
-        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
-      }
-      after = {
-        dirtype: boundary.dirtype,
-        createdAt: new Date(boundary.createdAt),
-        id: boundary.id,
-      }
-    }
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, {
+      query: fingerprint,
+      codec: directoryCursorCodec,
+    })
 
     const out = await listShareObjects(c.get('deps'), {
       token,
@@ -379,16 +373,10 @@ export const publicShares = pub
         {
           items: out.result.items,
           breadcrumb: out.result.breadcrumb,
-          nextPageToken: out.result.nextBoundary
-            ? await encodePageToken(c.get('platform'), {
-                query: fingerprint,
-                boundary: {
-                  dirtype: out.result.nextBoundary.dirtype,
-                  createdAt: out.result.nextBoundary.createdAt.getTime(),
-                  id: out.result.nextBoundary.id,
-                },
-              })
-            : null,
+          nextPageToken: await encodeNextPageToken(c.get('platform'), out.result.nextBoundary, {
+            query: fingerprint,
+            codec: directoryCursorCodec,
+          }),
         },
         200,
       )
@@ -496,24 +484,18 @@ export const authedShares = authedApp
     const userId = c.get('userId')!
     const { pageToken, pageSize, status, box } = c.req.valid('query')
     const fingerprint = await pageQueryFingerprint({ userId, box, status: status ?? null, pageSize })
-    let after: { createdAt: Date; id: string } | undefined
-    if (pageToken) {
-      const boundary = await decodePageToken(c.get('platform'), pageToken, { query: fingerprint })
-      if (typeof boundary.createdAt !== 'number' || typeof boundary.id !== 'string') {
-        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
-      }
-      after = { createdAt: new Date(boundary.createdAt), id: boundary.id }
-    }
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, {
+      query: fingerprint,
+      codec: createdAtIdCursorCodec,
+    })
     const result = await listShares(c.get('deps'), { userId, box, pageSize, status, after })
     return c.json(
       {
         items: result.items.map(toShareListItemDTO),
-        nextPageToken: result.nextBoundary
-          ? await encodePageToken(c.get('platform'), {
-              query: fingerprint,
-              boundary: { createdAt: result.nextBoundary.createdAt.getTime(), id: result.nextBoundary.id },
-            })
-          : null,
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
+          query: fingerprint,
+          codec: createdAtIdCursorCodec,
+        }),
       },
       200,
     )

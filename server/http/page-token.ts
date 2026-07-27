@@ -7,6 +7,11 @@ const TOKEN_PURPOSE = 'zpan:page-token:v1'
 
 export type PageBoundary = Record<string, string | number | null>
 
+export interface PageCursorCodec<T> {
+  decode(boundary: PageBoundary): T | undefined
+  encode(cursor: T): PageBoundary
+}
+
 type PageTokenPayload = {
   v: typeof TOKEN_VERSION
   boundary: PageBoundary
@@ -70,12 +75,7 @@ export async function decodePageToken(
   const [body, signature, extra] = token.split('.')
   if (!body || !signature || extra) invalidPageToken()
 
-  let signatureBytes: Uint8Array
-  try {
-    signatureBytes = decodeBase64Url(signature)
-  } catch {
-    invalidPageToken()
-  }
+  const signatureBytes = decodeBase64Url(signature)
   const verificationSignature = new Uint8Array(signatureBytes.byteLength)
   verificationSignature.set(signatureBytes)
   const valid = await crypto.subtle.verify(
@@ -103,4 +103,62 @@ export async function decodePageToken(
     invalidPageToken()
   }
   return payload.boundary
+}
+
+export async function decodeOptionalPageToken<T>(
+  platform: Platform,
+  token: string | undefined,
+  input: { query: string; codec: PageCursorCodec<T> },
+): Promise<T | undefined> {
+  if (!token) return undefined
+  const cursor = input.codec.decode(await decodePageToken(platform, token, { query: input.query }))
+  if (!cursor) invalidPageToken()
+  return cursor
+}
+
+export async function encodeNextPageToken<T>(
+  platform: Platform,
+  cursor: T | null,
+  input: { query: string; codec: PageCursorCodec<T> },
+): Promise<string | null> {
+  if (!cursor) return null
+  return encodePageToken(platform, { query: input.query, boundary: input.codec.encode(cursor) })
+}
+
+type CreatedAtIdCursor = { createdAt: Date; id: string }
+
+export const createdAtIdCursorCodec: PageCursorCodec<CreatedAtIdCursor> = {
+  decode(boundary) {
+    if (typeof boundary.createdAt !== 'number' || typeof boundary.id !== 'string') return undefined
+    return { createdAt: new Date(boundary.createdAt), id: boundary.id }
+  },
+  encode(cursor) {
+    return { createdAt: cursor.createdAt.getTime(), id: cursor.id }
+  },
+}
+
+type DirectoryCursor = CreatedAtIdCursor & { dirtype: number }
+
+export const directoryCursorCodec: PageCursorCodec<DirectoryCursor> = {
+  decode(boundary) {
+    const cursor = createdAtIdCursorCodec.decode(boundary)
+    if (!cursor || typeof boundary.dirtype !== 'number') return undefined
+    return { dirtype: boundary.dirtype, ...cursor }
+  },
+  encode(cursor) {
+    return { dirtype: cursor.dirtype, ...createdAtIdCursorCodec.encode(cursor) }
+  },
+}
+
+type TrashCursor = CreatedAtIdCursor & { trashedAt: number }
+
+export const trashCursorCodec: PageCursorCodec<TrashCursor> = {
+  decode(boundary) {
+    const cursor = createdAtIdCursorCodec.decode(boundary)
+    if (!cursor || typeof boundary.trashedAt !== 'number') return undefined
+    return { trashedAt: boundary.trashedAt, ...cursor }
+  },
+  encode(cursor) {
+    return { trashedAt: cursor.trashedAt, ...createdAtIdCursorCodec.encode(cursor) }
+  },
 }

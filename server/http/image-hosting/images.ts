@@ -31,7 +31,12 @@ import {
   unsupportedMediaType,
 } from '../../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../page-token'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from '../page-token'
 
 // The stored image's wire shape — timestamps as ISO strings (the record carries
 // them as Date).
@@ -331,24 +336,18 @@ const ihost = app
 
     const { pathPrefix, pageToken, pageSize } = c.req.valid('query')
     const fingerprint = await pageQueryFingerprint({ orgId, pathPrefix: pathPrefix ?? null, pageSize })
-    let after: { createdAt: Date; id: string } | undefined
-    if (pageToken) {
-      const boundary = await decodePageToken(c.get('platform'), pageToken, { query: fingerprint })
-      if (typeof boundary.createdAt !== 'number' || typeof boundary.id !== 'string') {
-        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
-      }
-      after = { createdAt: new Date(boundary.createdAt), id: boundary.id }
-    }
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, {
+      query: fingerprint,
+      codec: createdAtIdCursorCodec,
+    })
     const result = await listImageHostings(c.get('deps'), orgId, { pathPrefix, after, limit: pageSize })
     return c.json(
       {
         items: result.items.map(toImageHostingDTO),
-        nextPageToken: result.nextBoundary
-          ? await encodePageToken(c.get('platform'), {
-              query: fingerprint,
-              boundary: { createdAt: result.nextBoundary.createdAt.getTime(), id: result.nextBoundary.id },
-            })
-          : null,
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
+          query: fingerprint,
+          codec: createdAtIdCursorCodec,
+        }),
       },
       200,
     )

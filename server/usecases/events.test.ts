@@ -93,4 +93,18 @@ describe('streamEvents', () => {
     expect(listAfter).toHaveBeenCalledWith(expect.objectContaining({ scopeType: 'organization', scopeId: 'o1' }))
     expect(listAfter).toHaveBeenCalledWith(expect.objectContaining({ scopeType: 'user', scopeId: 'u1' }))
   })
+
+  it('emits a heartbeat when an idle stream reaches its interval', async () => {
+    const { deps } = makeDeps()
+
+    const events = await run(deps, params({ afterSequence: 0, heartbeatIntervalMs: 0 }))
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        event: 'heartbeat',
+        data: expect.objectContaining({ sequence: 0 }),
+        id: 0,
+      }),
+    ])
+  })
 })

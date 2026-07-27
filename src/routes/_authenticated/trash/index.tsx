@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Trash2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { NameConflictDialog } from '@/components/files/dialogs/name-conflict-dialog'
@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import { listTrash, purgeTrashObject, restoreObject } from '@/lib/api'
 import { runSequentialOperation } from '@/lib/sequential-operation'
@@ -33,7 +34,6 @@ const PAGE_SIZE = 20
 function TrashPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const loadMoreRef = useRef<HTMLDivElement>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [confirmDialog, setConfirmDialog] = useState<'delete' | 'empty' | null>(null)
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([])
@@ -51,19 +51,11 @@ function TrashPage() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
   })
-
-  useEffect(() => {
-    const target = loadMoreRef.current
-    if (!target || !trashQuery.hasNextPage) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !trashQuery.isFetchingNextPage) void trashQuery.fetchNextPage()
-      },
-      { rootMargin: '320px 0px' },
-    )
-    observer.observe(target)
-    return () => observer.disconnect()
-  }, [trashQuery.fetchNextPage, trashQuery.hasNextPage, trashQuery.isFetchingNextPage])
+  const loadMoreRef = useInfiniteScroll<HTMLDivElement>({
+    hasNextPage: trashQuery.hasNextPage,
+    isFetchingNextPage: trashQuery.isFetchingNextPage,
+    fetchNextPage: trashQuery.fetchNextPage,
+  })
 
   async function runTrashPageOperation(
     title: string,

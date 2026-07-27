@@ -36,7 +36,7 @@ import {
 import { badRequest, forbidden, type Matter, type MatterListItem, unauthorized } from '../usecases/ports'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from './page-token'
+import { decodeOptionalPageToken, directoryCursorCodec, encodeNextPageToken, pageQueryFingerprint } from './page-token'
 
 // The wire shape of a file/folder — exactly what the API serializes. Timestamps
 // are strings here (the domain `Matter` carries them as `Date`); `toMatterDTO`
@@ -362,22 +362,10 @@ const objects = app
       search: query.search ?? null,
       pageSize: query.pageSize,
     })
-    let after: { dirtype: number; createdAt: Date; id: string } | undefined
-    if (query.pageToken) {
-      const boundary = await decodePageToken(c.get('platform'), query.pageToken, { query: fingerprint })
-      if (
-        typeof boundary.dirtype !== 'number' ||
-        typeof boundary.createdAt !== 'number' ||
-        typeof boundary.id !== 'string'
-      ) {
-        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
-      }
-      after = {
-        dirtype: boundary.dirtype,
-        createdAt: new Date(boundary.createdAt),
-        id: boundary.id,
-      }
-    }
+    const after = await decodeOptionalPageToken(c.get('platform'), query.pageToken, {
+      query: fingerprint,
+      codec: directoryCursorCodec,
+    })
     const result = await listObjects(c.get('deps'), {
       orgId,
       userId: c.get('userId')!,
@@ -394,16 +382,10 @@ const objects = app
     return c.json(
       {
         items: result.result.items.map(toObjectListItemDTO),
-        nextPageToken: result.result.nextBoundary
-          ? await encodePageToken(c.get('platform'), {
-              query: fingerprint,
-              boundary: {
-                dirtype: result.result.nextBoundary.dirtype,
-                createdAt: result.result.nextBoundary.createdAt.getTime(),
-                id: result.result.nextBoundary.id,
-              },
-            })
-          : null,
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.result.nextBoundary, {
+          query: fingerprint,
+          codec: directoryCursorCodec,
+        }),
       },
       200,
     )

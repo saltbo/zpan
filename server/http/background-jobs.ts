@@ -10,9 +10,14 @@ import {
   listBackgroundJobs,
   retryBackgroundJob,
 } from '../usecases/background-job'
-import { BackgroundJobError, badRequest, notFound } from '../usecases/ports'
+import { BackgroundJobError, notFound } from '../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from './page-token'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from './page-token'
 
 // BackgroundJob is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const backgroundJobProgressSchema = z.object({
@@ -152,24 +157,18 @@ const backgroundJobs = app
       type: query.type ?? null,
       pageSize: query.pageSize,
     })
-    let after: { createdAt: Date; id: string } | undefined
-    if (query.pageToken) {
-      const boundary = await decodePageToken(c.get('platform'), query.pageToken, { query: fingerprint })
-      if (typeof boundary.createdAt !== 'number' || typeof boundary.id !== 'string') {
-        throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
-      }
-      after = { createdAt: new Date(boundary.createdAt), id: boundary.id }
-    }
+    const after = await decodeOptionalPageToken(c.get('platform'), query.pageToken, {
+      query: fingerprint,
+      codec: createdAtIdCursorCodec,
+    })
     const result = await listBackgroundJobs(c.get('deps'), orgId, { ...query, after })
     return c.json(
       {
         items: result.items,
-        nextPageToken: result.nextBoundary
-          ? await encodePageToken(c.get('platform'), {
-              query: fingerprint,
-              boundary: { createdAt: result.nextBoundary.createdAt.getTime(), id: result.nextBoundary.id },
-            })
-          : null,
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
+          query: fingerprint,
+          codec: createdAtIdCursorCodec,
+        }),
       },
       200,
     )

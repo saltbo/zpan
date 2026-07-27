@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { ChevronDown, ClipboardCopy, FileIcon, FolderIcon, Globe2, Lock, Share2, XCircle } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useClipboard } from '@/hooks/use-clipboard'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import { listReceivedShares, listShares, revokeShare, type ShareListItem, setSharePrivacy } from '@/lib/api'
 
@@ -56,7 +57,6 @@ export function SharesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { status: statusFilter, box } = useSearch({ from: '/_authenticated/shares/' })
-  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   const [detailShare, setDetailShare] = useState<ShareListItem | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<ShareListItem | null>(null)
@@ -74,19 +74,11 @@ export function SharesPage() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
   })
-
-  useEffect(() => {
-    const target = loadMoreRef.current
-    if (!target || !sharesQuery.hasNextPage) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !sharesQuery.isFetchingNextPage) void sharesQuery.fetchNextPage()
-      },
-      { rootMargin: '320px 0px' },
-    )
-    observer.observe(target)
-    return () => observer.disconnect()
-  }, [sharesQuery.fetchNextPage, sharesQuery.hasNextPage, sharesQuery.isFetchingNextPage])
+  const loadMoreRef = useInfiniteScroll<HTMLDivElement>({
+    hasNextPage: sharesQuery.hasNextPage,
+    isFetchingNextPage: sharesQuery.isFetchingNextPage,
+    fetchNextPage: sharesQuery.fetchNextPage,
+  })
 
   const revokeMutation = useMutation({
     mutationFn: (token: string) => revokeShare(token),

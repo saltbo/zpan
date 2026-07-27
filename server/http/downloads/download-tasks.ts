@@ -21,7 +21,12 @@ import {
 } from '../../usecases/downloads/downloads'
 import { badRequest, unauthorized } from '../../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
-import { decodePageToken, encodePageToken, pageQueryFingerprint } from '../page-token'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from '../page-token'
 
 const downloadTaskStatuses = new Set([
   'queued',
@@ -56,23 +61,17 @@ async function listPage(
     tag: filters.tag ?? null,
     pageSize: filters.pageSize,
   })
-  let after: { createdAt: Date; id: string } | undefined
-  if (pageToken) {
-    const boundary = await decodePageToken(c.get('platform'), pageToken, { query })
-    if (typeof boundary.createdAt !== 'number' || typeof boundary.id !== 'string') {
-      throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
-    }
-    after = { createdAt: new Date(boundary.createdAt), id: boundary.id }
-  }
+  const after = await decodeOptionalPageToken(c.get('platform'), pageToken, {
+    query,
+    codec: createdAtIdCursorCodec,
+  })
   const result = await listDownloadTasks(c.get('deps'), c.get('platform'), { ...filters, after })
   return {
     items: result.items,
-    nextPageToken: result.nextBoundary
-      ? await encodePageToken(c.get('platform'), {
-          query,
-          boundary: { createdAt: result.nextBoundary.createdAt.getTime(), id: result.nextBoundary.id },
-        })
-      : null,
+    nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
+      query,
+      codec: createdAtIdCursorCodec,
+    }),
   }
 }
 

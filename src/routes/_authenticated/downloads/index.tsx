@@ -87,6 +87,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import { createDownloadTask, listDownloadTaskEvents, listDownloadTasks, runDownloadTaskAction } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -176,7 +177,6 @@ function DownloadsPage() {
   const [panelDrag, setPanelDrag] = useState<PanelDragState | null>(null)
   const panelsRef = useRef<HTMLDivElement>(null)
   const tableFrameRef = useRef<HTMLElement>(null)
-  const loadMoreRef = useRef<HTMLTableRowElement>(null)
   const [tableFrameWidth, setTableFrameWidth] = useState(0)
   const categoryFilterValue = filterCategory.trim() || undefined
   const tagFilterValue = filterTag.trim() || undefined
@@ -198,6 +198,14 @@ function DownloadsPage() {
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
+  })
+  const loadMoreRef = useInfiniteScroll<HTMLTableRowElement>({
+    hasNextPage: tasksQuery.hasNextPage,
+    isFetchingNextPage: tasksQuery.isFetchingNextPage,
+    fetchNextPage: tasksQuery.fetchNextPage,
+    rootRef: tableFrameRef,
+    rootSelector: '[data-slot="table-container"]',
+    rootMargin: '240px 0px',
   })
 
   useEffect(() => {
@@ -236,20 +244,6 @@ function DownloadsPage() {
   useServerEventSubscription('download-tasks', ['download_task'], () =>
     queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
   )
-
-  useEffect(() => {
-    const target = loadMoreRef.current
-    const root = tableFrameRef.current?.querySelector('[data-slot="table-container"]')
-    if (!target || !root || !tasksQuery.hasNextPage) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !tasksQuery.isFetchingNextPage) void tasksQuery.fetchNextPage()
-      },
-      { root, rootMargin: '240px 0px' },
-    )
-    observer.observe(target)
-    return () => observer.disconnect()
-  }, [tasksQuery.fetchNextPage, tasksQuery.hasNextPage, tasksQuery.isFetchingNextPage])
 
   useEffect(() => {
     if (!panelDrag) return

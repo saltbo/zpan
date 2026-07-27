@@ -58,6 +58,22 @@ describe('background job service', () => {
     expect(after.fingerprint).not.toBe(before.fingerprint)
   })
 
+  it('continues a keyset page without duplicates', async () => {
+    const { db } = await createTestApp()
+    const repo = createBackgroundJobRepo(db)
+    for (const type of ['archive_compress', 'archive_extract', 'remote_download'] as const) {
+      await repo.create({ orgId: 'org-page', userId: 'user-page', type })
+    }
+
+    const first = await repo.list('org-page', { pageSize: 1 })
+    const rest = await repo.list('org-page', { pageSize: 10, after: first.nextBoundary ?? undefined })
+    const ids = [...first.items, ...rest.items].map((job) => job.id)
+
+    expect(first.nextBoundary).not.toBeNull()
+    expect(ids).toHaveLength(3)
+    expect(new Set(ids)).toHaveLength(3)
+  })
+
   it('updates nullable fields and terminal timestamps explicitly', async () => {
     const { db } = await createTestApp()
     const job = await createBackgroundJobRepo(db).create({
