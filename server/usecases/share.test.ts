@@ -495,7 +495,10 @@ describe('listShareObjects', () => {
 
   it('lists children, maps refs, and builds the breadcrumb at the folder root', async () => {
     const list = vi.fn(async () => ({
-      items: [folderMatter, childMatter],
+      items: [
+        { ...folderMatter, hasChildren: false },
+        { ...childMatter, hasChildren: false },
+      ],
       total: 2,
       page: 1,
       pageSize: 50,

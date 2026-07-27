@@ -48,8 +48,12 @@ export interface MatterListFilters {
   search?: string
 }
 
+export interface MatterListItem extends Matter {
+  hasChildren: boolean
+}
+
 export interface MatterListResult {
-  items: Matter[]
+  items: MatterListItem[]
   total: number
   page: number
   pageSize: number

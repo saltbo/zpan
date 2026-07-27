@@ -221,6 +221,52 @@ describe('Objects API', () => {
     expect(((await res.json()) as { pageSize: number }).pageSize).toBe(500)
   })
 
+  it('GET /api/objects lists folders with hasChildren [spec: objects/list-folders]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+
+    await insertFolder(db, orgId, { id: 'parent-folder', name: 'Parent' })
+    await insertFolder(db, orgId, { id: 'leaf-folder', name: 'Leaf' })
+    await insertFolder(db, orgId, { id: 'child-folder', name: 'Child', parent: 'Parent' })
+    await insertFile(db, orgId, { id: 'root-file', name: 'root.txt' })
+    await insertFile(db, orgId, { id: 'child-file', name: 'child.txt', parent: 'Leaf' })
+
+    const res = await app.request('/api/objects?path=&type=folder&page=1&pageSize=100', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      items: Array<{ id: string; hasChildren: boolean }>
+      total: number
+      page: number
+      pageSize: number
+    }
+
+    expect(body).toMatchObject({ total: 2, page: 1, pageSize: 100 })
+    expect(body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'parent-folder', hasChildren: true }),
+        expect.objectContaining({ id: 'leaf-folder', hasChildren: false }),
+      ]),
+    )
+  })
+
+  it('GET /api/objects composes folder and search filters [spec: objects/list-folders-search]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+
+    await insertFolder(db, orgId, { id: 'reports-folder', name: 'Reports' })
+    await insertFile(db, orgId, { id: 'reports-file', name: 'Reports.txt' })
+
+    const res = await app.request('/api/objects?type=folder&search=Reports', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
+    expect(body.total).toBe(1)
+    expect(body.items.map((item) => item.id)).toEqual(['reports-folder'])
+  })
+
   it('POST /api/objects creates a folder [spec: objects/create-folder]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)

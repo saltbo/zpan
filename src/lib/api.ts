@@ -67,6 +67,7 @@ import type {
   ImageHosting,
   InstanceInfo,
   Notification,
+  ObjectListItem,
   ObjectUploadInstructions,
   OrgQuota,
   OrgQuotaEntitlement,
@@ -286,7 +287,7 @@ export function listObjectsByPath(
   if (opts?.type) query.type = opts.type
   if (opts?.search) query.search = opts.search
   if (opts?.orgId) query.orgId = opts.orgId
-  return unwrap<PaginatedResponse<StorageObject>>(objects.index.$get({ query }))
+  return unwrap<PaginatedResponse<ObjectListItem>>(objects.index.$get({ query }))
 }
 
 export function getObject(id: string) {

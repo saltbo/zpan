@@ -33,7 +33,7 @@ import {
   trashObject,
   updateObject,
 } from '../usecases/object'
-import { badRequest, forbidden, type Matter, unauthorized } from '../usecases/ports'
+import { badRequest, forbidden, type Matter, type MatterListItem, unauthorized } from '../usecases/ports'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
 
@@ -86,7 +86,14 @@ function toMatterDTO(m: Matter): MatterDTO {
   }
 }
 
-const objectPageSchema = pageSchema(matterSchema, 'ObjectPage')
+const objectListItemSchema = matterSchema.extend({ hasChildren: z.boolean() }).openapi('ObjectListItem')
+type ObjectListItemDTO = z.infer<typeof objectListItemSchema>
+
+function toObjectListItemDTO(item: MatterListItem): ObjectListItemDTO {
+  return { ...toMatterDTO(item), hasChildren: item.hasChildren }
+}
+
+const objectPageSchema = pageSchema(objectListItemSchema, 'ObjectPage')
 
 // POST / returns the created object plus, for a file draft, the upload
 // instructions: the server-decided part size and the presigned URLs to PUT each
@@ -361,7 +368,7 @@ const objects = app
       },
     })
     if (!result.ok) throw result.error
-    return c.json({ ...result.result, items: result.result.items.map(toMatterDTO) }, 200)
+    return c.json({ ...result.result, items: result.result.items.map(toObjectListItemDTO) }, 200)
   })
   .openapi(createObjectRoute, async (c) => {
     const orgId = c.get('orgId')

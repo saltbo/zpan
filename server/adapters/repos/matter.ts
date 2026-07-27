@@ -1,11 +1,13 @@
 import { DirType, ObjectStatus } from '@shared/constants'
 import type { SQL } from 'drizzle-orm'
 import {
+  aliasedTable,
   and,
   asc,
   count,
   desc,
   eq,
+  exists,
   getTableColumns,
   inArray,
   isNotNull,
@@ -65,6 +67,8 @@ function descendantParentCondition(folderPath: string): SQL {
 
 function typeFilterCondition(typeFilter: string): SQL | undefined {
   switch (typeFilter) {
+    case 'folder':
+      return ne(matters.dirtype, DirType.FILE)
     case 'photos':
       return like(matters.type, 'image/%')
     case 'videos':
@@ -321,6 +325,27 @@ export function createMatterRepo(db: Database): MatterRepo {
 
     async list(orgId: string, filters: MatterListFilters): Promise<MatterListResult> {
       const offset = (filters.page - 1) * filters.pageSize
+      const childMatters = aliasedTable(matters, 'child')
+      const folderPath = sql<string>`CASE
+        WHEN ${matters.parent} = '' THEN ${matters.name}
+        ELSE ${matters.parent} || '/' || ${matters.name}
+      END`
+      const hasFolderChildren = exists(
+        db
+          .select({ id: childMatters.id })
+          .from(childMatters)
+          .where(
+            and(
+              eq(childMatters.orgId, matters.orgId),
+              eq(childMatters.parent, folderPath),
+              ne(childMatters.dirtype, DirType.FILE),
+              eq(childMatters.status, ObjectStatus.ACTIVE),
+              isNull(childMatters.trashedAt),
+              isNull(childMatters.purgedAt),
+            ),
+          )
+          .limit(1),
+      )
       // Live objects only. Trashed rows are status='active' too, so exclude them
       // by trashedAt; the recycle bin is served by listTrashedRoots.
       const conditions = [
@@ -330,12 +355,12 @@ export function createMatterRepo(db: Database): MatterRepo {
         isNull(matters.purgedAt),
       ]
       const typeCond = filters.typeFilter ? typeFilterCondition(filters.typeFilter) : undefined
-      if (filters.search) {
-        conditions.push(like(matters.name, `%${filters.search}%`))
-      } else if (typeCond) {
+      if (filters.search) conditions.push(like(matters.name, `%${filters.search}%`))
+      if (typeCond) {
         conditions.push(typeCond)
-        conditions.push(eq(matters.dirtype, DirType.FILE))
-      } else {
+        if (filters.typeFilter !== 'folder') conditions.push(eq(matters.dirtype, DirType.FILE))
+      }
+      if (!filters.search && (!typeCond || filters.typeFilter === 'folder')) {
         conditions.push(eq(matters.parent, filters.parent ?? ''))
       }
       const where = and(...conditions)
@@ -343,6 +368,10 @@ export function createMatterRepo(db: Database): MatterRepo {
       const rows = await db
         .select({
           ...getTableColumns(matters),
+          hasChildren: sql<number>`CASE
+            WHEN ${matters.dirtype} = ${DirType.FILE} THEN 0
+            ELSE ${hasFolderChildren}
+          END`.as('has_children'),
           pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
         })
         .from(matters)
@@ -356,7 +385,10 @@ export function createMatterRepo(db: Database): MatterRepo {
         const countRows = await db.select({ count: count() }).from(matters).where(where)
         total = countRows[0]?.count ?? 0
       }
-      const items = rows.map(({ pageTotal: _, ...row }) => toMatter(row))
+      const items = rows.map(({ pageTotal: _, hasChildren, ...row }) => ({
+        ...toMatter(row),
+        hasChildren: Boolean(hasChildren),
+      }))
       return { items, total, page: filters.page, pageSize: filters.pageSize }
     },
 

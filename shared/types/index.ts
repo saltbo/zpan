@@ -24,6 +24,10 @@ export interface StorageObject {
   updatedAt: string
 }
 
+export interface ObjectListItem extends StorageObject {
+  hasChildren: boolean
+}
+
 export interface Storage {
   id: string
   provider: string

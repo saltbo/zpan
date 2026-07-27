@@ -135,6 +135,37 @@ describe('[CF] Objects upload + trash lifecycle (D1)', () => {
     })
   })
 
+  it('lists only folders and reports whether they have child folders', async () => {
+    const { app, db } = await buildAppWithDb()
+    const { headers, orgId } = await signUp(app, db)
+    const storageId = `st-cf-tree-${Date.now()}`
+    await insertStorage(db, storageId)
+    const now = Date.now()
+
+    await db.run(sql`
+      INSERT INTO matters (
+        id, org_id, alias, name, type, size, dirtype, parent, object,
+        storage_id, status, created_at, updated_at
+      )
+      VALUES
+        ('cf-parent', ${orgId}, ${`cf-parent-${now}`}, 'Parent', 'folder', 0, 1, '', '', ${storageId}, 'active', ${now}, ${now}),
+        ('cf-leaf', ${orgId}, ${`cf-leaf-${now}`}, 'Leaf', 'folder', 0, 1, '', '', ${storageId}, 'active', ${now}, ${now}),
+        ('cf-child', ${orgId}, ${`cf-child-${now}`}, 'Child', 'folder', 0, 1, 'Parent', '', ${storageId}, 'active', ${now}, ${now}),
+        ('cf-file', ${orgId}, ${`cf-file-${now}`}, 'file.txt', 'text/plain', 1, 0, '', 'file.txt', ${storageId}, 'active', ${now}, ${now})
+    `)
+
+    const res = await app.request('/api/objects?type=folder&pageSize=100', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ id: string; hasChildren: boolean }>; total: number }
+    expect(body.total).toBe(2)
+    expect(body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'cf-parent', hasChildren: true }),
+        expect.objectContaining({ id: 'cf-leaf', hasChildren: false }),
+      ]),
+    )
+  })
+
   it('creates a file draft, finalizes it via completions, then soft-deletes, restores, and purges', async () => {
     const { app, db } = await buildAppWithDb()
     const { headers } = await signUp(app, db)

@@ -212,14 +212,15 @@ function expectError(out: unknown, httpStatus: number, message: string, reason?:
 describe('object usecase', () => {
   describe('listObjects', () => {
     it('lists the active org without an override', async () => {
-      const list = vi.fn(async () => ({ items: [file('m1')], total: 1, page: 1, pageSize: 20 }))
+      const item = { ...file('m1'), hasChildren: false }
+      const list = vi.fn(async () => ({ items: [item], total: 1, page: 1, pageSize: 20 }))
       const { deps } = makeDeps({ matter: { list } })
       const out = await listObjects(deps, {
         orgId: 'o1',
         userId: 'u1',
         filters: { parent: '', page: 1, pageSize: 20 },
       })
-      expect(out).toEqual({ ok: true, result: { items: [file('m1')], total: 1, page: 1, pageSize: 20 } })
+      expect(out).toEqual({ ok: true, result: { items: [item], total: 1, page: 1, pageSize: 20 } })
       expect(list).toHaveBeenCalledWith('o1', { parent: '', page: 1, pageSize: 20 })
     })
 
