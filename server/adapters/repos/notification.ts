@@ -1,8 +1,10 @@
-import { and, count, desc, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
+import { and, count, desc, eq, isNull, lt, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { notifications } from '../../db/schema'
+import { executeWriteTransaction } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
 import type { NotificationRecord, NotificationRepo } from '../../usecases/ports'
+import { resourceChangeQuery } from './resource-change'
 
 type NotificationRow = typeof notifications.$inferSelect
 
@@ -25,48 +27,46 @@ export function createNotificationRepo(db: Database): NotificationRepo {
         readAt: null,
         createdAt: new Date(),
       }
-      await db.insert(notifications).values(row)
+      await executeWriteTransaction(db, [
+        db.insert(notifications).values(row),
+        resourceChangeQuery(db, {
+          scopeType: 'user',
+          scopeId: input.userId,
+          resourceType: 'notification',
+          resourceId: row.id,
+          changeType: 'upsert',
+          action: 'created',
+          occurredAt: row.createdAt,
+        }),
+      ])
       return toRecord(row)
     },
 
     async list(userId, opts) {
-      const { page, pageSize, unreadOnly } = opts
-      const offset = (page - 1) * pageSize
-      const baseCondition = unreadOnly
-        ? and(eq(notifications.userId, userId), isNull(notifications.readAt))
-        : eq(notifications.userId, userId)
+      const { pageSize, unreadOnly } = opts
+      const conditions = [eq(notifications.userId, userId)]
+      if (unreadOnly) conditions.push(isNull(notifications.readAt))
+      if (opts.after) {
+        conditions.push(
+          or(
+            lt(notifications.createdAt, opts.after.createdAt),
+            and(eq(notifications.createdAt, opts.after.createdAt), lt(notifications.id, opts.after.id)),
+          )!,
+        )
+      }
 
       const rows = await db
-        .select({
-          ...getTableColumns(notifications),
-          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
-          pageUnread: sql<number>`SUM(CASE WHEN ${notifications.readAt} IS NULL THEN 1 ELSE 0 END) OVER()`.as(
-            'page_unread',
-          ),
-        })
+        .select()
         .from(notifications)
-        .where(baseCondition)
-        .orderBy(desc(notifications.createdAt))
-        .limit(pageSize)
-        .offset(offset)
-
-      let total = Number(rows[0]?.pageTotal ?? 0)
-      let unreadCount = Number(rows[0]?.pageUnread ?? 0)
-      if (rows.length === 0 && page > 1) {
-        const summaryRows = await db
-          .select({
-            total: count(),
-            unreadCount: sql<number>`SUM(CASE WHEN ${notifications.readAt} IS NULL THEN 1 ELSE 0 END)`,
-          })
-          .from(notifications)
-          .where(eq(notifications.userId, userId))
-        unreadCount = Number(summaryRows[0]?.unreadCount ?? 0)
-        total = unreadOnly ? unreadCount : (summaryRows[0]?.total ?? 0)
-      }
+        .where(and(...conditions))
+        .orderBy(desc(notifications.createdAt), desc(notifications.id))
+        .limit(pageSize + 1)
+      const hasMore = rows.length > pageSize
+      const page = hasMore ? rows.slice(0, pageSize) : rows
+      const last = page.at(-1)
       return {
-        items: rows.map(({ pageTotal: _, pageUnread: __, ...row }) => toRecord(row)),
-        total,
-        unreadCount,
+        items: page.map(toRecord),
+        nextBoundary: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
       }
     },
 
@@ -79,7 +79,19 @@ export function createNotificationRepo(db: Database): NotificationRepo {
 
       if (!rows[0]) return false
       if (!rows[0].readAt) {
-        await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id))
+        const now = new Date()
+        await executeWriteTransaction(db, [
+          db.update(notifications).set({ readAt: now }).where(eq(notifications.id, id)),
+          resourceChangeQuery(db, {
+            scopeType: 'user',
+            scopeId: userId,
+            resourceType: 'notification',
+            resourceId: id,
+            changeType: 'upsert',
+            action: 'read',
+            occurredAt: now,
+          }),
+        ])
       }
       return true
     },
@@ -92,10 +104,23 @@ export function createNotificationRepo(db: Database): NotificationRepo {
 
       if (unread.length === 0) return { count: 0 }
 
-      await db
-        .update(notifications)
-        .set({ readAt: new Date() })
-        .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
+      const now = new Date()
+      await executeWriteTransaction(db, [
+        db
+          .update(notifications)
+          .set({ readAt: now })
+          .where(and(eq(notifications.userId, userId), isNull(notifications.readAt))),
+        resourceChangeQuery(db, {
+          scopeType: 'user',
+          scopeId: userId,
+          resourceType: 'notification',
+          resourceId: '*',
+          changeType: 'upsert',
+          action: 'read_all',
+          metadata: { affectedCount: unread.length },
+          occurredAt: now,
+        }),
+      ])
 
       return { count: unread.length }
     },

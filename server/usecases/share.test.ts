@@ -138,8 +138,8 @@ function makeShareRepo(over: Partial<ShareRepo> = {}): ShareRepo {
     incrementDownloadsAtomic: async () => ({ ok: true, downloads: 3 }),
     decrementDownloads: async () => {},
     revokeByToken: async () => true,
-    listForApi: async () => ({ items: [], total: 0 }),
-    listReceivedForApi: async () => ({ items: [], total: 0 }),
+    listForApi: async () => ({ items: [], nextBoundary: null }),
+    listReceivedForApi: async () => ({ items: [], nextBoundary: null }),
     computeSourceBytes: async () => 1024,
     listDirectActiveChildren: async () => [],
     hasQuotaForBytes: async () => true,
@@ -154,7 +154,7 @@ function makeShareRepo(over: Partial<ShareRepo> = {}): ShareRepo {
   } as ShareRepo
 }
 
-const emptyMatterList: MatterListResult = { items: [], total: 0, page: 1, pageSize: 50 }
+const emptyMatterList: MatterListResult = { items: [], nextBoundary: null }
 
 function makeDeps(
   over: {
@@ -439,7 +439,13 @@ describe('verifySharePassword', () => {
 // ─── listShareObjects ────────────────────────────────────────────────────────
 
 describe('listShareObjects', () => {
-  const baseParams = { token: 'sk_token1', viewerId: null, accessCookie: 'ok', relativePath: '', page: 1, pageSize: 50 }
+  const baseParams = {
+    token: 'sk_token1',
+    viewerId: null,
+    accessCookie: 'ok',
+    relativePath: '',
+    pageSize: 50,
+  }
 
   it('returns matter_trashed / not_found from resolution', async () => {
     const trashed = makeDeps({ share: { resolveByToken: async () => trashedResolution() } })
@@ -499,9 +505,7 @@ describe('listShareObjects', () => {
         { ...folderMatter, hasChildren: false },
         { ...childMatter, hasChildren: false },
       ],
-      total: 2,
-      page: 1,
-      pageSize: 50,
+      nextBoundary: null,
     }))
     const { deps } = makeDeps({
       share: { resolveByToken: async () => okResolution({ matter: folderMatter }) },
@@ -510,7 +514,7 @@ describe('listShareObjects', () => {
     const out = await listShareObjects(deps, baseParams)
     if (!out.ok) throw new Error('expected ok')
     // folderMatter.parent='root', name='docs' → queryParent='root/docs'
-    expect(list).toHaveBeenCalledWith('o-1', { parent: 'root/docs', page: 1, pageSize: 50 })
+    expect(list).toHaveBeenCalledWith('o-1', { parent: 'root/docs', pageSize: 50, after: undefined })
     expect(out.result.items).toEqual([
       { ref: encodeChildRef('sk_token1', 'fld-1'), name: 'docs', type: 'folder', size: 0, isFolder: true },
       {
@@ -532,7 +536,7 @@ describe('listShareObjects', () => {
     })
     const out = await listShareObjects(deps, { ...baseParams, relativePath: 'a/b' })
     if (!out.ok) throw new Error('expected ok')
-    expect(list).toHaveBeenCalledWith('o-1', { parent: 'root/docs/a/b', page: 1, pageSize: 50 })
+    expect(list).toHaveBeenCalledWith('o-1', { parent: 'root/docs/a/b', pageSize: 50, after: undefined })
     expect(out.result.breadcrumb).toEqual([
       { name: 'docs', path: '' },
       { name: 'a', path: 'a' },
@@ -837,30 +841,32 @@ describe('listShares', () => {
   const sentItem = { id: 's-1', token: 'sk_token1' } as ShareListItem
 
   it('lists the sent box via listForApi with status', async () => {
-    const listForApi = vi.fn(async () => ({ items: [sentItem], total: 1 }))
+    const nextBoundary = { createdAt: new Date('2025-01-01'), id: 's-1' }
+    const listForApi = vi.fn(async () => ({ items: [sentItem], nextBoundary }))
     const { deps } = makeDeps({ share: { listForApi } })
-    const out = await listShares(deps, { userId: 'u1', box: 'sent', page: 2, pageSize: 10, status: 'active' })
-    expect(listForApi).toHaveBeenCalledWith('u1', { page: 2, pageSize: 10, status: 'active' })
-    expect(out).toEqual({ items: [sentItem], total: 1, page: 2, pageSize: 10 })
+    const after = { createdAt: new Date('2025-02-01'), id: 's-2' }
+    const out = await listShares(deps, { userId: 'u1', box: 'sent', pageSize: 10, status: 'active', after })
+    expect(listForApi).toHaveBeenCalledWith('u1', { pageSize: 10, status: 'active', after })
+    expect(out).toEqual({ items: [sentItem], nextBoundary })
   })
 
   it('defaults to the sent box when box is undefined', async () => {
-    const listForApi = vi.fn(async () => ({ items: [], total: 0 }))
-    const listReceivedForApi = vi.fn(async () => ({ items: [], total: 0 }))
+    const listForApi = vi.fn(async () => ({ items: [], nextBoundary: null }))
+    const listReceivedForApi = vi.fn(async () => ({ items: [], nextBoundary: null }))
     const { deps } = makeDeps({ share: { listForApi, listReceivedForApi } })
-    await listShares(deps, { userId: 'u1', box: undefined, page: 1, pageSize: 20 })
+    await listShares(deps, { userId: 'u1', box: undefined, pageSize: 20 })
     expect(listForApi).toHaveBeenCalled()
     expect(listReceivedForApi).not.toHaveBeenCalled()
   })
 
   it('lists the received box via listReceivedForApi, threading the user email', async () => {
     const getUserEmail = vi.fn(async () => 'me@example.com')
-    const listReceivedForApi = vi.fn(async () => ({ items: [sentItem], total: 1 }))
+    const listReceivedForApi = vi.fn(async () => ({ items: [sentItem], nextBoundary: null }))
     const { deps } = makeDeps({ share: { getUserEmail, listReceivedForApi } })
-    const out = await listShares(deps, { userId: 'u1', box: 'received', page: 1, pageSize: 20 })
+    const out = await listShares(deps, { userId: 'u1', box: 'received', pageSize: 20 })
     expect(getUserEmail).toHaveBeenCalledWith('u1')
-    expect(listReceivedForApi).toHaveBeenCalledWith('u1', 'me@example.com', { page: 1, pageSize: 20 })
-    expect(out).toEqual({ items: [sentItem], total: 1, page: 1, pageSize: 20 })
+    expect(listReceivedForApi).toHaveBeenCalledWith('u1', 'me@example.com', { pageSize: 20, after: undefined })
+    expect(out).toEqual({ items: [sentItem], nextBoundary: null })
   })
 })
 

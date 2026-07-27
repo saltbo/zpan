@@ -34,6 +34,7 @@ import type {
   ProfileRepo,
   QuotaRepo,
   RemoteDownloadUsageRepo,
+  ResourceChangeRepo,
   S3Gateway,
   ShareNotificationRepo,
   ShareRepo,
@@ -83,6 +84,7 @@ export interface Deps {
   profiles: ProfileRepo
   quota: QuotaRepo
   remoteDownloadUsage: RemoteDownloadUsageRepo
+  resourceChanges: ResourceChangeRepo
   s3: S3Gateway
   shareNotifications: ShareNotificationRepo
   share: ShareRepo

@@ -891,57 +891,6 @@ func (e ListDownloadTasksParamsAssignedTo) Valid() bool {
 	}
 }
 
-// Defines values for ListDownloadTasksParamsSortBy.
-const (
-	Category  ListDownloadTasksParamsSortBy = "category"
-	CreatedAt ListDownloadTasksParamsSortBy = "createdAt"
-	Eta       ListDownloadTasksParamsSortBy = "eta"
-	Progress  ListDownloadTasksParamsSortBy = "progress"
-	Source    ListDownloadTasksParamsSortBy = "source"
-	Status    ListDownloadTasksParamsSortBy = "status"
-	Tags      ListDownloadTasksParamsSortBy = "tags"
-)
-
-// Valid indicates whether the value is a known member of the ListDownloadTasksParamsSortBy enum.
-func (e ListDownloadTasksParamsSortBy) Valid() bool {
-	switch e {
-	case Category:
-		return true
-	case CreatedAt:
-		return true
-	case Eta:
-		return true
-	case Progress:
-		return true
-	case Source:
-		return true
-	case Status:
-		return true
-	case Tags:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListDownloadTasksParamsSortDir.
-const (
-	ListDownloadTasksParamsSortDirAsc  ListDownloadTasksParamsSortDir = "asc"
-	ListDownloadTasksParamsSortDirDesc ListDownloadTasksParamsSortDir = "desc"
-)
-
-// Valid indicates whether the value is a known member of the ListDownloadTasksParamsSortDir enum.
-func (e ListDownloadTasksParamsSortDir) Valid() bool {
-	switch e {
-	case ListDownloadTasksParamsSortDirAsc:
-		return true
-	case ListDownloadTasksParamsSortDirDesc:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CreateDownloadTaskJSONBodySourceType.
 const (
 	CreateDownloadTaskJSONBodySourceTypeHttp       CreateDownloadTaskJSONBodySourceType = "http"
@@ -1577,16 +1526,16 @@ func (e ListStorageUsageItemsParamsSortBy) Valid() bool {
 
 // Defines values for ListStorageUsageItemsParamsSortDir.
 const (
-	ListStorageUsageItemsParamsSortDirAsc  ListStorageUsageItemsParamsSortDir = "asc"
-	ListStorageUsageItemsParamsSortDirDesc ListStorageUsageItemsParamsSortDir = "desc"
+	Asc  ListStorageUsageItemsParamsSortDir = "asc"
+	Desc ListStorageUsageItemsParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListStorageUsageItemsParamsSortDir enum.
 func (e ListStorageUsageItemsParamsSortDir) Valid() bool {
 	switch e {
-	case ListStorageUsageItemsParamsSortDirAsc:
+	case Asc:
 		return true
-	case ListStorageUsageItemsParamsSortDirDesc:
+	case Desc:
 		return true
 	default:
 		return false
@@ -1834,10 +1783,8 @@ type BackgroundJob struct {
 
 // BackgroundJobPage defines model for BackgroundJobPage.
 type BackgroundJobPage struct {
-	Items    []BackgroundJob `json:"items"`
-	Page     int             `json:"page"`
-	PageSize int             `json:"pageSize"`
-	Total    int             `json:"total"`
+	Items         []BackgroundJob `json:"items"`
+	NextPageToken *string         `json:"nextPageToken"`
 }
 
 // BrandingConfig defines model for BrandingConfig.
@@ -2049,10 +1996,8 @@ type DownloadTaskStatusState string
 
 // DownloadTaskPage defines model for DownloadTaskPage.
 type DownloadTaskPage struct {
-	Items    []DownloadTask `json:"items"`
-	Page     int            `json:"page"`
-	PageSize int            `json:"pageSize"`
-	Total    int            `json:"total"`
+	Items         []DownloadTask `json:"items"`
+	NextPageToken *string        `json:"nextPageToken"`
 }
 
 // DownloadTaskTimeline defines model for DownloadTaskTimeline.
@@ -2272,8 +2217,8 @@ type ImageHostingDraft struct {
 
 // ImageHostingList defines model for ImageHostingList.
 type ImageHostingList struct {
-	Items      []ImageHosting `json:"items"`
-	NextCursor *string        `json:"nextCursor"`
+	Items         []ImageHosting `json:"items"`
+	NextPageToken *string        `json:"nextPageToken"`
 }
 
 // InstanceInfo defines model for InstanceInfo.
@@ -2379,10 +2324,8 @@ type Notification struct {
 
 // NotificationPage defines model for NotificationPage.
 type NotificationPage struct {
-	Items    []Notification `json:"items"`
-	Page     int            `json:"page"`
-	PageSize int            `json:"pageSize"`
-	Total    int            `json:"total"`
+	Items         []Notification `json:"items"`
+	NextPageToken *string        `json:"nextPageToken"`
 }
 
 // ObjectListItem defines model for ObjectListItem.
@@ -2406,10 +2349,8 @@ type ObjectListItem struct {
 
 // ObjectPage defines model for ObjectPage.
 type ObjectPage struct {
-	Items    []ObjectListItem `json:"items"`
-	Page     int              `json:"page"`
-	PageSize int              `json:"pageSize"`
-	Total    int              `json:"total"`
+	Items         []ObjectListItem `json:"items"`
+	NextPageToken *string          `json:"nextPageToken"`
 }
 
 // Organization defines model for Organization.
@@ -2580,10 +2521,8 @@ type Session struct {
 
 // ShareList defines model for ShareList.
 type ShareList struct {
-	Items    []ShareListItem `json:"items"`
-	Page     int             `json:"page"`
-	PageSize int             `json:"pageSize"`
-	Total    int             `json:"total"`
+	Items         []ShareListItem `json:"items"`
+	NextPageToken *string         `json:"nextPageToken"`
 }
 
 // ShareListItem defines model for ShareListItem.
@@ -2623,9 +2562,7 @@ type ShareObjects struct {
 		Size     *int   `json:"size"`
 		Type     string `json:"type"`
 	} `json:"items"`
-	Page     int `json:"page"`
-	PageSize int `json:"pageSize"`
-	Total    int `json:"total"`
+	NextPageToken *string `json:"nextPageToken"`
 }
 
 // SharePrivacy defines model for SharePrivacy.
@@ -2916,10 +2853,8 @@ type TrashObject struct {
 
 // TrashObjectPage defines model for TrashObjectPage.
 type TrashObjectPage struct {
-	Items    []TrashObject `json:"items"`
-	Page     int           `json:"page"`
-	PageSize int           `json:"pageSize"`
-	Total    int           `json:"total"`
+	Items         []TrashObject `json:"items"`
+	NextPageToken *string       `json:"nextPageToken"`
 }
 
 // UpdateSiteCaptcha defines model for UpdateSiteCaptcha.
@@ -3694,10 +3629,10 @@ type VerifyPasswordJSONBody struct {
 
 // ListBackgroundJobsParams defines parameters for ListBackgroundJobs.
 type ListBackgroundJobsParams struct {
-	Status   *ListBackgroundJobsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-	Type     *string                         `form:"type,omitempty" json:"type,omitempty"`
-	Page     *int                            `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int                            `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	Status    *ListBackgroundJobsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Type      *string                         `form:"type,omitempty" json:"type,omitempty"`
+	PageSize  *int                            `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string                         `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
 
 // ListBackgroundJobsParamsStatus defines parameters for ListBackgroundJobs.
@@ -3798,20 +3733,12 @@ type ListDownloadTasksParams struct {
 	AssignedTo *ListDownloadTasksParamsAssignedTo `form:"assignedTo,omitempty" json:"assignedTo,omitempty"`
 	Category   *string                            `form:"category,omitempty" json:"category,omitempty"`
 	Tag        *string                            `form:"tag,omitempty" json:"tag,omitempty"`
-	SortBy     *ListDownloadTasksParamsSortBy     `form:"sortBy,omitempty" json:"sortBy,omitempty"`
-	SortDir    *ListDownloadTasksParamsSortDir    `form:"sortDir,omitempty" json:"sortDir,omitempty"`
-	Page       *int                               `form:"page,omitempty" json:"page,omitempty"`
 	PageSize   *int                               `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken  *string                            `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
 
 // ListDownloadTasksParamsAssignedTo defines parameters for ListDownloadTasks.
 type ListDownloadTasksParamsAssignedTo string
-
-// ListDownloadTasksParamsSortBy defines parameters for ListDownloadTasks.
-type ListDownloadTasksParamsSortBy string
-
-// ListDownloadTasksParamsSortDir defines parameters for ListDownloadTasks.
-type ListDownloadTasksParamsSortDir string
 
 // CreateDownloadTaskJSONBody defines parameters for CreateDownloadTask.
 type CreateDownloadTaskJSONBody struct {
@@ -3933,21 +3860,6 @@ type SetDownloadTaskStatusJSONBody struct {
 // SetDownloadTaskStatusJSONBodyStatus defines parameters for SetDownloadTaskStatus.
 type SetDownloadTaskStatusJSONBodyStatus string
 
-// StreamEventsParams defines parameters for StreamEvents.
-type StreamEventsParams struct {
-	// DownloadTasks Set to "1" to subscribe to download-task events.
-	DownloadTasks *string `form:"downloadTasks,omitempty" json:"downloadTasks,omitempty"`
-	DtStatus      *string `form:"dtStatus,omitempty" json:"dtStatus,omitempty"`
-	DtCategory    *string `form:"dtCategory,omitempty" json:"dtCategory,omitempty"`
-	DtTag         *string `form:"dtTag,omitempty" json:"dtTag,omitempty"`
-
-	// DtSortBy One of: createdAt | source | category | tags | status | progress | eta
-	DtSortBy *string `form:"dtSortBy,omitempty" json:"dtSortBy,omitempty"`
-
-	// DtSortDir asc | desc
-	DtSortDir *string `form:"dtSortDir,omitempty" json:"dtSortDir,omitempty"`
-}
-
 // UpdateImageHostingConfigJSONBody defines parameters for UpdateImageHostingConfig.
 type UpdateImageHostingConfigJSONBody struct {
 	CustomDomain     *string                                 `json:"customDomain,omitempty"`
@@ -3961,8 +3873,8 @@ type UpdateImageHostingConfigJSONBodyEnabled bool
 // ListImageHostingsParams defines parameters for ListImageHostings.
 type ListImageHostingsParams struct {
 	PathPrefix *string `form:"pathPrefix,omitempty" json:"pathPrefix,omitempty"`
-	Cursor     *string `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Limit      *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	PageToken  *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+	PageSize   *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
 // PresignImageHostingUploadJSONBody defines parameters for PresignImageHostingUpload.
@@ -3977,20 +3889,20 @@ type PresignImageHostingUploadJSONBodyMime string
 
 // ListNotificationsParams defines parameters for ListNotifications.
 type ListNotificationsParams struct {
-	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-	Unread   *string `form:"unread,omitempty" json:"unread,omitempty"`
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+	Unread    *string `form:"unread,omitempty" json:"unread,omitempty"`
 }
 
 // ListObjectsParams defines parameters for ListObjects.
 type ListObjectsParams struct {
-	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-	Parent   *string `form:"parent,omitempty" json:"parent,omitempty"`
-	Path     *string `form:"path,omitempty" json:"path,omitempty"`
-	Type     *string `form:"type,omitempty" json:"type,omitempty"`
-	Search   *string `form:"search,omitempty" json:"search,omitempty"`
-	OrgId    *string `form:"orgId,omitempty" json:"orgId,omitempty"`
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+	Parent    *string `form:"parent,omitempty" json:"parent,omitempty"`
+	Path      *string `form:"path,omitempty" json:"path,omitempty"`
+	Type      *string `form:"type,omitempty" json:"type,omitempty"`
+	Search    *string `form:"search,omitempty" json:"search,omitempty"`
+	OrgId     *string `form:"orgId,omitempty" json:"orgId,omitempty"`
 }
 
 // CreateObjectJSONBody defines parameters for CreateObject.
@@ -4059,10 +3971,10 @@ type PresignObjectUploadPartsJSONBody struct {
 
 // ListSharesParams defines parameters for ListShares.
 type ListSharesParams struct {
-	Page     *int                    `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int                    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-	Status   *ListSharesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-	Box      *ListSharesParamsBox    `form:"box,omitempty" json:"box,omitempty"`
+	PageSize  *int                    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string                 `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+	Status    *ListSharesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Box       *ListSharesParamsBox    `form:"box,omitempty" json:"box,omitempty"`
 }
 
 // ListSharesParamsStatus defines parameters for ListShares.
@@ -4090,9 +4002,9 @@ type CreateShareJSONBodyKind string
 
 // ListShareObjectsParams defines parameters for ListShareObjects.
 type ListShareObjectsParams struct {
-	Parent   *string `form:"parent,omitempty" json:"parent,omitempty"`
-	Page     *string `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *string `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	Parent    *string `form:"parent,omitempty" json:"parent,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
 // SaveShareJSONBody defines parameters for SaveShare.
@@ -4428,8 +4340,8 @@ type JoinTeam200JSONResponseBodyOk bool
 
 // ListTrashObjectsParams defines parameters for ListTrashObjects.
 type ListTrashObjectsParams struct {
-	Page     *int `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
 
 // RestoreObjectJSONBody defines parameters for RestoreObject.
@@ -5443,6 +5355,9 @@ type ClientInterface interface {
 
 	CreateBackgroundJob(ctx context.Context, body CreateBackgroundJobJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetBackgroundJobStats request
+	GetBackgroundJobStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetBackgroundJob request
 	GetBackgroundJob(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5516,7 +5431,7 @@ type ClientInterface interface {
 	SetDownloadTaskStatus(ctx context.Context, id string, body SetDownloadTaskStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StreamEvents request
-	StreamEvents(ctx context.Context, params *StreamEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	StreamEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteImageHostingConfig request
 	DeleteImageHostingConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7677,6 +7592,18 @@ func (c *Client) CreateBackgroundJob(ctx context.Context, body CreateBackgroundJ
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetBackgroundJobStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBackgroundJobStatsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetBackgroundJob(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetBackgroundJobRequest(c.Server, id)
 	if err != nil {
@@ -8001,8 +7928,8 @@ func (c *Client) SetDownloadTaskStatus(ctx context.Context, id string, body SetD
 	return c.Client.Do(req)
 }
 
-func (c *Client) StreamEvents(ctx context.Context, params *StreamEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewStreamEventsRequest(c.Server, params)
+func (c *Client) StreamEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStreamEventsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13399,9 +13326,9 @@ func NewListBackgroundJobsRequest(server string, params *ListBackgroundJobsParam
 
 		}
 
-		if params.Page != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -13411,9 +13338,9 @@ func NewListBackgroundJobsRequest(server string, params *ListBackgroundJobsParam
 
 		}
 
-		if params.PageSize != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -13473,6 +13400,33 @@ func NewCreateBackgroundJobRequestWithBody(server string, contentType string, bo
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetBackgroundJobStatsRequest generates requests for GetBackgroundJobStats
+func NewGetBackgroundJobStatsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/background-jobs/stats")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -13930,45 +13884,21 @@ func NewListDownloadTasksRequest(server string, params *ListDownloadTasksParams)
 
 		}
 
-		if params.SortBy != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sortBy", *params.SortBy, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.SortDir != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sortDir", *params.SortDir, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
 		if params.PageSize != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -14276,7 +14206,7 @@ func NewSetDownloadTaskStatusRequestWithBody(server string, id string, contentTy
 }
 
 // NewStreamEventsRequest generates requests for StreamEvents
-func NewStreamEventsRequest(server string, params *StreamEventsParams) (*http.Request, error) {
+func NewStreamEventsRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -14292,93 +14222,6 @@ func NewStreamEventsRequest(server string, params *StreamEventsParams) (*http.Re
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.DownloadTasks != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "downloadTasks", *params.DownloadTasks, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.DtStatus != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "dtStatus", *params.DtStatus, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.DtCategory != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "dtCategory", *params.DtCategory, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.DtTag != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "dtTag", *params.DtTag, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.DtSortBy != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "dtSortBy", *params.DtSortBy, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.DtSortDir != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "dtSortDir", *params.DtSortDir, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -14523,9 +14366,9 @@ func NewListImageHostingsRequest(server string, params *ListImageHostingsParams)
 
 		}
 
-		if params.Cursor != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -14535,9 +14378,9 @@ func NewListImageHostingsRequest(server string, params *ListImageHostingsParams)
 
 		}
 
-		if params.Limit != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -14731,9 +14574,9 @@ func NewListNotificationsRequest(server string, params *ListNotificationsParams)
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if params.Page != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -14743,9 +14586,9 @@ func NewListNotificationsRequest(server string, params *ListNotificationsParams)
 
 		}
 
-		if params.PageSize != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -14897,9 +14740,9 @@ func NewListObjectsRequest(server string, params *ListObjectsParams) (*http.Requ
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if params.Page != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -14909,9 +14752,9 @@ func NewListObjectsRequest(server string, params *ListObjectsParams) (*http.Requ
 
 		}
 
-		if params.PageSize != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15502,9 +15345,9 @@ func NewListSharesRequest(server string, params *ListSharesParams) (*http.Reques
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if params.Page != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15514,9 +15357,9 @@ func NewListSharesRequest(server string, params *ListSharesParams) (*http.Reques
 
 		}
 
-		if params.PageSize != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15685,9 +15528,9 @@ func NewListShareObjectsRequest(server string, token string, params *ListShareOb
 
 		}
 
-		if params.Page != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15699,7 +15542,7 @@ func NewListShareObjectsRequest(server string, token string, params *ListShareOb
 
 		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -18867,9 +18710,9 @@ func NewListTrashObjectsRequest(server string, params *ListTrashObjectsParams) (
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if params.Page != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -18879,9 +18722,9 @@ func NewListTrashObjectsRequest(server string, params *ListTrashObjectsParams) (
 
 		}
 
-		if params.PageSize != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -19734,6 +19577,9 @@ type ClientWithResponsesInterface interface {
 
 	CreateBackgroundJobWithResponse(ctx context.Context, body CreateBackgroundJobJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateBackgroundJobResponse, error)
 
+	// GetBackgroundJobStatsWithResponse request
+	GetBackgroundJobStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBackgroundJobStatsResponse, error)
+
 	// GetBackgroundJobWithResponse request
 	GetBackgroundJobWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetBackgroundJobResponse, error)
 
@@ -19807,7 +19653,7 @@ type ClientWithResponsesInterface interface {
 	SetDownloadTaskStatusWithResponse(ctx context.Context, id string, body SetDownloadTaskStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetDownloadTaskStatusResponse, error)
 
 	// StreamEventsWithResponse request
-	StreamEventsWithResponse(ctx context.Context, params *StreamEventsParams, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error)
+	StreamEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error)
 
 	// DeleteImageHostingConfigWithResponse request
 	DeleteImageHostingConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteImageHostingConfigResponse, error)
@@ -24838,6 +24684,39 @@ func (r CreateBackgroundJobResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateBackgroundJobResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetBackgroundJobStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		ActiveCount int `json:"activeCount"`
+	}
+	JSON404 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBackgroundJobStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBackgroundJobStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetBackgroundJobStatsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -30447,6 +30326,15 @@ func (c *ClientWithResponses) CreateBackgroundJobWithResponse(ctx context.Contex
 	return ParseCreateBackgroundJobResponse(rsp)
 }
 
+// GetBackgroundJobStatsWithResponse request returning *GetBackgroundJobStatsResponse
+func (c *ClientWithResponses) GetBackgroundJobStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBackgroundJobStatsResponse, error) {
+	rsp, err := c.GetBackgroundJobStats(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBackgroundJobStatsResponse(rsp)
+}
+
 // GetBackgroundJobWithResponse request returning *GetBackgroundJobResponse
 func (c *ClientWithResponses) GetBackgroundJobWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetBackgroundJobResponse, error) {
 	rsp, err := c.GetBackgroundJob(ctx, id, reqEditors...)
@@ -30682,8 +30570,8 @@ func (c *ClientWithResponses) SetDownloadTaskStatusWithResponse(ctx context.Cont
 }
 
 // StreamEventsWithResponse request returning *StreamEventsResponse
-func (c *ClientWithResponses) StreamEventsWithResponse(ctx context.Context, params *StreamEventsParams, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error) {
-	rsp, err := c.StreamEvents(ctx, params, reqEditors...)
+func (c *ClientWithResponses) StreamEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error) {
+	rsp, err := c.StreamEvents(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -39247,6 +39135,41 @@ func ParseCreateBackgroundJobResponse(rsp *http.Response) (*CreateBackgroundJobR
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBackgroundJobStatsResponse parses an HTTP response from a GetBackgroundJobStatsWithResponse call
+func ParseGetBackgroundJobStatsResponse(rsp *http.Response) (*GetBackgroundJobStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBackgroundJobStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ActiveCount int `json:"activeCount"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error

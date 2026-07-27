@@ -203,6 +203,11 @@ export interface AuthProviderList {
   callbackBaseUri: string
 }
 
+export interface CursorPage<T> {
+  items: T[]
+  nextPageToken: string | null
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   total: number

@@ -36,7 +36,7 @@ describe('[CF] Objects API', () => {
     const res = await app.request('/api/objects', { headers })
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual({ items: [], total: 0, page: 1, pageSize: 20 })
+    expect(body).toEqual({ items: [], nextPageToken: null })
   })
 
   it('POST /api/objects returns 400 for invalid input', async () => {
@@ -156,8 +156,8 @@ describe('[CF] Objects upload + trash lifecycle (D1)', () => {
 
     const res = await app.request('/api/objects?type=folder&pageSize=100', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<{ id: string; hasChildren: boolean }>; total: number }
-    expect(body.total).toBe(2)
+    const body = (await res.json()) as { items: Array<{ id: string; hasChildren: boolean }> }
+    expect(body.items).toHaveLength(2)
     expect(body.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'cf-parent', hasChildren: true }),

@@ -15,7 +15,7 @@ export function NotificationDropdown() {
 
   const { data } = useQuery({
     queryKey: ['notifications', 'list'],
-    queryFn: () => listNotifications(1, 10),
+    queryFn: () => listNotifications({ pageSize: 10 }),
   })
 
   const { data: unread } = useQuery({

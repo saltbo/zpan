@@ -5,6 +5,7 @@ import { createDeps } from '../server/composition'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/downloads/remote-download-usage'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/usecases/object'
+import { purgeExpiredResourceChanges } from '../server/usecases/resource-changes'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
 import { runLicensingRefresh } from '../server/usecases/site/licensing'
 import { syncPendingCloudTrafficReports } from '../server/usecases/store/traffic-metering'
@@ -44,7 +45,12 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
   }
 
   if (event.cron === STATS_ROLLUP_CRON) {
-    await Promise.all([deps.adminStats.refreshHourlyRollups(new Date()), deps.webdavState.purgeExpiredLocks()])
+    const now = new Date()
+    await Promise.all([
+      deps.adminStats.refreshHourlyRollups(now),
+      deps.webdavState.purgeExpiredLocks(),
+      purgeExpiredResourceChanges(deps, now),
+    ])
     return
   }
 

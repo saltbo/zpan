@@ -130,8 +130,8 @@ export {
 } from './errors'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
-export type { Page, PageQuery } from './pagination'
-export { pageQuerySchema, pageSchema } from './pagination'
+export type { CursorPage, CursorPageQuery, Page, PageQuery } from './pagination'
+export { cursorPageQuerySchema, cursorPageSchema, pageQuerySchema, pageSchema } from './pagination'
 export type { PublicProfile, PublicProfileShare, PublicUser } from './profile'
 export { publicProfileSchema, publicProfileShareSchema, publicUserSchema } from './profile'
 export type {
@@ -338,8 +338,8 @@ export type PatchIhostImageInput = z.infer<typeof patchIhostImageSchema>
 
 export const listIhostImagesSchema = z.object({
   pathPrefix: z.string().optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  pageToken: z.string().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
 })
 
 // ─── Public image upload (avatar, org logo) ─────────────────────────────────

@@ -17,8 +17,8 @@ export type CreateBackgroundJobInput = {
 export type ListBackgroundJobsOptions = {
   status?: BackgroundJobStatus
   type?: string
-  page: number
   pageSize: number
+  after?: { createdAt: Date; id: string }
 }
 
 export type UpdateBackgroundJobInput = {
@@ -44,7 +44,10 @@ export class BackgroundJobError extends Error {
 
 export interface BackgroundJobRepo {
   create(input: CreateBackgroundJobInput): Promise<BackgroundJob>
-  list(orgId: string, opts: ListBackgroundJobsOptions): Promise<{ items: BackgroundJob[]; total: number }>
+  list(
+    orgId: string,
+    opts: ListBackgroundJobsOptions,
+  ): Promise<{ items: BackgroundJob[]; nextBoundary: { createdAt: Date; id: string } | null }>
   activeSummary(orgId: string): Promise<{ count: number; fingerprint: string }>
   get(orgId: string, id: string): Promise<BackgroundJob>
   update(orgId: string, id: string, input: UpdateBackgroundJobInput): Promise<BackgroundJob>

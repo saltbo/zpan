@@ -3,9 +3,9 @@ import {
   completeObjectUploadSchema,
   copyObjectBodySchema,
   createMatterSchema,
+  cursorPageQuerySchema,
+  cursorPageSchema,
   objectUploadInstructionsSchema,
-  pageQuerySchema,
-  pageSchema,
   patchMatterSchema,
   presignObjectUploadPartsResponseSchema,
   presignObjectUploadPartsSchema,
@@ -36,6 +36,7 @@ import {
 import { badRequest, forbidden, type Matter, type MatterListItem, unauthorized } from '../usecases/ports'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { decodeOptionalPageToken, directoryCursorCodec, encodeNextPageToken, pageQueryFingerprint } from './page-token'
 
 // The wire shape of a file/folder — exactly what the API serializes. Timestamps
 // are strings here (the domain `Matter` carries them as `Date`); `toMatterDTO`
@@ -93,7 +94,7 @@ function toObjectListItemDTO(item: MatterListItem): ObjectListItemDTO {
   return { ...toMatterDTO(item), hasChildren: item.hasChildren }
 }
 
-const objectPageSchema = pageSchema(objectListItemSchema, 'ObjectPage')
+const objectPageSchema = cursorPageSchema(objectListItemSchema, 'ObjectPage')
 
 // POST / returns the created object plus, for a file draft, the upload
 // instructions: the server-decided part size and the presigned URLs to PUT each
@@ -110,8 +111,7 @@ const objectWithDownloadSchema = matterSchema.extend({ downloadUrl: z.string().o
 // whole folder client-side (no UI paging, FILES_PAGE_SIZE=500), so this list
 // overrides the shared pageSize cap of 100 with a higher ceiling — the rest of the
 // API keeps the 100 default. Live objects only — the recycle bin is GET /trash/objects.
-const listObjectsQuerySchema = pageQuerySchema.extend({
-  pageSize: z.coerce.number().int().min(1).max(1000).default(20),
+const listObjectsQuerySchema = cursorPageQuerySchema.extend({
   parent: z.string().optional(),
   path: z.string().optional(),
   type: z.string().optional(),
@@ -355,6 +355,17 @@ const objects = app
     if (!orgId) throw badRequest('No active organization')
 
     const query = c.req.valid('query')
+    const fingerprint = await pageQueryFingerprint({
+      orgId: query.orgId ?? orgId,
+      parent: query.path ?? query.parent ?? '',
+      type: query.type ?? null,
+      search: query.search ?? null,
+      pageSize: query.pageSize,
+    })
+    const after = await decodeOptionalPageToken(c.get('platform'), query.pageToken, {
+      query: fingerprint,
+      codec: directoryCursorCodec,
+    })
     const result = await listObjects(c.get('deps'), {
       orgId,
       userId: c.get('userId')!,
@@ -363,12 +374,21 @@ const objects = app
         parent: query.path ?? query.parent ?? '',
         typeFilter: query.type,
         search: query.search,
-        page: query.page,
         pageSize: query.pageSize,
+        after,
       },
     })
     if (!result.ok) throw result.error
-    return c.json({ ...result.result, items: result.result.items.map(toObjectListItemDTO) }, 200)
+    return c.json(
+      {
+        items: result.result.items.map(toObjectListItemDTO),
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.result.nextBoundary, {
+          query: fingerprint,
+          codec: directoryCursorCodec,
+        }),
+      },
+      200,
+    )
   })
   .openapi(createObjectRoute, async (c) => {
     const orgId = c.get('orgId')

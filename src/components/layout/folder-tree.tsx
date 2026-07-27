@@ -12,9 +12,8 @@ function useFolders(orgId: string | undefined, path: string, enabled: boolean) {
   const query = useInfiniteQuery({
     queryKey: ['objects', 'active', 'folders', orgId, path],
     queryFn: ({ pageParam }) => listObjectsByPath(path, pageParam, 100, { type: 'folder' }),
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) =>
-      lastPage.page * lastPage.pageSize < lastPage.total ? lastPage.page + 1 : undefined,
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
     enabled: !!orgId && enabled,
     staleTime: 30_000,
     refetchOnWindowFocus: false,

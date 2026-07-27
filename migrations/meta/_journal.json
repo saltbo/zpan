@@ -505,6 +505,48 @@
       "when": 1785081860795,
       "tag": "0072_optimize-webdav-paths",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "6",
+      "when": 1785120950373,
+      "tag": "0073_resource_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "6",
+      "when": 1785121667983,
+      "tag": "0074_download_task_cursor_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "6",
+      "when": 1785122035700,
+      "tag": "0075_matter_cursor_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "6",
+      "when": 1785122069744,
+      "tag": "0076_image_hosting_cursor_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "6",
+      "when": 1785122566039,
+      "tag": "0077_event_resource_cursor_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "6",
+      "when": 1785123933087,
+      "tag": "0078_share_trash_cursor_indexes",
+      "breakpoints": true
     }
   ]
 }

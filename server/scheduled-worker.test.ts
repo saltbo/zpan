@@ -14,12 +14,14 @@ vi.mock('../server/platform/cloudflare', () => ({
 const refreshHourlyRollups = vi.fn()
 const purgeExpiredLocks = vi.fn()
 const reconcileFreePlanBaselines = vi.fn()
+const purgeResourceChanges = vi.fn()
 const fakeDeps = {
   instance: 'instance',
   systemOptions: 'system-options',
   adminStats: { refreshHourlyRollups },
   webdavState: { purgeExpiredLocks },
   quota: { reconcileFreePlanBaselines },
+  resourceChanges: { purgeBefore: purgeResourceChanges },
 }
 vi.mock('../server/composition', () => ({
   createDeps: vi.fn(() => fakeDeps),
@@ -64,6 +66,7 @@ describe('handleScheduled', () => {
     refreshHourlyRollups.mockReset()
     purgeExpiredLocks.mockReset()
     reconcileFreePlanBaselines.mockReset()
+    purgeResourceChanges.mockReset()
   })
 
   it('syncs usage reports on the traffic cron only', async () => {
@@ -84,6 +87,7 @@ describe('handleScheduled', () => {
 
     expect(refreshHourlyRollups).toHaveBeenCalledOnce()
     expect(purgeExpiredLocks).toHaveBeenCalledOnce()
+    expect(purgeResourceChanges).toHaveBeenCalledOnce()
     expect(reconcileFreePlanBaselines).not.toHaveBeenCalled()
     expect(syncPendingCloudTrafficReports).not.toHaveBeenCalled()
     expect(syncPendingRemoteDownloadUsageReports).not.toHaveBeenCalled()

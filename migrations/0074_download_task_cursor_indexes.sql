@@ -1,0 +1,2 @@
+CREATE INDEX `download_tasks_org_page_idx` ON `download_tasks` (`org_id`,`deleted_at`,`created_at`,`id`);--> statement-breakpoint
+CREATE INDEX `download_tasks_downloader_page_idx` ON `download_tasks` (`assigned_downloader_id`,`deleted_at`,`created_at`,`id`);

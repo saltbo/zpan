@@ -134,10 +134,11 @@ export interface ListDownloadTasksFilters {
   statuses?: string[]
   category?: string
   tag?: string
-  sortBy?: 'createdAt' | 'source' | 'category' | 'tags' | 'status' | 'progress' | 'eta'
-  sortDir?: 'asc' | 'desc'
-  page: number
   pageSize: number
+  after?: {
+    createdAt: Date
+    id: string
+  }
 }
 
 export interface CreateDownloadTaskRecordInput {
@@ -190,8 +191,11 @@ export interface DownloaderRepo {
 // API DTO (toDownloadTask folded in); the orchestration reads records.
 export interface DownloadTaskRepo {
   insert(input: CreateDownloadTaskRecordInput): Promise<void>
-  list(filters: ListDownloadTasksFilters): Promise<{ items: DownloadTask[]; total: number; rows: DownloadTaskRecord[] }>
-  changeFingerprint(filters: ListDownloadTasksFilters): Promise<string>
+  list(filters: ListDownloadTasksFilters): Promise<{
+    items: DownloadTask[]
+    rows: DownloadTaskRecord[]
+    nextBoundary: { createdAt: Date; id: string } | null
+  }>
   /** API DTO scoped to org; throws DownloadError('not_found') when missing. */
   get(orgId: string, id: string): Promise<DownloadTask>
   /** Raw record scoped to org; throws DownloadError('not_found') when missing. */

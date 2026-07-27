@@ -81,7 +81,7 @@ function makeDeps(
       incrementAccessCount: notImpl,
       create: async (input: CreateImageHostingInput) => makeRow(input),
       get: async () => null,
-      list: async () => ({ items: [], nextCursor: null }),
+      list: async () => ({ items: [], nextBoundary: null }),
       setActive: async () => true,
       delete: async () => {},
       ...over.imageHosting,
@@ -329,8 +329,9 @@ describe('image-hosting usecase', () => {
   describe('listImageHostings / getImageHosting', () => {
     it('listImageHostings forwards the repo result', async () => {
       const items = [makeRow({ status: 'active' })]
-      const deps = makeDeps({ imageHosting: { list: async () => ({ items, nextCursor: 'c1' }) } })
-      expect(await listImageHostings(deps, 'o1', { limit: 50 })).toEqual({ items, nextCursor: 'c1' })
+      const boundary = { createdAt: new Date(1), id: 'i1' }
+      const deps = makeDeps({ imageHosting: { list: async () => ({ items, nextBoundary: boundary }) } })
+      expect(await listImageHostings(deps, 'o1', { limit: 50 })).toEqual({ items, nextBoundary: boundary })
     })
 
     it('getImageHosting returns the row', async () => {

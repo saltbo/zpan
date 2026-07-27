@@ -39,6 +39,7 @@ import {
   disconnectCloud,
   enableIhostFeature,
   generateInviteCodes,
+  getActiveBackgroundJobCount,
   getAdminDashboardGrowthStats,
   getAdminDashboardOperationsStats,
   getAdminDashboardOverviewStats,
@@ -177,26 +178,25 @@ describe('api', () => {
   describe('listObjectsByPath (defaults and unwrap edge cases)', () => {
     it('calls correct URL with defaults', async () => {
       const fetchMock = vi.mocked(fetch)
-      fetchMock.mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+      fetchMock.mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
       await listObjectsByPath('root')
 
       const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/objects?')
       expect(url).toContain('path=root')
-      expect(url).toContain('page=1')
-      expect(url).toContain('pageSize=500')
+      expect(url).toContain('pageSize=100')
     })
 
-    it('uses provided page, pageSize, and opts', async () => {
+    it('uses provided page token, pageSize, and opts', async () => {
       const fetchMock = vi.mocked(fetch)
-      fetchMock.mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 2, pageSize: 20 }))
+      fetchMock.mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
-      await listObjectsByPath('folder1', 2, 20, { type: 'image', search: 'cat', orgId: 'org-1' })
+      await listObjectsByPath('folder1', 'page-token', 20, { type: 'image', search: 'cat', orgId: 'org-1' })
 
       const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
       expect(url).toContain('path=folder1')
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=page-token')
       expect(url).toContain('pageSize=20')
       expect(url).toContain('type=image')
       expect(url).toContain('search=cat')
@@ -204,7 +204,7 @@ describe('api', () => {
     })
 
     it('returns parsed paginated response', async () => {
-      const payload = { items: [{ id: 'abc' }], total: 1, page: 1, pageSize: 500 }
+      const payload = { items: [{ id: 'abc' }], nextPageToken: null }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listObjectsByPath('root')
@@ -239,7 +239,7 @@ describe('api', () => {
     })
 
     it('passes credentials: include', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
       await listObjectsByPath('root')
 
@@ -1025,7 +1025,7 @@ describe('api', () => {
 
   describe('listTrash', () => {
     it('calls GET /api/trash/objects with default pagination', async () => {
-      const payload = { items: [], total: 0, page: 1, pageSize: 20 }
+      const payload = { items: [], nextPageToken: null }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listTrash()
@@ -1033,18 +1033,18 @@ describe('api', () => {
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/trash/objects?')
-      expect(url).toContain('page=1')
       expect(url).toContain('pageSize=20')
+      expect(url).not.toContain('pageToken=')
       expect(init.method).toBe('GET')
     })
 
-    it('passes provided page and pageSize', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 3, pageSize: 50 }))
+    it('passes provided pageToken and pageSize', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
-      await listTrash(3, 50)
+      await listTrash({ pageToken: 'current-token', pageSize: 50 })
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('page=3')
+      expect(url).toContain('pageToken=current-token')
       expect(url).toContain('pageSize=50')
     })
 
@@ -1128,7 +1128,7 @@ describe('api', () => {
 
   describe('remote download api', () => {
     it('lists download tasks with filters', async () => {
-      const payload = { items: [], total: 0, page: 2, pageSize: 10 }
+      const payload = { items: [], nextPageToken: 'next-token' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listDownloadTasks({
@@ -1136,10 +1136,8 @@ describe('api', () => {
         assignedTo: 'me',
         category: 'movies',
         tag: '4k',
-        sortBy: 'progress',
-        sortDir: 'asc',
-        page: 2,
         pageSize: 10,
+        pageToken: 'current-token',
       })
 
       expect(result).toEqual(payload)
@@ -1149,10 +1147,8 @@ describe('api', () => {
       expect(url).toContain('assignedTo=me')
       expect(url).toContain('category=movies')
       expect(url).toContain('tag=4k')
-      expect(url).toContain('sortBy=progress')
-      expect(url).toContain('sortDir=asc')
-      expect(url).toContain('page=2')
       expect(url).toContain('pageSize=10')
+      expect(url).toContain('pageToken=current-token')
       expect(init.method).toBe('GET')
     })
 
@@ -1412,14 +1408,14 @@ describe('api', () => {
     }
 
     it('lists jobs with status, type, and pagination query', async () => {
-      const payload = { items: [job], total: 1, page: 2, pageSize: 10 }
+      const payload = { items: [job], nextPageToken: 'next-token' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listBackgroundJobs({
         status: 'failed',
         type: 'archive_extract',
-        page: 2,
         pageSize: 10,
+        pageToken: 'current-token',
       })
 
       expect(result).toEqual(payload)
@@ -1427,9 +1423,24 @@ describe('api', () => {
       expect(url).toContain('/api/background-jobs?')
       expect(url).toContain('status=failed')
       expect(url).toContain('type=archive_extract')
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=current-token')
       expect(url).toContain('pageSize=10')
       expect(init.method).toBe('GET')
+    })
+
+    it('gets the active job count', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ activeCount: 3 }))
+
+      await expect(getActiveBackgroundJobCount()).resolves.toEqual({ activeCount: 3 })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/background-jobs/stats')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws when active job stats fail', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unavailable' }, false, 503))
+
+      await expect(getActiveBackgroundJobCount()).rejects.toThrow('unavailable')
     })
 
     it('creates a background job with JSON payload', async () => {
@@ -2363,7 +2374,7 @@ describe('api', () => {
 
   describe('listNotifications', () => {
     it('calls /api/notifications with default params', async () => {
-      const payload = { items: [], total: 0, page: 1, pageSize: 20 }
+      const payload = { items: [], nextPageToken: null }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listNotifications()
@@ -2371,19 +2382,18 @@ describe('api', () => {
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
       expect(url).toContain('/api/notifications')
-      expect(url).toContain('page=1')
       expect(url).toContain('pageSize=20')
       expect(url).toContain('unread=false')
     })
 
-    it('passes page, pageSize, and unreadOnly params', async () => {
-      const payload = { items: [], total: 5, page: 2, pageSize: 10 }
+    it('passes pageToken, pageSize, and unreadOnly params', async () => {
+      const payload = { items: [], nextPageToken: 'next-token' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      await listNotifications(2, 10, true)
+      await listNotifications({ pageToken: 'current-token', pageSize: 10, unreadOnly: true })
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=current-token')
       expect(url).toContain('pageSize=10')
       expect(url).toContain('unread=true')
     })
@@ -2593,7 +2603,7 @@ describe('api', () => {
 
   describe('listShares', () => {
     it('calls /api/shares with default params', async () => {
-      const payload = { items: [], total: 0, page: 1, pageSize: 20 }
+      const payload = { items: [], nextPageToken: null }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listShares()
@@ -2601,18 +2611,18 @@ describe('api', () => {
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
       expect(url).toContain('/api/shares')
-      expect(url).toContain('page=1')
       expect(url).toContain('pageSize=20')
+      expect(url).not.toContain('pageToken=')
     })
 
-    it('passes page, pageSize, and status params', async () => {
-      const payload = { items: [], total: 3, page: 2, pageSize: 10 }
+    it('passes pageToken, pageSize, and status params', async () => {
+      const payload = { items: [], nextPageToken: 'later-token' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      await listShares(2, 10, 'active')
+      await listShares('current-token', 10, 'active')
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=current-token')
       expect(url).toContain('pageSize=10')
       expect(url).toContain('status=active')
     })
@@ -2626,7 +2636,7 @@ describe('api', () => {
 
   describe('listReceivedShares', () => {
     it('calls /api/shares with box=received', async () => {
-      const payload = { items: [], total: 0, page: 1, pageSize: 20 }
+      const payload = { items: [], nextPageToken: null }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listReceivedShares()
@@ -2783,7 +2793,7 @@ describe('api', () => {
 
   describe('listShareObjects', () => {
     it('calls GET /api/shares/:token/objects with default params', async () => {
-      const payload = { items: [], total: 0, page: 1, pageSize: 50, breadcrumb: [] }
+      const payload = { items: [], nextPageToken: null, breadcrumb: [] }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listShareObjects('tok123')
@@ -2791,20 +2801,18 @@ describe('api', () => {
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
       expect(url).toContain('/api/shares/tok123/objects')
-      expect(url).toContain('page=1')
       expect(url).toContain('pageSize=50')
+      expect(url).not.toContain('pageToken=')
     })
 
-    it('passes custom parent, page, and pageSize', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        makeResponse({ items: [], total: 0, page: 2, pageSize: 10, breadcrumb: [] }),
-      )
+    it('passes custom parent, pageToken, and pageSize', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null, breadcrumb: [] }))
 
-      await listShareObjects('tok123', 'Reports', 2, 10)
+      await listShareObjects('tok123', 'Reports', 'next-token', 10)
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
       expect(url).toContain('parent=Reports')
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=next-token')
       expect(url).toContain('pageSize=10')
     })
 
@@ -3303,7 +3311,7 @@ describe('api', () => {
 
   describe('listIhostImages', () => {
     it('calls GET /api/image-hosting/images', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextCursor: null }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
       await listIhostImages()
 
@@ -3311,19 +3319,19 @@ describe('api', () => {
       expect(url).toContain('/api/image-hosting/images')
     })
 
-    it('passes pathPrefix, cursor, and limit as query params', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextCursor: null }))
+    it('passes pathPrefix, page token, and page size as query params', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
-      await listIhostImages({ pathPrefix: 'foo/', cursor: 'abc', limit: 20 })
+      await listIhostImages({ pathPrefix: 'foo/', pageToken: 'abc', pageSize: 20 })
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('pathPrefix=foo%2F')
-      expect(url).toContain('cursor=abc')
-      expect(url).toContain('limit=20')
+      expect(url).toContain('pageToken=abc')
+      expect(url).toContain('pageSize=20')
     })
 
-    it('resolves with items and nextCursor', async () => {
-      const payload = { items: [{ id: 'img-1' }], nextCursor: 'next' }
+    it('resolves with items and nextPageToken', async () => {
+      const payload = { items: [{ id: 'img-1' }], nextPageToken: 'next' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listIhostImages()
@@ -4126,14 +4134,14 @@ describe('api', () => {
 
   describe('listObjectsByPath', () => {
     it('sends path and optional filters as query params', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
-      await listObjectsByPath('a/b', 2, 50, { type: 'dir', search: 'doc', orgId: 'org-1' })
+      await listObjectsByPath('a/b', 'page-token', 50, { type: 'dir', search: 'doc', orgId: 'org-1' })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/objects?')
       expect(url).toContain('path=a%2Fb')
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=page-token')
       expect(url).toContain('pageSize=50')
       expect(url).toContain('type=dir')
       expect(url).toContain('search=doc')
@@ -4142,7 +4150,7 @@ describe('api', () => {
     })
 
     it('omits absent optional filters', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
       await listObjectsByPath('root')
 

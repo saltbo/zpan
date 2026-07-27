@@ -33,6 +33,17 @@ export const matters = sqliteTable(
       sql`${t.dirtype} desc`,
       t.name,
     ),
+    index('matters_list_page_idx').on(
+      t.orgId,
+      t.parent,
+      t.status,
+      t.trashedAt,
+      t.purgedAt,
+      sql`${t.dirtype} desc`,
+      t.createdAt,
+      t.id,
+    ),
+    index('matters_trash_page_idx').on(t.orgId, t.status, t.purgedAt, t.trashedAt, t.createdAt, t.id),
   ],
 )
 
@@ -296,6 +307,7 @@ export const notifications = sqliteTable(
   (t) => [
     index('notifications_user_created_idx').on(t.userId, t.createdAt),
     index('notifications_user_read_idx').on(t.userId, t.readAt),
+    index('notifications_user_page_idx').on(t.userId, t.readAt, t.createdAt, t.id),
   ],
 )
 
@@ -330,6 +342,7 @@ export const backgroundJobs = sqliteTable(
     index('background_jobs_org_status_idx').on(t.orgId, t.status),
     index('background_jobs_org_type_idx').on(t.orgId, t.type),
     index('background_jobs_created_idx').on(t.createdAt),
+    index('background_jobs_org_page_idx').on(t.orgId, t.createdAt, t.id),
   ],
 )
 
@@ -419,6 +432,8 @@ export const downloadTasks = sqliteTable(
     index('download_tasks_created_idx').on(t.createdAt),
     index('download_tasks_finished_idx').on(t.finishedAt),
     index('download_tasks_org_deleted_created_idx').on(t.orgId, t.deletedAt, t.createdAt),
+    index('download_tasks_org_page_idx').on(t.orgId, t.deletedAt, t.createdAt, t.id),
+    index('download_tasks_downloader_page_idx').on(t.assignedDownloaderId, t.deletedAt, t.createdAt, t.id),
   ],
 )
 
@@ -513,6 +528,26 @@ export const auditEvents = sqliteTable(
   ],
 )
 
+export const resourceChanges = sqliteTable(
+  'resource_changes',
+  {
+    sequence: integer('sequence').primaryKey({ autoIncrement: true }),
+    scopeType: text('scope_type').notNull(),
+    scopeId: text('scope_id').notNull(),
+    resourceType: text('resource_type').notNull(),
+    resourceId: text('resource_id').notNull(),
+    changeType: text('change_type').notNull(),
+    action: text('action'),
+    metadata: text('metadata'),
+    occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('resource_changes_scope_sequence_idx').on(t.scopeType, t.scopeId, t.sequence),
+    index('resource_changes_resource_sequence_idx').on(t.resourceType, t.resourceId, t.sequence),
+    index('resource_changes_occurred_idx').on(t.occurredAt),
+  ],
+)
+
 export const statsRollupsHourly = sqliteTable(
   'stats_rollups_hourly',
   {
@@ -581,7 +616,7 @@ export const shares = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   },
   (t) => [
-    index('shares_creator_status_created_idx').on(t.creatorId, t.status, t.createdAt),
+    index('shares_creator_status_created_idx').on(t.creatorId, t.status, t.createdAt, t.id),
     index('shares_creator_private_created_idx').on(t.creatorId, t.private, t.createdAt),
     index('shares_created_idx').on(t.createdAt),
   ],
@@ -599,6 +634,7 @@ export const shareRecipients = sqliteTable(
   (t) => [
     index('share_recipients_share_id_idx').on(t.shareId),
     index('share_recipients_user_id_idx').on(t.recipientUserId),
+    index('share_recipients_email_idx').on(t.recipientEmail),
   ],
 )
 
@@ -642,6 +678,7 @@ export const imageHostings = sqliteTable(
   (t) => [
     uniqueIndex('image_hostings_org_path_uniq').on(t.orgId, t.path).where(sql`${t.purgedAt} IS NULL`),
     index('image_hostings_org_created_idx').on(t.orgId, t.createdAt),
+    index('image_hostings_page_idx').on(t.orgId, t.status, t.purgedAt, t.createdAt, t.id),
     index('image_hostings_token_idx').on(t.token),
   ],
 )

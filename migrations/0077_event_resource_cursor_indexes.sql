@@ -1,0 +1,2 @@
+CREATE INDEX `background_jobs_org_page_idx` ON `background_jobs` (`org_id`,`created_at`,`id`);--> statement-breakpoint
+CREATE INDEX `notifications_user_page_idx` ON `notifications` (`user_id`,`read_at`,`created_at`,`id`);

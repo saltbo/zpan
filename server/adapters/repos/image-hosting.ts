@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNotNull, isNull, like, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, isNotNull, isNull, like, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { imageHostingConfigs, imageHostings } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
@@ -10,6 +10,7 @@ import type {
   ImageHostingRepo,
   ImageResolution,
 } from '../../usecases/ports'
+import { resourceChangeQuery } from './resource-change'
 import {
   imageActivationLedgerQuery,
   imagePurgeLedgerQuery,
@@ -160,7 +161,22 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
         createdAt: now,
       }
 
-      await db.insert(imageHostings).values(row)
+      await executeWriteTransaction(db, [
+        db.insert(imageHostings).values(row),
+        ...(row.status === 'active'
+          ? [
+              resourceChangeQuery(db, {
+                scopeType: 'organization',
+                scopeId: row.orgId,
+                resourceType: 'image_hosting',
+                resourceId: row.id,
+                changeType: 'upsert',
+                action: 'created',
+                occurredAt: now,
+              }),
+            ]
+          : []),
+      ])
       return toRecord(row)
     },
 
@@ -183,34 +199,30 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
         conditions.push(like(imageHostings.path, `${opts.pathPrefix}%`))
       }
 
-      if (opts.cursor) {
-        // cursor is base64url-encoded ISO timestamp
-        try {
-          const ts = new Date(Buffer.from(opts.cursor, 'base64url').toString())
-          if (!Number.isNaN(ts.getTime())) {
-            conditions.push(gt(imageHostings.createdAt, ts))
-          }
-        } catch {
-          // ignore invalid cursor
-        }
+      if (opts.after) {
+        conditions.push(
+          or(
+            gt(imageHostings.createdAt, opts.after.createdAt),
+            and(eq(imageHostings.createdAt, opts.after.createdAt), gt(imageHostings.id, opts.after.id)),
+          )!,
+        )
       }
 
       const items = await db
         .select()
         .from(imageHostings)
         .where(and(...conditions))
-        .orderBy(asc(imageHostings.createdAt))
+        .orderBy(asc(imageHostings.createdAt), asc(imageHostings.id))
         .limit(opts.limit + 1)
 
       const hasMore = items.length > opts.limit
       const page = hasMore ? items.slice(0, opts.limit) : items
 
-      const nextCursor =
-        hasMore && page.length > 0
-          ? Buffer.from(page[page.length - 1].createdAt.toISOString()).toString('base64url')
-          : null
-
-      return { items: page.map(toRecord), nextCursor }
+      const last = page.at(-1)
+      return {
+        items: page.map(toRecord),
+        nextBoundary: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
+      }
     },
 
     async setActive(id, orgId) {
@@ -246,6 +258,15 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
         activateQuery,
         imageActivationLedgerQuery(db, orgId, id, now),
         ...imageAddedProjectionQueries(db, orgId, id),
+        resourceChangeQuery(db, {
+          scopeType: 'organization',
+          scopeId: orgId,
+          resourceType: 'image_hosting',
+          resourceId: id,
+          changeType: 'upsert',
+          action: 'activated',
+          occurredAt: now,
+        }),
       ]
       const results = await executeWriteTransactionWithResults(db, writes, [0])
       const updated = results[0] as { id: string }[]
@@ -283,6 +304,15 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
           .update(imageHostings)
           .set({ purgedAt: now.getTime() })
           .where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId), isNull(imageHostings.purgedAt))),
+        resourceChangeQuery(db, {
+          scopeType: 'organization',
+          scopeId: orgId,
+          resourceType: 'image_hosting',
+          resourceId: id,
+          changeType: 'delete',
+          action: 'deleted',
+          occurredAt: now,
+        }),
       ])
     },
   }

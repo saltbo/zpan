@@ -1,0 +1,1 @@
+CREATE INDEX `image_hostings_page_idx` ON `image_hostings` (`org_id`,`status`,`purged_at`,`created_at`,`id`);

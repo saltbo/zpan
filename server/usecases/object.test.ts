@@ -111,7 +111,7 @@ function makeDeps(
   const deps = {
     matter: {
       get: async () => null,
-      list: async () => ({ items: [], total: 0, page: 1, pageSize: 20 }),
+      list: async () => ({ items: [], nextBoundary: null }),
       create: async (input: Parameters<MatterRepo['create']>[0]) => file('new', input as Partial<Matter>),
       update: async () => null,
       copy: async (source: Matter, parent: string, object: string) =>
@@ -213,26 +213,26 @@ describe('object usecase', () => {
   describe('listObjects', () => {
     it('lists the active org without an override', async () => {
       const item = { ...file('m1'), hasChildren: false }
-      const list = vi.fn(async () => ({ items: [item], total: 1, page: 1, pageSize: 20 }))
+      const list = vi.fn(async () => ({ items: [item], nextBoundary: null }))
       const { deps } = makeDeps({ matter: { list } })
       const out = await listObjects(deps, {
         orgId: 'o1',
         userId: 'u1',
-        filters: { parent: '', page: 1, pageSize: 20 },
+        filters: { parent: '', pageSize: 20 },
       })
-      expect(out).toEqual({ ok: true, result: { items: [item], total: 1, page: 1, pageSize: 20 } })
-      expect(list).toHaveBeenCalledWith('o1', { parent: '', page: 1, pageSize: 20 })
+      expect(out).toEqual({ ok: true, result: { items: [item], nextBoundary: null } })
+      expect(list).toHaveBeenCalledWith('o1', { parent: '', pageSize: 20 })
     })
 
     it('browses an override org the user can read', async () => {
-      const list = vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20 }))
+      const list = vi.fn(async () => ({ items: [], nextBoundary: null }))
       const canReadOrg = vi.fn(async () => true)
       const { deps } = makeDeps({ matter: { list }, org: { canReadOrg } })
       const out = await listObjects(deps, {
         orgId: 'o1',
         userId: 'u1',
         orgOverride: 'o2',
-        filters: { parent: '', page: 1, pageSize: 20 },
+        filters: { parent: '', pageSize: 20 },
       })
       expect(out.ok).toBe(true)
       expect(canReadOrg).toHaveBeenCalledWith('u1', 'o2')
@@ -246,7 +246,7 @@ describe('object usecase', () => {
         orgId: 'o1',
         userId: 'u1',
         orgOverride: 'o2',
-        filters: { parent: '', page: 1, pageSize: 20 },
+        filters: { parent: '', pageSize: 20 },
       })
       expectError(out, 403, 'Forbidden')
       expect(list).not.toHaveBeenCalled()
@@ -810,10 +810,13 @@ describe('object usecase', () => {
   describe('listTrashedObjects / getTrashObject', () => {
     it('paginates trashed roots', async () => {
       const roots = [file('t1', { trashedAt: 2 }), file('t2', { trashedAt: 1 })]
-      const { deps } = makeDeps({ matter: { listTrashedRoots: async () => roots } })
-      const out = await listTrashedObjects(deps, { orgId: 'o1', page: 1, pageSize: 1 })
-      expect(out.result.total).toBe(2)
+      const nextBoundary = { trashedAt: 2, createdAt: roots[0]!.createdAt, id: 't1' }
+      const listTrashedRootPage = vi.fn(async () => ({ items: [roots[0]!], nextBoundary }))
+      const { deps } = makeDeps({ matter: { listTrashedRootPage } })
+      const out = await listTrashedObjects(deps, { orgId: 'o1', pageSize: 1 })
       expect(out.result.items).toEqual([roots[0]])
+      expect(out.result.nextBoundary).toEqual(nextBoundary)
+      expect(listTrashedRootPage).toHaveBeenCalledWith('o1', { pageSize: 1, after: undefined })
     })
 
     it('returns a trashed object', async () => {

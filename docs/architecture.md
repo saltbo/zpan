@@ -46,6 +46,8 @@ runtime, and the same Hono app is adapted for other serverless targets.
 | Object storage | S3-compatible protocol | Works with R2, S3, MinIO, B2, Tigris, RustFS, and similar providers |
 | Frontend | React 19 + Vite + TanStack Router | SPA with typed file routes and no server-rendering framework lock-in |
 | UI | shadcn/ui-style components, Radix UI, Tailwind CSS 4, Lucide | Local component ownership with consistent interaction primitives |
+| List pagination | Signed opaque keyset tokens | Stable infinite loading without offset drift or exposing storage keys |
+| Realtime updates | One global SSE stream over a durable change feed | Resumable cross-runtime invalidation without per-page connections |
 | Tests | Vitest projects + Playwright | Unit, integration, Workers runtime, libSQL, and browser-level coverage |
 
 ## Repository Layout
@@ -313,14 +315,21 @@ external URLs that are not ZPan APIs, such as presigned S3 upload URLs.
   Auth routes
 - `/api/docs` — Scalar API reference
 - `/dav/*` — WebDAV endpoint
-- `/api/events` — server-sent events for notifications, jobs, and download-task
-  updates
+- `/api/events` — one resumable server-sent event stream for scoped durable
+  resource changes
 - `/r/*` and `/s/*` — public redirect/share surfaces
 - `/api/store/*` — quota store and Cloud webhook endpoints
 
 Public, authenticated, admin, downloader, and webhook routes can share a path
 prefix. Authorization is per route or per mounted sub-app, so mount order matters
 when a public/user router and admin router share a prefix.
+
+Unbounded list APIs use signed opaque keyset tokens and the SPA consumes them
+with infinite queries. Realtime mutations append an atomic `resource_changes`
+row; the global SSE stream delivers those invalidation facts using the change
+sequence as `Last-Event-ID`. See
+[List Pagination and Realtime Changes](design/list-pagination-realtime.md) for
+the contract, replay, retention, and indexing rules.
 
 ## Background Work
 

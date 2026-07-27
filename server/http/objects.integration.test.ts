@@ -197,28 +197,23 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects', { headers })
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual({ items: [], total: 0, page: 1, pageSize: 20 })
+    expect(body).toEqual({ items: [], nextPageToken: null })
   })
 
-  it('GET /api/objects respects pagination params [spec: objects/list-pagination]', async () => {
+  it('GET /api/objects returns the cursor page contract [spec: objects/list-pagination]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects?page=2&pageSize=10', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { page: number; pageSize: number }
-    expect(body.page).toBe(2)
-    expect(body.pageSize).toBe(10)
+    const body = (await res.json()) as { items: unknown[]; nextPageToken: string | null }
+    expect(body).toEqual({ items: [], nextPageToken: null })
   })
 
-  // Regression: the file manager loads a whole folder client-side with
-  // FILES_PAGE_SIZE=500, so the objects list must accept a pageSize above the
-  // shared 100 cap. A stricter cap silently 400s the list and the UI never renders.
-  it('GET /api/objects accepts the file-manager pageSize of 500', async () => {
+  it('GET /api/objects enforces the shared page-size limit', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects?pageSize=500', { headers })
-    expect(res.status).toBe(200)
-    expect(((await res.json()) as { pageSize: number }).pageSize).toBe(500)
+    expect(res.status).toBe(400)
   })
 
   it('GET /api/objects lists folders with hasChildren', async () => {
@@ -237,12 +232,10 @@ describe('Objects API', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       items: Array<{ id: string; hasChildren: boolean }>
-      total: number
-      page: number
-      pageSize: number
+      nextPageToken: string | null
     }
 
-    expect(body).toMatchObject({ total: 2, page: 1, pageSize: 100 })
+    expect(body.nextPageToken).toBeNull()
     expect(body.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'parent-folder', hasChildren: true }),
@@ -262,8 +255,8 @@ describe('Objects API', () => {
 
     const res = await app.request('/api/objects?type=folder&search=Reports', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<{ id: string }> }
+    expect(body.items).toHaveLength(1)
     expect(body.items.map((item) => item.id)).toEqual(['reports-folder'])
   })
 
@@ -321,8 +314,7 @@ describe('Objects API', () => {
 
     const res = await app.request('/api/objects', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
-    expect(body.total).toBe(2)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
     expect(body.items).toHaveLength(2)
     // Folders sort before files (dirtype DESC)
     expect(body.items[0].name).toBe('Folder A')
@@ -340,8 +332,8 @@ describe('Objects API', () => {
     await insertFile(db, orgId, { id: 'm2', name: 'root.txt' })
 
     const res = await app.request(`/api/objects?parent=${encodeURIComponent('Folder A')}`, { headers })
-    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
+    expect(body.items).toHaveLength(1)
     expect(body.items[0].name).toBe('nested.txt')
   })
 
@@ -356,8 +348,8 @@ describe('Objects API', () => {
     await insertFile(db, orgId, { id: 'm3', name: 'trashed.txt', trashedAt: Date.now() })
 
     const res = await app.request('/api/objects', { headers })
-    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
+    expect(body.items).toHaveLength(1)
     expect(body.items[0].name).toBe('active.txt')
   })
 
@@ -456,7 +448,7 @@ describe('Objects API', () => {
 
     // The live object now appears in the listing.
     const list = await app.request('/api/objects', { headers })
-    expect(((await list.json()) as { total: number }).total).toBe(1)
+    expect(((await list.json()) as { items: unknown[] }).items).toHaveLength(1)
     void db
   })
 
@@ -529,11 +521,11 @@ describe('Objects API', () => {
 
     // Gone from the live listing…
     const list = await app.request('/api/objects', { headers })
-    expect(((await list.json()) as { total: number }).total).toBe(0)
+    expect(((await list.json()) as { items: unknown[] }).items).toHaveLength(0)
     // …and present in the recycle bin with trashedAt set.
     const trash = await app.request('/api/trash/objects', { headers })
-    const trashBody = (await trash.json()) as { items: Array<{ id: string; trashedAt: number }>; total: number }
-    expect(trashBody.total).toBe(1)
+    const trashBody = (await trash.json()) as { items: Array<{ id: string; trashedAt: number }> }
+    expect(trashBody.items).toHaveLength(1)
     expect(trashBody.items[0].id).toBe('m1')
     expect(trashBody.items[0].trashedAt).toBeTruthy()
   })
@@ -553,7 +545,7 @@ describe('Objects API', () => {
 
     // Only the root folder shows in the trash root listing…
     const trash = await app.request('/api/trash/objects', { headers })
-    expect(((await trash.json()) as { total: number }).total).toBe(1)
+    expect(((await trash.json()) as { items: unknown[] }).items).toHaveLength(1)
 
     // …but every descendant is flagged trashed: restore brings them all back.
     const restoreRes = await app.request('/api/trash/objects/f1/restorations', {
@@ -615,8 +607,8 @@ describe('Objects API', () => {
 
     const res = await app.request('/api/trash/objects', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<{ id: string }> }
+    expect(body.items).toHaveLength(1)
     expect(body.items.map((item) => item.id)).toEqual(['album'])
   })
 
@@ -1064,11 +1056,15 @@ describe('Matter service', () => {
       status: 'active',
     })
 
-    const page1 = await listMatters(db, 'org-1', { parent: '', page: 1, pageSize: 1 })
+    const page1 = await listMatters(db, 'org-1', { parent: '', pageSize: 1 })
     expect(page1.items).toHaveLength(1)
-    expect(page1.total).toBe(2)
+    expect(page1.nextBoundary).not.toBeNull()
 
-    const page2 = await listMatters(db, 'org-1', { parent: '', page: 2, pageSize: 1 })
+    const page2 = await listMatters(db, 'org-1', {
+      parent: '',
+      pageSize: 1,
+      after: page1.nextBoundary ?? undefined,
+    })
     expect(page2.items).toHaveLength(1)
   })
 
@@ -1505,7 +1501,7 @@ describe('POST /api/objects/:id/transfers', () => {
     const source = await getMatter(db, 'src-move', orgId)
     expect(source).toBeNull()
     expect((await getOrgQuota(db, orgId))?.used ?? 0).toBe(0)
-    const targetList = await listMatters(db, 'team-b', { parent: '', page: 1, pageSize: 10 })
+    const targetList = await listMatters(db, 'team-b', { parent: '', pageSize: 10 })
     expect(targetList.items.map((m) => m.name)).toContain('photo.jpg')
   })
 

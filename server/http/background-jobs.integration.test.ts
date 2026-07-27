@@ -239,11 +239,23 @@ describe('background jobs API', () => {
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({
-      total: 1,
-      page: 1,
-      pageSize: 1,
+      nextPageToken: null,
       items: [{ id: running.id, orgId, type: 'archive_extract', status: 'running' }],
     })
+  })
+
+  it('reports the active job count without loading the collection', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app, 'jobs-stats@example.com')
+    const { orgId, userId } = await getUserOrg(db, 'jobs-stats@example.com')
+    const completed = await createBackgroundJobRepo(db).create({ orgId, userId, type: 'archive_compress' })
+    await createBackgroundJobRepo(db).create({ orgId, userId, type: 'archive_extract' })
+    await createBackgroundJobRepo(db).update(orgId, completed.id, { status: 'completed' })
+
+    const res = await app.request('/api/background-jobs/stats', { headers })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ activeCount: 1 })
   })
 
   it('rejects detail access across organizations [spec: background-jobs/cross-org-guard]', async () => {

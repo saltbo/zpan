@@ -1,1 +1,6 @@
-pnpm typecheck && pnpm exec lint-staged
+pnpm lint:arch &&
+  pnpm lint:http &&
+  pnpm lint:spec &&
+  pnpm typecheck &&
+  pnpm openapi:client:check &&
+  pnpm exec lint-staged

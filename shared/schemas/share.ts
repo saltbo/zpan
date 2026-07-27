@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { cursorPageQuerySchema } from './pagination'
 
 export const shareKindSchema = z.enum(['landing', 'direct'])
 
@@ -31,9 +32,7 @@ export const createShareSchema = z.object({
 
 export type CreateShareInput = z.input<typeof createShareSchema>
 
-export const listSharesQuerySchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().positive().default(20),
+export const listSharesQuerySchema = cursorPageQuerySchema.extend({
   status: z.enum(['active', 'revoked']).optional(),
   box: z.enum(['sent', 'received']).default('sent'),
 })
@@ -60,9 +59,7 @@ export const shareObjectItemSchema = z.object({
 
 export const shareObjectsResponseSchema = z.object({
   items: z.array(shareObjectItemSchema),
-  total: z.number().int(),
-  page: z.number().int(),
-  pageSize: z.number().int(),
+  nextPageToken: z.string().nullable(),
   breadcrumb: z.array(z.object({ name: z.string(), path: z.string() })),
 })
 

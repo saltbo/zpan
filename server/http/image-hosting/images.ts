@@ -31,6 +31,12 @@ import {
   unsupportedMediaType,
 } from '../../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from '../page-token'
 
 // The stored image's wire shape — timestamps as ISO strings (the record carries
 // them as Date).
@@ -74,7 +80,7 @@ const imageDraftSchema = z
   .openapi('ImageHostingDraft')
 
 const imageListSchema = z
-  .object({ items: z.array(imageHostingSchema), nextCursor: z.string().nullable() })
+  .object({ items: z.array(imageHostingSchema), nextPageToken: z.string().nullable() })
   .openapi('ImageHostingList')
 
 // Derive a storage path from the upload's filename, falling back to a random name.
@@ -328,9 +334,23 @@ const ihost = app
     const enabled = await requireImageHostingEnabled(c.get('deps'), orgId)
     if (!enabled.ok) throw enabled.error
 
-    const { pathPrefix, cursor, limit } = c.req.valid('query')
-    const result = await listImageHostings(c.get('deps'), orgId, { pathPrefix, cursor, limit })
-    return c.json({ items: result.items.map(toImageHostingDTO), nextCursor: result.nextCursor }, 200)
+    const { pathPrefix, pageToken, pageSize } = c.req.valid('query')
+    const fingerprint = await pageQueryFingerprint({ orgId, pathPrefix: pathPrefix ?? null, pageSize })
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, {
+      query: fingerprint,
+      codec: createdAtIdCursorCodec,
+    })
+    const result = await listImageHostings(c.get('deps'), orgId, { pathPrefix, after, limit: pageSize })
+    return c.json(
+      {
+        items: result.items.map(toImageHostingDTO),
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
+          query: fingerprint,
+          codec: createdAtIdCursorCodec,
+        }),
+      },
+      200,
+    )
   })
   .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')

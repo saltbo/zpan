@@ -21,6 +21,12 @@ import {
 } from '../../usecases/downloads/downloads'
 import { badRequest, unauthorized } from '../../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from '../page-token'
 
 const downloadTaskStatuses = new Set([
   'queued',
@@ -36,6 +42,38 @@ const downloadTaskStatuses = new Set([
   'failed',
   'canceled',
 ])
+
+async function listPage(
+  c: {
+    get(name: 'deps'): Env['Variables']['deps']
+    get(name: 'platform'): Env['Variables']['platform']
+  },
+  filters: Omit<import('../../usecases/ports').ListDownloadTasksFilters, 'after'> & {
+    includeUploadToken?: boolean
+  },
+  pageToken?: string,
+) {
+  const query = await pageQueryFingerprint({
+    orgId: filters.orgId ?? null,
+    downloaderId: filters.downloaderId ?? null,
+    statuses: filters.statuses ?? null,
+    category: filters.category ?? null,
+    tag: filters.tag ?? null,
+    pageSize: filters.pageSize,
+  })
+  const after = await decodeOptionalPageToken(c.get('platform'), pageToken, {
+    query,
+    codec: createdAtIdCursorCodec,
+  })
+  const result = await listDownloadTasks(c.get('deps'), c.get('platform'), { ...filters, after })
+  return {
+    items: result.items,
+    nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
+      query,
+      codec: createdAtIdCursorCodec,
+    }),
+  }
+}
 
 function parseStatuses(value: string | undefined): string[] | undefined {
   if (!value) return undefined
@@ -180,35 +218,41 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     const statuses = parseStatuses(query.status)
     if (query.assignedTo === 'me') {
       if (principal?.kind !== 'downloader') throw unauthorized()
-      const result = await listDownloadTasks(c.get('deps'), c.get('platform'), {
-        downloaderId: principal.downloaderId,
-        status: statuses?.length === 1 ? statuses[0] : undefined,
-        statuses,
-        category: query.category,
-        tag: query.tag,
-        sortBy: query.sortBy,
-        sortDir: query.sortDir,
-        page: query.page,
-        pageSize: query.pageSize,
-        includeUploadToken: true,
-      })
-      return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)
+      return c.json(
+        await listPage(
+          c,
+          {
+            downloaderId: principal.downloaderId,
+            status: statuses?.length === 1 ? statuses[0] : undefined,
+            statuses,
+            category: query.category,
+            tag: query.tag,
+            pageSize: query.pageSize,
+            includeUploadToken: true,
+          },
+          query.pageToken,
+        ),
+        200,
+      )
     }
 
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized()
-    const result = await listDownloadTasks(c.get('deps'), c.get('platform'), {
-      orgId,
-      status: statuses?.length === 1 ? statuses[0] : undefined,
-      statuses,
-      category: query.category,
-      tag: query.tag,
-      sortBy: query.sortBy,
-      sortDir: query.sortDir,
-      page: query.page,
-      pageSize: query.pageSize,
-    })
-    return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)
+    return c.json(
+      await listPage(
+        c,
+        {
+          orgId,
+          status: statuses?.length === 1 ? statuses[0] : undefined,
+          statuses,
+          category: query.category,
+          tag: query.tag,
+          pageSize: query.pageSize,
+        },
+        query.pageToken,
+      ),
+      200,
+    )
   })
   .openapi(createRouteDoc, async (c) => {
     const orgId = c.get('orgId')

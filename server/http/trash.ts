@@ -1,10 +1,11 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { pageQuerySchema, pageSchema, restoreObjectSchema } from '@shared/schemas'
+import { cursorPageQuerySchema, cursorPageSchema, restoreObjectSchema } from '@shared/schemas'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deleteObject, getTrashObject, listTrashedObjects, restoreObject } from '../usecases/object'
 import { badRequest, type Matter, notFound } from '../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { decodeOptionalPageToken, encodeNextPageToken, pageQueryFingerprint, trashCursorCodec } from './page-token'
 
 // The trashed-object wire shape mirrors the live Matter model; trash is a
 // grouping/view of `objects`, not a separate resource.
@@ -48,7 +49,7 @@ function toMatterDTO(m: Matter): MatterDTO {
   }
 }
 
-const trashPageSchema = pageSchema(matterSchema, 'TrashObjectPage')
+const trashPageSchema = cursorPageSchema(matterSchema, 'TrashObjectPage')
 const idParam = z.object({ id: z.string() })
 
 const listTrashRoute = createRoute({
@@ -58,7 +59,7 @@ const listTrashRoute = createRoute({
   method: 'get',
   path: '/objects',
   middleware: [requireTeamRole('viewer')] as const,
-  request: { query: pageQuerySchema },
+  request: { query: cursorPageQuerySchema },
   responses: {
     200: jsonContent(trashPageSchema, 'Trashed objects (roots only)'),
     400: errorResponse('No active organization'),
@@ -119,8 +120,22 @@ const trash = app
     const orgId = c.get('orgId')
     if (!orgId) throw badRequest('No active organization')
     const query = c.req.valid('query')
-    const result = await listTrashedObjects(c.get('deps'), { orgId, page: query.page, pageSize: query.pageSize })
-    return c.json({ ...result.result, items: result.result.items.map(toMatterDTO) }, 200)
+    const fingerprint = await pageQueryFingerprint({ orgId, pageSize: query.pageSize })
+    const after = await decodeOptionalPageToken(c.get('platform'), query.pageToken, {
+      query: fingerprint,
+      codec: trashCursorCodec,
+    })
+    const result = await listTrashedObjects(c.get('deps'), { orgId, pageSize: query.pageSize, after })
+    return c.json(
+      {
+        items: result.result.items.map(toMatterDTO),
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.result.nextBoundary, {
+          query: fingerprint,
+          codec: trashCursorCodec,
+        }),
+      },
+      200,
+    )
   })
   .openapi(getTrashObjectRoute, async (c) => {
     const orgId = c.get('orgId')

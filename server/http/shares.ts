@@ -2,7 +2,7 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { pageSchema } from '../../shared/schemas'
+import { cursorPageSchema } from '../../shared/schemas'
 import {
   createShareRequestSchema,
   listSharesQuerySchema,
@@ -31,6 +31,13 @@ import {
 } from '../usecases/share'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  directoryCursorCodec,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from './page-token'
 import { cookieName, decodeChildRef, readUserId, viewCookieName } from './share-utils'
 
 function shareUrls(kind: string, token: string): { landing?: string; direct?: string } {
@@ -137,7 +144,7 @@ function toShareListItemDTO(s: ShareListItem): z.infer<typeof shareListItemSchem
   }
 }
 
-const shareListSchema = pageSchema(shareListItemSchema, 'ShareList')
+const shareListSchema = cursorPageSchema(shareListItemSchema, 'ShareList')
 
 const shareObjectsSchema = shareObjectsResponseSchema.openapi('ShareObjects')
 
@@ -184,8 +191,8 @@ const saveShareResultSchema = z
 
 const listObjectsQuerySchema = z.object({
   parent: z.string().optional(),
-  page: z.string().optional(),
-  pageSize: z.string().optional(),
+  pageToken: z.string().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
 })
 
 const verifyPasswordSchema = z.object({ password: z.string() })
@@ -346,21 +353,34 @@ export const publicShares = pub
   .openapi(listShareObjectsRoute, async (c) => {
     const token = c.req.valid('param').token
     const viewerId = await readUserId(c)
-    const { parent: relativePath = '', page: rawPageStr = '1', pageSize: rawPageSizeStr = '50' } = c.req.valid('query')
-    const rawPage = parseInt(rawPageStr, 10)
-    const rawPageSize = parseInt(rawPageSizeStr, 10)
-    const page = Number.isNaN(rawPage) ? 1 : Math.max(1, rawPage)
-    const pageSize = Number.isNaN(rawPageSize) ? 50 : Math.min(200, Math.max(1, rawPageSize))
+    const { parent: relativePath = '', pageToken, pageSize } = c.req.valid('query')
+    const fingerprint = await pageQueryFingerprint({ token, relativePath, pageSize })
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, {
+      query: fingerprint,
+      codec: directoryCursorCodec,
+    })
 
     const out = await listShareObjects(c.get('deps'), {
       token,
       viewerId,
       accessCookie: getCookie(c, cookieName(token)),
       relativePath,
-      page,
       pageSize,
+      after,
     })
-    if (out.ok) return c.json(out.result, 200)
+    if (out.ok) {
+      return c.json(
+        {
+          items: out.result.items,
+          breadcrumb: out.result.breadcrumb,
+          nextPageToken: await encodeNextPageToken(c.get('platform'), out.result.nextBoundary, {
+            query: fingerprint,
+            codec: directoryCursorCodec,
+          }),
+        },
+        200,
+      )
+    }
     throw out.error
   })
   .openapi(readShareReadmeRoute, async (c) => {
@@ -462,9 +482,23 @@ authedApp.use(requireAuth)
 export const authedShares = authedApp
   .openapi(listSharesRoute, async (c) => {
     const userId = c.get('userId')!
-    const { page, pageSize, status, box } = c.req.valid('query')
-    const result = await listShares(c.get('deps'), { userId, box, page, pageSize, status })
-    return c.json({ ...result, items: result.items.map(toShareListItemDTO) }, 200)
+    const { pageToken, pageSize, status, box } = c.req.valid('query')
+    const fingerprint = await pageQueryFingerprint({ userId, box, status: status ?? null, pageSize })
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, {
+      query: fingerprint,
+      codec: createdAtIdCursorCodec,
+    })
+    const result = await listShares(c.get('deps'), { userId, box, pageSize, status, after })
+    return c.json(
+      {
+        items: result.items.map(toShareListItemDTO),
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
+          query: fingerprint,
+          codec: createdAtIdCursorCodec,
+        }),
+      },
+      200,
+    )
   })
   .openapi(createShareRoute, async (c) => {
     const out = await createShare(c.get('deps'), c.get('platform'), {

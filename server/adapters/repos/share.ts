@@ -1,6 +1,6 @@
 import { DirType } from '@shared/constants'
 import type { CreateShareInput } from '@shared/schemas/share'
-import { and, count, desc, eq, isNotNull, isNull, like, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, isNotNull, isNull, like, lt, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { user } from '../../db/auth-schema'
 import { matters, shareRecipients, shares } from '../../db/schema'
@@ -16,6 +16,7 @@ import {
   type ShareResolution,
 } from '../../usecases/ports'
 import { createQuotaRepo } from './quota'
+import { resourceChangeQuery } from './resource-change'
 
 function buildPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
@@ -62,7 +63,18 @@ export function createShareRepo(db: Database): ShareRepo {
         createdAt: now,
       }
 
-      const queries: AtomicQuery[] = [db.insert(shares).values(share)]
+      const queries: AtomicQuery[] = [
+        db.insert(shares).values(share),
+        resourceChangeQuery(db, {
+          scopeType: 'user',
+          scopeId: share.creatorId,
+          resourceType: 'share',
+          resourceId: share.id,
+          changeType: 'upsert',
+          action: 'created',
+          occurredAt: now,
+        }),
+      ]
       if (input.recipients && input.recipients.length > 0) {
         const recipientRows = input.recipients.map((r) => ({
           id: nanoid(),
@@ -166,23 +178,53 @@ export function createShareRepo(db: Database): ShareRepo {
     },
 
     async revokeByToken(token: string, creatorId: string): Promise<boolean> {
-      const result = await db
-        .update(shares)
-        .set({ status: 'revoked' })
+      const existing = await db
+        .select({ id: shares.id })
+        .from(shares)
         .where(and(eq(shares.token, token), eq(shares.creatorId, creatorId)))
-        .returning({ id: shares.id })
-
-      return result.length > 0
+        .limit(1)
+      if (!existing[0]) return false
+      await executeWriteTransaction(db, [
+        db
+          .update(shares)
+          .set({ status: 'revoked' })
+          .where(and(eq(shares.id, existing[0].id), eq(shares.creatorId, creatorId))),
+        resourceChangeQuery(db, {
+          scopeType: 'user',
+          scopeId: creatorId,
+          resourceType: 'share',
+          resourceId: existing[0].id,
+          changeType: 'upsert',
+          action: 'revoked',
+          occurredAt: new Date(),
+        }),
+      ])
+      return true
     },
 
     async setPrivacy(token: string, creatorId: string, isPrivate: boolean): Promise<boolean> {
-      const result = await db
-        .update(shares)
-        .set({ private: isPrivate })
+      const existing = await db
+        .select({ id: shares.id })
+        .from(shares)
         .where(and(eq(shares.token, token), eq(shares.creatorId, creatorId)))
-        .returning({ id: shares.id })
-
-      return result.length > 0
+        .limit(1)
+      if (!existing[0]) return false
+      await executeWriteTransaction(db, [
+        db
+          .update(shares)
+          .set({ private: isPrivate })
+          .where(and(eq(shares.id, existing[0].id), eq(shares.creatorId, creatorId))),
+        resourceChangeQuery(db, {
+          scopeType: 'user',
+          scopeId: creatorId,
+          resourceType: 'share',
+          resourceId: existing[0].id,
+          changeType: 'upsert',
+          action: 'privacy_changed',
+          occurredAt: new Date(),
+        }),
+      ])
+      return true
     },
 
     async listPublicProfileShares(username: string, now: Date) {
@@ -223,13 +265,20 @@ export function createShareRepo(db: Database): ShareRepo {
 
     async listForApi(
       creatorId: string,
-      opts: { page: number; pageSize: number; status?: string },
-    ): Promise<{ items: ShareListItem[]; total: number }> {
+      opts: { pageSize: number; status?: string; after?: { createdAt: Date; id: string } },
+    ): Promise<{ items: ShareListItem[]; nextBoundary: { createdAt: Date; id: string } | null }> {
       const conditions = [eq(shares.creatorId, creatorId)]
       if (opts.status) conditions.push(eq(shares.status, opts.status))
+      if (opts.after) {
+        conditions.push(
+          or(
+            lt(shares.createdAt, opts.after.createdAt),
+            and(eq(shares.createdAt, opts.after.createdAt), lt(shares.id, opts.after.id)),
+          )!,
+        )
+      }
       const where = and(...conditions)
 
-      const offset = (opts.page - 1) * opts.pageSize
       const rows = await db
         .select({
           id: shares.id,
@@ -249,44 +298,48 @@ export function createShareRepo(db: Database): ShareRepo {
           matterType: matters.type,
           matterDirtype: matters.dirtype,
           recipientCount: count(shareRecipients.id),
-          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
         })
         .from(shares)
         .leftJoin(matters, eq(shares.matterId, matters.id))
         .leftJoin(shareRecipients, eq(shareRecipients.shareId, shares.id))
         .where(where)
         .groupBy(shares.id)
-        .orderBy(desc(shares.createdAt))
-        .limit(opts.pageSize)
-        .offset(offset)
+        .orderBy(desc(shares.createdAt), desc(shares.id))
+        .limit(opts.pageSize + 1)
 
-      let total = Number(rows[0]?.pageTotal ?? 0)
-      if (rows.length === 0 && opts.page > 1) {
-        const [countRow] = await db.select({ count: count() }).from(shares).where(where)
-        total = countRow?.count ?? 0
-      }
+      const hasMore = rows.length > opts.pageSize
+      const page = hasMore ? rows.slice(0, opts.pageSize) : rows
       const items: ShareListItem[] = rows.map(
-        ({ matterName, matterType, matterDirtype, recipientCount, pageTotal: _, ...share }) => ({
+        ({ matterName, matterType, matterDirtype, recipientCount, ...share }) => ({
           ...share,
           matter: { name: matterName ?? '', type: matterType ?? '', dirtype: matterDirtype ?? 0 },
           recipientCount,
         }),
       )
 
-      return { items, total }
+      const last = page.at(-1)
+      return {
+        items: items.slice(0, opts.pageSize),
+        nextBoundary: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
+      }
     },
 
     async listReceivedForApi(
       userId: string,
       userEmail: string | null,
-      opts: { page: number; pageSize: number },
-    ): Promise<{ items: ShareListItem[]; total: number }> {
+      opts: { pageSize: number; after?: { createdAt: Date; id: string } },
+    ): Promise<{ items: ShareListItem[]; nextBoundary: { createdAt: Date; id: string } | null }> {
       const recipientMatch = userEmail
         ? or(eq(shareRecipients.recipientUserId, userId), eq(shareRecipients.recipientEmail, userEmail))
         : eq(shareRecipients.recipientUserId, userId)
-      const where = and(eq(shares.status, 'active'), recipientMatch)
+      const cursor = opts.after
+        ? or(
+            lt(shares.createdAt, opts.after.createdAt),
+            and(eq(shares.createdAt, opts.after.createdAt), lt(shares.id, opts.after.id)),
+          )
+        : undefined
+      const where = and(eq(shares.status, 'active'), recipientMatch, cursor)
 
-      const offset = (opts.page - 1) * opts.pageSize
       const rows = await db
         .select({
           id: shares.id,
@@ -306,36 +359,29 @@ export function createShareRepo(db: Database): ShareRepo {
           matterType: matters.type,
           matterDirtype: matters.dirtype,
           creatorName: sql<string | null>`(SELECT name FROM user WHERE user.id = ${shares.creatorId})`,
-          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
         })
         .from(shares)
         .innerJoin(shareRecipients, eq(shareRecipients.shareId, shares.id))
         .leftJoin(matters, eq(shares.matterId, matters.id))
         .where(where)
         .groupBy(shares.id)
-        .orderBy(desc(shares.createdAt))
-        .limit(opts.pageSize)
-        .offset(offset)
+        .orderBy(desc(shares.createdAt), desc(shares.id))
+        .limit(opts.pageSize + 1)
 
-      let total = Number(rows[0]?.pageTotal ?? 0)
-      if (rows.length === 0 && opts.page > 1) {
-        const [countRow] = await db
-          .select({ count: sql<number>`COUNT(DISTINCT ${shares.id})` })
-          .from(shares)
-          .innerJoin(shareRecipients, eq(shareRecipients.shareId, shares.id))
-          .where(where)
-        total = countRow?.count ?? 0
+      const hasMore = rows.length > opts.pageSize
+      const page = hasMore ? rows.slice(0, opts.pageSize) : rows
+      const items: ShareListItem[] = rows.map(({ matterName, matterType, matterDirtype, creatorName, ...share }) => ({
+        ...share,
+        matter: { name: matterName ?? '', type: matterType ?? '', dirtype: matterDirtype ?? 0 },
+        recipientCount: 0,
+        creatorName: creatorName ?? undefined,
+      }))
+
+      const last = page.at(-1)
+      return {
+        items: items.slice(0, opts.pageSize),
+        nextBoundary: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
       }
-      const items: ShareListItem[] = rows.map(
-        ({ matterName, matterType, matterDirtype, creatorName, pageTotal: _, ...share }) => ({
-          ...share,
-          matter: { name: matterName ?? '', type: matterType ?? '', dirtype: matterDirtype ?? 0 },
-          recipientCount: 0,
-          creatorName: creatorName ?? undefined,
-        }),
-      )
-
-      return { items, total }
     },
 
     async computeSourceBytes(matter: Matter): Promise<number> {

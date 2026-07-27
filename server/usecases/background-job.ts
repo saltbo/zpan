@@ -17,14 +17,12 @@ import { enqueueArchiveJob } from './archive-processing'
 import type { Deps } from './deps'
 import type { ListBackgroundJobsOptions } from './ports'
 
-type ListResult = { items: BackgroundJob[]; total: number }
-
-export function listBackgroundJobs(
-  deps: Pick<Deps, 'backgroundJobs'>,
-  orgId: string,
-  opts: ListBackgroundJobsOptions,
-): Promise<ListResult> {
+export function listBackgroundJobs(deps: Pick<Deps, 'backgroundJobs'>, orgId: string, opts: ListBackgroundJobsOptions) {
   return deps.backgroundJobs.list(orgId, opts)
+}
+
+export async function getActiveBackgroundJobCount(deps: Pick<Deps, 'backgroundJobs'>, orgId: string): Promise<number> {
+  return (await deps.backgroundJobs.activeSummary(orgId)).count
 }
 
 export function getBackgroundJob(

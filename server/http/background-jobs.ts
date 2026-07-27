@@ -1,16 +1,23 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema, pageSchema } from '../../shared/schemas'
+import { createBackgroundJobRequestSchema, cursorPageSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
   cancelBackgroundJob,
   createBackgroundJob,
+  getActiveBackgroundJobCount,
   getBackgroundJob,
   listBackgroundJobs,
   retryBackgroundJob,
 } from '../usecases/background-job'
 import { BackgroundJobError, notFound } from '../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from './openapi'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from './page-token'
 
 // BackgroundJob is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const backgroundJobProgressSchema = z.object({
@@ -44,7 +51,7 @@ const backgroundJobSchema = z
   })
   .openapi('BackgroundJob')
 
-const backgroundJobPageSchema = pageSchema(backgroundJobSchema, 'BackgroundJobPage')
+const backgroundJobPageSchema = cursorPageSchema(backgroundJobSchema, 'BackgroundJobPage')
 
 // The only client-driven status transition is cancellation.
 const cancelJobSchema = z.object({ status: z.literal('canceled') })
@@ -80,6 +87,18 @@ const createJobRoute = createRoute({
   responses: {
     201: jsonContent(backgroundJobSchema, 'Created background job'),
     404: errorResponse('Not found'),
+  },
+})
+
+const statsRoute = createRoute({
+  operationId: 'getBackgroundJobStats',
+  summary: 'Get active background job count',
+  tags: ['Background Jobs'],
+  method: 'get',
+  path: '/stats',
+  responses: {
+    200: jsonContent(z.object({ activeCount: z.number().int() }), 'Background job stats'),
+    404: errorResponse('No organization found'),
   },
 })
 
@@ -132,8 +151,31 @@ const backgroundJobs = app
     const orgId = c.get('orgId')
     if (!orgId) throw notFound('No organization found')
     const query = c.req.valid('query')
-    const result = await listBackgroundJobs(c.get('deps'), orgId, query)
-    return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)
+    const fingerprint = await pageQueryFingerprint({
+      orgId,
+      status: query.status ?? null,
+      type: query.type ?? null,
+      pageSize: query.pageSize,
+    })
+    const after = await decodeOptionalPageToken(c.get('platform'), query.pageToken, {
+      query: fingerprint,
+      codec: createdAtIdCursorCodec,
+    })
+    const result = await listBackgroundJobs(c.get('deps'), orgId, { ...query, after })
+    return c.json(
+      {
+        items: result.items,
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
+          query: fingerprint,
+          codec: createdAtIdCursorCodec,
+        }),
+      },
+      200,
+    )
+  })
+  .openapi(statsRoute, async (c) => {
+    const activeCount = await getActiveBackgroundJobCount(c.get('deps'), requireOrg(c))
+    return c.json({ activeCount }, 200)
   })
   .openapi(createJobRoute, async (c) => {
     const orgId = requireOrg(c)

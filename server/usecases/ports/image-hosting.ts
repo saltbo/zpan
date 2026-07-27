@@ -20,8 +20,8 @@ export interface CreateImageHostingInput {
 
 export interface ListImageHostingsOptions {
   pathPrefix?: string
-  cursor?: string
   limit: number
+  after?: { createdAt: Date; id: string }
 }
 
 export interface ImageResolution {
@@ -43,7 +43,7 @@ export interface ImageHostingRepo {
   list(
     orgId: string,
     opts: ListImageHostingsOptions,
-  ): Promise<{ items: ImageHostingRecord[]; nextCursor: string | null }>
+  ): Promise<{ items: ImageHostingRecord[]; nextBoundary: { createdAt: Date; id: string } | null }>
   setActive(id: string, orgId: string): Promise<boolean>
   delete(id: string, orgId: string): Promise<void>
 }

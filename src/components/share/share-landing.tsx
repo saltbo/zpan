@@ -214,9 +214,13 @@ export function ShareLanding({ token, share, onPasswordRequired }: ShareLandingP
             rootName={share.matter.name}
             dataSource={{
               queryKeyPrefix: ['share-objects', token],
-              list: async (path) => {
-                const response = await listShareObjects(token, path)
-                return { items: response.items.map(toStorageObject) }
+              resourceTypes: [],
+              list: async (path, opts) => {
+                const response = await listShareObjects(token, path, opts.pageToken)
+                return {
+                  items: response.items.map(toStorageObject),
+                  nextPageToken: response.nextPageToken,
+                }
               },
               getPreviewFile: async (item) =>
                 item.dirtype === DirType.FILE

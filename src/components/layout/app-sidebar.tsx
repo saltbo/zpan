@@ -30,7 +30,7 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { useSiteConfig } from '@/hooks/use-site-config'
-import { getIhostConfig, listBackgroundJobs } from '@/lib/api'
+import { getActiveBackgroundJobCount, getIhostConfig } from '@/lib/api'
 import { useActiveOrganization, useSession } from '@/lib/auth-client'
 import { OrgSwitcher } from '../team/org-switcher'
 import { FolderTree } from './folder-tree'
@@ -51,13 +51,7 @@ export function AppSidebar() {
   })
   const { data: activeTaskCount = 0 } = useQuery({
     queryKey: ['background-jobs', 'active-count'],
-    queryFn: async () => {
-      const [queued, running] = await Promise.all([
-        listBackgroundJobs({ status: 'queued', page: 1, pageSize: 1 }),
-        listBackgroundJobs({ status: 'running', page: 1, pageSize: 1 }),
-      ])
-      return queued.total + running.total
-    },
+    queryFn: async () => (await getActiveBackgroundJobCount()).activeCount,
     enabled: !!session,
   })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
@@ -134,7 +128,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={activeShares}>
-                  <Link to="/shares" search={{ status: 'all', page: 1, box: 'sent' }}>
+                  <Link to="/shares" search={{ status: 'all', box: 'sent' }}>
                     <Share2 className="h-4 w-4" />
                     <span>{t('nav.shares')}</span>
                   </Link>

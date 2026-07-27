@@ -28,11 +28,11 @@ Feature: Event stream
     When it opens the event stream with download tasks enabled
     Then the API responds 403
 
-  @events/api-key-download-tasks-required @api
-  Scenario: An authorized organization API key must opt in to download-task events
+  @events/api-key-global-stream @api
+  Scenario: An authorized organization API key uses the global stream without per-page opt-ins
     Given an organization API key with remoteDownload read permission
-    When it opens the event stream without download tasks enabled
-    Then the API responds 403
+    When it opens the global event stream
+    Then the API responds 200
 
   @events/api-key-invalid @api
   Scenario: An invalid API key cannot open the event stream

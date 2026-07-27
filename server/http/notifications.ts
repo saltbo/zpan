@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { listNotificationsQuerySchema, pageSchema } from '@shared/schemas'
+import { cursorPageSchema, listNotificationsQuerySchema } from '@shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -10,6 +10,12 @@ import {
 } from '../usecases/notification'
 import { type NotificationRecord, notFound } from '../usecases/ports'
 import { errorResponse, jsonContent } from './openapi'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from './page-token'
 
 const notificationSchema = z
   .object({
@@ -47,7 +53,7 @@ function toNotificationDTO(n: NotificationRecord): NotificationDTO {
 
 // The unread count is intentionally NOT part of the list envelope — it lives only
 // at GET /stats so the list shares the one Page<T> shape with every other resource.
-const notificationPageSchema = pageSchema(notificationSchema, 'NotificationPage')
+const notificationPageSchema = cursorPageSchema(notificationSchema, 'NotificationPage')
 
 const listRoute = createRoute({
   operationId: 'listNotifications',
@@ -95,18 +101,25 @@ app.use(requireAuth)
 
 export const notifications = app
   .openapi(listRoute, async (c) => {
-    const { page, pageSize, unread } = c.req.valid('query')
+    const { pageToken, pageSize, unread } = c.req.valid('query')
+    const userId = c.get('userId')!
+    const fingerprint = await pageQueryFingerprint({ userId, unread: unread === 'true', pageSize })
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, {
+      query: fingerprint,
+      codec: createdAtIdCursorCodec,
+    })
     const result = await listNotifications(c.get('deps'), c.get('userId')!, {
-      page,
       pageSize,
       unreadOnly: unread === 'true',
+      after,
     })
     return c.json(
       {
         items: result.items.map(toNotificationDTO),
-        total: result.total,
-        page,
-        pageSize,
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
+          query: fingerprint,
+          codec: createdAtIdCursorCodec,
+        }),
       },
       200,
     )

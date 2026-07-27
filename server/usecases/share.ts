@@ -219,12 +219,14 @@ export type ListShareObjectsParams = {
   viewerId: string | null
   accessCookie: string | undefined
   relativePath: string
-  page: number
   pageSize: number
+  after?: { dirtype: number; createdAt: Date; id: string }
   now?: Date
 }
 
-export type ListShareObjectsResult = ShareObjectsResponse
+export type ListShareObjectsResult = Omit<ShareObjectsResponse, 'nextPageToken'> & {
+  nextBoundary: { dirtype: number; createdAt: Date; id: string } | null
+}
 
 export type ListShareObjectsOutcome = { ok: true; result: ListShareObjectsResult } | { ok: false; error: AppError }
 
@@ -232,7 +234,7 @@ export async function listShareObjects(
   deps: ShareDeps,
   params: ListShareObjectsParams,
 ): Promise<ListShareObjectsOutcome> {
-  const { token, viewerId, accessCookie, relativePath, page, pageSize, now = new Date() } = params
+  const { token, viewerId, accessCookie, relativePath, pageSize, after, now = new Date() } = params
 
   const resolved = await deps.share.resolveByToken(token)
   if (resolved.status !== 'ok') {
@@ -254,7 +256,7 @@ export async function listShareObjects(
   const root = folderRootPath(matter)
   const queryParent = relativePath ? `${root}/${relativePath}` : root
 
-  const result = await deps.matter.list(matter.orgId, { parent: queryParent, page, pageSize })
+  const result = await deps.matter.list(matter.orgId, { parent: queryParent, pageSize, after })
 
   return {
     ok: true,
@@ -266,9 +268,7 @@ export async function listShareObjects(
         size: m.size,
         isFolder: m.dirtype !== DirType.FILE,
       })),
-      total: result.total,
-      page,
-      pageSize,
+      nextBoundary: result.nextBoundary,
       breadcrumb: buildBreadcrumb(matter.name, relativePath),
     },
   }
@@ -454,22 +454,20 @@ export async function downloadShareObject(
 export type ListSharesParams = {
   userId: string
   box: 'received' | 'sent' | undefined
-  page: number
   pageSize: number
   status?: string
+  after?: { createdAt: Date; id: string }
 }
 
 export async function listShares(deps: ShareDeps, params: ListSharesParams) {
-  const { userId, box, page, pageSize, status } = params
+  const { userId, box, pageSize, status, after } = params
 
   if (box === 'received') {
     const email = await deps.share.getUserEmail(userId)
-    const result = await deps.share.listReceivedForApi(userId, email, { page, pageSize })
-    return { ...result, page, pageSize }
+    return deps.share.listReceivedForApi(userId, email, { pageSize, after })
   }
 
-  const result = await deps.share.listForApi(userId, { page, pageSize, status })
-  return { ...result, page, pageSize }
+  return deps.share.listForApi(userId, { pageSize, status, after })
 }
 
 // ─── POST / — create a share (notify + activity; map create errors) ──────────

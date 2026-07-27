@@ -176,6 +176,41 @@ describe('Download tasks API integration', () => {
     expect(created.token).toBeTruthy()
   })
 
+  it('continues task listings with an opaque page token without duplicates', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const headers = await authedHeaders(app, 'task-pagination@example.com')
+    for (let index = 1; index <= 3; index += 1) {
+      const response = await app.request('/api/downloads/tasks', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: { type: 'http', uri: `https://example.com/page-${index}.txt` },
+          targetFolder: '',
+        }),
+      })
+      expect(response.status).toBe(201)
+    }
+
+    const firstResponse = await app.request('/api/downloads/tasks?pageSize=2', { headers })
+    expect(firstResponse.status).toBe(200)
+    const first = (await firstResponse.json()) as DownloadTaskList & { nextPageToken: string | null }
+    expect(first.items).toHaveLength(2)
+    expect(first.nextPageToken).toBeTruthy()
+
+    const secondResponse = await app.request(
+      `/api/downloads/tasks?pageSize=2&pageToken=${encodeURIComponent(first.nextPageToken ?? '')}`,
+      { headers },
+    )
+    expect(secondResponse.status).toBe(200)
+    const second = (await secondResponse.json()) as DownloadTaskList & { nextPageToken: string | null }
+    const ids = [...first.items, ...second.items].map((task) => task.id)
+
+    expect(second.items).toHaveLength(1)
+    expect(second.nextPageToken).toBeNull()
+    expect(new Set(ids)).toHaveLength(3)
+  })
+
   it('uses the API key owner UID in the object storage key', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)

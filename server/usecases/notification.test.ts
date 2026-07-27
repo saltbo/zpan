@@ -6,7 +6,7 @@ function repo(over: Partial<NotificationRepo> = {}): { notifications: Notificati
   return {
     notifications: {
       create: vi.fn(),
-      list: vi.fn(async () => ({ items: [], total: 0, unreadCount: 0 })),
+      list: vi.fn(async () => ({ items: [], nextBoundary: null })),
       markAsRead: vi.fn(async () => true),
       markAllAsRead: vi.fn(async () => ({ count: 0 })),
       unreadCount: vi.fn(async () => 0),
@@ -17,10 +17,10 @@ function repo(over: Partial<NotificationRepo> = {}): { notifications: Notificati
 
 describe('notification usecase', () => {
   it('lists notifications with the given paging options', async () => {
-    const result: ListNotificationsResult = { items: [], total: 3, unreadCount: 1 }
+    const result: ListNotificationsResult = { items: [], nextBoundary: null }
     const list = vi.fn(async () => result)
-    expect(await listNotifications(repo({ list }), 'u1', { page: 2, pageSize: 20, unreadOnly: true })).toBe(result)
-    expect(list).toHaveBeenCalledWith('u1', { page: 2, pageSize: 20, unreadOnly: true })
+    expect(await listNotifications(repo({ list }), 'u1', { pageSize: 20, unreadOnly: true })).toBe(result)
+    expect(list).toHaveBeenCalledWith('u1', { pageSize: 20, unreadOnly: true })
   })
 
   it('returns the unread count', async () => {
