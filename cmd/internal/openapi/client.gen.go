@@ -28902,9 +28902,10 @@ type CreateObjectResponse struct {
 		Type      string `json:"type"`
 		UpdatedAt string `json:"updatedAt"`
 		Upload    *struct {
-			PartSize  int      `json:"partSize"`
-			SessionId string   `json:"sessionId"`
-			Urls      []string `json:"urls"`
+			ContentDisposition string   `json:"contentDisposition"`
+			PartSize           int      `json:"partSize"`
+			SessionId          string   `json:"sessionId"`
+			Urls               []string `json:"urls"`
 		} `json:"upload,omitempty"`
 	}
 	JSON400 *Error
@@ -43997,9 +43998,10 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 			Type      string `json:"type"`
 			UpdatedAt string `json:"updatedAt"`
 			Upload    *struct {
-				PartSize  int      `json:"partSize"`
-				SessionId string   `json:"sessionId"`
-				Urls      []string `json:"urls"`
+				ContentDisposition string   `json:"contentDisposition"`
+				PartSize           int      `json:"partSize"`
+				SessionId          string   `json:"sessionId"`
+				Urls               []string `json:"urls"`
 			} `json:"upload,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

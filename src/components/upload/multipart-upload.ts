@@ -14,7 +14,12 @@ function isAbortError(err: unknown): boolean {
 async function uploadPartWithRetry(
   url: string,
   blob: Blob,
-  options: { signal: AbortSignal; onProgress: (loaded: number) => void; contentType?: string },
+  options: {
+    signal: AbortSignal
+    onProgress: (loaded: number) => void
+    contentType?: string
+    contentDisposition?: string
+  },
 ): Promise<string> {
   let lastError: unknown
   for (let attempt = 0; attempt < PART_ATTEMPTS; attempt++) {
@@ -23,6 +28,7 @@ async function uploadPartWithRetry(
         signal: options.signal,
         onProgress: (p) => options.onProgress(p.loaded),
         contentType: options.contentType,
+        contentDisposition: options.contentDisposition,
       })
     } catch (error) {
       if (isAbortError(error)) throw error
@@ -74,6 +80,7 @@ export async function uploadObjectSlices(
     const etag = await uploadPartWithRetry(url, slice, {
       signal: ctx.signal,
       contentType: file.type || undefined,
+      contentDisposition: urls.length === 1 ? upload.contentDisposition : undefined,
       onProgress: (loaded) => {
         loadedByPart.set(partNumber, loaded)
         reportProgress()

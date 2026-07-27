@@ -501,7 +501,12 @@ describe('api', () => {
       const created = {
         id: 'new1',
         name: 'doc.pdf',
-        upload: { sessionId: 'sess-1', partSize: 5 * 1024 * 1024, urls: ['https://s3/part-1'] },
+        upload: {
+          sessionId: 'sess-1',
+          partSize: 5 * 1024 * 1024,
+          urls: ['https://s3/part-1'],
+          contentDisposition: 'attachment; filename="doc.pdf"; filename*=UTF-8\'\'doc.pdf',
+        },
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(created))
 
@@ -514,7 +519,7 @@ describe('api', () => {
       })
 
       expect(result).toEqual(created)
-      expect(result.upload).toEqual({ sessionId: 'sess-1', partSize: 5 * 1024 * 1024, urls: ['https://s3/part-1'] })
+      expect(result.upload).toEqual(created.upload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/objects')
       expect(init.method).toBe('POST')
@@ -948,6 +953,18 @@ describe('api', () => {
 
       expect(typedXhr.headers).toEqual({ 'Content-Type': 'audio/flac' })
       expect(untypedXhr.headers).toEqual({})
+    })
+
+    it('sets Content-Disposition when one is provided', async () => {
+      const disposition = 'attachment; filename="__.mp3"; filename*=UTF-8\'\'%E9%9F%B3%E4%B9%90.mp3'
+      const promise = uploadPartToS3('https://s3/part-1', new Blob(['chunk']), {
+        contentDisposition: disposition,
+      })
+      const xhr = MockPartXHR.instances[0]
+      xhr.onload?.()
+      await promise
+
+      expect(xhr.headers['Content-Disposition']).toBe(disposition)
     })
 
     it('rejects when the ETag header is not exposed', async () => {

@@ -252,7 +252,12 @@ describe('UploadDropzone — uploadFn path', () => {
 describe('UploadDropzone — default upload path (no uploadFn)', () => {
   const draft = {
     id: 'obj-1',
-    upload: { sessionId: 'sess-1', partSize: 5 * 1024 * 1024, urls: ['https://s3/part-1'] },
+    upload: {
+      sessionId: 'sess-1',
+      partSize: 5 * 1024 * 1024,
+      urls: ['https://s3/part-1'],
+      contentDisposition: 'attachment; filename="photo.png"; filename*=UTF-8\'\'photo.png',
+    },
   }
   const parts = [{ partNumber: 1, etag: 'etag-1' }]
 

@@ -102,7 +102,12 @@ const uploadDraft: CreateObjectResult = {
   trashedAt: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
-  upload: { sessionId: 'session-1', urls: ['https://uploads.example.com/object-1'], partSize: 5_242_880 },
+  upload: {
+    sessionId: 'session-1',
+    urls: ['https://uploads.example.com/object-1'],
+    partSize: 5_242_880,
+    contentDisposition: 'attachment; filename=".zpan-storage-test.txt"; filename*=UTF-8\'\'.zpan-storage-test.txt',
+  },
 }
 
 function renderStoragesPage() {
@@ -136,7 +141,7 @@ describe('admin storages CORS guidance', () => {
       {
         AllowedOrigins: ['https://preview.example.com'],
         AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD'],
-        AllowedHeaders: ['*'],
+        AllowedHeaders: ['Content-Type', 'Content-Disposition'],
         ExposeHeaders: ['ETag'],
         MaxAgeSeconds: 3600,
       },
@@ -237,7 +242,11 @@ describe('StoragesPage connection test action', () => {
       'https://uploads.example.com/object-1',
       expect.objectContaining({
         method: 'PUT',
-        headers: { 'Content-Type': 'text/plain' },
+        headers: {
+          'Content-Type': 'text/plain',
+          'Content-Disposition':
+            'attachment; filename=".zpan-storage-test.txt"; filename*=UTF-8\'\'.zpan-storage-test.txt',
+        },
         body: expect.any(Blob),
       }),
     )
@@ -268,6 +277,9 @@ describe('StoragesPage connection test action', () => {
     expect(document.body.textContent).toContain('"PUT"')
     expect(document.body.textContent).toContain('"POST"')
     expect(document.body.textContent).toContain('"HEAD"')
+    expect(document.body.textContent).toContain('"Content-Type"')
+    expect(document.body.textContent).toContain('"Content-Disposition"')
+    expect(document.body.textContent).toContain('"ETag"')
     expect(document.body.textContent).toContain('"MaxAgeSeconds": 3600')
     expect(abortObjectUpload).toHaveBeenCalledWith('object-1', 'session-1', { strictStorageCleanup: true })
   })

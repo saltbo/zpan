@@ -11,6 +11,7 @@
 // 404 / 409 / 502.
 
 import { DirType } from '@shared/constants'
+import { attachmentContentDisposition } from '@shared/content-disposition'
 import type {
   CompleteObjectUploadInput,
   ConflictStrategy,
@@ -217,6 +218,7 @@ export async function createObject(
     objectId: matter.id,
     storage,
     storageKey: objectKey,
+    filename: name,
     contentType: type,
     size,
     onConflict: onConflict ?? 'fail',
@@ -235,13 +237,15 @@ async function prepareUpload(
     objectId: string
     storage: StorageRecord
     storageKey: string
+    filename: string
     contentType?: string
     size: number
     onConflict: ConflictStrategy
     actorId: string
   },
 ): Promise<ObjectUploadInstructions> {
-  const { storage, storageKey, contentType, size } = params
+  const { storage, storageKey, filename, contentType, size } = params
+  const contentDisposition = attachmentContentDisposition(filename)
   let uploadId: string | null = null
   let partSize: number
   let urls: string[]
@@ -250,12 +254,12 @@ async function prepareUpload(
     // Single PutObject — one presigned PUT, no S3 multipart overhead. When the
     // client supplied a content type it is signed and must be sent verbatim.
     partSize = size
-    urls = [await deps.s3.presignUpload(storage, storageKey, contentType)]
+    urls = [await deps.s3.presignUpload(storage, storageKey, contentType, filename)]
   } else {
     partSize = PART_SIZE_BYTES
     const partCount = Math.ceil(size / partSize)
     try {
-      uploadId = await deps.s3.createMultipartUpload(storage, storageKey, contentType)
+      uploadId = await deps.s3.createMultipartUpload(storage, storageKey, contentType, filename)
     } catch (error) {
       throw new ObjectUploadSessionError(
         'storage_failure',
@@ -278,7 +282,7 @@ async function prepareUpload(
     onConflict: params.onConflict,
     actorId: params.actorId,
   })
-  return { sessionId: record.id, partSize, urls }
+  return { sessionId: record.id, partSize, urls, contentDisposition }
 }
 
 // ─── Upload finalize / abort / re-presign ─────────────────────────────────────

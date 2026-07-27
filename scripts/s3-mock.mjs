@@ -43,7 +43,7 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === 'POST' && url.searchParams.has('uploads')) {
-    createMultipartUpload(res, bucket, key)
+    createMultipartUpload(req, res, bucket, key)
     return
   }
 
@@ -70,6 +70,7 @@ async function handleRequest(req, res) {
     objects.set(objectKey, {
       body,
       contentType: req.headers['content-type'] ?? 'application/octet-stream',
+      contentDisposition: req.headers['content-disposition'],
     })
     res.writeHead(200, { etag: etag(body) })
     res.end('')
@@ -86,6 +87,7 @@ async function handleRequest(req, res) {
     res.writeHead(200, {
       'Content-Length': object.body.byteLength,
       'Content-Type': object.contentType,
+      ...(object.contentDisposition ? { 'Content-Disposition': object.contentDisposition } : {}),
       etag: etag(object.body),
     })
     res.end()
@@ -114,9 +116,15 @@ async function handleRequest(req, res) {
   res.end('Method not allowed')
 }
 
-function createMultipartUpload(res, bucket, key) {
+function createMultipartUpload(req, res, bucket, key) {
   const uploadId = randomUUID()
-  uploads.set(uploadId, { bucket, key, parts: new Map() })
+  uploads.set(uploadId, {
+    bucket,
+    key,
+    contentType: req.headers['content-type'] ?? 'application/octet-stream',
+    contentDisposition: req.headers['content-disposition'],
+    parts: new Map(),
+  })
   res.writeHead(200, { 'Content-Type': 'application/xml' })
   res.end(`<CreateMultipartUploadResult><UploadId>${uploadId}</UploadId></CreateMultipartUploadResult>`)
 }
@@ -154,7 +162,11 @@ function completeMultipartUpload(res, url, bucket, key) {
     offset += part.byteLength
   }
 
-  objects.set(storageKey(bucket, key), { body, contentType: 'application/octet-stream' })
+  objects.set(storageKey(bucket, key), {
+    body,
+    contentType: upload.contentType,
+    contentDisposition: upload.contentDisposition,
+  })
   uploads.delete(uploadId)
   res.writeHead(200, { 'Content-Type': 'application/xml' })
   res.end('<CompleteMultipartUploadResult />')
@@ -165,6 +177,7 @@ function writeObject(res, object, rangeHeader) {
     res.writeHead(200, {
       'Content-Length': object.body.byteLength,
       'Content-Type': object.contentType,
+      ...(object.contentDisposition ? { 'Content-Disposition': object.contentDisposition } : {}),
       etag: etag(object.body),
     })
     res.end(object.body)
@@ -205,7 +218,7 @@ function storageKey(bucket, key) {
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,POST,DELETE,OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', '*')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Content-Disposition')
   res.setHeader('Access-Control-Expose-Headers', 'ETag,Content-Length,Content-Range,Content-Type')
 }
 

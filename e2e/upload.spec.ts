@@ -71,3 +71,60 @@ test.describe('Uploader responsive behavior', () => {
     expect(fileNameLayout.whiteSpace).toBe('nowrap')
   })
 })
+
+test.describe('Browser upload and download headers', () => {
+  test.skip(!process.env.E2E_S3_MOCK, 'requires the local cross-origin S3 mock')
+
+  test('uploads English and Chinese filenames through CORS and downloads instead of previewing @desktop', async ({
+    page,
+  }) => {
+    await signUpAndGoToFiles(page)
+
+    const storageRequests: Array<{ method: string; headers: Record<string, string> }> = []
+    const devtools = await page.context().newCDPSession(page)
+    await devtools.send('Network.enable')
+    devtools.on('Network.requestWillBeSent', ({ request }) => {
+      if (request.url.includes('127.0.0.1:9191')) {
+        storageRequests.push({
+          method: request.method,
+          headers: Object.fromEntries(
+            Object.entries(request.headers).map(([name, value]) => [name.toLowerCase(), String(value)]),
+          ),
+        })
+      }
+    })
+
+    const filenames = [`browser-audio-${Date.now()}.mp3`, `浏览器图片-${Date.now()}.png`]
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles([
+        { name: filenames[0], mimeType: 'audio/mpeg', buffer: Buffer.from('audio fixture') },
+        { name: filenames[1], mimeType: 'image/png', buffer: Buffer.from('image fixture') },
+      ])
+
+    for (const filename of filenames) {
+      await expect(page.getByRole('cell', { name: filename })).toBeVisible({ timeout: 15_000 })
+    }
+
+    const preflight = storageRequests.find((request) => request.method === 'OPTIONS')
+    expect(preflight?.headers['access-control-request-headers']).toContain('content-disposition')
+    expect(preflight?.headers['access-control-request-headers']).toContain('content-type')
+
+    const puts = storageRequests.filter((request) => request.method === 'PUT')
+    expect(puts).toHaveLength(2)
+    for (const request of puts) {
+      expect(request.headers['content-disposition']).toContain('attachment')
+      expect(request.headers['content-type']).toBeTruthy()
+    }
+
+    for (const filename of filenames) {
+      const row = page.getByRole('row').filter({ hasText: filename })
+      await row.getByRole('button').last().click()
+      const downloadPromise = page.waitForEvent('download')
+      await page.getByRole('menuitem', { name: 'Download' }).click()
+      const download = await downloadPromise
+      expect(download.suggestedFilename()).toBe(filename)
+    }
+  })
+})
