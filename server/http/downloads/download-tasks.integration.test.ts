@@ -302,21 +302,21 @@ describe('Download tasks API integration', () => {
     expect(task.status.state).toBe('queued')
     await claimTaskForDownloader(app, createdDownloader.token, task.id)
 
-    const includedRes = await app.request('/api/downloads/tasks/assigned?status=assigned,downloading', {
+    const includedRes = await app.request('/api/downloads/downloaders/me/tasks?status=assigned,downloading', {
       headers: downloaderHeaders,
     })
     expect(includedRes.status).toBe(200)
     const included = (await includedRes.json()) as DownloadTaskList
     expect(included.items.map((item) => item.id)).toContain(task.id)
 
-    const excludedRes = await app.request('/api/downloads/tasks/assigned?status=downloading,canceling', {
+    const excludedRes = await app.request('/api/downloads/downloaders/me/tasks?status=downloading,canceling', {
       headers: downloaderHeaders,
     })
     expect(excludedRes.status).toBe(200)
     const excluded = (await excludedRes.json()) as DownloadTaskList
     expect(excluded.items.map((item) => item.id)).not.toContain(task.id)
 
-    const invalidRes = await app.request('/api/downloads/tasks/assigned?status=assigned,nope', {
+    const invalidRes = await app.request('/api/downloads/downloaders/me/tasks?status=assigned,nope', {
       headers: downloaderHeaders,
     })
     expect(invalidRes.status).toBe(400)
@@ -752,7 +752,7 @@ describe('Download tasks API integration', () => {
     expect(createdTask.spec.labels.tags).toEqual(['sample', 'http'])
     expect(createdTask.status.assignment?.uploadToken).toBeUndefined()
 
-    const assignedRes = await app.request('/api/downloads/tasks/assigned?category=fixtures&tag=http', {
+    const assignedRes = await app.request('/api/downloads/downloaders/me/tasks?category=fixtures&tag=http', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(assignedRes.status).toBe(200)
@@ -801,7 +801,7 @@ describe('Download tasks API integration', () => {
     expect(runtime?.torrent?.infoHash).toBe('abc123')
     expect(runtime?.trackers?.[0]?.url).toBe('udp://tracker.example/announce')
 
-    const recoverDownloadingRes = await app.request('/api/downloads/tasks/assigned?status=downloading', {
+    const recoverDownloadingRes = await app.request('/api/downloads/downloaders/me/tasks?status=downloading', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(recoverDownloadingRes.status).toBe(200)
@@ -952,7 +952,7 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(uploadingRes.status).toBe(200)
-    const recoverUploadingRes = await app.request('/api/downloads/tasks/assigned?status=uploading', {
+    const recoverUploadingRes = await app.request('/api/downloads/downloaders/me/tasks?status=uploading', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(recoverUploadingRes.status).toBe(200)
@@ -1511,7 +1511,7 @@ describe('Download tasks API integration', () => {
     const task = (await taskRes.json()) as DownloadTask
     await claimTaskForDownloader(app, createdDownloader.token, task.id)
 
-    const tasksRes = await app.request('/api/downloads/tasks/assigned?status=assigned', {
+    const tasksRes = await app.request('/api/downloads/downloaders/me/tasks?status=assigned', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     const tasks = (await tasksRes.json()) as DownloadTaskList
@@ -1792,7 +1792,7 @@ describe('Download tasks API integration', () => {
     expect(pauseRes.status).toBe(200)
     await expect(pauseRes.json()).resolves.toMatchObject({ status: { state: 'paused' } })
 
-    const pausedAssignedRes = await app.request('/api/downloads/tasks/assigned', {
+    const pausedAssignedRes = await app.request('/api/downloads/downloaders/me/tasks', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(pausedAssignedRes.status).toBe(200)
@@ -1828,7 +1828,7 @@ describe('Download tasks API integration', () => {
     expect(cancelRes.status).toBe(200)
     await expect(cancelRes.json()).resolves.toMatchObject({ status: { state: 'canceling' } })
 
-    const canceledAssignedRes = await app.request('/api/downloads/tasks/assigned', {
+    const canceledAssignedRes = await app.request('/api/downloads/downloaders/me/tasks', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(canceledAssignedRes.status).toBe(200)
@@ -1979,7 +1979,7 @@ describe('Download tasks API integration', () => {
       },
     })
 
-    const interruptedAssignedRes = await app.request('/api/downloads/tasks/assigned?status=interrupted', {
+    const interruptedAssignedRes = await app.request('/api/downloads/downloaders/me/tasks?status=interrupted', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(interruptedAssignedRes.status).toBe(200)
@@ -2108,7 +2108,7 @@ describe('Download tasks API integration', () => {
     expect(retriedTask.status.runtime?.message).toBeUndefined()
     await claimTaskForDownloader(app, createdDownloader.token, createdTask.id)
 
-    const assignedRes = await app.request('/api/downloads/tasks/assigned?status=assigned', {
+    const assignedRes = await app.request('/api/downloads/downloaders/me/tasks?status=assigned', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(assignedRes.status).toBe(200)

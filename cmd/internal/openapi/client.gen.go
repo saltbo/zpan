@@ -3856,6 +3856,15 @@ type RecordDownloaderHeartbeatJSONBody struct {
 // RecordDownloaderHeartbeatJSONBodyEngine defines parameters for RecordDownloaderHeartbeat.
 type RecordDownloaderHeartbeatJSONBodyEngine string
 
+// ListDownloaderTasksParams defines parameters for ListDownloaderTasks.
+type ListDownloaderTasksParams struct {
+	Status    *string `form:"status,omitempty" json:"status,omitempty"`
+	Category  *string `form:"category,omitempty" json:"category,omitempty"`
+	Tag       *string `form:"tag,omitempty" json:"tag,omitempty"`
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+}
+
 // UpdateDownloaderJSONBody defines parameters for UpdateDownloader.
 type UpdateDownloaderJSONBody struct {
 	Enabled                            *bool   `json:"enabled,omitempty"`
@@ -3895,15 +3904,6 @@ type CreateDownloadTaskJSONBody struct {
 
 // CreateDownloadTaskJSONBodySourceType defines parameters for CreateDownloadTask.
 type CreateDownloadTaskJSONBodySourceType string
-
-// ListAssignedDownloadTasksParams defines parameters for ListAssignedDownloadTasks.
-type ListAssignedDownloadTasksParams struct {
-	Status    *string `form:"status,omitempty" json:"status,omitempty"`
-	Category  *string `form:"category,omitempty" json:"category,omitempty"`
-	Tag       *string `form:"tag,omitempty" json:"tag,omitempty"`
-	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
-}
 
 // UpdateDownloadTaskJSONBody defines parameters for UpdateDownloadTask.
 type UpdateDownloadTaskJSONBody struct {
@@ -5535,6 +5535,9 @@ type ClientInterface interface {
 
 	RecordDownloaderHeartbeat(ctx context.Context, body RecordDownloaderHeartbeatJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListDownloaderTasks request
+	ListDownloaderTasks(ctx context.Context, params *ListDownloaderTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteDownloader request
 	DeleteDownloader(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5555,9 +5558,6 @@ type ClientInterface interface {
 	CreateDownloadTaskWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CreateDownloadTask(ctx context.Context, body CreateDownloadTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListAssignedDownloadTasks request
-	ListAssignedDownloadTasks(ctx context.Context, params *ListAssignedDownloadTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteDownloadTask request
 	DeleteDownloadTask(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7877,6 +7877,18 @@ func (c *Client) RecordDownloaderHeartbeat(ctx context.Context, body RecordDownl
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListDownloaderTasks(ctx context.Context, params *ListDownloaderTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDownloaderTasksRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) DeleteDownloader(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteDownloaderRequest(c.Server, id)
 	if err != nil {
@@ -7963,18 +7975,6 @@ func (c *Client) CreateDownloadTaskWithBody(ctx context.Context, contentType str
 
 func (c *Client) CreateDownloadTask(ctx context.Context, body CreateDownloadTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateDownloadTaskRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListAssignedDownloadTasks(ctx context.Context, params *ListAssignedDownloadTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListAssignedDownloadTasksRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -13845,6 +13845,108 @@ func NewRecordDownloaderHeartbeatRequestWithBody(server string, contentType stri
 	return req, nil
 }
 
+// NewListDownloaderTasksRequest generates requests for ListDownloaderTasks
+func NewListDownloaderTasksRequest(server string, params *ListDownloaderTasksParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/downloaders/me/tasks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Category != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "category", *params.Category, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Tag != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "tag", *params.Tag, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDeleteDownloaderRequest generates requests for DeleteDownloader
 func NewDeleteDownloaderRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -14111,108 +14213,6 @@ func NewCreateDownloadTaskRequestWithBody(server string, contentType string, bod
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListAssignedDownloadTasksRequest generates requests for ListAssignedDownloadTasks
-func NewListAssignedDownloadTasksRequest(server string, params *ListAssignedDownloadTasksParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/downloads/tasks/assigned")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Status != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Category != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "category", *params.Category, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Tag != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "tag", *params.Tag, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.PageSize != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.PageToken != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -19862,6 +19862,9 @@ type ClientWithResponsesInterface interface {
 
 	RecordDownloaderHeartbeatWithResponse(ctx context.Context, body RecordDownloaderHeartbeatJSONRequestBody, reqEditors ...RequestEditorFn) (*RecordDownloaderHeartbeatResponse, error)
 
+	// ListDownloaderTasksWithResponse request
+	ListDownloaderTasksWithResponse(ctx context.Context, params *ListDownloaderTasksParams, reqEditors ...RequestEditorFn) (*ListDownloaderTasksResponse, error)
+
 	// DeleteDownloaderWithResponse request
 	DeleteDownloaderWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteDownloaderResponse, error)
 
@@ -19882,9 +19885,6 @@ type ClientWithResponsesInterface interface {
 	CreateDownloadTaskWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDownloadTaskResponse, error)
 
 	CreateDownloadTaskWithResponse(ctx context.Context, body CreateDownloadTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDownloadTaskResponse, error)
-
-	// ListAssignedDownloadTasksWithResponse request
-	ListAssignedDownloadTasksWithResponse(ctx context.Context, params *ListAssignedDownloadTasksParams, reqEditors ...RequestEditorFn) (*ListAssignedDownloadTasksResponse, error)
 
 	// DeleteDownloadTaskWithResponse request
 	DeleteDownloadTaskWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteDownloadTaskResponse, error)
@@ -25204,6 +25204,38 @@ func (r RecordDownloaderHeartbeatResponse) ContentType() string {
 	return ""
 }
 
+type ListDownloaderTasksResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DownloadTaskPage
+	JSON400      *Error
+	JSON401      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDownloaderTasksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDownloaderTasksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListDownloaderTasksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type DeleteDownloaderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -25358,38 +25390,6 @@ func (r CreateDownloadTaskResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateDownloadTaskResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ListAssignedDownloadTasksResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *DownloadTaskPage
-	JSON400      *Error
-	JSON401      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r ListAssignedDownloadTasksResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListAssignedDownloadTasksResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListAssignedDownloadTasksResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -30712,6 +30712,15 @@ func (c *ClientWithResponses) RecordDownloaderHeartbeatWithResponse(ctx context.
 	return ParseRecordDownloaderHeartbeatResponse(rsp)
 }
 
+// ListDownloaderTasksWithResponse request returning *ListDownloaderTasksResponse
+func (c *ClientWithResponses) ListDownloaderTasksWithResponse(ctx context.Context, params *ListDownloaderTasksParams, reqEditors ...RequestEditorFn) (*ListDownloaderTasksResponse, error) {
+	rsp, err := c.ListDownloaderTasks(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDownloaderTasksResponse(rsp)
+}
+
 // DeleteDownloaderWithResponse request returning *DeleteDownloaderResponse
 func (c *ClientWithResponses) DeleteDownloaderWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteDownloaderResponse, error) {
 	rsp, err := c.DeleteDownloader(ctx, id, reqEditors...)
@@ -30779,15 +30788,6 @@ func (c *ClientWithResponses) CreateDownloadTaskWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseCreateDownloadTaskResponse(rsp)
-}
-
-// ListAssignedDownloadTasksWithResponse request returning *ListAssignedDownloadTasksResponse
-func (c *ClientWithResponses) ListAssignedDownloadTasksWithResponse(ctx context.Context, params *ListAssignedDownloadTasksParams, reqEditors ...RequestEditorFn) (*ListAssignedDownloadTasksResponse, error) {
-	rsp, err := c.ListAssignedDownloadTasks(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListAssignedDownloadTasksResponse(rsp)
 }
 
 // DeleteDownloadTaskWithResponse request returning *DeleteDownloadTaskResponse
@@ -39737,6 +39737,46 @@ func ParseRecordDownloaderHeartbeatResponse(rsp *http.Response) (*RecordDownload
 	return response, nil
 }
 
+// ParseListDownloaderTasksResponse parses an HTTP response from a ListDownloaderTasksWithResponse call
+func ParseListDownloaderTasksResponse(rsp *http.Response) (*ListDownloaderTasksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDownloaderTasksResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DownloadTaskPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseDeleteDownloaderResponse parses an HTTP response from a DeleteDownloaderWithResponse call
 func ParseDeleteDownloaderResponse(rsp *http.Response) (*DeleteDownloaderResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -39931,46 +39971,6 @@ func ParseCreateDownloadTaskResponse(rsp *http.Response) (*CreateDownloadTaskRes
 			return nil, err
 		}
 		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListAssignedDownloadTasksResponse parses an HTTP response from a ListAssignedDownloadTasksWithResponse call
-func ParseListAssignedDownloadTasksResponse(rsp *http.Response) (*ListAssignedDownloadTasksResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListAssignedDownloadTasksResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DownloadTaskPage
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	}
 

@@ -160,7 +160,7 @@ const DETAIL_TABS: Array<{ id: DetailTab; labelKey: string; icon: ReactNode }> =
   { id: 'events', labelKey: 'downloads.detail.tabs.events', icon: <History className="size-4" /> },
 ]
 
-function DownloadsPage() {
+export function DownloadsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [sourceType, setSourceType] = useState<'http' | 'magnet' | 'torrent_url'>('http')

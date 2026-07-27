@@ -363,7 +363,7 @@ func (c *Client) assignedTasksByStatuses(ctx context.Context, statuses []string)
 	var pageToken *string
 	var tasks []DownloadTask
 	for {
-		res, err := c.api.ListAssignedDownloadTasksWithResponse(ctx, &openapi.ListAssignedDownloadTasksParams{
+		res, err := c.api.ListDownloaderTasksWithResponse(ctx, &openapi.ListDownloaderTasksParams{
 			Status:    &status,
 			PageSize:  &pageSize,
 			PageToken: pageToken,
@@ -371,15 +371,15 @@ func (c *Client) assignedTasksByStatuses(ctx context.Context, statuses []string)
 		if err != nil {
 			return nil, err
 		}
-		if err := expectStatus("GET", "/api/downloads/tasks/assigned", res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		if err := expectStatus("GET", "/api/downloads/downloaders/me/tasks", res.StatusCode(), res.Body, http.StatusOK); err != nil {
 			return nil, err
 		}
 		if res.JSON200 == nil {
-			return nil, fmt.Errorf("GET /api/downloads/tasks/assigned failed: empty response")
+			return nil, fmt.Errorf("GET /api/downloads/downloaders/me/tasks failed: empty response")
 		}
 		pageTasks, err := downloadTasksFromOpenAPI(res.JSON200.Items)
 		if err != nil {
-			return nil, fmt.Errorf("GET /api/downloads/tasks/assigned failed: %w", err)
+			return nil, fmt.Errorf("GET /api/downloads/downloaders/me/tasks failed: %w", err)
 		}
 		tasks = append(tasks, pageTasks...)
 		pageToken = res.JSON200.NextPageToken

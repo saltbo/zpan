@@ -119,12 +119,12 @@ const listRoute = createRoute({
   },
 })
 
-const assignedListRoute = createRoute({
-  operationId: 'listAssignedDownloadTasks',
-  summary: 'List tasks assigned to the authenticated downloader',
-  tags: ['Download Tasks'],
+const downloaderTaskListRoute = createRoute({
+  operationId: 'listDownloaderTasks',
+  summary: 'List tasks owned by the authenticated downloader',
+  tags: ['Downloaders'],
   method: 'get',
-  path: '/assigned',
+  path: '/me/tasks',
   middleware: [requirePermission('remoteDownload', 'read', { allowDownloader: true })] as const,
   request: { query: listDownloadTasksQuerySchema },
   responses: {
@@ -259,33 +259,6 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
       200,
     )
   })
-  .openapi(assignedListRoute, async (c) => {
-    const principal = c.get('principal')
-    if (principal?.kind !== 'downloader') throw unauthorized()
-    const query = c.req.valid('query')
-    const statuses = parseStatuses(query.status)
-    const page = await resolvePage(
-      c,
-      {
-        downloaderId: principal.downloaderId,
-        status: statuses?.length === 1 ? statuses[0] : undefined,
-        statuses,
-        category: query.category,
-        tag: query.tag,
-        pageSize: query.pageSize,
-        includeUploadToken: true,
-      },
-      query.pageToken,
-    )
-    const result = await listDownloadTasks(c.get('deps'), c.get('platform'), page.filters)
-    return c.json(
-      {
-        items: result.items,
-        nextPageToken: await pageTokenFor(c, result.nextBoundary, page.query),
-      },
-      200,
-    )
-  })
   .openapi(createRouteDoc, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized()
@@ -339,5 +312,33 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     if (!orgId) throw unauthorized()
     return c.json(await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { orgId }), 200)
   })
+
+export const downloaderTasksRoute = new OpenAPIHono<Env>().openapi(downloaderTaskListRoute, async (c) => {
+  const principal = c.get('principal')
+  if (principal?.kind !== 'downloader') throw unauthorized()
+  const query = c.req.valid('query')
+  const statuses = parseStatuses(query.status)
+  const page = await resolvePage(
+    c,
+    {
+      downloaderId: principal.downloaderId,
+      status: statuses?.length === 1 ? statuses[0] : undefined,
+      statuses,
+      category: query.category,
+      tag: query.tag,
+      pageSize: query.pageSize,
+      includeUploadToken: true,
+    },
+    query.pageToken,
+  )
+  const result = await listDownloadTasks(c.get('deps'), c.get('platform'), page.filters)
+  return c.json(
+    {
+      items: result.items,
+      nextPageToken: await pageTokenFor(c, result.nextBoundary, page.query),
+    },
+    200,
+  )
+})
 
 export default downloadTasksRoute
