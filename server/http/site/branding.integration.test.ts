@@ -106,12 +106,12 @@ describe('branding in GET /api/configz', () => {
   })
 })
 
-// ─── PUT /api/site/branding ──────────────────────────────────────────────────
+// ─── PUT /api/site/settings/branding ──────────────────────────────────────────────────
 
-describe('PUT /api/site/branding', () => {
+describe('PUT /api/site/settings/branding', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/site/branding', { method: 'PUT' })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT' })
     expect(res.status).toBe(401)
   })
 
@@ -120,14 +120,14 @@ describe('PUT /api/site/branding', () => {
     // First user is auto-promoted to admin — create them first, then the non-admin
     await adminHeaders(app)
     const headers = await authedHeaders(app, 'user@example.com')
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers })
     expect(res.status).toBe(403)
   })
 
   it('returns 402 when white_label feature is not available (no Pro) [spec: branding/white-label-gated]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers })
     expect(res.status).toBe(402)
     const body = (await res.json()) as { error: { details: { reason: string; metadata?: { feature?: string } }[] } }
     expect(body.error.details[0]?.reason).toBe('FEATURE_NOT_AVAILABLE')
@@ -138,7 +138,7 @@ describe('PUT /api/site/branding', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    const res = await app.request('/api/site/branding', {
+    const res = await app.request('/api/site/settings/branding', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -153,7 +153,7 @@ describe('PUT /api/site/branding', () => {
 
     const form = new FormData()
     form.set('wordmark_text', 'x'.repeat(25))
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(422)
   })
 
@@ -166,7 +166,7 @@ describe('PUT /api/site/branding', () => {
     form.set('wordmark_text', 'MyCloud')
     form.set('hide_powered_by', 'true')
 
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { wordmark_text: string; hide_powered_by: boolean }
     expect(body.wordmark_text).toBe('MyCloud')
@@ -186,7 +186,7 @@ describe('PUT /api/site/branding', () => {
     form.set('theme_mode', 'preset')
     form.set('theme_preset', 'ocean')
 
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as BrandingConfig
     expect(body.theme).toMatchObject({ mode: 'preset', preset: 'ocean', configured: true })
@@ -211,7 +211,7 @@ describe('PUT /api/site/branding', () => {
     form.set('theme_sidebar_accent_color', '#dbeafe')
     form.set('theme_ring_color', '#0f172a')
 
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as BrandingConfig
     expect(body.theme.custom).toMatchObject({
@@ -238,7 +238,7 @@ describe('PUT /api/site/branding', () => {
     form.set('theme_sidebar_accent_color', '#dbeafe')
     form.set('theme_ring_color', '#0f172a')
 
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(422)
 
     expect((await getPublicBranding(app)).theme).toMatchObject({
@@ -257,7 +257,7 @@ describe('PUT /api/site/branding', () => {
     form.set('theme_mode', 'preset')
     form.set('theme_preset', 'toString')
 
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(422)
   })
 
@@ -272,7 +272,7 @@ describe('PUT /api/site/branding', () => {
     const form = new FormData()
     form.set('logo', logoFile)
 
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { logo_url: string }
     const expected = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
@@ -291,7 +291,7 @@ describe('PUT /api/site/branding', () => {
     const form = new FormData()
     form.set('favicon', faviconFile)
 
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { favicon_url: string }
     const expected = `data:image/x-icon;base64,${Buffer.from(bytes).toString('base64')}`
@@ -307,7 +307,7 @@ describe('PUT /api/site/branding', () => {
     const form = new FormData()
     form.set('logo', badFile)
 
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(400)
   })
 
@@ -320,7 +320,7 @@ describe('PUT /api/site/branding', () => {
     const form = new FormData()
     form.set('logo', bigFile)
 
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(413)
   })
 
@@ -334,24 +334,24 @@ describe('PUT /api/site/branding', () => {
     const form = new FormData()
     form.set('favicon', bigFile)
 
-    const res = await app.request('/api/site/branding', { method: 'PUT', headers, body: form })
+    const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
     expect(res.status).toBe(413)
   })
 })
 
-// ─── DELETE /api/site/branding/:field ────────────────────────────────────────
+// ─── DELETE /api/site/settings/branding/:field ────────────────────────────────────────
 
-describe('DELETE /api/site/branding/:field', () => {
+describe('DELETE /api/site/settings/branding/:field', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/site/branding/logo', { method: 'DELETE' })
+    const res = await app.request('/api/site/settings/branding/logo', { method: 'DELETE' })
     expect(res.status).toBe(401)
   })
 
   it('returns 402 without Pro feature', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/site/branding/logo', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/settings/branding/logo', { method: 'DELETE', headers })
     expect(res.status).toBe(402)
   })
 
@@ -361,7 +361,7 @@ describe('DELETE /api/site/branding/:field', () => {
     await seedProLicense(db)
     await seedBrandingOption(db, 'branding_wordmark_text', 'MyCloud')
 
-    const res = await app.request('/api/site/branding/wordmark_text', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/settings/branding/wordmark_text', { method: 'DELETE', headers })
     expect(res.status).toBe(204)
 
     // Verify removed from DB
@@ -378,7 +378,7 @@ describe('DELETE /api/site/branding/:field', () => {
     await seedBrandingOption(db, 'branding_theme_mode', 'preset')
     await seedBrandingOption(db, 'branding_theme_preset', 'rose')
 
-    const res = await app.request('/api/site/branding/theme', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/settings/branding/theme', { method: 'DELETE', headers })
     expect(res.status).toBe(204)
     const body = await getPublicBranding(app)
     expect(body.theme).toMatchObject({
@@ -396,7 +396,7 @@ describe('DELETE /api/site/branding/:field', () => {
     await seedBrandingOption(db, 'branding_theme_mode', 'preset')
     await seedBrandingOption(db, 'branding_theme_preset', 'rose')
 
-    const res = await app.request('/api/site/branding/theme_preset', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/settings/branding/theme_preset', { method: 'DELETE', headers })
     expect(res.status).toBe(204)
     const body = await getPublicBranding(app)
     expect(body.theme.configured).toBe(false)
@@ -407,7 +407,7 @@ describe('DELETE /api/site/branding/:field', () => {
     const headers = await adminHeaders(app)
     await seedProLicense(db)
 
-    const res = await app.request('/api/site/branding/invalid_field', { method: 'DELETE', headers })
+    const res = await app.request('/api/site/settings/branding/invalid_field', { method: 'DELETE', headers })
     expect(res.status).toBe(400)
   })
 })

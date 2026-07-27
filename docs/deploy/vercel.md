@@ -98,25 +98,24 @@ ZPan refreshes its entitlement certificate every 6 hours. On Vercel there is no 
    | Variable | Value |
    |----------|-------|
    | `REFRESH_CRON_SECRET` | The random string from step 1 |
+   | `CRON_SECRET` | The same value; Vercel sends it as the scheduler Bearer token |
 
 3. **Schedule the call** using [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs). Add a `crons` entry to your `vercel.json`:
    ```json
    {
      "crons": [
        {
-         "path": "/api/licensing/refresh-cron?secret=<YOUR_SECRET>",
+         "path": "/api/internal/licensing/refresh-runs",
          "schedule": "0 */6 * * *"
        },
        {
-         "path": "/api/licensing/traffic-sync-runs?secret=<YOUR_SECRET>",
+         "path": "/api/internal/traffic-sync-runs",
          "schedule": "*/10 * * * *"
        }
      ]
    }
    ```
-   Replace `<YOUR_SECRET>` with the value of `REFRESH_CRON_SECRET`.
-
-If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.
+Send `Authorization: Bearer <REFRESH_CRON_SECRET>` with every scheduler request. If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.
 
 ## Pricing Notes
 

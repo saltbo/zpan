@@ -23,9 +23,9 @@ describe('site stats routes', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const coreRes = await app.request('/api/site/stats/core', { headers })
-    const detailsRes = await app.request('/api/site/stats/details', { headers })
-    const rankingRes = await app.request('/api/site/stats/ranking', { headers })
+    const coreRes = await app.request('/api/site/analytics/core', { headers })
+    const detailsRes = await app.request('/api/site/analytics/details', { headers })
+    const rankingRes = await app.request('/api/site/analytics/ranking', { headers })
 
     expect(coreRes.status).toBe(404)
     expect(detailsRes.status).toBe(404)
@@ -41,7 +41,7 @@ describe('site stats routes', () => {
     const headers = await adminHeaders(app)
     await seedStatsFixture(db)
 
-    const res = await app.request('/api/site/stats/storage', { headers })
+    const res = await app.request('/api/site/analytics/storage', { headers })
     const body = (await res.json()) as { error: { details: Array<{ metadata: Record<string, string> }> } }
 
     expect(res.status).toBe(402)
@@ -52,7 +52,7 @@ describe('site stats routes', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/stats/overview?from=2026-01-01&to=2026-01-07', { headers })
+    const res = await app.request('/api/site/analytics/overview?from=2026-01-01&to=2026-01-07', { headers })
     const body = (await res.json()) as { from: string; to: string; trends: Array<{ date: string }> }
 
     expect(res.status).toBe(200)
@@ -75,7 +75,7 @@ describe('site stats routes', () => {
     const from = encodeURIComponent('2026-07-01T10:00:00.000Z')
     const to = encodeURIComponent('2026-07-01T10:59:59.999Z')
 
-    const res = await app.request(`/api/site/stats/overview?from=${from}&to=${to}&timeZone=UTC`, {
+    const res = await app.request(`/api/site/analytics/overview?from=${from}&to=${to}&timeZone=UTC`, {
       headers,
     })
     const body = (await res.json()) as { from: string; to: string; trends: Array<{ date: string }> }
@@ -92,7 +92,7 @@ describe('site stats routes', () => {
     const from = encodeURIComponent('2026-07-01T10:30:00.000Z')
     const to = encodeURIComponent('2026-07-01T10:59:59.999Z')
 
-    const res = await app.request(`/api/site/stats/overview?from=${from}&to=${to}&timeZone=UTC`, { headers })
+    const res = await app.request(`/api/site/analytics/overview?from=${from}&to=${to}&timeZone=UTC`, { headers })
 
     expect(res.status).toBe(400)
   })
@@ -104,7 +104,7 @@ describe('site stats routes', () => {
     const from = encodeURIComponent(new Date(nextHour).toISOString())
     const to = encodeURIComponent(new Date(nextHour + 3_600_000 - 1).toISOString())
 
-    const res = await app.request(`/api/site/stats/overview?from=${from}&to=${to}&timeZone=UTC`, { headers })
+    const res = await app.request(`/api/site/analytics/overview?from=${from}&to=${to}&timeZone=UTC`, { headers })
 
     expect(res.status).toBe(400)
   })
@@ -113,9 +113,12 @@ describe('site stats routes', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/stats/overview?from=2026-07-01&to=2026-07-01&timeZone=America%2FToronto', {
-      headers,
-    })
+    const res = await app.request(
+      '/api/site/analytics/overview?from=2026-07-01&to=2026-07-01&timeZone=America%2FToronto',
+      {
+        headers,
+      },
+    )
 
     expect(res.status).toBe(400)
   })
@@ -124,7 +127,7 @@ describe('site stats routes', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/stats/overview?from=2025-01-01&to=2026-01-02', { headers })
+    const res = await app.request('/api/site/analytics/overview?from=2025-01-01&to=2026-01-02', { headers })
 
     expect(res.status).toBe(400)
   })
@@ -133,7 +136,7 @@ describe('site stats routes', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/stats/overview?from=2026-99-99', { headers })
+    const res = await app.request('/api/site/analytics/overview?from=2026-99-99', { headers })
 
     expect(res.status).toBe(400)
   })
@@ -142,19 +145,31 @@ describe('site stats routes', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/stats/overview?timeZone=Not%2FAZone', { headers })
+    const res = await app.request('/api/site/analytics/overview?timeZone=Not%2FAZone', { headers })
 
     expect(res.status).toBe(400)
   })
 
-  it('does not publish site stats routes in the OpenAPI document', async () => {
+  it('publishes every analytics resource in the OpenAPI document', async () => {
     const { app } = await createTestApp()
 
     const res = await app.request('/api/openapi.json')
     const body = (await res.json()) as { paths: Record<string, unknown> }
 
     expect(res.status).toBe(200)
-    expect(Object.keys(body.paths).some((path) => path.startsWith('/api/site/stats'))).toBe(false)
+    expect(
+      Object.keys(body.paths)
+        .filter((path) => path.startsWith('/api/site/analytics'))
+        .sort(),
+    ).toEqual([
+      '/api/site/analytics',
+      '/api/site/analytics/growth',
+      '/api/site/analytics/operations',
+      '/api/site/analytics/overview',
+      '/api/site/analytics/sharing',
+      '/api/site/analytics/storage',
+      '/api/site/analytics/traffic',
+    ])
   })
 
   it('reads storage waterline trends from hourly rollups when present', async () => {
@@ -178,7 +193,7 @@ describe('site stats routes', () => {
     `)
 
     const res = await app.request(
-      '/api/site/stats/storage?from=2026-01-01T00%3A00%3A00.000Z&to=2026-01-01T00%3A59%3A59.999Z&timeZone=UTC',
+      '/api/site/analytics/storage?from=2026-01-01T00%3A00%3A00.000Z&to=2026-01-01T00%3A59%3A59.999Z&timeZone=UTC',
       { headers },
     )
     const body = (await res.json()) as {
@@ -216,7 +231,7 @@ describe('site stats routes', () => {
     `)
 
     const query =
-      '/api/site/stats/traffic?from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T10%3A59%3A59.999Z&timeZone=UTC'
+      '/api/site/analytics/traffic?from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T10%3A59%3A59.999Z&timeZone=UTC'
     const rollupRes = await app.request(query, { headers })
     const rollupBody = (await rollupRes.json()) as {
       coverage: { status: string; completedBuckets: number; expectedBuckets: number }
@@ -275,10 +290,10 @@ describe('site stats routes', () => {
     const query = 'from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T11%3A59%3A59.999Z&timeZone=UTC'
 
     const [growthRes, storageRes, trafficRes, sharingRes] = await Promise.all([
-      app.request(`/api/site/stats/growth?${query}`, { headers }),
-      app.request(`/api/site/stats/storage?${query}`, { headers }),
-      app.request(`/api/site/stats/traffic?${query}`, { headers }),
-      app.request(`/api/site/stats/sharing?${query}`, { headers }),
+      app.request(`/api/site/analytics/growth?${query}`, { headers }),
+      app.request(`/api/site/analytics/storage?${query}`, { headers }),
+      app.request(`/api/site/analytics/traffic?${query}`, { headers }),
+      app.request(`/api/site/analytics/sharing?${query}`, { headers }),
     ])
     const overview = await createAdminStatsRepo(db).getOverviewStatistics(new Date(at + 3 * 3_600_000), {
       from: new Date(at),
@@ -362,7 +377,7 @@ describe('site stats routes', () => {
     `)
 
     const res = await app.request(
-      '/api/site/stats/traffic?from=2026-07-01T23%3A00%3A00.000Z&to=2026-07-02T00%3A59%3A59.999Z&timeZone=UTC',
+      '/api/site/analytics/traffic?from=2026-07-01T23%3A00%3A00.000Z&to=2026-07-02T00%3A59%3A59.999Z&timeZone=UTC',
       { headers },
     )
     const body = (await res.json()) as {
@@ -470,10 +485,10 @@ describe('site stats routes', () => {
     const query = 'from=2026-07-01T10%3A00%3A00.000Z&to=2026-07-01T10%3A59%3A59.999Z&timeZone=UTC'
 
     const [overviewRes, operationsRes, sharingRes, trafficRes] = await Promise.all([
-      app.request(`/api/site/stats/overview?${query}`, { headers }),
-      app.request(`/api/site/stats/operations?${query}`, { headers }),
-      app.request(`/api/site/stats/sharing?${query}`, { headers }),
-      app.request(`/api/site/stats/traffic?${query}`, { headers }),
+      app.request(`/api/site/analytics/overview?${query}`, { headers }),
+      app.request(`/api/site/analytics/operations?${query}`, { headers }),
+      app.request(`/api/site/analytics/sharing?${query}`, { headers }),
+      app.request(`/api/site/analytics/traffic?${query}`, { headers }),
     ])
     const overview = (await overviewRes.json()) as { dataQuality: AdminDashboardOverviewStats['dataQuality'] }
     const operations = (await operationsRes.json()) as { backgroundJobOutcomes: Array<{ name: string; value: number }> }
@@ -550,7 +565,7 @@ describe('site stats routes', () => {
     await seedStatsFixture(db)
 
     const before = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM stats_rollups_hourly`)
-    const res = await app.request('/api/site/stats/storage?from=2000-01-01&to=2000-01-02', { headers })
+    const res = await app.request('/api/site/analytics/storage?from=2000-01-01&to=2000-01-02', { headers })
     const after = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM stats_rollups_hourly`)
     const body = (await res.json()) as { storageTrend: Array<{ usedBytes: number | null }> }
 
@@ -565,7 +580,7 @@ describe('site stats routes', () => {
     await seedProLicense(db)
     const { bucketStart } = await seedStatsFixture(db)
 
-    const res = await app.request(`/api/site/stats/growth?${exactHourQuery(bucketStart)}`, { headers })
+    const res = await app.request(`/api/site/analytics/growth?${exactHourQuery(bucketStart)}`, { headers })
     const body = (await res.json()) as {
       summary: {
         totalUsers: number
@@ -617,7 +632,7 @@ describe('site stats routes', () => {
     `)
 
     const res = await app.request(
-      '/api/site/stats/growth?from=2026-01-01T10%3A00%3A00.000Z&to=2026-01-01T10%3A59%3A59.999Z&timeZone=UTC',
+      '/api/site/analytics/growth?from=2026-01-01T10%3A00%3A00.000Z&to=2026-01-01T10%3A59%3A59.999Z&timeZone=UTC',
       { headers },
     )
     const body = (await res.json()) as {
@@ -652,13 +667,13 @@ describe('site stats routes', () => {
       `)
     }
 
-    const beforeRes = await app.request('/api/site/stats/storage', { headers })
+    const beforeRes = await app.request('/api/site/analytics/storage', { headers })
     const before = (await beforeRes.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
 
     await db.run(sql.raw(buildStorageUsageBackfillSql(Date.now())))
     await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
     await rebuildAdminStatsHour(db, bucketStart, new Date())
-    const afterRes = await app.request('/api/site/stats/storage', { headers })
+    const afterRes = await app.request('/api/site/analytics/storage', { headers })
     const after = (await afterRes.json()) as { typeBreakdown: Array<{ type: string; files: number; bytes: number }> }
 
     expect(beforeRes.status).toBe(200)
@@ -763,7 +778,7 @@ describe('site stats routes', () => {
     await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
     await rebuildAdminStatsHour(db, bucketStart, new Date())
 
-    const res = await app.request('/api/site/stats/storage', { headers })
+    const res = await app.request('/api/site/analytics/storage', { headers })
     const body = (await res.json()) as {
       summary: {
         quotaBytes: number | null
@@ -794,7 +809,7 @@ describe('site stats routes', () => {
     await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
     await rebuildAdminStatsHour(db, bucketStart, new Date())
 
-    const res = await app.request('/api/site/stats/storage', { headers })
+    const res = await app.request('/api/site/analytics/storage', { headers })
     const body = (await res.json()) as {
       summary: {
         storageUsedBytes: number | null
@@ -839,7 +854,7 @@ describe('site stats routes', () => {
           '{"version":3,"scope":"snapshots","quality":"exact"}', ${at + 3_600_000})
     `)
 
-    const res = await app.request('/api/site/stats/overview?from=2026-01-02&to=2026-01-02', { headers })
+    const res = await app.request('/api/site/analytics/overview?from=2026-01-02&to=2026-01-02', { headers })
     const body = (await res.json()) as { totals: { activeUsers: { value: number } } }
 
     expect(res.status).toBe(200)
@@ -861,12 +876,12 @@ describe('site stats routes', () => {
     `)
     await rebuildAdminStatsHour(db, bucketStart, new Date())
 
-    const current = await app.request(`/api/site/stats/traffic?${exactHourQuery(bucketStart)}`, { headers })
+    const current = await app.request(`/api/site/analytics/traffic?${exactHourQuery(bucketStart)}`, { headers })
     const currentBody = (await current.json()) as {
       summary: { requestCount: { changePercent: number | null } }
       successTrend: Array<{ uploadSuccessRate: number | null }>
     }
-    const empty = await app.request('/api/site/stats/traffic?from=2000-01-01&to=2000-01-01', { headers })
+    const empty = await app.request('/api/site/analytics/traffic?from=2000-01-01&to=2000-01-01', { headers })
     const emptyBody = (await empty.json()) as {
       successTrend: Array<{ uploadSuccessRate: number | null; downloadSuccessRate: number | null }>
     }
@@ -895,9 +910,9 @@ describe('site stats routes', () => {
 
     const query = 'from=2026-07-01T12%3A00%3A00.000Z&to=2026-07-01T12%3A59%3A59.999Z&timeZone=UTC'
     const [res, trafficRes, storageRes] = await Promise.all([
-      app.request(`/api/site/stats/overview?${query}`, { headers }),
-      app.request(`/api/site/stats/traffic?${query}`, { headers }),
-      app.request(`/api/site/stats/storage?${query}`, { headers }),
+      app.request(`/api/site/analytics/overview?${query}`, { headers }),
+      app.request(`/api/site/analytics/traffic?${query}`, { headers }),
+      app.request(`/api/site/analytics/storage?${query}`, { headers }),
     ])
     const body = (await res.json()) as {
       dataQuality: AdminDashboardOverviewStats['dataQuality']
@@ -946,7 +961,7 @@ describe('site stats routes', () => {
         ('exhausted-share', 'exhausted-share', 'direct', 'stats-file', ${orgId}, ${userId}, NULL, 1, 0, 1, 'active', ${nowSec})
     `)
 
-    const res = await app.request('/api/site/stats/sharing', { headers })
+    const res = await app.request('/api/site/analytics/sharing', { headers })
     const body = (await res.json()) as { summary: { activeShares: number } }
 
     expect(res.status).toBe(200)
@@ -959,7 +974,7 @@ describe('site stats routes', () => {
     await seedProLicense(db)
     const { bucketStart } = await seedStatsFixture(db)
 
-    const res = await app.request(`/api/site/stats/traffic?${exactHourQuery(bucketStart)}`, { headers })
+    const res = await app.request(`/api/site/analytics/traffic?${exactHourQuery(bucketStart)}`, { headers })
     const body = (await res.json()) as {
       summary: {
         totalBytes: { value: number }
@@ -1013,7 +1028,7 @@ describe('site stats routes', () => {
     await captureAdminStatsSnapshot(db, bucketStart, new Date(bucketStart.getTime() + 45 * 60_000))
     await rebuildAdminStatsHour(db, bucketStart, new Date())
 
-    const res = await app.request('/api/site/stats/operations', { headers })
+    const res = await app.request('/api/site/analytics/operations', { headers })
     const body = (await res.json()) as {
       summary: {
         onlineDownloaders: number
@@ -1051,7 +1066,7 @@ describe('site stats routes', () => {
     await seedProLicense(db)
     await seedStatsFixture(db)
 
-    const currentSharingRes = await app.request('/api/site/stats/sharing', { headers })
+    const currentSharingRes = await app.request('/api/site/analytics/sharing', { headers })
     const currentSharing = (await currentSharingRes.json()) as {
       dataQuality: { unlocatedDownloads: number }
       summary: {
@@ -1066,7 +1081,7 @@ describe('site stats routes', () => {
         downloadPercent: number
       }>
     }
-    const oldSharingRes = await app.request('/api/site/stats/sharing?from=2000-01-01&to=2000-01-02', { headers })
+    const oldSharingRes = await app.request('/api/site/analytics/sharing?from=2000-01-01&to=2000-01-02', { headers })
     const oldSharing = (await oldSharingRes.json()) as {
       summary: { views: number | null; downloads: { value: number | null } }
       topShares: unknown[]
@@ -1090,7 +1105,7 @@ describe('site stats routes', () => {
     await makeSharingHistoryExact(db, bucketStart)
     await db.run(sql`DELETE FROM shares WHERE id = 'share-1'`)
 
-    const res = await app.request('/api/site/stats/sharing', { headers })
+    const res = await app.request('/api/site/analytics/sharing', { headers })
     const body = (await res.json()) as {
       topShares: Array<{ id: string; token: string; name: string; status: string; views: number; downloads: number }>
     }
@@ -1122,7 +1137,7 @@ describe('site stats routes', () => {
           'share-download-heavy', 'ranking-download-3', 512, 'not_required', ${eventSec * 1000}, ${eventSec * 1000}, ${eventSec * 1000})
     `)
     await makeSharingHistoryExact(db, bucketStart)
-    const res = await app.request('/api/site/stats/sharing', { headers })
+    const res = await app.request('/api/site/analytics/sharing', { headers })
     const body = (await res.json()) as { topShares: Array<{ token: string; views: number; downloads: number }> }
 
     expect(res.status).toBe(200)
@@ -1144,7 +1159,7 @@ describe('site stats routes', () => {
     }
     await makeSharingHistoryExact(db, bucketStart)
 
-    const res = await app.request('/api/site/stats/sharing', { headers })
+    const res = await app.request('/api/site/analytics/sharing', { headers })
     const body = (await res.json()) as { topShares: Array<{ viewPercent: number }> }
 
     expect(res.status).toBe(200)

@@ -37,7 +37,7 @@ async function seedCloudflareConfig(db: Awaited<ReturnType<typeof createTestApp>
 describe('Admin Email Config API — auth', () => {
   it('GET returns 401 without auth [spec: email-config/auth-required]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/site/email')
+    const res = await app.request('/api/site/settings/email')
     expect(res.status).toBe(401)
   })
 
@@ -51,13 +51,13 @@ describe('Admin Email Config API — auth', () => {
       body: JSON.stringify({ email: 'regular@example.com', password: 'password123456' }),
     })
     const freshHeaders = { Cookie: signInRes.headers.getSetCookie().join('; ') }
-    const res = await app.request('/api/site/email', { headers: freshHeaders })
+    const res = await app.request('/api/site/settings/email', { headers: freshHeaders })
     expect(res.status).toBe(403)
   })
 
   it('PUT returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/site/email', {
+    const res = await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, provider: 'smtp', from: 'a@b.com' }),
@@ -67,7 +67,7 @@ describe('Admin Email Config API — auth', () => {
 
   it('POST /test returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/site/email/test-messages', {
+    const res = await app.request('/api/site/settings/email/test-messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'a@b.com' }),
@@ -80,7 +80,7 @@ describe('Admin Email Config API — GET', () => {
   it('returns disabled empty state when no config exists [spec: email-config/empty-state]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/site/email', { headers })
+    const res = await app.request('/api/site/settings/email', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body).toEqual({ enabled: false, requireEmailVerification: false, provider: null })
@@ -91,7 +91,7 @@ describe('Admin Email Config API — GET', () => {
     const headers = await adminHeaders(app)
     await db.insert(schema.systemOptions).values([{ key: 'email_enabled', value: 'true' }])
 
-    const res = await app.request('/api/site/email', { headers })
+    const res = await app.request('/api/site/settings/email', { headers })
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({
       enabled: true,
@@ -105,7 +105,7 @@ describe('Admin Email Config API — GET', () => {
     const headers = await adminHeaders(app)
     await seedSmtpConfig(db)
 
-    const res = await app.request('/api/site/email', { headers })
+    const res = await app.request('/api/site/settings/email', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.enabled).toBe(true)
@@ -127,7 +127,7 @@ describe('Admin Email Config API — GET', () => {
     const headers = await adminHeaders(app)
     await seedHttpConfig(db)
 
-    const res = await app.request('/api/site/email', { headers })
+    const res = await app.request('/api/site/settings/email', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.enabled).toBe(true)
@@ -150,7 +150,7 @@ describe('Admin Email Config API — GET', () => {
     ])
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/email', { headers })
+    const res = await app.request('/api/site/settings/email', { headers })
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({
       enabled: true,
@@ -165,7 +165,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/email', {
+    const res = await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -191,7 +191,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    await app.request('/api/site/email', {
+    await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -209,7 +209,7 @@ describe('Admin Email Config API — PUT', () => {
       }),
     })
 
-    const res = await app.request('/api/site/email', { headers })
+    const res = await app.request('/api/site/settings/email', { headers })
     const body = (await res.json()) as Record<string, unknown>
     expect(body.provider).toBe('smtp')
     expect(body.from).toBe('sender@example.com')
@@ -223,11 +223,11 @@ describe('Admin Email Config API — PUT', () => {
     const headers = await adminHeaders(app)
     await seedSmtpConfig(db)
 
-    const currentResponse = await app.request('/api/site/email', { headers })
+    const currentResponse = await app.request('/api/site/settings/email', { headers })
     const current = (await currentResponse.json()) as {
       smtp: { host: string; port: number; user: string; pass: string; secure: boolean }
     }
-    await app.request('/api/site/email', {
+    await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -250,7 +250,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/email', {
+    const res = await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -273,7 +273,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    await app.request('/api/site/email', {
+    await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -288,7 +288,7 @@ describe('Admin Email Config API — PUT', () => {
       }),
     })
 
-    const res = await app.request('/api/site/email', { headers })
+    const res = await app.request('/api/site/settings/email', { headers })
     const body = (await res.json()) as Record<string, unknown>
     expect(body.provider).toBe('http')
     expect(body.from).toBe('http-from@example.com')
@@ -300,7 +300,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/email', {
+    const res = await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, provider: 'sendgrid', from: 'a@b.com' }),
@@ -312,7 +312,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/email', {
+    const res = await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true, provider: 'smtp', from: 'not-an-email' }),
@@ -324,7 +324,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/email', {
+    const res = await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -343,7 +343,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    await app.request('/api/site/email', {
+    await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -355,7 +355,7 @@ describe('Admin Email Config API — PUT', () => {
       }),
     })
 
-    await app.request('/api/site/email', {
+    await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -367,7 +367,7 @@ describe('Admin Email Config API — PUT', () => {
       }),
     })
 
-    const res = await app.request('/api/site/email', { headers })
+    const res = await app.request('/api/site/settings/email', { headers })
     const body = (await res.json()) as Record<string, unknown>
     expect(body.from).toBe('second@example.com')
     const smtp = body.smtp as Record<string, unknown>
@@ -379,7 +379,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/email', {
+    const res = await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -397,7 +397,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp({}, { EMAIL: { send: vi.fn() } })
     const headers = await adminHeaders(app)
 
-    await app.request('/api/site/email', {
+    await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -408,7 +408,7 @@ describe('Admin Email Config API — PUT', () => {
       }),
     })
 
-    const res = await app.request('/api/site/email', { headers })
+    const res = await app.request('/api/site/settings/email', { headers })
     await expect(res.json()).resolves.toEqual({
       enabled: true,
       requireEmailVerification: true,
@@ -421,7 +421,7 @@ describe('Admin Email Config API — PUT', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    await app.request('/api/site/email', {
+    await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -433,7 +433,7 @@ describe('Admin Email Config API — PUT', () => {
       }),
     })
 
-    const res = await app.request('/api/site/email', { headers })
+    const res = await app.request('/api/site/settings/email', { headers })
     const body = (await res.json()) as Record<string, unknown>
     expect(body.enabled).toBe(false)
     expect(body.provider).toBe('smtp')
@@ -453,7 +453,7 @@ describe('Admin Email Config API — POST /test', () => {
     const headers = await adminHeaders(app)
     await seedHttpConfig(db)
 
-    const res = await app.request('/api/site/email/test-messages', {
+    const res = await app.request('/api/site/settings/email/test-messages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'recipient@example.com' }),
@@ -475,7 +475,7 @@ describe('Admin Email Config API — POST /test', () => {
     const headers = await adminHeaders(app)
     await seedHttpConfig(db)
 
-    const res = await app.request('/api/site/email/test-messages', {
+    const res = await app.request('/api/site/settings/email/test-messages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'recipient@example.com' }),
@@ -489,7 +489,7 @@ describe('Admin Email Config API — POST /test', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/site/email/test-messages', {
+    const res = await app.request('/api/site/settings/email/test-messages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'recipient@example.com' }),
@@ -503,7 +503,7 @@ describe('Admin Email Config API — POST /test', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    await app.request('/api/site/email', {
+    await app.request('/api/site/settings/email', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -515,7 +515,7 @@ describe('Admin Email Config API — POST /test', () => {
       }),
     })
 
-    const res = await app.request('/api/site/email/test-messages', {
+    const res = await app.request('/api/site/settings/email/test-messages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'recipient@example.com' }),
@@ -531,7 +531,7 @@ describe('Admin Email Config API — POST /test', () => {
     const headers = await adminHeaders(app)
     await seedSmtpConfig(db)
 
-    const res = await app.request('/api/site/email/test-messages', {
+    const res = await app.request('/api/site/settings/email/test-messages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'not-an-email' }),
@@ -545,7 +545,7 @@ describe('Admin Email Config API — POST /test', () => {
     const headers = await adminHeaders(app)
     await seedCloudflareConfig(db)
 
-    const res = await app.request('/api/site/email/test-messages', {
+    const res = await app.request('/api/site/settings/email/test-messages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'recipient@example.com' }),

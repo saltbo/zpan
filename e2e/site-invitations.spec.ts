@@ -3,7 +3,7 @@ import { expandSignUpForm, signInAsAdmin } from './helpers'
 
 async function saveEmailConfig(page: import('@playwright/test').Page) {
   const result = await page.evaluate(async () => {
-    const res = await fetch('/api/site/email', {
+    const res = await fetch('/api/site/settings/email', {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

@@ -1,5 +1,5 @@
 // The email-config resource usecase. Owns every business decision behind the
-// /api/admin/email-config routes — reading the stored settings and masking
+// /api/site/settings/email routes — reading the stored settings and masking
 // secrets for display, flattening a validated config into the system_options
 // key/value rows, and running a "send test email" probe — so the http handler
 // only validates the request body, calls these functions, and serializes the
@@ -9,6 +9,7 @@
 // EmailGateway reads them back (and decides whether email is "configured").
 // All reads/writes go through the ports — nothing here touches infrastructure.
 
+import type { EmailSettings, UpdateEmailSettingsInput } from '@shared/schemas'
 import { EMAIL_VERIFICATION_REQUIRED_OPTION_KEY, isEmailVerificationRequired } from '../../domain/email-verification'
 import type { Platform } from '../../platform/interface'
 import {
@@ -17,7 +18,6 @@ import {
   type EmailConfig,
   type EmailGateway,
   type EmailProvider,
-  type SmtpConfig,
   type SystemOptionsRepo,
 } from '../ports'
 
@@ -28,23 +28,11 @@ export type EmailConfigDeps = {
 
 // The validated request body the http layer hands to saveEmailConfig — the same
 // discriminated union the route's zod schema produces.
-export type SaveEmailConfigInput =
-  | { enabled: boolean; requireEmailVerification: boolean; provider: 'smtp'; from: string; smtp: SmtpConfig }
-  | {
-      enabled: boolean
-      requireEmailVerification: boolean
-      provider: 'http'
-      from: string
-      http: { url: string; apiKey: string }
-    }
-  | { enabled: boolean; requireEmailVerification: boolean; provider: 'cloudflare'; from: string }
+export type SaveEmailConfigInput = UpdateEmailSettingsInput
 
 // The GET response shape: the enabled flag plus either a secret-masked view of
 // the stored config or `{ provider: null }` when no usable config exists.
-export type MaskedEmailSettings = { enabled: boolean; requireEmailVerification: boolean } & (
-  | Record<string, unknown>
-  | { provider: null }
-)
+export type MaskedEmailSettings = EmailSettings
 
 // A test send either succeeds or fails for a reportable reason (provider error,
 // or email being disabled — the gateway throws for both). A failure becomes a 400
@@ -56,7 +44,10 @@ function maskSecret(value: string): string {
   return `****${value.slice(-4)}`
 }
 
-function maskConfig(config: EmailConfig): Record<string, unknown> {
+type WithoutEmailFlags<T> = T extends unknown ? Omit<T, 'enabled' | 'requireEmailVerification'> : never
+type MaskedProviderConfig = WithoutEmailFlags<Exclude<EmailSettings, { provider: null }>>
+
+function maskConfig(config: EmailConfig): MaskedProviderConfig {
   if (config.provider === 'smtp') {
     return {
       provider: config.provider,
@@ -124,11 +115,12 @@ export async function getEmailConfig(
     deps.email.getSettings(platform),
     deps.systemOptions.getValue(EMAIL_VERIFICATION_REQUIRED_OPTION_KEY),
   ])
-  return {
+  const base = {
     enabled: settings.enabled,
     requireEmailVerification: isEmailVerificationRequired(requiredValue),
-    ...(settings.config ? maskConfig(settings.config) : { provider: null }),
   }
+  if (!settings.config) return { ...base, provider: null }
+  return { ...base, ...maskConfig(settings.config) } as EmailSettings
 }
 
 export async function saveEmailConfig(

@@ -105,7 +105,7 @@ describe('invite-code usecase', () => {
       const out = await deleteInviteCode(deps, { id: 'ic-1' })
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
-      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.httpStatus).toBe(409)
       expect(out.error.message).toBe('Cannot delete a used invite code')
     })
   })

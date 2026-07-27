@@ -129,7 +129,7 @@ export async function pairAndApprove(page: Page): Promise<PairingPollResult> {
 
   await expect
     .poll(async () => {
-      const state = await getJson<BindingState>(page, '/api/site/licensing/status')
+      const state = await getJson<BindingState>(page, '/api/site/licensing/binding')
       return state.bound && state.active
     })
     .toBe(true)

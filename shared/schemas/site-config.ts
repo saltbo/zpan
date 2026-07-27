@@ -125,6 +125,54 @@ export const siteWebDavSettingsSchema = z
   })
   .openapi('SiteWebDavSettings')
 
+const emailSettingsBaseSchema = z.object({
+  enabled: z.boolean(),
+  requireEmailVerification: z.boolean(),
+  from: z.string().email(),
+})
+
+export const smtpEmailSettingsSchema = emailSettingsBaseSchema
+  .extend({
+    provider: z.literal('smtp'),
+    smtp: z.object({
+      host: z.string().min(1),
+      port: z.number().int().min(1).max(65535),
+      user: z.string(),
+      pass: z.string(),
+      secure: z.boolean(),
+    }),
+  })
+  .openapi('SmtpEmailSettings')
+
+export const httpEmailSettingsSchema = emailSettingsBaseSchema
+  .extend({
+    provider: z.literal('http'),
+    http: z.object({ url: z.url(), apiKey: z.string() }),
+  })
+  .openapi('HttpEmailSettings')
+
+export const cloudflareEmailSettingsSchema = emailSettingsBaseSchema
+  .extend({ provider: z.literal('cloudflare') })
+  .openapi('CloudflareEmailSettings')
+
+export const emptyEmailSettingsSchema = z
+  .object({
+    enabled: z.boolean(),
+    requireEmailVerification: z.boolean(),
+    provider: z.null(),
+  })
+  .openapi('EmptyEmailSettings')
+
+export const emailSettingsSchema = z
+  .union([smtpEmailSettingsSchema, httpEmailSettingsSchema, cloudflareEmailSettingsSchema, emptyEmailSettingsSchema])
+  .openapi('EmailSettings')
+
+export const updateEmailSettingsSchema = z
+  .discriminatedUnion('provider', [smtpEmailSettingsSchema, httpEmailSettingsSchema, cloudflareEmailSettingsSchema])
+  .openapi('UpdateEmailSettings')
+
+export const createTestEmailSchema = z.object({ to: z.string().email() }).openapi('CreateTestEmail')
+
 export const siteSettingsSchema = z
   .object({
     identity: siteIdentitySettingsSchema,
@@ -171,6 +219,9 @@ export type SiteRegistrationSettings = z.infer<typeof siteRegistrationSettingsSc
 export type SiteCaptchaSettings = z.infer<typeof siteCaptchaSettingsSchema>
 export type SiteQuotaSettings = z.infer<typeof siteQuotaSettingsSchema>
 export type SiteWebDavSettings = z.infer<typeof siteWebDavSettingsSchema>
+export type EmailSettings = z.infer<typeof emailSettingsSchema>
+export type UpdateEmailSettingsInput = z.infer<typeof updateEmailSettingsSchema>
+export type CreateTestEmailInput = z.infer<typeof createTestEmailSchema>
 export type UpdateSiteIdentityInput = z.infer<typeof updateSiteIdentitySchema>
 export type UpdateSiteRegistrationInput = z.infer<typeof updateSiteRegistrationSchema>
 export type UpdateSiteCaptchaInput = z.infer<typeof updateSiteCaptchaSchema>

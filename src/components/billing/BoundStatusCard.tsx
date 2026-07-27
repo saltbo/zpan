@@ -31,7 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { entitlementQueryKey } from '@/hooks/useEntitlement'
+import { entitlementQueryKey, licenseBindingQueryKey } from '@/hooks/useEntitlement'
 import type { BindingState } from '@/lib/api'
 import { disconnectCloud, refreshLicense } from '@/lib/api'
 
@@ -70,6 +70,7 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
     mutationFn: refreshLicense,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: entitlementQueryKey })
+      queryClient.invalidateQueries({ queryKey: licenseBindingQueryKey })
       toast.success(t('settings.billing.bound.refreshSuccess'))
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : t('settings.billing.bound.refreshError')),
@@ -79,6 +80,7 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
     mutationFn: disconnectCloud,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: entitlementQueryKey })
+      queryClient.invalidateQueries({ queryKey: licenseBindingQueryKey })
       setDisconnectOpen(false)
       toast.success(t(`settings.billing.bound.${licenseEdition}.disconnectSuccess`))
     },

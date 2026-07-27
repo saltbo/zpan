@@ -4,7 +4,7 @@
 // logging — so the http handlers only validate input, call these functions, and
 // serialize the result.
 
-import { type AppError, badRequest, type InviteCodeRecord, type InviteRepo, notFound } from '../ports'
+import { type AppError, conflict, type InviteCodeRecord, type InviteRepo, notFound } from '../ports'
 
 export type InviteCodeDeps = {
   invites: InviteRepo
@@ -40,6 +40,6 @@ export async function deleteInviteCode(deps: InviteCodeDeps, params: { id: strin
   const { id } = params
   const result = await deps.invites.delete(id)
   if (result === 'not_found') return { ok: false, error: notFound('Invite code not found') }
-  if (result === 'already_used') return { ok: false, error: badRequest('Cannot delete a used invite code') }
+  if (result === 'already_used') return { ok: false, error: conflict('Cannot delete a used invite code') }
   return { ok: true }
 }

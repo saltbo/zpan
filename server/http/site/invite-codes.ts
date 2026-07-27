@@ -83,7 +83,7 @@ const deleteRoute = createRoute({
   request: { params: z.object({ id: z.string() }) },
   responses: {
     204: { description: 'Deleted invite code' },
-    400: errorResponse('Cannot delete a used invite code'),
+    409: errorResponse('Cannot delete a used invite code'),
     404: errorResponse('Invite code not found'),
   },
 })
