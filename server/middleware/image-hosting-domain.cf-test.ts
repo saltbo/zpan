@@ -95,6 +95,24 @@ describe('[CF] imageHostingDomain — custom Host serves image redirect', () => 
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
     vi.restoreAllMocks()
   })
+
+  it('returns a localized image placeholder when a rewritten image path is missing', async () => {
+    const { app, db } = await buildApp()
+    const orgId = await signUpAndGetOrgId(app, db)
+    await insertImageHostingConfig(db, orgId, { customDomain: 'img.cf-missing.com' })
+
+    const res = await app.request('/ih/missing.png', {
+      headers: {
+        host: 'img.cf-missing.com',
+        Accept: 'image/avif,image/webp,image/svg+xml,image/*,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+      },
+    })
+
+    expect(res.status).toBe(404)
+    expect(res.headers.get('content-type')).toBe('image/svg+xml; charset=utf-8')
+    expect(await res.text()).toContain('图片不存在')
+  })
 })
 
 describe('[CF] imageHostingDomain — workers.dev preview host uses normal routing', () => {

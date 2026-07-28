@@ -641,6 +641,7 @@ export interface ImageHosting {
   orgId: string
   token: string
   path: string
+  url: string
   storageId: string
   storageKey: string
   size: number

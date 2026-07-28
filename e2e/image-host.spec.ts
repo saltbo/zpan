@@ -164,6 +164,16 @@ test.describe('Image Host gallery golden path @all', () => {
     const confirmResp = await page.request.put(`/api/image-hosting/images/${draftId}/status`)
     await expectApiOk(confirmResp, 'Confirm seeded image')
 
+    await page.route('**/api/image-hosting/images?*', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      const response = await route.fetch()
+      const body = (await response.json()) as { items: Array<{ path: string; url: string }> }
+      for (const item of body.items) {
+        if (item.path === 'e2e-copy-test.png') item.url = 'https://images.example.com/e2e-copy-test.png'
+      }
+      await route.fulfill({ response, json: body })
+    })
+
     // Reload to see the seeded image
     await page.reload()
 
@@ -172,7 +182,7 @@ test.describe('Image Host gallery golden path @all', () => {
     await page.getByRole('menuitem', { name: /markdown/i }).click()
 
     const clipText = await page.evaluate(() => navigator.clipboard.readText())
-    expect(clipText).toMatch(/!\[\]\(/)
+    expect(clipText).toBe('![](https://images.example.com/e2e-copy-test.png)')
   })
 
   test('delete with Undo → cancel → item restored', async ({ page }) => {

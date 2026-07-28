@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import { isImageHostingToken } from '../domain/image-hosting'
 import { isDownloadFailureStatus, transferAuditActor, transferFailureReason } from '../middleware/audit-transfers'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
@@ -13,7 +14,7 @@ import {
 } from '../usecases/redirect'
 import { recordDownloadFailure, recordDownloadIssued } from '../usecases/transfer-activity'
 
-// Strip optional file extension from token (e.g. "ih_aB3xK9.png" → "ih_aB3xK9")
+// Strip optional file extension from token (e.g. "ihaB3xK9.png" → "ihaB3xK9")
 function stripExtension(token: string): string {
   const dot = token.lastIndexOf('.')
   return dot > 0 ? token.slice(0, dot) : token
@@ -99,7 +100,7 @@ app.get('/:token', async (c) => {
   const token = stripExtension(raw)
 
   if (token.startsWith('ds_')) return handleDirectShare(c, token)
-  if (token.startsWith('ih_')) return handleImageHosting(c, token)
+  if (isImageHostingToken(token)) return handleImageHosting(c, token)
 
   throw notFound()
 })

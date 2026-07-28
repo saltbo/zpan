@@ -71,6 +71,7 @@ function makeIhostItem(id: string, overrides: Partial<IhostItem> = {}): IhostIte
     updatedAt: '2024-01-01T00:00:00.000Z',
     token: `tok_${id}`,
     url: `/r/tok_${id}.png`,
+    publicUrl: `/r/tok_${id}.png`,
     dimensions: null,
     accessCount: 0,
     ...overrides,
@@ -100,7 +101,7 @@ function handleCopyUrl(
   copy?: (text: string, key: string) => void,
 ): string {
   const ihostItem = item as IhostItem
-  const path = ihostItem.url ?? ''
+  const path = ihostItem.publicUrl ?? ''
   const url = path.startsWith('/') ? `${window.location.origin}${path}` : path
   const text = buildCopyText(url, format)
   if (copy) copy(text, 'ihost.copy.copied')
@@ -185,6 +186,14 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
     expect(text).toBe('http://localhost:3000/r/tok_img-1.png')
   })
 
+  it('uses an absolute custom-domain URL returned by the server', () => {
+    const item = makeIhostItem('img-1', { publicUrl: 'https://images.example.com/blog/photo.png' })
+
+    const text = handleCopyUrl(item, 'raw')
+
+    expect(text).toBe('https://images.example.com/blog/photo.png')
+  })
+
   it('returns markdown format', () => {
     const item = makeIhostItem('img-1')
 
@@ -253,8 +262,8 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
     expect(copy).toHaveBeenCalledWith('[img]http://localhost:3000/r/tok_img-1.png[/img]', 'ihost.copy.copied')
   })
 
-  it('uses empty string url when item has no url', () => {
-    const item = makeIhostItem('img-1', { url: '' })
+  it('uses empty string url when item has no public URL', () => {
+    const item = makeIhostItem('img-1', { publicUrl: '' })
 
     const text = handleCopyUrl(item, 'raw')
 

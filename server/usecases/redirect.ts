@@ -1,6 +1,6 @@
 // The redirect resource usecase. Owns every business decision behind the
 // /r/:token short-link download routes — the two sub-resources served there:
-// `ds_` direct shares and `ih_` image-hosting links. Each resolves a token,
+// `ds_` direct shares and `ih` image-hosting links. Each resolves a token,
 // runs its access/expiry/limit gates, meters the download (egress quota + cloud
 // report, with refund-on-presign-failure rollback), and presigns the object.
 //
@@ -8,6 +8,7 @@
 // inputs (cloud base URL, referer header, request origin), and renders the
 // route-specific Responses from the discriminated outcomes below.
 
+import { isImageHostingToken } from '../domain/image-hosting'
 import {
   type AppError,
   expired as expiredError,
@@ -64,7 +65,7 @@ export async function resolveRedirectDownloadAuditTarget(
     }
   }
 
-  if (token.startsWith('ih_')) {
+  if (isImageHostingToken(token)) {
     const resolved = await deps.imageHosting.resolveActiveByToken(token)
     if (!resolved) return null
     return {
@@ -188,7 +189,7 @@ export async function resolveDirectShareDownload(
   }
 }
 
-// ─── Image hosting (ih_) ─────────────────────────────────────────────────────
+// ─── Image hosting (ih) ──────────────────────────────────────────────────────
 
 export type ImageHostingOutcome =
   | {
@@ -205,7 +206,7 @@ export type ImageHostingOutcome =
     }
   | { ok: false; error: AppError }
 
-// Resolve an ih_ token to a presigned inline URL. Order matters and mirrors the
+// Resolve an ih token to a presigned inline URL. Order matters and mirrors the
 // historical flow: enforce the referer allowlist, consume traffic quota, presign
 // (refunding the quota on failure → 500), THEN report egress to Cloud (refunding
 // + 402 on a credit block, so the presigned URL is discarded) and only then bump

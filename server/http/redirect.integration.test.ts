@@ -285,9 +285,9 @@ describe('GET /r/:token (ds_ direct shares)', () => {
   })
 })
 
-// ─── ih_ image hosting tests ──────────────────────────────────────────────────
+// ─── image hosting token tests ────────────────────────────────────────────────
 
-describe('GET /r/:token (ih_ image hosting)', () => {
+describe('GET /r/:token (image hosting)', () => {
   it('returns 302 with inline disposition and no-store cache for active image [spec: redirect/image]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
@@ -312,6 +312,19 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(events).toEqual([
       { actorType: 'anonymous', bytes: 1024, source: 'image_hosting', trafficEventId: expect.any(String) },
     ])
+  })
+
+  it('serves a new image-hosting token without an underscore', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'ih-new-token', token: 'ihnewtoken1' })
+
+    const res = await app.request('/r/ihnewtoken1.png', { redirect: 'manual' })
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
   })
 
   it('strips .png extension and resolves same image [spec: redirect/image-strip-ext]', async () => {
