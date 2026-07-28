@@ -39,6 +39,26 @@ export function jsonError(c: Context<Env>, err: unknown): Response {
   return c.json(buildErrorBody(500, 'Internal Server Error', { reason: 'INTERNAL' }), 500)
 }
 
+// Render the same JSON error outside Hono's request pipeline. Cloudflare's
+// image-domain fast path runs before the full app (and Better Auth) exists.
+export function standaloneJsonError(err: unknown): Response {
+  if (err instanceof AppError) {
+    return Response.json(
+      buildErrorBody(err.httpStatus, err.message, {
+        reason: err.meta.reason,
+        status: err.meta.canonicalStatus,
+        metadata: err.meta.metadata,
+      }),
+      { status: err.httpStatus, headers: err.meta.headers },
+    )
+  }
+
+  const mapped = mapDomainError(err)
+  if (mapped) return Response.json(mapped.json, { status: mapped.status })
+
+  return Response.json(buildErrorBody(500, 'Internal Server Error', { reason: 'INTERNAL' }), { status: 500 })
+}
+
 // True when `jsonError` would translate `err` into a specific (non-500) result.
 // Lets `app.onError` log only genuinely unhandled errors as `http.unhandled_error`.
 export function isHandledError(err: unknown): boolean {

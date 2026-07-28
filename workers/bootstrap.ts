@@ -8,6 +8,8 @@ import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
 import { createDeps } from '../server/composition'
 import { isPotentialWebDavPublicRequest } from '../server/domain/webdav-public-url'
+import { isHandledError, standaloneJsonError } from '../server/middleware/error-handler'
+import { handleImageHostingDomainRequest } from '../server/middleware/image-hosting-domain'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { platformContext } from '../server/platform/context'
 import type { Deps } from '../server/usecases/deps'
@@ -105,6 +107,8 @@ export default {
       throw new Error('BETTER_AUTH_SECRET is not configured for this deployment.')
     }
     const runtime = runtimeFor(env)
+    const imageDomainResponse = await handleImageDomainBeforeAuth(request, env, runtime)
+    if (imageDomainResponse) return imageDomainResponse
     const edgeCached = await matchConfigzResponseCache(request, runtime.cache)
     if (edgeCached) return edgeCached
     const app = await appForRequest(runtime, request, env)
@@ -135,6 +139,39 @@ export default {
       message.ack()
     }
   },
+}
+
+async function handleImageDomainBeforeAuth(
+  request: Request,
+  env: Env,
+  runtime: WorkerRuntime,
+): Promise<Response | null> {
+  if (!isImageDomainFastPathRequest(request, env)) return null
+
+  try {
+    return await platformContext.run(runtime.platform, () =>
+      handleImageHostingDomainRequest({
+        request,
+        deps: runtime.deps,
+        platform: runtime.platform,
+        appHosts: [new URL(env.BETTER_AUTH_URL!).hostname.toLowerCase(), 'workers.dev'],
+        webDavMountPath: '/dav',
+      }),
+    )
+  } catch (error) {
+    if (!isHandledError(error)) console.error(`image_domain.unhandled_error code=${String(error)}`)
+    return standaloneJsonError(error)
+  }
+}
+
+export function isImageDomainFastPathRequest(request: Request, env: Pick<Env, 'BETTER_AUTH_URL'>): boolean {
+  if (!env.BETTER_AUTH_URL) return false
+  const url = new URL(request.url)
+  if (url.pathname !== '/ih' && !url.pathname.startsWith('/ih/')) return false
+
+  const host = (request.headers.get('host') ?? url.host).replace(/:\d+$/, '').toLowerCase()
+  const appHost = new URL(env.BETTER_AUTH_URL).hostname.toLowerCase()
+  return host !== appHost && !host.endsWith('.workers.dev')
 }
 
 function configzCacheKey(request: Request, includeValidators = false): Request | null {

@@ -1,11 +1,17 @@
 import type { Context, Next } from 'hono'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { imageHostingNotFound } from '../http/image-hosting-not-found'
 import { PRESIGN_TTL_SECS } from '../http/share-utils'
-import { reportTrafficForDownload } from '../http/store/traffic-metering'
 import type { Env } from '../middleware/platform'
+import type { Platform } from '../platform/interface'
+import type { Deps } from '../usecases/deps'
 import { cacheVerifiedImageDomain, resolveCachedImageDomain } from '../usecases/image-hosting/domain-cache'
-import { forbidden, notFound, quotaExceeded, storageNotFound } from '../usecases/ports'
-import { confirmDownloadTraffic, reverseDownloadTraffic } from '../usecases/store/traffic-metering'
+import { forbidden, insufficientCredits, notFound, quotaExceeded, storageNotFound } from '../usecases/ports'
+import {
+  confirmDownloadTraffic,
+  reportDownloadEgress,
+  reverseDownloadTraffic,
+} from '../usecases/store/traffic-metering'
 import { createTrafficEventId, recordDownloadFailure, recordDownloadIssued } from '../usecases/transfer-activity'
 
 function stripPort(host: string): string {
@@ -40,37 +46,44 @@ function checkReferer(refererAllowlist: string[], refererHeader: string | null):
   }
 }
 
-async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: string): Promise<Response> {
-  const resolved = await c.get('deps').imageHosting.resolveActiveByOrgPath(orgId, virtualPath)
-  if (!resolved) return imageHostingNotFound(c.req.raw)
+async function handleImageByPath(
+  request: Request,
+  deps: Deps,
+  platform: Platform,
+  orgId: string,
+  virtualPath: string,
+): Promise<Response> {
+  const resolved = await deps.imageHosting.resolveActiveByOrgPath(orgId, virtualPath)
+  if (!resolved) return imageHostingNotFound(request)
 
   const { image, refererAllowlist } = resolved
 
-  const refererHeader = c.req.header('Referer') ?? null
+  const refererHeader = request.headers.get('Referer')
   if (!checkReferer(refererAllowlist, refererHeader)) {
     throw forbidden('forbidden referer')
   }
 
-  const storage = await c.get('deps').storages.get(image.storageId)
+  const storage = await deps.storages.get(image.storageId)
   if (!storage) throw storageNotFound('Storage not found')
 
-  const trafficAllowed = await c.get('deps').quota.consumeTrafficIfQuotaAllows(image.orgId, image.size)
+  const trafficAllowed = await deps.quota.consumeTrafficIfQuotaAllows(image.orgId, image.size)
   if (!trafficAllowed) {
-    await recordImageDownloadFailure(c, image, 'quota_exceeded')
+    await recordImageDownloadFailure(deps, image, 'quota_exceeded')
     throw quotaExceeded('Traffic quota exceeded')
   }
 
   let url: string
   try {
-    url = await c.get('deps').s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
+    url = await deps.s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
   } catch (e) {
-    await c.get('deps').quota.refundTraffic(image.orgId, image.size)
-    await recordImageDownloadFailure(c, image, 'presign_failed')
+    await deps.quota.refundTraffic(image.orgId, image.size)
+    await recordImageDownloadFailure(deps, image, 'presign_failed')
     throw e
   }
 
   const trafficEventId = createTrafficEventId()
-  const trafficReportError = await reportTrafficForDownload(c, {
+  const trafficOutcome = await reportDownloadEgress(deps, {
+    cloudBaseUrl: platform.getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT,
     orgId: image.orgId,
     bytes: image.size,
     storage,
@@ -78,29 +91,29 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
     sourceId: image.id,
     eventId: trafficEventId,
   })
-  if (trafficReportError) {
-    await recordImageDownloadFailure(c, image, 'insufficient_credits')
-    return trafficReportError
+  if (!trafficOutcome.ok) {
+    await recordImageDownloadFailure(deps, image, 'insufficient_credits')
+    throw insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } })
   }
   try {
-    await confirmDownloadTraffic(c.get('deps'), { eventId: trafficEventId })
+    await confirmDownloadTraffic(deps, { eventId: trafficEventId })
   } catch (error) {
-    await reverseDownloadTraffic(c.get('deps'), {
+    await reverseDownloadTraffic(deps, {
       orgId: image.orgId,
       bytes: image.size,
       eventId: trafficEventId,
     })
-    await recordImageDownloadFailure(c, image, 'internal')
+    await recordImageDownloadFailure(deps, image, 'internal')
     throw error
   }
 
   try {
-    await c.get('deps').imageHosting.incrementAccessCount(image.id)
+    await deps.imageHosting.incrementAccessCount(image.id)
   } catch (error) {
     console.error('[image-hosting-domain] incrementAccessCount failed:', error)
   }
   await recordDownloadIssued(
-    c.get('deps'),
+    deps,
     { userId: null, actorType: 'anonymous', actorRef: null },
     'image_hosting_download',
     {
@@ -114,18 +127,22 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
     },
     trafficEventId,
   )
-  const res = c.redirect(url, 302)
-  res.headers.set('Cache-Control', 'no-store')
-  return res
+  return new Response(null, {
+    status: 302,
+    headers: {
+      'Cache-Control': 'no-store',
+      Location: url,
+    },
+  })
 }
 
 function recordImageDownloadFailure(
-  c: Context<Env>,
+  deps: Deps,
   image: { id: string; orgId: string; path: string; size: number; storageId: string },
   reason: string,
 ): Promise<void> {
   return recordDownloadFailure(
-    c.get('deps'),
+    deps,
     { userId: null, actorType: 'anonymous', actorRef: null },
     {
       orgId: image.orgId,
@@ -140,31 +157,40 @@ function recordImageDownloadFailure(
   )
 }
 
-// biome-ignore lint/suspicious/noConfusingVoidType: Next returns void; union with Response is intentional
-export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<Response | void> {
-  if (isApplicationPath(c.req.path)) return next()
+export interface ImageHostingDomainRequestOptions {
+  request: Request
+  deps: Deps
+  platform: Platform
+  appHosts: string[]
+  webDavMountPath: string
+}
 
-  const rawHost = c.req.header('host')
-  if (!rawHost) return next()
+export async function handleImageHostingDomainRequest({
+  request,
+  deps,
+  platform,
+  appHosts,
+  webDavMountPath,
+}: ImageHostingDomainRequestOptions): Promise<Response | null> {
+  const path = requestPath(request)
+  if (isApplicationPath(path)) return null
 
+  const rawHost = request.headers.get('host') ?? new URL(request.url).host
   const host = normalizeHost(rawHost)
-  if (!host) return next()
+  if (!host || webDavMountPath === '') return null
 
-  if (c.get('webDavMountPath') === '') return next()
-
-  const appHosts = getAppHostCandidates(c)
   if (
     appHosts.some((candidate) => host === candidate || (candidate === 'workers.dev' && host.endsWith('.workers.dev')))
   ) {
-    return next()
+    return null
   }
 
   const verificationPrefix = '/.well-known/zpan-domain-verification/'
-  if (c.req.method === 'GET' && c.req.path.startsWith(verificationPrefix)) {
-    const token = c.req.path.slice(verificationPrefix.length)
+  if (request.method === 'GET' && path.startsWith(verificationPrefix)) {
+    const token = path.slice(verificationPrefix.length)
     const [row, provider] = await Promise.all([
-      c.get('deps').imageHostingConfigs.getByDomain(host),
-      c.get('deps').imageDomains.getConfig(),
+      deps.imageHostingConfigs.getByDomain(host),
+      deps.imageDomains.getConfig(),
     ])
     if (
       row?.customDomain &&
@@ -176,27 +202,51 @@ export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<R
       !provider.error
     ) {
       const now = new Date()
-      await c.get('deps').imageHostingConfigs.update(row.orgId, {
+      await deps.imageHostingConfigs.update(row.orgId, {
         domainStatus: 'verified',
         domainError: null,
         domainLastCheckedAt: now,
         domainVerifiedAt: now,
       })
-      await cacheVerifiedImageDomain(c.get('deps'), host, row.orgId)
-      return c.text(token, 200, { 'Cache-Control': 'no-store' })
+      await cacheVerifiedImageDomain(deps, host, row.orgId)
+      return new Response(token, {
+        status: 200,
+        headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=UTF-8' },
+      })
     }
     throw notFound('Domain verification not found')
   }
 
-  const orgId = await resolveCachedImageDomain(c.get('deps'), host)
-  if (!orgId) return next()
+  const orgId = await resolveCachedImageDomain(deps, host)
+  if (!orgId) return null
 
-  const virtualPath = c.req.path.replace(/^\/ih(?:\/|$)/, '').replace(/^\/+/, '')
-  if (!virtualPath) return imageHostingNotFound(c.req.raw)
+  const virtualPath = path.replace(/^\/ih(?:\/|$)/, '').replace(/^\/+/, '')
+  if (!virtualPath) return imageHostingNotFound(request)
 
-  return handleImageByPath(c, orgId, virtualPath)
+  return handleImageByPath(request, deps, platform, orgId, virtualPath)
+}
+
+// biome-ignore lint/suspicious/noConfusingVoidType: Next returns void; union with Response is intentional
+export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<Response | void> {
+  const response = await handleImageHostingDomainRequest({
+    request: c.req.raw,
+    deps: c.get('deps'),
+    platform: c.get('platform'),
+    appHosts: getAppHostCandidates(c),
+    webDavMountPath: c.get('webDavMountPath'),
+  })
+  return response ?? next()
 }
 
 function isApplicationPath(path: string): boolean {
   return path === '/api' || path.startsWith('/api/') || path === '/dav' || path.startsWith('/dav/')
+}
+
+function requestPath(request: Request): string {
+  const path = new URL(request.url).pathname
+  try {
+    return decodeURI(path)
+  } catch {
+    return path
+  }
 }
