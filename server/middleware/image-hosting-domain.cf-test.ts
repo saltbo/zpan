@@ -78,6 +78,23 @@ describe('[CF] imageHostingDomain — custom Host serves image redirect', () => 
     expect(res.headers.get('cache-control')).toBe('no-store')
     vi.restoreAllMocks()
   })
+
+  it('serves a rewritten /ih path without exposing the prefix to image lookup', async () => {
+    vi.spyOn(S3Service.prototype, 'presignInline').mockResolvedValue(MOCK_INLINE_URL)
+    const { app, db } = await buildApp()
+    const orgId = await signUpAndGetOrgId(app, db)
+    await insertStorage(db)
+    await insertImageHosting(db, orgId, { id: `cf-ih-${Date.now()}`, path: '中文/图片.png' })
+    await insertImageHostingConfig(db, orgId, { customDomain: 'img.cf-rewrite.com' })
+
+    const res = await app.request('/ih/%E4%B8%AD%E6%96%87/%E5%9B%BE%E7%89%87.png', {
+      headers: { host: 'img.cf-rewrite.com' },
+      redirect: 'manual',
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
+    vi.restoreAllMocks()
+  })
 })
 
 describe('[CF] imageHostingDomain — workers.dev preview host uses normal routing', () => {

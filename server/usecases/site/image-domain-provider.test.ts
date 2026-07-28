@@ -74,7 +74,12 @@ const cloudflareConfig: ImageDomainProviderConfig = {
   settings: {
     enabled: true,
     provider: 'cloudflare_saas',
-    cloudflare: { apiToken: 'very-secret-token', zoneId: 'zone-1', cnameTarget: 'ssl.example.com' },
+    cloudflare: {
+      apiToken: 'very-secret-token',
+      zoneId: 'zone-1',
+      workerName: 'zpan',
+      cnameTarget: 'ssl.example.com',
+    },
   },
   lastTestedAt: new Date('2026-07-27T12:00:00.000Z'),
   error: null,
@@ -106,7 +111,7 @@ describe('image-domain provider settings', () => {
     await saveImageDomainProvider(deps, {
       enabled: true,
       provider: 'cloudflare_saas',
-      cloudflare: { apiToken: '****oken', zoneId: 'zone-2', cnameTarget: 'ssl2.example.com' },
+      cloudflare: { apiToken: '****oken', zoneId: 'zone-2', workerName: 'zpan', cnameTarget: 'ssl2.example.com' },
     })
     expect(deps.setMany).toHaveBeenCalledWith(
       expect.arrayContaining([
@@ -123,7 +128,7 @@ describe('image-domain provider settings', () => {
     await saveImageDomainProvider(deps, {
       enabled: true,
       provider: 'cloudflare_saas',
-      cloudflare: { apiToken: 'new-token', zoneId: 'zone-1', cnameTarget: 'ssl2.example.com' },
+      cloudflare: { apiToken: 'new-token', zoneId: 'zone-1', workerName: 'zpan', cnameTarget: 'ssl2.example.com' },
     })
     expect(deps.deprovision).not.toHaveBeenCalled()
     expect(deps.markAllDomainsPending).toHaveBeenCalledWith('cloudflare_saas', true)

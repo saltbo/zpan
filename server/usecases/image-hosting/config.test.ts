@@ -41,7 +41,7 @@ const readyCloudflare: ImageDomainProviderConfig = {
   settings: {
     enabled: true,
     provider: 'cloudflare_saas',
-    cloudflare: { apiToken: 'token', zoneId: 'zone', cnameTarget: 'ssl.example.net' },
+    cloudflare: { apiToken: 'token', zoneId: 'zone', workerName: 'zpan', cnameTarget: 'ssl.example.net' },
   },
   lastTestedAt: now,
   error: null,

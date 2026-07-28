@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { GlobeLock } from 'lucide-react'
+import { ExternalLink, GlobeLock } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -21,6 +21,7 @@ type FormState = {
   provider: Provider
   apiToken: string
   zoneId: string
+  workerName: string
   cnameTarget: string
   records: string
 }
@@ -30,6 +31,7 @@ const emptyForm: FormState = {
   provider: 'cloudflare_saas',
   apiToken: '',
   zoneId: '',
+  workerName: 'zpan',
   cnameTarget: '',
   records: 'CNAME images.example.com',
 }
@@ -42,6 +44,7 @@ function toForm(data: Awaited<ReturnType<typeof getImageDomainProvider>> | undef
       provider: 'cloudflare_saas',
       apiToken: data.settings.cloudflare.apiToken,
       zoneId: data.settings.cloudflare.zoneId,
+      workerName: data.settings.cloudflare.workerName,
       cnameTarget: data.settings.cloudflare.cnameTarget,
       records: emptyForm.records,
     }
@@ -52,6 +55,23 @@ function toForm(data: Awaited<ReturnType<typeof getImageDomainProvider>> | undef
     provider: 'manual',
     records: data.settings.manual.records.map((record) => `${record.type} ${record.value}`).join('\n'),
   }
+}
+
+function cloudflareTokenUrl(zoneId: string): string {
+  const permissions = [
+    { key: 'zone', type: 'read' },
+    { key: 'dns', type: 'edit' },
+    { key: 'ssl_and_certificates', type: 'edit' },
+    { key: 'zone_transform_rules', type: 'edit' },
+    { key: 'workers_routes', type: 'edit' },
+  ]
+  const params = new URLSearchParams({
+    permissionGroupKeys: JSON.stringify(permissions),
+    accountId: '*',
+    zoneId: zoneId.trim() || 'all',
+    name: 'ZPan Image Hosting',
+  })
+  return `https://dash.cloudflare.com/profile/api-tokens?${params}`
 }
 
 function parseRecords(value: string): Array<{ type: 'CNAME' | 'A' | 'AAAA'; value: string }> {
@@ -87,6 +107,7 @@ export function ImageDomainProviderSection() {
           cloudflare: {
             apiToken: form.apiToken,
             zoneId: form.zoneId.trim(),
+            workerName: form.workerName.trim(),
             cnameTarget: form.cnameTarget.trim(),
           },
         })
@@ -222,7 +243,22 @@ export function ImageDomainProviderSection() {
 
         {form.provider === 'cloudflare_saas' ? (
           <>
-            <AdminFormField id="cfApiToken" label={t('admin.imageDomains.apiToken')} required>
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <p>{t('admin.imageDomains.cloudflareGuide')}</p>
+              <Button asChild variant="link" className="h-auto px-0 py-2">
+                <a href={cloudflareTokenUrl(form.zoneId)} target="_blank" rel="noreferrer">
+                  {t('admin.imageDomains.createToken')}
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </Button>
+              <p className="text-muted-foreground">{t('admin.imageDomains.tokenScopeHelp')}</p>
+            </div>
+            <AdminFormField
+              id="cfApiToken"
+              label={t('admin.imageDomains.apiToken')}
+              help={t('admin.imageDomains.apiTokenHelp')}
+              required
+            >
               <Input
                 id="cfApiToken"
                 type="password"
@@ -235,6 +271,18 @@ export function ImageDomainProviderSection() {
                 id="cfZoneId"
                 value={form.zoneId}
                 onChange={(event) => setForm((current) => ({ ...current, zoneId: event.target.value }))}
+              />
+            </AdminFormField>
+            <AdminFormField
+              id="cfWorkerName"
+              label={t('admin.imageDomains.workerName')}
+              help={t('admin.imageDomains.workerNameHelp')}
+              required
+            >
+              <Input
+                id="cfWorkerName"
+                value={form.workerName}
+                onChange={(event) => setForm((current) => ({ ...current, workerName: event.target.value }))}
               />
             </AdminFormField>
             <AdminFormField id="cfCnameTarget" label={t('admin.imageDomains.cnameTarget')} required>

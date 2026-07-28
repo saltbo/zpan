@@ -158,6 +158,20 @@ describe('createDownloadTaskSchema', () => {
 })
 
 describe('updateImageDomainSettingsSchema', () => {
+  it('accepts complete Cloudflare automation settings', () => {
+    const result = updateImageDomainSettingsSchema.safeParse({
+      enabled: true,
+      provider: 'cloudflare_saas',
+      cloudflare: {
+        apiToken: 'token',
+        zoneId: '0123456789abcdef0123456789abcdef',
+        workerName: 'zpan',
+        cnameTarget: 'images.example.com',
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
   it('accepts CNAME, IPv4, and IPv6 records', () => {
     const result = updateImageDomainSettingsSchema.safeParse({
       enabled: true,
@@ -190,7 +204,7 @@ describe('updateImageDomainSettingsSchema', () => {
     const result = updateImageDomainSettingsSchema.safeParse({
       enabled: true,
       provider: 'cloudflare_saas',
-      cloudflare: { apiToken: 'token', zoneId: 'zone-1', cnameTarget: 'ssl.example.com' },
+      cloudflare: { apiToken: 'token', zoneId: 'zone-1', workerName: 'zpan', cnameTarget: 'ssl.example.com' },
     })
     expect(result.success).toBe(false)
   })

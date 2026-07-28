@@ -7,18 +7,27 @@ the provider reports **Ready**.
 
 ## Cloudflare for SaaS
 
-Use this provider when the ZPan instance already has Cloudflare for SaaS
-configured on a zone.
+Use this provider when the ZPan Worker and its customer image domains are served
+through a Cloudflare zone.
 
-1. Configure a fallback origin in Cloudflare for SaaS.
-2. Create a scoped API token that can read the zone and manage Custom Hostnames.
-3. Enter the token, zone ID, and customer CNAME target in ZPan.
-4. Save and test the configuration.
+1. Open the preconfigured API-token link in the ZPan settings drawer.
+2. Restrict the token to the zone used by this ZPan instance and create it.
+3. Enter the token, zone ID, deployed Worker name, and a CNAME target inside
+   that zone.
+4. Save, then select **Set up and test**.
 
-ZPan creates a Cloudflare Custom Hostname when a workspace binds a domain,
-periodically refreshes DNS/TLS status, and removes the Custom Hostname when the
-binding is deleted. ZPan does not create the fallback origin, DNS records, or
-Worker routes.
+The token requires Zone Read plus DNS, SSL and Certificates, Zone Transform
+Rules, and Workers Routes Edit permissions. ZPan uses it to create or reuse the
+proxied CNAME target and fallback origin, install one managed URL rewrite rule,
+and route only `*/ih/*` to the configured Worker. The rewrite adds `/ih`
+internally, so customer image URLs remain clean and unrelated traffic does not
+invoke the Worker.
+
+When a workspace binds a domain, ZPan also creates its Cloudflare Custom
+Hostname, refreshes DNS/TLS status, and removes it when the binding is deleted.
+The workspace owner still needs to create the displayed CNAME at their
+authoritative DNS provider. Enabling Cloudflare for SaaS for the zone for the
+first time remains an account-level Cloudflare action.
 
 ## Self-managed
 

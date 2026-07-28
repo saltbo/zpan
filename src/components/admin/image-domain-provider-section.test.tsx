@@ -17,6 +17,15 @@ const labels = {
     'admin.imageDomains.enabled': 'Enable custom domains',
     'admin.imageDomains.provider': 'Provider',
     'admin.imageDomains.cloudflare': 'Cloudflare for SaaS',
+    'admin.imageDomains.cloudflareGuide': 'Create a scoped token',
+    'admin.imageDomains.createToken': 'Create preconfigured Cloudflare token',
+    'admin.imageDomains.tokenScopeHelp': 'Restrict the zone',
+    'admin.imageDomains.apiToken': 'Cloudflare API token',
+    'admin.imageDomains.apiTokenHelp': 'Token help',
+    'admin.imageDomains.zoneId': 'Cloudflare zone ID',
+    'admin.imageDomains.workerName': 'Worker script name',
+    'admin.imageDomains.workerNameHelp': 'Worker help',
+    'admin.imageDomains.cnameTarget': 'CNAME target',
     'admin.imageDomains.records': 'DNS records',
     'admin.imageDomains.recordsHelp': 'One record per line',
     'admin.imageDomains.boundDomains': 'Bound domains',
@@ -39,6 +48,15 @@ const labels = {
     'admin.imageDomains.enabled': '启用自定义域名',
     'admin.imageDomains.provider': 'Provider',
     'admin.imageDomains.cloudflare': 'Cloudflare for SaaS',
+    'admin.imageDomains.cloudflareGuide': '创建权限受限的 Token',
+    'admin.imageDomains.createToken': '创建预配置的 Cloudflare Token',
+    'admin.imageDomains.tokenScopeHelp': '限制 Zone',
+    'admin.imageDomains.apiToken': 'Cloudflare API Token',
+    'admin.imageDomains.apiTokenHelp': 'Token 说明',
+    'admin.imageDomains.zoneId': 'Cloudflare Zone ID',
+    'admin.imageDomains.workerName': 'Worker 脚本名称',
+    'admin.imageDomains.workerNameHelp': 'Worker 说明',
+    'admin.imageDomains.cnameTarget': 'CNAME 目标',
     'admin.imageDomains.records': 'DNS 记录',
     'admin.imageDomains.recordsHelp': '每行一条',
     'admin.imageDomains.boundDomains': '已绑定域名',
@@ -156,5 +174,40 @@ describe('ImageDomainProviderSection', () => {
     const view = renderSection()
     fireEvent.click(await view.findByRole('button', { name: 'Test configuration' }))
     await waitFor(() => expect(testImageDomainProvider).toHaveBeenCalledOnce())
+  })
+
+  it.each([
+    ['en', 'Create preconfigured Cloudflare token'],
+    ['zh', '创建预配置的 Cloudflare Token'],
+  ] as const)('provides a preconfigured Cloudflare token link in %s', async (language, linkName) => {
+    locale.value = language
+    vi.mocked(getImageDomainProvider).mockResolvedValue({
+      ...response,
+      settings: {
+        enabled: true,
+        provider: 'cloudflare_saas',
+        cloudflare: {
+          apiToken: '****oken',
+          zoneId: '0123456789abcdef0123456789abcdef',
+          workerName: 'zpan',
+          cnameTarget: 'images.example.com',
+        },
+      },
+    })
+    const view = renderSection()
+    fireEvent.click(await view.findByRole('button', { name: language === 'zh' ? '编辑' : 'Edit' }))
+    const link = view.getByRole('link', { name: linkName }) as HTMLAnchorElement
+    const url = new URL(link.href)
+    expect(url.origin).toBe('https://dash.cloudflare.com')
+    expect(url.searchParams.get('zoneId')).toBe('0123456789abcdef0123456789abcdef')
+    expect(JSON.parse(url.searchParams.get('permissionGroupKeys') ?? '[]')).toEqual(
+      expect.arrayContaining([
+        { key: 'zone', type: 'read' },
+        { key: 'dns', type: 'edit' },
+        { key: 'ssl_and_certificates', type: 'edit' },
+        { key: 'zone_transform_rules', type: 'edit' },
+        { key: 'workers_routes', type: 'edit' },
+      ]),
+    )
   })
 })

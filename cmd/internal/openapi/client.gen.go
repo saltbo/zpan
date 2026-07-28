@@ -4080,6 +4080,7 @@ type CloudflareSaasImageDomainSettings struct {
 	Cloudflare struct {
 		ApiToken    string `json:"apiToken"`
 		CnameTarget string `json:"cnameTarget"`
+		WorkerName  string `json:"workerName"`
 		ZoneId      string `json:"zoneId"`
 	} `json:"cloudflare"`
 	Enabled  bool                                      `json:"enabled"`
