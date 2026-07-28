@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { describe, expect, it } from 'vitest'
 import { AppError, NameConflictError } from '../usecases/ports'
-import { isHandledError, jsonError } from './error-handler'
+import { isHandledError, jsonError, standaloneJsonError } from './error-handler'
 import type { Env } from './platform'
 
 // Build a real Context so jsonError's c.json / c.set behave as in production.
@@ -56,5 +56,26 @@ describe('isHandledError', () => {
     expect(isHandledError(new NameConflictError('a', 'b'))).toBe(true)
     expect(isHandledError(new Error('boom'))).toBe(false)
     expect(isHandledError(null)).toBe(false)
+  })
+})
+
+describe('standaloneJsonError', () => {
+  it('renders an AppError without a Hono context', async () => {
+    const res = standaloneJsonError(
+      new AppError(429, 'Try later', { reason: 'RATE_LIMITED', headers: { 'Retry-After': '5' } }),
+    )
+    expect(res.status).toBe(429)
+    expect(res.headers.get('retry-after')).toBe('5')
+    expect(await res.json()).toMatchObject({
+      error: { message: 'Try later', status: 'RESOURCE_EXHAUSTED' },
+    })
+  })
+
+  it('does not expose unexpected errors', async () => {
+    const res = standaloneJsonError(new Error('database password leaked'))
+    expect(res.status).toBe(500)
+    expect(await res.json()).toMatchObject({
+      error: { message: 'Internal Server Error' },
+    })
   })
 })

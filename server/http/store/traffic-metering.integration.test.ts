@@ -497,6 +497,75 @@ describe('public redirect cloud traffic reporting', () => {
     ])
   })
 
+  it('denies custom-domain images and refunds traffic when Cloud rejects usage', async () => {
+    const { app, db } = await createTestApp()
+    await seedTrafficBinding(db)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(makeCloudResponse({ error: { code: 'insufficient_credits' } }, 402)),
+    )
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImage(db, orgId, 'ih-cloud-domain-blocked', 'ih_clouddomainblocked', 'blog/domain-blocked.png')
+    await insertImageConfig(db, orgId, 'img-blocked.example.com')
+    await setTrafficQuota(db, orgId)
+
+    const res = await app.request('https://img-blocked.example.com/blog/domain-blocked.png', {
+      headers: { host: 'img-blocked.example.com' },
+      redirect: 'manual',
+    })
+
+    expect(res.status).toBe(402)
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        details: [{ reason: 'INSUFFICIENT_CREDITS', metadata: { resource: 'storage_egress' } }],
+      },
+    })
+    const quotaRows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(quotaRows).toEqual([{ trafficUsed: 25 }])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'blocked', error: 'insufficient_credits' }])
+    const failures = await db.all<{ reason: string }>(sql`
+      SELECT json_extract(metadata, '$.reason') AS reason
+      FROM audit_events
+      WHERE action = 'download_failed' AND target_id = 'ih-cloud-domain-blocked'
+    `)
+    expect(failures).toEqual([{ reason: 'insufficient_credits' }])
+  })
+
+  it('reverses custom-domain traffic when issuing the download fails', async () => {
+    const { app, db, deps } = await createTestApp()
+    await seedTrafficBinding(db)
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImage(db, orgId, 'ih-cloud-domain-confirm-fail', 'ih_clouddomainconfirmfail', 'blog/confirm-fail.png')
+    await insertImageConfig(db, orgId, 'img-confirm-fail.example.com')
+    await setTrafficQuota(db, orgId)
+    vi.spyOn(deps.cloudTrafficReports, 'markIssued').mockRejectedValueOnce(new Error('confirm failed'))
+
+    const res = await app.request('https://img-confirm-fail.example.com/blog/confirm-fail.png', {
+      headers: { host: 'img-confirm-fail.example.com' },
+      redirect: 'manual',
+    })
+
+    expect(res.status).toBe(500)
+    const quotaRows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(quotaRows).toEqual([{ trafficUsed: 25 }])
+    await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'reversed' }])
+    const failures = await db.all<{ reason: string }>(sql`
+      SELECT json_extract(metadata, '$.reason') AS reason
+      FROM audit_events
+      WHERE action = 'download_failed' AND target_id = 'ih-cloud-domain-confirm-fail'
+    `)
+    expect(failures).toEqual([{ reason: 'internal' }])
+  })
+
   it('still redirects custom-domain images when access-count recording fails after local traffic queue', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
