@@ -1156,6 +1156,21 @@ func (e CloudflareEmailSettingsProvider) Valid() bool {
 	}
 }
 
+// Defines values for CloudflareSaasImageDomainSettingsProvider.
+const (
+	CloudflareSaasImageDomainSettingsProviderCloudflareSaas CloudflareSaasImageDomainSettingsProvider = "cloudflare_saas"
+)
+
+// Valid indicates whether the value is a known member of the CloudflareSaasImageDomainSettingsProvider enum.
+func (e CloudflareSaasImageDomainSettingsProvider) Valid() bool {
+	switch e {
+	case CloudflareSaasImageDomainSettingsProviderCloudflareSaas:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DownloadTaskControlAction.
 const (
 	Delete DownloadTaskControlAction = "delete"
@@ -1537,6 +1552,21 @@ func (e DownloaderHeartbeatResultStatus) Valid() bool {
 	}
 }
 
+// Defines values for EmptyImageDomainSettingsEnabled.
+const (
+	EmptyImageDomainSettingsEnabledFalse EmptyImageDomainSettingsEnabled = false
+)
+
+// Valid indicates whether the value is a known member of the EmptyImageDomainSettingsEnabled enum.
+func (e EmptyImageDomainSettingsEnabled) Valid() bool {
+	switch e {
+	case EmptyImageDomainSettingsEnabledFalse:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorInfoType.
 const (
 	TypeGoogleapisComgoogleRpcErrorInfo ErrorInfoType = "type.googleapis.com/google.rpc.ErrorInfo"
@@ -1567,19 +1597,139 @@ func (e HttpEmailSettingsProvider) Valid() bool {
 	}
 }
 
+// Defines values for ImageDomainDnsRecordType.
+const (
+	ImageDomainDnsRecordTypeA     ImageDomainDnsRecordType = "A"
+	ImageDomainDnsRecordTypeAAAA  ImageDomainDnsRecordType = "AAAA"
+	ImageDomainDnsRecordTypeCNAME ImageDomainDnsRecordType = "CNAME"
+)
+
+// Valid indicates whether the value is a known member of the ImageDomainDnsRecordType enum.
+func (e ImageDomainDnsRecordType) Valid() bool {
+	switch e {
+	case ImageDomainDnsRecordTypeA:
+		return true
+	case ImageDomainDnsRecordTypeAAAA:
+		return true
+	case ImageDomainDnsRecordTypeCNAME:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImageDomainProviderResponseDomainsProvider.
+const (
+	ImageDomainProviderResponseDomainsProviderCloudflareSaas ImageDomainProviderResponseDomainsProvider = "cloudflare_saas"
+	ImageDomainProviderResponseDomainsProviderLessThannil    ImageDomainProviderResponseDomainsProvider = "<nil>"
+	ImageDomainProviderResponseDomainsProviderManual         ImageDomainProviderResponseDomainsProvider = "manual"
+)
+
+// Valid indicates whether the value is a known member of the ImageDomainProviderResponseDomainsProvider enum.
+func (e ImageDomainProviderResponseDomainsProvider) Valid() bool {
+	switch e {
+	case ImageDomainProviderResponseDomainsProviderCloudflareSaas:
+		return true
+	case ImageDomainProviderResponseDomainsProviderLessThannil:
+		return true
+	case ImageDomainProviderResponseDomainsProviderManual:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImageDomainProviderResponseDomainsStatus.
+const (
+	ImageDomainProviderResponseDomainsStatusFailed      ImageDomainProviderResponseDomainsStatus = "failed"
+	ImageDomainProviderResponseDomainsStatusLessThannil ImageDomainProviderResponseDomainsStatus = "<nil>"
+	ImageDomainProviderResponseDomainsStatusPendingDns  ImageDomainProviderResponseDomainsStatus = "pending_dns"
+	ImageDomainProviderResponseDomainsStatusPendingTls  ImageDomainProviderResponseDomainsStatus = "pending_tls"
+	ImageDomainProviderResponseDomainsStatusVerified    ImageDomainProviderResponseDomainsStatus = "verified"
+)
+
+// Valid indicates whether the value is a known member of the ImageDomainProviderResponseDomainsStatus enum.
+func (e ImageDomainProviderResponseDomainsStatus) Valid() bool {
+	switch e {
+	case ImageDomainProviderResponseDomainsStatusFailed:
+		return true
+	case ImageDomainProviderResponseDomainsStatusLessThannil:
+		return true
+	case ImageDomainProviderResponseDomainsStatusPendingDns:
+		return true
+	case ImageDomainProviderResponseDomainsStatusPendingTls:
+		return true
+	case ImageDomainProviderResponseDomainsStatusVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImageDomainProviderStatus.
+const (
+	ImageDomainProviderStatusDisabled   ImageDomainProviderStatus = "disabled"
+	ImageDomainProviderStatusError      ImageDomainProviderStatus = "error"
+	ImageDomainProviderStatusReady      ImageDomainProviderStatus = "ready"
+	ImageDomainProviderStatusUnverified ImageDomainProviderStatus = "unverified"
+)
+
+// Valid indicates whether the value is a known member of the ImageDomainProviderStatus enum.
+func (e ImageDomainProviderStatus) Valid() bool {
+	switch e {
+	case ImageDomainProviderStatusDisabled:
+		return true
+	case ImageDomainProviderStatusError:
+		return true
+	case ImageDomainProviderStatusReady:
+		return true
+	case ImageDomainProviderStatusUnverified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImageHostingConfigDnsInstructionsRecordType.
+const (
+	ImageHostingConfigDnsInstructionsRecordTypeA     ImageHostingConfigDnsInstructionsRecordType = "A"
+	ImageHostingConfigDnsInstructionsRecordTypeAAAA  ImageHostingConfigDnsInstructionsRecordType = "AAAA"
+	ImageHostingConfigDnsInstructionsRecordTypeCNAME ImageHostingConfigDnsInstructionsRecordType = "CNAME"
+)
+
+// Valid indicates whether the value is a known member of the ImageHostingConfigDnsInstructionsRecordType enum.
+func (e ImageHostingConfigDnsInstructionsRecordType) Valid() bool {
+	switch e {
+	case ImageHostingConfigDnsInstructionsRecordTypeA:
+		return true
+	case ImageHostingConfigDnsInstructionsRecordTypeAAAA:
+		return true
+	case ImageHostingConfigDnsInstructionsRecordTypeCNAME:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImageHostingConfigDomainStatus.
 const (
-	ImageHostingConfigDomainStatusNone     ImageHostingConfigDomainStatus = "none"
-	ImageHostingConfigDomainStatusPending  ImageHostingConfigDomainStatus = "pending"
-	ImageHostingConfigDomainStatusVerified ImageHostingConfigDomainStatus = "verified"
+	ImageHostingConfigDomainStatusFailed     ImageHostingConfigDomainStatus = "failed"
+	ImageHostingConfigDomainStatusNone       ImageHostingConfigDomainStatus = "none"
+	ImageHostingConfigDomainStatusPendingDns ImageHostingConfigDomainStatus = "pending_dns"
+	ImageHostingConfigDomainStatusPendingTls ImageHostingConfigDomainStatus = "pending_tls"
+	ImageHostingConfigDomainStatusVerified   ImageHostingConfigDomainStatus = "verified"
 )
 
 // Valid indicates whether the value is a known member of the ImageHostingConfigDomainStatus enum.
 func (e ImageHostingConfigDomainStatus) Valid() bool {
 	switch e {
+	case ImageHostingConfigDomainStatusFailed:
+		return true
 	case ImageHostingConfigDomainStatusNone:
 		return true
-	case ImageHostingConfigDomainStatusPending:
+	case ImageHostingConfigDomainStatusPendingDns:
+		return true
+	case ImageHostingConfigDomainStatusPendingTls:
 		return true
 	case ImageHostingConfigDomainStatusVerified:
 		return true
@@ -1603,6 +1753,21 @@ func (e LicenseEntitlementsEdition) Valid() bool {
 	case LicenseEntitlementsEditionLessThannil:
 		return true
 	case LicenseEntitlementsEditionPro:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualImageDomainSettingsProvider.
+const (
+	Manual ManualImageDomainSettingsProvider = "manual"
+)
+
+// Valid indicates whether the value is a known member of the ManualImageDomainSettingsProvider enum.
+func (e ManualImageDomainSettingsProvider) Valid() bool {
+	switch e {
+	case Manual:
 		return true
 	default:
 		return false
@@ -1962,13 +2127,13 @@ func (e PostApiAuthOauth2Link200JSONResponseBodyRedirect) Valid() bool {
 
 // Defines values for SignInEmail200JSONResponseBodyRedirect.
 const (
-	SignInEmail200JSONResponseBodyRedirectFalse SignInEmail200JSONResponseBodyRedirect = false
+	False SignInEmail200JSONResponseBodyRedirect = false
 )
 
 // Valid indicates whether the value is a known member of the SignInEmail200JSONResponseBodyRedirect enum.
 func (e SignInEmail200JSONResponseBodyRedirect) Valid() bool {
 	switch e {
-	case SignInEmail200JSONResponseBodyRedirectFalse:
+	case False:
 		return true
 	default:
 		return false
@@ -2656,6 +2821,36 @@ func (e UpsertAuthProviderJSONBodyType) Valid() bool {
 	}
 }
 
+// Defines values for SaveImageDomainProvider200JSONResponseBodySuccess.
+const (
+	SaveImageDomainProvider200JSONResponseBodySuccessTrue SaveImageDomainProvider200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the SaveImageDomainProvider200JSONResponseBodySuccess enum.
+func (e SaveImageDomainProvider200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case SaveImageDomainProvider200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TestImageDomainProvider200JSONResponseBodySuccess.
+const (
+	TestImageDomainProvider200JSONResponseBodySuccessTrue TestImageDomainProvider200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the TestImageDomainProvider200JSONResponseBodySuccess enum.
+func (e TestImageDomainProvider200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case TestImageDomainProvider200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PatchStorageJSONBodyStatus.
 const (
 	PatchStorageJSONBodyStatusHealthy   PatchStorageJSONBodyStatus = "healthy"
@@ -2679,31 +2874,31 @@ func (e PatchStorageJSONBodyStatus) Valid() bool {
 
 // Defines values for PatchStorageJSONBodyStatusReason.
 const (
-	AuthenticationFailed PatchStorageJSONBodyStatusReason = "authentication_failed"
-	BucketNotFound       PatchStorageJSONBodyStatusReason = "bucket_not_found"
-	Cors                 PatchStorageJSONBodyStatusReason = "cors"
-	LessThannil          PatchStorageJSONBodyStatusReason = "<nil>"
-	NetworkError         PatchStorageJSONBodyStatusReason = "network_error"
-	PermissionDenied     PatchStorageJSONBodyStatusReason = "permission_denied"
-	Unknown              PatchStorageJSONBodyStatusReason = "unknown"
+	PatchStorageJSONBodyStatusReasonAuthenticationFailed PatchStorageJSONBodyStatusReason = "authentication_failed"
+	PatchStorageJSONBodyStatusReasonBucketNotFound       PatchStorageJSONBodyStatusReason = "bucket_not_found"
+	PatchStorageJSONBodyStatusReasonCors                 PatchStorageJSONBodyStatusReason = "cors"
+	PatchStorageJSONBodyStatusReasonLessThannil          PatchStorageJSONBodyStatusReason = "<nil>"
+	PatchStorageJSONBodyStatusReasonNetworkError         PatchStorageJSONBodyStatusReason = "network_error"
+	PatchStorageJSONBodyStatusReasonPermissionDenied     PatchStorageJSONBodyStatusReason = "permission_denied"
+	PatchStorageJSONBodyStatusReasonUnknown              PatchStorageJSONBodyStatusReason = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the PatchStorageJSONBodyStatusReason enum.
 func (e PatchStorageJSONBodyStatusReason) Valid() bool {
 	switch e {
-	case AuthenticationFailed:
+	case PatchStorageJSONBodyStatusReasonAuthenticationFailed:
 		return true
-	case BucketNotFound:
+	case PatchStorageJSONBodyStatusReasonBucketNotFound:
 		return true
-	case Cors:
+	case PatchStorageJSONBodyStatusReasonCors:
 		return true
-	case LessThannil:
+	case PatchStorageJSONBodyStatusReasonLessThannil:
 		return true
-	case NetworkError:
+	case PatchStorageJSONBodyStatusReasonNetworkError:
 		return true
-	case PermissionDenied:
+	case PatchStorageJSONBodyStatusReasonPermissionDenied:
 		return true
-	case Unknown:
+	case PatchStorageJSONBodyStatusReasonUnknown:
 		return true
 	default:
 		return false
@@ -2808,13 +3003,13 @@ func (e ListStorageUsageItems200JSONResponseBodyItemsSource) Valid() bool {
 
 // Defines values for CancelOrderJSONBodyStatus.
 const (
-	Canceled CancelOrderJSONBodyStatus = "canceled"
+	CancelOrderJSONBodyStatusCanceled CancelOrderJSONBodyStatus = "canceled"
 )
 
 // Valid indicates whether the value is a known member of the CancelOrderJSONBodyStatus enum.
 func (e CancelOrderJSONBodyStatus) Valid() bool {
 	switch e {
-	case Canceled:
+	case CancelOrderJSONBodyStatusCanceled:
 		return true
 	default:
 		return false
@@ -3880,6 +4075,20 @@ type CloudflareEmailSettings struct {
 // CloudflareEmailSettingsProvider defines model for CloudflareEmailSettings.Provider.
 type CloudflareEmailSettingsProvider string
 
+// CloudflareSaasImageDomainSettings defines model for CloudflareSaasImageDomainSettings.
+type CloudflareSaasImageDomainSettings struct {
+	Cloudflare struct {
+		ApiToken    string `json:"apiToken"`
+		CnameTarget string `json:"cnameTarget"`
+		ZoneId      string `json:"zoneId"`
+	} `json:"cloudflare"`
+	Enabled  bool                                      `json:"enabled"`
+	Provider CloudflareSaasImageDomainSettingsProvider `json:"provider"`
+}
+
+// CloudflareSaasImageDomainSettingsProvider defines model for CloudflareSaasImageDomainSettings.Provider.
+type CloudflareSaasImageDomainSettingsProvider string
+
 // CreateTestEmail defines model for CreateTestEmail.
 type CreateTestEmail struct {
 	To openapi_types.Email `json:"to"`
@@ -4252,6 +4461,15 @@ type EmptyEmailSettings struct {
 	RequireEmailVerification bool        `json:"requireEmailVerification"`
 }
 
+// EmptyImageDomainSettings defines model for EmptyImageDomainSettings.
+type EmptyImageDomainSettings struct {
+	Enabled  EmptyImageDomainSettingsEnabled `json:"enabled"`
+	Provider interface{}                     `json:"provider"`
+}
+
+// EmptyImageDomainSettingsEnabled defines model for EmptyImageDomainSettings.Enabled.
+type EmptyImageDomainSettingsEnabled bool
+
 // EntitlementList defines model for EntitlementList.
 type EntitlementList struct {
 	Items    []QuotaEntitlement `json:"items"`
@@ -4302,6 +4520,45 @@ type HttpEmailSettings struct {
 // HttpEmailSettingsProvider defines model for HttpEmailSettings.Provider.
 type HttpEmailSettingsProvider string
 
+// ImageDomainDnsRecord defines model for ImageDomainDnsRecord.
+type ImageDomainDnsRecord struct {
+	Type  ImageDomainDnsRecordType `json:"type"`
+	Value string                   `json:"value"`
+}
+
+// ImageDomainDnsRecordType defines model for ImageDomainDnsRecord.Type.
+type ImageDomainDnsRecordType string
+
+// ImageDomainProviderResponse defines model for ImageDomainProviderResponse.
+type ImageDomainProviderResponse struct {
+	Domains []struct {
+		Error         *string                                     `json:"error"`
+		Hostname      string                                      `json:"hostname"`
+		LastCheckedAt *time.Time                                  `json:"lastCheckedAt"`
+		OrgId         string                                      `json:"orgId"`
+		Provider      *ImageDomainProviderResponseDomainsProvider `json:"provider"`
+		Status        *ImageDomainProviderResponseDomainsStatus   `json:"status"`
+	} `json:"domains"`
+	Error        *string                   `json:"error"`
+	LastTestedAt *time.Time                `json:"lastTestedAt"`
+	Settings     ImageDomainSettings       `json:"settings"`
+	Status       ImageDomainProviderStatus `json:"status"`
+}
+
+// ImageDomainProviderResponseDomainsProvider defines model for ImageDomainProviderResponse.Domains.Provider.
+type ImageDomainProviderResponseDomainsProvider string
+
+// ImageDomainProviderResponseDomainsStatus defines model for ImageDomainProviderResponse.Domains.Status.
+type ImageDomainProviderResponseDomainsStatus string
+
+// ImageDomainProviderStatus defines model for ImageDomainProviderStatus.
+type ImageDomainProviderStatus string
+
+// ImageDomainSettings defines model for ImageDomainSettings.
+type ImageDomainSettings struct {
+	union json.RawMessage
+}
+
 // ImageHosting defines model for ImageHosting.
 type ImageHosting struct {
 	AccessCount    int     `json:"accessCount"`
@@ -4324,16 +4581,21 @@ type ImageHosting struct {
 type ImageHostingConfig struct {
 	CreatedAt       *int    `json:"createdAt"`
 	CustomDomain    *string `json:"customDomain"`
-	DnsInstructions *struct {
-		Name       string `json:"name"`
-		RecordType string `json:"recordType"`
-		Target     string `json:"target"`
+	DnsInstructions *[]struct {
+		Name       string                                      `json:"name"`
+		RecordType ImageHostingConfigDnsInstructionsRecordType `json:"recordType"`
+		Target     string                                      `json:"target"`
 	} `json:"dnsInstructions"`
+	DomainError      *string                        `json:"domainError"`
 	DomainStatus     ImageHostingConfigDomainStatus `json:"domainStatus"`
 	DomainVerifiedAt *int                           `json:"domainVerifiedAt"`
 	Enabled          bool                           `json:"enabled"`
 	RefererAllowlist *[]string                      `json:"refererAllowlist"`
+	VerificationPath *string                        `json:"verificationPath"`
 }
+
+// ImageHostingConfigDnsInstructionsRecordType defines model for ImageHostingConfig.DnsInstructions.RecordType.
+type ImageHostingConfigDnsInstructionsRecordType string
 
 // ImageHostingConfigDomainStatus defines model for ImageHostingConfig.DomainStatus.
 type ImageHostingConfigDomainStatus string
@@ -4432,6 +4694,18 @@ type LicensePairingStatus struct {
 	Edition      *string `json:"edition,omitempty"`
 	Status       string  `json:"status"`
 }
+
+// ManualImageDomainSettings defines model for ManualImageDomainSettings.
+type ManualImageDomainSettings struct {
+	Enabled bool `json:"enabled"`
+	Manual  struct {
+		Records []ImageDomainDnsRecord `json:"records"`
+	} `json:"manual"`
+	Provider ManualImageDomainSettingsProvider `json:"provider"`
+}
+
+// ManualImageDomainSettingsProvider defines model for ManualImageDomainSettings.Provider.
+type ManualImageDomainSettingsProvider string
 
 // Matter defines model for Matter.
 type Matter struct {
@@ -5019,6 +5293,11 @@ type TrashObjectPage struct {
 
 // UpdateEmailSettings defines model for UpdateEmailSettings.
 type UpdateEmailSettings struct {
+	union json.RawMessage
+}
+
+// UpdateImageDomainSettings defines model for UpdateImageDomainSettings.
+type UpdateImageDomainSettings struct {
 	union json.RawMessage
 }
 
@@ -6354,6 +6633,12 @@ type ValidateInviteCodeJSONBody struct {
 	Code string `json:"code"`
 }
 
+// SaveImageDomainProvider200JSONResponseBodySuccess defines parameters for SaveImageDomainProvider.
+type SaveImageDomainProvider200JSONResponseBodySuccess bool
+
+// TestImageDomainProvider200JSONResponseBodySuccess defines parameters for TestImageDomainProvider.
+type TestImageDomainProvider200JSONResponseBodySuccess bool
+
 // CreateStorageJSONBody defines parameters for CreateStorage.
 type CreateStorageJSONBody struct {
 	AccessKey                  string  `json:"accessKey"`
@@ -6816,6 +7101,9 @@ type SendTestEmailJSONRequestBody = CreateTestEmail
 // UpdateSiteIdentityJSONRequestBody defines body for UpdateSiteIdentity for application/json ContentType.
 type UpdateSiteIdentityJSONRequestBody = SiteIdentitySettings
 
+// SaveImageDomainProviderJSONRequestBody defines body for SaveImageDomainProvider for application/json ContentType.
+type SaveImageDomainProviderJSONRequestBody = UpdateImageDomainSettings
+
 // UpdateSiteQuotasJSONRequestBody defines body for UpdateSiteQuotas for application/json ContentType.
 type UpdateSiteQuotasJSONRequestBody = SiteQuotaSettings
 
@@ -6980,6 +7268,94 @@ func (t EmailSettings) MarshalJSON() ([]byte, error) {
 }
 
 func (t *EmailSettings) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCloudflareSaasImageDomainSettings returns the union data inside the ImageDomainSettings as a CloudflareSaasImageDomainSettings
+func (t ImageDomainSettings) AsCloudflareSaasImageDomainSettings() (CloudflareSaasImageDomainSettings, error) {
+	var body CloudflareSaasImageDomainSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCloudflareSaasImageDomainSettings overwrites any union data inside the ImageDomainSettings as the provided CloudflareSaasImageDomainSettings
+func (t *ImageDomainSettings) FromCloudflareSaasImageDomainSettings(v CloudflareSaasImageDomainSettings) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCloudflareSaasImageDomainSettings performs a merge with any union data inside the ImageDomainSettings, using the provided CloudflareSaasImageDomainSettings
+func (t *ImageDomainSettings) MergeCloudflareSaasImageDomainSettings(v CloudflareSaasImageDomainSettings) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsManualImageDomainSettings returns the union data inside the ImageDomainSettings as a ManualImageDomainSettings
+func (t ImageDomainSettings) AsManualImageDomainSettings() (ManualImageDomainSettings, error) {
+	var body ManualImageDomainSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromManualImageDomainSettings overwrites any union data inside the ImageDomainSettings as the provided ManualImageDomainSettings
+func (t *ImageDomainSettings) FromManualImageDomainSettings(v ManualImageDomainSettings) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeManualImageDomainSettings performs a merge with any union data inside the ImageDomainSettings, using the provided ManualImageDomainSettings
+func (t *ImageDomainSettings) MergeManualImageDomainSettings(v ManualImageDomainSettings) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEmptyImageDomainSettings returns the union data inside the ImageDomainSettings as a EmptyImageDomainSettings
+func (t ImageDomainSettings) AsEmptyImageDomainSettings() (EmptyImageDomainSettings, error) {
+	var body EmptyImageDomainSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEmptyImageDomainSettings overwrites any union data inside the ImageDomainSettings as the provided EmptyImageDomainSettings
+func (t *ImageDomainSettings) FromEmptyImageDomainSettings(v EmptyImageDomainSettings) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEmptyImageDomainSettings performs a merge with any union data inside the ImageDomainSettings, using the provided EmptyImageDomainSettings
+func (t *ImageDomainSettings) MergeEmptyImageDomainSettings(v EmptyImageDomainSettings) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ImageDomainSettings) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ImageDomainSettings) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -7161,6 +7537,95 @@ func (t UpdateEmailSettings) MarshalJSON() ([]byte, error) {
 }
 
 func (t *UpdateEmailSettings) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCloudflareSaasImageDomainSettings returns the union data inside the UpdateImageDomainSettings as a CloudflareSaasImageDomainSettings
+func (t UpdateImageDomainSettings) AsCloudflareSaasImageDomainSettings() (CloudflareSaasImageDomainSettings, error) {
+	var body CloudflareSaasImageDomainSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCloudflareSaasImageDomainSettings overwrites any union data inside the UpdateImageDomainSettings as the provided CloudflareSaasImageDomainSettings
+func (t *UpdateImageDomainSettings) FromCloudflareSaasImageDomainSettings(v CloudflareSaasImageDomainSettings) error {
+	v.Provider = "cloudflare_saas"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCloudflareSaasImageDomainSettings performs a merge with any union data inside the UpdateImageDomainSettings, using the provided CloudflareSaasImageDomainSettings
+func (t *UpdateImageDomainSettings) MergeCloudflareSaasImageDomainSettings(v CloudflareSaasImageDomainSettings) error {
+	v.Provider = "cloudflare_saas"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsManualImageDomainSettings returns the union data inside the UpdateImageDomainSettings as a ManualImageDomainSettings
+func (t UpdateImageDomainSettings) AsManualImageDomainSettings() (ManualImageDomainSettings, error) {
+	var body ManualImageDomainSettings
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromManualImageDomainSettings overwrites any union data inside the UpdateImageDomainSettings as the provided ManualImageDomainSettings
+func (t *UpdateImageDomainSettings) FromManualImageDomainSettings(v ManualImageDomainSettings) error {
+	v.Provider = "manual"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeManualImageDomainSettings performs a merge with any union data inside the UpdateImageDomainSettings, using the provided ManualImageDomainSettings
+func (t *UpdateImageDomainSettings) MergeManualImageDomainSettings(v ManualImageDomainSettings) error {
+	v.Provider = "manual"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t UpdateImageDomainSettings) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"provider"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t UpdateImageDomainSettings) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "cloudflare_saas":
+		return t.AsCloudflareSaasImageDomainSettings()
+	case "manual":
+		return t.AsManualImageDomainSettings()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t UpdateImageDomainSettings) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *UpdateImageDomainSettings) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -8021,6 +8486,17 @@ type ClientInterface interface {
 	UpdateSiteIdentityWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateSiteIdentity(ctx context.Context, body UpdateSiteIdentityJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetImageDomainProvider request
+	GetImageDomainProvider(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SaveImageDomainProviderWithBody request with any body
+	SaveImageDomainProviderWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SaveImageDomainProvider(ctx context.Context, body SaveImageDomainProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TestImageDomainProvider request
+	TestImageDomainProvider(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateSiteQuotasWithBody request with any body
 	UpdateSiteQuotasWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -11451,6 +11927,54 @@ func (c *Client) UpdateSiteIdentityWithBody(ctx context.Context, contentType str
 
 func (c *Client) UpdateSiteIdentity(ctx context.Context, body UpdateSiteIdentityJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateSiteIdentityRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetImageDomainProvider(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetImageDomainProviderRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SaveImageDomainProviderWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSaveImageDomainProviderRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SaveImageDomainProvider(ctx context.Context, body SaveImageDomainProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSaveImageDomainProviderRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TestImageDomainProvider(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTestImageDomainProviderRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -20230,6 +20754,100 @@ func NewUpdateSiteIdentityRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
+// NewGetImageDomainProviderRequest generates requests for GetImageDomainProvider
+func NewGetImageDomainProviderRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/image-domains")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSaveImageDomainProviderRequest calls the generic SaveImageDomainProvider builder with application/json body
+func NewSaveImageDomainProviderRequest(server string, body SaveImageDomainProviderJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSaveImageDomainProviderRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSaveImageDomainProviderRequestWithBody generates requests for SaveImageDomainProvider with any type of body
+func NewSaveImageDomainProviderRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/image-domains")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTestImageDomainProviderRequest generates requests for TestImageDomainProvider
+func NewTestImageDomainProviderRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/image-domains/tests")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewUpdateSiteQuotasRequest calls the generic UpdateSiteQuotas builder with application/json body
 func NewUpdateSiteQuotasRequest(server string, body UpdateSiteQuotasJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -22990,6 +23608,17 @@ type ClientWithResponsesInterface interface {
 	UpdateSiteIdentityWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteIdentityResponse, error)
 
 	UpdateSiteIdentityWithResponse(ctx context.Context, body UpdateSiteIdentityJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteIdentityResponse, error)
+
+	// GetImageDomainProviderWithResponse request
+	GetImageDomainProviderWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetImageDomainProviderResponse, error)
+
+	// SaveImageDomainProviderWithBodyWithResponse request with any body
+	SaveImageDomainProviderWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SaveImageDomainProviderResponse, error)
+
+	SaveImageDomainProviderWithResponse(ctx context.Context, body SaveImageDomainProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*SaveImageDomainProviderResponse, error)
+
+	// TestImageDomainProviderWithResponse request
+	TestImageDomainProviderWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*TestImageDomainProviderResponse, error)
 
 	// UpdateSiteQuotasWithBodyWithResponse request with any body
 	UpdateSiteQuotasWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteQuotasResponse, error)
@@ -30849,6 +31478,102 @@ func (r UpdateSiteIdentityResponse) ContentType() string {
 	return ""
 }
 
+type GetImageDomainProviderResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ImageDomainProviderResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetImageDomainProviderResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetImageDomainProviderResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetImageDomainProviderResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SaveImageDomainProviderResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success SaveImageDomainProvider200JSONResponseBodySuccess `json:"success"`
+	}
+	JSON400 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r SaveImageDomainProviderResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SaveImageDomainProviderResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SaveImageDomainProviderResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type TestImageDomainProviderResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success TestImageDomainProvider200JSONResponseBodySuccess `json:"success"`
+	}
+	JSON400 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r TestImageDomainProviderResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TestImageDomainProviderResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r TestImageDomainProviderResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type UpdateSiteQuotasResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -34799,6 +35524,41 @@ func (c *ClientWithResponses) UpdateSiteIdentityWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseUpdateSiteIdentityResponse(rsp)
+}
+
+// GetImageDomainProviderWithResponse request returning *GetImageDomainProviderResponse
+func (c *ClientWithResponses) GetImageDomainProviderWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetImageDomainProviderResponse, error) {
+	rsp, err := c.GetImageDomainProvider(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetImageDomainProviderResponse(rsp)
+}
+
+// SaveImageDomainProviderWithBodyWithResponse request with arbitrary body returning *SaveImageDomainProviderResponse
+func (c *ClientWithResponses) SaveImageDomainProviderWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SaveImageDomainProviderResponse, error) {
+	rsp, err := c.SaveImageDomainProviderWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSaveImageDomainProviderResponse(rsp)
+}
+
+func (c *ClientWithResponses) SaveImageDomainProviderWithResponse(ctx context.Context, body SaveImageDomainProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*SaveImageDomainProviderResponse, error) {
+	rsp, err := c.SaveImageDomainProvider(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSaveImageDomainProviderResponse(rsp)
+}
+
+// TestImageDomainProviderWithResponse request returning *TestImageDomainProviderResponse
+func (c *ClientWithResponses) TestImageDomainProviderWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*TestImageDomainProviderResponse, error) {
+	rsp, err := c.TestImageDomainProvider(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTestImageDomainProviderResponse(rsp)
 }
 
 // UpdateSiteQuotasWithBodyWithResponse request with arbitrary body returning *UpdateSiteQuotasResponse
@@ -46168,6 +46928,102 @@ func ParseUpdateSiteIdentityResponse(rsp *http.Response) (*UpdateSiteIdentityRes
 			return nil, err
 		}
 		response.JSON402 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetImageDomainProviderResponse parses an HTTP response from a GetImageDomainProviderWithResponse call
+func ParseGetImageDomainProviderResponse(rsp *http.Response) (*GetImageDomainProviderResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetImageDomainProviderResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ImageDomainProviderResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSaveImageDomainProviderResponse parses an HTTP response from a SaveImageDomainProviderWithResponse call
+func ParseSaveImageDomainProviderResponse(rsp *http.Response) (*SaveImageDomainProviderResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SaveImageDomainProviderResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success SaveImageDomainProvider200JSONResponseBodySuccess `json:"success"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTestImageDomainProviderResponse parses an HTTP response from a TestImageDomainProviderWithResponse call
+func ParseTestImageDomainProviderResponse(rsp *http.Response) (*TestImageDomainProviderResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TestImageDomainProviderResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success TestImageDomainProvider200JSONResponseBodySuccess `json:"success"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 

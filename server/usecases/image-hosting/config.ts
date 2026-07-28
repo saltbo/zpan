@@ -1,24 +1,12 @@
-// The image-hosting config resource usecase. Owns every business decision behind
-// the /api/ihost/config routes — the per-org config row lifecycle and, with it,
-// the Cloudflare custom-hostname lifecycle: lazily verifying a pending domain on
-// read, registering / deleting CF hostnames on write, rejecting the app's own
-// host, detecting duplicate-domain conflicts (CF 409 + DB UNIQUE), and the
-// best-effort CF cleanup on delete. The http handler only validates the body,
-// resolves the request-scoped CF env, calls these functions, and serializes the
-// ImageHostingConfigRecord into the IhostConfigResponse DTO.
-//
-// Expected business outcomes (app-host-rejected, domain conflict) come back as a
-// returned AppError the handler throws; a missing config row on read is not an
-// error (handler → { enabled:false }). CF registration errors that are *not*
-// conflicts propagate so the handler 500s.
-
 import type { PutIhostConfigInput } from '@shared/schemas'
+import { nanoid } from 'nanoid'
 import {
-  type AppError,
+  AppError,
   badRequest,
-  CfConflictError,
-  type CfHostnamesProvider,
   conflict,
+  type ImageDomainProviderConfig,
+  type ImageDomainProviderGateway,
+  type ImageDomainProvisioning,
   type ImageHostingConfigRecord,
   type ImageHostingConfigRepo,
 } from '../ports'
@@ -26,200 +14,196 @@ import { cacheVerifiedImageDomain, invalidateImageDomain } from './domain-cache'
 
 export type ImageHostingConfigDeps = {
   imageHostingConfigs: ImageHostingConfigRepo
-  cfHostnames: CfHostnamesProvider
+  imageDomains: ImageDomainProviderGateway
   cache?: import('../ports').CacheService
 }
 
-// The request-scoped Cloudflare settings the http layer resolves from the
-// platform env and hands to the write/read functions. `apiToken` presence is the
-// "CF is configured" switch; the usecase never reads infrastructure itself.
-export interface CfSettings {
-  isConfigured: boolean
-  appHost: string | null
+function isUniqueViolation(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.includes('UNIQUE constraint failed') || message.includes('unique constraint')
 }
 
-// A DB UNIQUE-constraint failure on the custom-domain column means another org
-// already claimed the domain. Adapters surface it as a thrown error; recognize
-// it here so the http layer maps to a flat 409.
-function isUniqueViolation(e: unknown): boolean {
-  const msg = e instanceof Error ? e.message : String(e)
-  return msg.includes('UNIQUE constraint failed') || msg.includes('unique constraint')
+function readyProvider(config: ImageDomainProviderConfig | null): config is ImageDomainProviderConfig {
+  return Boolean(config?.settings.enabled && config.lastTestedAt && !config.error)
 }
 
-// ── GET ──────────────────────────────────────────────────────────────────────
-// Read the config, lazily verifying a pending custom domain when CF is
-// configured. Returns null when no config row exists (handler → { enabled:false }).
+async function refreshDomain(
+  deps: ImageHostingConfigDeps,
+  row: ImageHostingConfigRecord,
+  provider: ImageDomainProviderConfig,
+): Promise<ImageHostingConfigRecord> {
+  if (
+    !row.customDomain ||
+    row.domainProvider !== provider.settings.provider ||
+    provider.settings.provider === 'manual' ||
+    row.domainStatus === 'verified'
+  ) {
+    return row
+  }
+  const result = await deps.imageDomains.refresh(provider, row.customDomain, row.providerHostnameId)
+  const verifiedAt = result.status === 'verified' ? new Date() : null
+  await deps.imageHostingConfigs.update(row.orgId, {
+    providerHostnameId: result.externalId,
+    domainStatus: result.status,
+    domainError: result.error,
+    domainLastCheckedAt: new Date(),
+    domainVerifiedAt: verifiedAt,
+  })
+  if (verifiedAt) await cacheVerifiedImageDomain(deps, row.customDomain, row.orgId)
+  return {
+    ...row,
+    providerHostnameId: result.externalId,
+    domainStatus: result.status,
+    domainError: result.error,
+    domainLastCheckedAt: new Date(),
+    domainVerifiedAt: verifiedAt,
+  }
+}
 
 export async function getImageHostingConfig(
   deps: ImageHostingConfigDeps,
   orgId: string,
-  cf: CfSettings,
 ): Promise<ImageHostingConfigRecord | null> {
-  const row = await deps.imageHostingConfigs.getByOrg(orgId)
-  if (!row) return null
-
-  // Lazily refresh verification status when domain is unverified and CF is configured.
-  if (row.customDomain && !row.domainVerifiedAt && row.cfHostnameId && cf.isConfigured) {
-    const status = await deps.cfHostnames.getStatus(row.cfHostnameId)
-    if (status.status === 'active') {
-      const now = new Date()
-      await deps.imageHostingConfigs.update(orgId, { domainVerifiedAt: now })
-      row.domainVerifiedAt = now
-      await cacheVerifiedImageDomain(deps, row.customDomain, orgId)
-    }
-  }
-
-  return row
+  return (await getImageHostingConfigView(deps, orgId)).config
 }
 
-// ── PUT ──────────────────────────────────────────────────────────────────────
+export async function getImageHostingConfigView(
+  deps: ImageHostingConfigDeps,
+  orgId: string,
+): Promise<{ config: ImageHostingConfigRecord | null; provider: ImageDomainProviderConfig | null }> {
+  const row = await deps.imageHostingConfigs.getByOrg(orgId)
+  const provider = await deps.imageDomains.getConfig()
+  if (!row) return { config: null, provider }
+  return {
+    config: readyProvider(provider) ? await refreshDomain(deps, row, provider) : row,
+    provider,
+  }
+}
 
 export type PutImageHostingConfigOutcome =
-  | { ok: true; config: ImageHostingConfigRecord }
+  | { ok: true; config: ImageHostingConfigRecord; provider: ImageDomainProviderConfig | null }
   | { ok: false; error: AppError }
 
-const appHostError = () => badRequest('Custom domain cannot be the application default host')
-const domainConflictError = () => conflict('Domain already registered by another organization')
+function conflictError() {
+  return conflict('Domain already registered by another organization')
+}
 
-// Create or update the config row, threading the CF hostname lifecycle. The
-// returned record mirrors what was persisted (timestamps as Date) so the handler
-// can serialize it directly without a re-read.
+async function provision(
+  deps: ImageHostingConfigDeps,
+  provider: ImageDomainProviderConfig,
+  domain: string,
+): Promise<ImageDomainProvisioning> {
+  try {
+    return await deps.imageDomains.provision(provider, domain)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('already exists') || message.includes('already been taken') || message.includes('409')) {
+      throw conflictError()
+    }
+    throw error
+  }
+}
+
 export async function putImageHostingConfig(
   deps: ImageHostingConfigDeps,
   orgId: string,
   body: PutIhostConfigInput,
-  cf: CfSettings,
+  appHost: string,
 ): Promise<PutImageHostingConfigOutcome> {
-  // Reject the app's own default host as a custom domain.
-  if (body.customDomain && cf.appHost && body.customDomain === cf.appHost) {
-    return { ok: false, error: appHostError() }
+  const newDomain = body.customDomain?.toLowerCase() ?? null
+  if (newDomain && newDomain === appHost) {
+    return { ok: false, error: badRequest('Custom domain cannot be the application default host') }
   }
 
   const existing = await deps.imageHostingConfigs.getByOrg(orgId)
+  const oldDomain = existing?.customDomain ?? null
+  const provider = await deps.imageDomains.getConfig()
+  if (newDomain && newDomain !== oldDomain && !readyProvider(provider)) {
+    return { ok: false, error: badRequest('Image custom-domain provider is not ready') }
+  }
+
+  let binding: ImageDomainProvisioning | null = null
+  if (newDomain && newDomain !== oldDomain && provider && readyProvider(provider)) {
+    try {
+      binding = await provision(deps, provider, newDomain)
+    } catch (error) {
+      if (error instanceof AppError && error.httpStatus === 409) {
+        return { ok: false, error: error as AppError }
+      }
+      throw error
+    }
+  }
+
+  if (existing && oldDomain !== newDomain && existing.providerHostnameId) {
+    const oldProvider = await deps.imageDomains.getConfig()
+    if (oldProvider) await deps.imageDomains.deprovision(oldProvider, existing.providerHostnameId)
+  }
 
   const now = new Date()
-  const newDomain = body.customDomain ?? null
-  const newReferers = body.refererAllowlist !== undefined ? body.refererAllowlist : null
-
-  if (!existing) {
-    // Insert new config row.
-    let cfHostnameId: string | null = null
-    if (newDomain && cf.isConfigured) {
-      try {
-        const result = await deps.cfHostnames.register(newDomain)
-        cfHostnameId = result.id || null
-      } catch (e) {
-        if (e instanceof CfConflictError) return { ok: false, error: domainConflictError() }
-        throw e
-      }
-    }
-
-    const refererAllowlist = newReferers ? JSON.stringify(newReferers) : null
-    try {
-      await deps.imageHostingConfigs.create({ orgId, customDomain: newDomain, cfHostnameId, refererAllowlist })
-    } catch (e) {
-      if (isUniqueViolation(e)) return { ok: false, error: domainConflictError() }
-      throw e
-    }
-    await invalidateImageDomain(deps, newDomain)
-
-    return {
-      ok: true,
-      config: {
-        orgId,
-        customDomain: newDomain,
-        cfHostnameId,
-        domainVerifiedAt: null,
-        refererAllowlist,
-        createdAt: now,
-        updatedAt: now,
-      },
-    }
-  }
-
-  // Update existing config row.
-  const old = existing
-  const oldDomain = old.customDomain
-  let cfHostnameId = old.cfHostnameId
-  let domainVerifiedAt = old.domainVerifiedAt
-
-  if (newDomain !== oldDomain) {
-    // Delete old CF hostname if one existed.
-    if (oldDomain && cfHostnameId) {
-      try {
-        await deps.cfHostnames.delete(cfHostnameId)
-      } catch {
-        // Best-effort — log but don't fail so DB stays consistent.
-        console.warn(`CF delete failed for hostname ${cfHostnameId}; continuing`)
-      }
-      cfHostnameId = null
-    }
-
-    domainVerifiedAt = null
-
-    // Register new CF hostname if needed.
-    if (newDomain && cf.isConfigured) {
-      try {
-        const result = await deps.cfHostnames.register(newDomain)
-        cfHostnameId = result.id || null
-      } catch (e) {
-        if (e instanceof CfConflictError) return { ok: false, error: domainConflictError() }
-        throw e
-      }
-    }
-  }
-
-  const refererAllowlistValue =
+  const refererAllowlist =
     body.refererAllowlist !== undefined
       ? body.refererAllowlist
         ? JSON.stringify(body.refererAllowlist)
         : null
-      : old.refererAllowlist
+      : (existing?.refererAllowlist ?? null)
+  const bindingFields = {
+    domainProvider: newDomain && provider ? provider.settings.provider : null,
+    providerHostnameId:
+      binding?.externalId ?? (newDomain === oldDomain ? (existing?.providerHostnameId ?? null) : null),
+    domainStatus: binding?.status ?? (newDomain === oldDomain ? (existing?.domainStatus ?? null) : null),
+    domainError: binding?.error ?? null,
+    verificationToken:
+      newDomain && provider?.settings.provider === 'manual'
+        ? newDomain === oldDomain
+          ? (existing?.verificationToken ?? nanoid(32))
+          : nanoid(32)
+        : null,
+  } as const
 
   try {
-    await deps.imageHostingConfigs.update(orgId, {
-      customDomain: newDomain,
-      cfHostnameId,
-      domainVerifiedAt,
-      refererAllowlist: refererAllowlistValue,
-    })
-  } catch (e) {
-    if (isUniqueViolation(e)) return { ok: false, error: domainConflictError() }
-    throw e
+    if (!existing) {
+      await deps.imageHostingConfigs.create({
+        orgId,
+        customDomain: newDomain,
+        ...bindingFields,
+        refererAllowlist,
+      })
+    } else {
+      await deps.imageHostingConfigs.update(orgId, {
+        customDomain: newDomain,
+        ...bindingFields,
+        domainVerifiedAt: newDomain === oldDomain ? existing.domainVerifiedAt : null,
+        domainLastCheckedAt: binding ? now : null,
+        refererAllowlist,
+      })
+    }
+  } catch (error) {
+    if (isUniqueViolation(error)) return { ok: false, error: conflictError() }
+    throw error
   }
-  await Promise.all([invalidateImageDomain(deps, oldDomain), invalidateImageDomain(deps, newDomain)])
 
+  await Promise.all([invalidateImageDomain(deps, oldDomain), invalidateImageDomain(deps, newDomain)])
   return {
     ok: true,
+    provider,
     config: {
       orgId,
       customDomain: newDomain,
-      cfHostnameId,
-      domainVerifiedAt,
-      refererAllowlist: refererAllowlistValue,
-      createdAt: old.createdAt,
+      ...bindingFields,
+      domainLastCheckedAt: binding ? now : (existing?.domainLastCheckedAt ?? null),
+      domainVerifiedAt: newDomain === oldDomain ? (existing?.domainVerifiedAt ?? null) : null,
+      refererAllowlist,
+      createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     },
   }
 }
 
-// ── DELETE ─────────────────────────────────────────────────────────────────────
-// Best-effort CF cleanup then remove the row. Idempotent: a missing row is a
-// no-op success.
-
 export async function deleteImageHostingConfig(deps: ImageHostingConfigDeps, orgId: string): Promise<void> {
   const row = await deps.imageHostingConfigs.getByOrg(orgId)
   if (!row) return
-
-  // Best-effort CF cleanup — do not fail if CF call errors.
-  if (row.cfHostnameId) {
-    try {
-      await deps.cfHostnames.delete(row.cfHostnameId)
-    } catch {
-      console.warn(`CF delete failed for hostname ${row.cfHostnameId} during config DELETE; continuing`)
-    }
-  }
-
+  const provider = await deps.imageDomains.getConfig()
+  if (provider && row.providerHostnameId) await deps.imageDomains.deprovision(provider, row.providerHostnameId)
   await deps.imageHostingConfigs.delete(orgId)
   await invalidateImageDomain(deps, row.customDomain)
 }

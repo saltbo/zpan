@@ -19,10 +19,13 @@ describe('imageHostingConfigs table', () => {
     expect(imageHostingConfigs.customDomain.isUnique).toBe(true)
   })
 
-  it('has nullable cf_hostname_id column', () => {
-    expect(imageHostingConfigs.cfHostnameId).toBeDefined()
-    expect(imageHostingConfigs.cfHostnameId.name).toBe('cf_hostname_id')
-    expect(imageHostingConfigs.cfHostnameId.notNull).toBe(false)
+  it('has provider-neutral custom-domain lifecycle columns', () => {
+    expect(imageHostingConfigs.domainProvider.name).toBe('domain_provider')
+    expect(imageHostingConfigs.providerHostnameId.name).toBe('provider_hostname_id')
+    expect(imageHostingConfigs.domainStatus.name).toBe('domain_status')
+    expect(imageHostingConfigs.domainError.name).toBe('domain_error')
+    expect(imageHostingConfigs.verificationToken.name).toBe('verification_token')
+    expect(imageHostingConfigs.domainLastCheckedAt.name).toBe('domain_last_checked_at')
   })
 
   it('has nullable domain_verified_at column (timestamp_ms)', () => {

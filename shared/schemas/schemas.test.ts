@@ -6,6 +6,7 @@ import {
   createStorageSchema,
   signInSchema,
   signUpSchema,
+  updateImageDomainSettingsSchema,
   updateMatterSchema,
 } from './index.js'
 
@@ -152,6 +153,45 @@ describe('createDownloadTaskSchema', () => {
       targetFolder: 'media/../private',
     })
 
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('updateImageDomainSettingsSchema', () => {
+  it('accepts CNAME, IPv4, and IPv6 records', () => {
+    const result = updateImageDomainSettingsSchema.safeParse({
+      enabled: true,
+      provider: 'manual',
+      manual: {
+        records: [
+          { type: 'CNAME', value: 'images.example.com' },
+          { type: 'A', value: '192.0.2.10' },
+          { type: 'AAAA', value: '2001:db8::10' },
+        ],
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it.each([
+    ['CNAME', 'https://images.example.com'],
+    ['A', '999.0.2.10'],
+    ['AAAA', 'not-an-ip'],
+  ])('rejects an invalid %s record', (type, value) => {
+    const result = updateImageDomainSettingsSchema.safeParse({
+      enabled: true,
+      provider: 'manual',
+      manual: { records: [{ type, value }] },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('requires a real Cloudflare zone id', () => {
+    const result = updateImageDomainSettingsSchema.safeParse({
+      enabled: true,
+      provider: 'cloudflare_saas',
+      cloudflare: { apiToken: 'token', zoneId: 'zone-1', cnameTarget: 'ssl.example.com' },
+    })
     expect(result.success).toBe(false)
   })
 })

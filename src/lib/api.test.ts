@@ -54,6 +54,7 @@ import {
   getDownloadTask,
   getEmailConfig,
   getIhostConfig,
+  getImageDomainProvider,
   getInstanceInfo,
   getLicenseEntitlements,
   getLicensingStatus,
@@ -129,11 +130,13 @@ import {
   runDownloadTaskAction,
   saveBranding,
   saveEmailConfig,
+  saveImageDomainProvider,
   saveShareToDrive,
   sendDownloaderHeartbeat,
   serverEventsUrl,
   setSharePrivacy,
   testEmail,
+  testImageDomainProvider,
   transferObject,
   updateAnnouncement,
   updateDownloader,
@@ -3993,6 +3996,67 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'send failed' }, false, 400))
 
       await expect(testEmail('user@example.com')).rejects.toThrow('send failed')
+    })
+  })
+
+  describe('image domain provider API', () => {
+    it('gets the masked provider configuration', async () => {
+      const payload = {
+        settings: {
+          enabled: true,
+          provider: 'cloudflare_saas',
+          cloudflare: { apiToken: '****oken', zoneId: 'zone-1', cnameTarget: 'ssl.example.com' },
+        },
+        status: 'ready',
+        lastTestedAt: '2026-07-27T12:00:00.000Z',
+        error: null,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await expect(getImageDomainProvider()).resolves.toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/image-domains')
+      expect(init.method).toBe('GET')
+    })
+
+    it('saves the complete manual provider payload', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
+      const payload = {
+        enabled: true,
+        provider: 'manual' as const,
+        manual: { records: [{ type: 'A' as const, value: '192.0.2.10' }] },
+      }
+
+      await saveImageDomainProvider(payload)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/image-domains')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBe(JSON.stringify(payload))
+    })
+
+    it('surfaces save failures as ApiError', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'invalid provider' }, false, 400))
+      await expect(
+        saveImageDomainProvider({
+          enabled: true,
+          provider: 'manual',
+          manual: { records: [{ type: 'CNAME', value: 'ssl.example.com' }] },
+        }),
+      ).rejects.toThrow('invalid provider')
+    })
+
+    it('tests the saved provider through the tests resource', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
+      await testImageDomainProvider()
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/image-domains/tests')
+      expect(init.method).toBe('POST')
+    })
+
+    it('surfaces provider test failures as ApiError', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'fallback origin inactive' }, false, 400))
+      await expect(testImageDomainProvider()).rejects.toThrow('fallback origin inactive')
     })
   })
 

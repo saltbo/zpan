@@ -39,7 +39,7 @@ function CopyButton({ value }: { value: string }) {
 
   return (
     <Button variant="ghost" size="sm" onClick={handleCopy} className="h-7 px-2 text-xs">
-      {copied ? t('settings.ihost.customDomain.copied') : 'Copy'}
+      {copied ? t('settings.ihost.customDomain.copied') : t('settings.ihost.customDomain.copy')}
     </Button>
   )
 }
@@ -47,32 +47,37 @@ function CopyButton({ value }: { value: string }) {
 function DnsInstructions({ config }: { config: IhostConfigResponse }) {
   const { t } = useTranslation()
   const dns = config.dnsInstructions
-  if (!dns) return null
-
-  if (dns.recordType === 'manual') {
-    return (
-      <div className="rounded-md border bg-muted/50 p-4 space-y-2">
-        <p className="text-sm font-medium">{t('settings.ihost.customDomain.manualTitle')}</p>
-        <p className="text-sm text-muted-foreground">{t('settings.ihost.customDomain.manualInstructions')}</p>
-      </div>
-    )
-  }
+  if (!dns?.length) return null
 
   return (
     <div className="rounded-md border bg-muted/50 p-4 space-y-3">
       <p className="text-sm font-medium">{t('settings.ihost.customDomain.dnsTitle')}</p>
       <p className="text-sm text-muted-foreground">{t('settings.ihost.customDomain.dnsInstructions')}</p>
-      <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-2 items-center text-sm">
-        <span className="text-muted-foreground">{t('settings.ihost.customDomain.dnsType')}</span>
-        <span className="font-mono">{dns.recordType}</span>
-        <div />
-        <span className="text-muted-foreground">{t('settings.ihost.customDomain.dnsName')}</span>
-        <span className="font-mono break-all">{dns.name}</span>
-        <CopyButton value={dns.name} />
-        <span className="text-muted-foreground">{t('settings.ihost.customDomain.dnsTarget')}</span>
-        <span className="font-mono break-all">{dns.target}</span>
-        <CopyButton value={dns.target} />
-      </div>
+      {dns.map((record) => (
+        <div
+          key={`${record.recordType}:${record.target}`}
+          className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-2 items-center border-t pt-3 text-sm first:border-0 first:pt-0"
+        >
+          <span className="text-muted-foreground">{t('settings.ihost.customDomain.dnsType')}</span>
+          <span className="font-mono">{record.recordType}</span>
+          <div />
+          <span className="text-muted-foreground">{t('settings.ihost.customDomain.dnsName')}</span>
+          <span className="font-mono break-all">{record.name}</span>
+          <CopyButton value={record.name} />
+          <span className="text-muted-foreground">{t('settings.ihost.customDomain.dnsTarget')}</span>
+          <span className="font-mono break-all">{record.target}</span>
+          <CopyButton value={record.target} />
+        </div>
+      ))}
+      {config.verificationPath && (
+        <div className="border-t pt-3 text-sm">
+          <p className="text-muted-foreground">{t('settings.ihost.customDomain.challengeInstructions')}</p>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="min-w-0 flex-1 break-all rounded bg-background px-2 py-1">{config.verificationPath}</code>
+            <CopyButton value={config.verificationPath} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -81,12 +86,16 @@ function StatusBadge({ status }: { status: IhostConfigResponse['domainStatus'] }
   const { t } = useTranslation()
   const styles = {
     verified: 'bg-green-100 text-green-800',
-    pending: 'bg-amber-100 text-amber-800',
+    pending_dns: 'bg-amber-100 text-amber-800',
+    pending_tls: 'bg-blue-100 text-blue-800',
+    failed: 'bg-red-100 text-red-800',
     none: 'bg-gray-100 text-gray-600',
   }
   const labels = {
     verified: t('settings.ihost.customDomain.statusVerified'),
-    pending: t('settings.ihost.customDomain.statusPending'),
+    pending_dns: t('settings.ihost.customDomain.statusPendingDns'),
+    pending_tls: t('settings.ihost.customDomain.statusPendingTls'),
+    failed: t('settings.ihost.customDomain.statusFailed'),
     none: t('settings.ihost.customDomain.statusNone'),
   }
   return (
@@ -110,7 +119,7 @@ export function CustomDomainPanel({ orgId, config }: CustomDomainPanelProps) {
 
   // Auto-poll when domain is pending verification
   useEffect(() => {
-    if (config.domainStatus !== 'pending') {
+    if (config.domainStatus !== 'pending_dns' && config.domainStatus !== 'pending_tls') {
       pollCountRef.current = 0
       setPollingStopped(false)
       return
@@ -215,11 +224,12 @@ export function CustomDomainPanel({ orgId, config }: CustomDomainPanelProps) {
                 </Button>
               </div>
 
-              {pollingStopped && config.domainStatus === 'pending' && (
+              {pollingStopped && (config.domainStatus === 'pending_dns' || config.domainStatus === 'pending_tls') && (
                 <p className="text-xs text-muted-foreground">{t('settings.ihost.customDomain.pollingStopped')}</p>
               )}
 
               {config.domainStatus !== 'verified' && <DnsInstructions config={config} />}
+              {config.domainError && <p className="text-sm text-destructive">{config.domainError}</p>}
 
               {config.domainStatus === 'verified' && (
                 <Button variant="destructive" size="sm" onClick={() => setRemoveOpen(true)}>

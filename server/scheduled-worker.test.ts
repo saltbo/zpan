@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/downloads/remote-download-usage'
+import { reconcileImageDomains } from '../server/usecases/site/image-domain-provider'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
 import { runLicensingRefresh } from '../server/usecases/site/licensing'
 import { syncPendingCloudTrafficReports } from '../server/usecases/store/traffic-metering'
@@ -52,6 +53,10 @@ vi.mock('../server/usecases/site/licensing', () => ({
   runLicensingRefresh: vi.fn(),
 }))
 
+vi.mock('../server/usecases/site/image-domain-provider', () => ({
+  reconcileImageDomains: vi.fn(),
+}))
+
 vi.mock('../server/usecases/downloads/remote-download-usage', () => ({
   syncPendingRemoteDownloadUsageReports: vi.fn(),
 }))
@@ -62,6 +67,7 @@ describe('handleScheduled', () => {
     vi.mocked(syncPendingRemoteDownloadUsageReports).mockReset()
     vi.mocked(reportInstanceTelemetry).mockReset()
     vi.mocked(runLicensingRefresh).mockReset()
+    vi.mocked(reconcileImageDomains).mockReset()
     mockResetExpiredTrafficQuotas.mockReset()
     refreshHourlyRollups.mockReset()
     purgeExpiredLocks.mockReset()
@@ -88,6 +94,7 @@ describe('handleScheduled', () => {
     expect(refreshHourlyRollups).toHaveBeenCalledOnce()
     expect(purgeExpiredLocks).toHaveBeenCalledOnce()
     expect(purgeResourceChanges).toHaveBeenCalledOnce()
+    expect(reconcileImageDomains).toHaveBeenCalledWith(fakeDeps)
     expect(reconcileFreePlanBaselines).not.toHaveBeenCalled()
     expect(syncPendingCloudTrafficReports).not.toHaveBeenCalled()
     expect(syncPendingRemoteDownloadUsageReports).not.toHaveBeenCalled()

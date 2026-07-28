@@ -21,6 +21,7 @@ import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { BrandingSection } from '@/components/admin/branding-section'
 import type { StorageQuotaUnit } from '@/components/admin/cloud-store-settings-section'
 import { EmailConfigSection } from '@/components/admin/email-config-section'
+import { ImageDomainProviderSection } from '@/components/admin/image-domain-provider-section'
 import { ProBadge } from '@/components/ProBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -533,6 +534,10 @@ export function SettingsPage() {
 
         <SettingsSection title={t('admin.auth.emailSection')}>
           <EmailConfigSection />
+        </SettingsSection>
+
+        <SettingsSection title={t('admin.imageDomains.section')}>
+          <ImageDomainProviderSection />
         </SettingsSection>
       </div>
 

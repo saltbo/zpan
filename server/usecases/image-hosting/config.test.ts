@@ -1,431 +1,301 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  AppError,
-  CfConflictError,
-  type CfHostnameStatus,
-  type CfHostnamesProvider,
-  type ImageHostingConfigRecord,
-  type ImageHostingConfigRepo,
+import { describe, expect, it, vi } from 'vitest'
+import type {
+  ImageDomainProviderConfig,
+  ImageDomainProviderGateway,
+  ImageHostingConfigRecord,
+  ImageHostingConfigRepo,
 } from '../ports'
-import {
-  type CfSettings,
-  deleteImageHostingConfig,
-  getImageHostingConfig,
-  type ImageHostingConfigDeps,
-  putImageHostingConfig,
-} from './config'
+import { deleteImageHostingConfig, getImageHostingConfig, putImageHostingConfig } from './config'
 
-const CF_ON: CfSettings = { isConfigured: true, appHost: null }
-const CF_OFF: CfSettings = { isConfigured: false, appHost: null }
+const now = new Date('2026-07-27T12:00:00.000Z')
 
-function makeConfig(over: Partial<ImageHostingConfigRecord> = {}): ImageHostingConfigRecord {
+function row(overrides: Partial<ImageHostingConfigRecord> = {}): ImageHostingConfigRecord {
   return {
-    orgId: 'o1',
+    orgId: 'org-1',
     customDomain: null,
-    cfHostnameId: null,
+    domainProvider: null,
+    providerHostnameId: null,
+    domainStatus: null,
+    domainError: null,
+    verificationToken: null,
+    domainLastCheckedAt: null,
     domainVerifiedAt: null,
     refererAllowlist: null,
-    createdAt: new Date(1000),
-    updatedAt: new Date(1000),
-    ...over,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
   }
 }
 
-const activeStatus: CfHostnameStatus = { status: 'active', ssl_status: 'active' }
-const pendingStatus: CfHostnameStatus = { status: 'pending', ssl_status: 'initializing' }
-
-const notImpl = () => {
-  throw new Error('not implemented')
+const readyManual: ImageDomainProviderConfig = {
+  settings: {
+    enabled: true,
+    provider: 'manual',
+    manual: { records: [{ type: 'CNAME', value: 'images.example.net' }] },
+  },
+  lastTestedAt: now,
+  error: null,
 }
 
-function makeDeps(
-  over: { imageHostingConfigs?: Partial<ImageHostingConfigRepo>; cfHostnames?: Partial<CfHostnamesProvider> } = {},
-): ImageHostingConfigDeps {
-  return {
-    imageHostingConfigs: {
-      getByOrg: async () => null,
-      create: async () => {},
-      update: async () => {},
-      delete: async () => {},
-      ...over.imageHostingConfigs,
-    },
-    cfHostnames: {
-      register: async () => ({ id: 'cf-new' }),
-      getStatus: notImpl,
-      delete: async () => {},
-      ...over.cfHostnames,
-    },
+const readyCloudflare: ImageDomainProviderConfig = {
+  settings: {
+    enabled: true,
+    provider: 'cloudflare_saas',
+    cloudflare: { apiToken: 'token', zoneId: 'zone', cnameTarget: 'ssl.example.net' },
+  },
+  lastTestedAt: now,
+  error: null,
+}
+
+function deps(
+  config: ImageDomainProviderConfig | null,
+  overrides: {
+    repo?: Partial<ImageHostingConfigRepo>
+    gateway?: Partial<ImageDomainProviderGateway>
+  } = {},
+) {
+  const repo: ImageHostingConfigRepo = {
+    getByOrg: async () => null,
+    getByDomain: async () => null,
+    listWithDomains: async () => [],
+    create: async () => {},
+    update: async () => {},
+    markAllDomainsPending: async () => {},
+    delete: async () => {},
+    ...overrides.repo,
   }
+  const gateway: ImageDomainProviderGateway = {
+    getConfig: async () => config,
+    test: async () => {},
+    provision: async () => ({
+      externalId: config?.settings.provider === 'cloudflare_saas' ? 'cf-host-1' : null,
+      status: 'pending_dns',
+      dnsRecords: [],
+      error: null,
+    }),
+    refresh: async () => ({ externalId: 'cf-host-1', status: 'pending_tls', dnsRecords: [], error: null }),
+    deprovision: async () => {},
+    ...overrides.gateway,
+  }
+  return { imageHostingConfigs: repo, imageDomains: gateway }
 }
 
-beforeEach(() => vi.clearAllMocks())
-
-describe('image-hosting-config usecase', () => {
-  describe('getImageHostingConfig', () => {
-    it('returns null when no config row exists', async () => {
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => null } })
-      expect(await getImageHostingConfig(deps, 'o1', CF_ON)).toBeNull()
-    })
-
-    it('returns the row unchanged when no custom domain', async () => {
-      const row = makeConfig()
-      const getStatus = vi.fn(notImpl)
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => row }, cfHostnames: { getStatus } })
-      expect(await getImageHostingConfig(deps, 'o1', CF_ON)).toBe(row)
-      expect(getStatus).not.toHaveBeenCalled()
-    })
-
-    it('does NOT call CF when the domain is already verified', async () => {
-      const row = makeConfig({ customDomain: 'img.x.com', cfHostnameId: 'cf-1', domainVerifiedAt: new Date(500) })
-      const getStatus = vi.fn(notImpl)
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => row }, cfHostnames: { getStatus } })
-      const out = await getImageHostingConfig(deps, 'o1', CF_ON)
-      expect(out?.domainVerifiedAt).toEqual(new Date(500))
-      expect(getStatus).not.toHaveBeenCalled()
-    })
-
-    it('does NOT call CF when CF is not configured (stays pending)', async () => {
-      const row = makeConfig({ customDomain: 'img.x.com', cfHostnameId: 'cf-1', domainVerifiedAt: null })
-      const getStatus = vi.fn(notImpl)
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => row }, cfHostnames: { getStatus } })
-      const out = await getImageHostingConfig(deps, 'o1', CF_OFF)
-      expect(out?.domainVerifiedAt).toBeNull()
-      expect(getStatus).not.toHaveBeenCalled()
-    })
-
-    it('lazily verifies and persists when CF getStatus returns active', async () => {
-      const row = makeConfig({ customDomain: 'img.x.com', cfHostnameId: 'cf-pending', domainVerifiedAt: null })
-      const update = vi.fn(async () => {})
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => row, update },
-        cfHostnames: { getStatus: async () => activeStatus },
-      })
-      const out = await getImageHostingConfig(deps, 'o1', CF_ON)
-      expect(out?.domainVerifiedAt).toBeInstanceOf(Date)
-      expect(update).toHaveBeenCalledWith('o1', { domainVerifiedAt: expect.any(Date) })
-    })
-
-    it('stays pending and does not persist when CF getStatus is non-active', async () => {
-      const row = makeConfig({ customDomain: 'img.x.com', cfHostnameId: 'cf-pending', domainVerifiedAt: null })
-      const update = vi.fn(async () => {})
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => row, update },
-        cfHostnames: { getStatus: async () => pendingStatus },
-      })
-      const out = await getImageHostingConfig(deps, 'o1', CF_ON)
-      expect(out?.domainVerifiedAt).toBeNull()
-      expect(update).not.toHaveBeenCalled()
-    })
+describe('image-hosting custom-domain config', () => {
+  it('returns null when the workspace has no image-hosting config', async () => {
+    await expect(getImageHostingConfig(deps(readyManual), 'org-1')).resolves.toBeNull()
   })
 
-  describe('putImageHostingConfig — create (no existing row)', () => {
-    it('rejects the app default host before any DB or CF work', async () => {
-      const getByOrg = vi.fn(async () => null)
-      const create = vi.fn(async () => {})
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg, create } })
-      const out = await putImageHostingConfig(
-        deps,
-        'o1',
-        { enabled: true, customDomain: 'zpan.example.com' },
-        { isConfigured: true, appHost: 'zpan.example.com' },
-      )
-      expect(out.ok).toBe(false)
-      if (!out.ok) {
-        expect(out.error).toBeInstanceOf(AppError)
-        expect(out.error.httpStatus).toBe(400)
-        expect(out.error.message).toBe('Custom domain cannot be the application default host')
-      }
-      expect(getByOrg).not.toHaveBeenCalled()
-      expect(create).not.toHaveBeenCalled()
-    })
+  it('rejects a custom domain until the administrator tests the provider [spec: image-hosting-config/provider-not-ready]', async () => {
+    const untested = { ...readyManual, lastTestedAt: null }
+    const result = await putImageHostingConfig(
+      deps(untested),
+      'org-1',
+      { enabled: true, customDomain: 'img.example.com' },
+      'zpan.example.com',
+    )
+    expect(result).toMatchObject({ ok: false, error: { httpStatus: 400 } })
+  })
 
-    it('creates a no-domain config and returns enabled with null domain', async () => {
-      const create = vi.fn(async () => {})
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => null, create } })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true }, CF_OFF)
-      expect(out.ok).toBe(true)
-      if (out.ok) {
-        expect(out.config.customDomain).toBeNull()
-        expect(out.config.cfHostnameId).toBeNull()
-        expect(out.config.domainVerifiedAt).toBeNull()
-      }
-      expect(create).toHaveBeenCalledWith({
-        orgId: 'o1',
-        customDomain: null,
-        cfHostnameId: null,
-        refererAllowlist: null,
-      })
-    })
+  it('rejects the application host [spec: image-hosting-config/reject-app-host]', async () => {
+    const result = await putImageHostingConfig(
+      deps(readyManual),
+      'org-1',
+      { enabled: true, customDomain: 'zpan.example.com' },
+      'zpan.example.com',
+    )
+    expect(result).toMatchObject({ ok: false, error: { httpStatus: 400 } })
+  })
 
-    it('registers a CF hostname when CF is configured and stores cfHostnameId', async () => {
-      const register = vi.fn(async () => ({ id: 'cf-123' }))
-      const create = vi.fn(async () => {})
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => null, create }, cfHostnames: { register } })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'img.cf.com' }, CF_ON)
-      expect(out.ok).toBe(true)
-      if (out.ok) expect(out.config.cfHostnameId).toBe('cf-123')
-      expect(register).toHaveBeenCalledWith('img.cf.com')
-      expect(create).toHaveBeenCalledWith(
-        expect.objectContaining({ customDomain: 'img.cf.com', cfHostnameId: 'cf-123' }),
-      )
-    })
+  it('creates a manual binding with a verification token', async () => {
+    const create = vi.fn(async () => {})
+    const result = await putImageHostingConfig(
+      deps(readyManual, { repo: { create } }),
+      'org-1',
+      { enabled: true, customDomain: '图片.example.com', refererAllowlist: ['https://博客.example'] },
+      'zpan.example.com',
+    )
+    expect(result.ok).toBe(true)
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customDomain: '图片.example.com',
+        domainProvider: 'manual',
+        domainStatus: 'pending_dns',
+        verificationToken: expect.any(String),
+      }),
+    )
+  })
 
-    it('does not call CF register when CF is not configured (domain stays pending)', async () => {
-      const register = vi.fn(async () => ({ id: 'cf-x' }))
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => null }, cfHostnames: { register } })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'img.noenv.com' }, CF_OFF)
-      expect(out.ok).toBe(true)
-      if (out.ok) expect(out.config.cfHostnameId).toBeNull()
-      expect(register).not.toHaveBeenCalled()
-    })
+  it('stores the Cloudflare hostname id [spec: image-hosting-config/cloudflare-binding]', async () => {
+    const create = vi.fn(async () => {})
+    const provision = vi.fn(async () => ({
+      externalId: 'host-123',
+      status: 'pending_tls' as const,
+      dnsRecords: [{ type: 'CNAME' as const, value: 'ssl.example.net' }],
+      error: null,
+    }))
+    await putImageHostingConfig(
+      deps(readyCloudflare, { repo: { create }, gateway: { provision } }),
+      'org-1',
+      { enabled: true, customDomain: 'img.example.com' },
+      'zpan.example.com',
+    )
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ providerHostnameId: 'host-123' }))
+  })
 
-    it('serializes refererAllowlist to JSON on create', async () => {
-      const create = vi.fn(async () => {})
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => null, create } })
-      const out = await putImageHostingConfig(
-        deps,
-        'o1',
-        { enabled: true, refererAllowlist: ['https://a.com', 'https://b.com'] },
-        CF_OFF,
-      )
-      expect(out.ok).toBe(true)
-      if (out.ok) expect(out.config.refererAllowlist).toBe(JSON.stringify(['https://a.com', 'https://b.com']))
-      expect(create).toHaveBeenCalledWith(
-        expect.objectContaining({ refererAllowlist: JSON.stringify(['https://a.com', 'https://b.com']) }),
-      )
-    })
-
-    it('maps a CF conflict to domain_conflict 409', async () => {
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => null },
-        cfHostnames: {
-          register: async () => {
-            throw new CfConflictError('taken')
+  it('returns a conflict when Cloudflare says the hostname is already taken', async () => {
+    const result = await putImageHostingConfig(
+      deps(readyCloudflare, {
+        gateway: {
+          provision: async () => {
+            throw new Error('hostname already exists')
           },
         },
-      })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'taken.com' }, CF_ON)
-      expect(out.ok).toBe(false)
-      if (!out.ok) {
-        expect(out.error).toBeInstanceOf(AppError)
-        expect(out.error.httpStatus).toBe(409)
-        expect(out.error.message).toBe('Domain already registered by another organization')
-      }
-    })
+      }),
+      'org-1',
+      { enabled: true, customDomain: 'img.example.com' },
+      'zpan.example.com',
+    )
+    expect(result).toMatchObject({ ok: false, error: { httpStatus: 409 } })
+  })
 
-    it('propagates a non-conflict CF register error', async () => {
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => null },
-        cfHostnames: {
-          register: async () => {
-            throw new Error('CF 500')
+  it('does not swallow unrelated provider failures', async () => {
+    await expect(
+      putImageHostingConfig(
+        deps(readyCloudflare, {
+          gateway: {
+            provision: async () => {
+              throw new Error('network unavailable')
+            },
           },
-        },
-      })
-      await expect(
-        putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'img.err.com' }, CF_ON),
-      ).rejects.toThrow('CF 500')
-    })
+        }),
+        'org-1',
+        { enabled: true, customDomain: 'img.example.com' },
+        'zpan.example.com',
+      ),
+    ).rejects.toThrow('network unavailable')
+  })
 
-    it('maps a DB UNIQUE violation on insert to domain_conflict 409', async () => {
-      const deps = makeDeps({
-        imageHostingConfigs: {
-          getByOrg: async () => null,
+  it('updates an existing domain while preserving its binding and allowlist', async () => {
+    const update = vi.fn(async () => {})
+    const existing = row({
+      customDomain: 'img.example.com',
+      domainProvider: 'manual',
+      domainStatus: 'verified',
+      verificationToken: 'challenge-token',
+      domainVerifiedAt: now,
+      refererAllowlist: JSON.stringify(['https://blog.example.com']),
+    })
+    const result = await putImageHostingConfig(
+      deps(readyManual, { repo: { getByOrg: async () => existing, update } }),
+      'org-1',
+      { enabled: true, customDomain: 'IMG.EXAMPLE.COM' },
+      'zpan.example.com',
+    )
+    expect(result.ok).toBe(true)
+    expect(update).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({
+        customDomain: 'img.example.com',
+        verificationToken: 'challenge-token',
+        refererAllowlist: JSON.stringify(['https://blog.example.com']),
+      }),
+    )
+  })
+
+  it('deprovisions the old hostname when replacing a domain', async () => {
+    const deprovision = vi.fn(async () => {})
+    const update = vi.fn(async () => {})
+    await putImageHostingConfig(
+      deps(readyCloudflare, {
+        repo: {
+          getByOrg: async () =>
+            row({
+              customDomain: 'old.example.com',
+              domainProvider: 'cloudflare_saas',
+              providerHostnameId: 'old-host',
+            }),
+          update,
+        },
+        gateway: { deprovision },
+      }),
+      'org-1',
+      { enabled: true, customDomain: 'new.example.com', refererAllowlist: null },
+      'zpan.example.com',
+    )
+    expect(deprovision).toHaveBeenCalledWith(readyCloudflare, 'old-host')
+    expect(update).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({ customDomain: 'new.example.com', refererAllowlist: null }),
+    )
+  })
+
+  it('maps a database domain uniqueness failure to a conflict', async () => {
+    const result = await putImageHostingConfig(
+      deps(readyManual, {
+        repo: {
           create: async () => {
-            throw new Error('SQLITE_CONSTRAINT: UNIQUE constraint failed: image_hosting_configs.custom_domain')
+            throw new Error('UNIQUE constraint failed: image_hosting_configs.custom_domain')
           },
         },
-      })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'dup.com' }, CF_OFF)
-      expect(out.ok).toBe(false)
-      if (!out.ok) {
-        expect(out.error).toBeInstanceOf(AppError)
-        expect(out.error.httpStatus).toBe(409)
-        expect(out.error.message).toBe('Domain already registered by another organization')
-      }
-    })
+      }),
+      'org-1',
+      { enabled: true, customDomain: 'img.example.com' },
+      'zpan.example.com',
+    )
+    expect(result).toMatchObject({ ok: false, error: { httpStatus: 409 } })
   })
 
-  describe('putImageHostingConfig — update (existing row)', () => {
-    it('changing the domain deletes the old CF hostname then registers the new one', async () => {
-      const existing = makeConfig({ customDomain: 'old.com', cfHostnameId: 'cf-old' })
-      const order: string[] = []
-      const cfDelete = vi.fn(async () => {
-        order.push('delete')
-      })
-      const register = vi.fn(async () => {
-        order.push('register')
-        return { id: 'cf-new-456' }
-      })
-      const update = vi.fn(async () => {})
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => existing, update },
-        cfHostnames: { delete: cfDelete, register },
-      })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'new.com' }, CF_ON)
-      expect(out.ok).toBe(true)
-      if (out.ok) {
-        expect(out.config.customDomain).toBe('new.com')
-        expect(out.config.cfHostnameId).toBe('cf-new-456')
-        expect(out.config.domainVerifiedAt).toBeNull()
-        expect(out.config.createdAt).toEqual(existing.createdAt)
-      }
-      expect(order).toEqual(['delete', 'register'])
+  it('refreshes a pending Cloudflare binding to verified [spec: image-hosting-config/cloudflare-refresh]', async () => {
+    const update = vi.fn(async () => {})
+    const configRow = row({
+      customDomain: 'img.example.com',
+      domainProvider: 'cloudflare_saas',
+      providerHostnameId: 'host-1',
+      domainStatus: 'pending_tls',
     })
-
-    it('CF delete failure on domain change is best-effort: continues and registers', async () => {
-      const existing = makeConfig({ customDomain: 'old.warn.com', cfHostnameId: 'cf-warn' })
-      const register = vi.fn(async () => ({ id: 'cf-new-warn' }))
-      const update = vi.fn(async () => {})
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => existing, update },
-        cfHostnames: {
-          delete: async () => {
-            throw new Error('CF 403')
-          },
-          register,
+    const result = await getImageHostingConfig(
+      deps(readyCloudflare, {
+        repo: { getByOrg: async () => configRow, update },
+        gateway: {
+          refresh: async () => ({
+            externalId: 'host-1',
+            status: 'verified',
+            dnsRecords: [],
+            error: null,
+          }),
         },
-      })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'new.warn.com' }, CF_ON)
-      expect(out.ok).toBe(true)
-      if (out.ok) expect(out.config.cfHostnameId).toBe('cf-new-warn')
-      expect(register).toHaveBeenCalledTimes(1)
-      warn.mockRestore()
-    })
-
-    it('propagates a non-conflict CF register error on the update path', async () => {
-      const existing = makeConfig({ customDomain: 'old.com', cfHostnameId: 'cf-old' })
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => existing },
-        cfHostnames: {
-          delete: async () => {},
-          register: async () => {
-            throw new Error('CF 500')
-          },
-        },
-      })
-      await expect(
-        putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'new.com' }, CF_ON),
-      ).rejects.toThrow('CF 500')
-    })
-
-    it('maps a DB UNIQUE violation on update to domain_conflict 409', async () => {
-      const existing = makeConfig({ customDomain: 'other.com' })
-      const deps = makeDeps({
-        imageHostingConfigs: {
-          getByOrg: async () => existing,
-          update: async () => {
-            throw new Error('unique constraint')
-          },
-        },
-      })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'claimed.com' }, CF_OFF)
-      expect(out.ok).toBe(false)
-      if (!out.ok) {
-        expect(out.error).toBeInstanceOf(AppError)
-        expect(out.error.httpStatus).toBe(409)
-        expect(out.error.message).toBe('Domain already registered by another organization')
-      }
-    })
-
-    it('clears the domain (null) → no CF register, domainVerifiedAt null', async () => {
-      const existing = makeConfig({ customDomain: 'old.com', cfHostnameId: 'cf-old', domainVerifiedAt: new Date(9) })
-      const cfDelete = vi.fn(async () => {})
-      const register = vi.fn(async () => ({ id: 'x' }))
-      const update = vi.fn(async () => {})
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => existing, update },
-        cfHostnames: { delete: cfDelete, register },
-      })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: null }, CF_ON)
-      expect(out.ok).toBe(true)
-      if (out.ok) {
-        expect(out.config.customDomain).toBeNull()
-        expect(out.config.cfHostnameId).toBeNull()
-        expect(out.config.domainVerifiedAt).toBeNull()
-      }
-      expect(cfDelete).toHaveBeenCalledTimes(1)
-      expect(register).not.toHaveBeenCalled()
-    })
-
-    it('preserves the existing refererAllowlist when the body omits it (unchanged domain)', async () => {
-      const existing = makeConfig({ customDomain: 'keep.com', refererAllowlist: JSON.stringify(['https://keep.com']) })
-      const update = vi.fn(async () => {})
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => existing, update } })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true, customDomain: 'keep.com' }, CF_OFF)
-      expect(out.ok).toBe(true)
-      if (out.ok) expect(out.config.refererAllowlist).toBe(JSON.stringify(['https://keep.com']))
-      expect(update).toHaveBeenCalledWith(
-        'o1',
-        expect.objectContaining({ refererAllowlist: JSON.stringify(['https://keep.com']) }),
-      )
-    })
-
-    it('clears the refererAllowlist when the body sets it to null', async () => {
-      const existing = makeConfig({ refererAllowlist: JSON.stringify(['https://old.com']) })
-      const update = vi.fn(async () => {})
-      const deps = makeDeps({ imageHostingConfigs: { getByOrg: async () => existing, update } })
-      const out = await putImageHostingConfig(deps, 'o1', { enabled: true, refererAllowlist: null }, CF_OFF)
-      expect(out.ok).toBe(true)
-      if (out.ok) expect(out.config.refererAllowlist).toBeNull()
-    })
+      }),
+      'org-1',
+    )
+    expect(result?.domainStatus).toBe('verified')
+    expect(update).toHaveBeenCalledWith('org-1', expect.objectContaining({ domainStatus: 'verified' }))
   })
 
-  describe('deleteImageHostingConfig', () => {
-    it('is a no-op when no config row exists', async () => {
-      const del = vi.fn(async () => {})
-      const cfDelete = vi.fn(async () => {})
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => null, delete: del },
-        cfHostnames: { delete: cfDelete },
-      })
-      await deleteImageHostingConfig(deps, 'o1')
-      expect(del).not.toHaveBeenCalled()
-      expect(cfDelete).not.toHaveBeenCalled()
-    })
-
-    it('deletes the CF hostname (when set) then removes the row', async () => {
-      const existing = makeConfig({ customDomain: 'img.del.com', cfHostnameId: 'cf-del' })
-      const cfDelete = vi.fn(async () => {})
-      const del = vi.fn(async () => {})
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => existing, delete: del },
-        cfHostnames: { delete: cfDelete },
-      })
-      await deleteImageHostingConfig(deps, 'o1')
-      expect(cfDelete).toHaveBeenCalledWith('cf-del')
-      expect(del).toHaveBeenCalledWith('o1')
-    })
-
-    it('removes the row even when CF delete fails (best-effort)', async () => {
-      const existing = makeConfig({ customDomain: 'img.fail.com', cfHostnameId: 'cf-fail' })
-      const del = vi.fn(async () => {})
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => existing, delete: del },
-        cfHostnames: {
-          delete: async () => {
-            throw new Error('CF 403')
-          },
+  it('deprovisions the external hostname on delete [spec: image-hosting-config/deprovision]', async () => {
+    const deprovision = vi.fn(async () => {})
+    const del = vi.fn(async () => {})
+    await deleteImageHostingConfig(
+      deps(readyCloudflare, {
+        repo: {
+          getByOrg: async () =>
+            row({
+              customDomain: 'img.example.com',
+              domainProvider: 'cloudflare_saas',
+              providerHostnameId: 'host-1',
+            }),
+          delete: del,
         },
-      })
-      await deleteImageHostingConfig(deps, 'o1')
-      expect(del).toHaveBeenCalledWith('o1')
-      warn.mockRestore()
-    })
+        gateway: { deprovision },
+      }),
+      'org-1',
+    )
+    expect(deprovision).toHaveBeenCalledWith(readyCloudflare, 'host-1')
+    expect(del).toHaveBeenCalledWith('org-1')
+  })
 
-    it('skips the CF call when there is no cfHostnameId', async () => {
-      const existing = makeConfig({ customDomain: null, cfHostnameId: null })
-      const cfDelete = vi.fn(async () => {})
-      const del = vi.fn(async () => {})
-      const deps = makeDeps({
-        imageHostingConfigs: { getByOrg: async () => existing, delete: del },
-        cfHostnames: { delete: cfDelete },
-      })
-      await deleteImageHostingConfig(deps, 'o1')
-      expect(cfDelete).not.toHaveBeenCalled()
-      expect(del).toHaveBeenCalledWith('o1')
-    })
+  it('treats deleting an absent config as idempotent', async () => {
+    const del = vi.fn(async () => {})
+    await deleteImageHostingConfig(deps(readyManual, { repo: { delete: del } }), 'org-1')
+    expect(del).not.toHaveBeenCalled()
   })
 })
