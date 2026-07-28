@@ -28,6 +28,7 @@ import { adminAudit } from './http/site/audit'
 import { authProviders } from './http/site/auth-providers'
 import { brandingAdmin } from './http/site/branding'
 import emailConfig from './http/site/email-config'
+import imageDomainProvider from './http/site/image-domain-provider'
 import { adminSiteInvitations, publicSiteInvitations } from './http/site/invitations'
 import { adminInviteCodes, publicInviteCodes } from './http/site/invite-codes'
 import { licensing, licensingAdmin } from './http/site/licensing'
@@ -250,6 +251,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/site/storages', storages)
   app.route('/api/site/settings', siteSettings)
   app.route('/api/site/settings/email', emailConfig)
+  app.route('/api/site/settings/image-domains', imageDomainProvider)
   app.route('/api/site/auth-providers', authProviders)
   // Public/user router mounts BEFORE the admin router on a shared path: a sub-app's
   // blanket `.use(requireAdmin)` becomes prefix-wide middleware, so mounting admin
@@ -364,6 +366,7 @@ export type SystemRoute = typeof system
 export type ConfigzRoute = typeof configz
 export type SiteSettingsRoute = typeof siteSettings
 export type EmailConfigRoute = typeof emailConfig
+export type ImageDomainProviderRoute = typeof imageDomainProvider
 export type AdminInviteCodesRoute = typeof adminInviteCodes
 export type PublicInviteCodesRoute = typeof publicInviteCodes
 export type AdminSiteInvitationsRoute = typeof adminSiteInvitations

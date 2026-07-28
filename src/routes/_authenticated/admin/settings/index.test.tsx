@@ -49,6 +49,9 @@ vi.mock('@/components/admin/branding-section', () => ({ BrandingSection: () => <
 vi.mock('@/components/admin/email-config-section', () => ({
   EmailConfigSection: () => <section>email-config</section>,
 }))
+vi.mock('@/components/admin/image-domain-provider-section', () => ({
+  ImageDomainProviderSection: () => <section>image-domain-provider</section>,
+}))
 vi.mock('@/hooks/use-site-settings', () => ({
   siteSettingsQueryKey: ['site', 'settings'],
   useSiteSettings: () => ({ data: state.settings, isLoading: false }),

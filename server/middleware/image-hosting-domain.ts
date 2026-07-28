@@ -2,7 +2,7 @@ import type { Context, Next } from 'hono'
 import { PRESIGN_TTL_SECS } from '../http/share-utils'
 import { reportTrafficForDownload } from '../http/store/traffic-metering'
 import type { Env } from '../middleware/platform'
-import { resolveCachedImageDomain } from '../usecases/image-hosting/domain-cache'
+import { cacheVerifiedImageDomain, resolveCachedImageDomain } from '../usecases/image-hosting/domain-cache'
 import { forbidden, notFound, quotaExceeded, storageNotFound } from '../usecases/ports'
 import { confirmDownloadTraffic, reverseDownloadTraffic } from '../usecases/store/traffic-metering'
 import { createTrafficEventId, recordDownloadFailure, recordDownloadIssued } from '../usecases/transfer-activity'
@@ -156,6 +156,35 @@ export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<R
     appHosts.some((candidate) => host === candidate || (candidate === 'workers.dev' && host.endsWith('.workers.dev')))
   ) {
     return next()
+  }
+
+  const verificationPrefix = '/.well-known/zpan-domain-verification/'
+  if (c.req.method === 'GET' && c.req.path.startsWith(verificationPrefix)) {
+    const token = c.req.path.slice(verificationPrefix.length)
+    const [row, provider] = await Promise.all([
+      c.get('deps').imageHostingConfigs.getByDomain(host),
+      c.get('deps').imageDomains.getConfig(),
+    ])
+    if (
+      row?.customDomain &&
+      row.domainProvider === 'manual' &&
+      row.verificationToken === token &&
+      provider?.settings.enabled &&
+      provider.settings.provider === 'manual' &&
+      provider.lastTestedAt &&
+      !provider.error
+    ) {
+      const now = new Date()
+      await c.get('deps').imageHostingConfigs.update(row.orgId, {
+        domainStatus: 'verified',
+        domainError: null,
+        domainLastCheckedAt: now,
+        domainVerifiedAt: now,
+      })
+      await cacheVerifiedImageDomain(c.get('deps'), host, row.orgId)
+      return c.text(token, 200, { 'Cache-Control': 'no-store' })
+    }
+    throw notFound('Domain verification not found')
   }
 
   const orgId = await resolveCachedImageDomain(c.get('deps'), host)

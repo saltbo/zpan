@@ -12,8 +12,8 @@ import { createImageUploadGateway } from './adapters/gateways/image-upload'
 import { createLicensingCloudGateway } from './adapters/gateways/licensing-cloud'
 import { S3Service } from './adapters/gateways/s3'
 import { createZipGateway } from './adapters/gateways/zip'
-import { createCfClient } from './adapters/providers/cf-custom-hostnames'
 import { createChangelogProvider } from './adapters/providers/changelog'
+import { createImageDomainProviderGateway } from './adapters/providers/image-domain-provider'
 import { createAdminStatsRepo } from './adapters/repos/admin-stats'
 import { createAnnouncementRepo } from './adapters/repos/announcement'
 import { createApiKeyGateway } from './adapters/repos/api-keys'
@@ -84,7 +84,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     archiveTargetFolders: createArchiveTargetFolderRepo(db),
     backgroundJobs: createBackgroundJobRepo(db),
     cache,
-    cfHostnames: createCfClient((key) => platform.getEnv(key)),
+    imageDomains: createImageDomainProviderGateway(systemOptions),
     changelog: createChangelogProvider(),
     cloudStore: createCloudStoreRepo(db),
     cloudTrafficReports: createCloudTrafficReportRepo(db),

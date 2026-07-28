@@ -15,6 +15,7 @@ import type {
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
   EmailSettings,
+  ImageDomainProviderResponse,
   PatchStorageInput,
   PresignObjectUploadPartsInput,
   PublicProfile,
@@ -30,6 +31,7 @@ import type {
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
   UpdateEmailSettingsInput,
+  UpdateImageDomainSettingsInput,
   UpdateSiteCaptchaInput,
   UpdateSiteIdentityInput,
   UpdateSiteQuotasInput,
@@ -108,6 +110,7 @@ import {
   eventsUrlApi,
   ihostApi,
   ihostConfigApi,
+  imageDomainProviderApi,
   inviteCodes,
   licensingAdminApi,
   licensingApi,
@@ -853,6 +856,22 @@ export function saveEmailConfig(data: EmailConfigData) {
 
 export function testEmail(to: string) {
   return unwrap<{ success: boolean; error?: string }>(emailConfig['test-messages'].$post({ json: { to } }))
+}
+
+// Image custom-domain provider API
+
+export type ImageDomainProviderData = UpdateImageDomainSettingsInput
+
+export function getImageDomainProvider() {
+  return unwrap<ImageDomainProviderResponse>(imageDomainProviderApi.index.$get())
+}
+
+export function saveImageDomainProvider(data: ImageDomainProviderData) {
+  return unwrap<{ success: true }>(imageDomainProviderApi.index.$put({ json: data }))
+}
+
+export function testImageDomainProvider() {
+  return unwrap<{ success: true }>(imageDomainProviderApi.tests.$post())
 }
 
 // Profile API (public, no auth)

@@ -173,6 +173,108 @@ export const updateEmailSettingsSchema = z
 
 export const createTestEmailSchema = z.object({ to: z.string().email() }).openapi('CreateTestEmail')
 
+export const imageDomainDnsRecordSchema = z
+  .object({
+    type: z.enum(['CNAME', 'A', 'AAAA']),
+    value: z.string().trim().min(1),
+  })
+  .superRefine((record, context) => {
+    const hostname = record.value.replace(/\.$/, '')
+    if (
+      record.type === 'CNAME' &&
+      !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(hostname)
+    ) {
+      context.addIssue({ code: 'custom', message: 'CNAME value must be a hostname', path: ['value'] })
+    }
+    if (
+      record.type === 'A' &&
+      !(/^(?:\d{1,3}\.){3}\d{1,3}$/.test(record.value) && record.value.split('.').every((part) => Number(part) <= 255))
+    ) {
+      context.addIssue({ code: 'custom', message: 'A value must be an IPv4 address', path: ['value'] })
+    }
+    if (record.type === 'AAAA') {
+      try {
+        new URL(`http://[${record.value}]/`)
+      } catch {
+        context.addIssue({ code: 'custom', message: 'AAAA value must be an IPv6 address', path: ['value'] })
+      }
+    }
+  })
+  .openapi('ImageDomainDnsRecord')
+
+const imageDomainSettingsBaseSchema = z.object({
+  enabled: z.boolean(),
+})
+
+export const cloudflareSaasImageDomainSettingsSchema = imageDomainSettingsBaseSchema
+  .extend({
+    provider: z.literal('cloudflare_saas'),
+    cloudflare: z.object({
+      apiToken: z.string().min(1),
+      zoneId: z
+        .string()
+        .trim()
+        .regex(/^[a-f0-9]{32}$/i, 'Zone ID must be 32 hexadecimal characters'),
+      cnameTarget: z
+        .string()
+        .trim()
+        .min(1)
+        .max(253)
+        .regex(
+          /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i,
+          'CNAME target must be a hostname',
+        ),
+    }),
+  })
+  .openapi('CloudflareSaasImageDomainSettings')
+
+export const manualImageDomainSettingsSchema = imageDomainSettingsBaseSchema
+  .extend({
+    provider: z.literal('manual'),
+    manual: z.object({
+      records: z.array(imageDomainDnsRecordSchema).min(1),
+    }),
+  })
+  .openapi('ManualImageDomainSettings')
+
+export const emptyImageDomainSettingsSchema = z
+  .object({
+    enabled: z.literal(false),
+    provider: z.null(),
+  })
+  .openapi('EmptyImageDomainSettings')
+
+export const imageDomainSettingsSchema = z
+  .union([cloudflareSaasImageDomainSettingsSchema, manualImageDomainSettingsSchema, emptyImageDomainSettingsSchema])
+  .openapi('ImageDomainSettings')
+
+export const updateImageDomainSettingsSchema = z
+  .discriminatedUnion('provider', [cloudflareSaasImageDomainSettingsSchema, manualImageDomainSettingsSchema])
+  .openapi('UpdateImageDomainSettings')
+
+export const imageDomainProviderStatusSchema = z
+  .enum(['disabled', 'unverified', 'ready', 'error'])
+  .openapi('ImageDomainProviderStatus')
+
+export const imageDomainProviderResponseSchema = z
+  .object({
+    settings: imageDomainSettingsSchema,
+    status: imageDomainProviderStatusSchema,
+    lastTestedAt: z.iso.datetime().nullable(),
+    error: z.string().nullable(),
+    domains: z.array(
+      z.object({
+        orgId: z.string(),
+        hostname: z.string(),
+        provider: z.enum(['cloudflare_saas', 'manual']).nullable(),
+        status: z.enum(['pending_dns', 'pending_tls', 'verified', 'failed']).nullable(),
+        error: z.string().nullable(),
+        lastCheckedAt: z.iso.datetime().nullable(),
+      }),
+    ),
+  })
+  .openapi('ImageDomainProviderResponse')
+
 export const siteSettingsSchema = z
   .object({
     identity: siteIdentitySettingsSchema,
@@ -222,6 +324,10 @@ export type SiteWebDavSettings = z.infer<typeof siteWebDavSettingsSchema>
 export type EmailSettings = z.infer<typeof emailSettingsSchema>
 export type UpdateEmailSettingsInput = z.infer<typeof updateEmailSettingsSchema>
 export type CreateTestEmailInput = z.infer<typeof createTestEmailSchema>
+export type ImageDomainDnsRecord = z.infer<typeof imageDomainDnsRecordSchema>
+export type ImageDomainSettings = z.infer<typeof imageDomainSettingsSchema>
+export type UpdateImageDomainSettingsInput = z.infer<typeof updateImageDomainSettingsSchema>
+export type ImageDomainProviderResponse = z.infer<typeof imageDomainProviderResponseSchema>
 export type UpdateSiteIdentityInput = z.infer<typeof updateSiteIdentitySchema>
 export type UpdateSiteRegistrationInput = z.infer<typeof updateSiteRegistrationSchema>
 export type UpdateSiteCaptchaInput = z.infer<typeof updateSiteCaptchaSchema>

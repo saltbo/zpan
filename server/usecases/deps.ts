@@ -11,7 +11,6 @@ import type {
   AuditRepo,
   BackgroundJobRepo,
   CacheService,
-  CfHostnamesProvider,
   ChangelogProvider,
   CloudStoreRepo,
   CloudTrafficReportRepo,
@@ -19,6 +18,7 @@ import type {
   DownloadTaskRepo,
   DownloadTokenGateway,
   EmailGateway,
+  ImageDomainProviderGateway,
   ImageHostingConfigRepo,
   ImageHostingRepo,
   ImageUpload,
@@ -61,7 +61,7 @@ export interface Deps {
   archiveTargetFolders: ArchiveTargetFolderRepo
   backgroundJobs: BackgroundJobRepo
   cache: CacheService
-  cfHostnames: CfHostnamesProvider
+  imageDomains: ImageDomainProviderGateway
   changelog: ChangelogProvider
   cloudStore: CloudStoreRepo
   cloudTrafficReports: CloudTrafficReportRepo

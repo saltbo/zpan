@@ -4,43 +4,46 @@ import type { IhostConfigResponse } from '../../../shared/types'
 import { requireAuth, requireTeamRole } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import {
-  type CfSettings,
   deleteImageHostingConfig,
-  getImageHostingConfig,
+  getImageHostingConfigView,
   putImageHostingConfig,
 } from '../../usecases/image-hosting/config'
+import type { ImageDomainProviderConfig, ImageHostingConfigRecord } from '../../usecases/ports'
 import { unauthorized } from '../../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
-// One monomorphic shape for every state: not-configured carries `enabled: false`
-// with every other field null, configured carries `enabled: true` with values.
 const ihostConfigSchema = z
   .object({
     enabled: z.boolean(),
     customDomain: z.string().nullable(),
     domainVerifiedAt: z.number().int().nullable(),
-    domainStatus: z.enum(['none', 'pending', 'verified']),
-    dnsInstructions: z.object({ recordType: z.string(), name: z.string(), target: z.string() }).nullable(),
+    domainStatus: z.enum(['none', 'pending_dns', 'pending_tls', 'verified', 'failed']),
+    domainError: z.string().nullable(),
+    dnsInstructions: z
+      .array(
+        z.object({
+          recordType: z.enum(['CNAME', 'A', 'AAAA']),
+          name: z.string(),
+          target: z.string(),
+        }),
+      )
+      .nullable(),
+    verificationPath: z.string().nullable(),
     refererAllowlist: z.array(z.string()).nullable(),
     createdAt: z.number().int().nullable(),
   })
   .openapi('ImageHostingConfig')
 
-function toUnixMs(d: Date | null | undefined): number | null {
-  if (!d) return null
-  return d instanceof Date ? d.getTime() : null
+function providerDnsRecords(provider: ImageDomainProviderConfig | null) {
+  if (!provider) return []
+  return provider.settings.provider === 'manual'
+    ? provider.settings.manual.records
+    : [{ type: 'CNAME' as const, value: provider.settings.cloudflare.cnameTarget }]
 }
 
 function buildResponse(
-  row: {
-    customDomain: string | null
-    cfHostnameId: string | null
-    domainVerifiedAt: Date | null
-    refererAllowlist: string | null
-    createdAt: Date
-  } | null,
-  cnameTarget: string,
-  isCfConfigured: boolean,
+  row: ImageHostingConfigRecord | null,
+  provider: ImageDomainProviderConfig | null,
 ): IhostConfigResponse {
   if (!row) {
     return {
@@ -48,45 +51,34 @@ function buildResponse(
       customDomain: null,
       domainVerifiedAt: null,
       domainStatus: 'none',
+      domainError: null,
       dnsInstructions: null,
+      verificationPath: null,
       refererAllowlist: null,
       createdAt: null,
     }
   }
-
-  const verifiedAtMs = toUnixMs(row.domainVerifiedAt)
-
-  let domainStatus: IhostConfigResponse['domainStatus'] = 'none'
-  if (row.customDomain) domainStatus = verifiedAtMs ? 'verified' : 'pending'
-
-  let dnsInstructions: IhostConfigResponse['dnsInstructions'] = null
-  if (row.customDomain) {
-    dnsInstructions = {
-      recordType: isCfConfigured ? 'CNAME' : 'manual',
-      name: row.customDomain,
-      target: isCfConfigured ? cnameTarget : 'See docs/ihost-custom-domain-node.md for manual Caddy setup',
-    }
-  }
-
-  const refererAllowlist = row.refererAllowlist ? (JSON.parse(row.refererAllowlist) as string[]) : null
-
+  const domainStatus = row.customDomain ? (row.domainStatus ?? 'pending_dns') : 'none'
   return {
     enabled: true,
     customDomain: row.customDomain,
-    domainVerifiedAt: verifiedAtMs,
+    domainVerifiedAt: row.domainVerifiedAt?.getTime() ?? null,
     domainStatus,
-    dnsInstructions,
-    refererAllowlist,
+    domainError: row.domainError,
+    dnsInstructions: row.customDomain
+      ? providerDnsRecords(provider).map((record) => ({
+          recordType: record.type,
+          name: row.customDomain as string,
+          target: record.value,
+        }))
+      : null,
+    verificationPath:
+      row.customDomain && row.domainProvider === 'manual' && row.verificationToken
+        ? `/.well-known/zpan-domain-verification/${row.verificationToken}`
+        : null,
+    refererAllowlist: row.refererAllowlist ? (JSON.parse(row.refererAllowlist) as string[]) : null,
     createdAt: row.createdAt.getTime(),
   }
-}
-
-function cfFrom(c: { get(k: 'platform'): { getEnv(k: string): string | undefined } }) {
-  const getEnv = c.get('platform').getEnv.bind(c.get('platform'))
-  const isCfConfigured = !!getEnv('CF_API_TOKEN')
-  const cnameTarget = getEnv('CF_CNAME_TARGET') ?? ''
-  const cf: CfSettings = { isConfigured: isCfConfigured, appHost: getEnv('APP_HOST') ?? null }
-  return { isCfConfigured, cnameTarget, cf }
 }
 
 const getRoute = createRoute({
@@ -111,7 +103,7 @@ const putRoute = createRoute({
   request: jsonBody(putIhostConfigSchema),
   responses: {
     200: jsonContent(ihostConfigSchema, 'Updated config'),
-    400: errorResponse('Custom domain cannot be the application default host'),
+    400: errorResponse('Custom domain or provider is invalid'),
     401: errorResponse('Unauthorized'),
     409: errorResponse('Domain already registered by another organization'),
   },
@@ -137,17 +129,15 @@ const ihostConfig = app
   .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized()
-    const { isCfConfigured, cnameTarget, cf } = cfFrom(c)
-    const row = await getImageHostingConfig(c.get('deps'), orgId, cf)
-    return c.json(buildResponse(row, cnameTarget, isCfConfigured), 200)
+    const result = await getImageHostingConfigView(c.get('deps'), orgId)
+    return c.json(buildResponse(result.config, result.provider), 200)
   })
   .openapi(putRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized()
-    const { isCfConfigured, cnameTarget, cf } = cfFrom(c)
-    const result = await putImageHostingConfig(c.get('deps'), orgId, c.req.valid('json'), cf)
+    const result = await putImageHostingConfig(c.get('deps'), orgId, c.req.valid('json'), new URL(c.req.url).hostname)
     if (!result.ok) throw result.error
-    return c.json(buildResponse(result.config, cnameTarget, isCfConfigured), 200)
+    return c.json(buildResponse(result.config, result.provider), 200)
   })
   .openapi(deleteRoute, async (c) => {
     const orgId = c.get('orgId')

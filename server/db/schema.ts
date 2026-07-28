@@ -646,7 +646,12 @@ export const imageHostingConfigs = sqliteTable('image_hosting_configs', {
     .primaryKey()
     .references(() => organization.id, { onDelete: 'cascade' }),
   customDomain: text('custom_domain').unique(),
-  cfHostnameId: text('cf_hostname_id'),
+  domainProvider: text('domain_provider'),
+  providerHostnameId: text('provider_hostname_id'),
+  domainStatus: text('domain_status'),
+  domainError: text('domain_error'),
+  verificationToken: text('verification_token'),
+  domainLastCheckedAt: integer('domain_last_checked_at', { mode: 'timestamp_ms' }),
   domainVerifiedAt: integer('domain_verified_at', { mode: 'timestamp_ms' }),
   refererAllowlist: text('referer_allowlist'), // JSON array of strings; null/empty => allow all
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),

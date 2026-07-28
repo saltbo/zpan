@@ -592,7 +592,12 @@ export interface AdminAuditEvent extends AuditEvent {
 export interface ImageHostingConfig {
   orgId: string
   customDomain: string | null
-  cfHostnameId: string | null
+  domainProvider: 'cloudflare_saas' | 'manual' | null
+  providerHostnameId: string | null
+  domainStatus: 'pending_dns' | 'pending_tls' | 'verified' | 'failed' | null
+  domainError: string | null
+  verificationToken: string | null
+  domainLastCheckedAt: string | null
   domainVerifiedAt: string | null
   refererAllowlist: string | null // JSON array of strings; null/empty => allow all
   createdAt: string
@@ -603,8 +608,10 @@ export interface IhostConfigResponse {
   enabled: boolean
   customDomain: string | null
   domainVerifiedAt: number | null
-  domainStatus: 'none' | 'pending' | 'verified'
-  dnsInstructions: { recordType: string; name: string; target: string } | null
+  domainStatus: 'none' | 'pending_dns' | 'pending_tls' | 'verified' | 'failed'
+  domainError: string | null
+  dnsInstructions: Array<{ recordType: 'CNAME' | 'A' | 'AAAA'; name: string; target: string }> | null
+  verificationPath: string | null
   refererAllowlist: string[] | null
   createdAt: number | null
 }

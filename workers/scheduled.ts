@@ -6,6 +6,7 @@ import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/downloads/remote-download-usage'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/usecases/object'
 import { purgeExpiredResourceChanges } from '../server/usecases/resource-changes'
+import { reconcileImageDomains } from '../server/usecases/site/image-domain-provider'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
 import { runLicensingRefresh } from '../server/usecases/site/licensing'
 import { syncPendingCloudTrafficReports } from '../server/usecases/store/traffic-metering'
@@ -50,6 +51,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
       deps.adminStats.refreshHourlyRollups(now),
       deps.webdavState.purgeExpiredLocks(),
       purgeExpiredResourceChanges(deps, now),
+      reconcileImageDomains(deps),
     ])
     return
   }

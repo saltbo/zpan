@@ -387,7 +387,12 @@ const APP_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS image_hosting_configs (
     org_id TEXT PRIMARY KEY REFERENCES organization(id) ON DELETE CASCADE,
     custom_domain TEXT UNIQUE,
-    cf_hostname_id TEXT,
+    domain_provider TEXT,
+    provider_hostname_id TEXT,
+    domain_status TEXT,
+    domain_error TEXT,
+    verification_token TEXT,
+    domain_last_checked_at INTEGER,
     domain_verified_at INTEGER,
     referer_allowlist TEXT,
     created_at INTEGER NOT NULL,

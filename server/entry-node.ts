@@ -14,6 +14,7 @@ import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
 import { syncPendingRemoteDownloadUsageReports } from './usecases/downloads/remote-download-usage'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from './usecases/object'
 import { purgeExpiredResourceChanges } from './usecases/resource-changes'
+import { reconcileImageDomains } from './usecases/site/image-domain-provider'
 import { buildCloudInstanceInfo, runtimeInfo } from './usecases/site/instance-info'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/site/instance-telemetry'
 import { runLicensingRefresh } from './usecases/site/licensing'
@@ -164,6 +165,7 @@ function writeStatsRollup(): void {
         deps.adminStats.refreshHourlyRollups(now),
         deps.webdavState.purgeExpiredLocks(),
         purgeExpiredResourceChanges(deps, now),
+        reconcileImageDomains(deps),
       ])
       console.log(
         JSON.stringify({

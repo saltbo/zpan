@@ -20,6 +20,7 @@ import type {
   EventsRoute,
   IhostConfigRoute,
   IhostRoute,
+  ImageDomainProviderRoute,
   LicensingAdminRoute,
   LicensingRoute,
   NotificationsRoute,
@@ -65,6 +66,7 @@ export const authProviders = hc<AuthProvidersRoute>('/api/site/auth-providers', 
 export const inviteCodes = hc<AdminInviteCodesRoute>('/api/site/invite-codes', opts)
 export const adminSiteInvitations = hc<AdminSiteInvitationsRoute>('/api/site/invitations', opts)
 export const emailConfig = hc<EmailConfigRoute>('/api/site/settings/email', opts)
+export const imageDomainProviderApi = hc<ImageDomainProviderRoute>('/api/site/settings/image-domains', opts)
 export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
 export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
 export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)
