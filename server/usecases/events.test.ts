@@ -107,4 +107,21 @@ describe('streamEvents', () => {
       }),
     ])
   })
+
+  it('ends a connection at its maximum lifetime so EventSource can resume it', async () => {
+    const { deps, listAfter } = makeDeps()
+    const done = streamEvents(
+      deps,
+      params({ afterSequence: 0, maxDurationMs: POLL }),
+      new AbortController().signal,
+      vi.fn(),
+    )
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(listAfter).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(POLL)
+    await done
+    expect(listAfter).toHaveBeenCalledTimes(1)
+  })
 })

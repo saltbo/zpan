@@ -92,12 +92,19 @@ export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, (c) => {
         const id = message.id === undefined ? '' : `id: ${message.id}\n`
         controller.enqueue(encoder.encode(`${id}event: ${message.event}\ndata: ${JSON.stringify(message.data)}\n\n`))
       }
-      abort.signal.addEventListener('abort', () => {
+      const close = () => {
         if (streamClosed) return
         streamClosed = true
         controller.close()
+      }
+      abort.signal.addEventListener('abort', close)
+
+      const task = streamEvents(deps, params, abort.signal, emit)
+      void task.then(close, (error: unknown) => {
+        if (streamClosed) return
+        streamClosed = true
+        controller.error(error)
       })
-      void streamEvents(deps, params, abort.signal, emit)
     },
     cancel() {
       streamClosed = true

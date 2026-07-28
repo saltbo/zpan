@@ -4,6 +4,9 @@ import type { ResourceChange, ResourceChangeScopeType } from './ports'
 const POLL_INTERVAL_MS = 2000
 const HEARTBEAT_INTERVAL_MS = 25_000
 const CHANGE_BATCH_SIZE = 100
+// EventSource resumes with Last-Event-ID, so rotating connections keeps Worker
+// invocations and trace trees bounded without creating an event-delivery gap.
+const MAX_STREAM_DURATION_MS = 5 * 60_000
 
 export type EventsMessage = { event: string; data: unknown; id?: number }
 export type EventsEmit = (message: EventsMessage) => void
@@ -21,6 +24,7 @@ export type EventsParams = {
   afterSequence?: number
   pollIntervalMs?: number
   heartbeatIntervalMs?: number
+  maxDurationMs?: number
 }
 
 const delay = (ms: number, signal: AbortSignal): Promise<void> =>
@@ -104,6 +108,7 @@ export async function streamEvents(
   const feeds = feedsFor(params)
   const pollIntervalMs = params.pollIntervalMs ?? POLL_INTERVAL_MS
   const heartbeatIntervalMs = params.heartbeatIntervalMs ?? HEARTBEAT_INTERVAL_MS
+  const deadline = Date.now() + (params.maxDurationMs ?? MAX_STREAM_DURATION_MS)
   let sequence = params.afterSequence ?? (await latestSequence(deps, feeds))
   let lastEmitAt = Date.now()
 
@@ -117,7 +122,7 @@ export async function streamEvents(
     send({ event: 'resync', data: { sequence }, id: sequence })
   }
 
-  while (!signal.aborted) {
+  while (!signal.aborted && Date.now() < deadline) {
     try {
       let changed = false
       const changes = await readChanges(deps, feeds, sequence)
@@ -134,6 +139,6 @@ export async function streamEvents(
       send({ event: 'error', data: { message: error instanceof Error ? error.message : 'unknown error' } })
     }
 
-    if (!signal.aborted) await delay(pollIntervalMs, signal)
+    if (!signal.aborted) await delay(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())), signal)
   }
 }

@@ -61,13 +61,20 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   const corsOrigins = getCorsOrigins(platform)
 
   app.use('/*', platformMiddleware(platform, auth))
-  app.use('/*', async (c, next) =>
-    runWithCacheEvents(async () => {
+  app.use('/*', async (c, next) => {
+    // An SSE connection outlives the response setup by minutes. Keeping request
+    // diagnostics attached would retain its AsyncLocalStorage store for the
+    // whole stream even though the polling loop does not use the cache.
+    if (c.req.path === '/api/events' || c.req.path === '/api/events/') {
+      await next()
+      return
+    }
+    await runWithCacheEvents(async () => {
       await next()
       const serverTiming = cacheServerTiming()
       if (serverTiming) c.res.headers.append('Server-Timing', serverTiming)
-    }),
-  )
+    })
+  })
   app.use('/*', async (c, next) => {
     c.set('deps', deps)
     await next()
