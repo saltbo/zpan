@@ -215,6 +215,7 @@ export const cloudflareSaasImageDomainSettingsSchema = imageDomainSettingsBaseSc
         .string()
         .trim()
         .regex(/^[a-f0-9]{32}$/i, 'Zone ID must be 32 hexadecimal characters'),
+      workerName: z.string().trim().min(1).max(64),
       cnameTarget: z
         .string()
         .trim()

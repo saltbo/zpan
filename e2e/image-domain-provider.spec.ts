@@ -16,6 +16,21 @@ test.describe('Image custom-domain provider', () => {
     await card.getByRole('button', { name: 'Edit' }).click()
 
     const drawer = page.getByRole('dialog', { name: 'Image custom-domain provider' })
+    const tokenLink = drawer.getByRole('link', { name: 'Create preconfigured Cloudflare token' })
+    const tokenUrl = new URL((await tokenLink.getAttribute('href')) ?? '')
+    expect(tokenUrl.origin).toBe('https://dash.cloudflare.com')
+    expect(JSON.parse(tokenUrl.searchParams.get('permissionGroupKeys') ?? '[]')).toEqual(
+      expect.arrayContaining([
+        { key: 'zone', type: 'read' },
+        { key: 'dns', type: 'edit' },
+        { key: 'ssl_and_certificates', type: 'edit' },
+        { key: 'zone_transform_rules', type: 'edit' },
+        { key: 'workers_routes', type: 'edit' },
+      ]),
+    )
+    await expect(drawer.getByRole('textbox', { name: 'Worker script name' })).toHaveValue('zpan')
+    await drawer.screenshot({ path: 'test-results/image-domain-provider-cloudflare-en.png' })
+
     await drawer.getByRole('switch', { name: 'Enable custom domains' }).click()
     await drawer.getByRole('combobox', { name: 'Provider' }).click()
     await page.getByRole('option', { name: 'Self-managed' }).click()
@@ -31,7 +46,7 @@ test.describe('Image custom-domain provider', () => {
     ])
 
     await expect(card).toContainText('Self-managed')
-    await card.getByRole('button', { name: 'Test configuration' }).click()
+    await card.getByRole('button', { name: 'Set up and test' }).click()
     await expect(card).toContainText('Ready')
     await card.screenshot({ path: 'test-results/image-domain-provider-en.png' })
 
@@ -43,6 +58,7 @@ test.describe('Image custom-domain provider', () => {
       has: page.getByText('图床自定义域名 Provider', { exact: true }),
     })
     await expect(chineseCard).toContainText('站长手动管理')
+    await expect(chineseCard.getByRole('button', { name: '自动设置并测试' })).toBeVisible()
     await chineseCard.screenshot({ path: 'test-results/image-domain-provider-zh.png' })
   })
 })

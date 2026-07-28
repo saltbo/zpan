@@ -5,6 +5,7 @@ export const IMAGE_DOMAIN_OPTION_KEYS = {
   provider: 'image_domain_provider',
   cloudflareApiToken: 'image_domain_cloudflare_api_token',
   cloudflareZoneId: 'image_domain_cloudflare_zone_id',
+  cloudflareWorkerName: 'image_domain_cloudflare_worker_name',
   cloudflareCnameTarget: 'image_domain_cloudflare_cname_target',
   manualRecords: 'image_domain_manual_records',
   lastTestedAt: 'image_domain_last_tested_at',

@@ -190,7 +190,7 @@ export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<R
   const orgId = await resolveCachedImageDomain(c.get('deps'), host)
   if (!orgId) return next()
 
-  const virtualPath = c.req.path.replace(/^\/+/, '')
+  const virtualPath = c.req.path.replace(/^\/ih(?:\/|$)/, '').replace(/^\/+/, '')
   if (!virtualPath) throw notFound('path required')
 
   return handleImageByPath(c, orgId, virtualPath)

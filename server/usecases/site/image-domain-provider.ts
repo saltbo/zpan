@@ -93,6 +93,7 @@ function optionEntries(input: UpdateImageDomainSettingsInput, apiToken: string |
     entries.push(
       { key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareApiToken, value: apiToken ?? input.cloudflare.apiToken },
       { key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareZoneId, value: input.cloudflare.zoneId },
+      { key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareWorkerName, value: input.cloudflare.workerName },
       { key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareCnameTarget, value: input.cloudflare.cnameTarget },
     )
   } else {

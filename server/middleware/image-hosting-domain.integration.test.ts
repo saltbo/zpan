@@ -229,6 +229,24 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
     ])
   })
 
+  it('strips the internal /ih rewrite prefix before resolving an image path', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'dm-rewritten', path: '中文/图片.png' })
+    await insertImageHostingConfig(db, orgId, { customDomain: 'img.rewrite.com' })
+
+    const res = await app.request('/ih/%E4%B8%AD%E6%96%87/%E5%9B%BE%E7%89%87.png', {
+      headers: { host: 'img.rewrite.com' },
+      redirect: 'manual',
+    })
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
+    expect(await getAccessCount(db, 'dm-rewritten')).toBe(1)
+  })
+
   it('verified custom domain consumes traffic quota when inline URL is issued', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)

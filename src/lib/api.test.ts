@@ -4005,7 +4005,12 @@ describe('api', () => {
         settings: {
           enabled: true,
           provider: 'cloudflare_saas',
-          cloudflare: { apiToken: '****oken', zoneId: 'zone-1', cnameTarget: 'ssl.example.com' },
+          cloudflare: {
+            apiToken: '****oken',
+            zoneId: 'zone-1',
+            workerName: 'zpan',
+            cnameTarget: 'ssl.example.com',
+          },
         },
         status: 'ready',
         lastTestedAt: '2026-07-27T12:00:00.000Z',
