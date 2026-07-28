@@ -29,6 +29,7 @@ function makeImageHosting(overrides: Partial<ImageHosting> = {}): ImageHosting {
     orgId: 'org-1',
     token: 'tok_abc',
     path: 'folder/photo.png',
+    url: '/r/tok_abc.png',
     storageId: 'stor-1',
     storageKey: 'ih/tok_abc',
     size: 1024,
@@ -129,54 +130,15 @@ describe('imageHostDataSource.list', () => {
     expect(ihostItem.token).toBe('tok_xyz')
   })
 
-  it('computes url from token and extension for png mime', async () => {
-    const img = makeImageHosting({ token: 'tok_abc', mime: 'image/png' })
+  it('keeps the token URL for previews and thumbnails', async () => {
+    const img = makeImageHosting({ url: 'https://images.example.com/folder/photo.png' })
     vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
 
     const result = await imageHostDataSource.list('', {})
 
-    const ihostItem = result.items[0] as { url: string }
+    const ihostItem = result.items[0] as { url: string; publicUrl: string }
     expect(ihostItem.url).toBe('/r/tok_abc.png')
-  })
-
-  it('computes url with jpg ext for image/jpeg mime', async () => {
-    const img = makeImageHosting({ token: 'tok_jpg', mime: 'image/jpeg' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
-
-    const result = await imageHostDataSource.list('', {})
-
-    const ihostItem = result.items[0] as { url: string }
-    expect(ihostItem.url).toBe('/r/tok_jpg.jpg')
-  })
-
-  it('computes url with gif ext for image/gif mime', async () => {
-    const img = makeImageHosting({ token: 'tok_gif', mime: 'image/gif' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
-
-    const result = await imageHostDataSource.list('', {})
-
-    const ihostItem = result.items[0] as { url: string }
-    expect(ihostItem.url).toBe('/r/tok_gif.gif')
-  })
-
-  it('computes url with webp ext for image/webp mime', async () => {
-    const img = makeImageHosting({ token: 'tok_webp', mime: 'image/webp' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
-
-    const result = await imageHostDataSource.list('', {})
-
-    const ihostItem = result.items[0] as { url: string }
-    expect(ihostItem.url).toBe('/r/tok_webp.webp')
-  })
-
-  it('computes url with bin ext for unknown mime', async () => {
-    const img = makeImageHosting({ token: 'tok_unk', mime: 'application/octet-stream' })
-    vi.mocked(listIhostImages).mockResolvedValue({ items: [img], nextPageToken: null })
-
-    const result = await imageHostDataSource.list('', {})
-
-    const ihostItem = result.items[0] as { url: string }
-    expect(ihostItem.url).toBe('/r/tok_unk.bin')
+    expect(ihostItem.publicUrl).toBe('https://images.example.com/folder/photo.png')
   })
 
   it('computes dimensions string when width and height are set', async () => {
@@ -441,7 +403,7 @@ describe('imageHostDataSource.getThumbnailUrl', () => {
 // ---------------------------------------------------------------------------
 
 describe('imageHostDataSource.getShareUrl', () => {
-  it('returns item.url', () => {
+  it('returns item.publicUrl', () => {
     const item = {
       id: 'img-1',
       orgId: 'org-1',
@@ -459,16 +421,17 @@ describe('imageHostDataSource.getShareUrl', () => {
       updatedAt: '',
       token: 'tok_abc',
       url: '/r/tok_abc.png',
+      publicUrl: 'https://images.example.com/photo.png',
       dimensions: null,
       accessCount: 0,
     }
 
     const result = imageHostDataSource.getShareUrl(item)
 
-    expect(result).toBe('/r/tok_abc.png')
+    expect(result).toBe('https://images.example.com/photo.png')
   })
 
-  it('returns empty string when url is undefined/null', () => {
+  it('returns empty string when publicUrl is undefined/null', () => {
     const item = {
       id: 'img-1',
       orgId: 'org-1',

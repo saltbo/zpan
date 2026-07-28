@@ -9,6 +9,7 @@ import { confirmIhostImage, createIhostImagePresign, deleteIhostImage, listIhost
 export interface IhostItem extends StorageObject {
   token: string
   url: string
+  publicUrl: string
   dimensions: string | null
   accessCount: number
 }
@@ -46,6 +47,7 @@ function toIhostItem(img: ImageHosting): IhostItem {
     // IhostItem extra fields
     token: img.token,
     url: `/r/${img.token}.${mimeToExt(img.mime)}`,
+    publicUrl: img.url,
     dimensions,
     accessCount: img.accessCount,
   }
@@ -112,6 +114,6 @@ export const imageHostDataSource = {
 
   getShareUrl(item: StorageObject): string {
     const ihostItem = item as IhostItem
-    return ihostItem.url ?? ''
+    return ihostItem.publicUrl ?? ''
   },
 }

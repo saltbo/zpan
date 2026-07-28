@@ -4575,6 +4575,7 @@ type ImageHosting struct {
 	StorageId      string  `json:"storageId"`
 	StorageKey     string  `json:"storageKey"`
 	Token          string  `json:"token"`
+	Url            string  `json:"url"`
 	Width          *int    `json:"width"`
 }
 

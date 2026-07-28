@@ -31,7 +31,7 @@ export interface ImageResolution {
 
 export interface ImageHostingRepo {
   // Redirect resolution. Both return the active image plus its org's referer
-  // allowlist (parsed): the /r/:token ih_ path and the custom-domain middleware.
+  // allowlist (parsed): the /r/:token ih path and the custom-domain middleware.
   resolveActiveByToken(token: string): Promise<ImageResolution | null>
   resolveActiveByOrgPath(orgId: string, path: string): Promise<ImageResolution | null>
   resolveCustomDomain(host: string): Promise<string | null>

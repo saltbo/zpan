@@ -1,4 +1,5 @@
 import type { Context, Next } from 'hono'
+import { imageHostingNotFound } from '../http/image-hosting-not-found'
 import { PRESIGN_TTL_SECS } from '../http/share-utils'
 import { reportTrafficForDownload } from '../http/store/traffic-metering'
 import type { Env } from '../middleware/platform'
@@ -41,7 +42,7 @@ function checkReferer(refererAllowlist: string[], refererHeader: string | null):
 
 async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: string): Promise<Response> {
   const resolved = await c.get('deps').imageHosting.resolveActiveByOrgPath(orgId, virtualPath)
-  if (!resolved) throw notFound('Not found')
+  if (!resolved) return imageHostingNotFound(c.req.raw)
 
   const { image, refererAllowlist } = resolved
 
@@ -191,7 +192,7 @@ export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<R
   if (!orgId) return next()
 
   const virtualPath = c.req.path.replace(/^\/ih(?:\/|$)/, '').replace(/^\/+/, '')
-  if (!virtualPath) throw notFound('path required')
+  if (!virtualPath) return imageHostingNotFound(c.req.raw)
 
   return handleImageByPath(c, orgId, virtualPath)
 }

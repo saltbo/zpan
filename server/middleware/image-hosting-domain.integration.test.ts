@@ -339,7 +339,7 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
     expect(await getAccessCount(db, 'dm-sign-fail')).toBe(0)
   })
 
-  it('verified custom domain, path not found → 404', async () => {
+  it('verified custom domain, path not found → English HTML 404 for direct navigation', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -351,6 +351,37 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
       redirect: 'manual',
     })
     expect(res.status).toBe(404)
+    expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8')
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    expect(res.headers.get('x-robots-tag')).toBe('noindex, nofollow')
+    const body = await res.text()
+    expect(body).toContain('<html lang="en">')
+    expect(body).toContain('Image not found')
+    expect(body).toContain('The image does not exist or has been removed.')
+  })
+
+  it('verified custom domain, path not found → Chinese SVG 404 for embedded images', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId, { customDomain: 'img.missing-zh.com' })
+
+    const res = await app.request('/blog/notexist.png', {
+      headers: {
+        host: 'img.missing-zh.com',
+        Accept: 'image/avif,image/webp,image/svg+xml,image/*,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      },
+      redirect: 'manual',
+    })
+    expect(res.status).toBe(404)
+    expect(res.headers.get('content-type')).toBe('image/svg+xml; charset=utf-8')
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    const body = await res.text()
+    expect(body).toContain('<svg')
+    expect(body).toContain('图片不存在')
+    expect(body).toContain('这张图片不存在或已被删除。')
   })
 
   it('host with port suffix still matches', async () => {
@@ -383,7 +414,7 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
     expect(res.status).toBe(302)
   })
 
-  it('empty path (root /) → 404 with path required error', async () => {
+  it('empty path (root /) → image-hosting HTML 404', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -394,8 +425,8 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
       headers: { host: 'img.empty.com' },
     })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: { message: string } }
-    expect(body.error.message).toBe('path required')
+    expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8')
+    expect(await res.text()).toContain('Image not found')
   })
 })
 

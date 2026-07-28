@@ -309,7 +309,7 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.uploadUrl).toBe('https://presigned-upload.example.com')
     expect(body.id).toBeTruthy()
-    expect(String(body.token)).toMatch(/^ih_/)
+    expect(String(body.token)).toMatch(/^ih[A-Za-z0-9]{10}$/)
     expect(body.path).toBe('blog/2026/shot.png')
     expect(String(body.storageKey)).toMatch(/^ih\//)
   })
@@ -589,7 +589,7 @@ describe('POST /api/image-hosting/images (multipart)', () => {
     const body = (await res.json()) as { data: Record<string, unknown> }
     expect(body.data).toBeDefined()
     expect(body.data.url).toBeTruthy()
-    expect(String(body.data.urlAlt)).toMatch(/\/r\/ih_/)
+    expect(String(body.data.urlAlt)).toMatch(/\/r\/ih[A-Za-z0-9]{10}$/)
     expect(String(body.data.markdown)).toContain('![](')
     expect(String(body.data.html)).toContain('<img src=')
     expect(String(body.data.bbcode)).toContain('[img]')
@@ -724,7 +724,7 @@ describe('POST /api/image-hosting/images (multipart)', () => {
     const body = (await res.json()) as { data: Record<string, unknown> }
     // url and urlAlt should both be the token URL when no custom domain
     expect(body.data.url).toBe(body.data.urlAlt)
-    expect(String(body.data.url)).toMatch(/\/r\/ih_/)
+    expect(String(body.data.url)).toMatch(/\/r\/ih[A-Za-z0-9]{10}$/)
   })
 
   it('cleans up DB row and refunds quota when S3 put fails', async () => {
@@ -1077,6 +1077,37 @@ describe('GET /api/image-hosting/images', () => {
     expect(body.items[0].path).toBe('active.png')
   })
 
+  it('returns token URLs when no verified custom domain is configured', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+    const image = await insertImageHosting(db, orgId, { path: 'plain.png' })
+
+    const res = await app.request('/api/image-hosting/images', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ url: string }> }
+    expect(body.items[0].url).toBe(`http://localhost/r/${image.token}.png`)
+  })
+
+  it('returns custom-domain path URLs when the domain is verified', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId, {
+      customDomain: 'images.example.com',
+      domainVerifiedAt: Date.now(),
+    })
+    await insertImageHosting(db, orgId, { path: 'blog/cover.png' })
+
+    const res = await app.request('/api/image-hosting/images', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ url: string }> }
+    expect(body.items[0].url).toBe('https://images.example.com/blog/cover.png')
+  })
+
   it('paginates with cursor', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
@@ -1142,6 +1173,7 @@ describe('GET /api/image-hosting/images/:id', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.id).toBe(id)
+    expect(body.url).toMatch(/^http:\/\/localhost\/r\/ih_/)
   })
 })
 

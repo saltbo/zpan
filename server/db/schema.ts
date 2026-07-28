@@ -666,7 +666,7 @@ export const imageHostings = sqliteTable(
     orgId: text('org_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
-    token: text('token').notNull().unique(), // "ih_" + nanoid(10)
+    token: text('token').notNull().unique(), // "ih" + 10 alphanumeric characters
     path: text('path').notNull(), // virtual path e.g. "blog/2026/04/shot.png"
     storageId: text('storage_id')
       .notNull()

@@ -106,15 +106,15 @@ describe('[CF] /r/:token ds_ direct shares', () => {
   })
 })
 
-// ─── CF ih_ image hosting tests ───────────────────────────────────────────────
+// ─── CF image hosting token tests ─────────────────────────────────────────────
 
-describe('[CF] /r/:token ih_ image hosting', () => {
-  it('returns 302 for active image hosting token', async () => {
+describe('[CF] /r/:token image hosting', () => {
+  it('returns 302 for a new active image-hosting token without an underscore', async () => {
     vi.spyOn(S3Service.prototype, 'presignInline').mockResolvedValue(MOCK_INLINE_URL)
     const { app, db } = await buildApp()
     const { orgId } = await signUpAndGetIds(app, db)
     await insertStorage(db)
-    const token = `ih_cf${Date.now()}`
+    const token = `ihcf${Date.now()}`
     await insertImageHosting(db, orgId, { id: `cf-ih-${Date.now()}`, token })
 
     const res = await app.request(`/r/${token}`, { redirect: 'manual' })

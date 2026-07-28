@@ -46,6 +46,7 @@ const imageHostingSchema = z
     orgId: z.string(),
     token: z.string(),
     path: z.string(),
+    url: z.string(),
     storageId: z.string(),
     storageKey: z.string(),
     size: z.number().int(),
@@ -61,9 +62,15 @@ const imageHostingSchema = z
 
 type ImageHostingDTO = z.infer<typeof imageHostingSchema>
 
-function toImageHostingDTO(r: ImageHostingRecord): ImageHostingDTO {
+function toImageHostingDTO(
+  r: ImageHostingRecord,
+  config: { customDomain: string | null; domainVerifiedAt: Date | null },
+  origin: string,
+): ImageHostingDTO {
+  const tokenUrl = `${origin}/r/${r.token}.${mimeToExt(r.mime)}`
   return {
     ...r,
+    url: buildImageUrl(config, r.path, tokenUrl),
     lastAccessedAt: r.lastAccessedAt ? r.lastAccessedAt.toISOString() : null,
     createdAt: r.createdAt.toISOString(),
   }
@@ -341,9 +348,10 @@ const ihost = app
       codec: createdAtIdCursorCodec,
     })
     const result = await listImageHostings(c.get('deps'), orgId, { pathPrefix, after, limit: pageSize })
+    const origin = new URL(c.req.url).origin
     return c.json(
       {
-        items: result.items.map(toImageHostingDTO),
+        items: result.items.map((item) => toImageHostingDTO(item, enabled.config, origin)),
         nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, {
           query: fingerprint,
           codec: createdAtIdCursorCodec,
@@ -360,7 +368,7 @@ const ihost = app
 
     const row = await getImageHosting(c.get('deps'), c.req.valid('param').id, orgId)
     if (!row) throw notFound()
-    return c.json(toImageHostingDTO(row), 200)
+    return c.json(toImageHostingDTO(row, enabled.config, new URL(c.req.url).origin), 200)
   })
   .openapi(confirmRoute, async (c) => {
     const orgId = c.get('orgId')
@@ -370,7 +378,7 @@ const ihost = app
 
     const result = await confirmImageHosting(c.get('deps'), c.req.valid('param').id, orgId)
     if (!result.ok) throw result.error
-    return c.json(toImageHostingDTO(result.row), 200)
+    return c.json(toImageHostingDTO(result.row, enabled.config, new URL(c.req.url).origin), 200)
   })
   .openapi(deleteRoute, async (c) => {
     const orgId = c.get('orgId')
