@@ -93,7 +93,15 @@ function optionEntries(input: UpdateImageDomainSettingsInput, apiToken: string |
     entries.push(
       { key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareApiToken, value: apiToken ?? input.cloudflare.apiToken },
       { key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareZoneId, value: input.cloudflare.zoneId },
-      { key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareWorkerName, value: input.cloudflare.workerName },
+      { key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareRoutingMode, value: input.cloudflare.routingMode },
+      {
+        key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareWorkerName,
+        value: input.cloudflare.routingMode === 'worker' ? input.cloudflare.workerName : '',
+      },
+      {
+        key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareOriginHostname,
+        value: input.cloudflare.routingMode === 'origin' ? input.cloudflare.originHostname : '',
+      },
       { key: IMAGE_DOMAIN_OPTION_KEYS.cloudflareCnameTarget, value: input.cloudflare.cnameTarget },
     )
   } else {
@@ -115,15 +123,27 @@ export async function saveImageDomainProvider(
   const apiToken =
     input.provider === 'cloudflare_saas' ? preserveMaskedSecret(input.cloudflare.apiToken, existingToken) : null
 
+  const previousCloudflare = previous?.settings.provider === 'cloudflare_saas' ? previous.settings.cloudflare : null
+  const providerDisabled = previous?.settings.enabled === true && !input.enabled
   const cloudflareScopeChanged =
-    previous?.settings.provider === 'cloudflare_saas' &&
-    (input.provider !== 'cloudflare_saas' || previous.settings.cloudflare.zoneId !== input.cloudflare.zoneId)
-  if (cloudflareScopeChanged) {
+    previousCloudflare !== null &&
+    (input.provider !== 'cloudflare_saas' ||
+      previousCloudflare.zoneId !== input.cloudflare.zoneId ||
+      previousCloudflare.routingMode !== input.cloudflare.routingMode ||
+      (previousCloudflare.routingMode === 'worker' &&
+        input.cloudflare.routingMode === 'worker' &&
+        previousCloudflare.workerName !== input.cloudflare.workerName) ||
+      (previousCloudflare.routingMode === 'origin' &&
+        input.cloudflare.routingMode === 'origin' &&
+        previousCloudflare.originHostname !== input.cloudflare.originHostname))
+  const externalBindingsInvalidated = cloudflareScopeChanged || providerDisabled
+  if (externalBindingsInvalidated && previous) {
     await Promise.all(
       domains
         .filter((domain) => domain.providerHostnameId)
         .map((domain) => deps.imageDomains.deprovision(previous, domain.providerHostnameId)),
     )
+    await deps.imageDomains.teardown(previous)
   }
 
   await deps.systemOptions.setMany(optionEntries(input, apiToken))
@@ -131,7 +151,8 @@ export async function saveImageDomainProvider(
     input.provider === 'cloudflare_saas' &&
     (previous === null ||
       (previous.settings.provider === 'cloudflare_saas' &&
-        previous.settings.cloudflare.zoneId === input.cloudflare.zoneId))
+        previous.settings.cloudflare.zoneId === input.cloudflare.zoneId &&
+        !externalBindingsInvalidated))
   await deps.imageHostingConfigs.markAllDomainsPending(input.provider, preserveExternalIds)
   await Promise.all(domains.map((domain) => invalidateImageDomain(deps, domain.customDomain)))
 }

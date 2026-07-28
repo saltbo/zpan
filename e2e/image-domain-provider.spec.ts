@@ -2,9 +2,7 @@ import { expect, test } from '@playwright/test'
 import { signInAsAdmin } from './helpers'
 
 test.describe('Image custom-domain provider', () => {
-  test('admin configures self-managed DNS and sees the ready state in English and Chinese @desktop', async ({
-    page,
-  }) => {
+  test('Community admin sees the Pro gate in English and Chinese @desktop', async ({ page }) => {
     await signInAsAdmin(page)
     await page.goto('/admin/settings')
     await expect(page).toHaveURL(/admin\/settings/)
@@ -13,42 +11,11 @@ test.describe('Image custom-domain provider', () => {
       has: page.getByText('Image custom-domain provider', { exact: true }),
     })
     await expect(card).toContainText('Not configured')
-    await card.getByRole('button', { name: 'Edit' }).click()
-
-    const drawer = page.getByRole('dialog', { name: 'Image custom-domain provider' })
-    const tokenLink = drawer.getByRole('link', { name: 'Create preconfigured Cloudflare token' })
-    const tokenUrl = new URL((await tokenLink.getAttribute('href')) ?? '')
-    expect(tokenUrl.origin).toBe('https://dash.cloudflare.com')
-    expect(JSON.parse(tokenUrl.searchParams.get('permissionGroupKeys') ?? '[]')).toEqual(
-      expect.arrayContaining([
-        { key: 'zone', type: 'read' },
-        { key: 'dns', type: 'edit' },
-        { key: 'ssl_and_certificates', type: 'edit' },
-        { key: 'zone_transform_rules', type: 'edit' },
-        { key: 'workers_routes', type: 'edit' },
-      ]),
-    )
-    await expect(drawer.getByRole('textbox', { name: 'Worker script name' })).toHaveValue('zpan')
-    await drawer.screenshot({ path: 'test-results/image-domain-provider-cloudflare-en.png' })
-
-    await drawer.getByRole('switch', { name: 'Enable custom domains' }).click()
-    await drawer.getByRole('combobox', { name: 'Provider' }).click()
-    await page.getByRole('option', { name: 'Self-managed' }).click()
-    await drawer.getByRole('textbox', { name: 'DNS records' }).fill('A 192.0.2.10\nAAAA 2001:db8::10')
-    await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          response.url().includes('/api/site/settings/image-domains') &&
-          response.request().method() === 'PUT' &&
-          response.status() === 200,
-      ),
-      drawer.getByRole('button', { name: 'Save' }).click(),
-    ])
-
-    await expect(card).toContainText('Self-managed')
-    await card.getByRole('button', { name: 'Set up and test' }).click()
-    await expect(card).toContainText('Ready')
-    await card.screenshot({ path: 'test-results/image-domain-provider-en.png' })
+    await expect(card).toContainText('Pro')
+    await expect(card.getByRole('button', { name: 'Edit' })).toBeDisabled()
+    await expect(card.getByRole('button', { name: 'Set up and test' })).toBeDisabled()
+    await expect(page.getByText('Unlock image custom domains')).toBeVisible()
+    await card.screenshot({ path: 'test-results/image-domain-provider-pro-gate-en.png' })
 
     await page.getByRole('button', { name: /E2E Admin/ }).click()
     await page.getByRole('menuitem', { name: 'Language' }).hover()
@@ -57,8 +24,10 @@ test.describe('Image custom-domain provider', () => {
     const chineseCard = page.locator('[data-settings-row]', {
       has: page.getByText('图床自定义域名 Provider', { exact: true }),
     })
-    await expect(chineseCard).toContainText('站长手动管理')
-    await expect(chineseCard.getByRole('button', { name: '自动设置并测试' })).toBeVisible()
-    await chineseCard.screenshot({ path: 'test-results/image-domain-provider-zh.png' })
+    await expect(chineseCard).toContainText('Pro')
+    await expect(chineseCard.getByRole('button', { name: '编辑' })).toBeDisabled()
+    await expect(chineseCard.getByRole('button', { name: '自动设置并测试' })).toBeDisabled()
+    await expect(page.getByText('解锁图床自定义域名')).toBeVisible()
+    await chineseCard.screenshot({ path: 'test-results/image-domain-provider-pro-gate-zh.png' })
   })
 })

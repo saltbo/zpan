@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { imageDomainProviderResponseSchema, updateImageDomainSettingsSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
+import { requireFeature } from '../../middleware/require-feature'
 import {
   getImageDomainProvider,
   saveImageDomainProvider,
@@ -27,7 +28,7 @@ const saveRoute = createRoute({
   tags: ['Image Domain Provider'],
   method: 'put',
   path: '/',
-  middleware: [requireAdmin] as const,
+  middleware: [requireAdmin, requireFeature('image_custom_domains')] as const,
   request: {
     body: { content: { 'application/json': { schema: updateImageDomainSettingsSchema } }, required: true },
   },
@@ -43,7 +44,7 @@ const testRoute = createRoute({
   tags: ['Image Domain Provider'],
   method: 'post',
   path: '/tests',
-  middleware: [requireAdmin] as const,
+  middleware: [requireAdmin, requireFeature('image_custom_domains')] as const,
   responses: {
     200: jsonContent(successSchema, 'Provider ready'),
     400: errorResponse('Provider test failed'),

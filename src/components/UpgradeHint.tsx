@@ -12,6 +12,7 @@ const FEATURE_LABELS: Record<ProFeature, string> = {
   quota_store: 'storage quota store',
   site_announcements: 'site announcements',
   analytics: 'analytics',
+  image_custom_domains: 'image custom domains',
 }
 
 export interface UpgradeHintProps {

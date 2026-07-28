@@ -1,20 +1,25 @@
 import type { PutIhostConfigInput } from '@shared/schemas'
 import { nanoid } from 'nanoid'
+import { hasFeature } from '../../domain/licensing'
 import {
   AppError,
   badRequest,
   conflict,
+  featureBlocked,
   type ImageDomainProviderConfig,
   type ImageDomainProviderGateway,
   type ImageDomainProvisioning,
   type ImageHostingConfigRecord,
   type ImageHostingConfigRepo,
+  type LicenseBindingRepo,
 } from '../ports'
+import { loadBindingState } from '../site/licensing'
 import { cacheVerifiedImageDomain, invalidateImageDomain } from './domain-cache'
 
 export type ImageHostingConfigDeps = {
   imageHostingConfigs: ImageHostingConfigRepo
   imageDomains: ImageDomainProviderGateway
+  licenseBinding: LicenseBindingRepo
   cache?: import('../ports').CacheService
 }
 
@@ -111,6 +116,14 @@ export async function putImageHostingConfig(
   appHost: string,
 ): Promise<PutImageHostingConfigOutcome> {
   const newDomain = body.customDomain?.toLowerCase() ?? null
+  if (newDomain && !hasFeature('image_custom_domains', await loadBindingState(deps))) {
+    return {
+      ok: false,
+      error: featureBlocked('Feature not available', {
+        metadata: { feature: 'image_custom_domains', upgradeUrl: '/settings/billing' },
+      }),
+    }
+  }
   if (newDomain && newDomain === appHost) {
     return { ok: false, error: badRequest('Custom domain cannot be the application default host') }
   }

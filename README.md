@@ -117,6 +117,8 @@ Deploy via GitHub Actions with zero server management. Free tier covers personal
 
 After initial setup, the workflow runs automatically every time you sync your fork with the latest release.
 
+This `CLOUDFLARE_API_TOKEN` is the **deployment token** used only by GitHub Actions/Wrangler to deploy ZPan and manage its D1/R2 resources. It is separate from the zone-scoped Cloudflare token entered later in **Admin Settings → Image custom domains**. The latter lets a running ZPan instance manage Cloudflare for SaaS hostnames and does not need D1 or R2 permissions. See [Image custom domains](docs/image-custom-domains.md).
+
 Dedicated WebDAV domain: enable WebDAV and configure its optional hostname in Admin Settings, then extend the API token with **Transform Rules:Edit**. When the hostname is left blank, a primary Worker Custom Domain such as `files.example.com` produces `dav.files.example.com`; the deployment workflow automatically attaches and verifies that derived hostname, manages the root-to-`/dav` rewrite, and records its readiness. Other deployments can verify their manually configured DNS/proxy from **Admin Settings → WebDAV**. Until verification succeeds, ZPan advertises the original `/dav/` endpoint. See [WebDAV custom domains](docs/webdav-custom-domain.md).
 
 ### AWS Lambda

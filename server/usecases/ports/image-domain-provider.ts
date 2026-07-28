@@ -5,7 +5,9 @@ export const IMAGE_DOMAIN_OPTION_KEYS = {
   provider: 'image_domain_provider',
   cloudflareApiToken: 'image_domain_cloudflare_api_token',
   cloudflareZoneId: 'image_domain_cloudflare_zone_id',
+  cloudflareRoutingMode: 'image_domain_cloudflare_routing_mode',
   cloudflareWorkerName: 'image_domain_cloudflare_worker_name',
+  cloudflareOriginHostname: 'image_domain_cloudflare_origin_hostname',
   cloudflareCnameTarget: 'image_domain_cloudflare_cname_target',
   manualRecords: 'image_domain_manual_records',
   lastTestedAt: 'image_domain_last_tested_at',
@@ -31,6 +33,7 @@ export interface ImageDomainProvisioning {
 export interface ImageDomainProviderGateway {
   getConfig(): Promise<ImageDomainProviderConfig | null>
   test(config: Exclude<ImageDomainSettings, { provider: null }>): Promise<void>
+  teardown(config: ImageDomainProviderConfig): Promise<void>
   provision(config: ImageDomainProviderConfig, hostname: string): Promise<ImageDomainProvisioning>
   refresh(
     config: ImageDomainProviderConfig,

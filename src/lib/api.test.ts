@@ -4008,6 +4008,7 @@ describe('api', () => {
           cloudflare: {
             apiToken: '****oken',
             zoneId: 'zone-1',
+            routingMode: 'worker',
             workerName: 'zpan',
             cnameTarget: 'ssl.example.com',
           },

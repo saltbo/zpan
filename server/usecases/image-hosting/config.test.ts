@@ -1,13 +1,20 @@
-import { describe, expect, it, vi } from 'vitest'
+import type { BindingState } from '@shared/types'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   ImageDomainProviderConfig,
   ImageDomainProviderGateway,
   ImageHostingConfigRecord,
   ImageHostingConfigRepo,
+  LicenseBindingRepo,
 } from '../ports'
+import { loadBindingState } from '../site/licensing'
 import { deleteImageHostingConfig, getImageHostingConfig, putImageHostingConfig } from './config'
 
+vi.mock('../site/licensing', () => ({ loadBindingState: vi.fn() }))
+
 const now = new Date('2026-07-27T12:00:00.000Z')
+const COMMUNITY: BindingState = { bound: false }
+const PRO: BindingState = { bound: true, active: true, edition: 'pro' }
 
 function row(overrides: Partial<ImageHostingConfigRecord> = {}): ImageHostingConfigRecord {
   return {
@@ -41,7 +48,13 @@ const readyCloudflare: ImageDomainProviderConfig = {
   settings: {
     enabled: true,
     provider: 'cloudflare_saas',
-    cloudflare: { apiToken: 'token', zoneId: 'zone', workerName: 'zpan', cnameTarget: 'ssl.example.net' },
+    cloudflare: {
+      apiToken: 'token',
+      zoneId: 'zone',
+      routingMode: 'worker',
+      workerName: 'zpan',
+      cnameTarget: 'ssl.example.net',
+    },
   },
   lastTestedAt: now,
   error: null,
@@ -67,6 +80,7 @@ function deps(
   const gateway: ImageDomainProviderGateway = {
     getConfig: async () => config,
     test: async () => {},
+    teardown: async () => {},
     provision: async () => ({
       externalId: config?.settings.provider === 'cloudflare_saas' ? 'cf-host-1' : null,
       status: 'pending_dns',
@@ -77,10 +91,18 @@ function deps(
     deprovision: async () => {},
     ...overrides.gateway,
   }
-  return { imageHostingConfigs: repo, imageDomains: gateway }
+  return {
+    imageHostingConfigs: repo,
+    imageDomains: gateway,
+    licenseBinding: {} as LicenseBindingRepo,
+  }
 }
 
 describe('image-hosting custom-domain config', () => {
+  beforeEach(() => {
+    vi.mocked(loadBindingState).mockResolvedValue(PRO)
+  })
+
   it('returns null when the workspace has no image-hosting config', async () => {
     await expect(getImageHostingConfig(deps(readyManual), 'org-1')).resolves.toBeNull()
   })
@@ -94,6 +116,26 @@ describe('image-hosting custom-domain config', () => {
       'zpan.example.com',
     )
     expect(result).toMatchObject({ ok: false, error: { httpStatus: 400 } })
+  })
+
+  it('requires Pro before configuring a custom domain', async () => {
+    vi.mocked(loadBindingState).mockResolvedValue(COMMUNITY)
+    const result = await putImageHostingConfig(
+      deps(readyManual),
+      'org-1',
+      { enabled: true, customDomain: 'img.example.com' },
+      'zpan.example.com',
+    )
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        httpStatus: 402,
+        meta: {
+          reason: 'FEATURE_NOT_AVAILABLE',
+          metadata: { feature: 'image_custom_domains' },
+        },
+      },
+    })
   })
 
   it('rejects the application host [spec: image-hosting-config/reject-app-host]', async () => {

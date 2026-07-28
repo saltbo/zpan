@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { getImageDomainProvider, saveImageDomainProvider, testImageDomainProvider } from '@/lib/api'
 import { ImageDomainProviderSection } from './image-domain-provider-section'
 
 const locale = vi.hoisted(() => ({ value: 'en' as 'en' | 'zh' }))
+const entitlement = vi.hoisted(() => ({ enabled: true }))
 const labels = {
   en: {
     'admin.imageDomains.title': 'Image custom-domain provider',
@@ -12,6 +14,8 @@ const labels = {
     'admin.imageDomains.manual': 'Self-managed',
     'admin.imageDomains.domainCount': '1 bound domain',
     'admin.imageDomains.test': 'Test configuration',
+    'admin.imageDomains.upgradeTitle': 'Unlock image custom domains',
+    'admin.imageDomains.upgradeDescription': 'Upgrade to Pro.',
     'admin.imageDomains.drawerDescription': 'Provider settings',
     'admin.imageDomains.enabledHelp': 'Enabled help',
     'admin.imageDomains.enabled': 'Enable custom domains',
@@ -23,8 +27,13 @@ const labels = {
     'admin.imageDomains.apiToken': 'Cloudflare API token',
     'admin.imageDomains.apiTokenHelp': 'Token help',
     'admin.imageDomains.zoneId': 'Cloudflare zone ID',
+    'admin.imageDomains.routingMode': 'Routing target',
+    'admin.imageDomains.routingModeWorker': 'Cloudflare Worker',
+    'admin.imageDomains.routingModeOrigin': 'External origin',
     'admin.imageDomains.workerName': 'Worker script name',
     'admin.imageDomains.workerNameHelp': 'Worker help',
+    'admin.imageDomains.originHostname': 'Origin hostname',
+    'admin.imageDomains.originHostnameHelp': 'Origin help',
     'admin.imageDomains.cnameTarget': 'CNAME target',
     'admin.imageDomains.records': 'DNS records',
     'admin.imageDomains.recordsHelp': 'One record per line',
@@ -43,6 +52,8 @@ const labels = {
     'admin.imageDomains.manual': '站长手动管理',
     'admin.imageDomains.domainCount': '已绑定 1 个域名',
     'admin.imageDomains.test': '测试配置',
+    'admin.imageDomains.upgradeTitle': '解锁图床自定义域名',
+    'admin.imageDomains.upgradeDescription': '升级到 Pro。',
     'admin.imageDomains.drawerDescription': 'Provider 配置',
     'admin.imageDomains.enabledHelp': '启用说明',
     'admin.imageDomains.enabled': '启用自定义域名',
@@ -54,8 +65,13 @@ const labels = {
     'admin.imageDomains.apiToken': 'Cloudflare API Token',
     'admin.imageDomains.apiTokenHelp': 'Token 说明',
     'admin.imageDomains.zoneId': 'Cloudflare Zone ID',
+    'admin.imageDomains.routingMode': '回源方式',
+    'admin.imageDomains.routingModeWorker': 'Cloudflare Worker',
+    'admin.imageDomains.routingModeOrigin': '外部源站',
     'admin.imageDomains.workerName': 'Worker 脚本名称',
     'admin.imageDomains.workerNameHelp': 'Worker 说明',
+    'admin.imageDomains.originHostname': '源站域名',
+    'admin.imageDomains.originHostnameHelp': '源站说明',
     'admin.imageDomains.cnameTarget': 'CNAME 目标',
     'admin.imageDomains.records': 'DNS 记录',
     'admin.imageDomains.recordsHelp': '每行一条',
@@ -86,6 +102,9 @@ vi.mock('@/lib/api', () => ({
   saveImageDomainProvider: vi.fn(),
   testImageDomainProvider: vi.fn(),
 }))
+vi.mock('@/hooks/useEntitlement', () => ({
+  useEntitlement: () => ({ hasFeature: () => entitlement.enabled, isLoading: false }),
+}))
 
 const response = {
   settings: {
@@ -112,7 +131,9 @@ function renderSection() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <ImageDomainProviderSection />
+      <TooltipProvider>
+        <ImageDomainProviderSection />
+      </TooltipProvider>
     </QueryClientProvider>,
   )
 }
@@ -135,6 +156,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   locale.value = 'en'
+  entitlement.enabled = true
 })
 
 describe('ImageDomainProviderSection', () => {
@@ -176,6 +198,15 @@ describe('ImageDomainProviderSection', () => {
     await waitFor(() => expect(testImageDomainProvider).toHaveBeenCalledOnce())
   })
 
+  it('shows the Pro badge and disables provider changes for Community', async () => {
+    entitlement.enabled = false
+    const view = renderSection()
+    expect(await view.findByText('Pro')).toBeTruthy()
+    expect(view.getByText('Unlock image custom domains')).toBeTruthy()
+    expect(view.getByRole('button', { name: 'Edit' }).hasAttribute('disabled')).toBe(true)
+    expect(view.getByRole('button', { name: 'Test configuration' }).hasAttribute('disabled')).toBe(true)
+  })
+
   it.each([
     ['en', 'Create preconfigured Cloudflare token'],
     ['zh', '创建预配置的 Cloudflare Token'],
@@ -189,6 +220,7 @@ describe('ImageDomainProviderSection', () => {
         cloudflare: {
           apiToken: '****oken',
           zoneId: '0123456789abcdef0123456789abcdef',
+          routingMode: 'worker',
           workerName: 'zpan',
           cnameTarget: 'images.example.com',
         },
@@ -208,6 +240,42 @@ describe('ImageDomainProviderSection', () => {
         { key: 'zone_transform_rules', type: 'edit' },
         { key: 'workers_routes', type: 'edit' },
       ]),
+    )
+  })
+
+  it('saves an external Cloudflare origin without a Worker name', async () => {
+    vi.mocked(getImageDomainProvider).mockResolvedValue({
+      ...response,
+      settings: {
+        enabled: true,
+        provider: 'cloudflare_saas',
+        cloudflare: {
+          apiToken: '****oken',
+          zoneId: '0123456789abcdef0123456789abcdef',
+          routingMode: 'origin',
+          originHostname: 'origin.example.com',
+          cnameTarget: 'images.example.com',
+        },
+      },
+    })
+    const view = renderSection()
+    fireEvent.click(await view.findByRole('button', { name: 'Edit' }))
+    expect(view.queryByLabelText('Worker script name')).toBeNull()
+    fireEvent.change(view.getByLabelText('Origin hostname'), { target: { value: 'node.example.com' } })
+    fireEvent.click(view.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(saveImageDomainProvider).toHaveBeenCalledWith({
+        enabled: true,
+        provider: 'cloudflare_saas',
+        cloudflare: {
+          apiToken: '****oken',
+          zoneId: '0123456789abcdef0123456789abcdef',
+          routingMode: 'origin',
+          originHostname: 'node.example.com',
+          cnameTarget: 'images.example.com',
+        },
+      }),
     )
   })
 })

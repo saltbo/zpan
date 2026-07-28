@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { ProBadge } from '@/components/ProBadge'
+import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -14,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useEntitlement } from '@/hooks/useEntitlement'
 import type { IhostConfigResponse } from '@/lib/api'
 import { updateIhostConfig } from '@/lib/api'
 
@@ -111,6 +114,8 @@ interface CustomDomainPanelProps {
 export function CustomDomainPanel({ orgId, config }: CustomDomainPanelProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
+  const customDomainsEnabled = hasFeature('image_custom_domains')
   const [domain, setDomain] = useState(config.customDomain ?? '')
   const [domainError, setDomainError] = useState('')
   const [removeOpen, setRemoveOpen] = useState(false)
@@ -192,10 +197,20 @@ export function CustomDomainPanel({ orgId, config }: CustomDomainPanelProps) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>{t('settings.ihost.customDomain.section')}</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle>{t('settings.ihost.customDomain.section')}</CardTitle>
+            <ProBadge tooltip={t('settings.ihost.customDomain.proTooltip')} />
+          </div>
           <CardDescription>{t('settings.ihost.customDomain.description')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {!entitlementLoading && !customDomainsEnabled && (
+            <UpgradeHint
+              feature="image_custom_domains"
+              title={t('settings.ihost.customDomain.upgradeTitle')}
+              description={t('settings.ihost.customDomain.upgradeDescription')}
+            />
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="customDomain">{t('settings.ihost.customDomain.label')}</Label>
             <div className="flex gap-2">
@@ -203,12 +218,16 @@ export function CustomDomainPanel({ orgId, config }: CustomDomainPanelProps) {
                 id="customDomain"
                 placeholder={t('settings.ihost.customDomain.placeholder')}
                 value={domain}
+                disabled={entitlementLoading || !customDomainsEnabled}
                 onChange={(e) => {
                   setDomain(e.target.value)
                   setDomainError('')
                 }}
               />
-              <Button onClick={handleSave} disabled={!isDirty || saveMutation.isPending}>
+              <Button
+                onClick={handleSave}
+                disabled={entitlementLoading || !customDomainsEnabled || !isDirty || saveMutation.isPending}
+              >
                 {saveMutation.isPending ? t('common.loading') : t('settings.ihost.customDomain.save')}
               </Button>
             </div>

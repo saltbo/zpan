@@ -206,26 +206,37 @@ const imageDomainSettingsBaseSchema = z.object({
   enabled: z.boolean(),
 })
 
+const imageDomainHostnameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(253)
+  .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i, 'Expected a hostname')
+
+const cloudflareImageDomainCommonShape = {
+  apiToken: z.string().min(1),
+  zoneId: z
+    .string()
+    .trim()
+    .regex(/^[a-f0-9]{32}$/i, 'Zone ID must be 32 hexadecimal characters'),
+  cnameTarget: imageDomainHostnameSchema,
+}
+
 export const cloudflareSaasImageDomainSettingsSchema = imageDomainSettingsBaseSchema
   .extend({
     provider: z.literal('cloudflare_saas'),
-    cloudflare: z.object({
-      apiToken: z.string().min(1),
-      zoneId: z
-        .string()
-        .trim()
-        .regex(/^[a-f0-9]{32}$/i, 'Zone ID must be 32 hexadecimal characters'),
-      workerName: z.string().trim().min(1).max(64),
-      cnameTarget: z
-        .string()
-        .trim()
-        .min(1)
-        .max(253)
-        .regex(
-          /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i,
-          'CNAME target must be a hostname',
-        ),
-    }),
+    cloudflare: z.discriminatedUnion('routingMode', [
+      z.object({
+        ...cloudflareImageDomainCommonShape,
+        routingMode: z.literal('worker'),
+        workerName: z.string().trim().min(1).max(64),
+      }),
+      z.object({
+        ...cloudflareImageDomainCommonShape,
+        routingMode: z.literal('origin'),
+        originHostname: imageDomainHostnameSchema,
+      }),
+    ]),
   })
   .openapi('CloudflareSaasImageDomainSettings')
 

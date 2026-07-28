@@ -1156,6 +1156,36 @@ func (e CloudflareEmailSettingsProvider) Valid() bool {
 	}
 }
 
+// Defines values for CloudflareSaasImageDomainSettingsCloudflare0RoutingMode.
+const (
+	Worker CloudflareSaasImageDomainSettingsCloudflare0RoutingMode = "worker"
+)
+
+// Valid indicates whether the value is a known member of the CloudflareSaasImageDomainSettingsCloudflare0RoutingMode enum.
+func (e CloudflareSaasImageDomainSettingsCloudflare0RoutingMode) Valid() bool {
+	switch e {
+	case Worker:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CloudflareSaasImageDomainSettingsCloudflare1RoutingMode.
+const (
+	Origin CloudflareSaasImageDomainSettingsCloudflare1RoutingMode = "origin"
+)
+
+// Valid indicates whether the value is a known member of the CloudflareSaasImageDomainSettingsCloudflare1RoutingMode enum.
+func (e CloudflareSaasImageDomainSettingsCloudflare1RoutingMode) Valid() bool {
+	switch e {
+	case Origin:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CloudflareSaasImageDomainSettingsProvider.
 const (
 	CloudflareSaasImageDomainSettingsProviderCloudflareSaas CloudflareSaasImageDomainSettingsProvider = "cloudflare_saas"
@@ -4077,14 +4107,38 @@ type CloudflareEmailSettingsProvider string
 
 // CloudflareSaasImageDomainSettings defines model for CloudflareSaasImageDomainSettings.
 type CloudflareSaasImageDomainSettings struct {
-	Cloudflare struct {
-		ApiToken    string `json:"apiToken"`
-		CnameTarget string `json:"cnameTarget"`
-		WorkerName  string `json:"workerName"`
-		ZoneId      string `json:"zoneId"`
-	} `json:"cloudflare"`
-	Enabled  bool                                      `json:"enabled"`
-	Provider CloudflareSaasImageDomainSettingsProvider `json:"provider"`
+	Cloudflare CloudflareSaasImageDomainSettings_Cloudflare `json:"cloudflare"`
+	Enabled    bool                                         `json:"enabled"`
+	Provider   CloudflareSaasImageDomainSettingsProvider    `json:"provider"`
+}
+
+// CloudflareSaasImageDomainSettingsCloudflare0 defines model for .
+type CloudflareSaasImageDomainSettingsCloudflare0 struct {
+	ApiToken    string                                                  `json:"apiToken"`
+	CnameTarget string                                                  `json:"cnameTarget"`
+	RoutingMode CloudflareSaasImageDomainSettingsCloudflare0RoutingMode `json:"routingMode"`
+	WorkerName  string                                                  `json:"workerName"`
+	ZoneId      string                                                  `json:"zoneId"`
+}
+
+// CloudflareSaasImageDomainSettingsCloudflare0RoutingMode defines model for CloudflareSaasImageDomainSettings.Cloudflare.0.RoutingMode.
+type CloudflareSaasImageDomainSettingsCloudflare0RoutingMode string
+
+// CloudflareSaasImageDomainSettingsCloudflare1 defines model for .
+type CloudflareSaasImageDomainSettingsCloudflare1 struct {
+	ApiToken       string                                                  `json:"apiToken"`
+	CnameTarget    string                                                  `json:"cnameTarget"`
+	OriginHostname string                                                  `json:"originHostname"`
+	RoutingMode    CloudflareSaasImageDomainSettingsCloudflare1RoutingMode `json:"routingMode"`
+	ZoneId         string                                                  `json:"zoneId"`
+}
+
+// CloudflareSaasImageDomainSettingsCloudflare1RoutingMode defines model for CloudflareSaasImageDomainSettings.Cloudflare.1.RoutingMode.
+type CloudflareSaasImageDomainSettingsCloudflare1RoutingMode string
+
+// CloudflareSaasImageDomainSettings_Cloudflare defines model for CloudflareSaasImageDomainSettings.Cloudflare.
+type CloudflareSaasImageDomainSettings_Cloudflare struct {
+	union json.RawMessage
 }
 
 // CloudflareSaasImageDomainSettingsProvider defines model for CloudflareSaasImageDomainSettings.Provider.
@@ -7159,6 +7213,68 @@ type GrantUserEntitlementJSONRequestBody GrantUserEntitlementJSONBody
 
 // UpdateUserEntitlementJSONRequestBody defines body for UpdateUserEntitlement for application/json ContentType.
 type UpdateUserEntitlementJSONRequestBody UpdateUserEntitlementJSONBody
+
+// AsCloudflareSaasImageDomainSettingsCloudflare0 returns the union data inside the CloudflareSaasImageDomainSettings_Cloudflare as a CloudflareSaasImageDomainSettingsCloudflare0
+func (t CloudflareSaasImageDomainSettings_Cloudflare) AsCloudflareSaasImageDomainSettingsCloudflare0() (CloudflareSaasImageDomainSettingsCloudflare0, error) {
+	var body CloudflareSaasImageDomainSettingsCloudflare0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCloudflareSaasImageDomainSettingsCloudflare0 overwrites any union data inside the CloudflareSaasImageDomainSettings_Cloudflare as the provided CloudflareSaasImageDomainSettingsCloudflare0
+func (t *CloudflareSaasImageDomainSettings_Cloudflare) FromCloudflareSaasImageDomainSettingsCloudflare0(v CloudflareSaasImageDomainSettingsCloudflare0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCloudflareSaasImageDomainSettingsCloudflare0 performs a merge with any union data inside the CloudflareSaasImageDomainSettings_Cloudflare, using the provided CloudflareSaasImageDomainSettingsCloudflare0
+func (t *CloudflareSaasImageDomainSettings_Cloudflare) MergeCloudflareSaasImageDomainSettingsCloudflare0(v CloudflareSaasImageDomainSettingsCloudflare0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCloudflareSaasImageDomainSettingsCloudflare1 returns the union data inside the CloudflareSaasImageDomainSettings_Cloudflare as a CloudflareSaasImageDomainSettingsCloudflare1
+func (t CloudflareSaasImageDomainSettings_Cloudflare) AsCloudflareSaasImageDomainSettingsCloudflare1() (CloudflareSaasImageDomainSettingsCloudflare1, error) {
+	var body CloudflareSaasImageDomainSettingsCloudflare1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCloudflareSaasImageDomainSettingsCloudflare1 overwrites any union data inside the CloudflareSaasImageDomainSettings_Cloudflare as the provided CloudflareSaasImageDomainSettingsCloudflare1
+func (t *CloudflareSaasImageDomainSettings_Cloudflare) FromCloudflareSaasImageDomainSettingsCloudflare1(v CloudflareSaasImageDomainSettingsCloudflare1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCloudflareSaasImageDomainSettingsCloudflare1 performs a merge with any union data inside the CloudflareSaasImageDomainSettings_Cloudflare, using the provided CloudflareSaasImageDomainSettingsCloudflare1
+func (t *CloudflareSaasImageDomainSettings_Cloudflare) MergeCloudflareSaasImageDomainSettingsCloudflare1(v CloudflareSaasImageDomainSettingsCloudflare1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CloudflareSaasImageDomainSettings_Cloudflare) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CloudflareSaasImageDomainSettings_Cloudflare) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // AsSmtpEmailSettings returns the union data inside the EmailSettings as a SmtpEmailSettings
 func (t EmailSettings) AsSmtpEmailSettings() (SmtpEmailSettings, error) {

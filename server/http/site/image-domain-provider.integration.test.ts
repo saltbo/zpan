@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adminHeaders, createTestApp } from '../../test/setup'
+import { adminHeaders, createTestApp, seedProLicense } from '../../test/setup'
 
 const manualSettings = {
   enabled: true,
@@ -29,7 +29,8 @@ describe('Admin image-domain provider API', () => {
   })
 
   it('saves, tests, and reads a self-managed provider', async () => {
-    const { app } = await createTestApp()
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
     const headers = await adminHeaders(app)
 
     const empty = await app.request('/api/site/settings/image-domains', { headers })
@@ -65,7 +66,8 @@ describe('Admin image-domain provider API', () => {
   })
 
   it('returns a validation error for an invalid manual DNS record', async () => {
-    const { app } = await createTestApp()
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
     const response = await app.request('/api/site/settings/image-domains', {
       method: 'PUT',
       headers: { ...(await adminHeaders(app)), 'Content-Type': 'application/json' },
@@ -76,5 +78,35 @@ describe('Admin image-domain provider API', () => {
       }),
     })
     expect(response.status).toBe(400)
+  })
+
+  it('lets Community administrators inspect the provider but not change or test it', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    expect((await app.request('/api/site/settings/image-domains', { headers })).status).toBe(200)
+
+    const saved = await app.request('/api/site/settings/image-domains', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(manualSettings),
+    })
+    expect(saved.status).toBe(402)
+    await expect(saved.json()).resolves.toMatchObject({
+      error: {
+        details: [
+          {
+            reason: 'FEATURE_NOT_AVAILABLE',
+            metadata: { feature: 'image_custom_domains' },
+          },
+        ],
+      },
+    })
+
+    const tested = await app.request('/api/site/settings/image-domains/tests', {
+      method: 'POST',
+      headers,
+    })
+    expect(tested.status).toBe(402)
   })
 })

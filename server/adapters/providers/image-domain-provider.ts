@@ -150,15 +150,26 @@ function parseStoredConfig(values: Map<string, string>): ImageDomainProviderConf
   if (provider === 'cloudflare_saas') {
     const apiToken = values.get(OPTION_KEYS.cloudflareApiToken)
     const zoneId = values.get(OPTION_KEYS.cloudflareZoneId)
-    const workerName = values.get(OPTION_KEYS.cloudflareWorkerName) || 'zpan'
     const cnameTarget = values.get(OPTION_KEYS.cloudflareCnameTarget)
     if (!apiToken || !zoneId || !cnameTarget) return null
+    const routingMode = values.get(OPTION_KEYS.cloudflareRoutingMode) === 'origin' ? 'origin' : 'worker'
+    const routing =
+      routingMode === 'origin'
+        ? (() => {
+            const originHostname = values.get(OPTION_KEYS.cloudflareOriginHostname)
+            return originHostname ? { routingMode: 'origin' as const, originHostname } : null
+          })()
+        : {
+            routingMode: 'worker' as const,
+            workerName: values.get(OPTION_KEYS.cloudflareWorkerName) || 'zpan',
+          }
+    if (!routing) return null
     return {
       ...base,
       settings: {
         enabled,
         provider,
-        cloudflare: { apiToken, zoneId, workerName, cnameTarget },
+        cloudflare: { apiToken, zoneId, cnameTarget, ...routing },
       },
     }
   }
@@ -216,6 +227,22 @@ async function ensureCnameTarget(config: CloudflareConfig, zoneName: string, fal
   })
 }
 
+async function requireProxiedOrigin(config: CloudflareConfig, zoneName: string, hostname: string): Promise<void> {
+  if (!isHostnameInZone(hostname, zoneName)) {
+    throw new Error(`Cloudflare origin hostname must be inside the ${zoneName} zone`)
+  }
+  const records = await cloudflareRequest<CloudflareDnsRecord[]>(
+    config,
+    `/dns_records?name=${encodeURIComponent(hostname)}&per_page=100`,
+  )
+  const record = records.result[0]
+  if (!record) throw new Error(`Cloudflare origin DNS record ${hostname} does not exist`)
+  if (!record.proxied) throw new Error(`Cloudflare origin DNS record ${hostname} must be proxied`)
+  if (record.type !== 'A' && record.type !== 'AAAA' && record.type !== 'CNAME') {
+    throw new Error(`Cloudflare origin DNS record ${hostname} must be A, AAAA, or CNAME`)
+  }
+}
+
 async function ensureFallbackOrigin(config: CloudflareConfig, zoneName: string): Promise<void> {
   let fallback: CloudflareFallbackOrigin | null = null
   try {
@@ -237,6 +264,35 @@ async function ensureFallbackOrigin(config: CloudflareConfig, zoneName: string):
       `Cloudflare fallback origin setup is ${result.result.status ?? 'pending'}; wait a moment and test again`,
     )
   }
+}
+
+async function ensureExternalFallbackOrigin(
+  config: Extract<CloudflareConfig, { routingMode: 'origin' }>,
+  zoneName: string,
+): Promise<void> {
+  const origin = config.originHostname.toLowerCase()
+  await requireProxiedOrigin(config, zoneName, origin)
+
+  let fallback: CloudflareFallbackOrigin | null = null
+  try {
+    fallback = (await cloudflareRequest<CloudflareFallbackOrigin>(config, '/custom_hostnames/fallback_origin')).result
+  } catch (error) {
+    if (!(error instanceof CloudflareRequestError) || error.status !== 404) throw error
+  }
+
+  if (fallback?.status !== 'active' || fallback.origin?.toLowerCase() !== origin) {
+    const result = await cloudflareRequest<CloudflareFallbackOrigin>(config, '/custom_hostnames/fallback_origin', {
+      method: 'PUT',
+      body: JSON.stringify({ origin }),
+    })
+    if (result.result.status !== 'active') {
+      throw new Error(
+        `Cloudflare fallback origin setup is ${result.result.status ?? 'pending'}; wait a moment and test again`,
+      )
+    }
+  }
+
+  await ensureCnameTarget(config, zoneName, origin)
 }
 
 function imageRewriteRule(zoneName: string) {
@@ -298,7 +354,21 @@ async function ensureImageRewriteRule(config: CloudflareConfig, zoneName: string
   })
 }
 
-async function ensureImageWorkerRoute(config: CloudflareConfig): Promise<void> {
+async function removeImageRewriteRule(config: CloudflareConfig): Promise<void> {
+  const path = '/rulesets/phases/http_request_transform/entrypoint'
+  let ruleset: CloudflareRuleset
+  try {
+    ruleset = (await cloudflareRequest<CloudflareRuleset>(config, path)).result
+  } catch (error) {
+    if (error instanceof CloudflareRequestError && error.status === 404) return
+    throw error
+  }
+  const rule = ruleset.rules.find((candidate) => candidate.ref === IMAGE_REWRITE_RULE_REF)
+  if (!rule) return
+  await cloudflareRequest<unknown>(config, `/rulesets/${ruleset.id}/rules/${rule.id}`, { method: 'DELETE' })
+}
+
+async function ensureImageWorkerRoute(config: Extract<CloudflareConfig, { routingMode: 'worker' }>): Promise<void> {
   const routes = await cloudflareRequest<CloudflareWorkerRoute[]>(config, '/workers/routes')
   const existing = routes.result.find((route) => route.pattern === IMAGE_WORKER_ROUTE)
   if (existing?.script === config.workerName) return
@@ -313,6 +383,13 @@ async function ensureImageWorkerRoute(config: CloudflareConfig): Promise<void> {
   })
 }
 
+async function removeImageWorkerRoute(config: CloudflareConfig): Promise<void> {
+  const routes = await cloudflareRequest<CloudflareWorkerRoute[]>(config, '/workers/routes')
+  const route = routes.result.find((candidate) => candidate.pattern === IMAGE_WORKER_ROUTE)
+  if (!route) return
+  await cloudflareRequest<unknown>(config, `/workers/routes/${route.id}`, { method: 'DELETE' })
+}
+
 export function createImageDomainProviderGateway(systemOptions: SystemOptionsRepo): ImageDomainProviderGateway {
   return {
     async getConfig() {
@@ -324,10 +401,20 @@ export function createImageDomainProviderGateway(systemOptions: SystemOptionsRep
       if (config.provider === 'manual') return
       const zone = await cloudflareRequest<CloudflareZone>(config.cloudflare, '')
       const cloudflare = { ...config.cloudflare, zoneName: zone.result.name }
-      await ensureFallbackOrigin(cloudflare, zone.result.name)
-      await ensureImageRewriteRule(cloudflare, zone.result.name)
-      await ensureImageWorkerRoute(cloudflare)
+      if (cloudflare.routingMode === 'worker') {
+        await ensureFallbackOrigin(cloudflare, zone.result.name)
+        await ensureImageRewriteRule(cloudflare, zone.result.name)
+        await ensureImageWorkerRoute(cloudflare)
+      } else {
+        await ensureExternalFallbackOrigin(cloudflare, zone.result.name)
+      }
       await cloudflareRequest<CloudflareHostname[]>(config.cloudflare, '/custom_hostnames?page=1&per_page=1')
+    },
+
+    async teardown(config) {
+      if (config.settings.provider !== 'cloudflare_saas' || config.settings.cloudflare.routingMode !== 'worker') return
+      await removeImageRewriteRule(config.settings.cloudflare)
+      await removeImageWorkerRoute(config.settings.cloudflare)
     },
 
     async provision(config, hostname) {
@@ -344,6 +431,9 @@ export function createImageDomainProviderGateway(systemOptions: SystemOptionsRep
         body: JSON.stringify({
           hostname,
           ssl: { method: 'http', type: 'dv', settings: { min_tls_version: '1.2' } },
+          ...(config.settings.cloudflare.routingMode === 'origin'
+            ? { custom_origin_server: config.settings.cloudflare.originHostname }
+            : {}),
         }),
       })
       return cloudflareStatus(config.settings.cloudflare, body.result)

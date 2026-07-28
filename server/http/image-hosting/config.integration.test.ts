@@ -2,12 +2,13 @@ import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../../db/auth-schema'
 import * as schema from '../../db/schema'
-import { createTestApp } from '../../test/setup'
+import { createTestApp, seedProLicense } from '../../test/setup'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
-async function ownerSession(app: TestApp, db: TestDb) {
+async function ownerSession(app: TestApp, db: TestDb, pro = true) {
+  if (pro) await seedProLicense(db)
   const email = `owner-${nanoid()}@example.com`
   const signUp = await app.request('/api/auth/sign-up/email', {
     method: 'POST',
@@ -108,6 +109,28 @@ describe('/api/image-hosting/config provider-backed domains', () => {
       where: (table, { eq }) => eq(table.orgId, orgId),
     })
     expect(stored?.verificationToken).toBeTruthy()
+  })
+
+  it('requires Pro before an owner can configure a custom domain', async () => {
+    const { app, db, deps } = await createTestApp()
+    await configureManualProvider(deps)
+    const { headers } = await ownerSession(app, db, false)
+    const response = await app.request('/api/image-hosting/config', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, customDomain: 'img.example.com' }),
+    })
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        details: [
+          {
+            reason: 'FEATURE_NOT_AVAILABLE',
+            metadata: { feature: 'image_custom_domains' },
+          },
+        ],
+      },
+    })
   })
 
   it('deletes the workspace config through the owner endpoint', async () => {

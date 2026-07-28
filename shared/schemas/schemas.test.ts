@@ -165,7 +165,23 @@ describe('updateImageDomainSettingsSchema', () => {
       cloudflare: {
         apiToken: 'token',
         zoneId: '0123456789abcdef0123456789abcdef',
+        routingMode: 'worker',
         workerName: 'zpan',
+        cnameTarget: 'images.example.com',
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts a Cloudflare external origin without a Worker name', () => {
+    const result = updateImageDomainSettingsSchema.safeParse({
+      enabled: true,
+      provider: 'cloudflare_saas',
+      cloudflare: {
+        apiToken: 'token',
+        zoneId: '0123456789abcdef0123456789abcdef',
+        routingMode: 'origin',
+        originHostname: 'origin.example.com',
         cnameTarget: 'images.example.com',
       },
     })
@@ -204,7 +220,13 @@ describe('updateImageDomainSettingsSchema', () => {
     const result = updateImageDomainSettingsSchema.safeParse({
       enabled: true,
       provider: 'cloudflare_saas',
-      cloudflare: { apiToken: 'token', zoneId: 'zone-1', workerName: 'zpan', cnameTarget: 'ssl.example.com' },
+      cloudflare: {
+        apiToken: 'token',
+        zoneId: 'zone-1',
+        routingMode: 'worker',
+        workerName: 'zpan',
+        cnameTarget: 'ssl.example.com',
+      },
     })
     expect(result.success).toBe(false)
   })

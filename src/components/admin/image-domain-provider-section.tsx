@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/admin/admin-form-drawer'
+import { ProBadge } from '@/components/ProBadge'
+import { UpgradeHint } from '@/components/UpgradeHint'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card'
@@ -11,17 +13,21 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useEntitlement } from '@/hooks/useEntitlement'
 import { getImageDomainProvider, saveImageDomainProvider, testImageDomainProvider } from '@/lib/api'
 
 const queryKey = ['admin', 'image-domain-provider'] as const
 type Provider = 'cloudflare_saas' | 'manual'
+type RoutingMode = 'worker' | 'origin'
 
 type FormState = {
   enabled: boolean
   provider: Provider
   apiToken: string
   zoneId: string
+  routingMode: RoutingMode
   workerName: string
+  originHostname: string
   cnameTarget: string
   records: string
 }
@@ -31,7 +37,9 @@ const emptyForm: FormState = {
   provider: 'cloudflare_saas',
   apiToken: '',
   zoneId: '',
+  routingMode: 'worker',
   workerName: 'zpan',
+  originHostname: '',
   cnameTarget: '',
   records: 'CNAME images.example.com',
 }
@@ -44,7 +52,10 @@ function toForm(data: Awaited<ReturnType<typeof getImageDomainProvider>> | undef
       provider: 'cloudflare_saas',
       apiToken: data.settings.cloudflare.apiToken,
       zoneId: data.settings.cloudflare.zoneId,
-      workerName: data.settings.cloudflare.workerName,
+      routingMode: data.settings.cloudflare.routingMode,
+      workerName:
+        data.settings.cloudflare.routingMode === 'worker' ? data.settings.cloudflare.workerName : emptyForm.workerName,
+      originHostname: data.settings.cloudflare.routingMode === 'origin' ? data.settings.cloudflare.originHostname : '',
       cnameTarget: data.settings.cloudflare.cnameTarget,
       records: emptyForm.records,
     }
@@ -57,13 +68,17 @@ function toForm(data: Awaited<ReturnType<typeof getImageDomainProvider>> | undef
   }
 }
 
-function cloudflareTokenUrl(zoneId: string): string {
+function cloudflareTokenUrl(zoneId: string, routingMode: RoutingMode): string {
   const permissions = [
     { key: 'zone', type: 'read' },
     { key: 'dns', type: 'edit' },
     { key: 'ssl_and_certificates', type: 'edit' },
-    { key: 'zone_transform_rules', type: 'edit' },
-    { key: 'workers_routes', type: 'edit' },
+    ...(routingMode === 'worker'
+      ? [
+          { key: 'zone_transform_rules', type: 'edit' },
+          { key: 'workers_routes', type: 'edit' },
+        ]
+      : []),
   ]
   const params = new URLSearchParams({
     permissionGroupKeys: JSON.stringify(permissions),
@@ -92,6 +107,8 @@ function parseRecords(value: string): Array<{ type: 'CNAME' | 'A' | 'AAAA'; valu
 export function ImageDomainProviderSection() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
+  const customDomainsEnabled = hasFeature('image_custom_domains')
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm)
   const { data, isLoading } = useQuery({ queryKey, queryFn: getImageDomainProvider })
@@ -101,14 +118,18 @@ export function ImageDomainProviderSection() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (form.provider === 'cloudflare_saas') {
+        const routing =
+          form.routingMode === 'worker'
+            ? { routingMode: 'worker' as const, workerName: form.workerName.trim() }
+            : { routingMode: 'origin' as const, originHostname: form.originHostname.trim() }
         return saveImageDomainProvider({
           enabled: form.enabled,
           provider: form.provider,
           cloudflare: {
             apiToken: form.apiToken,
             zoneId: form.zoneId.trim(),
-            workerName: form.workerName.trim(),
             cnameTarget: form.cnameTarget.trim(),
+            ...routing,
           },
         })
       }
@@ -163,7 +184,10 @@ export function ImageDomainProviderSection() {
               <GlobeLock className="size-4" />
             </div>
             <div className="min-w-0 space-y-1">
-              <CardTitle className="text-sm">{t('admin.imageDomains.title')}</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm">{t('admin.imageDomains.title')}</CardTitle>
+                <ProBadge tooltip={t('admin.imageDomains.proTooltip')} />
+              </div>
               <CardDescription>{t('admin.imageDomains.description')}</CardDescription>
               <p className="text-muted-foreground text-sm">
                 {providerLabel} · {t('admin.imageDomains.domainCount', { count: data?.domains.length ?? 0 })}
@@ -177,17 +201,31 @@ export function ImageDomainProviderSection() {
             <Button
               variant="outline"
               size="sm"
-              disabled={!data?.settings.provider || testMutation.isPending}
+              disabled={
+                entitlementLoading || !customDomainsEnabled || !data?.settings.provider || testMutation.isPending
+              }
               onClick={() => testMutation.mutate()}
             >
               {testMutation.isPending ? t('common.loading') : t('admin.imageDomains.test')}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={entitlementLoading || !customDomainsEnabled}
+              onClick={() => setOpen(true)}
+            >
               {t('common.edit')}
             </Button>
           </div>
         </CardContent>
       </Card>
+      {!entitlementLoading && !customDomainsEnabled && (
+        <UpgradeHint
+          feature="image_custom_domains"
+          title={t('admin.imageDomains.upgradeTitle')}
+          description={t('admin.imageDomains.upgradeDescription')}
+        />
+      )}
 
       <AdminFormDrawer
         open={open}
@@ -246,7 +284,7 @@ export function ImageDomainProviderSection() {
             <div className="rounded-md border bg-muted/40 p-3 text-sm">
               <p>{t('admin.imageDomains.cloudflareGuide')}</p>
               <Button asChild variant="link" className="h-auto px-0 py-2">
-                <a href={cloudflareTokenUrl(form.zoneId)} target="_blank" rel="noreferrer">
+                <a href={cloudflareTokenUrl(form.zoneId, form.routingMode)} target="_blank" rel="noreferrer">
                   {t('admin.imageDomains.createToken')}
                   <ExternalLink className="size-3.5" />
                 </a>
@@ -273,18 +311,48 @@ export function ImageDomainProviderSection() {
                 onChange={(event) => setForm((current) => ({ ...current, zoneId: event.target.value }))}
               />
             </AdminFormField>
-            <AdminFormField
-              id="cfWorkerName"
-              label={t('admin.imageDomains.workerName')}
-              help={t('admin.imageDomains.workerNameHelp')}
-              required
-            >
-              <Input
-                id="cfWorkerName"
-                value={form.workerName}
-                onChange={(event) => setForm((current) => ({ ...current, workerName: event.target.value }))}
-              />
+            <AdminFormField id="cfRoutingMode" label={t('admin.imageDomains.routingMode')} required>
+              <Select
+                value={form.routingMode}
+                onValueChange={(routingMode: RoutingMode) => setForm((current) => ({ ...current, routingMode }))}
+              >
+                <SelectTrigger id="cfRoutingMode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="worker">{t('admin.imageDomains.routingModeWorker')}</SelectItem>
+                  <SelectItem value="origin">{t('admin.imageDomains.routingModeOrigin')}</SelectItem>
+                </SelectContent>
+              </Select>
             </AdminFormField>
+            {form.routingMode === 'worker' ? (
+              <AdminFormField
+                id="cfWorkerName"
+                label={t('admin.imageDomains.workerName')}
+                help={t('admin.imageDomains.workerNameHelp')}
+                required
+              >
+                <Input
+                  id="cfWorkerName"
+                  value={form.workerName}
+                  onChange={(event) => setForm((current) => ({ ...current, workerName: event.target.value }))}
+                />
+              </AdminFormField>
+            ) : (
+              <AdminFormField
+                id="cfOriginHostname"
+                label={t('admin.imageDomains.originHostname')}
+                help={t('admin.imageDomains.originHostnameHelp')}
+                required
+              >
+                <Input
+                  id="cfOriginHostname"
+                  placeholder="origin.example.com"
+                  value={form.originHostname}
+                  onChange={(event) => setForm((current) => ({ ...current, originHostname: event.target.value }))}
+                />
+              </AdminFormField>
+            )}
             <AdminFormField id="cfCnameTarget" label={t('admin.imageDomains.cnameTarget')} required>
               <Input
                 id="cfCnameTarget"

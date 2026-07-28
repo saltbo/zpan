@@ -51,6 +51,7 @@ function harness(config: ImageDomainProviderConfig | null, rows = [domain()]) {
   const update = vi.fn(async () => {})
   const markAllDomainsPending = vi.fn(async () => {})
   const deprovision = vi.fn(async () => {})
+  const teardown = vi.fn(async () => {})
   const imageHostingConfigs: ImageHostingConfigRepo = {
     getByOrg: async () => null,
     getByDomain: async () => null,
@@ -63,23 +64,36 @@ function harness(config: ImageDomainProviderConfig | null, rows = [domain()]) {
   const imageDomains: ImageDomainProviderGateway = {
     getConfig: async () => config,
     test: async () => {},
+    teardown,
     provision: async () => ({ externalId: null, status: 'pending_dns', dnsRecords: [], error: null }),
     refresh: async () => ({ externalId: null, status: 'pending_dns', dnsRecords: [], error: null }),
     deprovision,
   }
-  return { systemOptions, imageHostingConfigs, imageDomains, setMany, update, markAllDomainsPending, deprovision }
+  return {
+    systemOptions,
+    imageHostingConfigs,
+    imageDomains,
+    setMany,
+    update,
+    markAllDomainsPending,
+    deprovision,
+    teardown,
+  }
 }
+
+const workerCloudflare = {
+  apiToken: 'very-secret-token',
+  zoneId: 'zone-1',
+  routingMode: 'worker',
+  workerName: 'zpan',
+  cnameTarget: 'ssl.example.com',
+} as const
 
 const cloudflareConfig: ImageDomainProviderConfig = {
   settings: {
     enabled: true,
     provider: 'cloudflare_saas',
-    cloudflare: {
-      apiToken: 'very-secret-token',
-      zoneId: 'zone-1',
-      workerName: 'zpan',
-      cnameTarget: 'ssl.example.com',
-    },
+    cloudflare: workerCloudflare,
   },
   lastTestedAt: new Date('2026-07-27T12:00:00.000Z'),
   error: null,
@@ -111,7 +125,13 @@ describe('image-domain provider settings', () => {
     await saveImageDomainProvider(deps, {
       enabled: true,
       provider: 'cloudflare_saas',
-      cloudflare: { apiToken: '****oken', zoneId: 'zone-2', workerName: 'zpan', cnameTarget: 'ssl2.example.com' },
+      cloudflare: {
+        apiToken: '****oken',
+        zoneId: 'zone-2',
+        routingMode: 'worker',
+        workerName: 'zpan',
+        cnameTarget: 'ssl2.example.com',
+      },
     })
     expect(deps.setMany).toHaveBeenCalledWith(
       expect.arrayContaining([
@@ -120,6 +140,7 @@ describe('image-domain provider settings', () => {
       ]),
     )
     expect(deps.deprovision).toHaveBeenCalledWith(cloudflareConfig, 'host-1')
+    expect(deps.teardown).toHaveBeenCalledWith(cloudflareConfig)
     expect(deps.markAllDomainsPending).toHaveBeenCalledWith('cloudflare_saas', false)
   })
 
@@ -128,10 +149,28 @@ describe('image-domain provider settings', () => {
     await saveImageDomainProvider(deps, {
       enabled: true,
       provider: 'cloudflare_saas',
-      cloudflare: { apiToken: 'new-token', zoneId: 'zone-1', workerName: 'zpan', cnameTarget: 'ssl2.example.com' },
+      cloudflare: {
+        apiToken: 'new-token',
+        zoneId: 'zone-1',
+        routingMode: 'worker',
+        workerName: 'zpan',
+        cnameTarget: 'ssl2.example.com',
+      },
     })
     expect(deps.deprovision).not.toHaveBeenCalled()
     expect(deps.markAllDomainsPending).toHaveBeenCalledWith('cloudflare_saas', true)
+  })
+
+  it('deprovisions hostnames and Worker routing when the provider is disabled', async () => {
+    const deps = harness(cloudflareConfig)
+    await saveImageDomainProvider(deps, {
+      enabled: false,
+      provider: 'cloudflare_saas',
+      cloudflare: workerCloudflare,
+    })
+    expect(deps.deprovision).toHaveBeenCalledWith(cloudflareConfig, 'host-1')
+    expect(deps.teardown).toHaveBeenCalledWith(cloudflareConfig)
+    expect(deps.markAllDomainsPending).toHaveBeenCalledWith('cloudflare_saas', false)
   })
 
   it('tests a manual provider and reprovisions all existing domains', async () => {

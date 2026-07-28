@@ -22,6 +22,7 @@ const cloudflareValues = {
   image_domain_provider: 'cloudflare_saas',
   image_domain_cloudflare_api_token: 'secret-token',
   image_domain_cloudflare_zone_id: 'zone-1',
+  image_domain_cloudflare_routing_mode: 'worker',
   image_domain_cloudflare_worker_name: 'zpan',
   image_domain_cloudflare_cname_target: 'ssl.example.com',
   image_domain_last_tested_at: '2026-07-27T12:00:00.000Z',
@@ -83,6 +84,7 @@ describe('image domain provider gateway', () => {
     const config = await gateway.getConfig()
     expect(config).not.toBeNull()
     await expect(gateway.test(config!.settings)).resolves.toBeUndefined()
+    await expect(gateway.teardown(config!)).resolves.toBeUndefined()
     await expect(gateway.provision(config!, 'img.example.com')).resolves.toMatchObject({
       externalId: null,
       status: 'pending_dns',
@@ -121,6 +123,128 @@ describe('image domain provider gateway', () => {
         method: 'POST',
         body: expect.stringContaining('"hostname":"img.example.com"'),
       }),
+    )
+  })
+
+  it('uses an external origin without creating rewrite rules or Worker routes', async () => {
+    const externalValues = {
+      ...cloudflareValues,
+      image_domain_cloudflare_routing_mode: 'origin',
+      image_domain_cloudflare_worker_name: '',
+      image_domain_cloudflare_origin_hostname: 'origin.example.com',
+    }
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: { name: 'example.com' } }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: [
+              {
+                id: 'origin-dns',
+                type: 'A',
+                name: 'origin.example.com',
+                content: '192.0.2.10',
+                proxied: true,
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: { status: 'active', origin: 'origin.example.com' } }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: [
+              {
+                id: 'target-dns',
+                type: 'CNAME',
+                name: 'ssl.example.com',
+                content: 'origin.example.com',
+                proxied: true,
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, result: [] }), { status: 200 }))
+
+    const gateway = createImageDomainProviderGateway(options(externalValues))
+    const config = await gateway.getConfig()
+    await expect(gateway.test(config!.settings)).resolves.toBeUndefined()
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) => String(url).includes('/rulesets') || String(url).includes('/workers/routes')),
+    ).toBe(false)
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'host-1', status: 'active', ssl: { status: 'active' } },
+        }),
+        { status: 200 },
+      ),
+    )
+    await gateway.provision(config!, 'img.example.com')
+    expect(fetch).toHaveBeenLastCalledWith(
+      'https://api.cloudflare.com/client/v4/zones/zone-1/custom_hostnames',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"custom_origin_server":"origin.example.com"'),
+      }),
+    )
+  })
+
+  it('removes managed Worker routing when the provider scope changes', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: {
+              id: 'ruleset-1',
+              rules: [{ id: 'rule-1', ref: 'zpan_image_hosting_rewrite', expression: 'managed' }],
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, result: {} }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: [{ id: 'route-1', pattern: '*/ih/*', script: 'zpan' }],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, result: {} }), { status: 200 }))
+
+    const gateway = createImageDomainProviderGateway(options(cloudflareValues))
+    const config = await gateway.getConfig()
+    await gateway.teardown(config!)
+
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      'https://api.cloudflare.com/client/v4/zones/zone-1/rulesets/ruleset-1/rules/rule-1',
+      expect.objectContaining({ method: 'DELETE' }),
+    )
+    expect(fetch).toHaveBeenNthCalledWith(
+      4,
+      'https://api.cloudflare.com/client/v4/zones/zone-1/workers/routes/route-1',
+      expect.objectContaining({ method: 'DELETE' }),
     )
   })
 
