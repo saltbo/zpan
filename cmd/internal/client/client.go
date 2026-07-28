@@ -241,10 +241,9 @@ type ObjectDraft struct {
 // PutObject, N URLs = multipart). The client PUTs each slice, reads the ETag, and
 // posts them to CompleteObjectUpload.
 type ObjectUploadInstructions struct {
-	SessionID          string   `json:"sessionId"`
-	PartSize           int64    `json:"partSize"`
-	URLs               []string `json:"urls"`
-	ContentDisposition string   `json:"contentDisposition"`
+	SessionID string   `json:"sessionId"`
+	PartSize  int64    `json:"partSize"`
+	URLs      []string `json:"urls"`
 }
 
 type PresignedObjectUploadPart struct {
@@ -613,10 +612,9 @@ func (c *Client) createMatter(
 		draft := ObjectDraft{ID: res.JSON201.Id, Name: res.JSON201.Name}
 		if u := res.JSON201.Upload; u != nil {
 			draft.Upload = &ObjectUploadInstructions{
-				SessionID:          u.SessionId,
-				PartSize:           int64(u.PartSize),
-				URLs:               u.Urls,
-				ContentDisposition: u.ContentDisposition,
+				SessionID: u.SessionId,
+				PartSize:  int64(u.PartSize),
+				URLs:      u.Urls,
 			}
 		}
 		return draft, nil

@@ -32,7 +32,6 @@ describe('[CF] storage usage projection invariant', () => {
       accessKey: 'key',
       secretKey: 'secret',
       filePath: '',
-      customHost: '',
       capacity: 0,
       used: 0,
       enabled: true,

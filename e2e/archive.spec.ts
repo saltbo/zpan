@@ -66,16 +66,13 @@ async function seedFile(page: Page, name: string, bytes: Buffer) {
   })
   expect(draftResponse.ok()).toBe(true)
   const draft = (await draftResponse.json()) as StorageObject & {
-    upload: { sessionId: string; partSize: number; urls: string[]; contentDisposition: string }
+    upload: { sessionId: string; partSize: number; urls: string[] }
   }
   // Small fixture → single PutObject (one URL).
   expect(draft.upload?.urls?.length).toBe(1)
 
   const uploadResponse = await page.request.put(draft.upload.urls[0], {
-    headers: {
-      'Content-Type': textType,
-      'Content-Disposition': draft.upload.contentDisposition,
-    },
+    headers: { 'Content-Type': textType },
     data: bytes,
   })
   expect(uploadResponse.ok()).toBe(true)

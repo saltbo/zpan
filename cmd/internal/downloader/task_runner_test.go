@@ -542,15 +542,11 @@ func TestUploadFilePartSendsContentLength(t *testing.T) {
 	defer file.Close()
 
 	var contentLength string
-	var contentType string
-	var contentDisposition string
 	var body string
 	var uploaded int64
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentLength = r.Header.Get("Content-Length")
-		contentType = r.Header.Get("Content-Type")
-		contentDisposition = r.Header.Get("Content-Disposition")
 		if r.TransferEncoding != nil {
 			t.Fatalf("expected fixed-length upload, got transfer encoding %v", r.TransferEncoding)
 		}
@@ -564,8 +560,7 @@ func TestUploadFilePartSendsContentLength(t *testing.T) {
 	}))
 	defer server.Close()
 
-	disposition := `attachment; filename="__.mp3"; filename*=UTF-8''%E9%9F%B3%E4%B9%90.mp3`
-	etag, err := uploadFilePart(context.Background(), server.URL, file, 0, 11, "application/octet-stream", disposition, func(written int64) error {
+	etag, err := uploadFilePart(context.Background(), server.URL, file, 0, 11, func(written int64) error {
 		uploaded += written
 		return nil
 	})
@@ -577,12 +572,6 @@ func TestUploadFilePartSendsContentLength(t *testing.T) {
 	}
 	if body != "hello world" {
 		t.Fatalf("expected uploaded body, got %q", body)
-	}
-	if contentType != "application/octet-stream" {
-		t.Fatalf("expected Content-Type header, got %q", contentType)
-	}
-	if got := contentDisposition; got != disposition {
-		t.Fatalf("expected Content-Disposition header, got %q", got)
 	}
 	if etag != `"etag-1"` {
 		t.Fatalf("expected ETag, got %q", etag)
@@ -605,7 +594,7 @@ func TestUploadFilePartIncludesErrorBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err = uploadFilePart(context.Background(), server.URL, file, 0, 5, "", "", nil)
+	_, err = uploadFilePart(context.Background(), server.URL, file, 0, 5, nil)
 	if err == nil {
 		t.Fatal("expected uploadFilePart error")
 	}
@@ -637,7 +626,7 @@ func TestUploadFilePartSendsSectionAndReturnsETag(t *testing.T) {
 	}))
 	defer server.Close()
 
-	etag, err := uploadFilePart(context.Background(), server.URL, file, 6, 9, "", "", func(written int64) error {
+	etag, err := uploadFilePart(context.Background(), server.URL, file, 6, 9, func(written int64) error {
 		uploaded += written
 		return nil
 	})

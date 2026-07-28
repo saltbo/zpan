@@ -43,7 +43,7 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === 'POST' && url.searchParams.has('uploads')) {
-    createMultipartUpload(req, res, bucket, key)
+    createMultipartUpload(res, bucket, key)
     return
   }
 
@@ -70,7 +70,6 @@ async function handleRequest(req, res) {
     objects.set(objectKey, {
       body,
       contentType: req.headers['content-type'] ?? 'application/octet-stream',
-      contentDisposition: req.headers['content-disposition'],
     })
     res.writeHead(200, { etag: etag(body) })
     res.end('')
@@ -87,7 +86,6 @@ async function handleRequest(req, res) {
     res.writeHead(200, {
       'Content-Length': object.body.byteLength,
       'Content-Type': object.contentType,
-      ...(object.contentDisposition ? { 'Content-Disposition': object.contentDisposition } : {}),
       etag: etag(object.body),
     })
     res.end()
@@ -101,7 +99,10 @@ async function handleRequest(req, res) {
       res.end('Not found')
       return
     }
-    writeObject(res, object, req.headers.range)
+    writeObject(res, object, req.headers.range, {
+      contentDisposition: url.searchParams.get('response-content-disposition'),
+      contentType: url.searchParams.get('response-content-type'),
+    })
     return
   }
 
@@ -116,15 +117,9 @@ async function handleRequest(req, res) {
   res.end('Method not allowed')
 }
 
-function createMultipartUpload(req, res, bucket, key) {
+function createMultipartUpload(res, bucket, key) {
   const uploadId = randomUUID()
-  uploads.set(uploadId, {
-    bucket,
-    key,
-    contentType: req.headers['content-type'] ?? 'application/octet-stream',
-    contentDisposition: req.headers['content-disposition'],
-    parts: new Map(),
-  })
+  uploads.set(uploadId, { bucket, key, parts: new Map() })
   res.writeHead(200, { 'Content-Type': 'application/xml' })
   res.end(`<CreateMultipartUploadResult><UploadId>${uploadId}</UploadId></CreateMultipartUploadResult>`)
 }
@@ -162,23 +157,22 @@ function completeMultipartUpload(res, url, bucket, key) {
     offset += part.byteLength
   }
 
-  objects.set(storageKey(bucket, key), {
-    body,
-    contentType: upload.contentType,
-    contentDisposition: upload.contentDisposition,
-  })
+  objects.set(storageKey(bucket, key), { body, contentType: 'application/octet-stream' })
   uploads.delete(uploadId)
   res.writeHead(200, { 'Content-Type': 'application/xml' })
   res.end('<CompleteMultipartUploadResult />')
 }
 
-function writeObject(res, object, rangeHeader) {
+function writeObject(res, object, rangeHeader, overrides) {
+  const headers = {
+    'Content-Type': overrides.contentType ?? object.contentType,
+    ...(overrides.contentDisposition ? { 'Content-Disposition': overrides.contentDisposition } : {}),
+  }
   if (!rangeHeader) {
     res.writeHead(200, {
       'Content-Length': object.body.byteLength,
-      'Content-Type': object.contentType,
-      ...(object.contentDisposition ? { 'Content-Disposition': object.contentDisposition } : {}),
       etag: etag(object.body),
+      ...headers,
     })
     res.end(object.body)
     return
@@ -197,8 +191,8 @@ function writeObject(res, object, rangeHeader) {
   res.writeHead(206, {
     'Content-Length': slice.byteLength,
     'Content-Range': `bytes ${start}-${end}/${object.body.byteLength}`,
-    'Content-Type': object.contentType,
     etag: etag(object.body),
+    ...headers,
   })
   res.end(slice)
 }
@@ -218,8 +212,8 @@ function storageKey(bucket, key) {
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,POST,DELETE,OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Content-Disposition')
-  res.setHeader('Access-Control-Expose-Headers', 'ETag,Content-Length,Content-Range,Content-Type')
+  res.setHeader('Access-Control-Allow-Headers', '*')
+  res.setHeader('Access-Control-Expose-Headers', 'ETag,Content-Disposition,Content-Length,Content-Range,Content-Type')
 }
 
 function etag(body) {

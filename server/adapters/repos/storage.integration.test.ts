@@ -19,33 +19,6 @@ describe('createStorage', () => {
     expect(result.filePath).toBe('')
   })
 
-  it('sets customHost to empty string when not provided', async () => {
-    const { db } = await createTestApp()
-    const result = await createStorageRepo(db).create({
-      bucket: 'my-bucket',
-      endpoint: 'https://s3.example.com',
-      region: 'us-east-1',
-      accessKey: 'AKID',
-      secretKey: 'SECRET',
-      capacity: 0,
-    })
-    expect(result.customHost).toBe('')
-  })
-
-  it('uses provided customHost when given', async () => {
-    const { db } = await createTestApp()
-    const result = await createStorageRepo(db).create({
-      bucket: 'my-bucket',
-      endpoint: 'https://s3.example.com',
-      region: 'us-east-1',
-      accessKey: 'AKID',
-      secretKey: 'SECRET',
-      customHost: 'https://cdn.example.com',
-      capacity: 0,
-    })
-    expect(result.customHost).toBe('https://cdn.example.com')
-  })
-
   it('sets capacity to 0 when not provided', async () => {
     const { db } = await createTestApp()
     const result = await createStorageRepo(db).create({
@@ -103,6 +76,23 @@ describe('createStorage', () => {
     expect(fetched?.id).toBe(created.id)
     expect(fetched?.bucket).toBe('my-bucket')
   })
+
+  it('does not expose the legacy custom host column', async () => {
+    const { db } = await createTestApp()
+    const created = await createStorageRepo(db).create({
+      bucket: 'my-bucket',
+      endpoint: 'https://s3.example.com',
+      region: 'us-east-1',
+      accessKey: 'AKID',
+      secretKey: 'SECRET',
+      capacity: 0,
+    })
+    await db.update(storages).set({ customHost: 'https://legacy.example.com' }).where(eq(storages.id, created.id))
+
+    const fetched = await createStorageRepo(db).get(created.id)
+
+    expect(fetched).not.toHaveProperty('customHost')
+  })
 })
 
 describe('replaceStorage and patchStorage', () => {
@@ -113,7 +103,6 @@ describe('replaceStorage and patchStorage', () => {
       region: 'us-east-1',
       accessKey: 'AKID',
       secretKey: 'SECRET',
-      customHost: 'https://cdn.original.com',
       capacity: 500,
     })
   }
@@ -134,7 +123,6 @@ describe('replaceStorage and patchStorage', () => {
       region: 'auto',
       accessKey: 'NEW_AKID',
       secretKey: 'NEW_SECRET',
-      customHost: 'https://cdn.new.com',
       capacity: 1000,
       forcePathStyle: false,
       egressCreditBillingEnabled: false,
@@ -147,7 +135,6 @@ describe('replaceStorage and patchStorage', () => {
     expect(updated?.region).toBe('auto')
     expect(updated?.accessKey).toBe('NEW_AKID')
     expect(updated?.secretKey).toBe('NEW_SECRET')
-    expect(updated?.customHost).toBe('https://cdn.new.com')
     expect(updated?.capacity).toBe(1000)
     expect(updated?.enabled).toBe(false)
     expect(updated?.status).toBe('unknown')

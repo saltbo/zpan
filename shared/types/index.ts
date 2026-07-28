@@ -37,7 +37,6 @@ export interface Storage {
   accessKey: string
   secretKey: string
   filePath: string
-  customHost: string | null
   capacity: number
   forcePathStyle: boolean
   egressCreditBillingEnabled: boolean
@@ -426,7 +425,6 @@ export interface ObjectUploadInstructions {
   sessionId: string
   partSize: number
   urls: string[]
-  contentDisposition: string
 }
 
 export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled'

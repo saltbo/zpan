@@ -21,7 +21,6 @@ const storageFormSchema = z.object({
   region: z.string().min(1),
   accessKey: z.string().min(1),
   secretKey: z.string().min(1),
-  customHost: z.string().optional(),
   forcePathStyle: z.boolean(),
 })
 
@@ -34,7 +33,6 @@ const DEFAULT_VALUES: StorageFormValues = {
   region: 'auto',
   accessKey: '',
   secretKey: '',
-  customHost: '',
   forcePathStyle: true,
 }
 
@@ -73,7 +71,6 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
         region: storage.region,
         accessKey: storage.accessKey,
         secretKey: storage.secretKey,
-        customHost: storage.customHost || '',
         forcePathStyle: storage.forcePathStyle ?? true,
       })
     } else {
@@ -113,13 +110,12 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
   const bucket = form.watch('bucket')
   const endpoint = form.watch('endpoint')
   const region = form.watch('region')
-  const customHost = form.watch('customHost')
   const forcePathStyle = form.watch('forcePathStyle')
   const providers = providersQuery.data ?? []
   const selectedProvider = findEplistProvider(providers, provider)
   const preview = useMemo(
-    () => buildStoragePreview({ bucket, endpoint, region, customHost, forcePathStyle }),
-    [bucket, endpoint, region, customHost, forcePathStyle],
+    () => buildStoragePreview({ bucket, endpoint, region, forcePathStyle }),
+    [bucket, endpoint, region, forcePathStyle],
   )
   const endpointsQuery = useQuery({
     queryKey: ['eplist', 'endpoints', selectedProvider?.slug],
@@ -291,15 +287,6 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
         )}
       </AdminFormField>
 
-      <AdminFormField
-        id="storage-custom-host"
-        label={t('admin.storages.fieldCustomHost')}
-        help={t('admin.storages.customHostHint')}
-        error={form.formState.errors.customHost?.message}
-      >
-        <Input {...form.register('customHost')} placeholder={t('admin.storages.customHostPlaceholder')} />
-      </AdminFormField>
-
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <AdminFormLabel htmlFor="forcePathStyle" help={t('admin.storages.forcePathStyleHint')}>
@@ -333,14 +320,6 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
               <p className="text-muted-foreground text-xs">{t('admin.storages.previewRequestUrl')}</p>
               <code className="block break-all rounded-sm bg-background px-2 py-1.5 text-xs">{preview.requestUrl}</code>
             </div>
-            {preview.publicUrl !== preview.requestUrl && (
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-xs">{t('admin.storages.previewPublicUrl')}</p>
-                <code className="block break-all rounded-sm bg-background px-2 py-1.5 text-xs">
-                  {preview.publicUrl}
-                </code>
-              </div>
-            )}
             <p className="text-muted-foreground text-xs">
               {t('admin.storages.previewSigningRegion', { region: preview.signingRegion })}
             </p>
@@ -353,9 +332,9 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
   )
 }
 
-type StoragePreviewInput = Pick<StorageFormValues, 'bucket' | 'endpoint' | 'region' | 'customHost' | 'forcePathStyle'>
+type StoragePreviewInput = Pick<StorageFormValues, 'bucket' | 'endpoint' | 'region' | 'forcePathStyle'>
 
-function buildStoragePreview({ bucket, endpoint, region, customHost, forcePathStyle }: StoragePreviewInput) {
+function buildStoragePreview({ bucket, endpoint, region, forcePathStyle }: StoragePreviewInput) {
   const normalizedBucket = bucket.trim()
   const normalizedEndpoint = endpoint.trim()
   if (!normalizedBucket || !normalizedEndpoint) return null
@@ -377,7 +356,6 @@ function buildStoragePreview({ bucket, endpoint, region, customHost, forcePathSt
     const requestUrl = url.toString()
     return {
       requestUrl,
-      publicUrl: buildPublicPreviewUrl(requestUrl, customHost, normalizedBucket),
       addressingMode: 'path' as const,
       signingRegion: region.trim() || 'auto',
     }
@@ -388,30 +366,9 @@ function buildStoragePreview({ bucket, endpoint, region, customHost, forcePathSt
   const requestUrl = url.toString()
   return {
     requestUrl,
-    publicUrl: buildPublicPreviewUrl(requestUrl, customHost, normalizedBucket),
     addressingMode: 'virtual-hosted' as const,
     signingRegion: region.trim() || 'auto',
   }
-}
-
-function buildPublicPreviewUrl(requestUrl: string, customHost: string | undefined, bucket: string) {
-  const normalizedCustomHost = customHost?.trim()
-  if (!normalizedCustomHost) return requestUrl
-
-  const url = new URL(requestUrl)
-  const host = /^https?:\/\//i.test(normalizedCustomHost) ? normalizedCustomHost : `https://${normalizedCustomHost}`
-  const hostUrl = new URL(host)
-  url.protocol = hostUrl.protocol
-  url.host = hostUrl.host
-
-  const bucketPrefix = `/${bucket}/`
-  if (url.pathname.startsWith(bucketPrefix)) {
-    url.pathname = `/${url.pathname.slice(bucketPrefix.length)}`
-  } else if (url.pathname === `/${bucket}`) {
-    url.pathname = '/'
-  }
-
-  return url.toString()
 }
 
 function joinPath(...parts: string[]): string {

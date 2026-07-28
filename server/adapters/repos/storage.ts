@@ -38,7 +38,8 @@ const STORAGE_CACHE_POLICY: CachePolicy<StorageRecord | null> = {
 }
 
 function toRecord(row: StorageRow): StorageRecord {
-  return row as StorageRecord
+  const { customHost: _legacyCustomHost, ...record } = row
+  return record as StorageRecord
 }
 
 export function createStorageRepo(db: Database, cache?: CacheService): StorageRepo {
@@ -77,7 +78,7 @@ export function createStorageRepo(db: Database, cache?: CacheService): StorageRe
         accessKey: input.accessKey,
         secretKey: input.secretKey,
         filePath: '',
-        customHost: input.customHost ?? '',
+        customHost: '',
         capacity: input.capacity ?? 0,
         egressCreditBillingEnabled: input.egressCreditBillingEnabled ?? false,
         egressCreditUnitBytes: input.egressCreditUnitBytes ?? 104857600,
@@ -110,7 +111,6 @@ export function createStorageRepo(db: Database, cache?: CacheService): StorageRe
       const connectionChanged = CONNECTION_FIELDS.some((field) => input[field] !== existing[field])
       const updated = {
         ...input,
-        customHost: input.customHost ?? '',
         ...(connectionChanged ? { status: 'unknown', statusReason: null, statusCheckedAt: null } : {}),
         updatedAt: now,
       }
@@ -131,7 +131,6 @@ export function createStorageRepo(db: Database, cache?: CacheService): StorageRe
       )
       const updated = {
         ...input,
-        ...(input.customHost === undefined ? {} : { customHost: input.customHost }),
         ...(connectionChanged ? { status: 'unknown', statusReason: null, statusCheckedAt: null } : {}),
         ...(input.status === undefined || connectionChanged
           ? {}

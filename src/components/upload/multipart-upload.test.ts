@@ -26,17 +26,8 @@ function makeCtx(overrides: Partial<UploadRunnerContext> = {}): UploadRunnerCont
   return ctx as never
 }
 
-function makeUpload(
-  urls: string[],
-  partSize: number,
-  contentDisposition = 'attachment; filename="small.bin"; filename*=UTF-8\'\'small.bin',
-): ObjectUploadInstructions {
-  return {
-    sessionId: 'sess-1',
-    partSize,
-    urls,
-    contentDisposition,
-  }
+function makeUpload(urls: string[], partSize: number): ObjectUploadInstructions {
+  return { sessionId: 'sess-1', partSize, urls }
 }
 
 describe('uploadObjectSlices', () => {
@@ -58,10 +49,7 @@ describe('uploadObjectSlices', () => {
     expect(api.uploadPartToS3).toHaveBeenCalledWith(
       'https://s3/part-1',
       expect.any(Blob),
-      expect.objectContaining({
-        contentType: 'application/x-test',
-        contentDisposition: 'attachment; filename="small.bin"; filename*=UTF-8\'\'small.bin',
-      }),
+      expect.objectContaining({ contentType: 'application/x-test' }),
     )
     expect(parts).toEqual([{ partNumber: 1, etag: 'etag-1' }])
   })
@@ -78,19 +66,6 @@ describe('uploadObjectSlices', () => {
     )
   })
 
-  it('sends the ASCII-safe UTF-8 attachment header for a Chinese filename', async () => {
-    const disposition = 'attachment; filename="__.mp3"; filename*=UTF-8\'\'%E9%9F%B3%E4%B9%90.mp3'
-    const file = new File(['0123'], '音乐.mp3', { type: 'audio/mpeg' })
-
-    await uploadObjectSlices(makeUpload(['https://s3/part-1'], file.size, disposition), file, makeCtx())
-
-    expect(api.uploadPartToS3).toHaveBeenCalledWith(
-      'https://s3/part-1',
-      expect.any(Blob),
-      expect.objectContaining({ contentDisposition: disposition }),
-    )
-  })
-
   it('slices the file by partSize across N URLs and returns parts sorted by partNumber', async () => {
     // 10 bytes, partSize 4 -> 3 slices (4, 4, 2)
     const file = new File(['0123456789'], 'big.bin')
@@ -103,7 +78,6 @@ describe('uploadObjectSlices', () => {
     )
 
     expect(api.uploadPartToS3).toHaveBeenCalledTimes(3)
-    expect(api.uploadPartToS3.mock.calls.every(([, , options]) => options.contentDisposition === undefined)).toBe(true)
     const sentSizes = api.uploadPartToS3.mock.calls.map(([, blob]) => (blob as Blob).size).sort((a, b) => a - b)
     expect(sentSizes).toEqual([2, 4, 4])
 

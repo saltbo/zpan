@@ -36,7 +36,6 @@ function storage(overrides: Partial<Storage> = {}): Storage {
     accessKey: 'secret-access-key',
     secretKey: 'secret-secret-key',
     filePath: '',
-    customHost: null,
     capacity: 1000,
     forcePathStyle: true,
     egressCreditBillingEnabled: false,

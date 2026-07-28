@@ -4888,7 +4888,6 @@ type Storage struct {
 	Bucket                     string               `json:"bucket"`
 	Capacity                   int                  `json:"capacity"`
 	CreatedAt                  string               `json:"createdAt"`
-	CustomHost                 *string              `json:"customHost"`
 	EgressCreditBillingEnabled bool                 `json:"egressCreditBillingEnabled"`
 	EgressCreditPerUnit        int                  `json:"egressCreditPerUnit"`
 	EgressCreditUnitBytes      int                  `json:"egressCreditUnitBytes"`
@@ -6360,7 +6359,6 @@ type CreateStorageJSONBody struct {
 	AccessKey                  string  `json:"accessKey"`
 	Bucket                     string  `json:"bucket"`
 	Capacity                   *int    `json:"capacity,omitempty"`
-	CustomHost                 *string `json:"customHost,omitempty"`
 	EgressCreditBillingEnabled *bool   `json:"egressCreditBillingEnabled,omitempty"`
 	EgressCreditPerUnit        *int    `json:"egressCreditPerUnit,omitempty"`
 	EgressCreditUnitBytes      *int    `json:"egressCreditUnitBytes,omitempty"`
@@ -6376,7 +6374,6 @@ type PatchStorageJSONBody struct {
 	AccessKey                  *string                           `json:"accessKey,omitempty"`
 	Bucket                     *string                           `json:"bucket,omitempty"`
 	Capacity                   *int                              `json:"capacity,omitempty"`
-	CustomHost                 *string                           `json:"customHost,omitempty"`
 	EgressCreditBillingEnabled *bool                             `json:"egressCreditBillingEnabled,omitempty"`
 	EgressCreditPerUnit        *int                              `json:"egressCreditPerUnit,omitempty"`
 	EgressCreditUnitBytes      *int                              `json:"egressCreditUnitBytes,omitempty"`
@@ -6398,19 +6395,18 @@ type PatchStorageJSONBodyStatusReason string
 
 // ReplaceStorageJSONBody defines parameters for ReplaceStorage.
 type ReplaceStorageJSONBody struct {
-	AccessKey                  string  `json:"accessKey"`
-	Bucket                     string  `json:"bucket"`
-	Capacity                   int     `json:"capacity"`
-	CustomHost                 *string `json:"customHost,omitempty"`
-	EgressCreditBillingEnabled bool    `json:"egressCreditBillingEnabled"`
-	EgressCreditPerUnit        int     `json:"egressCreditPerUnit"`
-	EgressCreditUnitBytes      int     `json:"egressCreditUnitBytes"`
-	Enabled                    bool    `json:"enabled"`
-	Endpoint                   string  `json:"endpoint"`
-	ForcePathStyle             bool    `json:"forcePathStyle"`
-	Provider                   string  `json:"provider"`
-	Region                     string  `json:"region"`
-	SecretKey                  string  `json:"secretKey"`
+	AccessKey                  string `json:"accessKey"`
+	Bucket                     string `json:"bucket"`
+	Capacity                   int    `json:"capacity"`
+	EgressCreditBillingEnabled bool   `json:"egressCreditBillingEnabled"`
+	EgressCreditPerUnit        int    `json:"egressCreditPerUnit"`
+	EgressCreditUnitBytes      int    `json:"egressCreditUnitBytes"`
+	Enabled                    bool   `json:"enabled"`
+	Endpoint                   string `json:"endpoint"`
+	ForcePathStyle             bool   `json:"forcePathStyle"`
+	Provider                   string `json:"provider"`
+	Region                     string `json:"region"`
+	SecretKey                  string `json:"secretKey"`
 }
 
 // UpdateStorageEgressBillingJSONBody defines parameters for UpdateStorageEgressBilling.
@@ -28902,10 +28898,9 @@ type CreateObjectResponse struct {
 		Type      string `json:"type"`
 		UpdatedAt string `json:"updatedAt"`
 		Upload    *struct {
-			ContentDisposition string   `json:"contentDisposition"`
-			PartSize           int      `json:"partSize"`
-			SessionId          string   `json:"sessionId"`
-			Urls               []string `json:"urls"`
+			PartSize  int      `json:"partSize"`
+			SessionId string   `json:"sessionId"`
+			Urls      []string `json:"urls"`
 		} `json:"upload,omitempty"`
 	}
 	JSON400 *Error
@@ -43998,10 +43993,9 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 			Type      string `json:"type"`
 			UpdatedAt string `json:"updatedAt"`
 			Upload    *struct {
-				ContentDisposition string   `json:"contentDisposition"`
-				PartSize           int      `json:"partSize"`
-				SessionId          string   `json:"sessionId"`
-				Urls               []string `json:"urls"`
+				PartSize  int      `json:"partSize"`
+				SessionId string   `json:"sessionId"`
+				Urls      []string `json:"urls"`
 			} `json:"upload,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

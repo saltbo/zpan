@@ -547,10 +547,9 @@ func TestCreateObjectMapsUploadInstructions(t *testing.T) {
 			"id":   "object-1",
 			"name": "movie.mkv",
 			"upload": map[string]any{
-				"sessionId":          "session-1",
-				"partSize":           1024,
-				"urls":               []string{"https://s3/part-1"},
-				"contentDisposition": `attachment; filename="movie.mkv"`,
+				"sessionId": "session-1",
+				"partSize":  1024,
+				"urls":      []string{"https://s3/part-1"},
 			},
 		})
 	}))
@@ -563,7 +562,7 @@ func TestCreateObjectMapsUploadInstructions(t *testing.T) {
 	if draft.Upload == nil {
 		t.Fatalf("expected upload instructions: %#v", draft)
 	}
-	if draft.Upload.SessionID != "session-1" || draft.Upload.PartSize != 1024 || !reflect.DeepEqual(draft.Upload.URLs, []string{"https://s3/part-1"}) || draft.Upload.ContentDisposition != `attachment; filename="movie.mkv"` {
+	if draft.Upload.SessionID != "session-1" || draft.Upload.PartSize != 1024 || !reflect.DeepEqual(draft.Upload.URLs, []string{"https://s3/part-1"}) {
 		t.Fatalf("unexpected upload instructions: %#v", draft.Upload)
 	}
 }
