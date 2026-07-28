@@ -110,6 +110,24 @@ describe('/api/image-hosting/config provider-backed domains', () => {
     expect(stored?.verificationToken).toBeTruthy()
   })
 
+  it('deletes the workspace config through the owner endpoint', async () => {
+    const { app, db, deps } = await createTestApp()
+    await configureManualProvider(deps)
+    const { orgId, headers } = await ownerSession(app, db)
+    const timestamp = new Date()
+    await db.insert(schema.imageHostingConfigs).values({
+      orgId,
+      customDomain: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+
+    const response = await app.request('/api/image-hosting/config', { method: 'DELETE', headers })
+
+    expect(response.status).toBe(204)
+    await expect(deps.imageHostingConfigs.getByOrg(orgId)).resolves.toBeNull()
+  })
+
   it('verifies a manual domain through the inbound HTTP challenge [spec: image-hosting-config/manual-verification]', async () => {
     const { app, db, deps } = await createTestApp()
     await configureManualProvider(deps)

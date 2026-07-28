@@ -6,7 +6,12 @@ import type {
   ImageHostingConfigRepo,
   SystemOptionsRepo,
 } from '../ports'
-import { getImageDomainProvider, saveImageDomainProvider, testImageDomainProvider } from './image-domain-provider'
+import {
+  getImageDomainProvider,
+  reconcileImageDomains,
+  saveImageDomainProvider,
+  testImageDomainProvider,
+} from './image-domain-provider'
 
 function domain(overrides: Partial<ImageHostingConfigRecord> = {}): ImageHostingConfigRecord {
   return {
@@ -76,6 +81,16 @@ const cloudflareConfig: ImageDomainProviderConfig = {
 }
 
 describe('image-domain provider settings', () => {
+  it('returns the disabled empty state when no provider is configured', async () => {
+    await expect(getImageDomainProvider(harness(null, []))).resolves.toEqual({
+      settings: { enabled: false, provider: null },
+      status: 'disabled',
+      lastTestedAt: null,
+      error: null,
+      domains: [],
+    })
+  })
+
   it('masks the token and includes bound-domain health', async () => {
     const result = await getImageDomainProvider(harness(cloudflareConfig))
     expect(result.settings).toMatchObject({
@@ -163,5 +178,91 @@ describe('image-domain provider settings', () => {
     expect(deps.setMany).toHaveBeenCalledWith(
       expect.arrayContaining([{ key: 'image_domain_error', value: 'fallback origin inactive' }]),
     )
+  })
+
+  it('rejects a provider test before configuration exists', async () => {
+    await expect(testImageDomainProvider(harness(null))).rejects.toMatchObject({
+      httpStatus: 400,
+      message: 'Image custom-domain provider is not configured',
+    })
+  })
+
+  it('skips domain provisioning while a tested provider is disabled', async () => {
+    const disabled = {
+      ...cloudflareConfig,
+      settings: { ...cloudflareConfig.settings, enabled: false },
+    } satisfies ImageDomainProviderConfig
+    const deps = harness(disabled)
+    deps.imageDomains.test = vi.fn(async () => {})
+    deps.imageDomains.provision = vi.fn(async () => ({
+      externalId: 'host-2',
+      status: 'pending_dns' as const,
+      dnsRecords: [],
+      error: null,
+    }))
+    await testImageDomainProvider(deps)
+    expect(deps.imageDomains.provision).not.toHaveBeenCalled()
+  })
+
+  it('reconciles pending Cloudflare domains and caches verified results', async () => {
+    const deps = harness(cloudflareConfig, [
+      domain({ domainStatus: 'pending_tls' }),
+      domain({ orgId: 'org-2', customDomain: 'done.example.com', domainStatus: 'verified' }),
+    ])
+    const refresh = vi.fn(async () => ({
+      externalId: 'host-1',
+      status: 'verified' as const,
+      dnsRecords: [],
+      error: null,
+    }))
+    const replace = vi.fn(async () => {})
+    deps.imageDomains.refresh = refresh
+    Object.assign(deps, { cache: { getOrLoad: vi.fn(), replace, invalidate: vi.fn() } })
+
+    await reconcileImageDomains(deps)
+
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(deps.update).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({ domainStatus: 'verified', domainVerifiedAt: expect.any(Date) }),
+    )
+    expect(replace).toHaveBeenCalledWith(expect.anything(), 'img.example.com', 'org-1')
+  })
+
+  it('marks a domain failed when Cloudflare reconciliation throws', async () => {
+    const deps = harness(cloudflareConfig, [domain({ domainStatus: 'pending_dns' })])
+    deps.imageDomains.refresh = async () => {
+      throw new Error('hostname lookup failed')
+    }
+
+    await reconcileImageDomains(deps)
+
+    expect(deps.update).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({ domainStatus: 'failed', domainError: 'hostname lookup failed' }),
+    )
+  })
+
+  it('does not reconcile manual, disabled, untested, or failed providers', async () => {
+    const manual: ImageDomainProviderConfig = {
+      settings: {
+        enabled: true,
+        provider: 'manual',
+        manual: { records: [{ type: 'A', value: '192.0.2.1' }] },
+      },
+      lastTestedAt: new Date(),
+      error: null,
+    }
+    for (const config of [
+      null,
+      { ...cloudflareConfig, lastTestedAt: null },
+      { ...cloudflareConfig, error: 'bad token' },
+      manual,
+    ]) {
+      const deps = harness(config)
+      deps.imageDomains.refresh = vi.fn()
+      await reconcileImageDomains(deps)
+      expect(deps.imageDomains.refresh).not.toHaveBeenCalled()
+    }
   })
 })

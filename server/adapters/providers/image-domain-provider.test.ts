@@ -30,6 +30,21 @@ const cloudflareValues = {
 describe('image domain provider gateway', () => {
   beforeEach(() => vi.restoreAllMocks())
 
+  it('returns null for absent or incomplete provider settings', async () => {
+    await expect(createImageDomainProviderGateway(options({})).getConfig()).resolves.toBeNull()
+    await expect(
+      createImageDomainProviderGateway(
+        options({
+          image_domain_provider: 'cloudflare_saas',
+          image_domain_cloudflare_api_token: 'token',
+        }),
+      ).getConfig(),
+    ).resolves.toBeNull()
+    await expect(
+      createImageDomainProviderGateway(options({ image_domain_provider: 'manual' })).getConfig(),
+    ).resolves.toBeNull()
+  })
+
   it('loads manual records from system options', async () => {
     const gateway = createImageDomainProviderGateway(
       options({
@@ -53,6 +68,31 @@ describe('image domain provider gateway', () => {
         },
       },
     })
+  })
+
+  it('handles every self-managed operation without external requests', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const gateway = createImageDomainProviderGateway(
+      options({
+        image_domain_enabled: 'true',
+        image_domain_provider: 'manual',
+        image_domain_manual_records: JSON.stringify([{ type: 'A', value: '192.0.2.1' }]),
+      }),
+    )
+    const config = await gateway.getConfig()
+    expect(config).not.toBeNull()
+    await expect(gateway.test(config!.settings)).resolves.toBeUndefined()
+    await expect(gateway.provision(config!, 'img.example.com')).resolves.toMatchObject({
+      externalId: null,
+      status: 'pending_dns',
+      dnsRecords: [{ type: 'A', value: '192.0.2.1' }],
+    })
+    await expect(gateway.refresh(config!, 'img.example.com', null)).resolves.toMatchObject({
+      externalId: null,
+      status: 'pending_dns',
+    })
+    await expect(gateway.deprovision(config!, null)).resolves.toBeUndefined()
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it('creates and maps an active Cloudflare custom hostname', async () => {
@@ -94,10 +134,84 @@ describe('image domain provider gateway', () => {
     await expect(gateway.test(config!.settings)).rejects.toThrow('token rejected')
   })
 
+  it('tests the Cloudflare zone, fallback origin, and hostname permission', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, result: {} }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: { status: 'active' } }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, result: [] }), { status: 200 }))
+    const gateway = createImageDomainProviderGateway(options(cloudflareValues))
+    const config = await gateway.getConfig()
+    await expect(gateway.test(config!.settings)).resolves.toBeUndefined()
+    expect(fetch).toHaveBeenCalledTimes(3)
+  })
+
+  it('rejects an inactive Cloudflare fallback origin', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, result: {} }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: { status: 'pending' } }), { status: 200 }),
+      )
+    const gateway = createImageDomainProviderGateway(options(cloudflareValues))
+    const config = await gateway.getConfig()
+    await expect(gateway.test(config!.settings)).rejects.toThrow('Cloudflare fallback origin is pending')
+  })
+
+  it('maps missing, pending TLS, and failed Cloudflare hostnames', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const gateway = createImageDomainProviderGateway(options(cloudflareValues))
+    const config = await gateway.getConfig()
+
+    await expect(gateway.refresh(config!, 'img.example.com', null)).resolves.toMatchObject({
+      externalId: null,
+      status: 'pending_dns',
+    })
+
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'host-1', status: 'active', ssl: { status: 'initializing' } },
+        }),
+        { status: 200 },
+      ),
+    )
+    await expect(gateway.refresh(config!, 'img.example.com', 'host-1')).resolves.toMatchObject({
+      status: 'pending_tls',
+      error: null,
+    })
+
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'host-2', status: 'blocked', verification_errors: ['DNS mismatch'] },
+        }),
+        { status: 200 },
+      ),
+    )
+    await expect(gateway.refresh(config!, 'img.example.com', 'host-2')).resolves.toMatchObject({
+      status: 'failed',
+      error: 'DNS mismatch',
+    })
+  })
+
   it('treats a missing hostname during deletion as already removed', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 404 }))
     const gateway = createImageDomainProviderGateway(options(cloudflareValues))
     const config = await gateway.getConfig()
     await expect(gateway.deprovision(config!, 'host-1')).resolves.toBeUndefined()
+  })
+
+  it('reports Cloudflare deletion failures', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ success: false, errors: [{ code: 1000, message: 'delete denied' }] }), {
+        status: 403,
+      }),
+    )
+    const gateway = createImageDomainProviderGateway(options(cloudflareValues))
+    const config = await gateway.getConfig()
+    await expect(gateway.deprovision(config!, 'host-1')).rejects.toThrow('delete denied')
   })
 })

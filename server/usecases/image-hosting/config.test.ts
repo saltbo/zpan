@@ -81,6 +81,10 @@ function deps(
 }
 
 describe('image-hosting custom-domain config', () => {
+  it('returns null when the workspace has no image-hosting config', async () => {
+    await expect(getImageHostingConfig(deps(readyManual), 'org-1')).resolves.toBeNull()
+  })
+
   it('rejects a custom domain until the administrator tests the provider [spec: image-hosting-config/provider-not-ready]', async () => {
     const untested = { ...readyManual, lastTestedAt: null }
     const result = await putImageHostingConfig(
@@ -138,6 +142,109 @@ describe('image-hosting custom-domain config', () => {
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ providerHostnameId: 'host-123' }))
   })
 
+  it('returns a conflict when Cloudflare says the hostname is already taken', async () => {
+    const result = await putImageHostingConfig(
+      deps(readyCloudflare, {
+        gateway: {
+          provision: async () => {
+            throw new Error('hostname already exists')
+          },
+        },
+      }),
+      'org-1',
+      { enabled: true, customDomain: 'img.example.com' },
+      'zpan.example.com',
+    )
+    expect(result).toMatchObject({ ok: false, error: { httpStatus: 409 } })
+  })
+
+  it('does not swallow unrelated provider failures', async () => {
+    await expect(
+      putImageHostingConfig(
+        deps(readyCloudflare, {
+          gateway: {
+            provision: async () => {
+              throw new Error('network unavailable')
+            },
+          },
+        }),
+        'org-1',
+        { enabled: true, customDomain: 'img.example.com' },
+        'zpan.example.com',
+      ),
+    ).rejects.toThrow('network unavailable')
+  })
+
+  it('updates an existing domain while preserving its binding and allowlist', async () => {
+    const update = vi.fn(async () => {})
+    const existing = row({
+      customDomain: 'img.example.com',
+      domainProvider: 'manual',
+      domainStatus: 'verified',
+      verificationToken: 'challenge-token',
+      domainVerifiedAt: now,
+      refererAllowlist: JSON.stringify(['https://blog.example.com']),
+    })
+    const result = await putImageHostingConfig(
+      deps(readyManual, { repo: { getByOrg: async () => existing, update } }),
+      'org-1',
+      { enabled: true, customDomain: 'IMG.EXAMPLE.COM' },
+      'zpan.example.com',
+    )
+    expect(result.ok).toBe(true)
+    expect(update).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({
+        customDomain: 'img.example.com',
+        verificationToken: 'challenge-token',
+        refererAllowlist: JSON.stringify(['https://blog.example.com']),
+      }),
+    )
+  })
+
+  it('deprovisions the old hostname when replacing a domain', async () => {
+    const deprovision = vi.fn(async () => {})
+    const update = vi.fn(async () => {})
+    await putImageHostingConfig(
+      deps(readyCloudflare, {
+        repo: {
+          getByOrg: async () =>
+            row({
+              customDomain: 'old.example.com',
+              domainProvider: 'cloudflare_saas',
+              providerHostnameId: 'old-host',
+            }),
+          update,
+        },
+        gateway: { deprovision },
+      }),
+      'org-1',
+      { enabled: true, customDomain: 'new.example.com', refererAllowlist: null },
+      'zpan.example.com',
+    )
+    expect(deprovision).toHaveBeenCalledWith(readyCloudflare, 'old-host')
+    expect(update).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({ customDomain: 'new.example.com', refererAllowlist: null }),
+    )
+  })
+
+  it('maps a database domain uniqueness failure to a conflict', async () => {
+    const result = await putImageHostingConfig(
+      deps(readyManual, {
+        repo: {
+          create: async () => {
+            throw new Error('UNIQUE constraint failed: image_hosting_configs.custom_domain')
+          },
+        },
+      }),
+      'org-1',
+      { enabled: true, customDomain: 'img.example.com' },
+      'zpan.example.com',
+    )
+    expect(result).toMatchObject({ ok: false, error: { httpStatus: 409 } })
+  })
+
   it('refreshes a pending Cloudflare binding to verified [spec: image-hosting-config/cloudflare-refresh]', async () => {
     const update = vi.fn(async () => {})
     const configRow = row({
@@ -184,5 +291,11 @@ describe('image-hosting custom-domain config', () => {
     )
     expect(deprovision).toHaveBeenCalledWith(readyCloudflare, 'host-1')
     expect(del).toHaveBeenCalledWith('org-1')
+  })
+
+  it('treats deleting an absent config as idempotent', async () => {
+    const del = vi.fn(async () => {})
+    await deleteImageHostingConfig(deps(readyManual, { repo: { delete: del } }), 'org-1')
+    expect(del).not.toHaveBeenCalled()
   })
 })
