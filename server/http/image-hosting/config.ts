@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { putIhostConfigSchema } from '../../../shared/schemas'
 import type { IhostConfigResponse } from '../../../shared/types'
 import { requireAuth, requireTeamRole } from '../../middleware/auth'
@@ -10,7 +10,7 @@ import {
 } from '../../usecases/image-hosting/config'
 import type { ImageDomainProviderConfig, ImageHostingConfigRecord } from '../../usecases/ports'
 import { unauthorized } from '../../usecases/ports'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const ihostConfigSchema = z
   .object({
@@ -81,49 +81,58 @@ function buildResponse(
   }
 }
 
-const getRoute = createRoute({
-  operationId: 'getImageHostingConfig',
-  summary: 'Get image-hosting config',
-  tags: ['Image Hosting'],
-  method: 'get',
-  path: '/',
-  responses: {
-    200: jsonContent(ihostConfigSchema, 'Image-hosting config'),
-    401: errorResponse('Unauthorized'),
+const getRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'getImageHostingConfig',
+    summary: 'Get image-hosting config',
+    tags: ['Image Hosting'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAuth] as const,
+    responses: {
+      200: jsonContent(ihostConfigSchema, 'Image-hosting config'),
+      401: errorResponse('Unauthorized'),
+    },
   },
-})
+)
 
-const putRoute = createRoute({
-  operationId: 'updateImageHostingConfig',
-  summary: 'Update image-hosting config',
-  tags: ['Image Hosting'],
-  method: 'put',
-  path: '/',
-  middleware: [requireTeamRole('owner')] as const,
-  request: jsonBody(putIhostConfigSchema),
-  responses: {
-    200: jsonContent(ihostConfigSchema, 'Updated config'),
-    400: errorResponse('Custom domain or provider is invalid'),
-    401: errorResponse('Unauthorized'),
-    409: errorResponse('Domain already registered by another organization'),
+const putRoute = authRoute(
+  { access: 'session', minTeamRole: 'owner' },
+  {
+    operationId: 'updateImageHostingConfig',
+    summary: 'Update image-hosting config',
+    tags: ['Image Hosting'],
+    method: 'put',
+    path: '/',
+    middleware: [requireAuth, requireTeamRole('owner')] as const,
+    request: jsonBody(putIhostConfigSchema),
+    responses: {
+      200: jsonContent(ihostConfigSchema, 'Updated config'),
+      400: errorResponse('Custom domain or provider is invalid'),
+      401: errorResponse('Unauthorized'),
+      409: errorResponse('Domain already registered by another organization'),
+    },
   },
-})
+)
 
-const deleteRoute = createRoute({
-  operationId: 'deleteImageHostingConfig',
-  summary: 'Delete image-hosting config',
-  tags: ['Image Hosting'],
-  method: 'delete',
-  path: '/',
-  middleware: [requireTeamRole('owner')] as const,
-  responses: {
-    204: { description: 'Deleted' },
-    401: errorResponse('Unauthorized'),
+const deleteRoute = authRoute(
+  { access: 'session', minTeamRole: 'owner' },
+  {
+    operationId: 'deleteImageHostingConfig',
+    summary: 'Delete image-hosting config',
+    tags: ['Image Hosting'],
+    method: 'delete',
+    path: '/',
+    middleware: [requireAuth, requireTeamRole('owner')] as const,
+    responses: {
+      204: { description: 'Deleted' },
+      401: errorResponse('Unauthorized'),
+    },
   },
-})
+)
 
 const app = new OpenAPIHono<Env>()
-app.use(requireAuth)
 
 const ihostConfig = app
   .openapi(getRoute, async (c) => {

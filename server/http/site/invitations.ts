@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
@@ -10,7 +10,7 @@ import {
   resendSiteInvitation,
   revokeSiteInvitation,
 } from '../../usecases/site/invitation'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 // SiteInvitation is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const siteInvitationSchema = z
@@ -35,75 +35,90 @@ const siteInvitationListSchema = pageSchema(siteInvitationSchema, 'SiteInvitatio
 
 const createSchema = z.object({ email: z.string().email() })
 
-const listRoute = createRoute({
-  operationId: 'listSiteInvitations',
-  summary: 'List site invitations',
-  tags: ['Invitations'],
-  method: 'get',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  request: { query: pageQuerySchema },
-  responses: { 200: jsonContent(siteInvitationListSchema, 'Invitations') },
-})
-
-const createRouteDoc = createRoute({
-  operationId: 'createSiteInvitation',
-  summary: 'Create site invitation',
-  tags: ['Invitations'],
-  method: 'post',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  request: jsonBody(createSchema),
-  responses: {
-    201: jsonContent(siteInvitationSchema, 'Created invitation'),
-    401: errorResponse('Unauthorized'),
-    409: errorResponse('Invitation conflict'),
+const listRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'listSiteInvitations',
+    summary: 'List site invitations',
+    tags: ['Invitations'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    request: { query: pageQuerySchema },
+    responses: { 200: jsonContent(siteInvitationListSchema, 'Invitations') },
   },
-})
+)
 
-const resendRoute = createRoute({
-  operationId: 'resendSiteInvitation',
-  summary: 'Resend a site invitation',
-  tags: ['Invitations'],
-  method: 'post',
-  path: '/{id}/deliveries',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    200: jsonContent(siteInvitationSchema, 'Resent invitation'),
-    400: errorResponse('Invitation is no longer pending'),
-    404: errorResponse('Invitation not found'),
+const createRouteDoc = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'createSiteInvitation',
+    summary: 'Create site invitation',
+    tags: ['Invitations'],
+    method: 'post',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    request: jsonBody(createSchema),
+    responses: {
+      201: jsonContent(siteInvitationSchema, 'Created invitation'),
+      401: errorResponse('Unauthorized'),
+      409: errorResponse('Invitation conflict'),
+    },
   },
-})
+)
 
-const revokeRoute = createRoute({
-  operationId: 'revokeSiteInvitation',
-  summary: 'Revoke a site invitation',
-  tags: ['Invitations'],
-  method: 'delete',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    204: { description: 'Revoked invitation' },
-    400: errorResponse('Invitation is no longer pending'),
-    401: errorResponse('Unauthorized'),
-    404: errorResponse('Invitation not found'),
+const resendRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'resendSiteInvitation',
+    summary: 'Resend a site invitation',
+    tags: ['Invitations'],
+    method: 'post',
+    path: '/{id}/deliveries',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: jsonContent(siteInvitationSchema, 'Resent invitation'),
+      400: errorResponse('Invitation is no longer pending'),
+      404: errorResponse('Invitation not found'),
+    },
   },
-})
+)
 
-const getByTokenRoute = createRoute({
-  operationId: 'getSiteInvitation',
-  summary: 'Get a site invitation by token',
-  tags: ['Invitations'],
-  method: 'get',
-  path: '/{token}',
-  request: { params: z.object({ token: z.string() }) },
-  responses: {
-    200: jsonContent(siteInvitationSchema, 'Invitation'),
-    404: errorResponse('Invitation not found'),
+const revokeRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'revokeSiteInvitation',
+    summary: 'Revoke a site invitation',
+    tags: ['Invitations'],
+    method: 'delete',
+    path: '/{id}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      204: { description: 'Revoked invitation' },
+      400: errorResponse('Invitation is no longer pending'),
+      401: errorResponse('Unauthorized'),
+      404: errorResponse('Invitation not found'),
+    },
   },
-})
+)
+
+const getByTokenRoute = authRoute(
+  { access: 'public' },
+  {
+    operationId: 'getSiteInvitation',
+    summary: 'Get a site invitation by token',
+    tags: ['Invitations'],
+    method: 'get',
+    path: '/{token}',
+    request: { params: z.object({ token: z.string() }) },
+    responses: {
+      200: jsonContent(siteInvitationSchema, 'Invitation'),
+      404: errorResponse('Invitation not found'),
+    },
+  },
+)
 
 export const adminSiteInvitations = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {

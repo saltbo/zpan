@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   completeObjectUploadSchema,
   copyObjectBodySchema,
@@ -35,7 +35,7 @@ import {
 } from '../usecases/object'
 import { badRequest, forbidden, type Matter, type MatterListItem, unauthorized } from '../usecases/ports'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
-import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import { decodeOptionalPageToken, directoryCursorCodec, encodeNextPageToken, pageQueryFingerprint } from './page-token'
 
 // The wire shape of a file/folder — exactly what the API serializes. Timestamps
@@ -163,22 +163,30 @@ const requireObjectWriteAccess = createMiddleware<Env>(async (c, next) => {
   await next()
 })
 
-const listRoute = createRoute({
-  operationId: 'listObjects',
-  summary: 'List objects',
-  tags: ['Objects'],
-  method: 'get',
-  path: '/',
-  middleware: [requireTeamRole('viewer')] as const,
-  request: { query: listObjectsQuerySchema },
-  responses: {
-    200: jsonContent(objectPageSchema, 'Objects'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('Forbidden'),
-  },
-})
+const objectWriteAuth = {
+  access: 'anyOf',
+  policies: [{ access: 'session', minTeamRole: 'editor' }, { access: 'task-upload-token' }],
+} as const
 
-const createObjectRoute = createRoute({
+const listRoute = authRoute(
+  { access: 'session', minTeamRole: 'viewer' },
+  {
+    operationId: 'listObjects',
+    summary: 'List objects',
+    tags: ['Objects'],
+    method: 'get',
+    path: '/',
+    middleware: [requireTeamRole('viewer')] as const,
+    request: { query: listObjectsQuerySchema },
+    responses: {
+      200: jsonContent(objectPageSchema, 'Objects'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('Forbidden'),
+    },
+  },
+)
+
+const createObjectRoute = authRoute(objectWriteAuth, {
   operationId: 'createObject',
   summary: 'Create object',
   tags: ['Objects'],
@@ -195,7 +203,7 @@ const createObjectRoute = createRoute({
   },
 })
 
-const presignPartsRoute = createRoute({
+const presignPartsRoute = authRoute(objectWriteAuth, {
   operationId: 'presignObjectUploadParts',
   summary: 'Re-presign upload parts',
   tags: ['Objects'],
@@ -212,7 +220,7 @@ const presignPartsRoute = createRoute({
   },
 })
 
-const completionsRoute = createRoute({
+const completionsRoute = authRoute(objectWriteAuth, {
   operationId: 'completeObjectUpload',
   summary: 'Complete upload',
   tags: ['Objects'],
@@ -230,7 +238,7 @@ const completionsRoute = createRoute({
   },
 })
 
-const abortUploadRoute = createRoute({
+const abortUploadRoute = authRoute(objectWriteAuth, {
   operationId: 'abortObjectUpload',
   summary: 'Abort upload',
   tags: ['Objects'],
@@ -247,24 +255,27 @@ const abortUploadRoute = createRoute({
   },
 })
 
-const getObjectRoute = createRoute({
-  operationId: 'getObject',
-  summary: 'Get object',
-  tags: ['Objects'],
-  method: 'get',
-  path: '/{id}',
-  middleware: [requireTeamRole('viewer')] as const,
-  request: { params: idParam },
-  responses: {
-    200: jsonContent(objectWithDownloadSchema, 'Object'),
-    400: errorResponse('No active organization'),
-    402: errorResponse('Insufficient credits'),
-    404: errorResponse('Not found'),
-    422: errorResponse('Traffic quota exceeded'),
+const getObjectRoute = authRoute(
+  { access: 'session', minTeamRole: 'viewer' },
+  {
+    operationId: 'getObject',
+    summary: 'Get object',
+    tags: ['Objects'],
+    method: 'get',
+    path: '/{id}',
+    middleware: [requireTeamRole('viewer')] as const,
+    request: { params: idParam },
+    responses: {
+      200: jsonContent(objectWithDownloadSchema, 'Object'),
+      400: errorResponse('No active organization'),
+      402: errorResponse('Insufficient credits'),
+      404: errorResponse('Not found'),
+      422: errorResponse('Traffic quota exceeded'),
+    },
   },
-})
+)
 
-const patchObjectRoute = createRoute({
+const patchObjectRoute = authRoute(objectWriteAuth, {
   operationId: 'updateObject',
   summary: 'Update object',
   tags: ['Objects'],
@@ -279,63 +290,72 @@ const patchObjectRoute = createRoute({
   },
 })
 
-const deleteObjectRoute = createRoute({
-  operationId: 'deleteObject',
-  summary: 'Delete object',
-  tags: ['Objects'],
-  method: 'delete',
-  path: '/{id}',
-  middleware: [requireTeamRole('editor')] as const,
-  request: { params: idParam },
-  responses: {
-    // Soft delete: the object moves to trash (GET /trash/objects). Permanent
-    // removal is DELETE /trash/objects/{id}.
-    204: { description: 'Object moved to trash' },
-    400: errorResponse('No active organization'),
-    404: errorResponse('Not found'),
+const deleteObjectRoute = authRoute(
+  { access: 'session', minTeamRole: 'editor' },
+  {
+    operationId: 'deleteObject',
+    summary: 'Delete object',
+    tags: ['Objects'],
+    method: 'delete',
+    path: '/{id}',
+    middleware: [requireTeamRole('editor')] as const,
+    request: { params: idParam },
+    responses: {
+      // Soft delete: the object moves to trash (GET /trash/objects). Permanent
+      // removal is DELETE /trash/objects/{id}.
+      204: { description: 'Object moved to trash' },
+      400: errorResponse('No active organization'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const copyObjectRoute = createRoute({
-  operationId: 'copyObject',
-  summary: 'Copy object',
-  tags: ['Objects'],
-  method: 'post',
-  path: '/{id}/copies',
-  middleware: [requireTeamRole('editor')] as const,
-  request: { params: idParam, ...jsonBody(copyObjectBodySchema) },
-  responses: {
-    201: jsonContent(matterSchema, 'Copied object'),
-    400: errorResponse('No active organization'),
-    404: errorResponse('Not found'),
+const copyObjectRoute = authRoute(
+  { access: 'session', minTeamRole: 'editor' },
+  {
+    operationId: 'copyObject',
+    summary: 'Copy object',
+    tags: ['Objects'],
+    method: 'post',
+    path: '/{id}/copies',
+    middleware: [requireTeamRole('editor')] as const,
+    request: { params: idParam, ...jsonBody(copyObjectBodySchema) },
+    responses: {
+      201: jsonContent(matterSchema, 'Copied object'),
+      400: errorResponse('No active organization'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const transferObjectRoute = createRoute({
-  operationId: 'transferObject',
-  summary: 'Transfer object to another space',
-  tags: ['Objects'],
-  method: 'post',
-  path: '/{id}/transfers',
-  middleware: [requireTeamRole('viewer')] as const,
-  request: { params: idParam, ...jsonBody(transferMatterSchema) },
-  responses: {
-    201: jsonContent(
-      z
-        .object({
-          saved: z.array(matterSchema),
-          skipped: z.array(z.object({ name: z.string(), reason: z.string() })),
-          sourceDeleted: z.boolean(),
-        })
-        .openapi('TransferResult'),
-      'Transferred object',
-    ),
-    400: errorResponse('Invalid transfer target'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Not found'),
-    422: errorResponse('Quota exceeded'),
+const transferObjectRoute = authRoute(
+  { access: 'session', minTeamRole: 'viewer' },
+  {
+    operationId: 'transferObject',
+    summary: 'Transfer object to another space',
+    tags: ['Objects'],
+    method: 'post',
+    path: '/{id}/transfers',
+    middleware: [requireTeamRole('viewer')] as const,
+    request: { params: idParam, ...jsonBody(transferMatterSchema) },
+    responses: {
+      201: jsonContent(
+        z
+          .object({
+            saved: z.array(matterSchema),
+            skipped: z.array(z.object({ name: z.string(), reason: z.string() })),
+            sourceDeleted: z.boolean(),
+          })
+          .openapi('TransferResult'),
+        'Transferred object',
+      ),
+      400: errorResponse('Invalid transfer target'),
+      403: errorResponse('Forbidden'),
+      404: errorResponse('Not found'),
+      422: errorResponse('Quota exceeded'),
+    },
   },
-})
+)
 
 const app = new OpenAPIHono<Env>()
 // Blanket auth gate for every object route. Applied as a statement, not chained,

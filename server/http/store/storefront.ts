@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { checkoutInputSchema, discountQuoteInputSchema, redeemGiftCardInputSchema } from '@shared/schemas'
 import { requireAuth, requireTeamRole } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
@@ -18,7 +18,7 @@ import {
   listTargets,
   redeemGiftCard,
 } from '../../usecases/store/store'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 import { cloudStoreOrdersQuerySchema, getCloudBaseUrl } from './helpers'
 import { getCloudOrders, getInstanceOrigin } from './shared'
 
@@ -28,182 +28,228 @@ import { getCloudOrders, getInstanceOrigin } from './shared'
 const cloudValue = z.unknown().openapi('CloudStoreValue')
 const cloudBody = (description: string) => jsonContent(cloudValue, description)
 
-const packagesRoute = createRoute({
-  operationId: 'listStorePackages',
-  summary: 'List store packages',
-  tags: ['Store'],
-  method: 'get',
-  path: '/packages',
-  responses: { 200: cloudBody('Packages'), 403: errorResponse('License not bound'), 502: errorResponse('Cloud error') },
-})
-
-const creditProductsRoute = createRoute({
-  operationId: 'listCreditProducts',
-  summary: 'List credit products',
-  tags: ['Store'],
-  method: 'get',
-  path: '/credits/products',
-  responses: {
-    200: cloudBody('Credit products'),
-    403: errorResponse('License not bound'),
-    502: errorResponse('Cloud error'),
+const packagesRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'listStorePackages',
+    summary: 'List store packages',
+    tags: ['Store'],
+    method: 'get',
+    path: '/packages',
+    middleware: [requireAuth, requireFeature('quota_store')] as const,
+    responses: {
+      200: cloudBody('Packages'),
+      403: errorResponse('License not bound'),
+      502: errorResponse('Cloud error'),
+    },
   },
-})
+)
 
-const targetsRoute = createRoute({
-  operationId: 'listStoreTargets',
-  summary: 'List store targets',
-  tags: ['Store'],
-  method: 'get',
-  path: '/targets',
-  responses: { 200: cloudBody('Targets'), 403: errorResponse('License not bound'), 502: errorResponse('Cloud error') },
-})
-
-const creditsRoute = createRoute({
-  operationId: 'getCreditBalance',
-  summary: 'Get credit balance',
-  tags: ['Store'],
-  method: 'get',
-  path: '/credits',
-  middleware: [requireTeamRole('owner')] as const,
-  responses: {
-    200: cloudBody('Credit balance'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('License not bound'),
-    502: errorResponse('Cloud error'),
+const creditProductsRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'listCreditProducts',
+    summary: 'List credit products',
+    tags: ['Store'],
+    method: 'get',
+    path: '/credits/products',
+    middleware: [requireAuth, requireFeature('quota_store')] as const,
+    responses: {
+      200: cloudBody('Credit products'),
+      403: errorResponse('License not bound'),
+      502: errorResponse('Cloud error'),
+    },
   },
-})
+)
 
-const ledgerRoute = createRoute({
-  operationId: 'getCreditLedger',
-  summary: 'Get credit ledger',
-  tags: ['Store'],
-  method: 'get',
-  path: '/credits/ledger-entries',
-  middleware: [requireTeamRole('owner')] as const,
-  responses: {
-    200: cloudBody('Credit ledger'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('License not bound'),
-    502: errorResponse('Cloud error'),
+const targetsRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'listStoreTargets',
+    summary: 'List store targets',
+    tags: ['Store'],
+    method: 'get',
+    path: '/targets',
+    middleware: [requireAuth, requireFeature('quota_store')] as const,
+    responses: {
+      200: cloudBody('Targets'),
+      403: errorResponse('License not bound'),
+      502: errorResponse('Cloud error'),
+    },
   },
-})
+)
 
-const redeemRoute = createRoute({
-  operationId: 'redeemGiftCard',
-  summary: 'Redeem a gift card',
-  tags: ['Store'],
-  method: 'post',
-  path: '/credits/redemptions',
-  middleware: [requireTeamRole('owner')] as const,
-  request: jsonBody(redeemGiftCardInputSchema),
-  responses: {
-    200: cloudBody('Redemption result'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('License not bound'),
-    502: errorResponse('Cloud error'),
+const creditsRoute = authRoute(
+  { access: 'session', minTeamRole: 'owner' },
+  {
+    operationId: 'getCreditBalance',
+    summary: 'Get credit balance',
+    tags: ['Store'],
+    method: 'get',
+    path: '/credits',
+    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    responses: {
+      200: cloudBody('Credit balance'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('License not bound'),
+      502: errorResponse('Cloud error'),
+    },
   },
-})
+)
 
-const checkoutRoute = createRoute({
-  operationId: 'createCheckout',
-  summary: 'Create a checkout',
-  tags: ['Store'],
-  method: 'post',
-  path: '/checkouts',
-  middleware: [requireTeamRole('owner')] as const,
-  request: jsonBody(checkoutInputSchema),
-  responses: {
-    200: cloudBody('Checkout session'),
-    400: errorResponse('Bad request'),
-    403: errorResponse('License not bound'),
-    409: errorResponse('Workspace plan already exists'),
-    502: errorResponse('Cloud error'),
+const ledgerRoute = authRoute(
+  { access: 'session', minTeamRole: 'owner' },
+  {
+    operationId: 'getCreditLedger',
+    summary: 'Get credit ledger',
+    tags: ['Store'],
+    method: 'get',
+    path: '/credits/ledger-entries',
+    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    responses: {
+      200: cloudBody('Credit ledger'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('License not bound'),
+      502: errorResponse('Cloud error'),
+    },
   },
-})
+)
 
-const discountRoute = createRoute({
-  operationId: 'getDiscountQuote',
-  summary: 'Get a discount quote',
-  tags: ['Store'],
-  method: 'post',
-  path: '/discount-quotes',
-  request: jsonBody(discountQuoteInputSchema),
-  responses: {
-    200: cloudBody('Discount quote'),
-    403: errorResponse('License not bound'),
-    502: errorResponse('Cloud error'),
+const redeemRoute = authRoute(
+  { access: 'session', minTeamRole: 'owner' },
+  {
+    operationId: 'redeemGiftCard',
+    summary: 'Redeem a gift card',
+    tags: ['Store'],
+    method: 'post',
+    path: '/credits/redemptions',
+    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    request: jsonBody(redeemGiftCardInputSchema),
+    responses: {
+      200: cloudBody('Redemption result'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('License not bound'),
+      502: errorResponse('Cloud error'),
+    },
   },
-})
+)
 
-const billingPortalRoute = createRoute({
-  operationId: 'createBillingPortalSession',
-  summary: 'Create a billing portal session',
-  tags: ['Store'],
-  method: 'post',
-  path: '/billing-portal-sessions',
-  middleware: [requireTeamRole('owner')] as const,
-  responses: {
-    200: cloudBody('Billing portal session'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('License not bound'),
-    502: errorResponse('Cloud error'),
+const checkoutRoute = authRoute(
+  { access: 'session', minTeamRole: 'owner' },
+  {
+    operationId: 'createCheckout',
+    summary: 'Create a checkout',
+    tags: ['Store'],
+    method: 'post',
+    path: '/checkouts',
+    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    request: jsonBody(checkoutInputSchema),
+    responses: {
+      200: cloudBody('Checkout session'),
+      400: errorResponse('Bad request'),
+      403: errorResponse('License not bound'),
+      409: errorResponse('Workspace plan already exists'),
+      502: errorResponse('Cloud error'),
+    },
   },
-})
+)
 
-const ordersRoute = createRoute({
-  operationId: 'listOrders',
-  summary: 'List orders',
-  tags: ['Store'],
-  method: 'get',
-  path: '/orders',
-  middleware: [requireTeamRole('owner')] as const,
-  request: { query: cloudStoreOrdersQuerySchema },
-  responses: {
-    200: cloudBody('Orders'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('Store not ready'),
-    502: errorResponse('Cloud error'),
+const discountRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'getDiscountQuote',
+    summary: 'Get a discount quote',
+    tags: ['Store'],
+    method: 'post',
+    path: '/discount-quotes',
+    middleware: [requireAuth, requireFeature('quota_store')] as const,
+    request: jsonBody(discountQuoteInputSchema),
+    responses: {
+      200: cloudBody('Discount quote'),
+      403: errorResponse('License not bound'),
+      502: errorResponse('Cloud error'),
+    },
   },
-})
+)
 
-const continuePaymentRoute = createRoute({
-  operationId: 'continueOrderPayment',
-  summary: 'Continue an order payment',
-  tags: ['Store'],
-  method: 'post',
-  path: '/orders/{orderId}/payments',
-  middleware: [requireTeamRole('owner')] as const,
-  request: { params: z.object({ orderId: z.string() }) },
-  responses: {
-    200: cloudBody('Payment continuation'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Order not found'),
-    502: errorResponse('Cloud error'),
+const billingPortalRoute = authRoute(
+  { access: 'session', minTeamRole: 'owner' },
+  {
+    operationId: 'createBillingPortalSession',
+    summary: 'Create a billing portal session',
+    tags: ['Store'],
+    method: 'post',
+    path: '/billing-portal-sessions',
+    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    responses: {
+      200: cloudBody('Billing portal session'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('License not bound'),
+      502: errorResponse('Cloud error'),
+    },
   },
-})
+)
 
-const cancelOrderRoute = createRoute({
-  operationId: 'cancelOrder',
-  summary: 'Cancel an order',
-  tags: ['Store'],
-  method: 'put',
-  path: '/orders/{orderId}/status',
-  middleware: [requireTeamRole('owner')] as const,
-  request: { params: z.object({ orderId: z.string() }), ...jsonBody(z.object({ status: z.literal('canceled') })) },
-  responses: {
-    200: cloudBody('Canceled order'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Order not found'),
-    502: errorResponse('Cloud error'),
+const ordersRoute = authRoute(
+  { access: 'session', minTeamRole: 'owner' },
+  {
+    operationId: 'listOrders',
+    summary: 'List orders',
+    tags: ['Store'],
+    method: 'get',
+    path: '/orders',
+    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    request: { query: cloudStoreOrdersQuerySchema },
+    responses: {
+      200: cloudBody('Orders'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('Store not ready'),
+      502: errorResponse('Cloud error'),
+    },
   },
-})
+)
+
+const continuePaymentRoute = authRoute(
+  { access: 'session', minTeamRole: 'owner' },
+  {
+    operationId: 'continueOrderPayment',
+    summary: 'Continue an order payment',
+    tags: ['Store'],
+    method: 'post',
+    path: '/orders/{orderId}/payments',
+    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    request: { params: z.object({ orderId: z.string() }) },
+    responses: {
+      200: cloudBody('Payment continuation'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('Forbidden'),
+      404: errorResponse('Order not found'),
+      502: errorResponse('Cloud error'),
+    },
+  },
+)
+
+const cancelOrderRoute = authRoute(
+  { access: 'session', minTeamRole: 'owner' },
+  {
+    operationId: 'cancelOrder',
+    summary: 'Cancel an order',
+    tags: ['Store'],
+    method: 'put',
+    path: '/orders/{orderId}/status',
+    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    request: { params: z.object({ orderId: z.string() }), ...jsonBody(z.object({ status: z.literal('canceled') })) },
+    responses: {
+      200: cloudBody('Canceled order'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('Forbidden'),
+      404: errorResponse('Order not found'),
+      502: errorResponse('Cloud error'),
+    },
+  },
+)
 
 const app = new OpenAPIHono<Env>()
-app.use(requireAuth)
-app.use(requireFeature('quota_store'))
 
 export const cloudStore = app
   .openapi(packagesRoute, async (c) => {

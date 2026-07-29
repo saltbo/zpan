@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { publicProfileSchema } from '@shared/schemas/profile'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -28,7 +28,7 @@ import {
   toEntitlementResultDTO,
   toQuotaEntitlementDTO,
 } from './entitlements'
-import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 
 // Admin user management (list / disable / delete) is served directly by
 // better-auth's /api/auth/admin/* endpoints and called from the frontend admin
@@ -66,46 +66,55 @@ function imageUploadError(status: 400 | 403 | 413 | 500 | 503, error: string) {
   return badRequest(error)
 }
 
-const setAvatarRoute = createRoute({
-  operationId: 'setMyAvatar',
-  summary: 'Set my avatar',
-  tags: ['Users'],
-  method: 'put',
-  path: '/me/avatar',
-  middleware: [requireAuth] as const,
-  // Body is multipart/form-data (a `file` field); parsed directly in the handler
-  // rather than via a request schema (the form validator conflicts with formData()).
-  responses: {
-    200: jsonContent(z.object({ url: z.string() }), 'Avatar URL'),
-    400: errorResponse('Bad request'),
-    413: errorResponse('File too large'),
-    415: errorResponse('Expected multipart/form-data'),
-    503: errorResponse('No public storage configured'),
+const setAvatarRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'setMyAvatar',
+    summary: 'Set my avatar',
+    tags: ['Users'],
+    method: 'put',
+    path: '/me/avatar',
+    middleware: [requireAuth] as const,
+    // Body is multipart/form-data (a `file` field); parsed directly in the handler
+    // rather than via a request schema (the form validator conflicts with formData()).
+    responses: {
+      200: jsonContent(z.object({ url: z.string() }), 'Avatar URL'),
+      400: errorResponse('Bad request'),
+      413: errorResponse('File too large'),
+      415: errorResponse('Expected multipart/form-data'),
+      503: errorResponse('No public storage configured'),
+    },
   },
-})
+)
 
-const deleteAvatarRoute = createRoute({
-  operationId: 'deleteMyAvatar',
-  summary: 'Remove my avatar',
-  tags: ['Users'],
-  method: 'delete',
-  path: '/me/avatar',
-  middleware: [requireAuth] as const,
-  responses: { 204: { description: 'Removed' } },
-})
-
-const getUserRoute = createRoute({
-  operationId: 'getUserProfile',
-  summary: 'Get a user public profile',
-  tags: ['Users'],
-  method: 'get',
-  path: '/{username}',
-  request: { params: z.object({ username: z.string() }) },
-  responses: {
-    200: jsonContent(publicProfileResponseSchema, 'User'),
-    404: errorResponse('User not found'),
+const deleteAvatarRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'deleteMyAvatar',
+    summary: 'Remove my avatar',
+    tags: ['Users'],
+    method: 'delete',
+    path: '/me/avatar',
+    middleware: [requireAuth] as const,
+    responses: { 204: { description: 'Removed' } },
   },
-})
+)
+
+const getUserRoute = authRoute(
+  { access: 'public' },
+  {
+    operationId: 'getUserProfile',
+    summary: 'Get a user public profile',
+    tags: ['Users'],
+    method: 'get',
+    path: '/{username}',
+    request: { params: z.object({ username: z.string() }) },
+    responses: {
+      200: jsonContent(publicProfileResponseSchema, 'User'),
+      404: errorResponse('User not found'),
+    },
+  },
+)
 
 // Per-user storage used/total — a user sub-resource the admin UI fans out over
 // (one request per visible user) to enrich better-auth's admin list, which knows
@@ -115,76 +124,91 @@ const userQuotaSchema = z
   .object({ used: z.number().int(), total: z.number().int(), hasPersonalOrg: z.boolean() })
   .openapi('AdminUserQuota')
 
-const getUserQuotaRoute = createRoute({
-  operationId: 'getUserQuota',
-  summary: "Get a user's storage quota",
-  tags: ['Users'],
-  method: 'get',
-  path: '/{userId}/quota',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ userId: z.string() }) },
-  responses: { 200: jsonContent(userQuotaSchema, 'User quota') },
-})
-
-const listUserEntitlementsRoute = createRoute({
-  operationId: 'listUserEntitlements',
-  summary: 'List a user’s entitlements',
-  tags: ['Users'],
-  method: 'get',
-  path: '/{userId}/entitlements',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ userId: z.string() }) },
-  responses: {
-    200: jsonContent(entitlementListSchema, 'Entitlements'),
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
+const getUserQuotaRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'getUserQuota',
+    summary: "Get a user's storage quota",
+    tags: ['Users'],
+    method: 'get',
+    path: '/{userId}/quota',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ userId: z.string() }) },
+    responses: { 200: jsonContent(userQuotaSchema, 'User quota') },
   },
-})
+)
 
-const grantUserEntitlementRoute = createRoute({
-  operationId: 'grantUserEntitlement',
-  summary: 'Grant a user entitlement',
-  tags: ['Users'],
-  method: 'post',
-  path: '/{userId}/entitlements',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ userId: z.string() }), ...jsonBody(grantEntitlementSchema) },
-  responses: {
-    201: jsonContent(entitlementResultSchema, 'Granted'),
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
+const listUserEntitlementsRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'listUserEntitlements',
+    summary: 'List a user’s entitlements',
+    tags: ['Users'],
+    method: 'get',
+    path: '/{userId}/entitlements',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ userId: z.string() }) },
+    responses: {
+      200: jsonContent(entitlementListSchema, 'Entitlements'),
+      400: errorResponse('Bad request'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const updateUserEntitlementRoute = createRoute({
-  operationId: 'updateUserEntitlement',
-  summary: 'Update a user entitlement',
-  tags: ['Users'],
-  method: 'patch',
-  path: '/{userId}/entitlements/{eid}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ userId: z.string(), eid: z.string() }), ...jsonBody(updateEntitlementSchema) },
-  responses: {
-    200: jsonContent(entitlementResultSchema, 'Updated'),
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
+const grantUserEntitlementRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'grantUserEntitlement',
+    summary: 'Grant a user entitlement',
+    tags: ['Users'],
+    method: 'post',
+    path: '/{userId}/entitlements',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ userId: z.string() }), ...jsonBody(grantEntitlementSchema) },
+    responses: {
+      201: jsonContent(entitlementResultSchema, 'Granted'),
+      400: errorResponse('Bad request'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const revokeUserEntitlementRoute = createRoute({
-  operationId: 'revokeUserEntitlement',
-  summary: 'Revoke a user entitlement',
-  tags: ['Users'],
-  method: 'delete',
-  path: '/{userId}/entitlements/{eid}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ userId: z.string(), eid: z.string() }) },
-  responses: {
-    204: { description: 'Revoked' },
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
+const updateUserEntitlementRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'updateUserEntitlement',
+    summary: 'Update a user entitlement',
+    tags: ['Users'],
+    method: 'patch',
+    path: '/{userId}/entitlements/{eid}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ userId: z.string(), eid: z.string() }), ...jsonBody(updateEntitlementSchema) },
+    responses: {
+      200: jsonContent(entitlementResultSchema, 'Updated'),
+      400: errorResponse('Bad request'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
+
+const revokeUserEntitlementRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'revokeUserEntitlement',
+    summary: 'Revoke a user entitlement',
+    tags: ['Users'],
+    method: 'delete',
+    path: '/{userId}/entitlements/{eid}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ userId: z.string(), eid: z.string() }) },
+    responses: {
+      204: { description: 'Revoked' },
+      400: errorResponse('Bad request'),
+      404: errorResponse('Not found'),
+    },
+  },
+)
 
 export const users = new OpenAPIHono<Env>()
   .openapi(setAvatarRoute, async (c) => {

@@ -1,22 +1,25 @@
-import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
+import { OpenAPIHono } from '@hono/zod-openapi'
 import { siteConfigSchema } from '@shared/schemas'
 import { currentCacheEvents } from '../cache/context'
 import type { Env } from '../middleware/platform'
 import { siteConfigCacheControl } from '../usecases/site/config-cache'
 import { getSiteConfig } from '../usecases/site/configz'
-import { jsonContent } from './openapi'
+import { authRoute, jsonContent } from './openapi'
 
-const getRoute = createRoute({
-  operationId: 'getSiteConfig',
-  summary: 'Get public site configuration',
-  tags: ['Site Config'],
-  method: 'get',
-  path: '/',
-  responses: {
-    200: jsonContent(siteConfigSchema, 'Public site configuration'),
-    304: { description: 'Not modified' },
+const getRoute = authRoute(
+  { access: 'public' },
+  {
+    operationId: 'getSiteConfig',
+    summary: 'Get public site configuration',
+    tags: ['Site Config'],
+    method: 'get',
+    path: '/',
+    responses: {
+      200: jsonContent(siteConfigSchema, 'Public site configuration'),
+      304: { description: 'Not modified' },
+    },
   },
-})
+)
 
 const encoder = new TextEncoder()
 

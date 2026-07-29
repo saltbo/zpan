@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   createDownloaderResponseSchema,
   createDownloaderSchema,
@@ -23,96 +23,114 @@ import {
 } from '../../usecases/downloads/downloads'
 import { featureBlocked, unauthorized } from '../../usecases/ports'
 import { loadBindingState } from '../../usecases/site/licensing'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const downloaderListSchema = pageSchema(downloaderSchema, 'DownloaderList')
 
-const listRoute = createRoute({
-  operationId: 'listDownloaders',
-  summary: 'List downloaders',
-  tags: ['Downloaders'],
-  method: 'get',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  responses: {
-    200: jsonContent(downloaderListSchema, 'Downloaders'),
-    401: errorResponse('Unauthorized'),
+const listRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'listDownloaders',
+    summary: 'List downloaders',
+    tags: ['Downloaders'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    responses: {
+      200: jsonContent(downloaderListSchema, 'Downloaders'),
+      401: errorResponse('Unauthorized'),
+    },
   },
-})
+)
 
-const createRouteDoc = createRoute({
-  operationId: 'createDownloader',
-  summary: 'Register downloader',
-  tags: ['Downloaders'],
-  method: 'post',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  request: jsonBody(createDownloaderSchema),
-  responses: {
-    201: jsonContent(createDownloaderResponseSchema, 'Downloader registration'),
-    401: errorResponse('Unauthorized'),
-    402: errorResponse('Feature not available'),
+const createRouteDoc = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'createDownloader',
+    summary: 'Register downloader',
+    tags: ['Downloaders'],
+    method: 'post',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    request: jsonBody(createDownloaderSchema),
+    responses: {
+      201: jsonContent(createDownloaderResponseSchema, 'Downloader registration'),
+      401: errorResponse('Unauthorized'),
+      402: errorResponse('Feature not available'),
+    },
   },
-})
+)
 
-const updateRoute = createRoute({
-  operationId: 'updateDownloader',
-  summary: 'Update downloader',
-  tags: ['Downloaders'],
-  method: 'patch',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderSchema) },
-  responses: {
-    200: jsonContent(downloaderSchema, 'Updated downloader'),
-    402: errorResponse('Feature not available'),
-    404: errorResponse('Not found'),
+const updateRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'updateDownloader',
+    summary: 'Update downloader',
+    tags: ['Downloaders'],
+    method: 'patch',
+    path: '/{id}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderSchema) },
+    responses: {
+      200: jsonContent(downloaderSchema, 'Updated downloader'),
+      402: errorResponse('Feature not available'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const updateCreditBillingRoute = createRoute({
-  operationId: 'updateDownloaderCreditBilling',
-  summary: 'Update downloader credit billing',
-  tags: ['Downloaders'],
-  method: 'put',
-  path: '/{id}/credit-billing',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderCreditBillingSchema) },
-  responses: {
-    200: jsonContent(downloaderSchema, 'Updated downloader'),
-    402: errorResponse('Feature not available'),
-    404: errorResponse('Not found'),
+const updateCreditBillingRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'updateDownloaderCreditBilling',
+    summary: 'Update downloader credit billing',
+    tags: ['Downloaders'],
+    method: 'put',
+    path: '/{id}/credit-billing',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderCreditBillingSchema) },
+    responses: {
+      200: jsonContent(downloaderSchema, 'Updated downloader'),
+      402: errorResponse('Feature not available'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const deleteRoute = createRoute({
-  operationId: 'deleteDownloader',
-  summary: 'Delete downloader',
-  tags: ['Downloaders'],
-  method: 'delete',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    204: { description: 'Deleted downloader' },
-    404: errorResponse('Not found'),
+const deleteRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'deleteDownloader',
+    summary: 'Delete downloader',
+    tags: ['Downloaders'],
+    method: 'delete',
+    path: '/{id}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      204: { description: 'Deleted downloader' },
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const heartbeatRoute = createRoute({
-  operationId: 'recordDownloaderHeartbeat',
-  summary: 'Send downloader heartbeat',
-  tags: ['Downloaders'],
-  method: 'post',
-  path: '/me/heartbeats',
-  middleware: [requireDownloader] as const,
-  request: jsonBody(downloaderHeartbeatSchema),
-  responses: {
-    200: jsonContent(downloaderHeartbeatResultSchema, 'Updated downloader and task commands'),
-    401: errorResponse('Unauthorized'),
-    404: errorResponse('Not found'),
+const heartbeatRoute = authRoute(
+  { access: 'downloader' },
+  {
+    operationId: 'recordDownloaderHeartbeat',
+    summary: 'Send downloader heartbeat',
+    tags: ['Downloaders'],
+    method: 'post',
+    path: '/me/heartbeats',
+    middleware: [requireDownloader] as const,
+    request: jsonBody(downloaderHeartbeatSchema),
+    responses: {
+      200: jsonContent(downloaderHeartbeatResultSchema, 'Updated downloader and task commands'),
+      401: errorResponse('Unauthorized'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
 // A missing downloader makes the usecase throw DownloadError('not_found'); the
 // global onError maps it to 404, so these handlers carry no error plumbing.

@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
@@ -9,7 +9,7 @@ import {
   listInviteCodes,
   validateInviteCode,
 } from '../../usecases/site/invite-code'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const inviteCodeSchema = z
   .object({
@@ -48,57 +48,69 @@ const validateSchema = z.object({
     .regex(/^[0-9A-Z]{8}$/),
 })
 
-const listRoute = createRoute({
-  operationId: 'listInviteCodes',
-  summary: 'List invite codes',
-  tags: ['Invite Codes'],
-  method: 'get',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  request: { query: pageQuerySchema },
-  responses: { 200: jsonContent(inviteCodeListSchema, 'Invite codes') },
-})
-
-const generateRoute = createRoute({
-  operationId: 'generateInviteCodes',
-  summary: 'Generate invite codes',
-  tags: ['Invite Codes'],
-  method: 'post',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  request: jsonBody(generateSchema),
-  responses: {
-    201: jsonContent(z.object({ codes: z.array(inviteCodeSchema) }), 'Generated invite codes'),
-    401: errorResponse('Unauthorized'),
+const listRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'listInviteCodes',
+    summary: 'List invite codes',
+    tags: ['Invite Codes'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    request: { query: pageQuerySchema },
+    responses: { 200: jsonContent(inviteCodeListSchema, 'Invite codes') },
   },
-})
+)
 
-const deleteRoute = createRoute({
-  operationId: 'deleteInviteCode',
-  summary: 'Delete invite code',
-  tags: ['Invite Codes'],
-  method: 'delete',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    204: { description: 'Deleted invite code' },
-    409: errorResponse('Cannot delete a used invite code'),
-    404: errorResponse('Invite code not found'),
+const generateRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'generateInviteCodes',
+    summary: 'Generate invite codes',
+    tags: ['Invite Codes'],
+    method: 'post',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    request: jsonBody(generateSchema),
+    responses: {
+      201: jsonContent(z.object({ codes: z.array(inviteCodeSchema) }), 'Generated invite codes'),
+      401: errorResponse('Unauthorized'),
+    },
   },
-})
+)
 
-const validateRoute = createRoute({
-  operationId: 'validateInviteCode',
-  summary: 'Validate an invite code',
-  tags: ['Invite Codes'],
-  method: 'post',
-  path: '/validations',
-  request: jsonBody(validateSchema),
-  responses: {
-    200: jsonContent(z.object({ valid: z.boolean(), error: z.string().optional() }), 'Validation result'),
+const deleteRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'deleteInviteCode',
+    summary: 'Delete invite code',
+    tags: ['Invite Codes'],
+    method: 'delete',
+    path: '/{id}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      204: { description: 'Deleted invite code' },
+      409: errorResponse('Cannot delete a used invite code'),
+      404: errorResponse('Invite code not found'),
+    },
   },
-})
+)
+
+const validateRoute = authRoute(
+  { access: 'public' },
+  {
+    operationId: 'validateInviteCode',
+    summary: 'Validate an invite code',
+    tags: ['Invite Codes'],
+    method: 'post',
+    path: '/validations',
+    request: jsonBody(validateSchema),
+    responses: {
+      200: jsonContent(z.object({ valid: z.boolean(), error: z.string().optional() }), 'Validation result'),
+    },
+  },
+)
 
 export const adminInviteCodes = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {

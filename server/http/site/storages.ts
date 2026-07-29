@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   createStorageSchema,
   pageSchema,
@@ -18,7 +18,7 @@ import {
   replaceStorage,
   updateStorageEgressBilling,
 } from '../../usecases/site/storage'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 // Admin storage config. The response intentionally includes the S3 credentials
 // (accessKey/secretKey) so the admin UI can pre-fill the edit form — admin-only.
@@ -63,103 +63,124 @@ function toStorageDTO(s: StorageRecord): StorageDTO {
 
 const storageListSchema = pageSchema(storageSchema, 'StorageList')
 
-const listRoute = createRoute({
-  operationId: 'listStorages',
-  summary: 'List storages',
-  tags: ['Storages'],
-  method: 'get',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  responses: { 200: jsonContent(storageListSchema, 'Storages') },
-})
-
-const createStorageRoute = createRoute({
-  operationId: 'createStorage',
-  summary: 'Create storage',
-  tags: ['Storages'],
-  method: 'post',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  request: jsonBody(createStorageSchema),
-  responses: {
-    201: jsonContent(storageSchema, 'Created storage'),
-    402: errorResponse('Feature not available'),
+const listRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'listStorages',
+    summary: 'List storages',
+    tags: ['Storages'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    responses: { 200: jsonContent(storageListSchema, 'Storages') },
   },
-})
+)
 
-const getStorageRoute = createRoute({
-  operationId: 'getStorage',
-  summary: 'Get storage',
-  tags: ['Storages'],
-  method: 'get',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    200: jsonContent(storageSchema, 'Storage'),
-    404: errorResponse('Storage not found'),
+const createStorageRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'createStorage',
+    summary: 'Create storage',
+    tags: ['Storages'],
+    method: 'post',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    request: jsonBody(createStorageSchema),
+    responses: {
+      201: jsonContent(storageSchema, 'Created storage'),
+      402: errorResponse('Feature not available'),
+    },
   },
-})
+)
 
-const replaceStorageRoute = createRoute({
-  operationId: 'replaceStorage',
-  summary: 'Replace storage',
-  tags: ['Storages'],
-  method: 'put',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }), ...jsonBody(replaceStorageSchema) },
-  responses: {
-    200: jsonContent(storageSchema, 'Replaced storage'),
-    402: errorResponse('Feature not available'),
-    404: errorResponse('Storage not found'),
+const getStorageRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'getStorage',
+    summary: 'Get storage',
+    tags: ['Storages'],
+    method: 'get',
+    path: '/{id}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: jsonContent(storageSchema, 'Storage'),
+      404: errorResponse('Storage not found'),
+    },
   },
-})
+)
 
-const patchStorageRoute = createRoute({
-  operationId: 'patchStorage',
-  summary: 'Patch storage',
-  tags: ['Storages'],
-  method: 'patch',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }), ...jsonBody(patchStorageSchema) },
-  responses: {
-    200: jsonContent(storageSchema, 'Updated storage'),
-    402: errorResponse('Feature not available'),
-    404: errorResponse('Storage not found'),
+const replaceStorageRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'replaceStorage',
+    summary: 'Replace storage',
+    tags: ['Storages'],
+    method: 'put',
+    path: '/{id}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }), ...jsonBody(replaceStorageSchema) },
+    responses: {
+      200: jsonContent(storageSchema, 'Replaced storage'),
+      402: errorResponse('Feature not available'),
+      404: errorResponse('Storage not found'),
+    },
   },
-})
+)
 
-const updateStorageEgressBillingRoute = createRoute({
-  operationId: 'updateStorageEgressBilling',
-  summary: 'Update storage egress billing',
-  tags: ['Storages'],
-  method: 'put',
-  path: '/{id}/egress-billing',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }), ...jsonBody(updateStorageEgressBillingSchema) },
-  responses: {
-    200: jsonContent(storageSchema, 'Updated storage'),
-    402: errorResponse('Feature not available'),
-    404: errorResponse('Storage not found'),
+const patchStorageRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'patchStorage',
+    summary: 'Patch storage',
+    tags: ['Storages'],
+    method: 'patch',
+    path: '/{id}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }), ...jsonBody(patchStorageSchema) },
+    responses: {
+      200: jsonContent(storageSchema, 'Updated storage'),
+      402: errorResponse('Feature not available'),
+      404: errorResponse('Storage not found'),
+    },
   },
-})
+)
 
-const deleteStorageRoute = createRoute({
-  operationId: 'deleteStorage',
-  summary: 'Delete storage',
-  tags: ['Storages'],
-  method: 'delete',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    204: { description: 'Deleted storage' },
-    404: errorResponse('Storage not found'),
-    409: errorResponse('Storage is referenced by existing files'),
+const updateStorageEgressBillingRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'updateStorageEgressBilling',
+    summary: 'Update storage egress billing',
+    tags: ['Storages'],
+    method: 'put',
+    path: '/{id}/egress-billing',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }), ...jsonBody(updateStorageEgressBillingSchema) },
+    responses: {
+      200: jsonContent(storageSchema, 'Updated storage'),
+      402: errorResponse('Feature not available'),
+      404: errorResponse('Storage not found'),
+    },
   },
-})
+)
+
+const deleteStorageRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'deleteStorage',
+    summary: 'Delete storage',
+    tags: ['Storages'],
+    method: 'delete',
+    path: '/{id}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      204: { description: 'Deleted storage' },
+      404: errorResponse('Storage not found'),
+      409: errorResponse('Storage is referenced by existing files'),
+    },
+  },
+)
 
 const storages = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {

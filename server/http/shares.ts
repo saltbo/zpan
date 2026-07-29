@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
@@ -30,7 +30,7 @@ import {
   viewShare,
 } from '../usecases/share'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
-import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import {
   createdAtIdCursorCodec,
   decodeOptionalPageToken,
@@ -198,66 +198,78 @@ const listObjectsQuerySchema = z.object({
 const verifyPasswordSchema = z.object({ password: z.string() })
 
 // ─── PUBLIC SEGMENT ──────────────────────────────────────────────────────────
-const viewShareRoute = createRoute({
-  operationId: 'getShare',
-  summary: 'View a share',
-  tags: ['Shares'],
-  method: 'get',
-  path: '/{token}',
-  request: { params: z.object({ token: z.string() }) },
-  responses: {
-    200: jsonContent(shareViewSchema, 'Share'),
-    404: errorResponse('Share not found or revoked'),
-    410: errorResponse('File no longer available'),
+const viewShareRoute = authRoute(
+  { access: 'public' },
+  {
+    operationId: 'getShare',
+    summary: 'View a share',
+    tags: ['Shares'],
+    method: 'get',
+    path: '/{token}',
+    request: { params: z.object({ token: z.string() }) },
+    responses: {
+      200: jsonContent(shareViewSchema, 'Share'),
+      404: errorResponse('Share not found or revoked'),
+      410: errorResponse('File no longer available'),
+    },
   },
-})
+)
 
-const verifyShareRoute = createRoute({
-  operationId: 'verifySharePassword',
-  summary: 'Verify a share password',
-  tags: ['Shares'],
-  method: 'post',
-  path: '/{token}/sessions',
-  request: { params: z.object({ token: z.string() }), ...jsonBody(verifyPasswordSchema) },
-  responses: {
-    200: jsonContent(z.object({ ok: z.literal(true) }), 'Verified'),
-    403: errorResponse('Invalid password'),
-    404: errorResponse('Share not found or revoked'),
+const verifyShareRoute = authRoute(
+  { access: 'public' },
+  {
+    operationId: 'verifySharePassword',
+    summary: 'Verify a share password',
+    tags: ['Shares'],
+    method: 'post',
+    path: '/{token}/sessions',
+    request: { params: z.object({ token: z.string() }), ...jsonBody(verifyPasswordSchema) },
+    responses: {
+      200: jsonContent(z.object({ ok: z.literal(true) }), 'Verified'),
+      403: errorResponse('Invalid password'),
+      404: errorResponse('Share not found or revoked'),
+    },
   },
-})
+)
 
-const listShareObjectsRoute = createRoute({
-  operationId: 'listShareObjects',
-  summary: 'List objects in a folder share',
-  tags: ['Shares'],
-  method: 'get',
-  path: '/{token}/objects',
-  request: { params: z.object({ token: z.string() }), query: listObjectsQuerySchema },
-  responses: {
-    200: jsonContent(shareObjectsSchema, 'Share objects'),
-    400: errorResponse('Bad request'),
-    401: errorResponse('Password required'),
-    404: errorResponse('Share not found'),
-    410: errorResponse('Share expired or unavailable'),
+const listShareObjectsRoute = authRoute(
+  { access: 'public' },
+  {
+    operationId: 'listShareObjects',
+    summary: 'List objects in a folder share',
+    tags: ['Shares'],
+    method: 'get',
+    path: '/{token}/objects',
+    request: { params: z.object({ token: z.string() }), query: listObjectsQuerySchema },
+    responses: {
+      200: jsonContent(shareObjectsSchema, 'Share objects'),
+      400: errorResponse('Bad request'),
+      401: errorResponse('Password required'),
+      404: errorResponse('Share not found'),
+      410: errorResponse('Share expired or unavailable'),
+    },
   },
-})
+)
 
-const readShareReadmeRoute = createRoute({
-  operationId: 'readShareReadme',
-  summary: 'Read a shared folder README',
-  tags: ['Shares'],
-  method: 'get',
-  path: '/{token}/readme',
-  request: { params: z.object({ token: z.string() }) },
-  responses: {
-    200: jsonContent(shareReadmeResponseSchema, 'README.md content'),
-    400: errorResponse('README.md is not valid UTF-8'),
-    401: errorResponse('Password required'),
-    404: errorResponse('README.md not found'),
-    410: errorResponse('Share expired'),
-    413: errorResponse('README.md is too large'),
+const readShareReadmeRoute = authRoute(
+  { access: 'public' },
+  {
+    operationId: 'readShareReadme',
+    summary: 'Read a shared folder README',
+    tags: ['Shares'],
+    method: 'get',
+    path: '/{token}/readme',
+    request: { params: z.object({ token: z.string() }) },
+    responses: {
+      200: jsonContent(shareReadmeResponseSchema, 'README.md content'),
+      400: errorResponse('README.md is not valid UTF-8'),
+      401: errorResponse('Password required'),
+      404: errorResponse('README.md not found'),
+      410: errorResponse('Share expired'),
+      413: errorResponse('README.md is too large'),
+    },
   },
-})
+)
 
 const pub = new OpenAPIHono<Env>()
 
@@ -396,88 +408,106 @@ export const publicShares = pub
   })
 
 // ─── AUTHED SEGMENT ─────────────────────────────────────────────────────────
-const listSharesRoute = createRoute({
-  operationId: 'listShares',
-  summary: 'List my shares',
-  tags: ['Shares'],
-  method: 'get',
-  path: '/',
-  request: { query: listSharesQuerySchema },
-  responses: { 200: jsonContent(shareListSchema, 'Shares') },
-})
+const listSharesRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'listShares',
+    summary: 'List my shares',
+    tags: ['Shares'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAuth] as const,
+    request: { query: listSharesQuerySchema },
+    responses: { 200: jsonContent(shareListSchema, 'Shares') },
+  },
+)
 
-const createShareRoute = createRoute({
-  operationId: 'createShare',
-  summary: 'Create a share',
-  tags: ['Shares'],
-  method: 'post',
-  path: '/',
-  middleware: [requireTeamRole('editor')] as const,
-  request: jsonBody(createShareRequestSchema),
-  responses: {
-    201: jsonContent(createdShareSchema, 'Created share'),
-    400: errorResponse('Invalid share configuration'),
-    404: errorResponse('Matter not found'),
+const createShareRoute = authRoute(
+  { access: 'session', minTeamRole: 'editor' },
+  {
+    operationId: 'createShare',
+    summary: 'Create a share',
+    tags: ['Shares'],
+    method: 'post',
+    path: '/',
+    middleware: [requireAuth, requireTeamRole('editor')] as const,
+    request: jsonBody(createShareRequestSchema),
+    responses: {
+      201: jsonContent(createdShareSchema, 'Created share'),
+      400: errorResponse('Invalid share configuration'),
+      404: errorResponse('Matter not found'),
+    },
   },
-})
+)
 
-const revokeShareRoute = createRoute({
-  operationId: 'revokeShare',
-  summary: 'Revoke a share',
-  tags: ['Shares'],
-  method: 'put',
-  path: '/{token}/status',
-  request: {
-    params: z.object({ token: z.string() }),
-    ...jsonBody(z.object({ status: z.literal('revoked') })),
+const revokeShareRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'revokeShare',
+    summary: 'Revoke a share',
+    tags: ['Shares'],
+    method: 'put',
+    path: '/{token}/status',
+    middleware: [requireAuth] as const,
+    request: {
+      params: z.object({ token: z.string() }),
+      ...jsonBody(z.object({ status: z.literal('revoked') })),
+    },
+    responses: {
+      200: jsonContent(shareViewSchema, 'Revoked share'),
+      403: errorResponse('Forbidden'),
+      404: errorResponse('Not found'),
+    },
   },
-  responses: {
-    200: jsonContent(shareViewSchema, 'Revoked share'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Not found'),
-  },
-})
+)
 
 const sharePrivacySchema = z.object({ private: z.boolean() }).openapi('SharePrivacy')
 
-const putSharePrivacyRoute = createRoute({
-  operationId: 'putSharePrivacy',
-  summary: 'Set whether a share is hidden from the owner public profile',
-  tags: ['Shares'],
-  method: 'put',
-  path: '/{token}/privacy',
-  request: {
-    params: z.object({ token: z.string() }),
-    ...jsonBody(sharePrivacySchema),
+const putSharePrivacyRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'putSharePrivacy',
+    summary: 'Set whether a share is hidden from the owner public profile',
+    tags: ['Shares'],
+    method: 'put',
+    path: '/{token}/privacy',
+    middleware: [requireAuth] as const,
+    request: {
+      params: z.object({ token: z.string() }),
+      ...jsonBody(sharePrivacySchema),
+    },
+    responses: {
+      200: jsonContent(sharePrivacySchema, 'Share privacy'),
+      400: errorResponse('Share does not have configurable privacy'),
+      403: errorResponse('Forbidden'),
+      404: errorResponse('Not found'),
+    },
   },
-  responses: {
-    200: jsonContent(sharePrivacySchema, 'Share privacy'),
-    400: errorResponse('Share does not have configurable privacy'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Not found'),
-  },
-})
+)
 
-const saveShareRoute = createRoute({
-  operationId: 'saveShare',
-  summary: 'Save a share to my drive',
-  tags: ['Shares'],
-  method: 'post',
-  path: '/{token}/objects',
-  request: { params: z.object({ token: z.string() }), ...jsonBody(saveShareRequestSchema) },
-  responses: {
-    201: jsonContent(saveShareResultSchema, 'Saved'),
-    400: errorResponse('Bad request'),
-    401: errorResponse('Authentication required'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Share not found'),
-    410: errorResponse('Share target deleted'),
-    422: errorResponse('Quota exceeded'),
+const saveShareRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'saveShare',
+    summary: 'Save a share to my drive',
+    tags: ['Shares'],
+    method: 'post',
+    path: '/{token}/objects',
+    middleware: [requireAuth] as const,
+    request: { params: z.object({ token: z.string() }), ...jsonBody(saveShareRequestSchema) },
+    responses: {
+      201: jsonContent(saveShareResultSchema, 'Saved'),
+      400: errorResponse('Bad request'),
+      401: errorResponse('Authentication required'),
+      403: errorResponse('Forbidden'),
+      404: errorResponse('Share not found'),
+      410: errorResponse('Share target deleted'),
+      422: errorResponse('Quota exceeded'),
+    },
   },
-})
+)
 
 const authedApp = new OpenAPIHono<Env>()
-authedApp.use(requireAuth)
 
 export const authedShares = authedApp
   .openapi(listSharesRoute, async (c) => {

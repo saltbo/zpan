@@ -1,10 +1,10 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { cursorPageQuerySchema, cursorPageSchema, restoreObjectSchema } from '@shared/schemas'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deleteObject, getTrashObject, listTrashedObjects, restoreObject } from '../usecases/object'
 import { badRequest, type Matter, notFound } from '../usecases/ports'
-import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import { decodeOptionalPageToken, encodeNextPageToken, pageQueryFingerprint, trashCursorCodec } from './page-token'
 
 // The trashed-object wire shape mirrors the live Matter model; trash is a
@@ -52,68 +52,79 @@ function toMatterDTO(m: Matter): MatterDTO {
 const trashPageSchema = cursorPageSchema(matterSchema, 'TrashObjectPage')
 const idParam = z.object({ id: z.string() })
 
-const listTrashRoute = createRoute({
-  operationId: 'listTrashObjects',
-  summary: 'List trashed objects',
-  tags: ['Trash'],
-  method: 'get',
-  path: '/objects',
-  middleware: [requireTeamRole('viewer')] as const,
-  request: { query: cursorPageQuerySchema },
-  responses: {
-    200: jsonContent(trashPageSchema, 'Trashed objects (roots only)'),
-    400: errorResponse('No active organization'),
+const listTrashRoute = authRoute(
+  { access: 'session', minTeamRole: 'viewer' },
+  {
+    operationId: 'listTrashObjects',
+    summary: 'List trashed objects',
+    tags: ['Trash'],
+    method: 'get',
+    path: '/objects',
+    middleware: [requireAuth, requireTeamRole('viewer')] as const,
+    request: { query: cursorPageQuerySchema },
+    responses: {
+      200: jsonContent(trashPageSchema, 'Trashed objects (roots only)'),
+      400: errorResponse('No active organization'),
+    },
   },
-})
+)
 
-const getTrashObjectRoute = createRoute({
-  operationId: 'getTrashObject',
-  summary: 'Get trashed object',
-  tags: ['Trash'],
-  method: 'get',
-  path: '/objects/{id}',
-  middleware: [requireTeamRole('viewer')] as const,
-  request: { params: idParam },
-  responses: {
-    200: jsonContent(matterSchema, 'Trashed object'),
-    400: errorResponse('No active organization'),
-    404: errorResponse('Not found'),
+const getTrashObjectRoute = authRoute(
+  { access: 'session', minTeamRole: 'viewer' },
+  {
+    operationId: 'getTrashObject',
+    summary: 'Get trashed object',
+    tags: ['Trash'],
+    method: 'get',
+    path: '/objects/{id}',
+    middleware: [requireAuth, requireTeamRole('viewer')] as const,
+    request: { params: idParam },
+    responses: {
+      200: jsonContent(matterSchema, 'Trashed object'),
+      400: errorResponse('No active organization'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const restoreObjectRoute = createRoute({
-  operationId: 'restoreObject',
-  summary: 'Restore trashed object',
-  tags: ['Trash'],
-  method: 'post',
-  path: '/objects/{id}/restorations',
-  middleware: [requireTeamRole('editor')] as const,
-  request: { params: idParam, ...jsonBody(restoreObjectSchema) },
-  responses: {
-    200: jsonContent(matterSchema, 'Restored object'),
-    400: errorResponse('No active organization'),
-    404: errorResponse('Not found'),
-    409: errorResponse('Name conflict'),
+const restoreObjectRoute = authRoute(
+  { access: 'session', minTeamRole: 'editor' },
+  {
+    operationId: 'restoreObject',
+    summary: 'Restore trashed object',
+    tags: ['Trash'],
+    method: 'post',
+    path: '/objects/{id}/restorations',
+    middleware: [requireAuth, requireTeamRole('editor')] as const,
+    request: { params: idParam, ...jsonBody(restoreObjectSchema) },
+    responses: {
+      200: jsonContent(matterSchema, 'Restored object'),
+      400: errorResponse('No active organization'),
+      404: errorResponse('Not found'),
+      409: errorResponse('Name conflict'),
+    },
   },
-})
+)
 
-const purgeObjectRoute = createRoute({
-  operationId: 'purgeTrashObject',
-  summary: 'Permanently delete trashed object',
-  tags: ['Trash'],
-  method: 'delete',
-  path: '/objects/{id}',
-  middleware: [requireTeamRole('editor')] as const,
-  request: { params: idParam },
-  responses: {
-    204: { description: 'Permanently removed (recursive subtree purge)' },
-    400: errorResponse('No active organization'),
-    404: errorResponse('Not found'),
+const purgeObjectRoute = authRoute(
+  { access: 'session', minTeamRole: 'editor' },
+  {
+    operationId: 'purgeTrashObject',
+    summary: 'Permanently delete trashed object',
+    tags: ['Trash'],
+    method: 'delete',
+    path: '/objects/{id}',
+    middleware: [requireAuth, requireTeamRole('editor')] as const,
+    request: { params: idParam },
+    responses: {
+      204: { description: 'Permanently removed (recursive subtree purge)' },
+      400: errorResponse('No active organization'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
 const app = new OpenAPIHono<Env>()
-app.use(requireAuth)
 
 const trash = app
   .openapi(listTrashRoute, async (c) => {

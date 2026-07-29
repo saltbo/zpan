@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { nanoid } from 'nanoid'
 import {
   ALLOWED_IMAGE_MIMES,
@@ -30,7 +30,7 @@ import {
   unauthorized,
   unsupportedMediaType,
 } from '../../usecases/ports'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 import {
   createdAtIdCursorCodec,
   decodeOptionalPageToken,
@@ -117,86 +117,101 @@ function detectMimeFromBytes(bytes: Uint8Array): string | null {
   return null
 }
 
-const presignRoute = createRoute({
-  operationId: 'presignImageHostingUpload',
-  summary: 'Presign an image upload',
-  tags: ['Image Hosting'],
-  method: 'post',
-  path: '/images/presign',
-  middleware: [requireAuth, requireTeamRole('editor')] as const,
-  request: jsonBody(createIhostImageSchema),
-  responses: {
-    201: jsonContent(imageDraftSchema, 'Image upload draft'),
-    400: errorResponse('No active organization or invalid path'),
-    403: errorResponse('Image hosting not enabled'),
-    413: errorResponse('File too large'),
-    503: errorResponse('No storage configured'),
+const presignRoute = authRoute(
+  { access: 'session', minTeamRole: 'editor' },
+  {
+    operationId: 'presignImageHostingUpload',
+    summary: 'Presign an image upload',
+    tags: ['Image Hosting'],
+    method: 'post',
+    path: '/images/presign',
+    middleware: [requireAuth, requireTeamRole('editor')] as const,
+    request: jsonBody(createIhostImageSchema),
+    responses: {
+      201: jsonContent(imageDraftSchema, 'Image upload draft'),
+      400: errorResponse('No active organization or invalid path'),
+      403: errorResponse('Image hosting not enabled'),
+      413: errorResponse('File too large'),
+      503: errorResponse('No storage configured'),
+    },
   },
-})
+)
 
-const listRoute = createRoute({
-  operationId: 'listImageHostings',
-  summary: 'List hosted images',
-  tags: ['Image Hosting'],
-  method: 'get',
-  path: '/images',
-  middleware: [requireAuth, requireTeamRole('viewer')] as const,
-  request: { query: listIhostImagesSchema },
-  responses: {
-    200: jsonContent(imageListSchema, 'Hosted images'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('Image hosting not enabled'),
+const listRoute = authRoute(
+  { access: 'session', minTeamRole: 'viewer' },
+  {
+    operationId: 'listImageHostings',
+    summary: 'List hosted images',
+    tags: ['Image Hosting'],
+    method: 'get',
+    path: '/images',
+    middleware: [requireAuth, requireTeamRole('viewer')] as const,
+    request: { query: listIhostImagesSchema },
+    responses: {
+      200: jsonContent(imageListSchema, 'Hosted images'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('Image hosting not enabled'),
+    },
   },
-})
+)
 
-const getRoute = createRoute({
-  operationId: 'getImageHosting',
-  summary: 'Get a hosted image',
-  tags: ['Image Hosting'],
-  method: 'get',
-  path: '/images/{id}',
-  middleware: [requireAuth, requireTeamRole('viewer')] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    200: jsonContent(imageHostingSchema, 'Hosted image'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('Image hosting not enabled'),
-    404: errorResponse('Not found'),
+const getRoute = authRoute(
+  { access: 'session', minTeamRole: 'viewer' },
+  {
+    operationId: 'getImageHosting',
+    summary: 'Get a hosted image',
+    tags: ['Image Hosting'],
+    method: 'get',
+    path: '/images/{id}',
+    middleware: [requireAuth, requireTeamRole('viewer')] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: jsonContent(imageHostingSchema, 'Hosted image'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('Image hosting not enabled'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const confirmRoute = createRoute({
-  operationId: 'confirmImageHosting',
-  summary: 'Confirm an uploaded image',
-  tags: ['Image Hosting'],
-  method: 'put',
-  path: '/images/{id}/status',
-  middleware: [requireAuth, requireTeamRole('editor')] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    200: jsonContent(imageHostingSchema, 'Confirmed image'),
-    400: errorResponse('No active organization'),
-    403: errorResponse('Image hosting not enabled'),
-    404: errorResponse('Not found or not in draft status'),
-    422: errorResponse('Quota exceeded'),
+const confirmRoute = authRoute(
+  { access: 'session', minTeamRole: 'editor' },
+  {
+    operationId: 'confirmImageHosting',
+    summary: 'Confirm an uploaded image',
+    tags: ['Image Hosting'],
+    method: 'put',
+    path: '/images/{id}/status',
+    middleware: [requireAuth, requireTeamRole('editor')] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: jsonContent(imageHostingSchema, 'Confirmed image'),
+      400: errorResponse('No active organization'),
+      403: errorResponse('Image hosting not enabled'),
+      404: errorResponse('Not found or not in draft status'),
+      422: errorResponse('Quota exceeded'),
+    },
   },
-})
+)
 
-const deleteRoute = createRoute({
-  operationId: 'deleteImageHosting',
-  summary: 'Delete a hosted image',
-  tags: ['Image Hosting'],
-  method: 'delete',
-  path: '/images/{id}',
-  middleware: [requireAuth, requireTeamRole('editor')] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    204: { description: 'Deleted' },
-    400: errorResponse('No active organization'),
-    403: errorResponse('Image hosting not enabled'),
-    404: errorResponse('Not found'),
+const deleteRoute = authRoute(
+  { access: 'session', minTeamRole: 'editor' },
+  {
+    operationId: 'deleteImageHosting',
+    summary: 'Delete a hosted image',
+    tags: ['Image Hosting'],
+    method: 'delete',
+    path: '/images/{id}',
+    middleware: [requireAuth, requireTeamRole('editor')] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      204: { description: 'Deleted' },
+      400: errorResponse('No active organization'),
+      403: errorResponse('Image hosting not enabled'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
 const app = new OpenAPIHono<Env>()
 
