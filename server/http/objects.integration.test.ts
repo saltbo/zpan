@@ -4,10 +4,11 @@ import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../adapters/gateways/s3.js'
+import { createDownloadTokenGateway } from '../adapters/repos/download-tokens.js'
 import { createMatterRepo } from '../adapters/repos/matter.js'
 import { createQuotaRepo } from '../adapters/repos/quota.js'
 import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
-import { cloudTrafficReports, orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
+import { cloudTrafficReports, downloadTasks, orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
 import { currentTrafficPeriod } from '../domain/quota.js'
 import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
 import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../usecases/object.js'
@@ -2884,7 +2885,7 @@ describe('Objects API — error branches', () => {
   })
 
   it('allows repeated download-task-upload abort after the draft is gone', async () => {
-    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const { app, db, platform } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const targetFolder = 'Remote'
     const { uploadToken } = await mintTaskUploadContext(app, db, { targetFolder })
@@ -2906,6 +2907,28 @@ describe('Objects API — error branches', () => {
       headers: { Authorization: `Bearer ${uploadToken}` },
     })
     expect(first.status).toBe(204)
+    const tokenGateway = createDownloadTokenGateway()
+    const claims = await tokenGateway.verifyDownloadToken(platform, uploadToken)
+    if (!claims || claims.typ !== 'download-task-upload') throw new Error('task_upload_claims_missing')
+    const otherDownloaderId = 'other-downloader'
+    await db
+      .update(downloadTasks)
+      .set({ assignedDownloaderId: otherDownloaderId })
+      .where(eq(downloadTasks.id, claims.taskId))
+    const otherUploadToken = await tokenGateway.signDownloadToken(platform, {
+      ...claims,
+      downloaderId: otherDownloaderId,
+      jti: randomUUID(),
+    })
+    const otherDownloader = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${otherUploadToken}` },
+    })
+    expect(otherDownloader.status).toBe(403)
+    await db
+      .update(downloadTasks)
+      .set({ assignedDownloaderId: claims.downloaderId })
+      .where(eq(downloadTasks.id, claims.taskId))
     const second = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${uploadToken}` },

@@ -5,6 +5,7 @@ import type { ObjectUploadSession } from '@shared/types'
 
 export type ObjectUploadSessionRecord = Omit<ObjectUploadSession, 'expiresAt' | 'createdAt' | 'updatedAt'> & {
   storageKey: string
+  createdBy: string
   // The conflict strategy chosen at create time, applied when the upload is
   // finalized (a deferred 'replace' purges the incumbent only once bytes land).
   onConflict: ConflictStrategy

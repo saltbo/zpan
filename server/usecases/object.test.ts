@@ -1746,9 +1746,27 @@ describe('object usecase', () => {
       const matterGet = vi.fn(async () => null)
       const { deps } = makeDeps({
         matter: { get: matterGet },
-        objectUploadSessions: { get: async () => session({ status: 'aborted' }) },
+        objectUploadSessions: {
+          get: async () => session({ status: 'aborted', createdBy: 'downloader:d1' }),
+        },
+        downloadTasks: {
+          findRecord: async () =>
+            ({ id: 't1', assignedDownloaderId: 'd1', status: 'uploading' }) as unknown as DownloadTaskRecord,
+        },
       })
       expect(await authorizeTaskUploadAbort(deps, taskParams)).toEqual({ ok: true })
+      expect(matterGet).not.toHaveBeenCalled()
+    })
+
+    it('forbids an already-aborted upload session created by another downloader', async () => {
+      const matterGet = vi.fn(async () => null)
+      const { deps } = makeDeps({
+        matter: { get: matterGet },
+        objectUploadSessions: {
+          get: async () => session({ status: 'aborted', createdBy: 'downloader:other' }),
+        },
+      })
+      expectError(await authorizeTaskUploadAbort(deps, taskParams), 403, 'Forbidden')
       expect(matterGet).not.toHaveBeenCalled()
     })
 

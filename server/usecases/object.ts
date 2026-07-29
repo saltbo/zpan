@@ -749,7 +749,13 @@ export async function authorizeTaskUploadAbort(
   },
 ): Promise<ConfirmAuthorizationOutcome> {
   const session = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
-  if (session?.status === 'aborted') return { ok: true }
+  if (session?.status === 'aborted') {
+    if (session.createdBy !== `downloader:${params.downloaderId}`) {
+      return { ok: false, error: forbidden() }
+    }
+    await assertTaskUploadAllowed(deps as Deps, { taskId: params.taskId, downloaderId: params.downloaderId })
+    return { ok: true }
+  }
   return authorizeTaskUploadConfirm(deps, params)
 }
 
