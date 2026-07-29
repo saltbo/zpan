@@ -32,7 +32,8 @@ restish plugin install saltbo/zpan zpan
 
 Use the selected Restish host profile, plugin profile, and API name explicitly.
 For plugin delegated HTTP on Restish v2.3, set `RSH_PROFILE` to the same value
-as the plugin `--profile` flag:
+as the plugin `--profile` flag. The environment selects the host credential;
+the flag separately selects spec validation and checkpoint identity.
 
 ```sh
 RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --parent folder_456 ./release.tar.gz

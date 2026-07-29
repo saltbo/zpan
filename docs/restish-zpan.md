@@ -41,6 +41,7 @@ They contain API/profile identity, source file identity, destination identity,
 the ZPan object/session IDs, part size/count, and completed part ETags. They do
 not contain credentials, cookies, presigned URLs, or file bytes.
 
-Restish v2.3 delegated HTTP uses the host's active profile. Select profiles with
-Restish's global profile flag or `RSH_PROFILE`; the plugin's `--profile` value is
-used for spec validation and checkpoint identity.
+Restish v2.3 command plugins receive the delegated HTTP profile through
+`RSH_PROFILE`; use it for the host credential selection. The plugin's
+`--profile` value is separately used for spec validation and checkpoint
+identity.

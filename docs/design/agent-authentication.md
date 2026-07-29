@@ -386,7 +386,9 @@ restish plugin install saltbo/zpan zpan
 
 The plugin uses Restish delegated HTTP for ZPan draft, part re-sign, complete,
 and abort operations, preserving the selected profile, OAuth/API-key
-authentication, TLS, and normalized output. It streams local file sections
+authentication, TLS, and normalized output. With Restish v2.3 command plugins,
+the host profile is selected through `RSH_PROFILE` while the plugin's matching
+`--profile` selects spec validation and checkpoint identity. It streams local file sections
 directly to presigned S3 URLs with bounded concurrency, retry, ETag capture,
 resume checkpoints, and idempotent completion.
 
