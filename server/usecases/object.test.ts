@@ -1105,14 +1105,53 @@ describe('object usecase', () => {
       expect(cancelDraft).toHaveBeenCalledWith('d1', 'o1')
     })
 
-    it('is idempotent for an already-aborted session', async () => {
+    it('finishes draft cancellation when retrying an already-aborted session', async () => {
       const cancelDraft = vi.fn(async () => null)
       const { deps } = makeDeps({
         matter: { get: async () => file('d1', { status: 'draft' }), cancelDraft },
         objectUploadSessions: { get: async () => session({ status: 'aborted' }) },
       })
       await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
+      expect(cancelDraft).toHaveBeenCalledWith('d1', 'o1')
+    })
+
+    it('is idempotent for an already-aborted non-draft session', async () => {
+      const cancelDraft = vi.fn(async () => null)
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'cancelled' }), cancelDraft },
+        objectUploadSessions: { get: async () => session({ status: 'aborted' }) },
+      })
+      await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
       expect(cancelDraft).not.toHaveBeenCalled()
+    })
+
+    it('recovers when completed draft abort marked aborted before draft cancellation failed', async () => {
+      let status: ObjectUploadSessionRecord['status'] = 'completed'
+      let cancelAttempts = 0
+      const deleteObjectFn = vi.fn(async () => {})
+      const setStatus = vi.fn(async (_id: string, next: ObjectUploadSessionRecord['status']) => {
+        status = next
+      })
+      const cancelDraft = vi.fn(async () => {
+        cancelAttempts += 1
+        if (cancelAttempts === 1) throw new Error('db write failed')
+        return file('d1', { status: 'draft' })
+      })
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft' }), cancelDraft },
+        s3: { deleteObject: deleteObjectFn },
+        objectUploadSessions: { get: async () => session({ status, uploadId: 'mp-1' }), setStatus },
+      })
+
+      await expect(
+        abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' }),
+      ).rejects.toThrow('db write failed')
+      await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
+
+      expect(deleteObjectFn).toHaveBeenCalledTimes(1)
+      expect(setStatus).toHaveBeenCalledWith('sess-1', 'aborted')
+      expect(cancelDraft).toHaveBeenCalledTimes(2)
+      expect(cancelDraft).toHaveBeenLastCalledWith('d1', 'o1')
     })
 
     it('rejects aborting an already-completed active session', async () => {

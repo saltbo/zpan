@@ -511,8 +511,8 @@ export async function completeUpload(
   return { ok: true, matter }
 }
 
-// Aborts an in-progress upload and discards the draft. Idempotent for an
-// already-aborted session; rejects completing one.
+// Aborts an in-progress upload and discards the draft. Retries finish draft
+// cleanup if a previous abort marked the session first; rejects active completions.
 export async function abortUpload(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions'>,
   params: { orgId: string; objectId: string; sessionId: string; actorId: string; strictStorageCleanup?: boolean },
@@ -533,7 +533,12 @@ export async function abortUpload(
     await deps.matter.cancelDraft(params.objectId, params.orgId)
     return
   }
-  if (record.status === 'aborted') return
+  if (record.status === 'aborted') {
+    if (sessionMatter.status === 'draft') {
+      await deps.matter.cancelDraft(params.objectId, params.orgId)
+    }
+    return
+  }
 
   if (record.uploadId != null) {
     try {
