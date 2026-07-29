@@ -758,6 +758,50 @@ describe('Objects API', () => {
     expect(body.upload.parts.map((part) => part.url)).toEqual(['https://presigned-upload.example.com'])
   })
 
+  it('POST /api/objects/:id/uploads/:sid/parts re-signs a single-PUT session [spec: objects/presign-upload-parts-single]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'resume.txt', type: 'text/plain', size: 100, parent: '', dirtype: 0 }),
+    })
+    expect(createRes.status).toBe(201)
+    const created = (await createRes.json()) as {
+      id: string
+      upload: { sessionId: string; mode: string; partCount: number; partSize: number }
+    }
+    expect(created.upload.mode).toBe('single')
+    expect(created.upload.partCount).toBe(1)
+
+    const res = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}/parts`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partNumbers: [1] }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      uploadId: string | null
+      mode: string
+      partSize: number
+      partCount: number
+      requiredHeaders: Record<string, string>
+      parts: Array<{ partNumber: number; url: string; headers: Record<string, string> }>
+    }
+    expect(body).toMatchObject({
+      uploadId: null,
+      mode: 'single',
+      partSize: 100,
+      partCount: 1,
+      requiredHeaders: { 'content-type': 'text/plain' },
+      parts: [
+        { partNumber: 1, url: 'https://presigned-upload.example.com', headers: { 'content-type': 'text/plain' } },
+      ],
+    })
+  })
+
   it('POST /api/objects with storageId uses that exact eligible storage', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
@@ -2858,6 +2902,38 @@ describe('Objects API — error branches', () => {
     })
 
     const res = await app.request('/api/objects/m-task-presign-outside/uploads/any-session/parts', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partNumbers: [1] }),
+    })
+
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Forbidden')
+  })
+
+  it('rejects download-task-upload re-sign for another downloader upload session', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const { uploadToken } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
+
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'owned-by-first.txt',
+        type: 'text/plain',
+        size: 100,
+        parent: 'Remote',
+      }),
+    })
+    expect(createRes.status).toBe(201)
+    const created = (await createRes.json()) as { id: string; upload: { sessionId: string } }
+    await db.run(
+      sql`UPDATE object_upload_sessions SET created_by = 'downloader:other' WHERE id = ${created.upload.sessionId}`,
+    )
+
+    const res = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}/parts`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ partNumbers: [1] }),

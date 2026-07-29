@@ -14,7 +14,7 @@ Automation clients should discover and call these OpenAPI operation IDs:
 | Operation ID | Method and path | Purpose |
 | --- | --- | --- |
 | `createObject` | `POST /api/objects` | Create a folder, or create a file draft plus upload instructions. |
-| `presignObjectUploadParts` | `POST /api/objects/{id}/uploads/{uploadSessionId}/parts` | Re-sign a bounded list of missing multipart part numbers. |
+| `presignObjectUploadParts` | `POST /api/objects/{id}/uploads/{uploadSessionId}/parts` | Re-sign a bounded list of missing upload part numbers. |
 | `completeObjectUpload` | `POST /api/objects/{id}/uploads/{uploadSessionId}/completions` | Finalize a single or multipart upload with explicit part number + ETag records. |
 | `abortObjectUpload` | `DELETE /api/objects/{id}/uploads/{uploadSessionId}` | Abort an active upload session and discard the draft. |
 
@@ -37,10 +37,11 @@ Automation clients should discover and call these OpenAPI operation IDs:
   `headers`.
 
 The v2.9 defaults are 64 MiB multipart parts and a 15 minute presign TTL.
-Presigned upload URLs are short-lived. When a multipart URL expires, automation calls
-`presignObjectUploadParts` with only the missing part numbers. Re-signing never
-changes the workspace, object, session, storage key, or multipart upload
-identity.
+Presigned upload URLs are short-lived. When a URL expires or a checkpointed
+client resumes without stored URLs, automation calls `presignObjectUploadParts`
+with only the missing part numbers. Single uploads re-sign part `1`; multipart
+uploads re-sign the requested S3 multipart part numbers. Re-signing never changes
+the workspace, object, session, storage key, or multipart upload identity.
 
 ## Completion And Abort
 

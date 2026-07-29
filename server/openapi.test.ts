@@ -493,7 +493,10 @@ describe('global OpenAPI document', () => {
                   'requiredHeaders',
                   'parts',
                 ],
-                properties: { parts: expect.any(Object) },
+                properties: {
+                  mode: { type: 'string', enum: ['single', 'multipart'] },
+                  parts: expect.any(Object),
+                },
               },
             },
           },

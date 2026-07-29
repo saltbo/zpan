@@ -237,7 +237,7 @@ const presignPartsRoute = authRoute(
     path: '/{id}/uploads/{uploadSessionId}/parts',
     request: { params: sessionParams, ...jsonBody(presignObjectUploadPartsSchema) },
     responses: {
-      200: jsonContent(presignObjectUploadPartsResponseSchema, 'Presigned multipart upload parts'),
+      200: jsonContent(presignObjectUploadPartsResponseSchema, 'Presigned upload parts'),
       400: errorResponse('Invalid upload session'),
       403: errorResponse('Forbidden'),
       404: errorResponse('Not found'),
@@ -473,11 +473,12 @@ const objects = app
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
     const objectId = c.req.valid('param').id
-    await authorizeUploadSessionControl(c, orgId, objectId)
+    const uploadSessionId = c.req.valid('param').uploadSessionId
+    await authorizeUploadSessionControl(c, orgId, objectId, { uploadSessionId })
     const result = await presignUploadSessionParts(c.get('deps'), {
       orgId,
       objectId,
-      sessionId: c.req.valid('param').uploadSessionId,
+      sessionId: uploadSessionId,
       partNumbers: c.req.valid('json').partNumbers,
     })
     return c.json(result, 200)
@@ -490,12 +491,13 @@ const objects = app
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
     const objectId = c.req.valid('param').id
-    await authorizeUploadSessionControl(c, orgId, objectId)
+    const uploadSessionId = c.req.valid('param').uploadSessionId
+    await authorizeUploadSessionControl(c, orgId, objectId, { uploadSessionId })
 
     const result = await completeUpload(c.get('deps'), {
       orgId,
       objectId,
-      sessionId: c.req.valid('param').uploadSessionId,
+      sessionId: uploadSessionId,
       parts: c.req.valid('json').parts,
       actorId: actorId(c),
     })

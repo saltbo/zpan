@@ -338,7 +338,7 @@ export const objectUploadInstructionsSchema = z.object({
 
 export const presignObjectUploadPartsResponseSchema = z.object({
   uploadId: z.string().nullable(),
-  mode: z.literal('multipart'),
+  mode: z.enum(['single', 'multipart']),
   partSize: z.number().int(),
   partCount: z.number().int().min(1).max(10_000),
   presignedExpiresAt: z.string(),

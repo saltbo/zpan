@@ -108,6 +108,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cmd/go.mod
+          cache-dependency-path: cmd/go.sum
+
+      - name: Package restish-zpan plugin
+        working-directory: cmd
+        run: bash scripts/package-restish-zpan.sh "${{ github.ref_name }}" ../dist/restish-zpan
+
+      - name: Verify restish-zpan plugin startup
+        working-directory: cmd
+        run: |
+          go build -trimpath -o /tmp/restish-zpan ./restish-zpan
+          /tmp/restish-zpan --rsh-plugin-manifest >/tmp/restish-zpan.manifest.cbor
+          /tmp/restish-zpan --rsh-plugin-commands >/tmp/restish-zpan.commands.cbor
+
       - name: Generate changelog
         id: changelog
         uses: requarks/changelog-action@v1
@@ -122,9 +138,15 @@ jobs:
           body: |
             ${{ steps.changelog.outputs.changes }}
 
+            ### Restish plugin
+            ```bash
+            restish plugin install saltbo/zpan zpan
+            ```
+
             ### Docker
             ```bash
             docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
             docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}-cli
             ```
           generate_release_notes: false
+          files: dist/restish-zpan/*
