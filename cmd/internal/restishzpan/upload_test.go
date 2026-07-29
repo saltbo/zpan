@@ -251,9 +251,15 @@ func TestCheckpointSaveModeAndNoURLLeak(t *testing.T) {
 func TestResumeRejectsChangedFile(t *testing.T) {
 	src := fileIdentity{Path: "/tmp/file", Size: 10, ModTime: time.Unix(1, 0)}
 	cp := checkpoint{API: "zpan", SourcePath: src.Path, FileSize: src.Size, ModTimeUnixNS: src.ModTime.UnixNano(), Parent: "", Name: "file", Conflict: "fail"}
+	pathChanged := cp
+	pathChanged.SourcePath = "/tmp/other-file"
+	err := validateCheckpoint(pathChanged, uploadOptions{API: "zpan", Name: "file", Conflict: "fail"}, src)
+	if err == nil || !strings.Contains(err.Error(), "checkpoint source changed") {
+		t.Fatalf("expected source mismatch error, got %v", err)
+	}
 	changed := src
 	changed.Size = 11
-	err := validateCheckpoint(cp, uploadOptions{API: "zpan", Name: "file", Conflict: "fail"}, changed)
+	err = validateCheckpoint(cp, uploadOptions{API: "zpan", Name: "file", Conflict: "fail"}, changed)
 	if err == nil || !strings.Contains(err.Error(), "source file changed") {
 		t.Fatalf("expected changed file error, got %v", err)
 	}
@@ -559,6 +565,68 @@ func TestUploadMissingPartsReturnsStorageError(t *testing.T) {
 	}
 }
 
+func TestUploadMissingPartsResumesSingleUploadWithResign(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "file.bin")
+	if err := os.WriteFile(source, []byte("abc"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	src, err := statSource(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cp := checkpoint{
+		Version:       checkpointVersion,
+		API:           "zpan",
+		SourcePath:    src.Path,
+		FileSize:      src.Size,
+		ModTimeUnixNS: src.ModTime.UnixNano(),
+		ObjectID:      "obj",
+		SessionID:     "sess",
+		Mode:          "single",
+		PartSize:      3,
+		PartCount:     1,
+		Name:          "file.bin",
+		Conflict:      "fail",
+		Parts:         map[int]string{},
+	}
+	host := &fakeHost{responses: []*plugin.HTTPResponseMsg{{Status: 200, Body: map[string]any{
+		"uploadId": nil, "mode": "single", "partSize": float64(3), "partCount": float64(1),
+		"presignedExpiresAt": time.Now().Add(time.Hour).Format(time.RFC3339),
+		"requiredHeaders":    map[string]any{"content-type": "application/octet-stream"},
+		"parts": []any{map[string]any{
+			"partNumber": float64(1),
+			"url":        "https://storage.test/single",
+			"expiresAt":  time.Now().Add(time.Hour).Format(time.RFC3339),
+			"headers":    map[string]any{"content-type": "application/octet-stream"},
+		}},
+	}}}}
+	storage := &fakeStorage{}
+	path := filepath.Join(dir, "cp.json")
+
+	err = uploadMissingParts(context.Background(), uploadOptions{API: "zpan", Concurrency: 1}, host, storage, checkpointStore{dir: dir}, path, src, operationSet{Presign: validOps()[1]}, &cp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(host.requests) != 1 || host.requests[0].URI != "zpan/api/objects/obj/uploads/sess/parts" {
+		t.Fatalf("expected single re-sign request, got %#v", host.requests)
+	}
+	body := host.requests[0].Body.(map[string]any)
+	if got := body["partNumbers"].([]int); len(got) != 1 || got[0] != 1 {
+		t.Fatalf("unexpected re-sign body: %#v", body)
+	}
+	if cp.Parts[1] == "" || storage.seen[1] != "abc" {
+		t.Fatalf("expected checkpoint etag and uploaded bytes, cp=%#v seen=%#v", cp.Parts, storage.seen)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "https://storage.test") {
+		t.Fatalf("checkpoint stored presigned URL: %s", data)
+	}
+}
+
 func TestPutPartWithRetryResignsAfterExpiredURL(t *testing.T) {
 	dir := t.TempDir()
 	source := filepath.Join(dir, "file.bin")
@@ -582,6 +650,51 @@ func TestPutPartWithRetryResignsAfterExpiredURL(t *testing.T) {
 	}
 	if etag == "" || len(host.requests) != 1 {
 		t.Fatalf("expected re-sign and etag, etag=%q requests=%d", etag, len(host.requests))
+	}
+}
+
+func TestPutPartWithRetryResignsSingleAfterExpiredURL(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "file.bin")
+	if err := os.WriteFile(source, []byte("abc"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	src, err := statSource(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := &fakeHost{responses: []*plugin.HTTPResponseMsg{{Status: 200, Body: map[string]any{
+		"uploadId": nil, "mode": "single", "partSize": float64(3), "partCount": float64(1),
+		"presignedExpiresAt": time.Now().Add(time.Hour).Format(time.RFC3339),
+		"requiredHeaders":    map[string]any{"content-type": "application/octet-stream"},
+		"parts": []any{map[string]any{
+			"partNumber": float64(1),
+			"url":        "https://storage.test/new-single",
+			"expiresAt":  time.Now().Add(time.Hour).Format(time.RFC3339),
+			"headers":    map[string]any{"content-type": "application/octet-stream"},
+		}},
+	}}}}
+	storage := &fakeStorage{}
+	etag, err := putPartWithRetry(context.Background(), uploadOptions{API: "zpan"}, host, storage, operationSet{Presign: validOps()[1]}, checkpoint{
+		Mode:      "single",
+		ObjectID:  "obj",
+		SessionID: "sess",
+		PartSize:  3,
+		PartCount: 1,
+	}, src, uploadPart{
+		PartNumber: 1,
+		URL:        "https://storage.test/expired-single",
+		ExpiresAt:  time.Now().Add(-time.Minute).Format(time.RFC3339),
+		Headers:    map[string]string{"content-type": "application/octet-stream"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if etag == "" || len(host.requests) != 1 {
+		t.Fatalf("expected single re-sign and etag, etag=%q requests=%d", etag, len(host.requests))
+	}
+	if got := storage.seen[1]; got != "abc" {
+		t.Fatalf("expected uploaded bytes after re-sign, got %#v", storage.seen)
 	}
 }
 
@@ -663,11 +776,7 @@ func TestResignPartsRequiresRequestedPartDescriptors(t *testing.T) {
 }
 
 func TestResignAndCompleteErrors(t *testing.T) {
-	_, err := resignParts(context.Background(), uploadOptions{API: "zpan"}, &fakeHost{}, operationSet{}, checkpoint{Mode: "single"}, []int{1})
-	if err == nil || !strings.Contains(err.Error(), "cannot re-sign") {
-		t.Fatalf("expected non-multipart error, got %v", err)
-	}
-	_, err = resignParts(context.Background(), uploadOptions{API: "zpan"}, &fakeHost{}, operationSet{Presign: validOps()[1]}, checkpoint{Mode: "multipart", ObjectID: "obj", SessionID: "sess"}, []int{1})
+	_, err := resignParts(context.Background(), uploadOptions{API: "zpan"}, &fakeHost{}, operationSet{Presign: validOps()[1]}, checkpoint{Mode: "multipart", ObjectID: "obj", SessionID: "sess"}, []int{1})
 	if err == nil || !strings.Contains(err.Error(), "unexpected request") {
 		t.Fatalf("expected delegated request error, got %v", err)
 	}
@@ -759,6 +868,52 @@ func TestAbortUsesDelegatedDeleteAndRemovesCheckpoint(t *testing.T) {
 	}
 	if len(host.requests) != 1 || host.requests[0].Method != "DELETE" || host.requests[0].URI != "zpan/api/objects/obj/uploads/sess" {
 		t.Fatalf("unexpected abort request: %#v", host.requests)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("checkpoint still exists: %v", err)
+	}
+}
+
+func TestAbortAcceptsSuccessBody(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "file.bin")
+	if err := os.WriteFile(source, []byte("abc"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	src, err := statSource(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := uploadOptions{API: "zpan", Source: source, Name: "file.bin", Conflict: "fail", Abort: true, CheckpointDir: dir}
+	store, err := newCheckpointStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cp := checkpoint{
+		Version:       checkpointVersion,
+		API:           opts.API,
+		SourcePath:    src.Path,
+		FileSize:      src.Size,
+		ModTimeUnixNS: src.ModTime.UnixNano(),
+		ObjectID:      "obj",
+		SessionID:     "sess",
+		Mode:          "single",
+		PartSize:      3,
+		PartCount:     1,
+		Name:          opts.Name,
+		Conflict:      opts.Conflict,
+		Parts:         map[int]string{},
+	}
+	path := store.path(opts, src)
+	if err := store.save(path, cp); err != nil {
+		t.Fatal(err)
+	}
+	host := &fakeHost{responses: []*plugin.HTTPResponseMsg{{Status: 200, Body: map[string]any{"aborted": true}}}}
+	if err := abortCheckpoint(context.Background(), opts, host, store, path, src, operationSet{Abort: validOps()[3]}); err != nil {
+		t.Fatal(err)
+	}
+	if host.body == nil {
+		t.Fatal("expected abort response body")
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("checkpoint still exists: %v", err)
@@ -869,17 +1024,26 @@ func TestRunRejectsInvalidArgs(t *testing.T) {
 	}
 }
 
+func TestRunWithStorageRejectsMissingSource(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing.bin")
+	err := runWithStorage(context.Background(), uploadOptions{API: "zpan", Source: missing, Name: "missing.bin", Conflict: "fail", Concurrency: 1}, &fakeHost{}, &fakeStorage{})
+	if err == nil || !strings.Contains(err.Error(), "missing.bin") {
+		t.Fatalf("expected missing source error, got %v", err)
+	}
+}
+
 func TestCurrentPartsAndCompleteUploadErrors(t *testing.T) {
 	ops := operationSet{Presign: validOps()[1], Complete: validOps()[2]}
 	opts := uploadOptions{API: "zpan"}
-	cp := checkpoint{Mode: "single", PartCount: 2}
-	if _, err := currentParts(context.Background(), opts, &fakeHost{}, ops, cp, []int{1}, nil); err == nil || !strings.Contains(err.Error(), "invalid part state") {
-		t.Fatalf("expected single state error, got %v", err)
-	}
-	cp = checkpoint{Mode: "single", PartCount: 1}
-	parts, err := currentParts(context.Background(), opts, &fakeHost{}, ops, cp, []int{1}, nil)
-	if err != nil || parts != nil {
-		t.Fatalf("expected nil parts for single resume, got parts=%#v err=%v", parts, err)
+	host := &fakeHost{responses: []*plugin.HTTPResponseMsg{{Status: 200, Body: map[string]any{
+		"uploadId": nil, "mode": "single", "partSize": float64(3), "partCount": float64(1),
+		"presignedExpiresAt": time.Now().Add(time.Hour).Format(time.RFC3339),
+		"requiredHeaders":    map[string]any{},
+		"parts":              []any{map[string]any{"partNumber": float64(1), "url": "https://storage.test/1", "expiresAt": time.Now().Add(time.Hour).Format(time.RFC3339), "headers": map[string]any{}}},
+	}}}}
+	parts, err := currentParts(context.Background(), opts, host, ops, checkpoint{Mode: "single", ObjectID: "obj", SessionID: "sess", PartCount: 1}, []int{1}, nil)
+	if err != nil || len(parts) != 1 || parts[0].URL == "" {
+		t.Fatalf("expected re-signed single part, got parts=%#v err=%v", parts, err)
 	}
 	_, err = currentParts(context.Background(), opts, &fakeHost{}, ops, checkpoint{}, []int{2}, []uploadPart{{PartNumber: 1}})
 	if err == nil || !strings.Contains(err.Error(), "part 2") {
@@ -923,6 +1087,58 @@ func TestPutPartWithRetryResignsMultipart(t *testing.T) {
 	}
 	if len(host.requests) != 1 || !strings.Contains(host.requests[0].URI, "/uploads/sess/parts") {
 		t.Fatalf("expected re-sign request, got %#v", host.requests)
+	}
+}
+
+func TestPutPartWithRetryResignsSingleAfterStorage403(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "file.bin")
+	if err := os.WriteFile(source, []byte("abc"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	host := &fakeHost{responses: []*plugin.HTTPResponseMsg{
+		{Status: 200, Body: map[string]any{
+			"uploadId": nil, "mode": "single", "partSize": float64(3), "partCount": float64(1),
+			"presignedExpiresAt": time.Now().Add(time.Hour).Format(time.RFC3339),
+			"requiredHeaders":    map[string]any{"content-type": "application/octet-stream"},
+			"parts": []any{
+				map[string]any{
+					"partNumber": float64(1),
+					"url":        "https://storage.test/1b",
+					"expiresAt":  time.Now().Add(time.Hour).Format(time.RFC3339),
+					"headers":    map[string]any{"content-type": "application/octet-stream"},
+				},
+			},
+		}},
+	}}
+	storage := &fakeStorage{failFirst: true}
+	etag, err := putPartWithRetry(context.Background(), uploadOptions{API: "zpan"}, host, storage, operationSet{Presign: validOps()[1]}, checkpoint{
+		ObjectID:  "obj",
+		SessionID: "sess",
+		Mode:      "single",
+		PartSize:  3,
+		PartCount: 1,
+	}, fileIdentity{Path: source, Size: 3}, uploadPart{
+		PartNumber: 1,
+		URL:        "https://storage.test/1",
+		ExpiresAt:  time.Now().Add(time.Hour).Format(time.RFC3339),
+		Headers:    map[string]string{"content-type": "application/octet-stream"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if etag == "" {
+		t.Fatal("expected etag after retry")
+	}
+	if len(host.requests) != 1 || !strings.Contains(host.requests[0].URI, "/uploads/sess/parts") {
+		t.Fatalf("expected single re-sign request, got %#v", host.requests)
+	}
+	body := host.requests[0].Body.(map[string]any)
+	if got := body["partNumbers"].([]int); len(got) != 1 || got[0] != 1 {
+		t.Fatalf("unexpected re-sign body: %#v", body)
+	}
+	if storage.seen[1] != "abc" {
+		t.Fatalf("expected retried bytes to upload, got %#v", storage.seen)
 	}
 }
 

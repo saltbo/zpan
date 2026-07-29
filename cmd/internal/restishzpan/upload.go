@@ -324,14 +324,6 @@ func currentParts(ctx context.Context, opts uploadOptions, h host, ops operation
 		}
 		return parts, nil
 	}
-	if cp.Mode == "single" {
-		if len(partNumbers) != 1 || cp.PartCount != 1 {
-			return nil, fmt.Errorf("single upload checkpoint has invalid part state")
-		}
-		// Single-upload URLs cannot be re-signed by the v2.9 control API. The
-		// initial URL is only available during a fresh createObject response.
-		return nil, nil
-	}
 	return resignParts(ctx, opts, h, ops, cp, partNumbers)
 }
 
@@ -353,7 +345,7 @@ func putPartWithRetry(ctx context.Context, opts uploadOptions, h host, storage s
 			return etag, nil
 		}
 		lastErr = err
-		if shouldResignAfterStorageError(err) && cp.Mode == "multipart" {
+		if shouldResignAfterStorageError(err) {
 			part.URL = ""
 		}
 		select {
@@ -399,9 +391,6 @@ func missingPartNumbers(cp checkpoint) []int {
 }
 
 func resignParts(ctx context.Context, opts uploadOptions, h host, ops operationSet, cp checkpoint, partNumbers []int) ([]uploadPart, error) {
-	if cp.Mode != "multipart" {
-		return nil, fmt.Errorf("cannot re-sign %s upload", cp.Mode)
-	}
 	var all []uploadPart
 	for start := 0; start < len(partNumbers); start += 100 {
 		end := min(start+100, len(partNumbers))

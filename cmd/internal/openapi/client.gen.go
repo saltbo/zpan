@@ -2890,12 +2890,15 @@ func (e AbortObjectUploadParamsStrictStorageCleanup) Valid() bool {
 // Defines values for PresignObjectUploadParts200JSONResponseBodyMode.
 const (
 	PresignObjectUploadParts200JSONResponseBodyModeMultipart PresignObjectUploadParts200JSONResponseBodyMode = "multipart"
+	PresignObjectUploadParts200JSONResponseBodyModeSingle    PresignObjectUploadParts200JSONResponseBodyMode = "single"
 )
 
 // Valid indicates whether the value is a known member of the PresignObjectUploadParts200JSONResponseBodyMode enum.
 func (e PresignObjectUploadParts200JSONResponseBodyMode) Valid() bool {
 	switch e {
 	case PresignObjectUploadParts200JSONResponseBodyModeMultipart:
+		return true
+	case PresignObjectUploadParts200JSONResponseBodyModeSingle:
 		return true
 	default:
 		return false

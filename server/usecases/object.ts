@@ -360,8 +360,8 @@ async function loadObjectForUploadSession(
   return { matter, storage }
 }
 
-// Re-presign expired part URLs mid-upload (multipart sessions only). The happy
-// path uses the URLs returned by createObject; this is the fallback.
+// Re-presign expired part URLs mid-upload. The happy path uses the URLs returned
+// by createObject; this is the fallback for interrupted or long-running clients.
 export async function presignUploadSessionParts(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions'>,
   params: {
@@ -372,7 +372,7 @@ export async function presignUploadSessionParts(
   },
 ): Promise<{
   uploadId: string | null
-  mode: 'multipart'
+  mode: 'single' | 'multipart'
   partSize: number
   partCount: number
   presignedExpiresAt: string
@@ -385,9 +385,6 @@ export async function presignUploadSessionParts(
   if (record.status !== 'active' || record.expiresAt.getTime() <= Date.now()) {
     throw new ObjectUploadSessionError('invalid_state')
   }
-  // Only multipart sessions have re-presignable parts; a single PutObject does not.
-  if (record.uploadId == null) throw new ObjectUploadSessionError('invalid_state')
-  const uploadId = record.uploadId
   const partCount = uploadPartCount(matter.size ?? 0, record.partSize)
   if (new Set(params.partNumbers).size !== params.partNumbers.length) {
     throw new ObjectUploadSessionError('invalid_state', 'Duplicate part numbers are not allowed')
@@ -398,6 +395,32 @@ export async function presignUploadSessionParts(
     }
   }
   const presignedExpiresAt = new Date(Date.now() + UPLOAD_PRESIGNED_URL_TTL_SECONDS * 1000).toISOString()
+  if (record.uploadId == null) {
+    const headers = signedUploadHeaders(matter.type || undefined)
+    const parts = await Promise.all(
+      params.partNumbers.map(async (partNumber) => ({
+        partNumber,
+        url: await deps.s3.presignUpload(
+          storage,
+          record.storageKey,
+          matter.type || undefined,
+          UPLOAD_PRESIGNED_URL_TTL_SECONDS,
+        ),
+        expiresAt: presignedExpiresAt,
+        headers,
+      })),
+    )
+    return {
+      uploadId: null,
+      mode: 'single',
+      partSize: record.partSize,
+      partCount,
+      presignedExpiresAt,
+      requiredHeaders: headers,
+      parts,
+    }
+  }
+  const uploadId = record.uploadId
   const parts = await Promise.all(
     params.partNumbers.map(async (partNumber) => ({
       partNumber,
@@ -749,10 +772,10 @@ export async function authorizeTaskUploadAbort(
   },
 ): Promise<ConfirmAuthorizationOutcome> {
   const session = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
+  if (!session || session.createdBy !== `downloader:${params.downloaderId}`) {
+    return { ok: false, error: forbidden() }
+  }
   if (session?.status === 'aborted') {
-    if (session.createdBy !== `downloader:${params.downloaderId}`) {
-      return { ok: false, error: forbidden() }
-    }
     await assertTaskUploadAllowed(deps as Deps, { taskId: params.taskId, downloaderId: params.downloaderId })
     return { ok: true }
   }

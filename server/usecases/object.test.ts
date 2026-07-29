@@ -1214,6 +1214,33 @@ describe('object usecase', () => {
       expect(presignUploadPart).toHaveBeenCalledWith(storage, 'key/d1', 'mp-1', 2, UPLOAD_PRESIGNED_URL_TTL_SECONDS)
     })
 
+    it('re-signs a single-PUT session with required headers for interrupted resume', async () => {
+      const presignUpload = vi.fn(async () => 'https://single-resigned')
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft', size: 100, type: 'text/plain' }) },
+        s3: { presignUpload } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ uploadId: null, partSize: 100 }) },
+      })
+
+      const out = await presignUploadSessionParts(deps, {
+        orgId: 'o1',
+        objectId: 'd1',
+        sessionId: 'sess-1',
+        partNumbers: [1],
+      })
+
+      expect(out).toMatchObject({
+        uploadId: null,
+        mode: 'single',
+        partSize: 100,
+        partCount: 1,
+        requiredHeaders: { 'content-type': 'text/plain' },
+        parts: [{ partNumber: 1, url: 'https://single-resigned', headers: { 'content-type': 'text/plain' } }],
+      })
+      expect(out.parts[0]?.expiresAt).toBe(out.presignedExpiresAt)
+      expect(presignUpload).toHaveBeenCalledWith(storage, 'key/d1', 'text/plain', UPLOAD_PRESIGNED_URL_TTL_SECONDS)
+    })
+
     it('rejects duplicate re-sign part numbers before signing', async () => {
       const presignUploadPart = vi.fn()
       const { deps } = makeDeps({
@@ -1252,7 +1279,7 @@ describe('object usecase', () => {
       expect(presignUploadPart).not.toHaveBeenCalled()
     })
 
-    it('rejects re-sign for expired sessions and single-PUT sessions before signing', async () => {
+    it('rejects re-sign for expired sessions before signing', async () => {
       const presignUploadPart = vi.fn()
       const expired = makeDeps({
         matter: { get: async () => file('d1', { status: 'draft', size: 300 }) },
@@ -1263,20 +1290,6 @@ describe('object usecase', () => {
       })
       await expect(
         presignUploadSessionParts(expired.deps, {
-          orgId: 'o1',
-          objectId: 'd1',
-          sessionId: 'sess-1',
-          partNumbers: [1],
-        }),
-      ).rejects.toMatchObject({ code: 'invalid_state' })
-
-      const single = makeDeps({
-        matter: { get: async () => file('d1', { status: 'draft', size: 100 }) },
-        s3: { presignUploadPart } as Partial<S3Gateway>,
-        objectUploadSessions: { get: async () => session({ uploadId: null, partSize: 100 }) },
-      })
-      await expect(
-        presignUploadSessionParts(single.deps, {
           orgId: 'o1',
           objectId: 'd1',
           sessionId: 'sess-1',
@@ -1770,10 +1783,36 @@ describe('object usecase', () => {
       expect(matterGet).not.toHaveBeenCalled()
     })
 
+    it('forbids an active upload session created by another downloader', async () => {
+      const matterGet = vi.fn(async () => file('m1', { parent: 'Inbox' }))
+      const { deps } = makeDeps({
+        matter: { get: matterGet },
+        objectUploadSessions: {
+          get: async () => session({ createdBy: 'downloader:other' }),
+        },
+      })
+      expectError(await authorizeTaskUploadAbort(deps, taskParams), 403, 'Forbidden')
+      expect(matterGet).not.toHaveBeenCalled()
+    })
+
+    it('authorizes an active upload session owned by the downloader', async () => {
+      const { deps } = makeDeps({
+        matter: { get: async () => file('m1', { parent: 'Inbox' }) },
+        objectUploadSessions: {
+          get: async () => session({ createdBy: 'downloader:d1' }),
+        },
+        downloadTasks: {
+          findRecord: async () =>
+            ({ id: 't1', assignedDownloaderId: 'd1', status: 'uploading' }) as unknown as DownloadTaskRecord,
+        },
+      })
+      expect(await authorizeTaskUploadAbort(deps, taskParams)).toEqual({ ok: true })
+    })
+
     it('still forbids non-aborted abort outside the task target folder', async () => {
       const { deps } = makeDeps({
         matter: { get: async () => file('m1', { parent: 'Other' }) },
-        objectUploadSessions: { get: async () => session() },
+        objectUploadSessions: { get: async () => session({ createdBy: 'downloader:d1' }) },
       })
       expectError(await authorizeTaskUploadAbort(deps, taskParams), 403, 'Forbidden')
     })

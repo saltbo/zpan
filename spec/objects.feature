@@ -101,6 +101,12 @@ Feature: Objects
     When it is completed with an ETag that does not match the stored object
     Then the API responds 409
 
+  @objects/presign-upload-parts-single @api
+  Scenario: A single-PutObject upload session can re-sign its upload part
+    Given a draft single-PutObject upload
+    When the client requests fresh upload instructions for part 1
+    Then the API returns a single-mode part descriptor without a multipart upload id
+
   @objects/abort-upload @api
   Scenario: An upload is aborted
     Given a draft object with an open upload session

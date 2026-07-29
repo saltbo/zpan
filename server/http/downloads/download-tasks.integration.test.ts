@@ -1035,13 +1035,23 @@ describe('Download tasks API integration', () => {
     expect(object.upload.mode).toBe('single')
     expect(object.upload.parts.map((part) => part.url)).toEqual(['https://presigned-upload.example.com'])
 
-    // Re-presign is multipart-only; this single-PUT session has no parts to re-presign.
+    // Single-session resume uses the same /parts contract and re-signs part 1.
     const partsRes = await app.request(`/api/objects/${object.id}/uploads/${object.upload.sessionId}/parts`, {
       method: 'POST',
       headers: uploadHeaders,
       body: JSON.stringify({ partNumbers: [1] }),
     })
-    expect(partsRes.status).toBe(409)
+    expect(partsRes.status).toBe(200)
+    const resumedParts = (await partsRes.json()) as {
+      uploadId: string | null
+      mode: string
+      partCount: number
+      parts: Array<{ partNumber: number; url: string }>
+    }
+    expect(resumedParts.uploadId).toBeNull()
+    expect(resumedParts.mode).toBe('single')
+    expect(resumedParts.partCount).toBe(1)
+    expect(resumedParts.parts).toMatchObject([{ partNumber: 1, url: 'https://presigned-upload.example.com' }])
 
     const confirmRes = await app.request(`/api/objects/${object.id}/uploads/${object.upload.sessionId}/completions`, {
       method: 'POST',
