@@ -92,6 +92,21 @@ describe('global OpenAPI document', () => {
       authorization_servers: ['http://localhost:3000/api/auth'],
       scopes_supported: expect.arrayContaining([AuthorizationScope.OBJECTS_READ]),
     })
+
+    const protectedHead = await app.request('/.well-known/oauth-protected-resource/api', { method: 'HEAD' })
+    expect(protectedHead.status).toBe(200)
+  })
+
+  it('serves HEAD for OAuth discovery and OpenID metadata endpoints', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const [authServer, openidConfig] = await Promise.all([
+      app.request('/.well-known/oauth-authorization-server/api/auth', { method: 'HEAD' }),
+      app.request('/.well-known/openid-configuration/api/auth', { method: 'HEAD' }),
+    ])
+
+    expect(authServer.status).toBe(200)
+    expect(openidConfig.status).toBe(404)
+    expect(await authServer.text()).toBe('')
   })
 
   it('documents the workspace-scoped API-key event-stream authorization contract', async () => {

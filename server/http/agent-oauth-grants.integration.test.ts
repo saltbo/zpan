@@ -138,6 +138,20 @@ describe('Agent OAuth grants API integration', () => {
       })
     }
   })
+
+  it('returns 404 when revoking a missing Agent OAuth grant', async () => {
+    const { app } = await createTestApp()
+    const headers = await authedHeaders(app, 'agent-missing-grant@example.com')
+
+    const revoke = await app.request('/api/agent-oauth-grants/missing-grant', { method: 'DELETE', headers })
+
+    expect(revoke.status).toBe(404)
+    await expect(revoke.json()).resolves.toMatchObject({
+      error: {
+        message: 'Agent OAuth grant not found',
+      },
+    })
+  })
 })
 
 function hashStoredToken(token: string): string {
