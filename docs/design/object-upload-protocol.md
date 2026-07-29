@@ -36,7 +36,8 @@ Automation clients should discover and call these OpenAPI operation IDs:
 - `parts`: explicit descriptors with `partNumber`, `url`, `expiresAt`, and
   `headers`.
 
-The v2.9 defaults are 64 MiB multipart parts and a 15 minute presign TTL.
+The current v2.9 implementation defaults are 64 MiB multipart parts and a 15
+minute presign TTL, pending explicit owner product confirmation.
 Presigned upload URLs are short-lived. When a multipart URL expires, automation calls
 `presignObjectUploadParts` with only the missing part numbers. Re-signing never
 changes the workspace, object, session, storage key, or multipart upload
