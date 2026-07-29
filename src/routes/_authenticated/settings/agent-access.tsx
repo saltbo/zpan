@@ -167,7 +167,7 @@ function CreateAgentKeyDialog({
                     onCheckedChange={(checked) => toggleScope(scope, !!checked)}
                   />
                   <Label htmlFor={checkboxId} className="font-normal">
-                    {t(`settings.agentAccess.scope.${scope}`)}
+                    {t(agentScopeLabels[scope])}
                   </Label>
                 </div>
               )
@@ -361,7 +361,7 @@ export function AgentAccessSettingsPage() {
                       <div className="flex max-w-md flex-wrap gap-1">
                         {row.scopes.map((scope) => (
                           <Badge key={scope} variant="secondary">
-                            {t(`settings.agentAccess.scope.${scope}`)}
+                            {t(agentScopeLabels[scope])}
                           </Badge>
                         ))}
                       </div>

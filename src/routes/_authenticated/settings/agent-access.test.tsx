@@ -17,8 +17,20 @@ const state = vi.hoisted(() => ({
   webdavEnabled: true,
 }))
 
+const translations: Record<string, string> = {
+  'settings.agentAccess.scope.objectsRead': 'Files: read objects',
+  'settings.agentAccess.scope.objectsCreate': 'Files: create objects',
+  'settings.agentAccess.scope.objectsUpdate': 'Files: update objects',
+  'settings.agentAccess.scope.objectsDelete': 'Files: delete objects',
+  'settings.agentAccess.scope.sharesRead': 'Shares: read shares',
+  'settings.agentAccess.scope.sharesCreate': 'Shares: create shares',
+  'settings.agentAccess.scope.sharesDelete': 'Shares: revoke shares',
+  'settings.agentAccess.scope.quotaRead': 'Quota: read workspace quota',
+  'settings.agentAccess.scope.storageUsageRead': 'Storage usage: read workspace usage',
+}
+
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => translations[key] ?? key }),
 }))
 
 vi.mock('sonner', () => ({
@@ -111,6 +123,20 @@ describe('Agent Access settings page', () => {
 
     expect(screen.getByLabelText('settings.agentAccess.nameLabel')).toBeTruthy()
     expect(screen.getByLabelText('settings.agentAccess.expiryLabel')).toBeTruthy()
+    for (const label of [
+      'Files: read objects',
+      'Files: create objects',
+      'Files: update objects',
+      'Files: delete objects',
+      'Shares: read shares',
+      'Shares: create shares',
+      'Shares: revoke shares',
+      'Quota: read workspace quota',
+      'Storage usage: read workspace usage',
+    ]) {
+      expect(screen.getByText(label)).toBeTruthy()
+    }
+    expect(screen.queryByText(/settings\.agentAccess\.scope\..*:/)).toBeNull()
   })
 
   it('creates a workspace Agent API key and reveals the secret once', async () => {

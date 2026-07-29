@@ -1,3 +1,4 @@
+import { defaultKeyHasher } from '@better-auth/api-key'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { authedHeaders, createTestApp } from '../test/setup.js'
@@ -84,6 +85,25 @@ async function createAgentKey(app: TestApp['app'], headers: Record<string, strin
   return (await res.json()) as { key: string; item: { id: string; orgId: string; scopes: string[]; status: string } }
 }
 
+async function insertLegacyAgentKey(db: TestApp['db'], userId: string): Promise<string> {
+  const now = Date.now()
+  const key = 'zpan_agent_legacy_integration_key'
+  const hashedKey = await defaultKeyHasher(key)
+  await db.run(sql`
+    INSERT INTO apikey (
+      id, config_id, name, start, reference_id, prefix, key,
+      enabled, rate_limit_enabled, rate_limit_time_window, rate_limit_max, request_count,
+      expires_at, created_at, updated_at, permissions, metadata
+    )
+    VALUES (
+      'legacy-agent-key', 'agent', 'Legacy Agent key', 'zpan_age', ${userId}, 'zpan_agent_', ${hashedKey},
+      1, 1, 60000, 600, 0,
+      ${now + 90 * 24 * 60 * 60 * 1000}, ${now}, ${now}, '{"objects":["read"]}', NULL
+    )
+  `)
+  return key
+}
+
 describe('Agent API keys', () => {
   it('creates, lists, rotates, and revokes a personal workspace key [spec: agent-api-keys/lifecycle]', async () => {
     const { app, db } = await createTestApp()
@@ -165,14 +185,13 @@ describe('Agent API keys', () => {
     const headers = await authedHeaders(app)
     const { orgId, userId } = await getUserAndPersonalOrg(db)
     await insertStorage(db)
-    await insertTeamOrg(db, 'agent-other-team', userId, 'viewer')
     const created = await createAgentKey(app, headers, orgId, ['objects:create'])
     const auth = { Authorization: `Bearer ${created.key}` }
 
     const missingScope = await app.request('/api/objects', { headers: auth })
     expect(missingScope.status).toBe(403)
 
-    const wrongWorkspace = await app.request('/api/objects?orgId=agent-other-team', { headers: auth })
+    const wrongWorkspace = await app.request('/api/objects?orgId=agent-other-workspace', { headers: auth })
     expect(wrongWorkspace.status).toBe(403)
 
     await app.request(`/api/workspaces/${orgId}/agent-api-keys/${created.item.id}`, { method: 'DELETE', headers })
@@ -236,5 +255,32 @@ describe('Agent API keys', () => {
       body: JSON.stringify({ status: 'revoked' }),
     })
     expect(revoke.status).toBe(403)
+  })
+
+  it('denies an old team workspace key after the owner membership is removed [spec: agent-api-keys/denials]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const { userId } = await getUserAndPersonalOrg(db)
+    await insertStorage(db)
+    await insertTeamOrg(db, 'agent-removed-team', userId, 'editor')
+    await insertFile(db, 'agent-removed-team', 'agent-removed-readable')
+    const created = await createAgentKey(app, headers, 'agent-removed-team', ['objects:read'])
+
+    await db.run(sql`DELETE FROM member WHERE organization_id = 'agent-removed-team' AND user_id = ${userId}`)
+
+    const denied = await app.request('/api/objects?orgId=agent-removed-team', {
+      headers: { Authorization: `Bearer ${created.key}` },
+    })
+    expect(denied.status).toBe(403)
+  })
+
+  it('denies a legacy Better Auth Agent key without scoped metadata [spec: agent-api-keys/denials]', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    const { userId } = await getUserAndPersonalOrg(db)
+    const key = await insertLegacyAgentKey(db, userId)
+
+    const denied = await app.request('/api/objects', { headers: { Authorization: `Bearer ${key}` } })
+    expect(denied.status).toBe(401)
   })
 })

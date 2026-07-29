@@ -58,13 +58,13 @@ export const agentApiKeyShortcutOptions = Object.entries(AGENT_API_KEY_SHORTCUT_
 }))
 
 export const agentScopeLabels = {
-  [AuthorizationScope.OBJECTS_READ]: 'objects:read',
-  [AuthorizationScope.OBJECTS_CREATE]: 'objects:create',
-  [AuthorizationScope.OBJECTS_UPDATE]: 'objects:update',
-  [AuthorizationScope.OBJECTS_DELETE]: 'objects:delete',
-  [AuthorizationScope.SHARES_READ]: 'shares:read',
-  [AuthorizationScope.SHARES_CREATE]: 'shares:create',
-  [AuthorizationScope.SHARES_DELETE]: 'shares:delete',
-  [AuthorizationScope.QUOTA_READ]: 'quota:read',
-  [AuthorizationScope.STORAGE_USAGE_READ]: 'storage-usage:read',
+  [AuthorizationScope.OBJECTS_READ]: 'settings.agentAccess.scope.objectsRead',
+  [AuthorizationScope.OBJECTS_CREATE]: 'settings.agentAccess.scope.objectsCreate',
+  [AuthorizationScope.OBJECTS_UPDATE]: 'settings.agentAccess.scope.objectsUpdate',
+  [AuthorizationScope.OBJECTS_DELETE]: 'settings.agentAccess.scope.objectsDelete',
+  [AuthorizationScope.SHARES_READ]: 'settings.agentAccess.scope.sharesRead',
+  [AuthorizationScope.SHARES_CREATE]: 'settings.agentAccess.scope.sharesCreate',
+  [AuthorizationScope.SHARES_DELETE]: 'settings.agentAccess.scope.sharesDelete',
+  [AuthorizationScope.QUOTA_READ]: 'settings.agentAccess.scope.quotaRead',
+  [AuthorizationScope.STORAGE_USAGE_READ]: 'settings.agentAccess.scope.storageUsageRead',
 } as const satisfies Record<AgentGrantableScope, string>
