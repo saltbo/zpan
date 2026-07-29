@@ -117,6 +117,33 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       await next()
       return
     }
+    const agentOAuth = await deps.agentOAuth.verifyAccessToken(platform.db, token)
+    if (agentOAuth) {
+      if (await deps.userAdmin.isBanned(agentOAuth.userId)) throw unauthorized('Unauthorized')
+      c.set('principal', {
+        kind: 'agent-oauth',
+        grantId: agentOAuth.grantId,
+        clientId: agentOAuth.clientId,
+        orgId: agentOAuth.orgId,
+        userId: agentOAuth.userId,
+        scopes: agentOAuth.scopes,
+        authMethod: 'bearer',
+      })
+      c.set('authzContext', {
+        credential: 'agent_oauth',
+        userId: agentOAuth.userId,
+        orgId: agentOAuth.orgId,
+        fixedOrgId: agentOAuth.orgId,
+        grantedScopes: new Set(agentOAuth.scopes),
+        actor: { type: 'agent_oauth', ref: agentOAuth.grantId },
+        state: { clientId: agentOAuth.clientId },
+      })
+      c.set('userId', agentOAuth.userId)
+      c.set('userRole', null)
+      c.set('orgId', agentOAuth.orgId)
+      await next()
+      return
+    }
     const bootstrap = await deps.downloaderBootstrapCredentials.resolve(platform, token, new Date())
     if (bootstrap) {
       c.set('userId', bootstrap.userId)

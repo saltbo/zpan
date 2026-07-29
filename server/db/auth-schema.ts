@@ -216,6 +216,128 @@ export const deviceCode = sqliteTable(
   ],
 )
 
+export const oauthClient = sqliteTable(
+  'oauthClient',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull().unique(),
+    clientSecret: text('client_secret'),
+    disabled: integer('disabled', { mode: 'boolean' }).default(false),
+    skipConsent: integer('skip_consent', { mode: 'boolean' }),
+    enableEndSession: integer('enable_end_session', { mode: 'boolean' }),
+    subjectType: text('subject_type'),
+    scopes: text('scopes'), // JSON-serialized string[]
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+    name: text('name'),
+    uri: text('uri'),
+    icon: text('icon'),
+    contacts: text('contacts'), // JSON-serialized string[]
+    tos: text('tos'),
+    policy: text('policy'),
+    softwareId: text('software_id'),
+    softwareVersion: text('software_version'),
+    softwareStatement: text('software_statement'),
+    redirectUris: text('redirect_uris').notNull(), // JSON-serialized string[]
+    postLogoutRedirectUris: text('post_logout_redirect_uris'), // JSON-serialized string[]
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    grantTypes: text('grant_types'), // JSON-serialized string[]
+    responseTypes: text('response_types'), // JSON-serialized string[]
+    public: integer('public', { mode: 'boolean' }),
+    type: text('type'),
+    requirePKCE: integer('require_pkce', { mode: 'boolean' }),
+    referenceId: text('reference_id'),
+    metadata: text('metadata'),
+  },
+  (table) => [index('oauthClient_client_id_idx').on(table.clientId), index('oauthClient_user_id_idx').on(table.userId)],
+)
+
+export const oauthRefreshToken = sqliteTable(
+  'oauthRefreshToken',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    revoked: integer('revoked', { mode: 'timestamp_ms' }),
+    authTime: integer('auth_time', { mode: 'timestamp_ms' }),
+    scopes: text('scopes').notNull(), // JSON-serialized string[]
+  },
+  (table) => [
+    index('oauthRefreshToken_client_id_idx').on(table.clientId),
+    index('oauthRefreshToken_session_id_idx').on(table.sessionId),
+    index('oauthRefreshToken_user_id_idx').on(table.userId),
+    index('oauthRefreshToken_token_idx').on(table.token),
+  ],
+)
+
+export const oauthAccessToken = sqliteTable(
+  'oauthAccessToken',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    refreshId: text('refresh_id').references(() => oauthRefreshToken.id, { onDelete: 'cascade' }),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    scopes: text('scopes').notNull(), // JSON-serialized string[]
+  },
+  (table) => [
+    index('oauthAccessToken_client_id_idx').on(table.clientId),
+    index('oauthAccessToken_session_id_idx').on(table.sessionId),
+    index('oauthAccessToken_user_id_idx').on(table.userId),
+    index('oauthAccessToken_refresh_id_idx').on(table.refreshId),
+    index('oauthAccessToken_token_idx').on(table.token),
+  ],
+)
+
+export const oauthConsent = sqliteTable(
+  'oauthConsent',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    scopes: text('scopes').notNull(), // JSON-serialized string[]
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index('oauthConsent_client_id_idx').on(table.clientId),
+    index('oauthConsent_user_id_idx').on(table.userId),
+  ],
+)
+
 export const downloaderBootstrapCredential = sqliteTable(
   'downloader_bootstrap_credentials',
   {

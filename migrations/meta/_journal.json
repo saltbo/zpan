@@ -561,6 +561,13 @@
       "when": 1785289409896,
       "tag": "0080_downloader-bootstrap-credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "6",
+      "when": 1785337905649,
+      "tag": "0081_spotty_boomerang",
+      "breakpoints": true
     }
   ]
 }

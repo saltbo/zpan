@@ -114,6 +114,85 @@ const AUTH_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS deviceCode_device_code_idx ON deviceCode(device_code);
   CREATE INDEX IF NOT EXISTS deviceCode_user_code_idx ON deviceCode(user_code);
   CREATE INDEX IF NOT EXISTS deviceCode_status_idx ON deviceCode(status);
+  CREATE TABLE IF NOT EXISTS oauthClient (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL UNIQUE,
+    client_secret TEXT,
+    disabled INTEGER DEFAULT 0,
+    skip_consent INTEGER,
+    enable_end_session INTEGER,
+    subject_type TEXT,
+    scopes TEXT,
+    user_id TEXT REFERENCES user(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+    updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+    name TEXT,
+    uri TEXT,
+    icon TEXT,
+    contacts TEXT,
+    tos TEXT,
+    policy TEXT,
+    software_id TEXT,
+    software_version TEXT,
+    software_statement TEXT,
+    redirect_uris TEXT NOT NULL,
+    post_logout_redirect_uris TEXT,
+    token_endpoint_auth_method TEXT,
+    grant_types TEXT,
+    response_types TEXT,
+    public INTEGER,
+    type TEXT,
+    require_pkce INTEGER,
+    reference_id TEXT,
+    metadata TEXT
+  );
+  CREATE INDEX IF NOT EXISTS oauthClient_client_id_idx ON oauthClient(client_id);
+  CREATE INDEX IF NOT EXISTS oauthClient_user_id_idx ON oauthClient(user_id);
+  CREATE TABLE IF NOT EXISTS oauthRefreshToken (
+    id TEXT PRIMARY KEY,
+    token TEXT NOT NULL UNIQUE,
+    client_id TEXT NOT NULL REFERENCES oauthClient(client_id) ON DELETE CASCADE,
+    session_id TEXT REFERENCES session(id) ON DELETE SET NULL,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    reference_id TEXT,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+    revoked INTEGER,
+    auth_time INTEGER,
+    scopes TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS oauthRefreshToken_client_id_idx ON oauthRefreshToken(client_id);
+  CREATE INDEX IF NOT EXISTS oauthRefreshToken_session_id_idx ON oauthRefreshToken(session_id);
+  CREATE INDEX IF NOT EXISTS oauthRefreshToken_user_id_idx ON oauthRefreshToken(user_id);
+  CREATE INDEX IF NOT EXISTS oauthRefreshToken_token_idx ON oauthRefreshToken(token);
+  CREATE TABLE IF NOT EXISTS oauthAccessToken (
+    id TEXT PRIMARY KEY,
+    token TEXT NOT NULL UNIQUE,
+    client_id TEXT NOT NULL REFERENCES oauthClient(client_id) ON DELETE CASCADE,
+    session_id TEXT REFERENCES session(id) ON DELETE SET NULL,
+    user_id TEXT REFERENCES user(id) ON DELETE CASCADE,
+    reference_id TEXT,
+    refresh_id TEXT REFERENCES oauthRefreshToken(id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+    scopes TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS oauthAccessToken_client_id_idx ON oauthAccessToken(client_id);
+  CREATE INDEX IF NOT EXISTS oauthAccessToken_session_id_idx ON oauthAccessToken(session_id);
+  CREATE INDEX IF NOT EXISTS oauthAccessToken_user_id_idx ON oauthAccessToken(user_id);
+  CREATE INDEX IF NOT EXISTS oauthAccessToken_refresh_id_idx ON oauthAccessToken(refresh_id);
+  CREATE INDEX IF NOT EXISTS oauthAccessToken_token_idx ON oauthAccessToken(token);
+  CREATE TABLE IF NOT EXISTS oauthConsent (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL REFERENCES oauthClient(client_id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES user(id) ON DELETE CASCADE,
+    reference_id TEXT,
+    scopes TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+    updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  );
+  CREATE INDEX IF NOT EXISTS oauthConsent_client_id_idx ON oauthConsent(client_id);
+  CREATE INDEX IF NOT EXISTS oauthConsent_user_id_idx ON oauthConsent(user_id);
   CREATE TABLE IF NOT EXISTS downloader_bootstrap_credentials (
     id TEXT PRIMARY KEY,
     token_hash TEXT NOT NULL UNIQUE,

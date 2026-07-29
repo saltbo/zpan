@@ -10,6 +10,7 @@ import { isPotentialWebDavPublicRequest, isWebDavPublicRequest } from './domain/
 import { adminOverview } from './http/admin-overview'
 import { adminStats } from './http/admin-stats'
 import agentApiKeys from './http/agent-api-keys'
+import { agentOAuthGrants } from './http/agent-oauth-grants'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
 import { configz } from './http/configz'
@@ -131,9 +132,38 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     }),
   )
 
-  app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
+  app.on(['POST', 'GET', 'HEAD'], '/api/auth/*', async (c) => {
     const a = c.get('auth')
     return a.handler(c.req.raw)
+  })
+
+  app.on(['GET', 'HEAD'], '/.well-known/oauth-authorization-server/api/auth', async (c) => {
+    return c.get('auth').handler(c.req.raw)
+  })
+
+  app.on(['GET', 'HEAD'], '/.well-known/openid-configuration/api/auth', async (c) => {
+    return c.get('auth').handler(c.req.raw)
+  })
+
+  app.on(['GET', 'HEAD'], '/.well-known/oauth-protected-resource/api', (c) => {
+    const origin = new URL(c.req.url).origin
+    return c.json({
+      resource: `${origin}/api`,
+      authorization_servers: [`${origin}/api/auth`],
+      bearer_methods_supported: ['header'],
+      scopes_supported: [
+        'objects:read',
+        'objects:create',
+        'objects:update',
+        'objects:delete',
+        'shares:read',
+        'shares:create',
+        'shares:delete',
+        'quota:read',
+        'storage-usage:read',
+      ],
+      resource_name: 'ZPan API',
+    })
   })
 
   // Global OpenAPI document. Aggregates every route defined with `.openapi()`
@@ -166,10 +196,79 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       doc.paths[`/api/auth${path}`] = item as (typeof doc.paths)[string]
     }
     doc.components ??= {}
+    doc.components.securitySchemes = {
+      ...(doc.components.securitySchemes ?? {}),
+      cookieAuth: { type: 'apiKey', in: 'cookie', name: 'zp.session_token' },
+      bearerAuth: { type: 'http', scheme: 'bearer' },
+      agentOAuth2: {
+        type: 'oauth2',
+        flows: {
+          authorizationCode: {
+            authorizationUrl: '/api/auth/oauth2/authorize',
+            tokenUrl: '/api/auth/oauth2/token',
+            refreshUrl: '/api/auth/oauth2/token',
+            scopes: {
+              'objects:read': 'List, inspect, and download objects',
+              'objects:create': 'Create folders and upload objects',
+              'objects:update': 'Rename, move, and copy objects',
+              'objects:delete': 'Soft-delete objects',
+              'shares:read': 'List and inspect shares',
+              'shares:create': 'Create public shares',
+              'shares:delete': 'Revoke shares',
+              'quota:read': 'Inspect workspace quota',
+              'storage-usage:read': 'Inspect workspace storage usage',
+            },
+          },
+        },
+      },
+      agentApiKey: { type: 'http', scheme: 'bearer', description: 'Workspace-scoped Agent API key' },
+    }
     doc.components.schemas = {
       ...(authDoc.components?.schemas as typeof doc.components.schemas),
       ...doc.components.schemas,
     }
+    Object.assign(doc, {
+      'x-cli-config': {
+        auth: {
+          reader: {
+            type: 'oauth-authorization-code',
+            params: {
+              authorize_url: '/api/auth/oauth2/authorize',
+              token_url: '/api/auth/oauth2/token',
+              client_id: 'zpan-agent',
+              scopes: 'openid offline_access objects:read shares:read quota:read storage-usage:read',
+              redirect_path: '/callback',
+            },
+          },
+          'file-manager': {
+            type: 'oauth-authorization-code',
+            params: {
+              authorize_url: '/api/auth/oauth2/authorize',
+              token_url: '/api/auth/oauth2/token',
+              client_id: 'zpan-agent',
+              scopes:
+                'openid offline_access objects:read objects:create objects:update objects:delete shares:read quota:read storage-usage:read',
+              redirect_path: '/callback',
+            },
+          },
+          publisher: {
+            type: 'oauth-authorization-code',
+            params: {
+              authorize_url: '/api/auth/oauth2/authorize',
+              token_url: '/api/auth/oauth2/token',
+              client_id: 'zpan-agent',
+              scopes:
+                'openid offline_access objects:read shares:read shares:create shares:delete quota:read storage-usage:read',
+              redirect_path: '/callback',
+            },
+          },
+          ci: {
+            type: 'http-bearer',
+            params: { token: 'env:ZPAN_AGENT_API_KEY' },
+          },
+        },
+      },
+    })
 
     // better-auth's device-authorization plugin advertises POST /device/token as
     // returning { session, user }, but its handler actually returns the OAuth
@@ -255,6 +354,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/shares', authedShares)
   app.route('/api/trash', trash)
   app.route('/api/workspaces', agentApiKeys)
+  app.route('/api', agentOAuthGrants)
   app.route('/api/teams', teams)
   app.route('/api/teams', adminTeams)
   app.route('/api/site/storages', storages)
