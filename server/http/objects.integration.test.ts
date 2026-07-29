@@ -506,6 +506,11 @@ describe('Objects API', () => {
     expect(S3Service.prototype.deleteObject).toHaveBeenCalled()
     const check = await app.request(`/api/objects/${created.id}`, { headers })
     expect(check.status).toBe(404)
+    const repeated = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}`, {
+      method: 'DELETE',
+      headers,
+    })
+    expect(repeated.status).toBe(204)
     void db
   })
 

@@ -517,9 +517,17 @@ export async function abortUpload(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions'>,
   params: { orgId: string; objectId: string; sessionId: string; actorId: string; strictStorageCleanup?: boolean },
 ): Promise<void> {
-  const { matter: sessionMatter, storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
   const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
   if (!record) throw new ObjectUploadSessionError('not_found')
+  if (record.status === 'aborted') {
+    const sessionMatter = await deps.matter.get(params.objectId, params.orgId)
+    if (sessionMatter?.status === 'draft') {
+      await deps.matter.cancelDraft(params.objectId, params.orgId)
+    }
+    return
+  }
+
+  const { matter: sessionMatter, storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
   if (record.status === 'completed') {
     if (sessionMatter.status !== 'draft' || record.uploadId == null) {
       throw new ObjectUploadSessionError('invalid_state', 'Upload already completed')
@@ -531,12 +539,6 @@ export async function abortUpload(
     }
     await deps.objectUploadSessions.setStatus(record.id, 'aborted')
     await deps.matter.cancelDraft(params.objectId, params.orgId)
-    return
-  }
-  if (record.status === 'aborted') {
-    if (sessionMatter.status === 'draft') {
-      await deps.matter.cancelDraft(params.objectId, params.orgId)
-    }
     return
   }
 

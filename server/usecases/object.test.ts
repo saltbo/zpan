@@ -1115,6 +1115,16 @@ describe('object usecase', () => {
       expect(cancelDraft).toHaveBeenCalledWith('d1', 'o1')
     })
 
+    it('returns successfully for an already-aborted session whose draft was already deleted', async () => {
+      const cancelDraft = vi.fn()
+      const { deps } = makeDeps({
+        matter: { get: async () => null, cancelDraft },
+        objectUploadSessions: { get: async () => session({ status: 'aborted' }) },
+      })
+      await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
+      expect(cancelDraft).not.toHaveBeenCalled()
+    })
+
     it('is idempotent for an already-aborted non-draft session', async () => {
       const cancelDraft = vi.fn(async () => null)
       const { deps } = makeDeps({
