@@ -2,6 +2,7 @@ import { DirType } from '@shared/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   abortUpload,
+  authorizeTaskUploadAbort,
   authorizeTaskUploadConfirm,
   completeUpload,
   copyObject,
@@ -13,9 +14,11 @@ import {
   listObjects,
   listTrashedObjects,
   type ObjectActor,
+  presignUploadSessionParts,
   restoreObject,
   transferObject,
   trashObject,
+  UPLOAD_PRESIGNED_URL_TTL_SECONDS,
   updateObject,
 } from './object'
 import {
@@ -320,12 +323,29 @@ describe('object usecase', () => {
       })
       expect(out.ok).toBe(true)
       if (out.ok && 'upload' in out) {
-        // ≤5 GiB → single PutObject: one URL, partSize equals the file size.
+        // Small file → single PutObject: one explicit part, partSize equals the file size.
         expect(out.upload.sessionId).toBe('sess-1')
-        expect(out.upload.urls).toEqual(['https://up'])
+        expect(out.upload.mode).toBe('single')
+        expect(out.upload.uploadId).toBeNull()
         expect(out.upload.partSize).toBe(2048)
+        expect(out.upload.partCount).toBe(1)
+        expect(out.upload.requiredHeaders).toEqual({ 'content-type': 'image/jpeg' })
+        expect(out.upload.urls).toEqual(['https://up'])
+        expect(out.upload.parts).toEqual([
+          {
+            partNumber: 1,
+            url: 'https://up',
+            expiresAt: out.upload.presignedExpiresAt,
+            headers: { 'content-type': 'image/jpeg' },
+          },
+        ])
         expect(out.matter.status).toBe('draft')
-        expect(presignUpload).toHaveBeenCalledWith(storage, expect.any(String), 'image/jpeg')
+        expect(presignUpload).toHaveBeenCalledWith(
+          storage,
+          expect.any(String),
+          'image/jpeg',
+          UPLOAD_PRESIGNED_URL_TTL_SECONDS,
+        )
       } else {
         throw new Error('expected upload outcome')
       }
@@ -346,7 +366,12 @@ describe('object usecase', () => {
 
       expect(out.ok).toBe(true)
       expect(create).toHaveBeenCalledWith(expect.objectContaining({ type: '' }))
-      expect(presignUpload).toHaveBeenCalledWith(storage, expect.any(String), undefined)
+      expect(presignUpload).toHaveBeenCalledWith(
+        storage,
+        expect.any(String),
+        undefined,
+        UPLOAD_PRESIGNED_URL_TTL_SECONDS,
+      )
     })
 
     it('uses an eligible requested storage for a file draft', async () => {
@@ -417,11 +442,13 @@ describe('object usecase', () => {
     })
 
     it('creates a large file draft and returns multipart upload instructions', async () => {
-      const fiveGiB = 5 * 1024 * 1024 * 1024
-      const size = fiveGiB + 1 // just over 5 GiB → two 5 GiB parts
+      const multipartPartSize = 64 * 1024 * 1024
+      const size = multipartPartSize + 1
       const draft = file('big', { status: 'draft', object: 'o1/u1/big.bin', name: 'big.bin', size })
       const createMultipartUpload = vi.fn(async () => 'mp-1')
-      const presignUploadPart = vi.fn(async () => 'https://part')
+      const presignUploadPart = vi.fn(
+        async (_storage: unknown, _key: string, _uploadId: string, partNumber: number) => `https://part-${partNumber}`,
+      )
       const { deps } = makeDeps({
         matter: { create: async () => draft },
         s3: { createMultipartUpload, presignUploadPart } as Partial<S3Gateway>,
@@ -433,9 +460,24 @@ describe('object usecase', () => {
       })
       expect(out.ok).toBe(true)
       if (out.ok && 'upload' in out) {
-        expect(out.upload.partSize).toBe(fiveGiB)
-        expect(out.upload.urls).toHaveLength(2)
+        expect(out.upload.mode).toBe('multipart')
+        expect(out.upload.uploadId).toBe('mp-1')
+        expect(out.upload.partSize).toBe(multipartPartSize)
+        expect(out.upload.partCount).toBe(2)
+        expect(out.upload.requiredHeaders).toEqual({})
+        expect(out.upload.urls).toEqual(['https://part-1', 'https://part-2'])
+        expect(out.upload.parts).toEqual([
+          { partNumber: 1, url: 'https://part-1', expiresAt: out.upload.presignedExpiresAt, headers: {} },
+          { partNumber: 2, url: 'https://part-2', expiresAt: out.upload.presignedExpiresAt, headers: {} },
+        ])
         expect(createMultipartUpload).toHaveBeenCalled()
+        expect(presignUploadPart).toHaveBeenCalledWith(
+          storage,
+          expect.any(String),
+          'mp-1',
+          1,
+          UPLOAD_PRESIGNED_URL_TTL_SECONDS,
+        )
       } else {
         throw new Error('expected upload outcome')
       }
@@ -691,6 +733,193 @@ describe('object usecase', () => {
       expect(activateDraft).toHaveBeenCalledWith('d1', 'o1', 'd1.txt', 'audio/flac', expect.any(Date))
     })
 
+    it('retries activation after multipart storage completion without completing S3 again', async () => {
+      const draft = file('d1', { status: 'draft', size: 100 })
+      let sessionStatus: ObjectUploadSessionRecord['status'] = 'active'
+      let quotaAttempts = 0
+      const completeMultipartUpload = vi.fn(async () => {})
+      const setStatus = vi.fn(async (_id: string, status: ObjectUploadSessionRecord['status']) => {
+        sessionStatus = status
+      })
+      const headObject = vi.fn(async () => ({ size: 100, contentType: 'audio/flac', etag: 'multipart-etag' }))
+      const activateDraft = vi.fn(async () => true)
+      const { deps } = makeDeps({
+        matter: { get: async () => draft, activateDraft },
+        s3: { completeMultipartUpload, headObject } as Partial<S3Gateway>,
+        objectUploadSessions: {
+          get: async () => session({ status: sessionStatus, uploadId: 'mp-1' }),
+          setStatus,
+        },
+        quota: {
+          incrementUsageIfEffectiveQuotaAllows: async () => {
+            quotaAttempts += 1
+            return quotaAttempts > 1
+          },
+        },
+      })
+
+      const first = await completeUpload(deps, {
+        orgId: 'o1',
+        objectId: 'd1',
+        sessionId: 'sess-1',
+        parts: [{ partNumber: 1, etag: 'e1' }],
+        actorId: 'u1',
+      })
+      expectError(first, 422, 'Quota exceeded', 'QUOTA_EXCEEDED')
+
+      const second = await completeUpload(deps, {
+        orgId: 'o1',
+        objectId: 'd1',
+        sessionId: 'sess-1',
+        parts: [{ partNumber: 1, etag: 'e1' }],
+        actorId: 'u1',
+      })
+
+      expect(second.ok).toBe(true)
+      expect(completeMultipartUpload).toHaveBeenCalledTimes(1)
+      expect(setStatus).toHaveBeenCalledTimes(1)
+      expect(setStatus).toHaveBeenCalledWith('sess-1', 'completed')
+      expect(headObject).toHaveBeenCalledTimes(2)
+      expect(activateDraft).toHaveBeenCalledTimes(1)
+    })
+
+    it('retries a multipart activation race without completing S3 again', async () => {
+      const draft = file('d1', { status: 'draft', size: 100 })
+      let sessionStatus: ObjectUploadSessionRecord['status'] = 'active'
+      let activationAttempts = 0
+      const completeMultipartUpload = vi.fn(async () => {})
+      const setStatus = vi.fn(async (_id: string, status: ObjectUploadSessionRecord['status']) => {
+        sessionStatus = status
+      })
+      const headObject = vi.fn(async () => ({ size: 100, contentType: 'audio/flac', etag: 'multipart-etag' }))
+      const activateDraft = vi.fn(async () => {
+        activationAttempts += 1
+        return activationAttempts > 1
+      })
+      const { deps } = makeDeps({
+        matter: { get: async () => draft, activateDraft },
+        s3: { completeMultipartUpload, headObject } as Partial<S3Gateway>,
+        objectUploadSessions: {
+          get: async () => session({ status: sessionStatus, uploadId: 'mp-1' }),
+          setStatus,
+        },
+      })
+
+      const first = await completeUpload(deps, {
+        orgId: 'o1',
+        objectId: 'd1',
+        sessionId: 'sess-1',
+        parts: [{ partNumber: 1, etag: 'e1' }],
+        actorId: 'u1',
+      })
+      expect(first).toEqual({ ok: false, reason: 'not_found' })
+
+      const second = await completeUpload(deps, {
+        orgId: 'o1',
+        objectId: 'd1',
+        sessionId: 'sess-1',
+        parts: [{ partNumber: 1, etag: 'e1' }],
+        actorId: 'u1',
+      })
+
+      expect(second.ok).toBe(true)
+      expect(completeMultipartUpload).toHaveBeenCalledTimes(1)
+      expect(setStatus).toHaveBeenCalledTimes(1)
+      expect(setStatus).toHaveBeenCalledWith('sess-1', 'completed')
+      expect(headObject).toHaveBeenCalledTimes(2)
+      expect(activateDraft).toHaveBeenCalledTimes(2)
+    })
+
+    it('returns the active object when completion is repeated for an already-completed session', async () => {
+      const active = file('d1', { status: 'active' })
+      const completeMultipartUpload = vi.fn()
+      const headObject = vi.fn()
+      const setStatus = vi.fn()
+      const { deps } = makeDeps({
+        matter: { get: async () => active },
+        s3: { completeMultipartUpload, headObject } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ status: 'completed', uploadId: 'mp-1' }), setStatus },
+      })
+
+      const out = await completeUpload(deps, {
+        orgId: 'o1',
+        objectId: 'd1',
+        sessionId: 'sess-1',
+        parts: [{ partNumber: 1, etag: 'e1' }],
+        actorId: 'u1',
+      })
+
+      expect(out).toEqual({ ok: true, matter: active })
+      expect(completeMultipartUpload).not.toHaveBeenCalled()
+      expect(headObject).not.toHaveBeenCalled()
+      expect(setStatus).not.toHaveBeenCalled()
+    })
+
+    it('rejects duplicate multipart completion parts before completing storage', async () => {
+      const completeMultipartUpload = vi.fn()
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft', size: 200 }) },
+        s3: { completeMultipartUpload } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ uploadId: 'mp-1', partSize: 100 }) },
+      })
+
+      await expect(
+        completeUpload(deps, {
+          orgId: 'o1',
+          objectId: 'd1',
+          sessionId: 'sess-1',
+          parts: [
+            { partNumber: 1, etag: 'e1' },
+            { partNumber: 1, etag: 'e1-again' },
+          ],
+          actorId: 'u1',
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_state' })
+      expect(completeMultipartUpload).not.toHaveBeenCalled()
+    })
+
+    it('rejects missing multipart completion parts before completing storage', async () => {
+      const completeMultipartUpload = vi.fn()
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft', size: 200 }) },
+        s3: { completeMultipartUpload } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ uploadId: 'mp-1', partSize: 100 }) },
+      })
+
+      await expect(
+        completeUpload(deps, {
+          orgId: 'o1',
+          objectId: 'd1',
+          sessionId: 'sess-1',
+          parts: [{ partNumber: 1, etag: 'e1' }],
+          actorId: 'u1',
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_state' })
+      expect(completeMultipartUpload).not.toHaveBeenCalled()
+    })
+
+    it('rejects an expired upload session before completing storage', async () => {
+      const completeMultipartUpload = vi.fn()
+      const headObject = vi.fn()
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft' }) },
+        s3: { completeMultipartUpload, headObject } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ expiresAt: new Date(Date.now() - 1_000) }) },
+      })
+
+      await expect(
+        completeUpload(deps, {
+          orgId: 'o1',
+          objectId: 'd1',
+          sessionId: 'sess-1',
+          parts: [{ partNumber: 1, etag: 'e1' }],
+          actorId: 'u1',
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_state' })
+      expect(completeMultipartUpload).not.toHaveBeenCalled()
+      expect(headObject).not.toHaveBeenCalled()
+    })
+
     it('throws not_found when the upload session is missing', async () => {
       const draft = file('d1', { status: 'draft' })
       const { deps } = makeDeps({
@@ -750,6 +979,62 @@ describe('object usecase', () => {
     })
   })
 
+  describe('presignUploadSessionParts', () => {
+    it('re-signs bounded explicit multipart part numbers with expiry metadata', async () => {
+      const presignUploadPart = vi.fn(
+        async (_storage: unknown, _key: string, _uploadId: string, partNumber: number) => `https://part-${partNumber}`,
+      )
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft', size: 250 }) },
+        s3: { presignUploadPart } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ uploadId: 'mp-1', partSize: 100 }) },
+      })
+
+      const out = await presignUploadSessionParts(deps, {
+        orgId: 'o1',
+        objectId: 'd1',
+        sessionId: 'sess-1',
+        partNumbers: [3, 1],
+      })
+
+      expect(out.mode).toBe('multipart')
+      expect(out.uploadId).toBe('mp-1')
+      expect(out.partCount).toBe(3)
+      expect(out.parts).toEqual([
+        { partNumber: 3, url: 'https://part-3', expiresAt: out.presignedExpiresAt, headers: {} },
+        { partNumber: 1, url: 'https://part-1', expiresAt: out.presignedExpiresAt, headers: {} },
+      ])
+      expect(presignUploadPart).toHaveBeenCalledWith(storage, 'key/d1', 'mp-1', 3, UPLOAD_PRESIGNED_URL_TTL_SECONDS)
+    })
+
+    it('rejects duplicate or out-of-session re-sign part numbers', async () => {
+      const presignUploadPart = vi.fn()
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft', size: 250 }) },
+        s3: { presignUploadPart } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ uploadId: 'mp-1', partSize: 100 }) },
+      })
+
+      await expect(
+        presignUploadSessionParts(deps, {
+          orgId: 'o1',
+          objectId: 'd1',
+          sessionId: 'sess-1',
+          partNumbers: [1, 1],
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_state' })
+      await expect(
+        presignUploadSessionParts(deps, {
+          orgId: 'o1',
+          objectId: 'd1',
+          sessionId: 'sess-1',
+          partNumbers: [4],
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_state' })
+      expect(presignUploadPart).not.toHaveBeenCalled()
+    })
+  })
+
   describe('abortUpload', () => {
     it('aborts a single-PUT session: best-effort S3 delete + discards the draft', async () => {
       const setStatus = vi.fn(async () => {})
@@ -802,24 +1087,203 @@ describe('object usecase', () => {
       expect(abortMultipartUpload).toHaveBeenCalledWith(storage, 'key/d1', 'mp-1')
     })
 
-    it('is idempotent for an already-aborted session', async () => {
+    it('abandons a completed multipart draft by deleting the finalized object', async () => {
+      const deleteObjectFn = vi.fn(async () => {})
+      const abortMultipartUpload = vi.fn()
+      const setStatus = vi.fn(async () => {})
+      const cancelDraft = vi.fn(async () => file('d1', { status: 'draft' }))
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft' }), cancelDraft },
+        s3: { deleteObject: deleteObjectFn, abortMultipartUpload } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ status: 'completed', uploadId: 'mp-1' }), setStatus },
+      })
+
+      await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
+
+      expect(deleteObjectFn).toHaveBeenCalledWith(storage, 'key/d1')
+      expect(abortMultipartUpload).not.toHaveBeenCalled()
+      expect(setStatus).toHaveBeenCalledWith('sess-1', 'aborted')
+      expect(cancelDraft).toHaveBeenCalledWith('d1', 'o1')
+    })
+
+    it('finishes draft cancellation when retrying an already-aborted session', async () => {
       const cancelDraft = vi.fn(async () => null)
       const { deps } = makeDeps({
         matter: { get: async () => file('d1', { status: 'draft' }), cancelDraft },
         objectUploadSessions: { get: async () => session({ status: 'aborted' }) },
       })
       await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
+      expect(cancelDraft).toHaveBeenCalledWith('d1', 'o1')
+    })
+
+    it('returns successfully for an already-aborted session whose draft was already deleted', async () => {
+      const cancelDraft = vi.fn()
+      const { deps } = makeDeps({
+        matter: { get: async () => null, cancelDraft },
+        objectUploadSessions: { get: async () => session({ status: 'aborted' }) },
+      })
+      await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
       expect(cancelDraft).not.toHaveBeenCalled()
     })
 
-    it('rejects aborting an already-completed session', async () => {
+    it('is idempotent for an already-aborted non-draft session', async () => {
+      const cancelDraft = vi.fn(async () => null)
       const { deps } = makeDeps({
-        matter: { get: async () => file('d1', { status: 'draft' }) },
+        matter: { get: async () => file('d1', { status: 'cancelled' }), cancelDraft },
+        objectUploadSessions: { get: async () => session({ status: 'aborted' }) },
+      })
+      await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
+      expect(cancelDraft).not.toHaveBeenCalled()
+    })
+
+    it('recovers when completed draft abort marked aborted before draft cancellation failed', async () => {
+      let status: ObjectUploadSessionRecord['status'] = 'completed'
+      let cancelAttempts = 0
+      const deleteObjectFn = vi.fn(async () => {})
+      const setStatus = vi.fn(async (_id: string, next: ObjectUploadSessionRecord['status']) => {
+        status = next
+      })
+      const cancelDraft = vi.fn(async () => {
+        cancelAttempts += 1
+        if (cancelAttempts === 1) throw new Error('db write failed')
+        return file('d1', { status: 'draft' })
+      })
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft' }), cancelDraft },
+        s3: { deleteObject: deleteObjectFn },
+        objectUploadSessions: { get: async () => session({ status, uploadId: 'mp-1' }), setStatus },
+      })
+
+      await expect(
+        abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' }),
+      ).rejects.toThrow('db write failed')
+      await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
+
+      expect(deleteObjectFn).toHaveBeenCalledTimes(1)
+      expect(setStatus).toHaveBeenCalledWith('sess-1', 'aborted')
+      expect(cancelDraft).toHaveBeenCalledTimes(2)
+      expect(cancelDraft).toHaveBeenLastCalledWith('d1', 'o1')
+    })
+
+    it('rejects aborting an already-completed active session', async () => {
+      const deleteObjectFn = vi.fn()
+      const cancelDraft = vi.fn()
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'active' }), cancelDraft },
+        s3: { deleteObject: deleteObjectFn },
         objectUploadSessions: { get: async () => session({ status: 'completed' }) },
       })
       await expect(
         abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' }),
       ).rejects.toMatchObject({ code: 'invalid_state' })
+      expect(deleteObjectFn).not.toHaveBeenCalled()
+      expect(cancelDraft).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('presignUploadSessionParts', () => {
+    it('re-signs bounded multipart parts with explicit descriptors', async () => {
+      const presignUploadPart = vi.fn(
+        async (_storage, _key, _uploadId, partNumber: number) => `https://part-${partNumber}`,
+      )
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft', size: 300 }) },
+        s3: { presignUploadPart } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ uploadId: 'mp-1', partSize: 100 }) },
+      })
+
+      const out = await presignUploadSessionParts(deps, {
+        orgId: 'o1',
+        objectId: 'd1',
+        sessionId: 'sess-1',
+        partNumbers: [2, 3],
+      })
+
+      expect(out).toMatchObject({
+        uploadId: 'mp-1',
+        mode: 'multipart',
+        partSize: 100,
+        partCount: 3,
+        requiredHeaders: {},
+        parts: [
+          { partNumber: 2, url: 'https://part-2', headers: {} },
+          { partNumber: 3, url: 'https://part-3', headers: {} },
+        ],
+      })
+      expect(out.parts[0]?.expiresAt).toBe(out.presignedExpiresAt)
+      expect(presignUploadPart).toHaveBeenCalledWith(storage, 'key/d1', 'mp-1', 2, UPLOAD_PRESIGNED_URL_TTL_SECONDS)
+    })
+
+    it('rejects duplicate re-sign part numbers before signing', async () => {
+      const presignUploadPart = vi.fn()
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft', size: 300 }) },
+        s3: { presignUploadPart } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ uploadId: 'mp-1', partSize: 100 }) },
+      })
+
+      await expect(
+        presignUploadSessionParts(deps, {
+          orgId: 'o1',
+          objectId: 'd1',
+          sessionId: 'sess-1',
+          partNumbers: [2, 2],
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_state' })
+      expect(presignUploadPart).not.toHaveBeenCalled()
+    })
+
+    it('rejects re-sign part numbers outside the session part count before signing', async () => {
+      const presignUploadPart = vi.fn()
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft', size: 300 }) },
+        s3: { presignUploadPart } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ uploadId: 'mp-1', partSize: 100 }) },
+      })
+
+      await expect(
+        presignUploadSessionParts(deps, {
+          orgId: 'o1',
+          objectId: 'd1',
+          sessionId: 'sess-1',
+          partNumbers: [4],
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_state' })
+      expect(presignUploadPart).not.toHaveBeenCalled()
+    })
+
+    it('rejects re-sign for expired sessions and single-PUT sessions before signing', async () => {
+      const presignUploadPart = vi.fn()
+      const expired = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft', size: 300 }) },
+        s3: { presignUploadPart } as Partial<S3Gateway>,
+        objectUploadSessions: {
+          get: async () => session({ uploadId: 'mp-1', partSize: 100, expiresAt: new Date(Date.now() - 1_000) }),
+        },
+      })
+      await expect(
+        presignUploadSessionParts(expired.deps, {
+          orgId: 'o1',
+          objectId: 'd1',
+          sessionId: 'sess-1',
+          partNumbers: [1],
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_state' })
+
+      const single = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft', size: 100 }) },
+        s3: { presignUploadPart } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ uploadId: null, partSize: 100 }) },
+      })
+      await expect(
+        presignUploadSessionParts(single.deps, {
+          orgId: 'o1',
+          objectId: 'd1',
+          sessionId: 'sess-1',
+          partNumbers: [1],
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_state' })
+      expect(presignUploadPart).not.toHaveBeenCalled()
     })
   })
 
@@ -1265,6 +1729,53 @@ describe('object usecase', () => {
         },
       })
       expect(await authorizeTaskUploadConfirm(deps, taskParams)).toEqual({ ok: true })
+    })
+  })
+
+  describe('authorizeTaskUploadAbort', () => {
+    const taskParams = {
+      orgId: 'o1',
+      objectId: 'm1',
+      sessionId: 'sess-1',
+      taskId: 't1',
+      downloaderId: 'd1',
+      targetFolder: 'Inbox',
+    }
+
+    it('authorizes an already-aborted upload session after the draft was deleted', async () => {
+      const matterGet = vi.fn(async () => null)
+      const { deps } = makeDeps({
+        matter: { get: matterGet },
+        objectUploadSessions: {
+          get: async () => session({ status: 'aborted', createdBy: 'downloader:d1' }),
+        },
+        downloadTasks: {
+          findRecord: async () =>
+            ({ id: 't1', assignedDownloaderId: 'd1', status: 'uploading' }) as unknown as DownloadTaskRecord,
+        },
+      })
+      expect(await authorizeTaskUploadAbort(deps, taskParams)).toEqual({ ok: true })
+      expect(matterGet).not.toHaveBeenCalled()
+    })
+
+    it('forbids an already-aborted upload session created by another downloader', async () => {
+      const matterGet = vi.fn(async () => null)
+      const { deps } = makeDeps({
+        matter: { get: matterGet },
+        objectUploadSessions: {
+          get: async () => session({ status: 'aborted', createdBy: 'downloader:other' }),
+        },
+      })
+      expectError(await authorizeTaskUploadAbort(deps, taskParams), 403, 'Forbidden')
+      expect(matterGet).not.toHaveBeenCalled()
+    })
+
+    it('still forbids non-aborted abort outside the task target folder', async () => {
+      const { deps } = makeDeps({
+        matter: { get: async () => file('m1', { parent: 'Other' }) },
+        objectUploadSessions: { get: async () => session() },
+      })
+      expectError(await authorizeTaskUploadAbort(deps, taskParams), 403, 'Forbidden')
     })
   })
 })

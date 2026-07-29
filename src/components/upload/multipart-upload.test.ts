@@ -27,7 +27,23 @@ function makeCtx(overrides: Partial<UploadRunnerContext> = {}): UploadRunnerCont
 }
 
 function makeUpload(urls: string[], partSize: number): ObjectUploadInstructions {
-  return { sessionId: 'sess-1', partSize, urls }
+  return {
+    sessionId: 'sess-1',
+    uploadId: urls.length > 1 ? 'upload-1' : null,
+    mode: urls.length > 1 ? 'multipart' : 'single',
+    partSize,
+    partCount: urls.length,
+    expiresAt: '2026-01-01T01:00:00.000Z',
+    presignedExpiresAt: '2026-01-01T00:15:00.000Z',
+    requiredHeaders: {},
+    urls,
+    parts: urls.map((url, index) => ({
+      partNumber: index + 1,
+      url,
+      expiresAt: '2026-01-01T00:15:00.000Z',
+      headers: {},
+    })),
+  }
 }
 
 describe('uploadObjectSlices', () => {

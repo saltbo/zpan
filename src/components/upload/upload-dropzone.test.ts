@@ -252,7 +252,17 @@ describe('UploadDropzone — uploadFn path', () => {
 describe('UploadDropzone — default upload path (no uploadFn)', () => {
   const draft = {
     id: 'obj-1',
-    upload: { sessionId: 'sess-1', partSize: 5 * 1024 * 1024, urls: ['https://s3/part-1'] },
+    upload: {
+      sessionId: 'sess-1',
+      uploadId: null,
+      mode: 'single',
+      partSize: 5 * 1024 * 1024,
+      partCount: 1,
+      expiresAt: '2026-01-01T01:00:00.000Z',
+      presignedExpiresAt: '2026-01-01T00:15:00.000Z',
+      requiredHeaders: {},
+      parts: [{ partNumber: 1, url: 'https://s3/part-1', expiresAt: '2026-01-01T00:15:00.000Z', headers: {} }],
+    },
   }
   const parts = [{ partNumber: 1, etag: 'etag-1' }]
 

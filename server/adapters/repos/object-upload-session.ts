@@ -17,6 +17,7 @@ function toRecord(row: SessionRow): ObjectUploadSessionRecord {
     onConflict: row.onConflict as ObjectUploadSessionRecord['onConflict'],
     status: row.status as ObjectUploadSessionRecord['status'],
     storageKey: row.storageKey,
+    createdBy: row.createdBy,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

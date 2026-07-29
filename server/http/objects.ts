@@ -18,6 +18,7 @@ import { transferAuditActor } from '../middleware/audit-transfers'
 import type { Env } from '../middleware/platform'
 import {
   abortUpload,
+  authorizeTaskUploadAbort,
   authorizeTaskUploadConfirm,
   completeUpload,
   copyObject,
@@ -144,6 +145,36 @@ function actorId(c: Context<Env>): string {
   const principal = c.get('principal')
   if (principal?.kind === 'download-task-upload') return `downloader:${principal.downloaderId}`
   return c.get('userId') ?? 'system'
+}
+
+async function authorizeUploadSessionControl(
+  c: Context<Env>,
+  orgId: string,
+  objectId: string,
+  options: { uploadSessionId?: string } = {},
+): Promise<void> {
+  const principal = c.get('principal')
+  if (principal?.kind !== 'download-task-upload') return
+  if (options.uploadSessionId) {
+    const authorized = await authorizeTaskUploadAbort(c.get('deps'), {
+      orgId,
+      objectId,
+      sessionId: options.uploadSessionId,
+      taskId: principal.taskId,
+      downloaderId: principal.downloaderId,
+      targetFolder: principal.targetFolder,
+    })
+    if (!authorized.ok) throw authorized.error
+    return
+  }
+  const authorized = await authorizeTaskUploadConfirm(c.get('deps'), {
+    orgId,
+    objectId,
+    taskId: principal.taskId,
+    downloaderId: principal.downloaderId,
+    targetFolder: principal.targetFolder,
+  })
+  if (!authorized.ok) throw authorized.error
 }
 
 const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
@@ -441,9 +472,11 @@ const objects = app
   .openapi(presignPartsRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
+    const objectId = c.req.valid('param').id
+    await authorizeUploadSessionControl(c, orgId, objectId)
     const result = await presignUploadSessionParts(c.get('deps'), {
       orgId,
-      objectId: c.req.valid('param').id,
+      objectId,
       sessionId: c.req.valid('param').uploadSessionId,
       partNumbers: c.req.valid('json').partNumbers,
     })
@@ -457,18 +490,7 @@ const objects = app
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
     const objectId = c.req.valid('param').id
-
-    const principal = c.get('principal')
-    if (principal?.kind === 'download-task-upload') {
-      const authorized = await authorizeTaskUploadConfirm(c.get('deps'), {
-        orgId,
-        objectId,
-        taskId: principal.taskId,
-        downloaderId: principal.downloaderId,
-        targetFolder: principal.targetFolder,
-      })
-      if (!authorized.ok) throw authorized.error
-    }
+    await authorizeUploadSessionControl(c, orgId, objectId)
 
     const result = await completeUpload(c.get('deps'), {
       orgId,
@@ -486,10 +508,13 @@ const objects = app
   .openapi(abortUploadRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
+    const objectId = c.req.valid('param').id
+    const uploadSessionId = c.req.valid('param').uploadSessionId
+    await authorizeUploadSessionControl(c, orgId, objectId, { uploadSessionId })
     await abortUpload(c.get('deps'), {
       orgId,
-      objectId: c.req.valid('param').id,
-      sessionId: c.req.valid('param').uploadSessionId,
+      objectId,
+      sessionId: uploadSessionId,
       actorId: actorId(c),
       strictStorageCleanup: c.req.valid('query').strictStorageCleanup !== undefined,
     })

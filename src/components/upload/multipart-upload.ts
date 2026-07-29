@@ -46,8 +46,7 @@ async function runPool<T>(items: T[], concurrency: number, worker: (item: T) => 
 }
 
 /**
- * The uniform upload: PUT every presigned slice directly to S3 (1 URL = single
- * PutObject, N URLs = 5 GiB-part multipart — the server already decided), read
+ * The uniform upload: PUT every explicit presigned part directly to S3, read
  * each slice's ETag, and return them sorted for the completions call. Bounded
  * concurrency, per-slice retry, aggregated progress. Bytes never touch our server.
  */
@@ -56,7 +55,7 @@ export async function uploadObjectSlices(
   file: File,
   ctx: UploadRunnerContext,
 ): Promise<Array<{ partNumber: number; etag: string }>> {
-  const { partSize, urls } = upload
+  const { partSize, parts: uploadParts } = upload
   const completed: Array<{ partNumber: number; etag: string }> = []
   const loadedByPart = new Map<number, number>()
 
@@ -66,14 +65,13 @@ export async function uploadObjectSlices(
     ctx.onProgress({ loaded, total: file.size })
   }
 
-  const slices = urls.map((url, index) => ({ url, partNumber: index + 1 }))
-  await runPool(slices, PART_CONCURRENCY, async ({ url, partNumber }) => {
+  await runPool(uploadParts, PART_CONCURRENCY, async ({ url, partNumber, headers }) => {
     if (ctx.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError')
     const start = (partNumber - 1) * partSize
     const slice = file.slice(start, Math.min(start + partSize, file.size))
     const etag = await uploadPartWithRetry(url, slice, {
       signal: ctx.signal,
-      contentType: file.type || undefined,
+      contentType: headers['content-type'] ?? (file.type || undefined),
       onProgress: (loaded) => {
         loadedByPart.set(partNumber, loaded)
         reportProgress()

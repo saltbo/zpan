@@ -181,10 +181,10 @@ describe('[CF] Objects upload + trash lifecycle (D1)', () => {
     const created = (await createRes.json()) as {
       id: string
       status: string
-      upload: { sessionId: string; urls: string[] }
+      upload: { sessionId: string; parts: Array<{ url: string }> }
     }
     expect(created.status).toBe('draft')
-    expect(created.upload.urls).toEqual(['https://cf-presigned-upload.example.com'])
+    expect(created.upload.parts.map((part) => part.url)).toEqual(['https://cf-presigned-upload.example.com'])
 
     // Finalize via completions (HEAD etag matches).
     const completeRes = await app.request(

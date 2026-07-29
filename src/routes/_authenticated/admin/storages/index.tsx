@@ -234,7 +234,7 @@ export function StoragesPage() {
     setTestHealth({ status: 'testing' })
     setTestStep('creating')
     setTestFailedStep(null)
-    let draft: { id: string; upload?: { sessionId: string; urls: string[] } } | null = null
+    let draft: Awaited<ReturnType<typeof createObject>> | null = null
     let result: StorageHealth | null = null
     let currentStep: StorageTestStep = 'creating'
     let failedStep: StorageTestStep | null = null
@@ -256,13 +256,14 @@ export function StoragesPage() {
       const upload = draft.upload
 
       setCurrentStep('uploading')
-      if (!upload?.urls[0]) throw new Error(t('admin.storages.testNoUploadUrl'))
+      const uploadPart = upload?.parts[0]
+      if (!uploadPart) throw new Error(t('admin.storages.testNoUploadUrl'))
 
       let uploadResponse: Response
       try {
-        uploadResponse = await fetch(upload.urls[0], {
+        uploadResponse = await fetch(uploadPart.url, {
           method: 'PUT',
-          headers: { 'Content-Type': 'text/plain' },
+          headers: uploadPart.headers,
           body: blob,
         })
       } catch {

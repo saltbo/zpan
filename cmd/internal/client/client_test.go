@@ -547,9 +547,23 @@ func TestCreateObjectMapsUploadInstructions(t *testing.T) {
 			"id":   "object-1",
 			"name": "movie.mkv",
 			"upload": map[string]any{
-				"sessionId": "session-1",
-				"partSize":  1024,
-				"urls":      []string{"https://s3/part-1"},
+				"sessionId":          "session-1",
+				"uploadId":           nil,
+				"mode":               "single",
+				"partSize":           1024,
+				"partCount":          1,
+				"expiresAt":          "2026-01-01T01:00:00Z",
+				"presignedExpiresAt": "2026-01-01T00:15:00Z",
+				"requiredHeaders":    map[string]string{},
+				"urls":               []string{"https://s3/part-1"},
+				"parts": []map[string]any{
+					{
+						"partNumber": 1,
+						"url":        "https://s3/part-1",
+						"expiresAt":  "2026-01-01T00:15:00Z",
+						"headers":    map[string]string{},
+					},
+				},
 			},
 		})
 	}))
@@ -562,8 +576,15 @@ func TestCreateObjectMapsUploadInstructions(t *testing.T) {
 	if draft.Upload == nil {
 		t.Fatalf("expected upload instructions: %#v", draft)
 	}
-	if draft.Upload.SessionID != "session-1" || draft.Upload.PartSize != 1024 || !reflect.DeepEqual(draft.Upload.URLs, []string{"https://s3/part-1"}) {
+	if draft.Upload.SessionID != "session-1" || draft.Upload.PartSize != 1024 {
 		t.Fatalf("unexpected upload instructions: %#v", draft.Upload)
+	}
+	expectedParts := []PresignedObjectUploadPart{{PartNumber: 1, URL: "https://s3/part-1", ExpiresAt: "2026-01-01T00:15:00Z", Headers: map[string]string{}}}
+	if !reflect.DeepEqual(draft.Upload.Parts, expectedParts) {
+		t.Fatalf("unexpected upload instructions: %#v", draft.Upload)
+	}
+	if !reflect.DeepEqual(draft.Upload.URLs, []string{"https://s3/part-1"}) {
+		t.Fatalf("unexpected legacy urls: %#v", draft.Upload.URLs)
 	}
 }
 
