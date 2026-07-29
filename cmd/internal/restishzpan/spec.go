@@ -15,6 +15,13 @@ const (
 	opAbort    = "abortObjectUpload"
 )
 
+var restishOperationAliases = map[string][]string{
+	opCreate:   {"create-object"},
+	opPresign:  {"presign-object-upload-parts"},
+	opComplete: {"complete-object-upload"},
+	opAbort:    {"abort-object-upload"},
+}
+
 type operationSet struct {
 	Create   plugin.APIOperation
 	Presign  plugin.APIOperation
@@ -40,35 +47,49 @@ func fetchOperations(ctx context.Context, h host, api, profile string) (operatio
 		opComplete: "POST",
 		opAbort:    "DELETE",
 	}
+	matched := map[string]plugin.APIOperation{}
 	for id, method := range required {
-		op, ok := ops[id]
+		op, ok := findOperation(ops, id)
 		if !ok {
 			return operationSet{}, fmt.Errorf("API %q is missing required operation %q", api, id)
 		}
 		if !strings.EqualFold(op.Method, method) {
 			return operationSet{}, fmt.Errorf("operation %q uses %s, want %s", id, op.Method, method)
 		}
+		matched[id] = op
 	}
-	if err := validateCreateOperation(ops[opCreate]); err != nil {
+	if err := validateCreateOperation(matched[opCreate]); err != nil {
 		return operationSet{}, err
 	}
-	if err := validatePartsOperation(ops[opPresign], "partNumbers"); err != nil {
+	if err := validatePartsOperation(matched[opPresign], "partNumbers"); err != nil {
 		return operationSet{}, err
 	}
-	if err := validatePartsOperation(ops[opComplete], "parts"); err != nil {
+	if err := validatePartsOperation(matched[opComplete], "parts"); err != nil {
 		return operationSet{}, err
 	}
 	for _, id := range []string{opPresign, opComplete, opAbort} {
-		if err := requirePathParams(ops[id], "id", "uploadSessionId"); err != nil {
+		if err := requirePathParams(matched[id], "id", "uploadSessionId"); err != nil {
 			return operationSet{}, fmt.Errorf("operation %q: %w", id, err)
 		}
 	}
 	return operationSet{
-		Create:   ops[opCreate],
-		Presign:  ops[opPresign],
-		Complete: ops[opComplete],
-		Abort:    ops[opAbort],
+		Create:   matched[opCreate],
+		Presign:  matched[opPresign],
+		Complete: matched[opComplete],
+		Abort:    matched[opAbort],
 	}, nil
+}
+
+func findOperation(ops map[string]plugin.APIOperation, id string) (plugin.APIOperation, bool) {
+	if op, ok := ops[id]; ok {
+		return op, true
+	}
+	for _, alias := range restishOperationAliases[id] {
+		if op, ok := ops[alias]; ok {
+			return op, true
+		}
+	}
+	return plugin.APIOperation{}, false
 }
 
 func validateCreateOperation(op plugin.APIOperation) error {

@@ -143,6 +143,18 @@ func TestFetchOperationsValidatesContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	restishCommandOps := validOps()
+	restishCommandOps[0].ID = "create-object"
+	restishCommandOps[1].ID = "presign-object-upload-parts"
+	restishCommandOps[2].ID = "complete-object-upload"
+	restishCommandOps[3].ID = "abort-object-upload"
+	gotOps, err := fetchOperations(context.Background(), &fakeHost{spec: &plugin.APISpecResponseMsg{Operations: restishCommandOps}}, "zpan", "")
+	if err != nil {
+		t.Fatalf("expected Restish command operation aliases to validate: %v", err)
+	}
+	if gotOps.Create.ID != "create-object" || gotOps.Presign.ID != "presign-object-upload-parts" || gotOps.Complete.ID != "complete-object-upload" || gotOps.Abort.ID != "abort-object-upload" {
+		t.Fatalf("unexpected aliased operations: %#v", gotOps)
+	}
 	badMethod := validOps()
 	badMethod[0].Method = "GET"
 	_, err = fetchOperations(context.Background(), &fakeHost{spec: &plugin.APISpecResponseMsg{Operations: badMethod}}, "zpan", "")
