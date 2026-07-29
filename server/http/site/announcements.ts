@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { announcementInputSchema, announcementStatusSchema, pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
@@ -12,7 +12,7 @@ import {
   listUserAnnouncements,
   updateAnnouncement,
 } from '../../usecases/site/announcement'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const announcementSchema = z
   .object({
@@ -50,75 +50,89 @@ const listAnnouncementsQuerySchema = pageQuerySchema.extend({
   status: announcementStatusSchema.optional(),
 })
 
-const listRoute = createRoute({
-  operationId: 'listAnnouncements',
-  summary: 'List announcements',
-  tags: ['Announcements'],
-  method: 'get',
-  path: '/',
-  request: { query: listAnnouncementsQuerySchema },
-  responses: {
-    200: jsonContent(announcementListSchema, 'Announcements'),
-    403: errorResponse('Forbidden'),
+const listRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'listAnnouncements',
+    summary: 'List announcements',
+    tags: ['Announcements'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAuth, requireFeature('site_announcements')] as const,
+    request: { query: listAnnouncementsQuerySchema },
+    responses: {
+      200: jsonContent(announcementListSchema, 'Announcements'),
+      403: errorResponse('Forbidden'),
+    },
   },
-})
+)
 
-const createAnnouncementRoute = createRoute({
-  operationId: 'createAnnouncement',
-  summary: 'Create announcement',
-  tags: ['Announcements'],
-  method: 'post',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  request: jsonBody(announcementInputSchema),
-  responses: { 201: jsonContent(announcementSchema, 'Created announcement') },
-})
-
-const getAnnouncementRoute = createRoute({
-  operationId: 'getAnnouncement',
-  summary: 'Get announcement',
-  tags: ['Announcements'],
-  method: 'get',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    200: jsonContent(announcementSchema, 'Announcement'),
-    404: errorResponse('Announcement not found'),
+const createAnnouncementRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'createAnnouncement',
+    summary: 'Create announcement',
+    tags: ['Announcements'],
+    method: 'post',
+    path: '/',
+    middleware: [requireAdmin, requireFeature('site_announcements')] as const,
+    request: jsonBody(announcementInputSchema),
+    responses: { 201: jsonContent(announcementSchema, 'Created announcement') },
   },
-})
+)
 
-const updateAnnouncementRoute = createRoute({
-  operationId: 'updateAnnouncement',
-  summary: 'Update announcement',
-  tags: ['Announcements'],
-  method: 'put',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }), ...jsonBody(announcementInputSchema) },
-  responses: {
-    200: jsonContent(announcementSchema, 'Updated announcement'),
-    404: errorResponse('Announcement not found'),
+const getAnnouncementRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'getAnnouncement',
+    summary: 'Get announcement',
+    tags: ['Announcements'],
+    method: 'get',
+    path: '/{id}',
+    middleware: [requireAdmin, requireFeature('site_announcements')] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: jsonContent(announcementSchema, 'Announcement'),
+      404: errorResponse('Announcement not found'),
+    },
   },
-})
+)
 
-const deleteAnnouncementRoute = createRoute({
-  operationId: 'deleteAnnouncement',
-  summary: 'Delete announcement',
-  tags: ['Announcements'],
-  method: 'delete',
-  path: '/{id}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    204: { description: 'Deleted announcement' },
-    404: errorResponse('Announcement not found'),
+const updateAnnouncementRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'updateAnnouncement',
+    summary: 'Update announcement',
+    tags: ['Announcements'],
+    method: 'put',
+    path: '/{id}',
+    middleware: [requireAdmin, requireFeature('site_announcements')] as const,
+    request: { params: z.object({ id: z.string() }), ...jsonBody(announcementInputSchema) },
+    responses: {
+      200: jsonContent(announcementSchema, 'Updated announcement'),
+      404: errorResponse('Announcement not found'),
+    },
   },
-})
+)
+
+const deleteAnnouncementRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'deleteAnnouncement',
+    summary: 'Delete announcement',
+    tags: ['Announcements'],
+    method: 'delete',
+    path: '/{id}',
+    middleware: [requireAdmin, requireFeature('site_announcements')] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      204: { description: 'Deleted announcement' },
+      404: errorResponse('Announcement not found'),
+    },
+  },
+)
 
 const app = new OpenAPIHono<Env>()
-app.use(requireAuth)
-app.use(requireFeature('site_announcements'))
 
 // One announcements resource. GET / is the caller's live feed by default;
 // `?scope=all` (or a `?status=` filter) returns the admin management list. Writes

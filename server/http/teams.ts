@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -37,7 +37,7 @@ import {
   toEntitlementResultDTO,
   toQuotaEntitlementDTO,
 } from './entitlements'
-import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 
 const inviteLinkInfoSchema = z
   .object({
@@ -146,18 +146,21 @@ function imageUploadError(status: 400 | 403 | 413 | 500 | 503, error: string) {
 }
 
 // ── publicTeams ──────────────────────────────────────────────────────────────
-const inviteLinkInfoRoute = createRoute({
-  operationId: 'getTeamInviteLink',
-  summary: 'Get team invite link info',
-  tags: ['Teams'],
-  method: 'get',
-  path: '/invite-links/{token}',
-  request: { params: z.object({ token: z.string() }) },
-  responses: {
-    200: jsonContent(inviteLinkInfoSchema, 'Invite link info'),
-    404: errorResponse('Invalid or expired invite link'),
+const inviteLinkInfoRoute = authRoute(
+  { access: 'public' },
+  {
+    operationId: 'getTeamInviteLink',
+    summary: 'Get team invite link info',
+    tags: ['Teams'],
+    method: 'get',
+    path: '/invite-links/{token}',
+    request: { params: z.object({ token: z.string() }) },
+    responses: {
+      200: jsonContent(inviteLinkInfoSchema, 'Invite link info'),
+      404: errorResponse('Invalid or expired invite link'),
+    },
   },
-})
+)
 
 export const publicTeams = new OpenAPIHono<Env>().openapi(inviteLinkInfoRoute, async (c) => {
   const info = await getInviteLinkInfo(c.get('deps'), c.req.valid('param').token)
@@ -166,97 +169,120 @@ export const publicTeams = new OpenAPIHono<Env>().openapi(inviteLinkInfoRoute, a
 })
 
 // ── teams (member-scoped) ────────────────────────────────────────────────────
-const createInviteLinkRoute = createRoute({
-  operationId: 'createTeamInviteLink',
-  summary: 'Create a team invite link',
-  tags: ['Teams'],
-  method: 'post',
-  path: '/{teamId}/invite-links',
-  request: { params: z.object({ teamId: z.string() }), ...jsonBody(createLinkSchema) },
-  responses: {
-    201: jsonContent(inviteLinkCreatedSchema, 'Created invite link'),
-    403: errorResponse('Forbidden'),
+const createInviteLinkRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'createTeamInviteLink',
+    summary: 'Create a team invite link',
+    tags: ['Teams'],
+    method: 'post',
+    path: '/{teamId}/invite-links',
+    middleware: [requireAuth] as const,
+    request: { params: z.object({ teamId: z.string() }), ...jsonBody(createLinkSchema) },
+    responses: {
+      201: jsonContent(inviteLinkCreatedSchema, 'Created invite link'),
+      403: errorResponse('Forbidden'),
+    },
   },
-})
+)
 
-const listInvitationsRoute = createRoute({
-  operationId: 'listTeamInvitations',
-  summary: 'List pending team invitations',
-  tags: ['Teams'],
-  method: 'get',
-  path: '/{teamId}/invitations',
-  request: { params: z.object({ teamId: z.string() }) },
-  responses: {
-    200: jsonContent(pendingInvitationListSchema, 'Pending invitations'),
-    403: errorResponse('Forbidden'),
+const listInvitationsRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'listTeamInvitations',
+    summary: 'List pending team invitations',
+    tags: ['Teams'],
+    method: 'get',
+    path: '/{teamId}/invitations',
+    middleware: [requireAuth] as const,
+    request: { params: z.object({ teamId: z.string() }) },
+    responses: {
+      200: jsonContent(pendingInvitationListSchema, 'Pending invitations'),
+      403: errorResponse('Forbidden'),
+    },
   },
-})
+)
 
-const joinTeamRoute = createRoute({
-  operationId: 'joinTeam',
-  summary: 'Join a team with an invite token',
-  tags: ['Teams'],
-  method: 'post',
-  path: '/{teamId}/members',
-  request: { params: z.object({ teamId: z.string() }), ...jsonBody(joinSchema) },
-  responses: {
-    200: jsonContent(z.object({ ok: z.literal(true) }), 'Joined'),
-    404: errorResponse('Invalid invite link'),
-    409: errorResponse('Already a member'),
-    410: errorResponse('Invite link expired'),
+const joinTeamRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'joinTeam',
+    summary: 'Join a team with an invite token',
+    tags: ['Teams'],
+    method: 'post',
+    path: '/{teamId}/members',
+    middleware: [requireAuth] as const,
+    request: { params: z.object({ teamId: z.string() }), ...jsonBody(joinSchema) },
+    responses: {
+      200: jsonContent(z.object({ ok: z.literal(true) }), 'Joined'),
+      404: errorResponse('Invalid invite link'),
+      409: errorResponse('Already a member'),
+      410: errorResponse('Invite link expired'),
+    },
   },
-})
+)
 
-const activityRoute = createRoute({
-  operationId: 'listTeamActivity',
-  summary: 'List team activity',
-  tags: ['Teams'],
-  method: 'get',
-  path: '/{teamId}/activity',
-  request: {
-    params: z.object({ teamId: z.string() }),
-    query: pageQuerySchema,
+const activityRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'listTeamActivity',
+    summary: 'List team activity',
+    tags: ['Teams'],
+    method: 'get',
+    path: '/{teamId}/activity',
+    middleware: [requireAuth] as const,
+    request: {
+      params: z.object({ teamId: z.string() }),
+      query: pageQuerySchema,
+    },
+    responses: {
+      200: jsonContent(activityPageSchema, 'Activity'),
+      403: errorResponse('Forbidden'),
+    },
   },
-  responses: {
-    200: jsonContent(activityPageSchema, 'Activity'),
-    403: errorResponse('Forbidden'),
-  },
-})
+)
 
-const setLogoRoute = createRoute({
-  operationId: 'setTeamLogo',
-  summary: 'Set team logo',
-  tags: ['Teams'],
-  method: 'put',
-  path: '/{teamId}/logo',
-  // Body is multipart/form-data (a `file` field); parsed directly in the handler
-  // rather than via a request schema (the form validator conflicts with formData()).
-  request: { params: z.object({ teamId: z.string() }) },
-  responses: {
-    200: jsonContent(z.object({ url: z.string() }), 'Logo URL'),
-    400: errorResponse('Bad request'),
-    403: errorResponse('Forbidden'),
-    413: errorResponse('File too large'),
-    415: errorResponse('Expected multipart/form-data'),
-    503: errorResponse('No public storage configured'),
+const setLogoRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'setTeamLogo',
+    summary: 'Set team logo',
+    tags: ['Teams'],
+    method: 'put',
+    path: '/{teamId}/logo',
+    middleware: [requireAuth] as const,
+    // Body is multipart/form-data (a `file` field); parsed directly in the handler
+    // rather than via a request schema (the form validator conflicts with formData()).
+    request: { params: z.object({ teamId: z.string() }) },
+    responses: {
+      200: jsonContent(z.object({ url: z.string() }), 'Logo URL'),
+      400: errorResponse('Bad request'),
+      403: errorResponse('Forbidden'),
+      413: errorResponse('File too large'),
+      415: errorResponse('Expected multipart/form-data'),
+      503: errorResponse('No public storage configured'),
+    },
   },
-})
+)
 
-const deleteLogoRoute = createRoute({
-  operationId: 'deleteTeamLogo',
-  summary: 'Delete team logo',
-  tags: ['Teams'],
-  method: 'delete',
-  path: '/{teamId}/logo',
-  request: { params: z.object({ teamId: z.string() }) },
-  responses: {
-    204: { description: 'Deleted' },
-    403: errorResponse('Forbidden'),
+const deleteLogoRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'deleteTeamLogo',
+    summary: 'Delete team logo',
+    tags: ['Teams'],
+    method: 'delete',
+    path: '/{teamId}/logo',
+    middleware: [requireAuth] as const,
+    request: { params: z.object({ teamId: z.string() }) },
+    responses: {
+      204: { description: 'Deleted' },
+      403: errorResponse('Forbidden'),
+    },
   },
-})
+)
 
 const teamsApp = new OpenAPIHono<Env>()
-teamsApp.use(requireAuth)
 
 export const teams = teamsApp
   .openapi(createInviteLinkRoute, async (c) => {
@@ -329,89 +355,107 @@ export const teams = teamsApp
   })
 
 // ── adminTeams ───────────────────────────────────────────────────────────────
-const listTeamsRoute = createRoute({
-  operationId: 'listTeams',
-  summary: 'List teams',
-  tags: ['Teams'],
-  method: 'get',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  responses: { 200: jsonContent(teamListSchema, 'Teams') },
-})
-
-const getTeamRoute = createRoute({
-  operationId: 'getTeam',
-  summary: 'Get a team',
-  tags: ['Teams'],
-  method: 'get',
-  path: '/{teamId}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ teamId: z.string() }) },
-  responses: {
-    200: jsonContent(teamSummarySchema, 'Team'),
-    404: errorResponse('Team not found'),
+const listTeamsRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'listTeams',
+    summary: 'List teams',
+    tags: ['Teams'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    responses: { 200: jsonContent(teamListSchema, 'Teams') },
   },
-})
+)
 
-const listEntitlementsRoute = createRoute({
-  operationId: 'listTeamEntitlements',
-  summary: 'List team quota entitlements',
-  tags: ['Teams'],
-  method: 'get',
-  path: '/{teamId}/entitlements',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ teamId: z.string() }) },
-  responses: {
-    200: jsonContent(entitlementListSchema, 'Entitlements'),
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
+const getTeamRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'getTeam',
+    summary: 'Get a team',
+    tags: ['Teams'],
+    method: 'get',
+    path: '/{teamId}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ teamId: z.string() }) },
+    responses: {
+      200: jsonContent(teamSummarySchema, 'Team'),
+      404: errorResponse('Team not found'),
+    },
   },
-})
+)
 
-const grantEntitlementRoute = createRoute({
-  operationId: 'grantTeamEntitlement',
-  summary: 'Grant a team entitlement',
-  tags: ['Teams'],
-  method: 'post',
-  path: '/{teamId}/entitlements',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ teamId: z.string() }), ...jsonBody(grantEntitlementSchema) },
-  responses: {
-    201: jsonContent(entitlementResultSchema, 'Granted entitlement'),
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
+const listEntitlementsRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'listTeamEntitlements',
+    summary: 'List team quota entitlements',
+    tags: ['Teams'],
+    method: 'get',
+    path: '/{teamId}/entitlements',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ teamId: z.string() }) },
+    responses: {
+      200: jsonContent(entitlementListSchema, 'Entitlements'),
+      400: errorResponse('Bad request'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const updateEntitlementRoute = createRoute({
-  operationId: 'updateTeamEntitlement',
-  summary: 'Update a team entitlement',
-  tags: ['Teams'],
-  method: 'patch',
-  path: '/{teamId}/entitlements/{eid}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ teamId: z.string(), eid: z.string() }), ...jsonBody(updateEntitlementSchema) },
-  responses: {
-    200: jsonContent(entitlementResultSchema, 'Updated entitlement'),
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
+const grantEntitlementRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'grantTeamEntitlement',
+    summary: 'Grant a team entitlement',
+    tags: ['Teams'],
+    method: 'post',
+    path: '/{teamId}/entitlements',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ teamId: z.string() }), ...jsonBody(grantEntitlementSchema) },
+    responses: {
+      201: jsonContent(entitlementResultSchema, 'Granted entitlement'),
+      400: errorResponse('Bad request'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const revokeEntitlementRoute = createRoute({
-  operationId: 'revokeTeamEntitlement',
-  summary: 'Revoke a team entitlement',
-  tags: ['Teams'],
-  method: 'delete',
-  path: '/{teamId}/entitlements/{eid}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ teamId: z.string(), eid: z.string() }) },
-  responses: {
-    204: { description: 'Revoked entitlement' },
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
+const updateEntitlementRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'updateTeamEntitlement',
+    summary: 'Update a team entitlement',
+    tags: ['Teams'],
+    method: 'patch',
+    path: '/{teamId}/entitlements/{eid}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ teamId: z.string(), eid: z.string() }), ...jsonBody(updateEntitlementSchema) },
+    responses: {
+      200: jsonContent(entitlementResultSchema, 'Updated entitlement'),
+      400: errorResponse('Bad request'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
+
+const revokeEntitlementRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'revokeTeamEntitlement',
+    summary: 'Revoke a team entitlement',
+    tags: ['Teams'],
+    method: 'delete',
+    path: '/{teamId}/entitlements/{eid}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ teamId: z.string(), eid: z.string() }) },
+    responses: {
+      204: { description: 'Revoked entitlement' },
+      400: errorResponse('Bad request'),
+      404: errorResponse('Not found'),
+    },
+  },
+)
 
 export const adminTeams = new OpenAPIHono<Env>()
   .openapi(listTeamsRoute, async (c) => {

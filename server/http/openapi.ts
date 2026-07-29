@@ -28,7 +28,7 @@ export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> 
   config: T,
 ): T & { getRoutingPath(): string } {
   const middleware =
-    auth.access === 'public' ? config.middleware : [authorize(auth), ...((config.middleware ?? []) as [])]
+    auth.access === 'protected' ? [authorize(auth), ...((config.middleware ?? []) as [])] : config.middleware
   return createRoute({
     ...config,
     middleware,
@@ -51,14 +51,19 @@ export function findOperationsMissingAuthContract(paths: Record<string, Record<s
   return missing
 }
 
-function openApiSecurity(auth: RouteAuthorizationDeclaration) {
-  if (auth.access === 'public' || auth.access === 'internal') return []
+function openApiSecurity(auth: RouteAuthorizationDeclaration): Record<string, string[]>[] {
+  if (auth.access === 'anyOf') return auth.policies.flatMap(openApiSecurity)
+  if (auth.access === 'public' || auth.access === 'internal' || auth.access === 'signed-webhook') return []
+  if (auth.access === 'admin' || auth.access === 'session') return [{ cookieAuth: [] }]
+  if (auth.access === 'downloader' || auth.access === 'task-upload-token') return [{ bearerAuth: [] }]
   return auth.scopes?.length
     ? [{ bearerAuth: [...auth.scopes] }, { cookieAuth: [] }]
     : [{ bearerAuth: [] }, { cookieAuth: [] }]
 }
 
 function openApiAuthMetadata(auth: RouteAuthorizationDeclaration): Record<string, unknown> {
+  if (auth.access === 'anyOf') return { access: auth.access, policies: auth.policies.map(openApiAuthMetadata) }
+  if (auth.access === 'session') return { access: auth.access, minTeamRole: auth.minTeamRole ?? null }
   if (auth.access !== 'protected') return { access: auth.access }
   return {
     access: auth.access,

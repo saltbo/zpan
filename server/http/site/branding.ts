@@ -1,11 +1,11 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { type BrandingField, type BrandingThemeMode, isBrandingThemePresetId } from '../../../shared/types'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { AppError, badRequest, payloadTooLarge, unsupportedMediaType } from '../../usecases/ports'
 import { applyBrandingUpdate, resetBranding, type ThemeUpdate } from '../../usecases/site/branding'
-import { errorResponse, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonContent } from '../openapi'
 
 const brandingThemeValuesSchema = z.object({
   primary_color: z.string(),
@@ -89,38 +89,44 @@ function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | {
   return { ok: true, values }
 }
 
-const updateRoute = createRoute({
-  operationId: 'updateBranding',
-  summary: 'Update branding',
-  tags: ['Branding'],
-  method: 'put',
-  path: '/',
-  middleware: [requireAdmin, requireFeature('white_label')] as const,
-  // Body is multipart/form-data (logo/favicon files + theme fields); parsed
-  // directly in the handler rather than via a request schema (the form validator
-  // conflicts with formData()).
-  responses: {
-    200: jsonContent(brandingConfigSchema, 'Updated branding'),
-    400: errorResponse('Invalid upload'),
-    413: errorResponse('File too large'),
-    415: errorResponse('Expected multipart/form-data'),
-    422: errorResponse('Invalid theme or wordmark'),
+const updateRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'updateBranding',
+    summary: 'Update branding',
+    tags: ['Branding'],
+    method: 'put',
+    path: '/',
+    middleware: [requireAdmin, requireFeature('white_label')] as const,
+    // Body is multipart/form-data (logo/favicon files + theme fields); parsed
+    // directly in the handler rather than via a request schema (the form validator
+    // conflicts with formData()).
+    responses: {
+      200: jsonContent(brandingConfigSchema, 'Updated branding'),
+      400: errorResponse('Invalid upload'),
+      413: errorResponse('File too large'),
+      415: errorResponse('Expected multipart/form-data'),
+      422: errorResponse('Invalid theme or wordmark'),
+    },
   },
-})
+)
 
-const resetRoute = createRoute({
-  operationId: 'resetBrandingField',
-  summary: 'Reset a branding field',
-  tags: ['Branding'],
-  method: 'delete',
-  path: '/{field}',
-  middleware: [requireAdmin, requireFeature('white_label')] as const,
-  request: { params: z.object({ field: z.string() }) },
-  responses: {
-    204: { description: 'Reset field' },
-    400: errorResponse('Invalid field'),
+const resetRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'resetBrandingField',
+    summary: 'Reset a branding field',
+    tags: ['Branding'],
+    method: 'delete',
+    path: '/{field}',
+    middleware: [requireAdmin, requireFeature('white_label')] as const,
+    request: { params: z.object({ field: z.string() }) },
+    responses: {
+      204: { description: 'Reset field' },
+      400: errorResponse('Invalid field'),
+    },
   },
-})
+)
 
 // Admin — requires auth + admin role + white_label feature.
 export const brandingAdmin = new OpenAPIHono<Env>()

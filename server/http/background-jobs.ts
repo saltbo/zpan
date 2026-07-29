@@ -1,4 +1,5 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { createBackgroundJobRequestSchema, cursorPageSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -11,7 +12,7 @@ import {
   retryBackgroundJob,
 } from '../usecases/background-job'
 import { BackgroundJobError, notFound } from '../usecases/ports'
-import { errorResponse, jsonBody, jsonContent } from './openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import {
   createdAtIdCursorCodec,
   decodeOptionalPageToken,
@@ -64,87 +65,116 @@ function requireOrg(c: { get(key: 'orgId'): string | null }): string {
   return orgId
 }
 
-const listRoute = createRoute({
-  operationId: 'listBackgroundJobs',
-  summary: 'List background jobs',
-  tags: ['Background Jobs'],
-  method: 'get',
-  path: '/',
-  request: { query: listBackgroundJobsQuerySchema },
-  responses: {
-    200: jsonContent(backgroundJobPageSchema, 'Background jobs'),
-    404: errorResponse('No organization found'),
+const listRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
   },
-})
+  {
+    operationId: 'listBackgroundJobs',
+    summary: 'List background jobs',
+    tags: ['Background Jobs'],
+    method: 'get',
+    path: '/',
+    request: { query: listBackgroundJobsQuerySchema },
+    responses: {
+      200: jsonContent(backgroundJobPageSchema, 'Background jobs'),
+      404: errorResponse('No organization found'),
+    },
+  },
+)
 
-const createJobRoute = createRoute({
-  operationId: 'createBackgroundJob',
-  summary: 'Create background job',
-  tags: ['Background Jobs'],
-  method: 'post',
-  path: '/',
-  request: jsonBody(createBackgroundJobRequestSchema),
-  responses: {
-    201: jsonContent(backgroundJobSchema, 'Created background job'),
-    404: errorResponse('Not found'),
+const createJobRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'createBackgroundJob',
+    summary: 'Create background job',
+    tags: ['Background Jobs'],
+    method: 'post',
+    path: '/',
+    middleware: [requireAuth] as const,
+    request: jsonBody(createBackgroundJobRequestSchema),
+    responses: {
+      201: jsonContent(backgroundJobSchema, 'Created background job'),
+      404: errorResponse('Not found'),
+    },
   },
-})
+)
 
-const statsRoute = createRoute({
-  operationId: 'getBackgroundJobStats',
-  summary: 'Get active background job count',
-  tags: ['Background Jobs'],
-  method: 'get',
-  path: '/stats',
-  responses: {
-    200: jsonContent(z.object({ activeCount: z.number().int() }), 'Background job stats'),
-    404: errorResponse('No organization found'),
+const statsRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
   },
-})
+  {
+    operationId: 'getBackgroundJobStats',
+    summary: 'Get active background job count',
+    tags: ['Background Jobs'],
+    method: 'get',
+    path: '/stats',
+    responses: {
+      200: jsonContent(z.object({ activeCount: z.number().int() }), 'Background job stats'),
+      404: errorResponse('No organization found'),
+    },
+  },
+)
 
-const getJobRoute = createRoute({
-  operationId: 'getBackgroundJob',
-  summary: 'Get background job',
-  tags: ['Background Jobs'],
-  method: 'get',
-  path: '/{id}',
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    200: jsonContent(backgroundJobSchema, 'Background job'),
-    404: errorResponse('Not found'),
+const getJobRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
   },
-})
+  {
+    operationId: 'getBackgroundJob',
+    summary: 'Get background job',
+    tags: ['Background Jobs'],
+    method: 'get',
+    path: '/{id}',
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: jsonContent(backgroundJobSchema, 'Background job'),
+      404: errorResponse('Not found'),
+    },
+  },
+)
 
-const cancelJobRoute = createRoute({
-  operationId: 'cancelBackgroundJob',
-  summary: 'Cancel background job',
-  tags: ['Background Jobs'],
-  method: 'put',
-  path: '/{id}/status',
-  request: { params: z.object({ id: z.string() }), ...jsonBody(cancelJobSchema) },
-  responses: {
-    200: jsonContent(backgroundJobSchema, 'Canceled background job'),
-    404: errorResponse('Not found'),
-    409: errorResponse('Background job cannot be canceled'),
+const cancelJobRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'cancelBackgroundJob',
+    summary: 'Cancel background job',
+    tags: ['Background Jobs'],
+    method: 'put',
+    path: '/{id}/status',
+    middleware: [requireAuth] as const,
+    request: { params: z.object({ id: z.string() }), ...jsonBody(cancelJobSchema) },
+    responses: {
+      200: jsonContent(backgroundJobSchema, 'Canceled background job'),
+      404: errorResponse('Not found'),
+      409: errorResponse('Background job cannot be canceled'),
+    },
   },
-})
+)
 
-const retryJobRoute = createRoute({
-  operationId: 'retryBackgroundJob',
-  summary: 'Retry background job',
-  tags: ['Background Jobs'],
-  method: 'post',
-  path: '/{id}/retries',
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    201: jsonContent(backgroundJobSchema, 'Retried background job'),
-    404: errorResponse('Not found'),
-    409: errorResponse('Background job cannot be retried'),
+const retryJobRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'retryBackgroundJob',
+    summary: 'Retry background job',
+    tags: ['Background Jobs'],
+    method: 'post',
+    path: '/{id}/retries',
+    middleware: [requireAuth] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      201: jsonContent(backgroundJobSchema, 'Retried background job'),
+      404: errorResponse('Not found'),
+      409: errorResponse('Background job cannot be retried'),
+    },
   },
-})
+)
 
 const app = new OpenAPIHono<Env>()
-app.use(requireAuth)
 
 const backgroundJobs = app
   .openapi(listRoute, async (c) => {

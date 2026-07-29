@@ -1,9 +1,9 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { runtimeInfo } from '../../usecases/site/instance-info'
 import { getChangelog, resolveInstanceInfo } from '../../usecases/site/system'
-import { jsonContent } from '../openapi'
+import { authRoute, jsonContent } from '../openapi'
 
 const instanceInfoSchema = z
   .object({
@@ -40,26 +40,32 @@ const changelogSchema = z
   })
   .openapi('Changelog')
 
-const instanceRoute = createRoute({
-  operationId: 'getInstanceInfo',
-  summary: 'Get instance info',
-  tags: ['System'],
-  method: 'get',
-  path: '/instance',
-  middleware: [requireAdmin] as const,
-  responses: { 200: jsonContent(instanceInfoSchema, 'Instance info') },
-})
+const instanceRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'getInstanceInfo',
+    summary: 'Get instance info',
+    tags: ['System'],
+    method: 'get',
+    path: '/instance',
+    middleware: [requireAdmin] as const,
+    responses: { 200: jsonContent(instanceInfoSchema, 'Instance info') },
+  },
+)
 
-const changelogRoute = createRoute({
-  operationId: 'getChangelog',
-  summary: 'Get changelog',
-  tags: ['System'],
-  method: 'get',
-  path: '/changelog',
-  middleware: [requireAdmin] as const,
-  request: { query: z.object({ refresh: z.string().optional() }) },
-  responses: { 200: jsonContent(changelogSchema, 'Changelog') },
-})
+const changelogRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'getChangelog',
+    summary: 'Get changelog',
+    tags: ['System'],
+    method: 'get',
+    path: '/changelog',
+    middleware: [requireAdmin] as const,
+    request: { query: z.object({ refresh: z.string().optional() }) },
+    responses: { 200: jsonContent(changelogSchema, 'Changelog') },
+  },
+)
 
 const system = new OpenAPIHono<Env>()
   .openapi(instanceRoute, async (c) => {

@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
@@ -6,7 +6,7 @@ import { requireFeature } from '../../middleware/require-feature'
 import type { AdminAuditEventWithOrg } from '../../usecases/ports'
 import { badRequest } from '../../usecases/ports'
 import { listAuditEvents } from '../../usecases/site/audit'
-import { errorResponse, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonContent } from '../openapi'
 
 const auditEventSchema = z
   .object({
@@ -43,16 +43,19 @@ const listAuditQuerySchema = pageQuerySchema.extend({
   createdTo: z.string().datetime().optional(),
 })
 
-const listRoute = createRoute({
-  operationId: 'listAuditEvents',
-  summary: 'List audit events',
-  tags: ['Audit'],
-  method: 'get',
-  path: '/',
-  middleware: [requireAdmin, requireFeature('audit_log')] as const,
-  request: { query: listAuditQuerySchema },
-  responses: { 200: jsonContent(auditPageSchema, 'Audit events'), 400: errorResponse('Invalid query') },
-})
+const listRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'listAuditEvents',
+    summary: 'List audit events',
+    tags: ['Audit'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAdmin, requireFeature('audit_log')] as const,
+    request: { query: listAuditQuerySchema },
+    responses: { 200: jsonContent(auditPageSchema, 'Audit events'), 400: errorResponse('Invalid query') },
+  },
+)
 
 export const adminAudit = new OpenAPIHono<Env>().openapi(listRoute, async (c) => {
   const { page, pageSize, orgId, userId, action, targetType, createdFrom, createdTo } = c.req.valid('query')

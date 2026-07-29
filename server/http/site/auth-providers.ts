@@ -1,8 +1,8 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { deleteAuthProvider, listAuthProviders, upsertAuthProvider } from '../../usecases/site/auth-provider'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 // Full management shape. Public consumers receive the minimal provider projection
 // from configz instead.
@@ -40,44 +40,53 @@ const upsertSchema = z.object({
   scopes: z.array(z.string()).optional(),
 })
 
-const listRoute = createRoute({
-  operationId: 'listAuthProviders',
-  summary: 'List auth providers',
-  tags: ['Auth Providers'],
-  method: 'get',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  responses: { 200: jsonContent(authProviderListSchema, 'Auth providers') },
-})
-
-const upsertRoute = createRoute({
-  operationId: 'upsertAuthProvider',
-  summary: 'Create or update an auth provider',
-  tags: ['Auth Providers'],
-  method: 'put',
-  path: '/{providerId}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ providerId: z.string() }), ...jsonBody(upsertSchema) },
-  responses: {
-    200: jsonContent(authProviderSchema, 'Upserted auth provider'),
-    400: errorResponse('Invalid provider'),
-    402: errorResponse('Feature not available'),
+const listRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'listAuthProviders',
+    summary: 'List auth providers',
+    tags: ['Auth Providers'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    responses: { 200: jsonContent(authProviderListSchema, 'Auth providers') },
   },
-})
+)
 
-const deleteProviderRoute = createRoute({
-  operationId: 'deleteAuthProvider',
-  summary: 'Delete an auth provider',
-  tags: ['Auth Providers'],
-  method: 'delete',
-  path: '/{providerId}',
-  middleware: [requireAdmin] as const,
-  request: { params: z.object({ providerId: z.string() }) },
-  responses: {
-    204: { description: 'Deleted auth provider' },
-    400: errorResponse('Invalid provider'),
+const upsertRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'upsertAuthProvider',
+    summary: 'Create or update an auth provider',
+    tags: ['Auth Providers'],
+    method: 'put',
+    path: '/{providerId}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ providerId: z.string() }), ...jsonBody(upsertSchema) },
+    responses: {
+      200: jsonContent(authProviderSchema, 'Upserted auth provider'),
+      400: errorResponse('Invalid provider'),
+      402: errorResponse('Feature not available'),
+    },
   },
-})
+)
+
+const deleteProviderRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'deleteAuthProvider',
+    summary: 'Delete an auth provider',
+    tags: ['Auth Providers'],
+    method: 'delete',
+    path: '/{providerId}',
+    middleware: [requireAdmin] as const,
+    request: { params: z.object({ providerId: z.string() }) },
+    responses: {
+      204: { description: 'Deleted auth provider' },
+      400: errorResponse('Invalid provider'),
+    },
+  },
+)
 
 function resolveAuthBaseUri(c: { get(key: 'platform'): Env['Variables']['platform']; req: { url: string } }): string {
   // Prefer the configured Better Auth base URL because OAuth providers validate

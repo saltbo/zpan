@@ -137,6 +137,41 @@ describe('global OpenAPI document', () => {
     ).toEqual(['DELETE /missing'])
   })
 
+  it('emits explicit authorization metadata for every hand-written OpenAPI operation', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as { paths: Record<string, Record<string, unknown>> }
+    const handWrittenPaths = Object.fromEntries(
+      Object.entries(doc.paths).filter(([path]) => !path.startsWith('/api/auth/')),
+    )
+
+    expect(findOperationsMissingAuthContract(handWrittenPaths)).toEqual([])
+  })
+
+  it('documents owner role requirements for store operations that enforce owner team role', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as { paths: Record<string, Record<string, { 'x-zpan-auth'?: unknown }>> }
+
+    const ownerOperations = [
+      doc.paths['/api/store/credits']?.get,
+      doc.paths['/api/store/credits/ledger-entries']?.get,
+      doc.paths['/api/store/credits/redemptions']?.post,
+      doc.paths['/api/store/checkouts']?.post,
+      doc.paths['/api/store/billing-portal-sessions']?.post,
+      doc.paths['/api/store/orders']?.get,
+      doc.paths['/api/store/orders/{orderId}/payments']?.post,
+      doc.paths['/api/store/orders/{orderId}/status']?.put,
+    ]
+
+    for (const operation of ownerOperations) {
+      expect(operation?.['x-zpan-auth']).toMatchObject({
+        access: 'session',
+        minTeamRole: 'owner',
+      })
+    }
+  })
+
   it('documents the concrete public profile contract without the removed objects placeholder', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')

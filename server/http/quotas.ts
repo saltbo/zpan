@@ -1,10 +1,10 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { pageSchema } from '@shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
 import { getUserQuota, listQuotaOverview } from '../usecases/quota'
-import { errorResponse, jsonContent } from './openapi'
+import { authRoute, errorResponse, jsonContent } from './openapi'
 
 // Quota types are already wire-shaped (timestamps are ISO strings, not Date), so
 // the schemas match the usecase return types directly — no DTO mapper needed.
@@ -45,28 +45,34 @@ const quotaOverviewItemSchema = effectiveQuotaSchema
 
 const quotaOverviewSchema = pageSchema(quotaOverviewItemSchema, 'QuotaOverview')
 
-const listQuotaOverviewRoute = createRoute({
-  operationId: 'listQuotaOverview',
-  summary: 'List quota overview across all spaces',
-  tags: ['Quotas'],
-  method: 'get',
-  path: '/',
-  middleware: [requireAdmin] as const,
-  responses: { 200: jsonContent(quotaOverviewSchema, 'Quota overview') },
-})
-
-const getMyQuotaRoute = createRoute({
-  operationId: 'getMyQuota',
-  summary: "Get the current user's effective quota",
-  tags: ['Quotas'],
-  method: 'get',
-  path: '/me',
-  middleware: [requireAuth] as const,
-  responses: {
-    200: jsonContent(effectiveQuotaSchema, 'Effective quota'),
-    404: errorResponse('No organization found'),
+const listQuotaOverviewRoute = authRoute(
+  { access: 'admin' },
+  {
+    operationId: 'listQuotaOverview',
+    summary: 'List quota overview across all spaces',
+    tags: ['Quotas'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAdmin] as const,
+    responses: { 200: jsonContent(quotaOverviewSchema, 'Quota overview') },
   },
-})
+)
+
+const getMyQuotaRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'getMyQuota',
+    summary: "Get the current user's effective quota",
+    tags: ['Quotas'],
+    method: 'get',
+    path: '/me',
+    middleware: [requireAuth] as const,
+    responses: {
+      200: jsonContent(effectiveQuotaSchema, 'Effective quota'),
+      404: errorResponse('No organization found'),
+    },
+  },
+)
 
 // Quota overview across all orgs (personal + team), used by the admin dashboard.
 // Per-team entitlement management lives under /api/teams.

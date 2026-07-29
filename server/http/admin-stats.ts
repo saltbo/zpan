@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   adminAnalyticsGrowthSchema,
   adminAnalyticsOperationsSchema,
@@ -19,7 +19,7 @@ import {
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
 } from '../usecases/admin-stats'
-import { jsonContent } from './openapi'
+import { authRoute, jsonContent } from './openapi'
 
 const dashboardDateSchema = z
   .string()
@@ -60,19 +60,22 @@ function analyticsRoute(
   schema: Parameters<typeof jsonContent>[0],
   gated = true,
 ) {
-  return createRoute({
-    operationId,
-    summary,
-    tags: ['Site Analytics'],
-    method: 'get',
-    path,
-    middleware: (gated ? [requireAdmin, requireFeature('analytics')] : [requireAdmin]) as [
-      typeof requireAdmin,
-      ...Array<ReturnType<typeof requireFeature>>,
-    ],
-    request: { query: rangeQuerySchema },
-    responses: { 200: jsonContent(schema, summary) },
-  })
+  return authRoute(
+    { access: 'admin' },
+    {
+      operationId,
+      summary,
+      tags: ['Site Analytics'],
+      method: 'get',
+      path,
+      middleware: (gated ? [requireAdmin, requireFeature('analytics')] : [requireAdmin]) as [
+        typeof requireAdmin,
+        ...Array<ReturnType<typeof requireFeature>>,
+      ],
+      request: { query: rangeQuerySchema },
+      responses: { 200: jsonContent(schema, summary) },
+    },
+  )
 }
 
 const overviewRoute = analyticsRoute(

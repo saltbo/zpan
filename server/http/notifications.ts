@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { cursorPageSchema, listNotificationsQuerySchema } from '@shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -9,7 +9,7 @@ import {
   markNotificationRead,
 } from '../usecases/notification'
 import { type NotificationRecord, notFound } from '../usecases/ports'
-import { errorResponse, jsonContent } from './openapi'
+import { authRoute, errorResponse, jsonContent } from './openapi'
 import {
   createdAtIdCursorCodec,
   decodeOptionalPageToken,
@@ -55,49 +55,64 @@ function toNotificationDTO(n: NotificationRecord): NotificationDTO {
 // at GET /stats so the list shares the one Page<T> shape with every other resource.
 const notificationPageSchema = cursorPageSchema(notificationSchema, 'NotificationPage')
 
-const listRoute = createRoute({
-  operationId: 'listNotifications',
-  summary: 'List notifications',
-  tags: ['Notifications'],
-  method: 'get',
-  path: '/',
-  request: { query: listNotificationsQuerySchema },
-  responses: { 200: jsonContent(notificationPageSchema, 'Notifications') },
-})
-
-const statsRoute = createRoute({
-  operationId: 'getNotificationStats',
-  summary: 'Get unread notification count',
-  tags: ['Notifications'],
-  method: 'get',
-  path: '/stats',
-  responses: { 200: jsonContent(z.object({ count: z.number().int() }), 'Unread count') },
-})
-
-const markReadRoute = createRoute({
-  operationId: 'markNotificationRead',
-  summary: 'Mark a notification read',
-  tags: ['Notifications'],
-  method: 'patch',
-  path: '/{id}',
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    204: { description: 'Marked read' },
-    404: errorResponse('Not found'),
+const listRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'listNotifications',
+    summary: 'List notifications',
+    tags: ['Notifications'],
+    method: 'get',
+    path: '/',
+    middleware: [requireAuth] as const,
+    request: { query: listNotificationsQuerySchema },
+    responses: { 200: jsonContent(notificationPageSchema, 'Notifications') },
   },
-})
+)
 
-const markAllReadRoute = createRoute({
-  operationId: 'markAllNotificationsRead',
-  summary: 'Mark all notifications read',
-  tags: ['Notifications'],
-  method: 'patch',
-  path: '/',
-  responses: { 200: jsonContent(z.object({ count: z.number().int() }), 'Number marked read') },
-})
+const statsRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'getNotificationStats',
+    summary: 'Get unread notification count',
+    tags: ['Notifications'],
+    method: 'get',
+    path: '/stats',
+    middleware: [requireAuth] as const,
+    responses: { 200: jsonContent(z.object({ count: z.number().int() }), 'Unread count') },
+  },
+)
+
+const markReadRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'markNotificationRead',
+    summary: 'Mark a notification read',
+    tags: ['Notifications'],
+    method: 'patch',
+    path: '/{id}',
+    middleware: [requireAuth] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      204: { description: 'Marked read' },
+      404: errorResponse('Not found'),
+    },
+  },
+)
+
+const markAllReadRoute = authRoute(
+  { access: 'session' },
+  {
+    operationId: 'markAllNotificationsRead',
+    summary: 'Mark all notifications read',
+    tags: ['Notifications'],
+    method: 'patch',
+    path: '/',
+    middleware: [requireAuth] as const,
+    responses: { 200: jsonContent(z.object({ count: z.number().int() }), 'Number marked read') },
+  },
+)
 
 const app = new OpenAPIHono<Env>()
-app.use(requireAuth)
 
 export const notifications = app
   .openapi(listRoute, async (c) => {

@@ -17,6 +17,12 @@ export type TeamRole = 'viewer' | 'editor' | 'owner'
 export type RouteAuthorizationDeclaration =
   | { access: 'public' }
   | { access: 'internal' }
+  | { access: 'admin' }
+  | { access: 'session'; minTeamRole?: TeamRole }
+  | { access: 'downloader' }
+  | { access: 'signed-webhook' }
+  | { access: 'task-upload-token' }
+  | { access: 'anyOf'; policies: readonly RouteAuthorizationDeclaration[] }
   | {
       access: 'protected'
       scopes?: readonly AuthorizationScope[]
@@ -50,6 +56,7 @@ export async function evaluateAuthorization(input: {
   const { context, declaration, deps } = input
   if (declaration.access === 'public') return { allowed: true, effectiveOrgId: context.orgId, reason: 'allowed' }
   if (declaration.access === 'internal') return deny(context, 403, 'actor_not_allowed', declaration)
+  if (declaration.access !== 'protected') return deny(context, 403, 'actor_not_allowed', declaration)
   if (context.credential === 'anonymous') return deny(context, 401, 'missing_credential', declaration)
   if (context.credential === 'downloader') {
     return declaration.allowDownloader
