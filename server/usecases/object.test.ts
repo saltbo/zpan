@@ -1086,6 +1086,25 @@ describe('object usecase', () => {
       expect(abortMultipartUpload).toHaveBeenCalledWith(storage, 'key/d1', 'mp-1')
     })
 
+    it('abandons a completed multipart draft by deleting the finalized object', async () => {
+      const deleteObjectFn = vi.fn(async () => {})
+      const abortMultipartUpload = vi.fn()
+      const setStatus = vi.fn(async () => {})
+      const cancelDraft = vi.fn(async () => file('d1', { status: 'draft' }))
+      const { deps } = makeDeps({
+        matter: { get: async () => file('d1', { status: 'draft' }), cancelDraft },
+        s3: { deleteObject: deleteObjectFn, abortMultipartUpload } as Partial<S3Gateway>,
+        objectUploadSessions: { get: async () => session({ status: 'completed', uploadId: 'mp-1' }), setStatus },
+      })
+
+      await abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' })
+
+      expect(deleteObjectFn).toHaveBeenCalledWith(storage, 'key/d1')
+      expect(abortMultipartUpload).not.toHaveBeenCalled()
+      expect(setStatus).toHaveBeenCalledWith('sess-1', 'aborted')
+      expect(cancelDraft).toHaveBeenCalledWith('d1', 'o1')
+    })
+
     it('is idempotent for an already-aborted session', async () => {
       const cancelDraft = vi.fn(async () => null)
       const { deps } = makeDeps({
@@ -1096,14 +1115,19 @@ describe('object usecase', () => {
       expect(cancelDraft).not.toHaveBeenCalled()
     })
 
-    it('rejects aborting an already-completed session', async () => {
+    it('rejects aborting an already-completed active session', async () => {
+      const deleteObjectFn = vi.fn()
+      const cancelDraft = vi.fn()
       const { deps } = makeDeps({
-        matter: { get: async () => file('d1', { status: 'draft' }) },
+        matter: { get: async () => file('d1', { status: 'active' }), cancelDraft },
+        s3: { deleteObject: deleteObjectFn },
         objectUploadSessions: { get: async () => session({ status: 'completed' }) },
       })
       await expect(
         abortUpload(deps, { orgId: 'o1', objectId: 'd1', sessionId: 'sess-1', actorId: 'u1' }),
       ).rejects.toMatchObject({ code: 'invalid_state' })
+      expect(deleteObjectFn).not.toHaveBeenCalled()
+      expect(cancelDraft).not.toHaveBeenCalled()
     })
   })
 

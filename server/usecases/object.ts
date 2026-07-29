@@ -517,10 +517,22 @@ export async function abortUpload(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions'>,
   params: { orgId: string; objectId: string; sessionId: string; actorId: string; strictStorageCleanup?: boolean },
 ): Promise<void> {
-  const { storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
+  const { matter: sessionMatter, storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
   const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
   if (!record) throw new ObjectUploadSessionError('not_found')
-  if (record.status === 'completed') throw new ObjectUploadSessionError('invalid_state', 'Upload already completed')
+  if (record.status === 'completed') {
+    if (sessionMatter.status !== 'draft' || record.uploadId == null) {
+      throw new ObjectUploadSessionError('invalid_state', 'Upload already completed')
+    }
+    try {
+      await deps.s3.deleteObject(storage, record.storageKey)
+    } catch (error) {
+      throw new ObjectUploadSessionError('storage_failure', `Storage cleanup failed: ${(error as Error).message}`)
+    }
+    await deps.objectUploadSessions.setStatus(record.id, 'aborted')
+    await deps.matter.cancelDraft(params.objectId, params.orgId)
+    return
+  }
   if (record.status === 'aborted') return
 
   if (record.uploadId != null) {
