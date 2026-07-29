@@ -143,12 +143,15 @@ export async function listObjects(
 
 // ─── Create (folder, or file draft + size-decided upload) ─────────────────────
 
-// The server picks the S3 mechanism by size: ≤5 GiB → single PutObject (1 URL),
-// >5 GiB → multipart with 5 GiB parts (N URLs), >5 TiB → rejected (S3's hard
-// single-object ceiling). The client's flow is uniform: PUT each slice, read the
-// ETag, then POST them to .../completions.
-const PART_SIZE_BYTES = 5 * 1024 * 1024 * 1024 // 5 GiB
+// The server picks the S3 mechanism by size: small objects use single PutObject,
+// larger objects use S3 multipart with explicit part descriptors. Multipart
+// defaults to automation-friendly 64 MiB chunks but grows when needed to respect
+// S3's 10,000-part ceiling and 5 TiB single-object maximum.
+const SINGLE_UPLOAD_MAX_BYTES = 64 * 1024 * 1024 // 64 MiB
+const DEFAULT_MULTIPART_PART_SIZE_BYTES = 64 * 1024 * 1024 // 64 MiB
+const MAX_UPLOAD_PARTS = 10_000
 const MAX_OBJECT_BYTES = 5 * 1024 * 1024 * 1024 * 1024 // 5 TiB
+export const UPLOAD_PRESIGNED_URL_TTL_SECONDS = 15 * 60
 
 export type CreateObjectOutcome =
   | { ok: true; matter: Matter }
@@ -246,16 +249,27 @@ async function prepareUpload(
   const { storage, storageKey, contentType, size } = params
   let uploadId: string | null = null
   let partSize: number
-  let urls: string[]
+  let partCount: number
+  let parts: ObjectUploadInstructions['parts']
+  const headers = signedUploadHeaders(contentType)
+  const presignedExpiresAt = new Date(Date.now() + UPLOAD_PRESIGNED_URL_TTL_SECONDS * 1000).toISOString()
 
-  if (size <= PART_SIZE_BYTES) {
+  if (size <= SINGLE_UPLOAD_MAX_BYTES) {
     // Single PutObject — one presigned PUT, no S3 multipart overhead. When the
     // client supplied a content type it is signed and must be sent verbatim.
     partSize = size
-    urls = [await deps.s3.presignUpload(storage, storageKey, contentType)]
+    partCount = 1
+    parts = [
+      {
+        partNumber: 1,
+        url: await deps.s3.presignUpload(storage, storageKey, contentType, UPLOAD_PRESIGNED_URL_TTL_SECONDS),
+        expiresAt: presignedExpiresAt,
+        headers,
+      },
+    ]
   } else {
-    partSize = PART_SIZE_BYTES
-    const partCount = Math.ceil(size / partSize)
+    partSize = Math.max(DEFAULT_MULTIPART_PART_SIZE_BYTES, Math.ceil(size / MAX_UPLOAD_PARTS))
+    partCount = Math.ceil(size / partSize)
     try {
       uploadId = await deps.s3.createMultipartUpload(storage, storageKey, contentType)
     } catch (error) {
@@ -265,8 +279,13 @@ async function prepareUpload(
       )
     }
     const mpId = uploadId
-    urls = await Promise.all(
-      Array.from({ length: partCount }, (_, i) => deps.s3.presignUploadPart(storage, storageKey, mpId, i + 1)),
+    parts = await Promise.all(
+      Array.from({ length: partCount }, async (_, i) => ({
+        partNumber: i + 1,
+        url: await deps.s3.presignUploadPart(storage, storageKey, mpId, i + 1, UPLOAD_PRESIGNED_URL_TTL_SECONDS),
+        expiresAt: presignedExpiresAt,
+        headers: {},
+      })),
     )
   }
 
@@ -280,7 +299,49 @@ async function prepareUpload(
     onConflict: params.onConflict,
     actorId: params.actorId,
   })
-  return { sessionId: record.id, partSize, urls }
+  return {
+    sessionId: record.id,
+    uploadId,
+    mode: uploadId == null ? 'single' : 'multipart',
+    partSize,
+    partCount,
+    expiresAt: record.expiresAt.toISOString(),
+    presignedExpiresAt,
+    requiredHeaders: uploadId == null ? headers : {},
+    urls: parts.map((part) => part.url),
+    parts,
+  }
+}
+
+function signedUploadHeaders(contentType?: string): Record<string, string> {
+  return contentType ? { 'content-type': contentType } : {}
+}
+
+function uploadPartCount(size: number, partSize: number): number {
+  if (partSize <= 0) return 1
+  return Math.max(1, Math.ceil(size / partSize))
+}
+
+function normalizeETag(etag: string): string {
+  return etag.trim().replace(/^"+|"+$/g, '')
+}
+
+function validateCompletionParts(
+  parts: CompleteObjectUploadInput['parts'],
+  requiredPartCount: number,
+): Array<{ partNumber: number; etag: string }> {
+  const normalized = parts.map((part) => ({ partNumber: part.partNumber, etag: normalizeETag(part.etag) }))
+  const seen = new Set<number>()
+  for (const part of normalized) {
+    if (part.partNumber < 1 || part.partNumber > requiredPartCount || seen.has(part.partNumber) || !part.etag) {
+      throw new ObjectUploadSessionError('invalid_state', 'Upload completion parts do not match the session')
+    }
+    seen.add(part.partNumber)
+  }
+  if (seen.size !== requiredPartCount) {
+    throw new ObjectUploadSessionError('invalid_state', 'Upload completion parts do not match the session')
+  }
+  return normalized.sort((a, b) => a.partNumber - b.partNumber)
 }
 
 // ─── Upload finalize / abort / re-presign ─────────────────────────────────────
@@ -309,8 +370,16 @@ export async function presignUploadSessionParts(
     sessionId: string
     partNumbers: PresignObjectUploadPartsInput['partNumbers']
   },
-): Promise<{ uploadId: string; partSize: number; parts: Array<{ partNumber: number; url: string }> }> {
-  const { storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
+): Promise<{
+  uploadId: string | null
+  mode: 'multipart'
+  partSize: number
+  partCount: number
+  presignedExpiresAt: string
+  requiredHeaders: Record<string, string>
+  parts: ObjectUploadInstructions['parts']
+}> {
+  const { matter, storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
   const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
   if (!record) throw new ObjectUploadSessionError('not_found')
   if (record.status !== 'active' || record.expiresAt.getTime() <= Date.now()) {
@@ -319,13 +388,39 @@ export async function presignUploadSessionParts(
   // Only multipart sessions have re-presignable parts; a single PutObject does not.
   if (record.uploadId == null) throw new ObjectUploadSessionError('invalid_state')
   const uploadId = record.uploadId
+  const partCount = uploadPartCount(matter.size ?? 0, record.partSize)
+  if (new Set(params.partNumbers).size !== params.partNumbers.length) {
+    throw new ObjectUploadSessionError('invalid_state', 'Duplicate part numbers are not allowed')
+  }
+  for (const partNumber of params.partNumbers) {
+    if (partNumber < 1 || partNumber > partCount) {
+      throw new ObjectUploadSessionError('invalid_state', 'Part number is outside this upload session')
+    }
+  }
+  const presignedExpiresAt = new Date(Date.now() + UPLOAD_PRESIGNED_URL_TTL_SECONDS * 1000).toISOString()
   const parts = await Promise.all(
     params.partNumbers.map(async (partNumber) => ({
       partNumber,
-      url: await deps.s3.presignUploadPart(storage, record.storageKey, uploadId, partNumber),
+      url: await deps.s3.presignUploadPart(
+        storage,
+        record.storageKey,
+        uploadId,
+        partNumber,
+        UPLOAD_PRESIGNED_URL_TTL_SECONDS,
+      ),
+      expiresAt: presignedExpiresAt,
+      headers: {},
     })),
   )
-  return { uploadId, partSize: record.partSize, parts }
+  return {
+    uploadId,
+    mode: 'multipart',
+    partSize: record.partSize,
+    partCount,
+    presignedExpiresAt,
+    requiredHeaders: {},
+    parts,
+  }
 }
 
 export type CompleteUploadOutcome =
@@ -349,20 +444,37 @@ export async function completeUpload(
     actorId: string
   },
 ): Promise<CompleteUploadOutcome> {
-  const { storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
+  const { matter: sessionMatter, storage } = await loadObjectForUploadSession(deps, params.orgId, params.objectId)
   const record = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
   if (!record) throw new ObjectUploadSessionError('not_found')
-  if (record.status !== 'active') throw new ObjectUploadSessionError('invalid_state')
+  const retryingCompletedMultipartActivation =
+    record.status === 'completed' && record.uploadId != null && sessionMatter.status === 'draft'
+  if (record.status === 'completed') {
+    if (sessionMatter.status === 'active') return { ok: true, matter: sessionMatter }
+    if (!retryingCompletedMultipartActivation) throw new ObjectUploadSessionError('invalid_state')
+  }
+  if (
+    (record.status !== 'active' && !retryingCompletedMultipartActivation) ||
+    record.expiresAt.getTime() <= Date.now()
+  ) {
+    throw new ObjectUploadSessionError('invalid_state')
+  }
 
-  if (record.uploadId != null) {
+  const completedParts = validateCompletionParts(
+    params.parts,
+    uploadPartCount(sessionMatter.size ?? 0, record.partSize),
+  )
+
+  if (record.uploadId != null && !retryingCompletedMultipartActivation) {
     try {
-      await deps.s3.completeMultipartUpload(storage, record.storageKey, record.uploadId, params.parts)
+      await deps.s3.completeMultipartUpload(storage, record.storageKey, record.uploadId, completedParts)
     } catch (error) {
       throw new ObjectUploadSessionError(
         'storage_failure',
         `Storage multipart upload complete failed: ${(error as Error).message}`,
       )
     }
+    await deps.objectUploadSessions.setStatus(record.id, 'completed')
   }
 
   let head: { size: number; contentType?: string; etag: string }
@@ -376,13 +488,11 @@ export async function completeUpload(
     )
   }
   if (record.uploadId == null) {
-    const reported = params.parts[0]?.etag.replace(/"/g, '')
+    const reported = completedParts[0]?.etag
     if (!reported || reported !== head.etag) {
       throw new ObjectUploadSessionError('invalid_state', 'Uploaded object ETag does not match', 'etag_mismatch')
     }
   }
-  await deps.objectUploadSessions.setStatus(record.id, 'completed')
-
   // Draft → live: reserve quota, apply the stored conflict strategy, activate.
   const { matter, quotaExceeded: exceeded } = await confirmUpload(deps, params.objectId, params.orgId, {
     onConflict: record.onConflict,
@@ -394,6 +504,9 @@ export async function completeUpload(
   }
   if (!matter) {
     return { ok: false, reason: 'not_found' }
+  }
+  if (record.uploadId == null) {
+    await deps.objectUploadSessions.setStatus(record.id, 'completed')
   }
   return { ok: true, matter }
 }

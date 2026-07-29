@@ -101,16 +101,16 @@ func (u *Uploader) uploadSingleFile(
 	if draft.Upload == nil {
 		return "", fmt.Errorf("create remote object %s: missing upload instructions", draft.ID)
 	}
-	log.Info("uploading file to object storage", "object_id", draft.ID, "path", path, "parts", len(draft.Upload.URLs))
+	log.Info("uploading file to object storage", "object_id", draft.ID, "path", path, "parts", len(draft.Upload.Parts))
 	if err := u.uploadObjectSlices(ctx, log, task, draft, path, size, progress); err != nil {
 		return "", fmt.Errorf("upload object %s: %w", draft.ID, err)
 	}
 	return draft.ID, nil
 }
 
-// uploadObjectSlices runs the uniform upload: PUT each presigned slice (1 URL =
-// single PutObject, N URLs = multipart), read each ETag, then finalize. On any
-// failure it aborts the session, which also discards the draft.
+// uploadObjectSlices runs the uniform upload: PUT each explicit presigned part,
+// read each ETag, then finalize. On any failure it aborts the session, which also
+// discards the draft.
 func (u *Uploader) uploadObjectSlices(
 	ctx context.Context,
 	log *slog.Logger,
@@ -139,15 +139,15 @@ func (u *Uploader) uploadObjectSlices(
 	}
 	defer file.Close()
 
-	parts := make([]client.CompletedObjectUploadPart, 0, len(upload.URLs))
-	for i, url := range upload.URLs {
-		partNumber := i + 1
-		offset := int64(i) * upload.PartSize
+	parts := make([]client.CompletedObjectUploadPart, 0, len(upload.Parts))
+	for _, part := range upload.Parts {
+		partNumber := part.PartNumber
+		offset := int64(partNumber-1) * upload.PartSize
 		length := upload.PartSize
 		if remaining := size - offset; remaining < length {
 			length = remaining
 		}
-		etag, err := uploadFilePart(ctx, url, file, offset, length, func(written int64) error {
+		etag, err := uploadFilePart(ctx, part.URL, part.Headers, file, offset, length, func(written int64) error {
 			return u.reportUploadProgress(ctx, log, task, progress, written)
 		})
 		if err != nil {
@@ -326,7 +326,15 @@ func joinObjectPath(parent string, name string) string {
 	return parent + "/" + name
 }
 
-func uploadFilePart(ctx context.Context, url string, file *os.File, offset int64, length int64, progress func(written int64) error) (string, error) {
+func uploadFilePart(
+	ctx context.Context,
+	url string,
+	headers map[string]string,
+	file *os.File,
+	offset int64,
+	length int64,
+	progress func(written int64) error,
+) (string, error) {
 	reader := io.NewSectionReader(file, offset, length)
 	var body io.Reader = reader
 	if progress != nil {
@@ -337,6 +345,9 @@ func uploadFilePart(ctx context.Context, url string, file *os.File, offset int64
 		return "", err
 	}
 	req.ContentLength = length
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err

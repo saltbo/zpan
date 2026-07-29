@@ -146,6 +146,19 @@ function actorId(c: Context<Env>): string {
   return c.get('userId') ?? 'system'
 }
 
+async function authorizeUploadSessionControl(c: Context<Env>, orgId: string, objectId: string): Promise<void> {
+  const principal = c.get('principal')
+  if (principal?.kind !== 'download-task-upload') return
+  const authorized = await authorizeTaskUploadConfirm(c.get('deps'), {
+    orgId,
+    objectId,
+    taskId: principal.taskId,
+    downloaderId: principal.downloaderId,
+    targetFolder: principal.targetFolder,
+  })
+  if (!authorized.ok) throw authorized.error
+}
+
 const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 
 const listRoute = authRoute(
@@ -441,9 +454,11 @@ const objects = app
   .openapi(presignPartsRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
+    const objectId = c.req.valid('param').id
+    await authorizeUploadSessionControl(c, orgId, objectId)
     const result = await presignUploadSessionParts(c.get('deps'), {
       orgId,
-      objectId: c.req.valid('param').id,
+      objectId,
       sessionId: c.req.valid('param').uploadSessionId,
       partNumbers: c.req.valid('json').partNumbers,
     })
@@ -457,18 +472,7 @@ const objects = app
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
     const objectId = c.req.valid('param').id
-
-    const principal = c.get('principal')
-    if (principal?.kind === 'download-task-upload') {
-      const authorized = await authorizeTaskUploadConfirm(c.get('deps'), {
-        orgId,
-        objectId,
-        taskId: principal.taskId,
-        downloaderId: principal.downloaderId,
-        targetFolder: principal.targetFolder,
-      })
-      if (!authorized.ok) throw authorized.error
-    }
+    await authorizeUploadSessionControl(c, orgId, objectId)
 
     const result = await completeUpload(c.get('deps'), {
       orgId,
@@ -486,9 +490,11 @@ const objects = app
   .openapi(abortUploadRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
+    const objectId = c.req.valid('param').id
+    await authorizeUploadSessionControl(c, orgId, objectId)
     await abortUpload(c.get('deps'), {
       orgId,
-      objectId: c.req.valid('param').id,
+      objectId,
       sessionId: c.req.valid('param').uploadSessionId,
       actorId: actorId(c),
       strictStorageCleanup: c.req.valid('query').strictStorageCleanup !== undefined,

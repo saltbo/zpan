@@ -2509,6 +2509,24 @@ func (e CreateObjectJSONBodyOnConflict) Valid() bool {
 	}
 }
 
+// Defines values for CreateObject201JSONResponseBodyUploadMode.
+const (
+	CreateObject201JSONResponseBodyUploadModeMultipart CreateObject201JSONResponseBodyUploadMode = "multipart"
+	CreateObject201JSONResponseBodyUploadModeSingle    CreateObject201JSONResponseBodyUploadMode = "single"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadMode enum.
+func (e CreateObject201JSONResponseBodyUploadMode) Valid() bool {
+	switch e {
+	case CreateObject201JSONResponseBodyUploadModeMultipart:
+		return true
+	case CreateObject201JSONResponseBodyUploadModeSingle:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateObjectJSONBodyOnConflict.
 const (
 	UpdateObjectJSONBodyOnConflictFail    UpdateObjectJSONBodyOnConflict = "fail"
@@ -2581,6 +2599,21 @@ func (e AbortObjectUploadParamsStrictStorageCleanup) Valid() bool {
 	case AbortObjectUploadParamsStrictStorageCleanupN1:
 		return true
 	case AbortObjectUploadParamsStrictStorageCleanupTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PresignObjectUploadParts200JSONResponseBodyMode.
+const (
+	PresignObjectUploadParts200JSONResponseBodyModeMultipart PresignObjectUploadParts200JSONResponseBodyMode = "multipart"
+)
+
+// Valid indicates whether the value is a known member of the PresignObjectUploadParts200JSONResponseBodyMode enum.
+func (e PresignObjectUploadParts200JSONResponseBodyMode) Valid() bool {
+	switch e {
+	case PresignObjectUploadParts200JSONResponseBodyModeMultipart:
 		return true
 	default:
 		return false
@@ -6433,6 +6466,9 @@ type CreateObjectJSONBody struct {
 // CreateObjectJSONBodyOnConflict defines parameters for CreateObject.
 type CreateObjectJSONBodyOnConflict string
 
+// CreateObject201JSONResponseBodyUploadMode defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadMode string
+
 // UpdateObjectJSONBody defines parameters for UpdateObject.
 type UpdateObjectJSONBody struct {
 	Name       *string                         `json:"name,omitempty"`
@@ -6482,6 +6518,9 @@ type CompleteObjectUploadJSONBody struct {
 type PresignObjectUploadPartsJSONBody struct {
 	PartNumbers []int `json:"partNumbers"`
 }
+
+// PresignObjectUploadParts200JSONResponseBodyMode defines parameters for PresignObjectUploadParts.
+type PresignObjectUploadParts200JSONResponseBodyMode string
 
 // ListSharesParams defines parameters for ListShares.
 type ListSharesParams struct {
@@ -29654,9 +29693,21 @@ type CreateObjectResponse struct {
 		Type      string `json:"type"`
 		UpdatedAt string `json:"updatedAt"`
 		Upload    *struct {
-			PartSize  int      `json:"partSize"`
-			SessionId string   `json:"sessionId"`
-			Urls      []string `json:"urls"`
+			ExpiresAt string                                    `json:"expiresAt"`
+			Mode      CreateObject201JSONResponseBodyUploadMode `json:"mode"`
+			PartCount int                                       `json:"partCount"`
+			PartSize  int                                       `json:"partSize"`
+			Parts     []struct {
+				ExpiresAt  string            `json:"expiresAt"`
+				Headers    map[string]string `json:"headers"`
+				PartNumber int               `json:"partNumber"`
+				Url        string            `json:"url"`
+			} `json:"parts"`
+			PresignedExpiresAt string            `json:"presignedExpiresAt"`
+			RequiredHeaders    map[string]string `json:"requiredHeaders"`
+			SessionId          string            `json:"sessionId"`
+			UploadId           *string           `json:"uploadId"`
+			Urls               []string          `json:"urls"`
 		} `json:"upload,omitempty"`
 	}
 	JSON400 *Error
@@ -29940,12 +29991,18 @@ type PresignObjectUploadPartsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		PartSize int `json:"partSize"`
-		Parts    []struct {
-			PartNumber int    `json:"partNumber"`
-			Url        string `json:"url"`
+		Mode      PresignObjectUploadParts200JSONResponseBodyMode `json:"mode"`
+		PartCount int                                             `json:"partCount"`
+		PartSize  int                                             `json:"partSize"`
+		Parts     []struct {
+			ExpiresAt  string            `json:"expiresAt"`
+			Headers    map[string]string `json:"headers"`
+			PartNumber int               `json:"partNumber"`
+			Url        string            `json:"url"`
 		} `json:"parts"`
-		UploadId string `json:"uploadId"`
+		PresignedExpiresAt string            `json:"presignedExpiresAt"`
+		RequiredHeaders    map[string]string `json:"requiredHeaders"`
+		UploadId           *string           `json:"uploadId"`
 	}
 	JSON400 *Error
 	JSON403 *Error
@@ -44880,9 +44937,21 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 			Type      string `json:"type"`
 			UpdatedAt string `json:"updatedAt"`
 			Upload    *struct {
-				PartSize  int      `json:"partSize"`
-				SessionId string   `json:"sessionId"`
-				Urls      []string `json:"urls"`
+				ExpiresAt string                                    `json:"expiresAt"`
+				Mode      CreateObject201JSONResponseBodyUploadMode `json:"mode"`
+				PartCount int                                       `json:"partCount"`
+				PartSize  int                                       `json:"partSize"`
+				Parts     []struct {
+					ExpiresAt  string            `json:"expiresAt"`
+					Headers    map[string]string `json:"headers"`
+					PartNumber int               `json:"partNumber"`
+					Url        string            `json:"url"`
+				} `json:"parts"`
+				PresignedExpiresAt string            `json:"presignedExpiresAt"`
+				RequiredHeaders    map[string]string `json:"requiredHeaders"`
+				SessionId          string            `json:"sessionId"`
+				UploadId           *string           `json:"uploadId"`
+				Urls               []string          `json:"urls"`
 			} `json:"upload,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -45284,12 +45353,18 @@ func ParsePresignObjectUploadPartsResponse(rsp *http.Response) (*PresignObjectUp
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			PartSize int `json:"partSize"`
-			Parts    []struct {
-				PartNumber int    `json:"partNumber"`
-				Url        string `json:"url"`
+			Mode      PresignObjectUploadParts200JSONResponseBodyMode `json:"mode"`
+			PartCount int                                             `json:"partCount"`
+			PartSize  int                                             `json:"partSize"`
+			Parts     []struct {
+				ExpiresAt  string            `json:"expiresAt"`
+				Headers    map[string]string `json:"headers"`
+				PartNumber int               `json:"partNumber"`
+				Url        string            `json:"url"`
 			} `json:"parts"`
-			UploadId string `json:"uploadId"`
+			PresignedExpiresAt string            `json:"presignedExpiresAt"`
+			RequiredHeaders    map[string]string `json:"requiredHeaders"`
+			UploadId           *string           `json:"uploadId"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

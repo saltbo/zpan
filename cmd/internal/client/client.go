@@ -236,19 +236,27 @@ type ObjectDraft struct {
 	Upload *ObjectUploadInstructions `json:"upload,omitempty"`
 }
 
-// ObjectUploadInstructions is returned by CreateObject for a file draft: the
-// server-decided part size and one presigned PUT URL per slice (1 URL = single
-// PutObject, N URLs = multipart). The client PUTs each slice, reads the ETag, and
-// posts them to CompleteObjectUpload.
+// ObjectUploadInstructions is returned by CreateObject for a file draft. The
+// client PUTs each explicit part descriptor, reads the ETag, and posts the
+// partNumber+etag records to CompleteObjectUpload.
 type ObjectUploadInstructions struct {
-	SessionID string   `json:"sessionId"`
-	PartSize  int64    `json:"partSize"`
-	URLs      []string `json:"urls"`
+	SessionID          string                      `json:"sessionId"`
+	UploadID           *string                     `json:"uploadId"`
+	Mode               string                      `json:"mode"`
+	PartSize           int64                       `json:"partSize"`
+	PartCount          int                         `json:"partCount"`
+	ExpiresAt          string                      `json:"expiresAt"`
+	PresignedExpiresAt string                      `json:"presignedExpiresAt"`
+	RequiredHeaders    map[string]string           `json:"requiredHeaders"`
+	URLs               []string                    `json:"urls"`
+	Parts              []PresignedObjectUploadPart `json:"parts"`
 }
 
 type PresignedObjectUploadPart struct {
-	PartNumber int    `json:"partNumber"`
-	URL        string `json:"url"`
+	PartNumber int               `json:"partNumber"`
+	URL        string            `json:"url"`
+	ExpiresAt  string            `json:"expiresAt"`
+	Headers    map[string]string `json:"headers"`
 }
 
 type CompletedObjectUploadPart struct {
@@ -612,9 +620,24 @@ func (c *Client) createMatter(
 		draft := ObjectDraft{ID: res.JSON201.Id, Name: res.JSON201.Name}
 		if u := res.JSON201.Upload; u != nil {
 			draft.Upload = &ObjectUploadInstructions{
-				SessionID: u.SessionId,
-				PartSize:  int64(u.PartSize),
-				URLs:      u.Urls,
+				SessionID:          u.SessionId,
+				UploadID:           u.UploadId,
+				Mode:               string(u.Mode),
+				PartSize:           int64(u.PartSize),
+				PartCount:          u.PartCount,
+				ExpiresAt:          u.ExpiresAt,
+				PresignedExpiresAt: u.PresignedExpiresAt,
+				RequiredHeaders:    u.RequiredHeaders,
+				URLs:               append([]string(nil), u.Urls...),
+				Parts:              make([]PresignedObjectUploadPart, 0, len(u.Parts)),
+			}
+			for _, part := range u.Parts {
+				draft.Upload.Parts = append(draft.Upload.Parts, PresignedObjectUploadPart{
+					PartNumber: part.PartNumber,
+					URL:        part.Url,
+					ExpiresAt:  part.ExpiresAt,
+					Headers:    part.Headers,
+				})
 			}
 		}
 		return draft, nil
@@ -638,7 +661,12 @@ func (c *Client) PresignObjectUploadParts(ctx context.Context, token string, id 
 	}
 	parts := make([]PresignedObjectUploadPart, 0, len(res.JSON200.Parts))
 	for _, part := range res.JSON200.Parts {
-		parts = append(parts, PresignedObjectUploadPart{PartNumber: part.PartNumber, URL: part.Url})
+		parts = append(parts, PresignedObjectUploadPart{
+			PartNumber: part.PartNumber,
+			URL:        part.Url,
+			ExpiresAt:  part.ExpiresAt,
+			Headers:    part.Headers,
+		})
 	}
 	return parts, nil
 }

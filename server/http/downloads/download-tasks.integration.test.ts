@@ -976,10 +976,10 @@ describe('Download tasks API integration', () => {
     const nestedObject = (await createNestedObjectRes.json()) as {
       id: string
       status: string
-      upload: { sessionId: string; urls: string[] }
+      upload: { sessionId: string; parts: Array<{ url: string }> }
     }
     expect(nestedObject.status).toBe('draft')
-    expect(nestedObject.upload.urls).toEqual(['https://presigned-upload.example.com'])
+    expect(nestedObject.upload.parts.map((part) => part.url)).toEqual(['https://presigned-upload.example.com'])
     const liveNestedParents = await db.all<{ count: number }>(sql`
       SELECT count(*) AS count
       FROM matters
@@ -1028,11 +1028,12 @@ describe('Download tasks API integration', () => {
     const object = (await createObjectRes.json()) as {
       id: string
       status: string
-      upload: { sessionId: string; partSize: number; urls: string[] }
+      upload: { sessionId: string; partSize: number; mode: string; parts: Array<{ url: string }> }
     }
     expect(object.status).toBe('draft')
-    // 10 MiB ≤ 5 GiB → single PutObject: one presigned URL.
-    expect(object.upload.urls).toEqual(['https://presigned-upload.example.com'])
+    // 10 MiB stays single PutObject: one explicit presigned part.
+    expect(object.upload.mode).toBe('single')
+    expect(object.upload.parts.map((part) => part.url)).toEqual(['https://presigned-upload.example.com'])
 
     // Re-presign is multipart-only; this single-PUT session has no parts to re-presign.
     const partsRes = await app.request(`/api/objects/${object.id}/uploads/${object.upload.sessionId}/parts`, {
@@ -1846,13 +1847,17 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createObjectRes.status).toBe(201)
-    const object = (await createObjectRes.json()) as { id: string; upload: { sessionId: string } }
+    const object = (await createObjectRes.json()) as { id: string; upload: { sessionId: string; partCount: number } }
+    const completeParts = Array.from({ length: object.upload.partCount }, (_, i) => ({
+      partNumber: i + 1,
+      etag: `"etag-${i + 1}"`,
+    }))
 
     // Multipart completion calls CompleteMultipartUpload, which is mocked to reject.
     const completeRes = await app.request(`/api/objects/${object.id}/uploads/${object.upload.sessionId}/completions`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ parts: [{ partNumber: 1, etag: '"etag-1"' }] }),
+      body: JSON.stringify({ parts: completeParts }),
     })
 
     expect(completeRes.status).toBe(502)

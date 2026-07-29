@@ -418,13 +418,27 @@ export interface ObjectUploadSession {
   updatedAt: string
 }
 
+export interface ObjectUploadPartDescriptor {
+  partNumber: number
+  url: string
+  expiresAt: string
+  headers: Record<string, string>
+}
+
 // The upload instructions returned by POST /objects for a file draft: the
-// client PUTs each slice to urls[i] (slice i = bytes [i*partSize, …]), reads the
-// ETag of each response, then POSTs them to .../completions.
+// client PUTs each explicit part descriptor directly to S3, reads the ETag of
+// each response, then POSTs the partNumber+etag records to .../completions.
 export interface ObjectUploadInstructions {
   sessionId: string
+  uploadId: string | null
+  mode: 'single' | 'multipart'
   partSize: number
+  partCount: number
+  expiresAt: string
+  presignedExpiresAt: string
+  requiredHeaders: Record<string, string>
   urls: string[]
+  parts: ObjectUploadPartDescriptor[]
 }
 
 export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled'

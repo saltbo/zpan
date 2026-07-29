@@ -101,7 +101,25 @@ const uploadDraft: CreateObjectResult = {
   trashedAt: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
-  upload: { sessionId: 'session-1', urls: ['https://uploads.example.com/object-1'], partSize: 5_242_880 },
+  upload: {
+    sessionId: 'session-1',
+    uploadId: null,
+    mode: 'single',
+    partSize: 5_242_880,
+    partCount: 1,
+    expiresAt: '2026-01-01T01:00:00.000Z',
+    presignedExpiresAt: '2026-01-01T00:15:00.000Z',
+    requiredHeaders: { 'content-type': 'text/plain' },
+    urls: ['https://uploads.example.com/object-1'],
+    parts: [
+      {
+        partNumber: 1,
+        url: 'https://uploads.example.com/object-1',
+        expiresAt: '2026-01-01T00:15:00.000Z',
+        headers: { 'content-type': 'text/plain' },
+      },
+    ],
+  },
 }
 
 function renderStoragesPage() {
@@ -236,7 +254,7 @@ describe('StoragesPage connection test action', () => {
       'https://uploads.example.com/object-1',
       expect.objectContaining({
         method: 'PUT',
-        headers: { 'Content-Type': 'text/plain' },
+        headers: { 'content-type': 'text/plain' },
         body: expect.any(Blob),
       }),
     )

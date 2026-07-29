@@ -272,24 +272,36 @@ export const updateMatterSchema = z.object({
 
 export type UpdateMatterInput = z.infer<typeof updateMatterSchema>
 
-// The upload instructions returned by POST /objects for a file draft. The server
-// decides the S3 mechanism by size: 1 URL = single PutObject (≤5 GiB), N URLs =
-// multipart 5 GiB parts (>5 GiB). The client PUTs each slice, reads the ETag, and
-// posts them to .../completions.
-export const objectUploadInstructionsSchema = z.object({
-  sessionId: z.string(),
-  partSize: z.number().int(),
-  urls: z.array(z.string()),
+export const presignedObjectUploadPartSchema = z.object({
+  partNumber: z.number().int().min(1).max(10_000),
+  url: z.string(),
+  expiresAt: z.string(),
+  headers: z.record(z.string(), z.string()),
 })
 
-export const presignedObjectUploadPartSchema = z.object({
-  partNumber: z.number().int(),
-  url: z.string(),
+// The upload instructions returned by POST /objects for a file draft. File bytes
+// still go directly to presigned S3 URLs; the server exposes stable part
+// identities so automation never infers part numbers from URL positions.
+export const objectUploadInstructionsSchema = z.object({
+  sessionId: z.string(),
+  uploadId: z.string().nullable(),
+  mode: z.enum(['single', 'multipart']),
+  partSize: z.number().int(),
+  partCount: z.number().int().min(1).max(10_000),
+  expiresAt: z.string(),
+  presignedExpiresAt: z.string(),
+  requiredHeaders: z.record(z.string(), z.string()),
+  urls: z.array(z.string()),
+  parts: z.array(presignedObjectUploadPartSchema),
 })
 
 export const presignObjectUploadPartsResponseSchema = z.object({
-  uploadId: z.string(),
+  uploadId: z.string().nullable(),
+  mode: z.literal('multipart'),
   partSize: z.number().int(),
+  partCount: z.number().int().min(1).max(10_000),
+  presignedExpiresAt: z.string(),
+  requiredHeaders: z.record(z.string(), z.string()),
   parts: z.array(presignedObjectUploadPartSchema),
 })
 

@@ -346,7 +346,15 @@ export function abortObjectUpload(id: string, uploadSessionId: string, opts: { s
 // Re-presign expired part URLs mid-upload (multipart only); the happy path uses
 // the URLs from createObject.
 export function presignObjectUploadParts(id: string, uploadSessionId: string, data: PresignObjectUploadPartsInput) {
-  return unwrap<{ uploadId: string; partSize: number; parts: Array<{ partNumber: number; url: string }> }>(
+  return unwrap<{
+    uploadId: string | null
+    mode: 'multipart'
+    partSize: number
+    partCount: number
+    presignedExpiresAt: string
+    requiredHeaders: Record<string, string>
+    parts: ObjectUploadInstructions['parts']
+  }>(
     objects[':id'].uploads[':uploadSessionId'].parts.$post({
       param: { id, uploadSessionId },
       json: data,

@@ -560,7 +560,7 @@ func TestUploadFilePartSendsContentLength(t *testing.T) {
 	}))
 	defer server.Close()
 
-	etag, err := uploadFilePart(context.Background(), server.URL, file, 0, 11, func(written int64) error {
+	etag, err := uploadFilePart(context.Background(), server.URL, nil, file, 0, 11, func(written int64) error {
 		uploaded += written
 		return nil
 	})
@@ -594,7 +594,7 @@ func TestUploadFilePartIncludesErrorBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err = uploadFilePart(context.Background(), server.URL, file, 0, 5, nil)
+	_, err = uploadFilePart(context.Background(), server.URL, nil, file, 0, 5, nil)
 	if err == nil {
 		t.Fatal("expected uploadFilePart error")
 	}
@@ -626,7 +626,7 @@ func TestUploadFilePartSendsSectionAndReturnsETag(t *testing.T) {
 	}))
 	defer server.Close()
 
-	etag, err := uploadFilePart(context.Background(), server.URL, file, 6, 9, func(written int64) error {
+	etag, err := uploadFilePart(context.Background(), server.URL, nil, file, 6, 9, func(written int64) error {
 		uploaded += written
 		return nil
 	})
@@ -789,7 +789,7 @@ func TestWorkerLifecycleUploadFailurePreservesLocalResult(t *testing.T) {
 	defer uploadServer.Close()
 
 	api := &recordingAPI{
-		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: &client.ObjectUploadInstructions{SessionID: "session-1", PartSize: payloadSize, URLs: []string{uploadServer.URL}}},
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: testUploadInstructions("session-1", payloadSize, uploadServer.URL)},
 		completeErrs:      []error{errors.New("unauthorized"), nil},
 	}
 	eng := &recordingEngine{
@@ -842,7 +842,7 @@ func TestWorkerLifecycleHTTPUploadFailurePreservesLocalResult(t *testing.T) {
 
 	payloadSize := int64(len(payload))
 	api := &recordingAPI{
-		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: &client.ObjectUploadInstructions{SessionID: "session-1", PartSize: payloadSize, URLs: []string{uploadServer.URL}}},
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: testUploadInstructions("session-1", payloadSize, uploadServer.URL)},
 		completeErrs:      []error{errors.New("unauthorized"), nil},
 	}
 	downloadDir := t.TempDir()
@@ -1001,7 +1001,7 @@ func TestUploadShutdownMarksTaskInterrupted(t *testing.T) {
 	payloadPath := writeTempFile(t, "downloaded payload")
 	payloadSize := int64(len("downloaded payload"))
 	api := &recordingAPI{
-		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: &client.ObjectUploadInstructions{SessionID: "session-1", PartSize: payloadSize, URLs: []string{"http://127.0.0.1:1"}}},
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: testUploadInstructions("session-1", payloadSize, "http://127.0.0.1:1")},
 	}
 	w := NewTaskRunnerWithAPI(config.Config{}, api)
 
@@ -1040,7 +1040,7 @@ func TestSuspendedUploadPreservesLocalResult(t *testing.T) {
 	}
 	payloadSize := int64(len(payload))
 	api := &recordingAPI{
-		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: &client.ObjectUploadInstructions{SessionID: "session-1", PartSize: payloadSize, URLs: []string{"http://127.0.0.1:1"}}},
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", Upload: testUploadInstructions("session-1", payloadSize, "http://127.0.0.1:1")},
 	}
 	w := NewTaskRunnerWithAPI(config.Config{}, api)
 

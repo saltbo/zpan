@@ -504,7 +504,17 @@ describe('api', () => {
       const created = {
         id: 'new1',
         name: 'doc.pdf',
-        upload: { sessionId: 'sess-1', partSize: 5 * 1024 * 1024, urls: ['https://s3/part-1'] },
+        upload: {
+          sessionId: 'sess-1',
+          uploadId: null,
+          mode: 'single',
+          partSize: 5 * 1024 * 1024,
+          partCount: 1,
+          expiresAt: '2026-01-01T01:00:00.000Z',
+          presignedExpiresAt: '2026-01-01T00:15:00.000Z',
+          requiredHeaders: {},
+          parts: [{ partNumber: 1, url: 'https://s3/part-1', expiresAt: '2026-01-01T00:15:00.000Z', headers: {} }],
+        },
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(created))
 
@@ -517,7 +527,7 @@ describe('api', () => {
       })
 
       expect(result).toEqual(created)
-      expect(result.upload).toEqual({ sessionId: 'sess-1', partSize: 5 * 1024 * 1024, urls: ['https://s3/part-1'] })
+      expect(result.upload).toEqual(created.upload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/objects')
       expect(init.method).toBe('POST')

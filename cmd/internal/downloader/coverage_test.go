@@ -19,6 +19,20 @@ import (
 	"github.com/saltbo/zpan/internal/config"
 )
 
+func testUploadInstructions(sessionID string, partSize int64, urls ...string) *client.ObjectUploadInstructions {
+	parts := make([]client.PresignedObjectUploadPart, 0, len(urls))
+	for i, url := range urls {
+		parts = append(parts, client.PresignedObjectUploadPart{PartNumber: i + 1, URL: url})
+	}
+	return &client.ObjectUploadInstructions{
+		SessionID: sessionID,
+		Mode:      "single",
+		PartSize:  partSize,
+		PartCount: len(parts),
+		Parts:     parts,
+	}
+}
+
 func TestDownloadTaskAccessors(t *testing.T) {
 	runtime := &TaskRuntime{Engine: "aria2", Phase: "downloading"}
 	task := DownloadTask{
@@ -310,7 +324,7 @@ func TestTaskRunnerRunHappyPathDownloadsUploadsAndCompletes(t *testing.T) {
 		draft: client.ObjectDraft{
 			ID:     "object-1",
 			Name:   "payload.bin",
-			Upload: &client.ObjectUploadInstructions{SessionID: "session-1", PartSize: int64(len(payload)), URLs: []string{uploadServer.URL}},
+			Upload: testUploadInstructions("session-1", int64(len(payload)), uploadServer.URL),
 		},
 		onCompleted: cancel,
 	}
@@ -505,7 +519,7 @@ func TestDirectoryUploadSuccessCreatesTree(t *testing.T) {
 		createObjectDraft: client.ObjectDraft{
 			ID:     "object-id",
 			Name:   "file",
-			Upload: &client.ObjectUploadInstructions{SessionID: "session", PartSize: 1, URLs: []string{uploadServer.URL}},
+			Upload: testUploadInstructions("session", 1, uploadServer.URL),
 		},
 	}
 	uploader := NewUploader(api, nil)
@@ -576,7 +590,11 @@ func TestUploadObjectSlicesTailPartAndMissingETag(t *testing.T) {
 		Upload: &client.ObjectUploadInstructions{
 			SessionID: "session",
 			PartSize:  3,
-			URLs:      []string{uploadServer.URL, uploadServer.URL},
+			PartCount: 2,
+			Parts: []client.PresignedObjectUploadPart{
+				{PartNumber: 1, URL: uploadServer.URL},
+				{PartNumber: 2, URL: uploadServer.URL},
+			},
 		},
 	}, path, 5, &uploadProgress{totalBytes: 5, lastAt: time.Now()})
 	if err == nil || !strings.Contains(err.Error(), "missing ETag") {
@@ -660,7 +678,7 @@ func TestUploadAndCompleteSuccessWithNilRuntimeCleansLocalFile(t *testing.T) {
 		createObjectDraft: client.ObjectDraft{
 			ID:     "object-1",
 			Name:   "payload.bin",
-			Upload: &client.ObjectUploadInstructions{SessionID: "session", PartSize: 1024, URLs: []string{uploadServer.URL}},
+			Upload: testUploadInstructions("session", 1024, uploadServer.URL),
 		},
 	}
 	runner := NewTaskRunnerWithAPI(config.Config{}, api)

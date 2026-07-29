@@ -732,14 +732,24 @@ describe('Objects API', () => {
     const body = (await res.json()) as {
       status: string
       object: string
-      upload: { sessionId: string; partSize: number; urls: string[] }
+      upload: {
+        sessionId: string
+        partSize: number
+        partCount: number
+        mode: string
+        urls: string[]
+        parts: Array<{ url: string }>
+      }
     }
     expect(body.status).toBe('draft')
     expect(body.object).toBeTruthy()
-    // ≤5 GiB → single PutObject: one URL, partSize equals the file size.
+    // Small upload → single PutObject: one explicit part, partSize equals the file size.
     expect(body.upload.sessionId).toBeTruthy()
+    expect(body.upload.mode).toBe('single')
     expect(body.upload.partSize).toBe(2048)
+    expect(body.upload.partCount).toBe(1)
     expect(body.upload.urls).toEqual(['https://presigned-upload.example.com'])
+    expect(body.upload.parts.map((part) => part.url)).toEqual(['https://presigned-upload.example.com'])
   })
 
   it('POST /api/objects with storageId uses that exact eligible storage', async () => {
@@ -2502,13 +2512,17 @@ describe('object multipart upload API with S3-compatible storage', () => {
     expect(createRes.status).toBe(201)
     const object = (await createRes.json()) as {
       id: string
-      upload: { sessionId: string; partSize: number; urls: string[] }
+      upload: { sessionId: string; partSize: number; parts: Array<{ url: string; headers: Record<string, string> }> }
     }
-    expect(object.upload.urls).toHaveLength(1)
+    expect(object.upload.parts).toHaveLength(1)
     expect(object.upload.partSize).toBe(11)
 
     // PUT the bytes directly to the presigned URL, read the ETag.
-    const putRes = await fetch(object.upload.urls[0], { method: 'PUT', body: 'hello world' })
+    const putRes = await fetch(object.upload.parts[0].url, {
+      method: 'PUT',
+      headers: object.upload.parts[0].headers,
+      body: 'hello world',
+    })
     expect(putRes.status).toBe(200)
     const etagHeader = putRes.headers.get('etag')
     expect(etagHeader).toBeTruthy()
@@ -2821,6 +2835,44 @@ describe('Objects API — error branches', () => {
       headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
     })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Forbidden')
+  })
+
+  it('rejects download-task-upload re-sign outside the task target folder', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
+    await insertFile(db, orgId, {
+      id: 'm-task-presign-outside',
+      name: 'file.txt',
+      parent: 'Elsewhere',
+      status: 'draft',
+    })
+
+    const res = await app.request('/api/objects/m-task-presign-outside/uploads/any-session/parts', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partNumbers: [1] }),
+    })
+
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Forbidden')
+  })
+
+  it('rejects download-task-upload abort outside the task target folder', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
+    await insertFile(db, orgId, { id: 'm-task-abort-outside', name: 'file.txt', parent: 'Elsewhere', status: 'draft' })
+
+    const res = await app.request('/api/objects/m-task-abort-outside/uploads/any-session', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${uploadToken}` },
+    })
+
     expect(res.status).toBe(403)
     const body = (await res.json()) as { error: { message: string } }
     expect(body.error.message).toBe('Forbidden')
