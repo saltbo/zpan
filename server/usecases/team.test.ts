@@ -89,6 +89,7 @@ function makeDeps(
       getMemberRole: async () => null,
       canReadOrg: async () => false,
       canWriteToOrg: async () => false,
+      canManageAgentAccess: async () => false,
       isPersonalOrg: async () => false,
       ...overrides.org,
     },

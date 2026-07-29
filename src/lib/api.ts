@@ -1,6 +1,11 @@
 import { type ApiKeyMetadata, ApiKeyTemplate } from '@shared/api-key-templates'
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
+  AgentApiKey,
+  AgentApiKeyCreated,
+  AgentApiKeyCreateInput,
+  AgentApiKeyList,
+  AgentApiKeyRotateInput,
   AllowedImageMime,
   AnnouncementInput,
   CloudCreditBalanceResponse,
@@ -97,6 +102,7 @@ import {
   adminQuotas,
   adminSiteInvitations,
   adminTeams,
+  agentApiKeysApi,
   announcementsApi,
   authedSharesApi,
   authProviders,
@@ -1080,6 +1086,40 @@ export function updateIhostConfig(data: { customDomain?: string | null; refererA
 
 export function deleteIhostConfig() {
   return ihostConfigApi.index.$delete().then((res) => {
+    if (!res.ok) throw new ApiError(res.status, toErrorBody(res.status, { error: res.statusText }))
+  })
+}
+
+// Agent Access API keys
+
+export type { AgentApiKey, AgentApiKeyCreated, AgentApiKeyCreateInput, AgentApiKeyList, AgentApiKeyRotateInput }
+
+export function listAgentApiKeys(orgId: string, page = 1, pageSize = 50) {
+  return unwrap<AgentApiKeyList>(
+    agentApiKeysApi[':orgId']['agent-api-keys'].$get({
+      param: { orgId },
+      query: { page: String(page), pageSize: String(pageSize) },
+    }),
+  )
+}
+
+export function createAgentApiKey(orgId: string, input: AgentApiKeyCreateInput) {
+  return unwrap<AgentApiKeyCreated>(
+    agentApiKeysApi[':orgId']['agent-api-keys'].$post({ param: { orgId }, json: input }),
+  )
+}
+
+export function rotateAgentApiKey(orgId: string, keyId: string, input: AgentApiKeyRotateInput = {}) {
+  return unwrap<AgentApiKeyCreated>(
+    agentApiKeysApi[':orgId']['agent-api-keys'][':keyId'].rotations.$post({
+      param: { orgId, keyId },
+      json: input,
+    }),
+  )
+}
+
+export function revokeAgentApiKey(orgId: string, keyId: string) {
+  return agentApiKeysApi[':orgId']['agent-api-keys'][':keyId'].$delete({ param: { orgId, keyId } }).then((res) => {
     if (!res.ok) throw new ApiError(res.status, toErrorBody(res.status, { error: res.statusText }))
   })
 }

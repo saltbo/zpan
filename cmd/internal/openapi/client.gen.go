@@ -2796,16 +2796,16 @@ func (e GetAdminAnalyticsTrafficParamsTimeZone) Valid() bool {
 
 // Defines values for ListAnnouncementsParamsScope.
 const (
-	Active ListAnnouncementsParamsScope = "active"
-	All    ListAnnouncementsParamsScope = "all"
+	ListAnnouncementsParamsScopeActive ListAnnouncementsParamsScope = "active"
+	ListAnnouncementsParamsScopeAll    ListAnnouncementsParamsScope = "all"
 )
 
 // Valid indicates whether the value is a known member of the ListAnnouncementsParamsScope enum.
 func (e ListAnnouncementsParamsScope) Valid() bool {
 	switch e {
-	case Active:
+	case ListAnnouncementsParamsScopeActive:
 		return true
-	case All:
+	case ListAnnouncementsParamsScopeAll:
 		return true
 	default:
 		return false
@@ -3166,6 +3166,273 @@ const (
 func (e GrantUserEntitlementJSONBodyResourceType) Valid() bool {
 	switch e {
 	case GrantUserEntitlementJSONBodyResourceTypeStorage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes.
+const (
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsCreate    ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "objects:create"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsDelete    ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "objects:delete"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsRead      ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "objects:read"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsUpdate    ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "objects:update"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesQuotaRead        ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "quota:read"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesCreate     ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "shares:create"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesDelete     ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "shares:delete"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesRead       ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "shares:read"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesStorageUsageRead ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "storage-usage:read"
+)
+
+// Valid indicates whether the value is a known member of the ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes enum.
+func (e ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes) Valid() bool {
+	switch e {
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsCreate:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsDelete:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsRead:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsUpdate:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesQuotaRead:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesCreate:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesDelete:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesRead:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesStorageUsageRead:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus.
+const (
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusActive       ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus = "active"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusExpired      ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus = "expired"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusInaccessible ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus = "inaccessible"
+	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusRevoked      ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus enum.
+func (e ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus) Valid() bool {
+	switch e {
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusActive:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusExpired:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusInaccessible:
+		return true
+	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusRevoked:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateWorkspaceAgentApiKeyJSONBodyScopes.
+const (
+	CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsCreate    CreateWorkspaceAgentApiKeyJSONBodyScopes = "objects:create"
+	CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsDelete    CreateWorkspaceAgentApiKeyJSONBodyScopes = "objects:delete"
+	CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsRead      CreateWorkspaceAgentApiKeyJSONBodyScopes = "objects:read"
+	CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsUpdate    CreateWorkspaceAgentApiKeyJSONBodyScopes = "objects:update"
+	CreateWorkspaceAgentApiKeyJSONBodyScopesQuotaRead        CreateWorkspaceAgentApiKeyJSONBodyScopes = "quota:read"
+	CreateWorkspaceAgentApiKeyJSONBodyScopesSharesCreate     CreateWorkspaceAgentApiKeyJSONBodyScopes = "shares:create"
+	CreateWorkspaceAgentApiKeyJSONBodyScopesSharesDelete     CreateWorkspaceAgentApiKeyJSONBodyScopes = "shares:delete"
+	CreateWorkspaceAgentApiKeyJSONBodyScopesSharesRead       CreateWorkspaceAgentApiKeyJSONBodyScopes = "shares:read"
+	CreateWorkspaceAgentApiKeyJSONBodyScopesStorageUsageRead CreateWorkspaceAgentApiKeyJSONBodyScopes = "storage-usage:read"
+)
+
+// Valid indicates whether the value is a known member of the CreateWorkspaceAgentApiKeyJSONBodyScopes enum.
+func (e CreateWorkspaceAgentApiKeyJSONBodyScopes) Valid() bool {
+	switch e {
+	case CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsCreate:
+		return true
+	case CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsDelete:
+		return true
+	case CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsRead:
+		return true
+	case CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsUpdate:
+		return true
+	case CreateWorkspaceAgentApiKeyJSONBodyScopesQuotaRead:
+		return true
+	case CreateWorkspaceAgentApiKeyJSONBodyScopesSharesCreate:
+		return true
+	case CreateWorkspaceAgentApiKeyJSONBodyScopesSharesDelete:
+		return true
+	case CreateWorkspaceAgentApiKeyJSONBodyScopesSharesRead:
+		return true
+	case CreateWorkspaceAgentApiKeyJSONBodyScopesStorageUsageRead:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes.
+const (
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsCreate    CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:create"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsDelete    CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:delete"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsRead      CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:read"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsUpdate    CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:update"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesQuotaRead        CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "quota:read"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesCreate     CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:create"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesDelete     CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:delete"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesRead       CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:read"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesStorageUsageRead CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "storage-usage:read"
+)
+
+// Valid indicates whether the value is a known member of the CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes enum.
+func (e CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes) Valid() bool {
+	switch e {
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsCreate:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsDelete:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsRead:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsUpdate:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesQuotaRead:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesCreate:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesDelete:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesRead:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesStorageUsageRead:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus.
+const (
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusActive       CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "active"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusExpired      CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "expired"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusInaccessible CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "inaccessible"
+	CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusRevoked      CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus enum.
+func (e CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus) Valid() bool {
+	switch e {
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusActive:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusExpired:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusInaccessible:
+		return true
+	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusRevoked:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RotateWorkspaceAgentApiKeyJSONBodyScopes.
+const (
+	RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsCreate    RotateWorkspaceAgentApiKeyJSONBodyScopes = "objects:create"
+	RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsDelete    RotateWorkspaceAgentApiKeyJSONBodyScopes = "objects:delete"
+	RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsRead      RotateWorkspaceAgentApiKeyJSONBodyScopes = "objects:read"
+	RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsUpdate    RotateWorkspaceAgentApiKeyJSONBodyScopes = "objects:update"
+	RotateWorkspaceAgentApiKeyJSONBodyScopesQuotaRead        RotateWorkspaceAgentApiKeyJSONBodyScopes = "quota:read"
+	RotateWorkspaceAgentApiKeyJSONBodyScopesSharesCreate     RotateWorkspaceAgentApiKeyJSONBodyScopes = "shares:create"
+	RotateWorkspaceAgentApiKeyJSONBodyScopesSharesDelete     RotateWorkspaceAgentApiKeyJSONBodyScopes = "shares:delete"
+	RotateWorkspaceAgentApiKeyJSONBodyScopesSharesRead       RotateWorkspaceAgentApiKeyJSONBodyScopes = "shares:read"
+	RotateWorkspaceAgentApiKeyJSONBodyScopesStorageUsageRead RotateWorkspaceAgentApiKeyJSONBodyScopes = "storage-usage:read"
+)
+
+// Valid indicates whether the value is a known member of the RotateWorkspaceAgentApiKeyJSONBodyScopes enum.
+func (e RotateWorkspaceAgentApiKeyJSONBodyScopes) Valid() bool {
+	switch e {
+	case RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsCreate:
+		return true
+	case RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsDelete:
+		return true
+	case RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsRead:
+		return true
+	case RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsUpdate:
+		return true
+	case RotateWorkspaceAgentApiKeyJSONBodyScopesQuotaRead:
+		return true
+	case RotateWorkspaceAgentApiKeyJSONBodyScopesSharesCreate:
+		return true
+	case RotateWorkspaceAgentApiKeyJSONBodyScopesSharesDelete:
+		return true
+	case RotateWorkspaceAgentApiKeyJSONBodyScopesSharesRead:
+		return true
+	case RotateWorkspaceAgentApiKeyJSONBodyScopesStorageUsageRead:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes.
+const (
+	ObjectsCreate    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:create"
+	ObjectsDelete    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:delete"
+	ObjectsRead      RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:read"
+	ObjectsUpdate    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:update"
+	QuotaRead        RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "quota:read"
+	SharesCreate     RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:create"
+	SharesDelete     RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:delete"
+	SharesRead       RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:read"
+	StorageUsageRead RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "storage-usage:read"
+)
+
+// Valid indicates whether the value is a known member of the RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes enum.
+func (e RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes) Valid() bool {
+	switch e {
+	case ObjectsCreate:
+		return true
+	case ObjectsDelete:
+		return true
+	case ObjectsRead:
+		return true
+	case ObjectsUpdate:
+		return true
+	case QuotaRead:
+		return true
+	case SharesCreate:
+		return true
+	case SharesDelete:
+		return true
+	case SharesRead:
+		return true
+	case StorageUsageRead:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus.
+const (
+	RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusActive       RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "active"
+	RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusExpired      RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "expired"
+	RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusInaccessible RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "inaccessible"
+	RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusRevoked      RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus enum.
+func (e RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus) Valid() bool {
+	switch e {
+	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusActive:
+		return true
+	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusExpired:
+		return true
+	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusInaccessible:
+		return true
+	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusRevoked:
 		return true
 	default:
 		return false
@@ -6932,6 +7199,50 @@ type UpdateUserEntitlementJSONBody struct {
 	Note      *string    `json:"note,omitempty"`
 }
 
+// ListWorkspaceAgentApiKeysParams defines parameters for ListWorkspaceAgentApiKeys.
+type ListWorkspaceAgentApiKeysParams struct {
+	Page     *int `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes defines parameters for ListWorkspaceAgentApiKeys.
+type ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes string
+
+// ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus defines parameters for ListWorkspaceAgentApiKeys.
+type ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus string
+
+// CreateWorkspaceAgentApiKeyJSONBody defines parameters for CreateWorkspaceAgentApiKey.
+type CreateWorkspaceAgentApiKeyJSONBody struct {
+	ExpiresAt time.Time                                  `json:"expiresAt"`
+	Name      string                                     `json:"name"`
+	Scopes    []CreateWorkspaceAgentApiKeyJSONBodyScopes `json:"scopes"`
+}
+
+// CreateWorkspaceAgentApiKeyJSONBodyScopes defines parameters for CreateWorkspaceAgentApiKey.
+type CreateWorkspaceAgentApiKeyJSONBodyScopes string
+
+// CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes defines parameters for CreateWorkspaceAgentApiKey.
+type CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes string
+
+// CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus defines parameters for CreateWorkspaceAgentApiKey.
+type CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus string
+
+// RotateWorkspaceAgentApiKeyJSONBody defines parameters for RotateWorkspaceAgentApiKey.
+type RotateWorkspaceAgentApiKeyJSONBody struct {
+	ExpiresAt *time.Time                                  `json:"expiresAt,omitempty"`
+	Name      *string                                     `json:"name,omitempty"`
+	Scopes    *[]RotateWorkspaceAgentApiKeyJSONBodyScopes `json:"scopes,omitempty"`
+}
+
+// RotateWorkspaceAgentApiKeyJSONBodyScopes defines parameters for RotateWorkspaceAgentApiKey.
+type RotateWorkspaceAgentApiKeyJSONBodyScopes string
+
+// RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes defines parameters for RotateWorkspaceAgentApiKey.
+type RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes string
+
+// RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus defines parameters for RotateWorkspaceAgentApiKey.
+type RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus string
+
 // BanUserJSONRequestBody defines body for BanUser for application/json ContentType.
 type BanUserJSONRequestBody BanUserJSONBody
 
@@ -7261,6 +7572,12 @@ type GrantUserEntitlementJSONRequestBody GrantUserEntitlementJSONBody
 
 // UpdateUserEntitlementJSONRequestBody defines body for UpdateUserEntitlement for application/json ContentType.
 type UpdateUserEntitlementJSONRequestBody UpdateUserEntitlementJSONBody
+
+// CreateWorkspaceAgentApiKeyJSONRequestBody defines body for CreateWorkspaceAgentApiKey for application/json ContentType.
+type CreateWorkspaceAgentApiKeyJSONRequestBody CreateWorkspaceAgentApiKeyJSONBody
+
+// RotateWorkspaceAgentApiKeyJSONRequestBody defines body for RotateWorkspaceAgentApiKey for application/json ContentType.
+type RotateWorkspaceAgentApiKeyJSONRequestBody RotateWorkspaceAgentApiKeyJSONBody
 
 // AsCloudflareSaasImageDomainSettingsCloudflare0 returns the union data inside the CloudflareSaasImageDomainSettings_Cloudflare as a CloudflareSaasImageDomainSettingsCloudflare0
 func (t CloudflareSaasImageDomainSettings_Cloudflare) AsCloudflareSaasImageDomainSettingsCloudflare0() (CloudflareSaasImageDomainSettingsCloudflare0, error) {
@@ -8849,6 +9166,22 @@ type ClientInterface interface {
 
 	// GetUserProfile request
 	GetUserProfile(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListWorkspaceAgentApiKeys request
+	ListWorkspaceAgentApiKeys(ctx context.Context, orgId string, params *ListWorkspaceAgentApiKeysParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateWorkspaceAgentApiKeyWithBody request with any body
+	CreateWorkspaceAgentApiKeyWithBody(ctx context.Context, orgId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateWorkspaceAgentApiKey(ctx context.Context, orgId string, body CreateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RevokeWorkspaceAgentApiKey request
+	RevokeWorkspaceAgentApiKey(ctx context.Context, orgId string, keyId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateWorkspaceAgentApiKeyWithBody request with any body
+	RotateWorkspaceAgentApiKeyWithBody(ctx context.Context, orgId string, keyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RotateWorkspaceAgentApiKey(ctx context.Context, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetApiAuthAccountInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -12957,6 +13290,78 @@ func (c *Client) GetUserQuota(ctx context.Context, userId string, reqEditors ...
 
 func (c *Client) GetUserProfile(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetUserProfileRequest(c.Server, username)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListWorkspaceAgentApiKeys(ctx context.Context, orgId string, params *ListWorkspaceAgentApiKeysParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListWorkspaceAgentApiKeysRequest(c.Server, orgId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkspaceAgentApiKeyWithBody(ctx context.Context, orgId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkspaceAgentApiKeyRequestWithBody(c.Server, orgId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkspaceAgentApiKey(ctx context.Context, orgId string, body CreateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkspaceAgentApiKeyRequest(c.Server, orgId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RevokeWorkspaceAgentApiKey(ctx context.Context, orgId string, keyId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevokeWorkspaceAgentApiKeyRequest(c.Server, orgId, keyId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RotateWorkspaceAgentApiKeyWithBody(ctx context.Context, orgId string, keyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateWorkspaceAgentApiKeyRequestWithBody(c.Server, orgId, keyId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RotateWorkspaceAgentApiKey(ctx context.Context, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateWorkspaceAgentApiKeyRequest(c.Server, orgId, keyId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -23010,6 +23415,221 @@ func NewGetUserProfileRequest(server string, username string) (*http.Request, er
 	return req, nil
 }
 
+// NewListWorkspaceAgentApiKeysRequest generates requests for ListWorkspaceAgentApiKeys
+func NewListWorkspaceAgentApiKeysRequest(server string, orgId string, params *ListWorkspaceAgentApiKeysParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgId", orgId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspaces/%s/agent-api-keys", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateWorkspaceAgentApiKeyRequest calls the generic CreateWorkspaceAgentApiKey builder with application/json body
+func NewCreateWorkspaceAgentApiKeyRequest(server string, orgId string, body CreateWorkspaceAgentApiKeyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateWorkspaceAgentApiKeyRequestWithBody(server, orgId, "application/json", bodyReader)
+}
+
+// NewCreateWorkspaceAgentApiKeyRequestWithBody generates requests for CreateWorkspaceAgentApiKey with any type of body
+func NewCreateWorkspaceAgentApiKeyRequestWithBody(server string, orgId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgId", orgId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspaces/%s/agent-api-keys", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRevokeWorkspaceAgentApiKeyRequest generates requests for RevokeWorkspaceAgentApiKey
+func NewRevokeWorkspaceAgentApiKeyRequest(server string, orgId string, keyId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgId", orgId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "keyId", keyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspaces/%s/agent-api-keys/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRotateWorkspaceAgentApiKeyRequest calls the generic RotateWorkspaceAgentApiKey builder with application/json body
+func NewRotateWorkspaceAgentApiKeyRequest(server string, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRotateWorkspaceAgentApiKeyRequestWithBody(server, orgId, keyId, "application/json", bodyReader)
+}
+
+// NewRotateWorkspaceAgentApiKeyRequestWithBody generates requests for RotateWorkspaceAgentApiKey with any type of body
+func NewRotateWorkspaceAgentApiKeyRequestWithBody(server string, orgId string, keyId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgId", orgId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "keyId", keyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/workspaces/%s/agent-api-keys/%s/rotations", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -23971,6 +24591,22 @@ type ClientWithResponsesInterface interface {
 
 	// GetUserProfileWithResponse request
 	GetUserProfileWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*GetUserProfileResponse, error)
+
+	// ListWorkspaceAgentApiKeysWithResponse request
+	ListWorkspaceAgentApiKeysWithResponse(ctx context.Context, orgId string, params *ListWorkspaceAgentApiKeysParams, reqEditors ...RequestEditorFn) (*ListWorkspaceAgentApiKeysResponse, error)
+
+	// CreateWorkspaceAgentApiKeyWithBodyWithResponse request with any body
+	CreateWorkspaceAgentApiKeyWithBodyWithResponse(ctx context.Context, orgId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkspaceAgentApiKeyResponse, error)
+
+	CreateWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, body CreateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkspaceAgentApiKeyResponse, error)
+
+	// RevokeWorkspaceAgentApiKeyWithResponse request
+	RevokeWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, keyId string, reqEditors ...RequestEditorFn) (*RevokeWorkspaceAgentApiKeyResponse, error)
+
+	// RotateWorkspaceAgentApiKeyWithBodyWithResponse request with any body
+	RotateWorkspaceAgentApiKeyWithBodyWithResponse(ctx context.Context, orgId string, keyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateWorkspaceAgentApiKeyResponse, error)
+
+	RotateWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateWorkspaceAgentApiKeyResponse, error)
 }
 
 type GetApiAuthAccountInfoResponse struct {
@@ -33362,6 +33998,175 @@ func (r GetUserProfileResponse) ContentType() string {
 	return ""
 }
 
+type ListWorkspaceAgentApiKeysResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Items []struct {
+			CreatedAt     string                                                    `json:"createdAt"`
+			ExpiresAt     string                                                    `json:"expiresAt"`
+			Id            string                                                    `json:"id"`
+			LastUsedAt    *string                                                   `json:"lastUsedAt"`
+			Name          string                                                    `json:"name"`
+			OrgId         string                                                    `json:"orgId"`
+			Scopes        []ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes `json:"scopes"`
+			Status        ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus   `json:"status"`
+			WorkspaceName *string                                                   `json:"workspaceName"`
+		} `json:"items"`
+		Page     int `json:"page"`
+		PageSize int `json:"pageSize"`
+		Total    int `json:"total"`
+	}
+	JSON403 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListWorkspaceAgentApiKeysResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListWorkspaceAgentApiKeysResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListWorkspaceAgentApiKeysResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateWorkspaceAgentApiKeyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *struct {
+		Item struct {
+			CreatedAt     string                                                    `json:"createdAt"`
+			ExpiresAt     string                                                    `json:"expiresAt"`
+			Id            string                                                    `json:"id"`
+			LastUsedAt    *string                                                   `json:"lastUsedAt"`
+			Name          string                                                    `json:"name"`
+			OrgId         string                                                    `json:"orgId"`
+			Scopes        []CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes `json:"scopes"`
+			Status        CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus   `json:"status"`
+			WorkspaceName *string                                                   `json:"workspaceName"`
+		} `json:"item"`
+		Key string `json:"key"`
+	}
+	JSON400 *Error
+	JSON403 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateWorkspaceAgentApiKeyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateWorkspaceAgentApiKeyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateWorkspaceAgentApiKeyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RevokeWorkspaceAgentApiKeyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON403      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r RevokeWorkspaceAgentApiKeyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RevokeWorkspaceAgentApiKeyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RevokeWorkspaceAgentApiKeyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RotateWorkspaceAgentApiKeyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *struct {
+		Item struct {
+			CreatedAt     string                                                    `json:"createdAt"`
+			ExpiresAt     string                                                    `json:"expiresAt"`
+			Id            string                                                    `json:"id"`
+			LastUsedAt    *string                                                   `json:"lastUsedAt"`
+			Name          string                                                    `json:"name"`
+			OrgId         string                                                    `json:"orgId"`
+			Scopes        []RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes `json:"scopes"`
+			Status        RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus   `json:"status"`
+			WorkspaceName *string                                                   `json:"workspaceName"`
+		} `json:"item"`
+		Key string `json:"key"`
+	}
+	JSON400 *Error
+	JSON403 *Error
+	JSON404 *Error
+	JSON409 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r RotateWorkspaceAgentApiKeyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RotateWorkspaceAgentApiKeyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RotateWorkspaceAgentApiKeyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // GetApiAuthAccountInfoWithResponse request returning *GetApiAuthAccountInfoResponse
 func (c *ClientWithResponses) GetApiAuthAccountInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAuthAccountInfoResponse, error) {
 	rsp, err := c.GetApiAuthAccountInfo(ctx, reqEditors...)
@@ -36337,6 +37142,58 @@ func (c *ClientWithResponses) GetUserProfileWithResponse(ctx context.Context, us
 		return nil, err
 	}
 	return ParseGetUserProfileResponse(rsp)
+}
+
+// ListWorkspaceAgentApiKeysWithResponse request returning *ListWorkspaceAgentApiKeysResponse
+func (c *ClientWithResponses) ListWorkspaceAgentApiKeysWithResponse(ctx context.Context, orgId string, params *ListWorkspaceAgentApiKeysParams, reqEditors ...RequestEditorFn) (*ListWorkspaceAgentApiKeysResponse, error) {
+	rsp, err := c.ListWorkspaceAgentApiKeys(ctx, orgId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListWorkspaceAgentApiKeysResponse(rsp)
+}
+
+// CreateWorkspaceAgentApiKeyWithBodyWithResponse request with arbitrary body returning *CreateWorkspaceAgentApiKeyResponse
+func (c *ClientWithResponses) CreateWorkspaceAgentApiKeyWithBodyWithResponse(ctx context.Context, orgId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkspaceAgentApiKeyResponse, error) {
+	rsp, err := c.CreateWorkspaceAgentApiKeyWithBody(ctx, orgId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkspaceAgentApiKeyResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, body CreateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkspaceAgentApiKeyResponse, error) {
+	rsp, err := c.CreateWorkspaceAgentApiKey(ctx, orgId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkspaceAgentApiKeyResponse(rsp)
+}
+
+// RevokeWorkspaceAgentApiKeyWithResponse request returning *RevokeWorkspaceAgentApiKeyResponse
+func (c *ClientWithResponses) RevokeWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, keyId string, reqEditors ...RequestEditorFn) (*RevokeWorkspaceAgentApiKeyResponse, error) {
+	rsp, err := c.RevokeWorkspaceAgentApiKey(ctx, orgId, keyId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevokeWorkspaceAgentApiKeyResponse(rsp)
+}
+
+// RotateWorkspaceAgentApiKeyWithBodyWithResponse request with arbitrary body returning *RotateWorkspaceAgentApiKeyResponse
+func (c *ClientWithResponses) RotateWorkspaceAgentApiKeyWithBodyWithResponse(ctx context.Context, orgId string, keyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateWorkspaceAgentApiKeyResponse, error) {
+	rsp, err := c.RotateWorkspaceAgentApiKeyWithBody(ctx, orgId, keyId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateWorkspaceAgentApiKeyResponse(rsp)
+}
+
+func (c *ClientWithResponses) RotateWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateWorkspaceAgentApiKeyResponse, error) {
+	rsp, err := c.RotateWorkspaceAgentApiKey(ctx, orgId, keyId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateWorkspaceAgentApiKeyResponse(rsp)
 }
 
 // ParseGetApiAuthAccountInfoResponse parses an HTTP response from a GetApiAuthAccountInfoWithResponse call
@@ -49131,6 +49988,207 @@ func ParseGetUserProfileResponse(rsp *http.Response) (*GetUserProfileResponse, e
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListWorkspaceAgentApiKeysResponse parses an HTTP response from a ListWorkspaceAgentApiKeysWithResponse call
+func ParseListWorkspaceAgentApiKeysResponse(rsp *http.Response) (*ListWorkspaceAgentApiKeysResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListWorkspaceAgentApiKeysResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []struct {
+				CreatedAt     string                                                    `json:"createdAt"`
+				ExpiresAt     string                                                    `json:"expiresAt"`
+				Id            string                                                    `json:"id"`
+				LastUsedAt    *string                                                   `json:"lastUsedAt"`
+				Name          string                                                    `json:"name"`
+				OrgId         string                                                    `json:"orgId"`
+				Scopes        []ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes `json:"scopes"`
+				Status        ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus   `json:"status"`
+				WorkspaceName *string                                                   `json:"workspaceName"`
+			} `json:"items"`
+			Page     int `json:"page"`
+			PageSize int `json:"pageSize"`
+			Total    int `json:"total"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateWorkspaceAgentApiKeyResponse parses an HTTP response from a CreateWorkspaceAgentApiKeyWithResponse call
+func ParseCreateWorkspaceAgentApiKeyResponse(rsp *http.Response) (*CreateWorkspaceAgentApiKeyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateWorkspaceAgentApiKeyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			Item struct {
+				CreatedAt     string                                                    `json:"createdAt"`
+				ExpiresAt     string                                                    `json:"expiresAt"`
+				Id            string                                                    `json:"id"`
+				LastUsedAt    *string                                                   `json:"lastUsedAt"`
+				Name          string                                                    `json:"name"`
+				OrgId         string                                                    `json:"orgId"`
+				Scopes        []CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes `json:"scopes"`
+				Status        CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus   `json:"status"`
+				WorkspaceName *string                                                   `json:"workspaceName"`
+			} `json:"item"`
+			Key string `json:"key"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRevokeWorkspaceAgentApiKeyResponse parses an HTTP response from a RevokeWorkspaceAgentApiKeyWithResponse call
+func ParseRevokeWorkspaceAgentApiKeyResponse(rsp *http.Response) (*RevokeWorkspaceAgentApiKeyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RevokeWorkspaceAgentApiKeyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRotateWorkspaceAgentApiKeyResponse parses an HTTP response from a RotateWorkspaceAgentApiKeyWithResponse call
+func ParseRotateWorkspaceAgentApiKeyResponse(rsp *http.Response) (*RotateWorkspaceAgentApiKeyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RotateWorkspaceAgentApiKeyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			Item struct {
+				CreatedAt     string                                                    `json:"createdAt"`
+				ExpiresAt     string                                                    `json:"expiresAt"`
+				Id            string                                                    `json:"id"`
+				LastUsedAt    *string                                                   `json:"lastUsedAt"`
+				Name          string                                                    `json:"name"`
+				OrgId         string                                                    `json:"orgId"`
+				Scopes        []RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes `json:"scopes"`
+				Status        RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus   `json:"status"`
+				WorkspaceName *string                                                   `json:"workspaceName"`
+			} `json:"item"`
+			Key string `json:"key"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 

@@ -12,6 +12,7 @@ import {
   connectCloud,
   continueCloudOrderPayment,
   copyObject,
+  createAgentApiKey,
   createAnnouncement,
   createBackgroundJob,
   createCloudBillingPortalSession,
@@ -79,6 +80,7 @@ import {
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
+  listAgentApiKeys,
   listAnnouncements,
   listApiKeys,
   listAuthProviders,
@@ -120,6 +122,7 @@ import {
   resetBrandingField,
   restoreObject,
   retryBackgroundJob,
+  revokeAgentApiKey,
   revokeIhostApiKey,
   revokeOrgEntitlement,
   revokeRemoteDownloadApiKey,
@@ -127,6 +130,7 @@ import {
   revokeSiteInvitation,
   revokeUserEntitlement,
   revokeWebDavAppPassword,
+  rotateAgentApiKey,
   runDownloadTaskAction,
   saveBranding,
   saveEmailConfig,
@@ -3111,6 +3115,96 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
 
       await expect(deleteIhostConfig()).rejects.toBeInstanceOf(Error)
+    })
+  })
+
+  describe('Agent Access API keys', () => {
+    const sampleList = {
+      items: [
+        {
+          id: 'agent-key-1',
+          name: 'CI',
+          orgId: 'org-1',
+          workspaceName: 'Personal',
+          scopes: ['objects:read'],
+          createdAt: '2026-07-29T00:00:00.000Z',
+          expiresAt: '2026-10-27T00:00:00.000Z',
+          lastUsedAt: null,
+          status: 'active',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 50,
+    }
+
+    it('lists workspace Agent API keys through the Hono RPC route', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(sampleList))
+
+      const result = await listAgentApiKeys('org-1')
+
+      expect(result).toEqual(sampleList)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/workspaces/org-1/agent-api-keys')
+      expect(url).toContain('page=1')
+      expect(url).toContain('pageSize=50')
+      expect(init.method).toBe('GET')
+    })
+
+    it('creates a workspace Agent API key with explicit scopes and expiry', async () => {
+      const payload = { key: 'zpan_agent_secret', item: sampleList.items[0] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload, true, 201))
+
+      const result = await createAgentApiKey('org-1', {
+        name: 'CI',
+        scopes: ['objects:read'],
+        expiresAt: '2026-10-27T00:00:00.000Z',
+      })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/workspaces/org-1/agent-api-keys')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({
+        name: 'CI',
+        scopes: ['objects:read'],
+        expiresAt: '2026-10-27T00:00:00.000Z',
+      })
+    })
+
+    it('rotates a workspace Agent API key without sending the old secret', async () => {
+      const payload = { key: 'zpan_agent_rotated', item: { ...sampleList.items[0], id: 'agent-key-2' } }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload, true, 201))
+
+      const result = await rotateAgentApiKey('org-1', 'agent-key-1', { name: 'CI rotated' })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/workspaces/org-1/agent-api-keys/agent-key-1/rotations')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({ name: 'CI rotated' })
+    })
+
+    it('revokes a workspace Agent API key with DELETE', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
+
+      await revokeAgentApiKey('org-1', 'agent-key-1')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/workspaces/org-1/agent-api-keys/agent-key-1')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws ApiError when Agent key creation fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(
+        createAgentApiKey('org-1', {
+          name: 'CI',
+          scopes: ['objects:read'],
+          expiresAt: '2026-10-27T00:00:00.000Z',
+        }),
+      ).rejects.toThrow('Forbidden')
     })
   })
 

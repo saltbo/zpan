@@ -275,11 +275,13 @@ Manual API-key creation is the initial CI path:
 
 New Agent keys never use `scope.mode = "user-workspaces"`. One key authorizes one
 workspace. Expiry is required, defaults to 90 days, and cannot exceed one year.
-Use one key per CI environment.
+Use one key per CI environment. Personal workspace owners and team
+owners/admins can manage Agent keys; team editors cannot issue credentials.
 
 The UI lists name, workspace, permission summary, creation, expiry, last use,
-and status. Revocation is immediate. Rotation creates a new key and never
-reveals or mutates the old secret.
+and status. Revocation is immediate. Only active keys can rotate. Rotation
+creates a new key and never reveals or mutates the old secret; expired and
+revoked keys are terminal, so the user creates a new key instead.
 
 ## 11. OpenAPI and Restish v2 Binding
 
@@ -417,7 +419,7 @@ Agent Access settings show two sections:
 
 - delegated OAuth grants, with client, workspace, scopes, last use, and revoke;
 - service API keys, with name, workspace, permissions, expiry, last use, and
-  revoke/replace.
+  revoke/rotate for active keys.
 
 Revoking a delegated grant invalidates its refresh tokens and prevents new
 access tokens. Short access-token lifetime bounds any validation-cache delay.

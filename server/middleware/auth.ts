@@ -13,6 +13,7 @@ import { anonymousAuthzContext, type Env } from './platform'
 // existing org members get read access rather than being silently denied.
 const ROLE_LEVELS: Record<string, number> = {
   owner: 3,
+  admin: 3,
   editor: 2,
   viewer: 1,
   member: 1,
