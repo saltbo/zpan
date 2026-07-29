@@ -20,6 +20,7 @@ export type RouteAuthorizationDeclaration =
   | { access: 'admin' }
   | { access: 'session'; minTeamRole?: TeamRole }
   | { access: 'downloader' }
+  | { access: 'downloader-bootstrap' }
   | { access: 'signed-webhook' }
   | { access: 'task-upload-token' }
   | { access: 'anyOf'; policies: readonly RouteAuthorizationDeclaration[] }

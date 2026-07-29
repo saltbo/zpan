@@ -45,7 +45,7 @@ const listRoute = authRoute(
 )
 
 const createRouteDoc = authRoute(
-  { access: 'admin' },
+  { access: 'anyOf', policies: [{ access: 'admin' }, { access: 'downloader-bootstrap' }] },
   {
     operationId: 'createDownloader',
     summary: 'Register downloader',
