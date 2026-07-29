@@ -1,6 +1,9 @@
 import { release as osRelease } from 'node:os'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
+import { AGENT_OAUTH_CLIENT_ID } from '@shared/agent-oauth'
+import { AGENT_API_KEY_SHORTCUT_SCOPES, AgentApiKeyShortcut } from '@shared/api-key-templates'
+import { AuthorizationScope } from '@shared/authorization'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
@@ -175,6 +178,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     const doc = app.getOpenAPIDocument({
       openapi: '3.1.0',
       info: { title: 'ZPan API', version: '0.1.0' },
+      servers: [{ url: '/', description: 'Current ZPan origin' }],
       // Top-level tag order + descriptions; Scalar groups operations by these.
       tags: [
         { name: 'Objects', description: 'Files and folders, including S3 multipart upload sessions' },
@@ -209,15 +213,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
             tokenUrl: '/api/auth/oauth2/token',
             refreshUrl: '/api/auth/oauth2/token',
             scopes: {
-              'objects:read': 'List, inspect, and download objects',
-              'objects:create': 'Create folders and upload objects',
-              'objects:update': 'Rename, move, and copy objects',
-              'objects:delete': 'Soft-delete objects',
-              'shares:read': 'List and inspect shares',
-              'shares:create': 'Create public shares',
-              'shares:delete': 'Revoke shares',
-              'quota:read': 'Inspect workspace quota',
-              'storage-usage:read': 'Inspect workspace storage usage',
+              ...agentScopeDescriptions(),
             },
           },
         },
@@ -229,45 +225,10 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       ...doc.components.schemas,
     }
     Object.assign(doc, {
-      'x-cli-config': {
-        auth: {
-          reader: {
-            type: 'oauth-authorization-code',
-            params: {
-              authorize_url: '/api/auth/oauth2/authorize',
-              token_url: '/api/auth/oauth2/token',
-              client_id: 'zpan-agent',
-              scopes: 'openid offline_access objects:read shares:read quota:read storage-usage:read',
-              redirect_path: '/callback',
-            },
-          },
-          'file-manager': {
-            type: 'oauth-authorization-code',
-            params: {
-              authorize_url: '/api/auth/oauth2/authorize',
-              token_url: '/api/auth/oauth2/token',
-              client_id: 'zpan-agent',
-              scopes:
-                'openid offline_access objects:read objects:create objects:update objects:delete shares:read quota:read storage-usage:read',
-              redirect_path: '/callback',
-            },
-          },
-          publisher: {
-            type: 'oauth-authorization-code',
-            params: {
-              authorize_url: '/api/auth/oauth2/authorize',
-              token_url: '/api/auth/oauth2/token',
-              client_id: 'zpan-agent',
-              scopes:
-                'openid offline_access objects:read shares:read shares:create shares:delete quota:read storage-usage:read',
-              redirect_path: '/callback',
-            },
-          },
-          ci: {
-            type: 'http-bearer',
-            params: { token: 'env:ZPAN_AGENT_API_KEY' },
-          },
-        },
+      'x-cli-config': restishCliConfig(),
+      'x-zpan-discovery': {
+        oauthAuthorizationServer: '/.well-known/oauth-authorization-server/api/auth',
+        oauthProtectedResource: '/.well-known/oauth-protected-resource/api',
       },
     })
 
@@ -291,6 +252,15 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
           scope: { type: 'string' },
         },
         required: ['access_token', 'token_type', 'expires_in'],
+      }
+    }
+
+    for (const [path, pathItem] of Object.entries(doc.paths)) {
+      if (!path.startsWith('/api/auth/') || !pathItem || typeof pathItem !== 'object') continue
+      for (const operation of Object.values(pathItem)) {
+        if (!operation || typeof operation !== 'object') continue
+        Object.assign(operation, { 'x-mcp-ignore': true })
+        if (path.includes('/callback')) Object.assign(operation, { 'x-cli-ignore': true })
       }
     }
 
@@ -458,6 +428,69 @@ function getCorsOrigins(platform: Platform): Set<string> {
   }
 
   return origins
+}
+
+function agentScopeDescriptions(): Record<string, string> {
+  return {
+    [AuthorizationScope.OBJECTS_READ]: 'List, inspect, and download objects',
+    [AuthorizationScope.OBJECTS_CREATE]: 'Create folders and upload objects',
+    [AuthorizationScope.OBJECTS_UPDATE]: 'Rename, move, and copy objects',
+    [AuthorizationScope.OBJECTS_DELETE]: 'Soft-delete objects',
+    [AuthorizationScope.SHARES_READ]: 'List and inspect shares',
+    [AuthorizationScope.SHARES_CREATE]: 'Create public shares',
+    [AuthorizationScope.SHARES_DELETE]: 'Revoke shares',
+    [AuthorizationScope.QUOTA_READ]: 'Inspect workspace quota',
+    [AuthorizationScope.STORAGE_USAGE_READ]: 'Inspect workspace storage usage',
+  }
+}
+
+function restishCliConfig() {
+  const oauthCredential = (scopes: readonly AuthorizationScope[]) => ({
+    auth: {
+      type: 'oauth-authorization-code',
+      params: {
+        authorize_url: '/api/auth/oauth2/authorize',
+        token_url: '/api/auth/oauth2/token',
+        client_id: AGENT_OAUTH_CLIENT_ID,
+        scopes: ['openid', 'offline_access', ...scopes].join(' '),
+        redirect_path: '/callback',
+      },
+    },
+    satisfies: [...scopes],
+  })
+
+  return {
+    profiles: {
+      default: {
+        credentials: {
+          agentOAuth2: oauthCredential(AGENT_API_KEY_SHORTCUT_SCOPES[AgentApiKeyShortcut.READER]),
+        },
+      },
+      reader: {
+        credentials: {
+          agentOAuth2: oauthCredential(AGENT_API_KEY_SHORTCUT_SCOPES[AgentApiKeyShortcut.READER]),
+        },
+      },
+      'file-manager': {
+        credentials: {
+          agentOAuth2: oauthCredential(AGENT_API_KEY_SHORTCUT_SCOPES[AgentApiKeyShortcut.FILE_MANAGER]),
+        },
+      },
+      publisher: {
+        credentials: {
+          agentOAuth2: oauthCredential(AGENT_API_KEY_SHORTCUT_SCOPES[AgentApiKeyShortcut.PUBLISHER]),
+        },
+      },
+      ci: {
+        credentials: {
+          agentApiKey: {
+            auth: { type: 'bearer', params: { token: 'env:ZPAN_AGENT_API_KEY' } },
+            satisfies: [...AGENT_API_KEY_SHORTCUT_SCOPES[AgentApiKeyShortcut.FILE_MANAGER]],
+          },
+        },
+      },
+    },
+  }
 }
 
 export type AppType = ReturnType<typeof createApp>

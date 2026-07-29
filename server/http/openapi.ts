@@ -1,4 +1,5 @@
 import { createRoute, type RouteConfig, type z } from '@hono/zod-openapi'
+import { AGENT_GRANTABLE_API_KEY_SCOPES } from '@shared/api-key-templates'
 import { errorResponseSchema } from '@shared/schemas'
 import { authorize, type RouteAuthorizationDeclaration } from '../middleware/authz'
 
@@ -23,6 +24,8 @@ export const jsonBody = <T extends z.ZodType>(schema: T) => ({
 // `jsonError`; this just documents the response shape in the OpenAPI document.
 export const errorResponse = (description: string) => jsonContent(errorResponseSchema, description)
 
+const AGENT_GRANTABLE_SCOPE_SET = new Set<string>(AGENT_GRANTABLE_API_KEY_SCOPES)
+
 export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> & { path: P }>(
   auth: RouteAuthorizationDeclaration,
   config: T,
@@ -34,6 +37,7 @@ export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> 
     middleware,
     security: openApiSecurity(auth),
     'x-zpan-auth': openApiAuthMetadata(auth),
+    ...openApiCliMetadata(auth),
   } as T) as T & { getRoutingPath(): string }
 }
 
@@ -58,9 +62,19 @@ function openApiSecurity(auth: RouteAuthorizationDeclaration): Record<string, st
   if (auth.access === 'downloader' || auth.access === 'downloader-bootstrap' || auth.access === 'task-upload-token') {
     return [{ bearerAuth: [] }]
   }
-  return auth.scopes?.length
-    ? [{ bearerAuth: [...auth.scopes] }, { cookieAuth: [] }]
-    : [{ bearerAuth: [] }, { cookieAuth: [] }]
+  if (!auth.scopes?.length) return [{ bearerAuth: [] }, { cookieAuth: [] }]
+  return auth.scopes.every((scope) => AGENT_GRANTABLE_SCOPE_SET.has(scope))
+    ? [{ agentOAuth2: [...auth.scopes] }, { agentApiKey: [...auth.scopes] }, { cookieAuth: [] }]
+    : [{ bearerAuth: [...auth.scopes] }, { cookieAuth: [] }]
+}
+
+function openApiCliMetadata(auth: RouteAuthorizationDeclaration): Record<string, boolean> {
+  if (auth.access === 'anyOf') {
+    return auth.policies.every((policy) => openApiCliMetadata(policy)['x-mcp-ignore']) ? { 'x-mcp-ignore': true } : {}
+  }
+  if (auth.access === 'public' || auth.access === 'protected') return {}
+  if (auth.access === 'internal') return { 'x-cli-ignore': true, 'x-mcp-ignore': true }
+  return { 'x-mcp-ignore': true }
 }
 
 function openApiAuthMetadata(auth: RouteAuthorizationDeclaration): Record<string, unknown> {

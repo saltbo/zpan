@@ -57,18 +57,138 @@ describe('global OpenAPI document', () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
-      components?: { securitySchemes?: Record<string, unknown> }
-      'x-cli-config'?: { auth?: Record<string, { params?: { client_id?: string; redirect_path?: string } }> }
+      components?: {
+        securitySchemes?: Record<
+          string,
+          { type?: string; scheme?: string; flows?: { authorizationCode?: { scopes?: Record<string, string> } } }
+        >
+      }
+      'x-cli-config'?: {
+        profiles?: Record<
+          string,
+          {
+            credentials?: Record<
+              string,
+              {
+                auth?: { type?: string; params?: Record<string, string> }
+                satisfies?: string[]
+              }
+            >
+          }
+        >
+      }
     }
 
     expect(doc.components?.securitySchemes?.agentOAuth2).toMatchObject({
       type: 'oauth2',
-      flows: { authorizationCode: { authorizationUrl: '/api/auth/oauth2/authorize' } },
+      flows: {
+        authorizationCode: {
+          authorizationUrl: '/api/auth/oauth2/authorize',
+          tokenUrl: '/api/auth/oauth2/token',
+          refreshUrl: '/api/auth/oauth2/token',
+          scopes: expect.objectContaining({
+            [AuthorizationScope.OBJECTS_READ]: 'List, inspect, and download objects',
+            [AuthorizationScope.OBJECTS_CREATE]: 'Create folders and upload objects',
+            [AuthorizationScope.SHARES_CREATE]: 'Create public shares',
+          }),
+        },
+      },
     })
     expect(doc.components?.securitySchemes?.agentApiKey).toMatchObject({ type: 'http', scheme: 'bearer' })
-    expect(doc['x-cli-config']?.auth?.reader?.params).toMatchObject({
+    const profiles = doc['x-cli-config']?.profiles
+    expect(Object.keys(profiles ?? {})).toEqual(['default', 'reader', 'file-manager', 'publisher', 'ci'])
+    expect(profiles?.reader?.credentials?.agentOAuth2).toMatchObject({
+      auth: {
+        type: 'oauth-authorization-code',
+        params: {
+          authorize_url: '/api/auth/oauth2/authorize',
+          token_url: '/api/auth/oauth2/token',
+          client_id: 'zpan-agent',
+          redirect_path: '/callback',
+          scopes: 'openid offline_access objects:read shares:read quota:read storage-usage:read',
+        },
+      },
+      satisfies: [
+        AuthorizationScope.OBJECTS_READ,
+        AuthorizationScope.SHARES_READ,
+        AuthorizationScope.QUOTA_READ,
+        AuthorizationScope.STORAGE_USAGE_READ,
+      ],
+    })
+    expect(profiles?.default?.credentials?.agentOAuth2).toEqual(profiles?.reader?.credentials?.agentOAuth2)
+    expect(profiles?.['file-manager']?.credentials?.agentOAuth2).toMatchObject({
+      auth: {
+        type: 'oauth-authorization-code',
+        params: {
+          authorize_url: '/api/auth/oauth2/authorize',
+          token_url: '/api/auth/oauth2/token',
+          client_id: 'zpan-agent',
+          redirect_path: '/callback',
+          scopes:
+            'openid offline_access objects:read objects:create objects:update objects:delete shares:read quota:read storage-usage:read',
+        },
+      },
+      satisfies: [
+        AuthorizationScope.OBJECTS_READ,
+        AuthorizationScope.OBJECTS_CREATE,
+        AuthorizationScope.OBJECTS_UPDATE,
+        AuthorizationScope.OBJECTS_DELETE,
+        AuthorizationScope.SHARES_READ,
+        AuthorizationScope.QUOTA_READ,
+        AuthorizationScope.STORAGE_USAGE_READ,
+      ],
+    })
+    expect(profiles?.publisher?.credentials?.agentOAuth2).toMatchObject({
+      auth: {
+        type: 'oauth-authorization-code',
+        params: {
+          authorize_url: '/api/auth/oauth2/authorize',
+          token_url: '/api/auth/oauth2/token',
+          client_id: 'zpan-agent',
+          redirect_path: '/callback',
+          scopes:
+            'openid offline_access objects:read shares:read shares:create shares:delete quota:read storage-usage:read',
+        },
+      },
+      satisfies: [
+        AuthorizationScope.OBJECTS_READ,
+        AuthorizationScope.SHARES_READ,
+        AuthorizationScope.SHARES_CREATE,
+        AuthorizationScope.SHARES_DELETE,
+        AuthorizationScope.QUOTA_READ,
+        AuthorizationScope.STORAGE_USAGE_READ,
+      ],
+    })
+    expect(profiles?.default?.credentials?.agentOAuth2?.auth?.params).toMatchObject({
       client_id: 'zpan-agent',
       redirect_path: '/callback',
+    })
+    expect(profiles?.ci?.credentials?.agentApiKey).toMatchObject({
+      auth: { type: 'bearer', params: { token: 'env:ZPAN_AGENT_API_KEY' } },
+      satisfies: [
+        AuthorizationScope.OBJECTS_READ,
+        AuthorizationScope.OBJECTS_CREATE,
+        AuthorizationScope.OBJECTS_UPDATE,
+        AuthorizationScope.OBJECTS_DELETE,
+        AuthorizationScope.SHARES_READ,
+        AuthorizationScope.QUOTA_READ,
+        AuthorizationScope.STORAGE_USAGE_READ,
+      ],
+    })
+  })
+
+  it('publishes relative servers and discovery links for self-hosted origins', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      servers?: { url?: string }[]
+      'x-zpan-discovery'?: Record<string, string>
+    }
+
+    expect(doc.servers).toEqual([{ url: '/', description: 'Current ZPan origin' }])
+    expect(doc['x-zpan-discovery']).toEqual({
+      oauthAuthorizationServer: '/.well-known/oauth-authorization-server/api/auth',
+      oauthProtectedResource: '/.well-known/oauth-protected-resource/api',
     })
   })
 
@@ -183,6 +303,28 @@ describe('global OpenAPI document', () => {
     expect(route.middleware).toHaveLength(1)
   })
 
+  it('emits Agent OAuth and API-key security only for Agent-grantable protected scopes', () => {
+    const route = authRoute(
+      {
+        access: 'protected',
+        scopes: [AuthorizationScope.OBJECTS_CREATE],
+        minTeamRole: 'editor',
+      },
+      {
+        operationId: 'agentGrantableAuthzProbe',
+        method: 'post',
+        path: '/probe',
+        responses: { 200: { description: 'OK' } },
+      },
+    ) as { security?: unknown }
+
+    expect(route.security).toEqual([
+      { agentOAuth2: [AuthorizationScope.OBJECTS_CREATE] },
+      { agentApiKey: [AuthorizationScope.OBJECTS_CREATE] },
+      { cookieAuth: [] },
+    ])
+  })
+
   it('detects OpenAPI operations missing explicit authorization declarations without an allowlist', () => {
     expect(
       findOperationsMissingAuthContract({
@@ -208,7 +350,7 @@ describe('global OpenAPI document', () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
-      paths: Record<string, Record<string, { security?: unknown; 'x-zpan-auth'?: unknown }>>
+      paths: Record<string, Record<string, { security?: unknown; 'x-zpan-auth'?: unknown; 'x-mcp-ignore'?: boolean }>>
     }
 
     const operation = doc.paths['/api/downloads/downloaders']?.post
@@ -217,6 +359,174 @@ describe('global OpenAPI document', () => {
       access: 'anyOf',
       policies: [{ access: 'admin' }, { access: 'downloader-bootstrap' }],
     })
+    expect(operation?.['x-mcp-ignore']).toBe(true)
+  })
+
+  it('marks session, admin, and credential-management operations as ignored by MCP without hiding them from Restish', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      paths: Record<string, Record<string, { 'x-cli-ignore'?: boolean; 'x-mcp-ignore'?: boolean }>>
+    }
+
+    const ignoredOperations = [
+      doc.paths['/api/workspaces/{orgId}/agent-api-keys']?.get,
+      doc.paths['/api/workspaces/{orgId}/agent-api-keys']?.post,
+      doc.paths['/api/agent-oauth-grants']?.get,
+      doc.paths['/api/agent-oauth-grants/{grantId}']?.delete,
+      doc.paths['/api/site/storages']?.post,
+      doc.paths['/api/auth/sign-in/email']?.post,
+      doc.paths['/api/auth/sign-out']?.post,
+    ]
+
+    for (const operation of ignoredOperations) {
+      expect(operation?.['x-mcp-ignore']).toBe(true)
+      expect(operation?.['x-cli-ignore']).toBeUndefined()
+    }
+    expect(doc.paths['/api/auth/callback/{id}']?.get?.['x-mcp-ignore']).toBe(true)
+    expect(doc.paths['/api/auth/callback/{id}']?.get?.['x-cli-ignore']).toBe(true)
+    expect(doc.paths['/api/objects']?.get?.['x-mcp-ignore']).toBeUndefined()
+    expect(Object.keys(doc.paths)).not.toContain('/api/openapi.agent.json')
+    expect(await app.request('/api/openapi.agent.json')).toMatchObject({ status: 404 })
+  })
+
+  it('publishes stable upload operations for Restish plugin discovery', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      paths: Record<
+        string,
+        Record<
+          string,
+          {
+            operationId?: string
+            security?: Record<string, string[]>[]
+            parameters?: { name?: string; in?: string; required?: boolean; schema?: unknown }[]
+            requestBody?: {
+              content?: {
+                'application/json'?: { schema?: { properties?: Record<string, unknown>; required?: string[] } }
+              }
+            }
+            responses?: Record<
+              string,
+              {
+                content?: {
+                  'application/json'?: { schema?: { $ref?: string; allOf?: unknown[]; properties?: unknown } }
+                }
+              }
+            >
+          }
+        >
+      >
+    }
+
+    expect(doc.paths['/api/objects']?.post).toMatchObject({
+      operationId: 'createObject',
+      security: [
+        { agentOAuth2: [AuthorizationScope.OBJECTS_CREATE] },
+        { agentApiKey: [AuthorizationScope.OBJECTS_CREATE] },
+        { cookieAuth: [] },
+      ],
+    })
+    expect(doc.paths['/api/objects']?.post?.responses?.['201']).toBeDefined()
+    expect(doc.paths['/api/objects']?.post?.requestBody).toBeDefined()
+    expect(doc.paths['/api/objects']?.post?.requestBody?.content?.['application/json']?.schema).toMatchObject({
+      required: ['name'],
+      properties: {
+        name: expect.any(Object),
+        type: expect.any(Object),
+        size: expect.any(Object),
+        parent: expect.any(Object),
+        onConflict: expect.any(Object),
+        storageId: expect.any(Object),
+      },
+    })
+    expect(doc.paths['/api/objects']?.post?.responses?.['201']?.content?.['application/json']?.schema).toMatchObject({
+      allOf: [
+        { $ref: '#/components/schemas/Matter' },
+        {
+          type: 'object',
+          properties: {
+            upload: {
+              type: 'object',
+              required: [
+                'sessionId',
+                'uploadId',
+                'mode',
+                'partSize',
+                'partCount',
+                'expiresAt',
+                'presignedExpiresAt',
+                'requiredHeaders',
+                'urls',
+                'parts',
+              ],
+            },
+          },
+        },
+      ],
+    })
+    expect(doc.paths['/api/objects/{id}/uploads/{uploadSessionId}/parts']?.post).toMatchObject({
+      operationId: 'presignObjectUploadParts',
+      parameters: expect.arrayContaining([
+        expect.objectContaining({ name: 'id', in: 'path', required: true }),
+        expect.objectContaining({ name: 'uploadSessionId', in: 'path', required: true }),
+      ]),
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: { required: ['partNumbers'], properties: { partNumbers: expect.any(Object) } },
+          },
+        },
+      },
+      responses: {
+        200: {
+          content: {
+            'application/json': {
+              schema: {
+                required: [
+                  'uploadId',
+                  'mode',
+                  'partSize',
+                  'partCount',
+                  'presignedExpiresAt',
+                  'requiredHeaders',
+                  'parts',
+                ],
+                properties: { parts: expect.any(Object) },
+              },
+            },
+          },
+        },
+      },
+    })
+    expect(doc.paths['/api/objects/{id}/uploads/{uploadSessionId}/completions']?.post).toMatchObject({
+      operationId: 'completeObjectUpload',
+      parameters: expect.arrayContaining([
+        expect.objectContaining({ name: 'id', in: 'path', required: true }),
+        expect.objectContaining({ name: 'uploadSessionId', in: 'path', required: true }),
+      ]),
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: { required: ['parts'], properties: { parts: expect.any(Object) } },
+          },
+        },
+      },
+      responses: { 200: { content: { 'application/json': { schema: { $ref: '#/components/schemas/Matter' } } } } },
+    })
+    expect(doc.paths['/api/objects/{id}/uploads/{uploadSessionId}']?.delete).toMatchObject({
+      operationId: 'abortObjectUpload',
+      parameters: expect.arrayContaining([
+        expect.objectContaining({ name: 'id', in: 'path', required: true }),
+        expect.objectContaining({ name: 'uploadSessionId', in: 'path', required: true }),
+        expect.objectContaining({ name: 'strictStorageCleanup', in: 'query', required: false }),
+      ]),
+      responses: { 204: { description: 'Aborted upload and discarded the draft' } },
+    })
+    expect(
+      doc.paths['/api/objects/{id}/uploads/{uploadSessionId}']?.delete?.responses?.['204']?.content,
+    ).toBeUndefined()
   })
 
   it('documents owner role requirements for store operations that enforce owner team role', async () => {
