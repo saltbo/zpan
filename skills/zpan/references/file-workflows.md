@@ -43,15 +43,11 @@ restish --rsh-profile file-manager zpan delete-object obj_123
 Confirm destructive intent before soft delete. Permanent trash purge is more
 destructive, must be confirmed separately, and is outside the v2.9 Agent
 OAuth/API-key profile templates because it requires `objects:purge` on an
-authorized human/operator surface:
+authorized human/operator surface. Do not attempt purge through this Skill or
+invent an `operator` Restish profile. Ask the user to complete permanent purge
+in an authorized operator surface instead.
 
-```sh
-restish --rsh-profile operator zpan purge-trash-object obj_123
-```
-
-Do not instruct a `file-manager`, `publisher`, `reader`, or `ci` profile to
-purge. Return deleted or purged object IDs and any quota effect reported by the
-API.
+Return soft-deleted object IDs and any quota effect reported by the API.
 
 ## Public Sharing
 

@@ -101,7 +101,6 @@ for (const command of [
   'copy-object',
   'transfer-object',
   'delete-object',
-  'purge-trash-object',
   'list-shares',
   'create-share',
   'revoke-share',
@@ -171,6 +170,7 @@ forbidMatch('silent plugin install approval', /restish\s+plugin\s+install\s+salt
 forbidMatch('old Restish list limit flag', /\brestish\s+(?:--rsh-profile\s+\S+\s+)?zpan\s+(?:list-objects|list-shares|list-download-tasks)\b[^\n]*\s--limit\b/gi)
 forbidMatch('camelCase Restish command example', /\brestish\s+(?:--rsh-profile\s+\S+\s+)?zpan\s+(?:listObjects|getObject|createObject|updateObject|copyObject|transferObject|deleteObject|purgeTrashObject|listShares|createShare|revokeShare|getUserQuota|getStorageUsage|listDownloadTasks|getDownloadTask|listDownloadTaskEvents)\b/gi)
 forbidMatch('profile template purge command', /\brestish\s+--rsh-profile\s+(?:reader|file-manager|publisher|ci)\s+zpan\s+purge-trash-object\b/gi)
+forbidMatch('invented operator profile', /\brestish\s+--rsh-profile\s+operator\b/gi)
 forbidMatch('upload without plugin profile', /\brestish\s+--rsh-profile\s+\S+\s+zpan-upload\b(?![^\n]*\s--profile\s+\S+)/gi)
 forbidMatch(
   'MCP upload control-plane allowlist',

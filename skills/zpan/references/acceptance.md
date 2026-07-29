@@ -18,6 +18,19 @@ Verify:
    resume one upload when practical, inspect the uploaded object, create a
    public share, revoke the share, and check quota.
 
+For pre-release PR or preview acceptance, a v2.9 GitHub release asset does not
+exist yet. Build the already-reviewed `cmd/restish-zpan` source at the exact PR
+head, install that trusted local executable for the acceptance run, and
+separately verify that the release workflow produces the asset names expected
+by Restish. Record that this was a source-build acceptance.
+
+After v2.9 is released, repeat the install step through the user-facing release
+path:
+
+```sh
+restish plugin install saltbo/zpan zpan
+```
+
 ## CI Flow
 
 Verify:

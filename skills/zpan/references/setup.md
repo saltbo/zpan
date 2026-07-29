@@ -69,5 +69,9 @@ trusted local executable code and asking them to approve this source:
 restish plugin install saltbo/zpan zpan
 ```
 
+This shorthand is the post-v2.9-release user path. For pre-release preview
+acceptance, follow [acceptance.md](acceptance.md) and label the trusted local
+source build explicitly.
+
 Do not add a silent approval flag to plugin installation. After installation,
 confirm that `restish zpan-upload` is available before using upload workflows.
