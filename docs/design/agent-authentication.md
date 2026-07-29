@@ -21,7 +21,8 @@ revoke local tokens without a custom authorization script.
 Standard Agent device authorization is deferred to v2.9.x. The existing
 `zpan-cli` device flow remains a narrowly scoped compatibility bootstrap for
 downloader registration and does not manufacture an Agent API key or a general
-OAuth grant.
+OAuth grant. Its device-issued bearer is normalized as a single-use downloader
+registration credential and is consumed after successful downloader creation.
 
 Anonymous upload and preview-and-claim are explicitly excluded. Every Agent file
 operation belongs to an existing user-authorized workspace from the beginning.
@@ -429,8 +430,9 @@ Credentials are never recorded or redisplayed.
 
 - ZPan has bearer sessions and device authorization but is not yet an OAuth
   authorization server with Agent resource scopes and workspace grants.
-- Device authorization validates only `zpan-cli` and currently yields a
-  user-oriented bearer token.
+- Legacy device authorization validates only `zpan-cli` with
+  `downloader:register` and yields only a single-use downloader bootstrap
+  credential.
 - `shared/api-key-templates.ts` lacks an Agent template.
 - `server/http/objects.ts` rejects ordinary API-key principals.
 - authenticated shares, quota, trash, and several task routes require a user

@@ -25,6 +25,7 @@ import type { Platform } from '../../platform/interface'
 import type {
   AuditEvent,
   AuditRepo,
+  DownloaderBootstrapCredentialRepo,
   DownloaderRecord,
   DownloaderRepo,
   DownloadTaskRecord,
@@ -38,7 +39,7 @@ import type {
   StorageRepo,
   UpdateDownloadTaskFields,
 } from '../ports'
-import { DownloadError, featureBlocked } from '../ports'
+import { DownloadError, featureBlocked, unauthorized } from '../ports'
 import { loadBindingState } from '../site/licensing'
 import { ensureDownloadFolderPath } from './download-folders'
 import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './remote-download-usage'
@@ -51,6 +52,7 @@ import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './r
 
 export type DownloadsDeps = {
   downloaders: DownloaderRepo
+  downloaderBootstrapCredentials: DownloaderBootstrapCredentialRepo
   downloadTasks: DownloadTaskRepo
   downloadTokens: DownloadTokenGateway
   licenseBinding: LicenseBindingRepo
@@ -126,7 +128,37 @@ export async function createDownloader(
   input: CreateDownloaderInput,
   userId: string,
 ): Promise<{ downloader: Downloader; token: string }> {
+  const registration = await prepareDownloaderRegistration(deps, platform, input, userId, new Date())
+  await deps.downloaders.insert(registration.record)
+  return { downloader: await deps.downloaders.get(registration.record.id), token: registration.token }
+}
+
+export async function createDownloaderWithBootstrapCredential(
+  deps: DownloadsDeps,
+  platform: Platform,
+  input: CreateDownloaderInput,
+  userId: string,
+  bootstrapToken: string,
+): Promise<{ downloader: Downloader; token: string }> {
   const now = new Date()
+  const registration = await prepareDownloaderRegistration(deps, platform, input, userId, now)
+  const registered = await deps.downloaderBootstrapCredentials.registerDownloader({
+    platform,
+    token: bootstrapToken,
+    now,
+    downloader: registration.record,
+  })
+  if (!registered) throw unauthorized()
+  return { downloader: await deps.downloaders.get(registration.record.id), token: registration.token }
+}
+
+async function prepareDownloaderRegistration(
+  deps: DownloadsDeps,
+  platform: Platform,
+  input: CreateDownloaderInput,
+  userId: string,
+  now: Date,
+) {
   const id = nanoid()
   const jti = nanoid()
   const token = await deps.downloadTokens.signDownloadToken(platform, {
@@ -136,27 +168,29 @@ export async function createDownloader(
     jti,
     iat: Math.floor(now.getTime() / 1000),
   })
-  await deps.downloaders.insert({
-    id,
-    name: input.name,
-    tokenHash: await deps.downloadTokens.hashDownloadToken(platform, token),
-    tokenJti: jti,
-    version: input.heartbeat.version,
-    hostname: input.heartbeat.hostname,
-    platform: input.heartbeat.platform,
-    arch: input.heartbeat.arch,
-    engine: input.heartbeat.engine,
-    capabilities: input.heartbeat.capabilities,
-    maxConcurrentTasks: input.heartbeat.maxConcurrentTasks,
-    currentTasks: input.heartbeat.currentTasks,
-    downloadBps: input.heartbeat.downloadBps,
-    uploadBps: input.heartbeat.uploadBps,
-    freeDiskBytes: input.heartbeat.freeDiskBytes,
-    remoteDownloadCreditUnitBytes: DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES,
-    createdBy: userId,
-    now,
-  })
-  return { downloader: await deps.downloaders.get(id), token }
+  return {
+    record: {
+      id,
+      name: input.name,
+      tokenHash: await deps.downloadTokens.hashDownloadToken(platform, token),
+      tokenJti: jti,
+      version: input.heartbeat.version,
+      hostname: input.heartbeat.hostname,
+      platform: input.heartbeat.platform,
+      arch: input.heartbeat.arch,
+      engine: input.heartbeat.engine,
+      capabilities: input.heartbeat.capabilities,
+      maxConcurrentTasks: input.heartbeat.maxConcurrentTasks,
+      currentTasks: input.heartbeat.currentTasks,
+      downloadBps: input.heartbeat.downloadBps,
+      uploadBps: input.heartbeat.uploadBps,
+      freeDiskBytes: input.heartbeat.freeDiskBytes,
+      remoteDownloadCreditUnitBytes: DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES,
+      createdBy: userId,
+      now,
+    },
+    token,
+  }
 }
 
 export async function listDownloaders(deps: DownloadsDeps): Promise<Downloader[]> {

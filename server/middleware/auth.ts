@@ -1,5 +1,11 @@
 import { isAuthorizationScope, permissionScopes } from '@shared/authorization'
 import { createMiddleware } from 'hono/factory'
+import {
+  isDownloaderBootstrapRegistrationRequest,
+  isLegacyDownloaderBootstrapSession,
+  LEGACY_DOWNLOADER_CLIENT_ID,
+  LEGACY_DOWNLOADER_REGISTER_SCOPE,
+} from '../domain/legacy-downloader-bootstrap'
 import { ApiKeyRateLimitError, type CachePolicy, forbidden, rateLimited, unauthorized } from '../usecases/ports'
 import { anonymousAuthzContext, type Env } from './platform'
 
@@ -110,10 +116,40 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       await next()
       return
     }
+    const bootstrap = await deps.downloaderBootstrapCredentials.resolve(platform, token, new Date())
+    if (bootstrap) {
+      c.set('userId', bootstrap.userId)
+      c.set('userRole', null)
+      c.set('orgId', null)
+      c.set('principal', {
+        kind: 'downloader-bootstrap',
+        userId: bootstrap.userId,
+        sessionToken: token,
+        scope: LEGACY_DOWNLOADER_REGISTER_SCOPE,
+        authMethod: 'bearer',
+      })
+      c.set('authzContext', {
+        credential: 'downloader-bootstrap',
+        userId: bootstrap.userId,
+        orgId: null,
+        fixedOrgId: null,
+        grantedScopes: new Set(),
+        actor: { type: 'user', ref: bootstrap.userId },
+        state: { clientId: LEGACY_DOWNLOADER_CLIENT_ID, scope: LEGACY_DOWNLOADER_REGISTER_SCOPE },
+      })
+      if (!bootstrap.active || !isDownloaderBootstrapRegistrationRequest(c.req.method, c.req.path)) {
+        throw unauthorized('Unauthorized')
+      }
+      await next()
+      return
+    }
+    await next()
+    return
   }
 
   const auth = c.get('auth')
   const result = (await auth.api.getSession({ headers: c.req.raw.headers })) as SessionWithPlugins | null
+  if (isLegacyDownloaderBootstrapSession(result?.session)) throw unauthorized('Unauthorized')
 
   c.set('userId', result?.user?.id ?? null)
   c.set('userRole', result?.user?.role ?? null)
@@ -177,6 +213,22 @@ export const requireAdmin = createMiddleware<Env>(async (c, next) => {
   if (freshSession.user.role !== 'admin') {
     throw forbidden('Forbidden')
   }
+  await next()
+})
+
+export const requireDownloaderRegistration = createMiddleware<Env>(async (c, next) => {
+  const principal = c.get('principal')
+  if (principal?.kind === 'downloader-bootstrap') {
+    await next()
+    return
+  }
+  if (principal?.kind !== 'user') throw unauthorized('Unauthorized')
+  const freshSession = (await c.get('auth').api.getSession({
+    headers: c.req.raw.headers,
+    query: { disableCookieCache: true },
+  })) as SessionWithPlugins | null
+  if (!freshSession?.user?.id) throw unauthorized('Unauthorized')
+  if (freshSession.user.role !== 'admin') throw forbidden('Forbidden')
   await next()
 })
 

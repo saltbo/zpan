@@ -12,5 +12,8 @@ export function auditActor(principal: AuthPrincipal | null): AuditActor {
   if (principal.kind === 'downloader') {
     return { userId: null, actorType: 'downloader', actorRef: principal.downloaderId }
   }
+  if (principal.kind === 'downloader-bootstrap') {
+    return { userId: principal.userId, actorType: 'user', actorRef: null }
+  }
   return { userId: principal.createdByUserId, actorType: 'task-upload', actorRef: principal.taskId }
 }

@@ -58,6 +58,13 @@ export type AuthPrincipal =
       authMethod: 'bearer'
     }
   | {
+      kind: 'downloader-bootstrap'
+      userId: string
+      sessionToken: string
+      scope: 'downloader:register'
+      authMethod: 'bearer'
+    }
+  | {
       kind: 'download-task-upload'
       downloaderId: string
       taskId: string
@@ -96,6 +103,15 @@ export type AuthzContext =
       grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'downloader'; ref: string }
       state: Record<string, unknown>
+    }
+  | {
+      credential: 'downloader-bootstrap'
+      userId: string
+      orgId: null
+      fixedOrgId: null
+      grantedScopes: ReadonlySet<AuthorizationScope>
+      actor: { type: 'user'; ref: string }
+      state: { clientId: 'zpan-cli'; scope: 'downloader:register' }
     }
   | {
       credential: 'download-task-upload'

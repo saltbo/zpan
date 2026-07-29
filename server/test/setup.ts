@@ -114,6 +114,20 @@ const AUTH_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS deviceCode_device_code_idx ON deviceCode(device_code);
   CREATE INDEX IF NOT EXISTS deviceCode_user_code_idx ON deviceCode(user_code);
   CREATE INDEX IF NOT EXISTS deviceCode_status_idx ON deviceCode(status);
+  CREATE TABLE IF NOT EXISTS downloader_bootstrap_credentials (
+    id TEXT PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    device_code TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    consumed_at INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  );
+  CREATE INDEX IF NOT EXISTS downloader_bootstrap_token_hash_idx ON downloader_bootstrap_credentials(token_hash);
+  CREATE INDEX IF NOT EXISTS downloader_bootstrap_user_idx ON downloader_bootstrap_credentials(user_id);
+  CREATE INDEX IF NOT EXISTS downloader_bootstrap_consumed_idx ON downloader_bootstrap_credentials(consumed_at);
 `
 
 const APP_SCHEMA_SQL = `

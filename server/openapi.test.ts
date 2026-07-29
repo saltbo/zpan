@@ -148,6 +148,21 @@ describe('global OpenAPI document', () => {
     expect(findOperationsMissingAuthContract(handWrittenPaths)).toEqual([])
   })
 
+  it('documents downloader registration as admin or one-purpose bootstrap bearer auth', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      paths: Record<string, Record<string, { security?: unknown; 'x-zpan-auth'?: unknown }>>
+    }
+
+    const operation = doc.paths['/api/downloads/downloaders']?.post
+    expect(operation?.security).toEqual([{ cookieAuth: [] }, { bearerAuth: [] }])
+    expect(operation?.['x-zpan-auth']).toEqual({
+      access: 'anyOf',
+      policies: [{ access: 'admin' }, { access: 'downloader-bootstrap' }],
+    })
+  })
+
   it('documents owner role requirements for store operations that enforce owner team role', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')

@@ -55,7 +55,9 @@ function openApiSecurity(auth: RouteAuthorizationDeclaration): Record<string, st
   if (auth.access === 'anyOf') return auth.policies.flatMap(openApiSecurity)
   if (auth.access === 'public' || auth.access === 'internal' || auth.access === 'signed-webhook') return []
   if (auth.access === 'admin' || auth.access === 'session') return [{ cookieAuth: [] }]
-  if (auth.access === 'downloader' || auth.access === 'task-upload-token') return [{ bearerAuth: [] }]
+  if (auth.access === 'downloader' || auth.access === 'downloader-bootstrap' || auth.access === 'task-upload-token') {
+    return [{ bearerAuth: [] }]
+  }
   return auth.scopes?.length
     ? [{ bearerAuth: [...auth.scopes] }, { cookieAuth: [] }]
     : [{ bearerAuth: [] }, { cookieAuth: [] }]
