@@ -40,6 +40,17 @@ type fileIdentity struct {
 }
 
 func Run(startupArgs, args []string, h host) error {
+	if wantsHelp(args) {
+		return h.Response(200, nil, map[string]any{
+			"usage": "restish zpan-upload [flags] SOURCE [DESTINATION]",
+			"examples": []string{
+				"RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager ./photo.jpg",
+				"RSH_PROFILE=ci restish zpan-upload --api zpan --profile ci --parent folder-id ./photo.jpg report.jpg",
+				"RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --resume ./large.bin",
+				"RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --abort ./large.bin",
+			},
+		})
+	}
 	opts, err := parseOptions(args)
 	if err != nil {
 		return err
@@ -48,6 +59,15 @@ func Run(startupArgs, args []string, h host) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return runWithStorage(ctx, opts, h, newHTTPStorageClient())
+}
+
+func wantsHelp(args []string) bool {
+	for _, arg := range args {
+		if arg == "-h" || arg == "--help" {
+			return true
+		}
+	}
+	return false
 }
 
 func parseOptions(args []string) (uploadOptions, error) {
