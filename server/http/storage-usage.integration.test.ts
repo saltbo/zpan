@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { authedHeaders, createTestApp } from '../test/setup'
 
@@ -20,5 +21,47 @@ describe('storage usage API', () => {
     expect(usage.breakdowns.find((row) => row.category === 'trash')?.bytes).toBe(0)
 
     expect((await app.request('/api/storage/scans', { method: 'POST', headers })).status).toBe(404)
+  })
+
+  it('allows a workspace API key with storage-usage:read', async () => {
+    const { app, auth, db } = await createTestApp()
+    await authedHeaders(app, 'storage-api-key@example.com')
+    const [user] = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'storage-api-key@example.com'`)
+    const [org] = await db.all<{ id: string }>(
+      sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
+    const apiKey = (await (auth.api as any).createApiKey({
+      body: {
+        configId: 'ihost',
+        userId: user.id,
+        organizationId: org.id,
+        permissions: { 'storage-usage': ['read'] },
+      },
+    })) as { key: string }
+
+    const res = await app.request('/api/storage', { headers: { Authorization: `Bearer ${apiKey.key}` } })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ usedBytes: 0, quotaBytes: 10485760 })
+  })
+
+  it('returns 403 for a workspace API key without storage-usage:read', async () => {
+    const { app, auth, db } = await createTestApp()
+    await authedHeaders(app, 'storage-api-key-denied@example.com')
+    const [user] = await db.all<{ id: string }>(
+      sql`SELECT id FROM user WHERE email = 'storage-api-key-denied@example.com'`,
+    )
+    const [org] = await db.all<{ id: string }>(
+      sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
+    const apiKey = (await (auth.api as any).createApiKey({
+      body: { configId: 'ihost', userId: user.id, organizationId: org.id, permissions: { quota: ['read'] } },
+    })) as { key: string }
+
+    const res = await app.request('/api/storage', { headers: { Authorization: `Bearer ${apiKey.key}` } })
+
+    expect(res.status).toBe(403)
   })
 })

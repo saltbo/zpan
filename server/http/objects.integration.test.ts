@@ -1405,6 +1405,25 @@ describe('Objects API — name conflict (409 responses)', () => {
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
+type TestAuth = Awaited<ReturnType<typeof createTestApp>>['auth']
+
+async function createWorkspaceApiKey(
+  auth: TestAuth,
+  orgId: string,
+  userId: string,
+  permissions: Record<string, string[]>,
+): Promise<string> {
+  // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
+  const result = (await (auth.api as any).createApiKey({
+    body: {
+      configId: 'ihost',
+      organizationId: orgId,
+      userId,
+      permissions,
+    },
+  })) as { key: string }
+  return result.key
+}
 
 async function getUserIdByEmail(db: TestDb, email: string): Promise<string> {
   const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = ${email}`)
@@ -1453,6 +1472,85 @@ function transferRequest(
 }
 
 describe('POST /api/objects/:id/transfers', () => {
+  it('allows a workspace API key with object scopes to list, read, and create objects', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertFile(db, orgId, { id: 'api-key-read', name: 'readme.txt' })
+    const key = await createWorkspaceApiKey(auth, orgId, userId, { objects: ['read', 'create'] })
+    const headers = { Authorization: `Bearer ${key}` }
+
+    const list = await app.request('/api/objects', { headers })
+    expect(list.status).toBe(200)
+    const listBody = (await list.json()) as { items: Array<{ id: string }> }
+    expect(listBody.items.map((item) => item.id)).toContain('api-key-read')
+
+    const read = await app.request('/api/objects/api-key-read', { headers })
+    expect(read.status).toBe(200)
+    const readBody = (await read.json()) as { id: string; name: string }
+    expect(readBody).toMatchObject({ id: 'api-key-read', name: 'readme.txt' })
+
+    const create = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Api Folder', type: 'folder', dirtype: 1, parent: '' }),
+    })
+    expect(create.status).toBe(201)
+    const createBody = (await create.json()) as { name: string; dirtype: number }
+    expect(createBody).toMatchObject({ name: 'Api Folder', dirtype: 1 })
+  })
+
+  it('returns 403 when a workspace API key is missing the required object scope', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    const key = await createWorkspaceApiKey(auth, orgId, userId, { objects: ['create'] })
+
+    const res = await app.request('/api/objects', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    expect(res.status).toBe(403)
+  })
+
+  it('rejects orgId override for a fixed-workspace API key', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertTeamOrg(db, 'team-api-override')
+    await insertMember(db, 'team-api-override', userId, 'viewer')
+    await insertFile(db, 'team-api-override', { id: 'team-api-file', name: 'team.txt' })
+    const key = await createWorkspaceApiKey(auth, orgId, userId, { objects: ['read'] })
+
+    const res = await app.request('/api/objects?orgId=team-api-override', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    expect(res.status).toBe(403)
+  })
+
+  it('rejects cross-space transfer for a fixed-workspace API key', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertTeamOrg(db, 'team-api-transfer')
+    await insertMember(db, 'team-api-transfer', userId, 'editor')
+    await insertStorageEntitlement(db, 'team-api-transfer', 10_000_000)
+    await insertFile(db, orgId, { id: 'src-api-transfer', name: 'doc.txt' })
+    const key = await createWorkspaceApiKey(auth, orgId, userId, { objects: ['update'] })
+
+    const res = await transferRequest(app, { Authorization: `Bearer ${key}` }, 'src-api-transfer', {
+      targetOrgId: 'team-api-transfer',
+      mode: 'copy',
+    })
+    expect(res.status).toBe(403)
+  })
+
   it('copies a file into a team space the user can edit [spec: objects/transfer-copy]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
@@ -2439,15 +2537,21 @@ describe('object multipart upload API with S3-compatible storage', () => {
 // resolution, the download-task-upload confirm guards, and the editor-access
 // gate for an API key principal on session-only object routes.
 
-// Creates an API key via the real better-auth plugin. A `webdav` config-id key
-// is user-owned but is not a browser/session principal.
+// Creates an API key via the real better-auth plugin. Workspace-scoped keys use
+// a workspace-capable template; user-workspace keys use WebDAV.
 async function createUserApiKey(
   auth: Awaited<ReturnType<typeof createTestApp>>['auth'],
   userId: string,
+  opts: { orgId?: string; permissions?: Record<string, string[]> } = {},
 ): Promise<string> {
   // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
   const result = (await (auth.api as any).createApiKey({
-    body: { configId: 'webdav', userId },
+    body: {
+      configId: opts.orgId ? 'ihost' : 'webdav',
+      userId,
+      ...(opts.orgId ? { organizationId: opts.orgId } : {}),
+      permissions: opts.permissions,
+    },
   })) as { key: string }
   return result.key
 }
@@ -2561,22 +2665,76 @@ describe('Objects API — error branches', () => {
     })
   })
 
-  it('returns 401 for an API key on a session-only object write', async () => {
+  it('creates a folder with a workspace API key that has objects:create', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    const key = await createUserApiKey(auth, userId)
+    const orgId = await getOrgId(db)
+    const key = await createUserApiKey(auth, userId, { orgId, permissions: { objects: ['create'] } })
 
     const res = await app.request('/api/objects', {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'denied.txt', type: 'text/plain', size: 1 }),
+      body: JSON.stringify({ name: 'api-key-folder', type: 'folder', dirtype: 1, parent: '' }),
     })
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(201)
+    await expect(res.json()).resolves.toMatchObject({ name: 'api-key-folder', orgId })
+  })
+
+  it('returns 403 when an object API key is missing the route scope', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    const orgId = await getOrgId(db)
+    const key = await createUserApiKey(auth, userId, { orgId, permissions: { objects: ['create'] } })
+
+    const res = await app.request('/api/objects', { headers: { Authorization: `Bearer ${key}` } })
+
+    expect(res.status).toBe(403)
     const body = (await res.json()) as { error: { message: string; status: string } }
-    expect(body.error.message).toBe('Unauthorized')
-    expect(body.error.status).toBe('UNAUTHENTICATED')
+    expect(body.error.message).toBe('Forbidden')
+    expect(body.error.status).toBe('PERMISSION_DENIED')
+  })
+
+  it('denies a fixed-workspace API key list orgId override before cross-org lookup', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    const orgId = await getOrgId(db)
+    await insertTeamOrg(db, 'team-fixed-list')
+    await insertMember(db, 'team-fixed-list', userId, 'owner')
+    const key = await createUserApiKey(auth, userId, { orgId, permissions: { objects: ['read'] } })
+
+    const res = await app.request('/api/objects?orgId=team-fixed-list', { headers: { Authorization: `Bearer ${key}` } })
+
+    expect(res.status).toBe(403)
+  })
+
+  it('allows same-workspace copy but denies cross-space transfer for a fixed-workspace API key', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'fixed-copy-source', name: 'copy.txt' })
+    await insertTeamOrg(db, 'team-fixed-transfer')
+    await insertMember(db, 'team-fixed-transfer', userId, 'editor')
+    const key = await createUserApiKey(auth, userId, { orgId, permissions: { objects: ['update'] } })
+    const headers = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }
+
+    const copy = await app.request('/api/objects/fixed-copy-source/copies', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ parent: '' }),
+    })
+    expect(copy.status).toBe(201)
+
+    const transfer = await transferRequest(app, headers, 'fixed-copy-source', {
+      targetOrgId: 'team-fixed-transfer',
+      mode: 'copy',
+    })
+    expect(transfer.status).toBe(403)
   })
 
   it('returns 403 when listing an org the user cannot read via orgId override', async () => {
@@ -2641,13 +2799,13 @@ describe('Objects API — error branches', () => {
     const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
     await insertFile(db, orgId, { id: 'm-task-trash', name: 'file.txt', parent: 'Remote' })
 
-    // DELETE /objects/:id is editor-gated; a download-task-upload token has no
-    // team role (userId is null) so it is rejected — it may only finalize uploads.
+    // DELETE /objects/:id requires objects:delete; a download-task-upload token
+    // is authenticated but only carries upload lifecycle scopes.
     const res = await app.request('/api/objects/m-task-trash', {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${uploadToken}` },
     })
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(403)
   })
 
   it('rejects a download-task-upload completion outside the task target folder', async () => {

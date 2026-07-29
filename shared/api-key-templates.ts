@@ -47,7 +47,9 @@ export const WEBDAV_API_KEY_PERMISSIONS = scopePermissions([
   AuthorizationScope.OBJECTS_CREATE,
   AuthorizationScope.OBJECTS_UPDATE,
   AuthorizationScope.OBJECTS_DELETE,
-  AuthorizationScope.OBJECTS_MOVE,
+  AuthorizationScope.SHARES_READ,
+  AuthorizationScope.QUOTA_READ,
+  AuthorizationScope.STORAGE_USAGE_READ,
 ])
 export const REMOTE_DOWNLOAD_API_KEY_PERMISSIONS = {
   ...scopePermissions([

@@ -1,6 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { pageSchema } from '@shared/schemas'
-import { requireAdmin, requireAuth } from '../middleware/auth'
+import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
 import { getUserQuota, listQuotaOverview } from '../usecases/quota'
@@ -59,14 +60,17 @@ const listQuotaOverviewRoute = authRoute(
 )
 
 const getMyQuotaRoute = authRoute(
-  { access: 'session' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.QUOTA_READ],
+    minTeamRole: 'viewer',
+  },
   {
     operationId: 'getMyQuota',
     summary: "Get the current user's effective quota",
     tags: ['Quotas'],
     method: 'get',
     path: '/me',
-    middleware: [requireAuth] as const,
     responses: {
       200: jsonContent(effectiveQuotaSchema, 'Effective quota'),
       404: errorResponse('No organization found'),

@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageQuerySchema, cursorPageSchema, restoreObjectSchema } from '@shared/schemas'
-import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deleteObject, getTrashObject, listTrashedObjects, restoreObject } from '../usecases/object'
 import { badRequest, type Matter, notFound } from '../usecases/ports'
@@ -53,14 +53,17 @@ const trashPageSchema = cursorPageSchema(matterSchema, 'TrashObjectPage')
 const idParam = z.object({ id: z.string() })
 
 const listTrashRoute = authRoute(
-  { access: 'session', minTeamRole: 'viewer' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_READ],
+    minTeamRole: 'viewer',
+  },
   {
     operationId: 'listTrashObjects',
     summary: 'List trashed objects',
     tags: ['Trash'],
     method: 'get',
     path: '/objects',
-    middleware: [requireAuth, requireTeamRole('viewer')] as const,
     request: { query: cursorPageQuerySchema },
     responses: {
       200: jsonContent(trashPageSchema, 'Trashed objects (roots only)'),
@@ -70,14 +73,17 @@ const listTrashRoute = authRoute(
 )
 
 const getTrashObjectRoute = authRoute(
-  { access: 'session', minTeamRole: 'viewer' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_READ],
+    minTeamRole: 'viewer',
+  },
   {
     operationId: 'getTrashObject',
     summary: 'Get trashed object',
     tags: ['Trash'],
     method: 'get',
     path: '/objects/{id}',
-    middleware: [requireAuth, requireTeamRole('viewer')] as const,
     request: { params: idParam },
     responses: {
       200: jsonContent(matterSchema, 'Trashed object'),
@@ -88,14 +94,17 @@ const getTrashObjectRoute = authRoute(
 )
 
 const restoreObjectRoute = authRoute(
-  { access: 'session', minTeamRole: 'editor' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_UPDATE],
+    minTeamRole: 'editor',
+  },
   {
     operationId: 'restoreObject',
     summary: 'Restore trashed object',
     tags: ['Trash'],
     method: 'post',
     path: '/objects/{id}/restorations',
-    middleware: [requireAuth, requireTeamRole('editor')] as const,
     request: { params: idParam, ...jsonBody(restoreObjectSchema) },
     responses: {
       200: jsonContent(matterSchema, 'Restored object'),
@@ -107,14 +116,17 @@ const restoreObjectRoute = authRoute(
 )
 
 const purgeObjectRoute = authRoute(
-  { access: 'session', minTeamRole: 'editor' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_PURGE],
+    minTeamRole: 'editor',
+  },
   {
     operationId: 'purgeTrashObject',
     summary: 'Permanently delete trashed object',
     tags: ['Trash'],
     method: 'delete',
     path: '/objects/{id}',
-    middleware: [requireAuth, requireTeamRole('editor')] as const,
     request: { params: idParam },
     responses: {
       204: { description: 'Permanently removed (recursive subtree purge)' },

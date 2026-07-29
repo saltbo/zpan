@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { STORAGE_USAGE_CATEGORIES, STORAGE_USAGE_SORT_FIELDS } from '@shared/storage-usage'
-import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
 import { getStorageUsage, listStorageUsageItems } from '../usecases/storage-usage-dashboard'
@@ -35,27 +35,33 @@ const itemSchema = z.object({
 })
 
 const getUsageRoute = authRoute(
-  { access: 'session' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.STORAGE_USAGE_READ],
+    minTeamRole: 'viewer',
+  },
   {
     operationId: 'getStorageUsage',
     summary: 'Get current storage usage by category',
     tags: ['Storage Usage'],
     method: 'get',
     path: '/',
-    middleware: [requireAuth] as const,
     responses: { 200: jsonContent(usageSchema, 'Storage usage') },
   },
 )
 
 const listItemsRoute = authRoute(
-  { access: 'session' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.STORAGE_USAGE_READ],
+    minTeamRole: 'viewer',
+  },
   {
     operationId: 'listStorageUsageItems',
     summary: 'List files in a storage usage category',
     tags: ['Storage Usage'],
     method: 'get',
     path: '/items',
-    middleware: [requireAuth] as const,
     request: {
       query: z.object({
         category: categorySchema,

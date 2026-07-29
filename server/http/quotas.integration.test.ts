@@ -187,21 +187,45 @@ describe('User Quotas API — /api/quotas', () => {
     expect(body.orgId).toBeTruthy()
   })
 
-  it('GET /api/quotas/me rejects an API key because the route requires a user session [spec: quotas/me-no-org]', async () => {
+  it('GET /api/quotas/me returns quota for a workspace API key with quota:read [spec: quotas/me-api-key]', async () => {
     const { app, auth, db } = await createTestApp()
     await authedHeaders(app, 'noorg@example.com')
     const [user] = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'noorg@example.com'`)
+    const [org] = await db.all<{ id: string }>(
+      sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
     // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
     const apiKey = (await (auth.api as any).createApiKey({
-      body: { configId: 'webdav', userId: user.id },
+      body: { configId: 'ihost', userId: user.id, organizationId: org.id, permissions: { quota: ['read'] } },
     })) as { key: string }
-    await db.run(sql`DELETE FROM member WHERE user_id = ${user.id}`)
 
     const res = await app.request('/api/quotas/me', {
       headers: { Authorization: `Bearer ${apiKey.key}` },
     })
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ orgId: org.id, quota: 10485760 })
+  })
+
+  it('GET /api/quotas/me returns 403 for a workspace API key without quota:read', async () => {
+    const { app, auth, db } = await createTestApp()
+    await authedHeaders(app, 'quota-missing-scope@example.com')
+    const [user] = await db.all<{ id: string }>(
+      sql`SELECT id FROM user WHERE email = 'quota-missing-scope@example.com'`,
+    )
+    const [org] = await db.all<{ id: string }>(
+      sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
+    const apiKey = (await (auth.api as any).createApiKey({
+      body: { configId: 'ihost', userId: user.id, organizationId: org.id, permissions: { objects: ['read'] } },
+    })) as { key: string }
+
+    const res = await app.request('/api/quotas/me', {
+      headers: { Authorization: `Bearer ${apiKey.key}` },
+    })
+
+    expect(res.status).toBe(403)
   })
 
   it('GET /api/quotas/me returns base quota plus active entitlements and labels [spec: quotas/me-effective]', async () => {

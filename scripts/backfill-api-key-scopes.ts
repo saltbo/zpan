@@ -30,7 +30,7 @@ const LEGACY_SCOPE_MAP: Record<string, Record<string, string[]>> = {
   },
   webdav: {
     read: ['objects:read'],
-    write: ['objects:create', 'objects:update', 'objects:delete', 'objects:move'],
+    write: ['objects:create', 'objects:update', 'objects:delete'],
   },
   remoteDownload: {
     read: ['download-tasks:read'],

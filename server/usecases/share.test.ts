@@ -30,6 +30,7 @@ import {
   revokeShare,
   type ShareDeps,
   saveShare,
+  setSharePrivacy,
   verifySharePassword,
   viewShare,
 } from './share'
@@ -845,8 +846,15 @@ describe('listShares', () => {
     const listForApi = vi.fn(async () => ({ items: [sentItem], nextBoundary }))
     const { deps } = makeDeps({ share: { listForApi } })
     const after = { createdAt: new Date('2025-02-01'), id: 's-2' }
-    const out = await listShares(deps, { userId: 'u1', box: 'sent', pageSize: 10, status: 'active', after })
-    expect(listForApi).toHaveBeenCalledWith('u1', { pageSize: 10, status: 'active', after })
+    const out = await listShares(deps, {
+      userId: 'u1',
+      box: 'sent',
+      pageSize: 10,
+      status: 'active',
+      fixedOrgId: 'o-1',
+      after,
+    })
+    expect(listForApi).toHaveBeenCalledWith('u1', { pageSize: 10, status: 'active', orgId: 'o-1', after })
     expect(out).toEqual({ items: [sentItem], nextBoundary })
   })
 
@@ -865,7 +873,11 @@ describe('listShares', () => {
     const { deps } = makeDeps({ share: { getUserEmail, listReceivedForApi } })
     const out = await listShares(deps, { userId: 'u1', box: 'received', pageSize: 20 })
     expect(getUserEmail).toHaveBeenCalledWith('u1')
-    expect(listReceivedForApi).toHaveBeenCalledWith('u1', 'me@example.com', { pageSize: 20, after: undefined })
+    expect(listReceivedForApi).toHaveBeenCalledWith('u1', 'me@example.com', {
+      pageSize: 20,
+      orgId: undefined,
+      after: undefined,
+    })
     expect(out).toEqual({ items: [sentItem], nextBoundary: null })
   })
 })
@@ -981,6 +993,22 @@ describe('createShare', () => {
   })
 })
 
+// ─── setSharePrivacy ─────────────────────────────────────────────────────────
+
+describe('setSharePrivacy', () => {
+  it('returns forbidden when a fixed org does not match the share org', async () => {
+    const setPrivacy = vi.fn()
+    const { deps } = makeDeps({ share: { setPrivacy } })
+    expectError(
+      await setSharePrivacy(deps, { token: 'sk_token1', userId: 'creator-1', fixedOrgId: 'other-org', private: true }),
+      403,
+      undefined,
+      'Forbidden',
+    )
+    expect(setPrivacy).not.toHaveBeenCalled()
+  })
+})
+
 // ─── revokeShare ─────────────────────────────────────────────────────────────
 
 describe('revokeShare', () => {
@@ -999,6 +1027,18 @@ describe('revokeShare', () => {
   it('returns forbidden when the requester is not the creator', async () => {
     const { deps } = makeDeps()
     expectError(await revokeShare(deps, { token: 't', userId: 'someone-else' }), 403, undefined, 'Forbidden')
+  })
+
+  it('returns forbidden when a fixed org does not match the share org', async () => {
+    const revokeByToken = vi.fn()
+    const { deps } = makeDeps({ share: { revokeByToken } })
+    expectError(
+      await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1', fixedOrgId: 'other-org' }),
+      403,
+      undefined,
+      'Forbidden',
+    )
+    expect(revokeByToken).not.toHaveBeenCalled()
   })
 
   it('returns not_found when the scoped revoke loses the race', async () => {
@@ -1091,6 +1131,13 @@ describe('saveShare', () => {
   it('returns forbidden when the user cannot write to the target org', async () => {
     const { deps } = makeDeps({ org: { canWriteToOrg: async () => false } })
     expectError(await saveShare(deps, baseParams), 403, undefined, 'Forbidden')
+  })
+
+  it('returns forbidden before org write checks when a fixed target org does not match', async () => {
+    const canWriteToOrg = vi.fn()
+    const { deps } = makeDeps({ org: { canWriteToOrg } })
+    expectError(await saveShare(deps, { ...baseParams, fixedTargetOrgId: 'other-org' }), 403, undefined, 'Forbidden')
+    expect(canWriteToOrg).not.toHaveBeenCalled()
   })
 
   it('returns quota_exceeded when the target org lacks quota', async () => {

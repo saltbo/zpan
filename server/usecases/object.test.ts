@@ -239,6 +239,22 @@ describe('object usecase', () => {
       expect(list).toHaveBeenCalledWith('o2', expect.anything())
     })
 
+    it('forbids an override org when the actor is fixed to a workspace', async () => {
+      const list = vi.fn()
+      const canReadOrg = vi.fn()
+      const { deps } = makeDeps({ matter: { list }, org: { canReadOrg } })
+      const out = await listObjects(deps, {
+        orgId: 'o1',
+        userId: 'u1',
+        fixedOrgId: 'o1',
+        orgOverride: 'o2',
+        filters: { parent: '', pageSize: 20 },
+      })
+      expectError(out, 403, 'Forbidden')
+      expect(canReadOrg).not.toHaveBeenCalled()
+      expect(list).not.toHaveBeenCalled()
+    })
+
     it('forbids an override org the user cannot read', async () => {
       const list = vi.fn()
       const { deps } = makeDeps({ matter: { list }, org: { canReadOrg: async () => false } })

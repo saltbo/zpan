@@ -21,6 +21,17 @@ const revokeShareByToken = (db: Database, token: string, creatorId: string) =>
   createShareRepo(db).revokeByToken(token, creatorId)
 const listShareRecipientUserIds = (db: Database, shareId: string) => createShareRepo(db).listRecipientUserIds(shareId)
 const revokeByMatter = (db: Database, matterId: string) => createShareRepo(db).revokeByMatter(matterId)
+const listSharesForApi = (
+  db: Database,
+  creatorId: string,
+  opts: Parameters<ReturnType<typeof createShareRepo>['listForApi']>[1],
+) => createShareRepo(db).listForApi(creatorId, opts)
+const listReceivedSharesForApi = (
+  db: Database,
+  userId: string,
+  userEmail: string | null,
+  opts: Parameters<ReturnType<typeof createShareRepo>['listReceivedForApi']>[2],
+) => createShareRepo(db).listReceivedForApi(userId, userEmail, opts)
 const verifyPassword = (share: { passwordHash: string | null }, plaintext: string): boolean =>
   share.passwordHash ? verifyPasswordHash(share.passwordHash, plaintext) : false
 
@@ -302,6 +313,60 @@ describe('isAccessibleByUser', () => {
 
   it('returns false for empty recipients list', () => {
     expect(isAccessibleByUser([], 'user-42')).toBe(false)
+  })
+})
+
+// ─── listForApi ──────────────────────────────────────────────────────────────
+
+describe('listForApi', () => {
+  it('filters creator shares to the requested org', async () => {
+    const { db } = await createTestApp()
+    const creatorId = 'creator-list-filter'
+    const orgA = `org-${nanoid()}`
+    const orgB = `org-${nanoid()}`
+    const matterA = await seedMatter(db, { orgId: orgA })
+    const matterB = await seedMatter(db, { orgId: orgB })
+    const shareA = await createShare(db, { matterId: matterA.id, orgId: orgA, creatorId, kind: 'landing' })
+    const shareB = await createShare(db, { matterId: matterB.id, orgId: orgB, creatorId, kind: 'landing' })
+
+    const filtered = await listSharesForApi(db, creatorId, { pageSize: 10, orgId: orgA })
+    const unfiltered = await listSharesForApi(db, creatorId, { pageSize: 10 })
+
+    expect(filtered.items.map((item) => item.id)).toEqual([shareA.id])
+    expect(unfiltered.items.map((item) => item.id).sort()).toEqual([shareA.id, shareB.id].sort())
+  })
+})
+
+// ─── listReceivedForApi ──────────────────────────────────────────────────────
+
+describe('listReceivedForApi', () => {
+  it('filters received shares to the requested org', async () => {
+    const { db } = await createTestApp()
+    const recipientId = 'recipient-list-filter'
+    const orgA = `org-${nanoid()}`
+    const orgB = `org-${nanoid()}`
+    const matterA = await seedMatter(db, { orgId: orgA })
+    const matterB = await seedMatter(db, { orgId: orgB })
+    const shareA = await createShare(db, {
+      matterId: matterA.id,
+      orgId: orgA,
+      creatorId: 'creator-a',
+      kind: 'landing',
+      recipients: [{ recipientUserId: recipientId }],
+    })
+    const shareB = await createShare(db, {
+      matterId: matterB.id,
+      orgId: orgB,
+      creatorId: 'creator-b',
+      kind: 'landing',
+      recipients: [{ recipientUserId: recipientId }],
+    })
+
+    const filtered = await listReceivedSharesForApi(db, recipientId, null, { pageSize: 10, orgId: orgA })
+    const unfiltered = await listReceivedSharesForApi(db, recipientId, null, { pageSize: 10 })
+
+    expect(filtered.items.map((item) => item.id)).toEqual([shareA.id])
+    expect(unfiltered.items.map((item) => item.id).sort()).toEqual([shareA.id, shareB.id].sort())
   })
 })
 
