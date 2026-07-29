@@ -111,6 +111,45 @@ describe('Agent OAuth gateway', () => {
     ).rejects.toThrow('agent_oauth_scope_denied')
   })
 
+  it('lists only workspace-bound grants for the managed client', async () => {
+    const { db } = await createTestApp()
+    const userId = 'oauth-user'
+    const orgId = 'oauth-org'
+    await insertUserAndOrg(db, userId, orgId)
+    await db.insert(authSchema.oauthConsent).values([
+      {
+        id: 'grant-1',
+        clientId: AGENT_OAUTH_CLIENT_ID,
+        userId,
+        referenceId: orgId,
+        scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
+        createdAt: new Date('2026-07-29T12:00:00.000Z'),
+        updatedAt: new Date('2026-07-29T12:01:00.000Z'),
+      },
+      {
+        id: 'grant-without-workspace',
+        clientId: AGENT_OAUTH_CLIENT_ID,
+        userId,
+        referenceId: null,
+        scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
+        createdAt: new Date('2026-07-29T12:02:00.000Z'),
+        updatedAt: new Date('2026-07-29T12:03:00.000Z'),
+      },
+    ])
+
+    await expect(createAgentOAuthGateway().listGrants(db, userId)).resolves.toEqual([
+      {
+        id: 'grant-1',
+        clientId: AGENT_OAUTH_CLIENT_ID,
+        userId,
+        orgId,
+        scopes: [AuthorizationScope.OBJECTS_READ],
+        createdAt: '2026-07-29T12:00:00.000Z',
+        updatedAt: '2026-07-29T12:01:00.000Z',
+      },
+    ])
+  })
+
   it('revokes only the managed client grant for the selected workspace', async () => {
     const { db } = await createTestApp()
     const userId = 'oauth-user'

@@ -1,6 +1,13 @@
 import { getTableConfig } from 'drizzle-orm/sqlite-core'
 import { describe, expect, it } from 'vitest'
-import { downloaderBootstrapCredential, user } from './auth-schema.js'
+import {
+  downloaderBootstrapCredential,
+  oauthAccessToken,
+  oauthClient,
+  oauthConsent,
+  oauthRefreshToken,
+  user,
+} from './auth-schema.js'
 
 describe('auth-schema user table', () => {
   it('has a username column', () => {
@@ -84,5 +91,75 @@ describe('downloaderBootstrapCredential table', () => {
     ])
     expect(foreignKeys).toHaveLength(1)
     expect(foreignKeys[0].reference().foreignColumns[0].name).toBe('id')
+  })
+})
+
+describe('Agent OAuth tables', () => {
+  it('declares the managed client columns and indexes', () => {
+    const { foreignKeys, indexes } = getTableConfig(oauthClient)
+
+    expect(oauthClient.clientId.name).toBe('client_id')
+    expect(oauthClient.redirectUris.notNull).toBe(true)
+    expect(oauthClient.requirePKCE.name).toBe('require_pkce')
+    expect(oauthClient.updatedAt.onUpdateFn?.()).toBeInstanceOf(Date)
+    expect(foreignKeys.map((foreignKey) => foreignKey.reference().foreignColumns[0].name)).toEqual(['id'])
+    expect(indexes.map((index) => index.config.name).sort()).toEqual([
+      'oauthClient_client_id_idx',
+      'oauthClient_user_id_idx',
+    ])
+  })
+
+  it('declares refresh-token relationships and lookup indexes', () => {
+    const { foreignKeys, indexes } = getTableConfig(oauthRefreshToken)
+
+    expect(oauthRefreshToken.referenceId.name).toBe('reference_id')
+    expect(oauthRefreshToken.revoked.name).toBe('revoked')
+    expect(foreignKeys).toHaveLength(3)
+    expect(foreignKeys.map((foreignKey) => foreignKey.reference().foreignColumns[0].name)).toEqual([
+      'client_id',
+      'id',
+      'id',
+    ])
+    expect(indexes.map((index) => index.config.name).sort()).toEqual([
+      'oauthRefreshToken_client_id_idx',
+      'oauthRefreshToken_session_id_idx',
+      'oauthRefreshToken_token_idx',
+      'oauthRefreshToken_user_id_idx',
+    ])
+  })
+
+  it('declares access-token relationships and lookup indexes', () => {
+    const { foreignKeys, indexes } = getTableConfig(oauthAccessToken)
+
+    expect(oauthAccessToken.referenceId.name).toBe('reference_id')
+    expect(oauthAccessToken.expiresAt.notNull).toBe(true)
+    expect(foreignKeys).toHaveLength(4)
+    expect(foreignKeys.map((foreignKey) => foreignKey.reference().foreignColumns[0].name)).toEqual([
+      'client_id',
+      'id',
+      'id',
+      'id',
+    ])
+    expect(indexes.map((index) => index.config.name).sort()).toEqual([
+      'oauthAccessToken_client_id_idx',
+      'oauthAccessToken_refresh_id_idx',
+      'oauthAccessToken_session_id_idx',
+      'oauthAccessToken_token_idx',
+      'oauthAccessToken_user_id_idx',
+    ])
+  })
+
+  it('declares consent relationships and lookup indexes', () => {
+    const { foreignKeys, indexes } = getTableConfig(oauthConsent)
+
+    expect(oauthConsent.referenceId.name).toBe('reference_id')
+    expect(oauthConsent.scopes.notNull).toBe(true)
+    expect(foreignKeys).toHaveLength(2)
+    expect(oauthConsent.updatedAt.onUpdateFn?.()).toBeInstanceOf(Date)
+    expect(foreignKeys.map((foreignKey) => foreignKey.reference().foreignColumns[0].name)).toEqual(['client_id', 'id'])
+    expect(indexes.map((index) => index.config.name).sort()).toEqual([
+      'oauthConsent_client_id_idx',
+      'oauthConsent_user_id_idx',
+    ])
   })
 })
