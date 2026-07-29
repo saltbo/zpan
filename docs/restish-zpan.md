@@ -4,7 +4,15 @@
 profiles for ZPan API calls and streams file bytes directly from disk to
 presigned storage URLs.
 
+The companion [ZPan Agent Skill](agent-skill.md) selects when to use generated
+Restish commands and when to invoke this plugin. The Skill does not implement
+multipart upload behavior itself.
+
 ## Install
+
+Restish plugins are trusted local executable code. Agents must explain that
+trust boundary and get explicit user approval for the `saltbo/zpan` source
+before installing:
 
 ```bash
 restish plugin install saltbo/zpan zpan

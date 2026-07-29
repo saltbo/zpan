@@ -164,6 +164,7 @@ After startup:
 ## Documentation
 
 - [v2 Launch Offers](docs/v2-launch-offers.md) — earn ZPan Pro for free
+- [ZPan Agent Skill](docs/agent-skill.md) — agent workflows for Restish setup, least-privilege profiles, uploads, CI, and MCP
 - [Restish ZPan upload plugin](docs/restish-zpan.md) — install `restish-zpan` and upload local files through Restish profiles
 - [Roadmap](V2_ROADMAP.md)
 - [Contributing](CONTRIBUTING.md)

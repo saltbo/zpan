@@ -103,6 +103,11 @@ routes must authorize scopes rather than require a concrete `kind`.
 Credential-specific fields remain available for diagnostics and revocation;
 they do not select business behavior.
 
+The versioned ZPan Agent Skill is published under `skills/zpan` and summarized
+in [ZPan Agent Skill](../agent-skill.md). It consumes this authorization model
+through Restish profiles instead of adding a second credential or upload
+protocol.
+
 This boundary deliberately avoids two migration traps:
 
 - File routes must not treat an OAuth bearer as an unrestricted browser user.
