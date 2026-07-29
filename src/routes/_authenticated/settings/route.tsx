@@ -9,7 +9,7 @@ export const Route = createFileRoute('/_authenticated/settings')({
   component: SettingsLayout,
 })
 
-function SettingsLayout() {
+export function SettingsLayout() {
   const { t } = useTranslation()
   const { data: siteConfig } = useSiteConfig()
 
@@ -20,6 +20,7 @@ function SettingsLayout() {
       ? []
       : [{ to: '/settings/webdav', label: t('settings.tabWebDav') }]),
     { to: '/settings/api-keys', label: t('settings.tabApiKeys') },
+    { to: '/settings/agent-access', label: t('settings.tabAgentAccess') },
   ]
 
   return (

@@ -429,6 +429,9 @@ export async function createAuth(
         if (!body) return
         const configId = body.configId
         if (typeof configId !== 'string' || !API_KEY_TEMPLATES.includes(configId as ApiKeyTemplate)) return
+        if (configId === ApiKeyTemplate.AGENT) {
+          throw new APIError('BAD_REQUEST', { message: 'Create Agent API keys from the Agent Access API' })
+        }
 
         const session = await getSessionFromCtx(ctx)
         const userId = session?.user.id ?? (typeof body?.userId === 'string' ? body.userId : null)
@@ -650,6 +653,19 @@ export async function createAuth(
           },
           permissions: {
             defaultPermissions: REMOTE_DOWNLOAD_API_KEY_PERMISSIONS,
+          },
+        },
+        {
+          configId: ApiKeyTemplate.AGENT,
+          references: 'user',
+          enableMetadata: true,
+          rateLimit: {
+            enabled: true,
+            timeWindow: 60_000,
+            maxRequests: 600,
+          },
+          permissions: {
+            defaultPermissions: {},
           },
         },
       ]),

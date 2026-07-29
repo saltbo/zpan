@@ -9,6 +9,7 @@ import { createDeps } from './composition'
 import { isPotentialWebDavPublicRequest, isWebDavPublicRequest } from './domain/webdav-public-url'
 import { adminOverview } from './http/admin-overview'
 import { adminStats } from './http/admin-stats'
+import agentApiKeys from './http/agent-api-keys'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
 import { configz } from './http/configz'
@@ -253,6 +254,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/objects', objects)
   app.route('/api/shares', authedShares)
   app.route('/api/trash', trash)
+  app.route('/api/workspaces', agentApiKeys)
   app.route('/api/teams', teams)
   app.route('/api/teams', adminTeams)
   app.route('/api/site/storages', storages)
@@ -400,3 +402,4 @@ export type AdminAuditRoute = typeof adminAudit
 export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats
 export type StorageUsageRoute = typeof storageUsage
+export type AgentApiKeysRoute = typeof agentApiKeys

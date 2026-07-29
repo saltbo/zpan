@@ -1,5 +1,6 @@
 import type { ApiKeyScope } from '@shared/api-key-templates'
 import type { ApiKeyPermissions, AuthorizationScope } from '@shared/authorization'
+import type { AgentApiKey, AgentApiKeyCreated, AgentGrantableScope } from '@shared/schemas'
 import type { Database } from '../../platform/interface'
 
 export interface VerifiedApiKey {
@@ -40,4 +41,18 @@ export interface ApiKeyGateway {
   ): Promise<VerifiedApiKey | null>
   hasApiKeyPermission(permissions: ApiKeyPermissions | null | undefined, resource: string, action: string): boolean
   hasApiKeyScope(permissions: ApiKeyPermissions | null | undefined, scope: AuthorizationScope): boolean
+  listAgentApiKeys(db: Database, userId: string, orgId: string, now: Date): Promise<AgentApiKey[]>
+  getAgentApiKey(db: Database, userId: string, orgId: string, keyId: string, now: Date): Promise<AgentApiKey | null>
+  issueAgentApiKey(
+    db: Database,
+    input: {
+      name: string
+      userId: string
+      orgId: string
+      scopes: AgentGrantableScope[]
+      expiresAt: Date
+      revokeKeyId?: string
+    },
+  ): Promise<AgentApiKeyCreated>
+  revokeAgentApiKey(db: Database, keyId: string): Promise<void>
 }
