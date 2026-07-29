@@ -1,6 +1,7 @@
+import { isAuthorizationScope, permissionScopes } from '@shared/authorization'
 import { createMiddleware } from 'hono/factory'
 import { ApiKeyRateLimitError, type CachePolicy, forbidden, rateLimited, unauthorized } from '../usecases/ports'
-import type { Env } from './platform'
+import { anonymousAuthzContext, type Env } from './platform'
 
 // 'member' is the better-auth schema default; map it to viewer level so
 // existing org members get read access rather than being silently denied.
@@ -35,6 +36,15 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     const taskUpload = await deps.downloadTokens.resolveTaskUploadToken(platform.db, platform, token)
     if (taskUpload) {
       c.set('principal', { ...taskUpload, kind: 'download-task-upload', authMethod: 'bearer' })
+      c.set('authzContext', {
+        credential: 'download-task-upload',
+        userId: taskUpload.createdByUserId,
+        orgId: taskUpload.orgId,
+        fixedOrgId: taskUpload.orgId,
+        grantedScopes: new Set(taskUpload.scopes.filter(isAuthorizationScope)),
+        actor: { type: 'task-upload', ref: taskUpload.taskId },
+        state: { downloaderId: taskUpload.downloaderId, taskId: taskUpload.taskId },
+      })
       c.set('userId', null)
       c.set('userRole', null)
       c.set('orgId', taskUpload.orgId)
@@ -44,6 +54,15 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     const downloader = await deps.downloadTokens.resolveDownloaderToken(platform, token)
     if (downloader) {
       c.set('principal', { kind: 'downloader', downloaderId: downloader.downloaderId, authMethod: 'bearer' })
+      c.set('authzContext', {
+        credential: 'downloader',
+        userId: null,
+        orgId: null,
+        fixedOrgId: null,
+        grantedScopes: new Set(),
+        actor: { type: 'downloader', ref: downloader.downloaderId },
+        state: {},
+      })
       c.set('userId', null)
       c.set('userRole', null)
       c.set('orgId', null)
@@ -76,6 +95,15 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
         permissions: apiKey.permissions,
         authMethod: 'api-key',
       })
+      c.set('authzContext', {
+        credential: 'api_key',
+        userId,
+        orgId,
+        fixedOrgId: orgId,
+        grantedScopes: new Set(permissionScopes(apiKey.permissions)),
+        actor: { type: 'api_key', ref: apiKey.id },
+        state: { configId: apiKey.configId, enabled: true },
+      })
       c.set('userId', userId)
       c.set('userRole', null)
       c.set('orgId', orgId)
@@ -100,9 +128,19 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       orgId,
       authMethod: authHeader?.startsWith('Bearer ') ? 'bearer' : 'cookie',
     })
+    c.set('authzContext', {
+      credential: 'session',
+      userId: result.user.id,
+      orgId,
+      fixedOrgId: null,
+      grantedScopes: null,
+      actor: { type: 'user', ref: result.user.id },
+      state: { firstParty: true, role: result.user.role },
+    })
   } else {
     c.set('orgId', null)
     c.set('principal', null)
+    c.set('authzContext', anonymousAuthzContext())
   }
 
   await next()

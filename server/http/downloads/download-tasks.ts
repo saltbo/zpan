@@ -1,4 +1,5 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import {
   createDownloadTaskSchema,
   downloadTaskAttemptSchema,
@@ -10,7 +11,6 @@ import {
   listDownloadTasksQuerySchema,
   updateDownloadTaskSchema,
 } from '@shared/schemas'
-import { requirePermission } from '../../middleware/authz'
 import type { Env } from '../../middleware/platform'
 import {
   createDownloadTask,
@@ -22,7 +22,7 @@ import {
   updateDownloadTask,
 } from '../../usecases/downloads/downloads'
 import { badRequest, unauthorized } from '../../usecases/ports'
-import { errorResponse, jsonBody, jsonContent } from '../openapi'
+import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 import {
   createdAtIdCursorCodec,
   decodeOptionalPageToken,
@@ -104,133 +104,181 @@ const taskErrorResponses = {
   409: errorResponse('Invalid task state'),
 }
 
-const listRoute = createRoute({
-  operationId: 'listDownloadTasks',
-  summary: 'List download tasks',
-  tags: ['Download Tasks'],
-  method: 'get',
-  path: '/',
-  middleware: [requirePermission('remoteDownload', 'read')] as const,
-  request: { query: listDownloadTasksQuerySchema },
-  responses: {
-    200: jsonContent(downloadTaskListPageSchema, 'Download task list'),
-    400: errorResponse('Invalid query'),
-    401: errorResponse('Unauthorized'),
+const listRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
   },
-})
+  {
+    operationId: 'listDownloadTasks',
+    summary: 'List download tasks',
+    tags: ['Download Tasks'],
+    method: 'get',
+    path: '/',
+    request: { query: listDownloadTasksQuerySchema },
+    responses: {
+      200: jsonContent(downloadTaskListPageSchema, 'Download task list'),
+      400: errorResponse('Invalid query'),
+      401: errorResponse('Unauthorized'),
+    },
+  },
+)
 
-const downloaderTaskListRoute = createRoute({
-  operationId: 'listDownloaderTasks',
-  summary: 'List tasks owned by the authenticated downloader',
-  tags: ['Downloaders'],
-  method: 'get',
-  path: '/me/tasks',
-  middleware: [requirePermission('remoteDownload', 'read', { allowDownloader: true })] as const,
-  request: { query: listDownloadTasksQuerySchema },
-  responses: {
-    200: jsonContent(downloadTaskPageSchema, 'Assigned download tasks'),
-    400: errorResponse('Invalid query'),
-    401: errorResponse('Unauthorized'),
+const downloaderTaskListRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
+    allowDownloader: true,
   },
-})
+  {
+    operationId: 'listDownloaderTasks',
+    summary: 'List tasks owned by the authenticated downloader',
+    tags: ['Downloaders'],
+    method: 'get',
+    path: '/me/tasks',
+    request: { query: listDownloadTasksQuerySchema },
+    responses: {
+      200: jsonContent(downloadTaskPageSchema, 'Assigned download tasks'),
+      400: errorResponse('Invalid query'),
+      401: errorResponse('Unauthorized'),
+    },
+  },
+)
 
-const createRouteDoc = createRoute({
-  operationId: 'createDownloadTask',
-  summary: 'Create download task',
-  tags: ['Download Tasks'],
-  method: 'post',
-  path: '/',
-  middleware: [requirePermission('remoteDownload', 'create', { minTeamRole: 'editor' })] as const,
-  request: jsonBody(createDownloadTaskSchema),
-  responses: {
-    201: jsonContent(downloadTaskSchema, 'Created download task'),
-    ...taskErrorResponses,
+const createRouteDoc = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_CREATE],
+    minTeamRole: 'editor',
   },
-})
+  {
+    operationId: 'createDownloadTask',
+    summary: 'Create download task',
+    tags: ['Download Tasks'],
+    method: 'post',
+    path: '/',
+    request: jsonBody(createDownloadTaskSchema),
+    responses: {
+      201: jsonContent(downloadTaskSchema, 'Created download task'),
+      ...taskErrorResponses,
+    },
+  },
+)
 
-const getRoute = createRoute({
-  operationId: 'getDownloadTask',
-  summary: 'Get download task',
-  tags: ['Download Tasks'],
-  method: 'get',
-  path: '/{id}',
-  middleware: [requirePermission('remoteDownload', 'read')] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    200: jsonContent(downloadTaskSchema, 'Download task'),
-    ...taskErrorResponses,
+const getRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
   },
-})
+  {
+    operationId: 'getDownloadTask',
+    summary: 'Get download task',
+    tags: ['Download Tasks'],
+    method: 'get',
+    path: '/{id}',
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: jsonContent(downloadTaskSchema, 'Download task'),
+      ...taskErrorResponses,
+    },
+  },
+)
 
-const eventsRoute = createRoute({
-  operationId: 'listDownloadTaskEvents',
-  summary: 'List download task timeline events',
-  tags: ['Download Tasks'],
-  method: 'get',
-  path: '/{id}/events',
-  middleware: [requirePermission('remoteDownload', 'read')] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    200: jsonContent(downloadTaskTimelineSchema, 'Download task timeline'),
-    ...taskErrorResponses,
+const eventsRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
   },
-})
+  {
+    operationId: 'listDownloadTaskEvents',
+    summary: 'List download task timeline events',
+    tags: ['Download Tasks'],
+    method: 'get',
+    path: '/{id}/events',
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: jsonContent(downloadTaskTimelineSchema, 'Download task timeline'),
+      ...taskErrorResponses,
+    },
+  },
+)
 
-const updateRoute = createRoute({
-  operationId: 'updateDownloadTask',
-  summary: 'Update download task',
-  tags: ['Download Tasks'],
-  method: 'patch',
-  path: '/{id}',
-  middleware: [requirePermission('remoteDownload', 'cancel', { allowDownloader: true })] as const,
-  request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloadTaskSchema) },
-  responses: {
-    200: jsonContent(downloadTaskSchema, 'Updated download task'),
-    ...taskErrorResponses,
+const updateRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL],
+    allowDownloader: true,
   },
-})
+  {
+    operationId: 'updateDownloadTask',
+    summary: 'Update download task',
+    tags: ['Download Tasks'],
+    method: 'patch',
+    path: '/{id}',
+    request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloadTaskSchema) },
+    responses: {
+      200: jsonContent(downloadTaskSchema, 'Updated download task'),
+      ...taskErrorResponses,
+    },
+  },
+)
 
-const statusRoute = createRoute({
-  operationId: 'setDownloadTaskStatus',
-  summary: 'Pause, resume, or cancel a task',
-  tags: ['Download Tasks'],
-  method: 'put',
-  path: '/{id}/status',
-  middleware: [requirePermission('remoteDownload', 'cancel')] as const,
-  request: { params: z.object({ id: z.string() }), ...jsonBody(downloadTaskStatusUpdateSchema) },
-  responses: {
-    200: jsonContent(downloadTaskSchema, 'Updated download task'),
-    ...taskErrorResponses,
+const statusRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL],
   },
-})
+  {
+    operationId: 'setDownloadTaskStatus',
+    summary: 'Pause, resume, or cancel a task',
+    tags: ['Download Tasks'],
+    method: 'put',
+    path: '/{id}/status',
+    request: { params: z.object({ id: z.string() }), ...jsonBody(downloadTaskStatusUpdateSchema) },
+    responses: {
+      200: jsonContent(downloadTaskSchema, 'Updated download task'),
+      ...taskErrorResponses,
+    },
+  },
+)
 
-const attemptRoute = createRoute({
-  operationId: 'retryDownloadTask',
-  summary: 'Retry or restart a task',
-  tags: ['Download Tasks'],
-  method: 'post',
-  path: '/{id}/attempts',
-  middleware: [requirePermission('remoteDownload', 'cancel')] as const,
-  request: { params: z.object({ id: z.string() }), ...jsonBody(downloadTaskAttemptSchema) },
-  responses: {
-    201: jsonContent(downloadTaskSchema, 'New download attempt'),
-    ...taskErrorResponses,
+const attemptRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL],
   },
-})
+  {
+    operationId: 'retryDownloadTask',
+    summary: 'Retry or restart a task',
+    tags: ['Download Tasks'],
+    method: 'post',
+    path: '/{id}/attempts',
+    request: { params: z.object({ id: z.string() }), ...jsonBody(downloadTaskAttemptSchema) },
+    responses: {
+      201: jsonContent(downloadTaskSchema, 'New download attempt'),
+      ...taskErrorResponses,
+    },
+  },
+)
 
-const deleteRoute = createRoute({
-  operationId: 'deleteDownloadTask',
-  summary: 'Delete download task',
-  tags: ['Download Tasks'],
-  method: 'delete',
-  path: '/{id}',
-  middleware: [requirePermission('remoteDownload', 'cancel')] as const,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    204: { description: 'Deleted download task' },
-    ...taskErrorResponses,
+const deleteRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL],
   },
-})
+  {
+    operationId: 'deleteDownloadTask',
+    summary: 'Delete download task',
+    tags: ['Download Tasks'],
+    method: 'delete',
+    path: '/{id}',
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      204: { description: 'Deleted download task' },
+      ...taskErrorResponses,
+    },
+  },
+)
 
 const downloadTasksRoute = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {

@@ -1,7 +1,8 @@
+import { AuthorizationScope } from '@shared/authorization'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
-import { requirePermission } from './authz.js'
+import { evaluateAuthorization, requirePermission } from './authz.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
 type TestApp = TestCtx['app']
@@ -13,11 +14,11 @@ type TestAuth = TestCtx['auth']
 // userId, orgId, and deps from the request). Each route maps to one guard in
 // requirePermission; the body is a sentinel proving the middleware called next.
 function mountProbes(app: TestApp) {
-  app.get('/api/test-authz/api-perm', requirePermission('remoteDownload', 'create'), (c) => c.json({ ok: true }))
-  app.get('/api/test-authz/no-downloader', requirePermission('remoteDownload', 'read'), (c) => c.json({ ok: true }))
+  app.get('/api/test-authz/api-perm', requirePermission('download-tasks', 'create'), (c) => c.json({ ok: true }))
+  app.get('/api/test-authz/no-downloader', requirePermission('download-tasks', 'read'), (c) => c.json({ ok: true }))
   app.get(
     '/api/test-authz/team-editor',
-    requirePermission('remoteDownload', 'create', { minTeamRole: 'editor' }),
+    requirePermission('download-tasks', 'create', { minTeamRole: 'editor' }),
     (c) => c.json({ ok: true }),
   )
 }
@@ -124,9 +125,9 @@ describe('requirePermission middleware', () => {
     const userId = await getUserId(db, 'test@example.com')
     // Key authenticates (valid) but carries only `read`, not the `create` the
     // probe route demands, so the api-key branch denies with 403.
-    const key = await createApiKey(auth, orgId, userId, { remoteDownload: ['read'] })
+    const key = await createApiKey(auth, orgId, userId, { 'download-tasks': ['read'] })
 
-    const res = await app.request('/api/test-authz/api-perm', {
+    const res = await app.request('/api/test-authz/team-editor', {
       headers: { Authorization: `Bearer ${key}` },
     })
     expect(res.status).toBe(403)
@@ -141,9 +142,9 @@ describe('requirePermission middleware', () => {
     await authedHeaders(app)
     const orgId = await getOrgId(db)
     const userId = await getUserId(db, 'test@example.com')
-    const key = await createApiKey(auth, orgId, userId, { remoteDownload: ['create'] })
+    const key = await createApiKey(auth, orgId, userId, { 'download-tasks': ['create'] })
 
-    const res = await app.request('/api/test-authz/api-perm', {
+    const res = await app.request('/api/test-authz/team-editor', {
       headers: { Authorization: `Bearer ${key}` },
     })
     expect(res.status).toBe(200)
@@ -164,13 +165,13 @@ describe('requirePermission middleware', () => {
       INSERT INTO member (id, organization_id, user_id, role)
       VALUES (${`member-${teamOrgId}`}, ${teamOrgId}, ${userId}, 'editor')
     `)
-    const key = await createApiKey(auth, teamOrgId, userId, { remoteDownload: ['create'] })
+    const key = await createApiKey(auth, teamOrgId, userId, { 'download-tasks': ['create'] })
     await db.run(sql`
       UPDATE member SET role = 'viewer'
       WHERE organization_id = ${teamOrgId} AND user_id = ${userId}
     `)
 
-    const res = await app.request('/api/test-authz/api-perm', {
+    const res = await app.request('/api/test-authz/team-editor', {
       headers: { Authorization: `Bearer ${key}` },
     })
     expect(res.status).toBe(403)
@@ -246,18 +247,37 @@ describe('requirePermission middleware', () => {
     await expect(res.json()).resolves.toEqual({ ok: true })
   })
 
-  it('allows a personal-org user without a member row via the isPersonalOrg fallback', async () => {
+  it('denies personal-looking orgs when findPersonalOrg does not prove ownership', async () => {
     const { app, db } = await createTestApp()
     mountProbes(app)
     const headers = await authedHeaders(app, 'personal@example.com')
     const orgId = await getOrgId(db)
-    // Drop the member row so getMemberRole returns null, forcing the
-    // isPersonalOrg branch (a personal org owner still has full access).
+    const userId = await getUserId(db, 'personal@example.com')
     await db.run(sql`DELETE FROM member WHERE organization_id = ${orgId}`)
 
     const res = await app.request('/api/test-authz/team-editor', { headers })
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ ok: true })
+    expect(res.status).toBe(403)
+
+    const otherPersonalOrgId = 'other-personal'
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata)
+      VALUES (${otherPersonalOrgId}, 'Other Personal', ${otherPersonalOrgId}, '{"type":"personal"}')
+    `)
+    await db.run(sql`
+      INSERT INTO member (id, organization_id, user_id, role)
+      VALUES (${`member-${otherPersonalOrgId}`}, ${otherPersonalOrgId}, ${userId}, 'owner')
+    `)
+    const setActive = await app.request('/api/auth/organization/set-active', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: otherPersonalOrgId }),
+    })
+    const cookies = setActive.headers.getSetCookie()
+    if (cookies.length > 0) headers.Cookie = cookies.map((c) => c.split(';')[0]).join('; ')
+    await db.run(sql`DELETE FROM member WHERE organization_id = ${otherPersonalOrgId}`)
+
+    const denied = await app.request('/api/test-authz/team-editor', { headers })
+    expect(denied.status).toBe(403)
   })
 
   it('returns 403 for a team org with no member row that is not personal', async () => {
@@ -289,5 +309,102 @@ describe('requirePermission middleware', () => {
     expect(res.status).toBe(403)
     const body = (await res.json()) as { error: { message: string } }
     expect(body.error.message).toBe('Forbidden')
+  })
+
+  it('records safe audit for authenticated 403 denials only', async () => {
+    const { app, db, auth } = await createTestApp()
+    mountProbes(app)
+    await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db, 'test@example.com')
+    const key = await createApiKey(auth, orgId, userId, { 'download-tasks': ['read'] })
+
+    expect((await app.request('/api/test-authz/api-perm')).status).toBe(401)
+    expect(
+      (await app.request('/api/test-authz/api-perm', { headers: { Authorization: `Bearer ${key}` } })).status,
+    ).toBe(403)
+
+    const rows = await db.all<{ action: string; actorType: string; targetName: string; metadata: string }>(sql`
+      SELECT action, actor_type AS actorType, target_name AS targetName, metadata
+      FROM audit_events
+      WHERE action = 'authorization_denied'
+    `)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      action: 'authorization_denied',
+      actorType: 'api_key',
+      targetName: 'protected route',
+    })
+    expect(JSON.parse(rows[0].metadata)).toEqual({
+      credential: 'api_key',
+      method: 'GET',
+      reason: 'missing_scope',
+    })
+  })
+
+  it('keeps the 403 response when denial audit recording fails', async () => {
+    const { app, db, auth, deps } = await createTestApp()
+    mountProbes(app)
+    await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db, 'test@example.com')
+    const key = await createApiKey(auth, orgId, userId, { 'download-tasks': ['read'] })
+    deps.audit.record = async () => {
+      throw new Error('audit unavailable')
+    }
+
+    const res = await app.request('/api/test-authz/api-perm', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Forbidden')
+  })
+})
+
+describe('evaluateAuthorization', () => {
+  it('lets sessions bypass declared scopes but keeps role policy', async () => {
+    const deps = {
+      getMemberRole: async () => 'viewer',
+      findPersonalOrg: async () => 'personal-org',
+    }
+
+    await expect(
+      evaluateAuthorization({
+        context: {
+          credential: 'session',
+          userId: 'user-1',
+          orgId: 'org-1',
+          fixedOrgId: null,
+          grantedScopes: null,
+          actor: { type: 'user', ref: 'user-1' },
+          state: { firstParty: true },
+        },
+        declaration: { access: 'protected', scopes: [AuthorizationScope.DOWNLOAD_TASKS_CREATE], minTeamRole: 'editor' },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'insufficient_role' })
+  })
+
+  it('blocks fixed-workspace credentials from a different effective workspace', async () => {
+    await expect(
+      evaluateAuthorization({
+        context: {
+          credential: 'api_key',
+          userId: 'user-1',
+          orgId: 'org-2',
+          fixedOrgId: 'org-1',
+          grantedScopes: new Set([AuthorizationScope.DOWNLOAD_TASKS_READ]),
+          actor: { type: 'api_key', ref: 'key-1' },
+          state: { configId: 'remote-download', enabled: true },
+        },
+        declaration: { access: 'protected', scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ], minTeamRole: 'viewer' },
+        deps: {
+          getMemberRole: async () => 'owner',
+          findPersonalOrg: async () => null,
+        },
+      }),
+    ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'workspace_mismatch' })
   })
 })

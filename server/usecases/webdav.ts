@@ -55,24 +55,30 @@ export async function resolveWebDavAuth(
     db: Database
     username: string
     password: string
-    resource: string
-    action: 'read' | 'write'
+    requiredScopes: Array<{ resource: string; action: string }>
     configId: string
   },
 ): Promise<WebDavAuthOutcome> {
+  const [firstScope, ...additionalScopes] = params.requiredScopes
+  if (!firstScope) return { ok: false, reason: 'unauthorized' }
   try {
     const [key, activeUserId] = await Promise.all([
       deps.apiKeys.verifyApiKeyForPermission(
         params.auth,
         params.db,
         params.password,
-        params.resource,
-        params.action,
+        firstScope.resource,
+        firstScope.action,
         params.configId,
       ),
       deps.userAdmin.findActiveUserIdByUsername(params.username),
     ])
     if (!key || activeUserId !== key.referenceId) {
+      return { ok: false, reason: 'unauthorized' }
+    }
+    if (
+      additionalScopes.some((scope) => !deps.apiKeys.hasApiKeyPermission(key.permissions, scope.resource, scope.action))
+    ) {
       return { ok: false, reason: 'unauthorized' }
     }
     return {

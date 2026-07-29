@@ -1,5 +1,6 @@
 import { defaultKeyHasher } from '@better-auth/api-key'
 import { API_KEY_TEMPLATES, type ApiKeyPermissions, type ApiKeyTemplate } from '@shared/api-key-templates'
+import { authorizationScope, hasAuthorizationScope } from '@shared/authorization'
 import { eq } from 'drizzle-orm'
 import { apikey } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
@@ -30,6 +31,8 @@ export function createApiKeyGateway(): ApiKeyGateway {
     },
 
     async verifyApiKeyForPermission(auth, db, key, resource, action, configId) {
+      const scope = authorizationScope(resource, action)
+      if (!scope) return null
       const resolvedConfigId = configId ?? (await resolveApiKeyConfigId(db, key))
       if (!resolvedConfigId) return null
       const result = await verify(auth, {
@@ -43,7 +46,12 @@ export function createApiKeyGateway(): ApiKeyGateway {
     },
 
     hasApiKeyPermission(permissions: ApiKeyPermissions | null | undefined, resource, action) {
-      return permissions?.[resource]?.includes(action) ?? false
+      const scope = authorizationScope(resource, action)
+      return scope ? hasAuthorizationScope(permissions, scope) : false
+    },
+
+    hasApiKeyScope(permissions: ApiKeyPermissions | null | undefined, scope) {
+      return hasAuthorizationScope(permissions, scope)
     },
   }
 }

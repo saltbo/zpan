@@ -1,10 +1,11 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { errorResponseSchema } from '@shared/schemas'
 import { createMiddleware } from 'hono/factory'
-import { requirePermission } from '../middleware/authz'
 import type { Env } from '../middleware/platform'
 import { type EventsMessage, streamEvents } from '../usecases/events'
 import { forbidden, unauthorized } from '../usecases/ports'
+import { authRoute } from './openapi'
 
 const encoder = new TextEncoder()
 
@@ -25,32 +26,38 @@ const requireEventsAccess = createMiddleware<Env>(async (c, next) => {
 // The SSE body is a stream of text/event-stream frames, not JSON, so the schema
 // is just a string. OpenAPI 3.x has no native way to type the named events of a
 // single stream, so they're spelled out in the route description below.
-const eventStreamRoute = createRoute({
-  operationId: 'streamEvents',
-  tags: ['Events'],
-  method: 'get',
-  path: '/',
-  middleware: [requireEventsAccess, requirePermission('remoteDownload', 'read')] as const,
-  summary: 'Server-sent events stream',
-  description: [
-    'A single SSE connection multiplexing several domains via named events:',
-    '',
-    '- `resource-change` → `{ sequence, resourceType, resourceId, changeType, action, metadata, occurredAt }`',
-    '- `resync` → `{ sequence }` — the resume cursor is older than retained changes; invalidate active queries',
-    '- `heartbeat` → `{ at }` — keep-alive emitted when nothing changed for a while',
-    '- `error` → `{ message }` — a domain query failed this tick',
-    '',
-    'Workspace-scoped API keys require `remoteDownload:read`. Their stream is limited to download-task changes from the key workspace plus heartbeat and error control events.',
-  ].join('\n'),
-  responses: {
-    200: {
-      content: { 'text/event-stream': { schema: z.string() } },
-      description: 'Open SSE stream of domain-change events',
-    },
-    401: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Unauthorized' },
-    403: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Forbidden' },
+const eventStreamRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
   },
-})
+  {
+    operationId: 'streamEvents',
+    tags: ['Events'],
+    method: 'get',
+    path: '/',
+    middleware: [requireEventsAccess] as const,
+    summary: 'Server-sent events stream',
+    description: [
+      'A single SSE connection multiplexing several domains via named events:',
+      '',
+      '- `resource-change` → `{ sequence, resourceType, resourceId, changeType, action, metadata, occurredAt }`',
+      '- `resync` → `{ sequence }` — the resume cursor is older than retained changes; invalidate active queries',
+      '- `heartbeat` → `{ at }` — keep-alive emitted when nothing changed for a while',
+      '- `error` → `{ message }` — a domain query failed this tick',
+      '',
+      'Workspace-scoped API keys require `download-tasks:read`. Their stream is limited to download-task changes from the key workspace plus heartbeat and error control events.',
+    ].join('\n'),
+    responses: {
+      200: {
+        content: { 'text/event-stream': { schema: z.string() } },
+        description: 'Open SSE stream of domain-change events',
+      },
+      401: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Unauthorized' },
+      403: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Forbidden' },
+    },
+  },
+)
 
 // One SSE stream multiplexing several domains via named events:
 //   event: resource-change → durable invalidation event

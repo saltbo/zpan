@@ -1,4 +1,6 @@
+import { AuthorizationScope } from '@shared/authorization'
 import { describe, expect, it } from 'vitest'
+import { authRoute, findOperationsMissingAuthContract } from './http/openapi'
 import { createTestApp } from './test/setup'
 
 describe('global OpenAPI document', () => {
@@ -55,14 +57,84 @@ describe('global OpenAPI document', () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
-      paths: Record<string, { get?: { description?: string; responses?: Record<string, { description?: string }> } }>
+      paths: Record<
+        string,
+        {
+          get?: {
+            description?: string
+            responses?: Record<string, { description?: string }>
+            'x-zpan-auth'?: unknown
+          }
+        }
+      >
     }
     const events = doc.paths['/api/events']?.get
 
     expect(events?.responses?.['403']?.description).toBe('Forbidden')
     expect(events?.description).toContain('Workspace-scoped API keys')
-    expect(events?.description).toContain('remoteDownload:read')
+    expect(events?.description).toContain('download-tasks:read')
     expect(events?.description).toContain('resource-change')
+    expect(events?.['x-zpan-auth']).toMatchObject({
+      access: 'protected',
+      scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
+    })
+  })
+
+  it('emits explicit authorization metadata for routes migrated to authRoute', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as { paths: Record<string, Record<string, unknown>> }
+    const migratedPaths = {
+      '/api/events': doc.paths['/api/events'],
+      '/api/downloads/tasks': doc.paths['/api/downloads/tasks'],
+      '/api/downloads/tasks/{id}': doc.paths['/api/downloads/tasks/{id}'],
+      '/api/downloads/tasks/{id}/events': doc.paths['/api/downloads/tasks/{id}/events'],
+      '/api/downloads/tasks/{id}/status': doc.paths['/api/downloads/tasks/{id}/status'],
+      '/api/downloads/tasks/{id}/attempts': doc.paths['/api/downloads/tasks/{id}/attempts'],
+      '/api/downloads/downloaders/me/tasks': doc.paths['/api/downloads/downloaders/me/tasks'],
+    }
+
+    expect(findOperationsMissingAuthContract(migratedPaths)).toEqual([])
+  })
+
+  it('emits OpenAPI authorization metadata from one route declaration helper', () => {
+    const route = authRoute(
+      {
+        access: 'protected',
+        scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
+        minTeamRole: 'viewer',
+      },
+      {
+        operationId: 'authzProbe',
+        method: 'get',
+        path: '/probe',
+        responses: { 200: { description: 'OK' } },
+      },
+    ) as {
+      security?: unknown
+      'x-zpan-auth'?: unknown
+      middleware?: unknown[]
+    }
+
+    expect(route.security).toEqual([{ bearerAuth: [AuthorizationScope.DOWNLOAD_TASKS_READ] }, { cookieAuth: [] }])
+    expect(route['x-zpan-auth']).toEqual({
+      access: 'protected',
+      scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
+      minTeamRole: 'viewer',
+      allowDownloader: false,
+      auditDenied: true,
+    })
+    expect(route.middleware).toHaveLength(1)
+  })
+
+  it('detects OpenAPI operations missing explicit authorization declarations without an allowlist', () => {
+    expect(
+      findOperationsMissingAuthContract({
+        '/public': { get: { 'x-zpan-auth': { access: 'public' } } },
+        '/protected': { post: { 'x-zpan-auth': { access: 'protected' } } },
+        '/missing': { delete: { responses: { 204: { description: 'Deleted' } } } },
+      }),
+    ).toEqual(['DELETE /missing'])
   })
 
   it('documents the concrete public profile contract without the removed objects placeholder', async () => {

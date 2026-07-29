@@ -1068,16 +1068,23 @@ func (e AdminDashboardDownloadersItemsStatus) Valid() bool {
 
 // Defines values for AuditEventActorType.
 const (
+	AuditEventActorTypeAgent      AuditEventActorType = "agent"
+	AuditEventActorTypeAgentOauth AuditEventActorType = "agent_oauth"
 	AuditEventActorTypeAnonymous  AuditEventActorType = "anonymous"
 	AuditEventActorTypeApiKey     AuditEventActorType = "api_key"
 	AuditEventActorTypeDownloader AuditEventActorType = "downloader"
 	AuditEventActorTypeSystem     AuditEventActorType = "system"
+	AuditEventActorTypeTaskUpload AuditEventActorType = "task-upload"
 	AuditEventActorTypeUser       AuditEventActorType = "user"
 )
 
 // Valid indicates whether the value is a known member of the AuditEventActorType enum.
 func (e AuditEventActorType) Valid() bool {
 	switch e {
+	case AuditEventActorTypeAgent:
+		return true
+	case AuditEventActorTypeAgentOauth:
+		return true
 	case AuditEventActorTypeAnonymous:
 		return true
 	case AuditEventActorTypeApiKey:
@@ -1085,6 +1092,8 @@ func (e AuditEventActorType) Valid() bool {
 	case AuditEventActorTypeDownloader:
 		return true
 	case AuditEventActorTypeSystem:
+		return true
+	case AuditEventActorTypeTaskUpload:
 		return true
 	case AuditEventActorTypeUser:
 		return true

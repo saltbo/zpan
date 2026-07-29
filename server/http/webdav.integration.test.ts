@@ -166,7 +166,7 @@ describe('WebDAV API', () => {
     const { app, db, auth, deps } = await createTestApp({}, { [WEBDAV_RATE_LIMITER_BINDING]: { limit } })
     await authedHeaders(app)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     const verify = vi.spyOn(deps.apiKeys, 'verifyApiKeyForPermission')
     const headers = basicHeaders(account.email, key, { Depth: '0' })
 
@@ -201,7 +201,7 @@ describe('WebDAV API', () => {
     const account = await userAccount(db)
     const previousActivity = Date.parse('2026-01-01T00:00:00.000Z')
     await db.run(sql`UPDATE user SET last_active_at = ${previousActivity} WHERE id = ${account.id}`)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     const headers = basicHeaders(account.email, key)
 
     const rejected = await app.request('/dav/', { method: 'PROPFIND', headers: { ...headers, Depth: 'infinity' } })
@@ -219,7 +219,7 @@ describe('WebDAV API', () => {
     const headers = await authedHeaders(app)
     const { slug } = await org(db)
     const account = await userAccount(db)
-    const readKey = await apiKey(auth, account.id, { webdav: ['read'] })
+    const readKey = await apiKey(auth, account.id, { objects: ['read'] })
 
     const missing = await app.request(`/dav/${slug}/`, { method: 'PROPFIND' })
     expect(missing.status).toBe(401)
@@ -255,13 +255,40 @@ describe('WebDAV API', () => {
     expect(res.headers.get('WWW-Authenticate')).toBe('Basic realm="ZPan WebDAV"')
   })
 
+  it('rejects create-only API keys for overwrite-capable PUT and COPY methods', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const createOnlyKey = await apiKey(auth, account.id, { objects: ['create'] })
+    await file(db, workspace.id, { id: 'create-only-put', name: 'create-only-put.txt' })
+    await file(db, workspace.id, { id: 'create-only-copy-source', name: 'create-only-copy-source.txt' })
+    await file(db, workspace.id, { id: 'create-only-copy-target', name: 'create-only-copy-target.txt' })
+
+    const put = await app.request(`/dav/${workspace.slug}/create-only-put.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, createOnlyKey, { 'Content-Type': 'text/plain' }),
+      body: 'replace',
+    })
+    expect(put.status).toBe(401)
+
+    const copy = await app.request(`/dav/${workspace.slug}/create-only-copy-source.txt`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, createOnlyKey, {
+        Destination: `http://localhost/dav/${workspace.slug}/create-only-copy-target.txt`,
+      }),
+    })
+    expect(copy.status).toBe(401)
+  })
+
   it('PROPFIND lists the mount root, workspace root, and folder children [spec: webdav/propfind]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await folder(db, workspace.id, { id: 'docs', name: 'Docs' })
     await file(db, workspace.id, { id: 'readme', name: 'readme.txt', parent: 'Docs' })
     await file(db, workspace.id, { id: 'special', name: 'Miss Americana & The Heartbreak Prince.txt', parent: 'Docs' })
@@ -329,7 +356,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'custom-host-source', name: 'source.txt', size: 12 })
 
     const root = await app.request('https://dav.example.com/dav/', {
@@ -385,7 +412,7 @@ describe('WebDAV API', () => {
     const account = await userAccount(db)
     const team = await teamWorkspace(db, { id: 'team-dav', slug: 'team-dav', userId: account.id, name: 'Team DAV' })
     const hidden = await teamWorkspace(db, { id: 'hidden-dav', slug: 'hidden-dav', name: 'Hidden DAV' })
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
 
     const root = await app.request('/dav/', { method: 'PROPFIND', headers: basicHeaders(account.email, key) })
     expect(root.status).toBe(207)
@@ -407,7 +434,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await folder(db, workspace.id, { id: 'docs', name: 'Docs' })
     await file(db, workspace.id, { id: 'readme', name: 'readme.txt', parent: 'Docs' })
 
@@ -476,7 +503,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'dead-props', name: 'dead-props.txt' })
 
     const set = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
@@ -591,7 +618,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await file(db, workspace.id, { id: 'readme', name: 'readme.txt', size: 12 })
 
     const head = await app.request(`/dav/${workspace.slug}/readme.txt`, {
@@ -640,7 +667,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await file(db, workspace.id, { id: 'background-read', name: 'background.txt', size: 12 })
 
     const originalRecord = deps.audit.record
@@ -690,7 +717,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await file(db, workspace.id, { id: 'traffic-full', name: 'traffic.txt', size: 12 })
     await seedTrafficPlan(db, workspace.id, 1000, 25)
 
@@ -723,7 +750,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await file(db, workspace.id, { id: 'traffic-range', name: 'range-traffic.txt', size: 12 })
     await seedTrafficPlan(db, workspace.id, 30, 25)
     vi.mocked(S3Service.prototype.getObjectBody).mockResolvedValueOnce(streamBody('hello'))
@@ -778,7 +805,7 @@ describe('WebDAV API', () => {
     `)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await file(db, workspace.id, { id: 'traffic-report', name: 'report.txt', size: 12 })
     await seedTrafficPlan(db, workspace.id, 1000, 0)
 
@@ -804,7 +831,7 @@ describe('WebDAV API', () => {
     await authedHeaders(app)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     const resolve = vi.spyOn(deps.webdavPath, 'resolveExistingWebDavPath')
 
     const res = await app.request(`/dav/${workspace.slug}/._missing.txt`, {
@@ -824,7 +851,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await file(db, workspace.id, { id: 'range', name: 'range.txt', size: 12 })
     vi.mocked(S3Service.prototype.getObjectBody).mockResolvedValueOnce(streamBody('hello'))
 
@@ -866,7 +893,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await file(db, workspace.id, { id: 'mounted-media', name: 'audio.mp3', size: 2 * 1024 * 1024 })
     vi.mocked(S3Service.prototype.getObjectBody).mockResolvedValueOnce(streamBody('chunk'))
 
@@ -896,7 +923,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await file(db, workspace.id, { id: 'if-range', name: 'video.mp4', size: 12 })
 
     const head = await app.request(`/dav/${workspace.slug}/video.mp4`, {
@@ -967,7 +994,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'precondition', name: 'precondition.txt', size: 12 })
 
     const head = await app.request(`/dav/${workspace.slug}/precondition.txt`, {
@@ -1027,7 +1054,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
     await file(db, workspace.id, { id: 'webdavfs-cache', name: 'cached.mp3', size: 12 })
 
     const head = await app.request(`/dav/${workspace.slug}/cached.mp3`, {
@@ -1058,7 +1085,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'date-precondition', name: 'date.txt', size: 12 })
 
     const head = await app.request(`/dav/${workspace.slug}/date.txt`, {
@@ -1102,7 +1129,7 @@ describe('WebDAV API', () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
 
     const res = await app.request('/dav/', { method: 'OPTIONS', headers: basicHeaders(account.email, key) })
     expect(res.status).toBe(204)
@@ -1127,7 +1154,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     const resolve = vi.spyOn(deps.webdavPath, 'resolveWebDavPath')
 
     const res = await app.request(`/dav/${workspace.slug}/upload.txt`, {
@@ -1170,7 +1197,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
 
     const res = await app.request(`/dav/${workspace.slug}/upload.txt`, {
       method: 'PUT',
@@ -1197,7 +1224,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'existing', name: 'existing', size: 20 })
     await folder(db, workspace.id, { id: 'docs', name: 'Docs' })
 
@@ -1246,7 +1273,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     vi.mocked(S3Service.prototype.putObject).mockRejectedValueOnce(new Error('s3 failed'))
 
     const res = await app.request(`/dav/${workspace.slug}/will-fail.txt`, {
@@ -1265,7 +1292,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
 
     const before = await app.request(`/dav/${workspace.slug}/`, {
       method: 'PROPFIND',
@@ -1295,7 +1322,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await folder(db, workspace.id, { id: 'projects', name: 'Projects' })
     await file(db, workspace.id, { id: 'file-parent', name: 'file-parent.txt' })
 
@@ -1337,7 +1364,7 @@ describe('WebDAV API', () => {
       userId: account.id,
       name: 'Second DAV',
     })
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'move-me', name: 'move-me.txt' })
 
     const move = await app.request(`/dav/${workspace.slug}/move-me.txt`, {
@@ -1392,7 +1419,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'source', name: 'source.txt' })
     await file(db, workspace.id, { id: 'target', name: 'target.txt' })
 
@@ -1432,7 +1459,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await folder(db, workspace.id, { id: 'src-folder', name: 'Source' })
     await folder(db, workspace.id, { id: 'nested-folder', name: 'Nested', parent: 'Source' })
     await file(db, workspace.id, { id: 'nested-file', name: 'note.txt', parent: 'Source/Nested', size: 12 })
@@ -1485,7 +1512,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await folder(db, workspace.id, { id: 'locked-target', name: 'LockedTarget' })
     await file(db, workspace.id, { id: 'copy-locked-source', name: 'locked-source.txt', size: 12 })
 
@@ -1530,7 +1557,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await folder(db, workspace.id, { id: 'move-folder', name: 'MoveMe' })
     await folder(db, workspace.id, { id: 'move-child', name: 'Child', parent: 'MoveMe' })
     await file(db, workspace.id, { id: 'move-file', name: 'note.txt', parent: 'MoveMe/Child' })
@@ -1563,7 +1590,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'guarded-file', name: 'guarded.txt' })
     await file(db, workspace.id, { id: 'move-guarded-file', name: 'move-guarded.txt' })
     await file(db, workspace.id, { id: 'copy-guarded-file', name: 'copy-guarded.txt' })
@@ -1634,7 +1661,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
     await folder(db, workspace.id, { id: 'delete-folder', name: 'DeleteMe' })
     await file(db, workspace.id, { id: 'delete-file', name: 'gone.txt', parent: 'DeleteMe' })
 
@@ -1663,7 +1690,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'state-file', name: 'state.txt' })
 
     const patch = await app.request(`/dav/${workspace.slug}/state.txt`, {
@@ -1746,7 +1773,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'if-file', name: 'if.txt', size: 12 })
 
     const head = await app.request(`/dav/${workspace.slug}/if.txt`, {
@@ -1862,7 +1889,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'lock-file', name: 'locked.txt', size: 12 })
     await file(db, workspace.id, { id: 'other-lock-file', name: 'other-locked.txt', size: 12 })
 
@@ -2050,7 +2077,7 @@ describe('WebDAV API', () => {
       userId: account.id,
       name: 'Refresh Other Workspace',
     })
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await folder(db, workspace.id, { id: 'refresh-folder', name: 'RefreshScope' })
     await file(db, workspace.id, { id: 'refresh-child', name: 'child.txt', parent: 'RefreshScope' })
     await file(db, workspace.id, { id: 'refresh-outside', name: 'outside.txt' })
@@ -2115,7 +2142,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
     await folder(db, workspace.id, { id: 'discovery-folder', name: 'DiscoveryScope' })
     await file(db, workspace.id, { id: 'discovery-child', name: 'child.txt', parent: 'DiscoveryScope' })
 
@@ -2144,7 +2171,7 @@ describe('WebDAV API', () => {
     await authedHeaders(app)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    const key = await apiKey(auth, account.id, { objects: ['read', 'create', 'update', 'delete', 'move'] })
 
     const missingGet = await app.request(`/dav/${workspace.slug}/missing.txt`, {
       method: 'GET',
@@ -2165,7 +2192,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'move-source', name: 'move-source.txt' })
     await file(db, workspace.id, { id: 'move-target', name: 'move-target.txt' })
 
@@ -2202,7 +2229,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'copy-source', name: 'copy-source.txt', size: 12 })
     await file(db, workspace.id, { id: 'copy-target', name: 'copy-target.txt' })
     await folder(db, workspace.id, { id: 'copy-folder', name: 'Copy Folder' })
@@ -2258,7 +2285,7 @@ describe('WebDAV API', () => {
     await seedStorage(db)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    const key = await apiKey(auth, account.id, { objects: ['create', 'update', 'delete', 'move'] })
     await file(db, workspace.id, { id: 'source', name: 'source.txt', size: 12 })
     vi.mocked(S3Service.prototype.copyObject).mockRejectedValueOnce(new Error('copy failed'))
 
@@ -2276,7 +2303,7 @@ describe('WebDAV API', () => {
     await authedHeaders(app)
     const workspace = await org(db)
     const account = await userAccount(db)
-    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    const key = await apiKey(auth, account.id, { objects: ['read'] })
 
     for (const path of [
       `/dav/${workspace.slug}/%252e%252e/x`,
@@ -2340,7 +2367,11 @@ describe('WebDAV over real HTTP (npm client)', () => {
     workspaceSlug = workspace.slug
     apiKey = (
       await (auth.api as { createApiKey(input: unknown): Promise<{ key: string }> }).createApiKey({
-        body: { configId: 'webdav', userId: user.id, permissions: { webdav: ['read', 'write'] } },
+        body: {
+          configId: 'webdav',
+          userId: user.id,
+          permissions: { objects: ['read', 'create', 'update', 'delete', 'move'] },
+        },
       })
     ).key
 

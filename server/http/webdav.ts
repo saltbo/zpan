@@ -67,9 +67,29 @@ import {
   resolveWebDavPathWithChildren,
 } from '../usecases/webdav'
 
-const READ_METHODS = new Set(['OPTIONS', 'PROPFIND', 'GET', 'HEAD'])
-const WRITE_METHODS = new Set(['PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY', 'PROPPATCH', 'LOCK', 'UNLOCK'])
-const WEBDAV_RESOURCE = 'webdav'
+const WEBDAV_METHOD_SCOPES: Record<
+  string,
+  Array<{ resource: 'objects'; action: 'read' | 'create' | 'update' | 'delete' | 'move' }>
+> = {
+  OPTIONS: [{ resource: 'objects', action: 'read' }],
+  PROPFIND: [{ resource: 'objects', action: 'read' }],
+  GET: [{ resource: 'objects', action: 'read' }],
+  HEAD: [{ resource: 'objects', action: 'read' }],
+  PUT: [
+    { resource: 'objects', action: 'create' },
+    { resource: 'objects', action: 'update' },
+  ],
+  MKCOL: [{ resource: 'objects', action: 'create' }],
+  COPY: [
+    { resource: 'objects', action: 'create' },
+    { resource: 'objects', action: 'update' },
+  ],
+  PROPPATCH: [{ resource: 'objects', action: 'update' }],
+  LOCK: [{ resource: 'objects', action: 'update' }],
+  UNLOCK: [{ resource: 'objects', action: 'update' }],
+  DELETE: [{ resource: 'objects', action: 'delete' }],
+  MOVE: [{ resource: 'objects', action: 'move' }],
+}
 
 type DavContext = Context<Env>
 type DavAuth = {
@@ -87,8 +107,8 @@ const cloudBaseUrl = (c: DavContext): string => c.get('platform').getEnv('ZPAN_C
 
 async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
   const method = c.req.method.toUpperCase()
-  const action = READ_METHODS.has(method) ? 'read' : WRITE_METHODS.has(method) ? 'write' : null
-  if (!action) return c.text('Method Not Allowed', 405)
+  const requiredScope = WEBDAV_METHOD_SCOPES[method]
+  if (!requiredScope) return c.text('Method Not Allowed', 405)
 
   const credentials = parseBasicAuth(c.req.raw.headers.get('Authorization'))
   if (!credentials) return unauthorized()
@@ -108,8 +128,7 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
     db: c.get('platform').db,
     username: credentials.username,
     password: credentials.password,
-    resource: WEBDAV_RESOURCE,
-    action,
+    requiredScopes: requiredScope,
     configId: ApiKeyTemplate.WEBDAV,
   })
   c.get('webDavTrace').push(`auth:${Math.round(performance.now() - startedAt)}`)
