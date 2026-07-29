@@ -1,6 +1,6 @@
 # Object Upload Protocol
 
-> Status: Implemented for v2.9
+> Status: Implemented for v2.9 with provisional upload size/TTL defaults
 > Product surface: `/api/objects`
 
 ZPan object uploads are control-plane-only through the server. File bytes are
@@ -36,8 +36,9 @@ Automation clients should discover and call these OpenAPI operation IDs:
 - `parts`: explicit descriptors with `partNumber`, `url`, `expiresAt`, and
   `headers`.
 
-The v2.9 defaults are 64 MiB multipart parts and a 15 minute presign TTL.
-Presigned upload URLs are short-lived. When a multipart URL expires, automation calls
+Current provisional defaults are 64 MiB multipart parts and a 15 minute presign
+TTL; both remain pending owner product confirmation. Presigned upload URLs are
+short-lived. When a multipart URL expires, automation calls
 `presignObjectUploadParts` with only the missing part numbers. Re-signing never
 changes the workspace, object, session, storage key, or multipart upload
 identity.
