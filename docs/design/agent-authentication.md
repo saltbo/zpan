@@ -48,6 +48,11 @@ Restish v2 natively supports authorization code + PKCE. It caches OAuth tokens
 separately from HTTP responses, refreshes them, retries once after a `401`, and
 supports explicit logout.
 
+Restish v2.3 uses port `8484` and path `/callback` by default for browser
+authorization-code callbacks. Restish sends `localhost` in the authorization
+request; ZPan also registers the equivalent `127.0.0.1` loopback callback for
+clients and tooling that distinguish loopback hostnames.
+
 ## 3. Why API Keys Still Exist
 
 CI and unattended services are different: no human is present to complete
@@ -118,16 +123,30 @@ Properties:
 - system-managed and not editable/deletable
 - public client; no client secret
 - authorization code grant with PKCE
-- loopback redirect URI such as `http://localhost:8484/callback`
+- loopback redirect URIs `http://localhost:8484/callback` and
+  `http://127.0.0.1:8484/callback`
 - refresh-token support through `offline_access`
 - Agent scopes only
 
 Dynamic client registration is not required in v2.9. One first-party client is
 enough for the versioned ZPan Skill and Restish integration.
 
-The authorization server publishes discovery metadata. Clients must discover
-authorization, token, revocation, and user-info or introspection endpoints
-rather than hard-code them.
+The authorization server publishes discovery metadata. Better Auth OAuth
+Provider 1.6.x mounts the runtime endpoints below the Better Auth base path:
+
+| Endpoint | Path |
+|----------|------|
+| Authorization | `/api/auth/oauth2/authorize` |
+| Token and refresh | `/api/auth/oauth2/token` |
+| Revocation | `/api/auth/oauth2/revoke` |
+| Introspection | `/api/auth/oauth2/introspect` |
+| UserInfo | `/api/auth/oauth2/userinfo` |
+| Consent | `/api/auth/oauth2/consent` |
+| Continue login flow | `/api/auth/oauth2/continue` |
+
+Because Better Auth is mounted at `/api/auth`, ZPan forwards the required
+well-known authorization-server and OIDC metadata at root locations and also
+publishes protected-resource metadata for `/api`.
 
 ## 6. Workspace Grant
 

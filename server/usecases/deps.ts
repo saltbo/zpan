@@ -4,6 +4,7 @@
 
 import type {
   AdminStatsRepo,
+  AgentOAuthGateway,
   AnnouncementRepo,
   ApiKeyGateway,
   ArchiveJobsGateway,
@@ -56,6 +57,7 @@ import type {
 export interface Deps {
   audit: AuditRepo
   adminStats: AdminStatsRepo
+  agentOAuth: AgentOAuthGateway
   announcements: AnnouncementRepo
   apiKeys: ApiKeyGateway
   archiveJobs: ArchiveJobsGateway

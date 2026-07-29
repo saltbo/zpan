@@ -1,4 +1,5 @@
 import { apiKey } from '@better-auth/api-key'
+import { oauthProvider } from '@better-auth/oauth-provider'
 import { APIError, type BetterAuthOptions, type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
@@ -38,6 +39,7 @@ import {
 } from '../shared/oauth-providers'
 import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
 import { createEmailGateway } from './adapters/gateways/email'
+import { createAgentOAuthGateway } from './adapters/repos/agent-oauth'
 import { deleteApiKeysScopedToOrganization } from './adapters/repos/api-key-scopes'
 import { createAuditRepo } from './adapters/repos/audit'
 import { createDownloadTokenGateway } from './adapters/repos/download-tokens'
@@ -51,6 +53,7 @@ import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { initialStorageUsageProjectionQueries } from './adapters/repos/storage-usage-breakdown'
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { recordUserActivity } from './adapters/repos/user-activity'
+import { createAgentOAuthProviderOptions } from './auth/agent-oauth-provider'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { executeWriteTransaction } from './db/transaction'
@@ -344,6 +347,8 @@ export async function createAuth(
   const systemOptionsRepo = createSystemOptionsRepo(db)
   const email = createEmailGateway(systemOptionsRepo)
   const providerConfigs = await loadProviderConfigs(rawDb)
+  const agentOAuth = createAgentOAuthGateway()
+  await agentOAuth.ensureSystemClient(db)
   const usesNativeWebDavRateLimit = Boolean(authPlatform.getBinding(WEBDAV_RATE_LIMITER_BINDING))
   const authOptions = {
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
@@ -422,6 +427,22 @@ export async function createAuth(
             })
           }
           return
+        }
+        if (ctx.path === '/oauth2/consent') {
+          const body = ctx.body as Record<string, unknown> | undefined
+          if (body?.scope !== undefined) {
+            throw new APIError('BAD_REQUEST', {
+              error: 'invalid_request',
+              error_description: 'Partial Agent OAuth consent is not supported',
+            })
+          }
+          return
+        }
+        if (ctx.path === '/oauth2/update-consent' || ctx.path === '/oauth2/delete-consent') {
+          throw new APIError('FORBIDDEN', {
+            error: 'invalid_request',
+            error_description: 'Manage Agent OAuth grants from the Agent Access API',
+          })
         }
         if (ctx.path !== '/api-key/create') return
 
@@ -609,6 +630,7 @@ export async function createAuth(
         verificationUri: '/device',
         validateClient: async (clientId) => clientId === LEGACY_DOWNLOADER_CLIENT_ID,
       }),
+      oauthProvider(createAgentOAuthProviderOptions({ db, agentOAuth })),
       apiKey([
         {
           configId: ApiKeyTemplate.IHOST,

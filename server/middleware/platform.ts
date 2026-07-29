@@ -53,6 +53,15 @@ export type AuthPrincipal =
       authMethod: 'api-key'
     }
   | {
+      kind: 'agent-oauth'
+      grantId: string
+      clientId: string
+      orgId: string
+      userId: string
+      scopes: readonly AuthorizationScope[]
+      authMethod: 'bearer'
+    }
+  | {
       kind: 'downloader'
       downloaderId: string
       authMethod: 'bearer'
@@ -94,6 +103,15 @@ export type AuthzContext =
       grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'api_key'; ref: string }
       state: { configId: string; enabled: true }
+    }
+  | {
+      credential: 'agent_oauth'
+      userId: string
+      orgId: string
+      fixedOrgId: string
+      grantedScopes: ReadonlySet<AuthorizationScope>
+      actor: { type: 'agent_oauth'; ref: string }
+      state: { clientId: string }
     }
   | {
       credential: 'downloader'

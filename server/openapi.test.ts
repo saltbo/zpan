@@ -53,6 +53,62 @@ describe('global OpenAPI document', () => {
     expect(html).toContain('/api/openapi.json')
   })
 
+  it('publishes Agent OAuth security schemes and Restish profiles', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      components?: { securitySchemes?: Record<string, unknown> }
+      'x-cli-config'?: { auth?: Record<string, { params?: { client_id?: string; redirect_path?: string } }> }
+    }
+
+    expect(doc.components?.securitySchemes?.agentOAuth2).toMatchObject({
+      type: 'oauth2',
+      flows: { authorizationCode: { authorizationUrl: '/api/auth/oauth2/authorize' } },
+    })
+    expect(doc.components?.securitySchemes?.agentApiKey).toMatchObject({ type: 'http', scheme: 'bearer' })
+    expect(doc['x-cli-config']?.auth?.reader?.params).toMatchObject({
+      client_id: 'zpan-agent',
+      redirect_path: '/callback',
+    })
+  })
+
+  it('publishes OAuth discovery and protected-resource metadata at root locations', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const [authServer, protectedResource] = await Promise.all([
+      app.request('/.well-known/oauth-authorization-server/api/auth'),
+      app.request('/.well-known/oauth-protected-resource/api'),
+    ])
+
+    expect(authServer.status).toBe(200)
+    expect(await authServer.json()).toMatchObject({
+      issuer: 'http://localhost:3000/api/auth',
+      authorization_endpoint: 'http://localhost:3000/api/auth/oauth2/authorize',
+      token_endpoint: 'http://localhost:3000/api/auth/oauth2/token',
+      code_challenge_methods_supported: ['S256'],
+    })
+    expect(protectedResource.status).toBe(200)
+    expect(await protectedResource.json()).toMatchObject({
+      resource: 'http://localhost/api',
+      authorization_servers: ['http://localhost:3000/api/auth'],
+      scopes_supported: expect.arrayContaining([AuthorizationScope.OBJECTS_READ]),
+    })
+
+    const protectedHead = await app.request('/.well-known/oauth-protected-resource/api', { method: 'HEAD' })
+    expect(protectedHead.status).toBe(200)
+  })
+
+  it('serves HEAD for OAuth discovery and OpenID metadata endpoints', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const [authServer, openidConfig] = await Promise.all([
+      app.request('/.well-known/oauth-authorization-server/api/auth', { method: 'HEAD' }),
+      app.request('/.well-known/openid-configuration/api/auth', { method: 'HEAD' }),
+    ])
+
+    expect(authServer.status).toBe(200)
+    expect(openidConfig.status).toBe(404)
+    expect(await authServer.text()).toBe('')
+  })
+
   it('documents the workspace-scoped API-key event-stream authorization contract', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')

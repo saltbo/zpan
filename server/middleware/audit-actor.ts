@@ -9,6 +9,9 @@ export function auditActor(principal: AuthPrincipal | null): AuditActor {
   if (principal.kind === 'api-key') {
     return { userId: principal.userId, actorType: 'api_key', actorRef: principal.keyId }
   }
+  if (principal.kind === 'agent-oauth') {
+    return { userId: principal.userId, actorType: 'agent_oauth', actorRef: principal.grantId }
+  }
   if (principal.kind === 'downloader') {
     return { userId: null, actorType: 'downloader', actorRef: principal.downloaderId }
   }

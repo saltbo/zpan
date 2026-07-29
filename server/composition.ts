@@ -15,6 +15,7 @@ import { createZipGateway } from './adapters/gateways/zip'
 import { createChangelogProvider } from './adapters/providers/changelog'
 import { createImageDomainProviderGateway } from './adapters/providers/image-domain-provider'
 import { createAdminStatsRepo } from './adapters/repos/admin-stats'
+import { createAgentOAuthGateway } from './adapters/repos/agent-oauth'
 import { createAnnouncementRepo } from './adapters/repos/announcement'
 import { createApiKeyGateway } from './adapters/repos/api-keys'
 import { createArchiveTargetFolderRepo } from './adapters/repos/archive-target-folder'
@@ -80,6 +81,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
   return {
     audit: createAuditRepo(db),
     adminStats: createAdminStatsRepo(db),
+    agentOAuth: createAgentOAuthGateway(),
     announcements: createAnnouncementRepo(db),
     apiKeys: createApiKeyGateway(),
     archiveJobs: createArchiveJobsGateway(platform),

@@ -1,6 +1,6 @@
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations.js'
 import { createApp } from './app.js'
@@ -11,6 +11,10 @@ import { inviteCodes, siteInvitations } from './db/schema.js'
 import { createTestApp, seedProLicense } from './test/setup.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 async function signUp(ctx: TestCtx, email: string, extra?: Record<string, unknown>) {
   return ctx.app.request('/api/auth/sign-up/email', {
@@ -595,6 +599,73 @@ describe('loadProviderConfigs — builtin social provider resolution', () => {
     expect([200, 302]).toContain(res.status)
   })
 
+  it('social sign-in with a configured and enabled OIDC provider returns a redirect', async () => {
+    const ctx = await createTestApp()
+    const oidcConfig = JSON.stringify({
+      providerId: 'my-oidc',
+      type: 'oidc',
+      clientId: 'oidc-client',
+      clientSecret: 'oidc-secret',
+      enabled: true,
+      discoveryUrl: 'https://auth.example.com/.well-known/openid-configuration',
+      scopes: ['openid', 'email'],
+    })
+    await ctx.db.insert(schema.systemOptions).values({ key: 'oauth_provider_my-oidc', value: oidcConfig })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+        if (url === 'https://auth.example.com/.well-known/openid-configuration') {
+          return new Response(
+            JSON.stringify({
+              issuer: 'https://auth.example.com',
+              authorization_endpoint: 'https://auth.example.com/oauth2/authorize',
+              token_endpoint: 'https://auth.example.com/oauth2/token',
+              jwks_uri: 'https://auth.example.com/.well-known/jwks.json',
+              response_types_supported: ['code'],
+              subject_types_supported: ['public'],
+              id_token_signing_alg_values_supported: ['RS256'],
+            }),
+            {
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
+        }
+        throw new Error(`unexpected fetch: ${url}`)
+      }),
+    )
+    const auth = await createAuth(ctx.platform, 'test-secret', 'http://localhost:3000')
+    const app = createApp(ctx.platform, auth)
+    const res = await app.request('/api/auth/sign-in/social', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'my-oidc', callbackURL: 'http://localhost:3000/callback' }),
+    })
+
+    expect([200, 302]).toContain(res.status)
+  })
+
+  it('social sign-in ignores a disabled builtin provider config', async () => {
+    const ctx = await createTestApp()
+    const builtinConfig = JSON.stringify({
+      providerId: 'github',
+      type: 'builtin',
+      clientId: 'gh-client',
+      clientSecret: 'gh-secret',
+      enabled: false,
+    })
+    await ctx.db.insert(schema.systemOptions).values({ key: 'oauth_provider_github', value: builtinConfig })
+    const auth = await createAuth(ctx.platform, 'test-secret', 'http://localhost:3000')
+    const app = createApp(ctx.platform, auth)
+    const res = await app.request('/api/auth/sign-in/social', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'github', callbackURL: 'http://localhost:3000/callback' }),
+    })
+
+    expect(res.status).not.toBe(200)
+  })
+
   it('createAuth runs exactly one DB query during init (no per-provider I/O)', async () => {
     const ctx = await createTestApp()
     let selectCalls = 0
@@ -620,6 +691,70 @@ describe('loadProviderConfigs — builtin social provider resolution', () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(settled).toBe(true)
+  })
+})
+
+describe('Agent OAuth consent guards', () => {
+  it('issues an authorization code after full consent for the managed PKCE client', async () => {
+    const ctx = await createTestApp()
+    const previewOrigin = 'https://preview-zpan.example.com'
+    const auth = await createAuth(ctx.platform, 'test-secret', 'https://zpan-staging.example.com', [previewOrigin])
+    const app = createApp(ctx.platform, auth)
+    const signUpResponse = await signUp({ ...ctx, app }, 'agent-oauth-consent@example.com')
+    const cookie = signUpResponse.headers
+      .getSetCookie()
+      .map((value) => value.split(';', 1)[0])
+      .join('; ')
+    const params = new URLSearchParams({
+      client_id: 'zpan-agent',
+      redirect_uri: 'http://127.0.0.1:8484/callback',
+      response_type: 'code',
+      scope: 'openid offline_access objects:read quota:read',
+      state: 'oauth-consent-test',
+      code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+      code_challenge_method: 'S256',
+    })
+    const authorize = await app.request(`${previewOrigin}/api/auth/oauth2/authorize?${params}`, {
+      headers: { Cookie: cookie, Origin: previewOrigin },
+    })
+    const consentLocation = authorize.headers.get('location')
+    expect(authorize.status).toBe(302)
+    expect(consentLocation).toMatch(/^\/settings\/agent-access\?/)
+
+    const consent = await app.request(`${previewOrigin}/api/auth/oauth2/consent`, {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        Origin: previewOrigin,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        accept: true,
+        oauth_query: consentLocation?.slice(consentLocation.indexOf('?') + 1),
+      }),
+    })
+    const consentBody = await consent.text()
+
+    expect(consent.status, consentBody).toBe(200)
+    expect(JSON.parse(consentBody)).toMatchObject({
+      url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:8484\/callback\?code=/),
+    })
+  })
+
+  it('blocks partial Agent OAuth consent changes through the Better Auth endpoint', async () => {
+    const ctx = await createTestApp()
+
+    const res = await ctx.app.request('/api/auth/oauth2/consent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: 'zpan-agent', scope: 'objects:read' }),
+    })
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'invalid_request',
+      error_description: 'Partial Agent OAuth consent is not supported',
+    })
   })
 })
 
