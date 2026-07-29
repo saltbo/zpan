@@ -737,6 +737,22 @@ export async function authorizeTaskUploadConfirm(
   return { ok: true }
 }
 
+export async function authorizeTaskUploadAbort(
+  deps: Pick<Deps, 'matter' | 'downloaders' | 'downloadTasks' | 'objectUploadSessions'>,
+  params: {
+    orgId: string
+    objectId: string
+    sessionId: string
+    taskId: string
+    downloaderId: string
+    targetFolder: string
+  },
+): Promise<ConfirmAuthorizationOutcome> {
+  const session = await deps.objectUploadSessions.get(params.orgId, params.objectId, params.sessionId)
+  if (session?.status === 'aborted') return { ok: true }
+  return authorizeTaskUploadConfirm(deps, params)
+}
+
 // ─── Permanent delete (purge) ─────────────────────────────────────────────────
 
 export type DeleteObjectOutcome =

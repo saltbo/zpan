@@ -2882,4 +2882,35 @@ describe('Objects API — error branches', () => {
     const body = (await res.json()) as { error: { message: string } }
     expect(body.error.message).toBe('Forbidden')
   })
+
+  it('allows repeated download-task-upload abort after the draft is gone', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const targetFolder = 'Remote'
+    const { uploadToken } = await mintTaskUploadContext(app, db, { targetFolder })
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'task-cancel.txt',
+        type: 'text/plain',
+        size: 1,
+        parent: targetFolder,
+      }),
+    })
+    expect(createRes.status).toBe(201)
+    const created = (await createRes.json()) as { id: string; upload: { sessionId: string } }
+
+    const first = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${uploadToken}` },
+    })
+    expect(first.status).toBe(204)
+    const second = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${uploadToken}` },
+    })
+    expect(second.status).toBe(204)
+    void db
+  })
 })

@@ -18,6 +18,7 @@ import { transferAuditActor } from '../middleware/audit-transfers'
 import type { Env } from '../middleware/platform'
 import {
   abortUpload,
+  authorizeTaskUploadAbort,
   authorizeTaskUploadConfirm,
   completeUpload,
   copyObject,
@@ -146,9 +147,26 @@ function actorId(c: Context<Env>): string {
   return c.get('userId') ?? 'system'
 }
 
-async function authorizeUploadSessionControl(c: Context<Env>, orgId: string, objectId: string): Promise<void> {
+async function authorizeUploadSessionControl(
+  c: Context<Env>,
+  orgId: string,
+  objectId: string,
+  options: { uploadSessionId?: string } = {},
+): Promise<void> {
   const principal = c.get('principal')
   if (principal?.kind !== 'download-task-upload') return
+  if (options.uploadSessionId) {
+    const authorized = await authorizeTaskUploadAbort(c.get('deps'), {
+      orgId,
+      objectId,
+      sessionId: options.uploadSessionId,
+      taskId: principal.taskId,
+      downloaderId: principal.downloaderId,
+      targetFolder: principal.targetFolder,
+    })
+    if (!authorized.ok) throw authorized.error
+    return
+  }
   const authorized = await authorizeTaskUploadConfirm(c.get('deps'), {
     orgId,
     objectId,
@@ -491,11 +509,12 @@ const objects = app
     const orgId = c.get('orgId')
     if (!orgId) throw new ObjectUploadSessionError('not_found')
     const objectId = c.req.valid('param').id
-    await authorizeUploadSessionControl(c, orgId, objectId)
+    const uploadSessionId = c.req.valid('param').uploadSessionId
+    await authorizeUploadSessionControl(c, orgId, objectId, { uploadSessionId })
     await abortUpload(c.get('deps'), {
       orgId,
       objectId,
-      sessionId: c.req.valid('param').uploadSessionId,
+      sessionId: uploadSessionId,
       actorId: actorId(c),
       strictStorageCleanup: c.req.valid('query').strictStorageCleanup !== undefined,
     })

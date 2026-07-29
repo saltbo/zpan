@@ -2,6 +2,7 @@ import { DirType } from '@shared/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   abortUpload,
+  authorizeTaskUploadAbort,
   authorizeTaskUploadConfirm,
   completeUpload,
   copyObject,
@@ -1728,6 +1729,35 @@ describe('object usecase', () => {
         },
       })
       expect(await authorizeTaskUploadConfirm(deps, taskParams)).toEqual({ ok: true })
+    })
+  })
+
+  describe('authorizeTaskUploadAbort', () => {
+    const taskParams = {
+      orgId: 'o1',
+      objectId: 'm1',
+      sessionId: 'sess-1',
+      taskId: 't1',
+      downloaderId: 'd1',
+      targetFolder: 'Inbox',
+    }
+
+    it('authorizes an already-aborted upload session after the draft was deleted', async () => {
+      const matterGet = vi.fn(async () => null)
+      const { deps } = makeDeps({
+        matter: { get: matterGet },
+        objectUploadSessions: { get: async () => session({ status: 'aborted' }) },
+      })
+      expect(await authorizeTaskUploadAbort(deps, taskParams)).toEqual({ ok: true })
+      expect(matterGet).not.toHaveBeenCalled()
+    })
+
+    it('still forbids non-aborted abort outside the task target folder', async () => {
+      const { deps } = makeDeps({
+        matter: { get: async () => file('m1', { parent: 'Other' }) },
+        objectUploadSessions: { get: async () => session() },
+      })
+      expectError(await authorizeTaskUploadAbort(deps, taskParams), 403, 'Forbidden')
     })
   })
 })
