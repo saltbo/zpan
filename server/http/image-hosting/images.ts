@@ -204,7 +204,7 @@ const app = new OpenAPIHono<Env>()
 // base64). Tool-oriented and not RESTful, so it stays a plain route, excluded from
 // the OpenAPI document / SDK. Registered as a statement so the `.openapi()` chain
 // below keeps its typing.
-app.post('/images', requirePermission('ihost', 'upload'), async (c) => {
+app.post('/images', requirePermission('images', 'upload'), async (c) => {
   const orgId = c.get('orgId')
   if (!orgId) throw unauthorized()
 

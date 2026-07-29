@@ -55,7 +55,16 @@ export function idempotentSystemEventValues(input: {
 }
 
 function normalizeActorType(value: string | null, userId?: string | null): AuditActorType {
-  if (value === 'api_key' || value === 'anonymous' || value === 'system' || value === 'downloader') return value
+  if (
+    value === 'api_key' ||
+    value === 'agent_oauth' ||
+    value === 'agent' ||
+    value === 'anonymous' ||
+    value === 'system' ||
+    value === 'downloader' ||
+    value === 'task-upload'
+  )
+    return value
   if (!userId) return 'anonymous'
   return 'user'
 }
@@ -63,8 +72,11 @@ function normalizeActorType(value: string | null, userId?: string | null): Audit
 function actorDisplayName(actorType: AuditActorType, actorRef: string | null): string {
   if (actorType === 'anonymous') return 'Anonymous'
   if (actorType === 'api_key') return actorRef ? `API key:${actorRef}` : 'API key'
+  if (actorType === 'agent_oauth') return actorRef ? `Agent OAuth:${actorRef}` : 'Agent OAuth'
+  if (actorType === 'agent') return actorRef ? `Agent:${actorRef}` : 'Agent'
   if (actorType === 'system') return actorRef ? `System:${actorRef}` : 'System'
   if (actorType === 'downloader') return actorRef ? `Downloader:${actorRef}` : 'Downloader'
+  if (actorType === 'task-upload') return actorRef ? `Task upload:${actorRef}` : 'Task upload'
   return ''
 }
 

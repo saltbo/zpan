@@ -133,7 +133,7 @@ describe('API keys', () => {
     put.mockClear()
 
     await expect(
-      apiKeys.verifyApiKeyForPermission(auth, db, webdav.key, 'webdav', 'read', 'webdav'),
+      apiKeys.verifyApiKeyForPermission(auth, db, webdav.key, 'objects', 'read', 'webdav'),
     ).resolves.toMatchObject({ referenceId: userId })
     expect(get).not.toHaveBeenCalled()
     expect(put).not.toHaveBeenCalled()
@@ -284,7 +284,7 @@ describe('API keys', () => {
       body: {
         configId: 'webdav',
         userId,
-        permissions: { webdav: ['read'] },
+        permissions: { objects: ['read'] },
         rateLimitMax: 1,
         rateLimitTimeWindow: 60_000,
         rateLimitEnabled: true,

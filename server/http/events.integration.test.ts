@@ -112,7 +112,7 @@ describe('GET /api/events', () => {
     const keyOwner = await authedOrgFor(testApp, 'api-key-owner@example.com')
     const otherOrg = await authedOrgFor(testApp, 'other-org-owner@example.com')
     const key = await createOrgApiKey(testApp.auth, keyOwner.orgId, keyOwner.userId, {
-      remoteDownload: ['read'],
+      'download-tasks': ['read'],
     })
     await insertDownloadTask(testApp, {
       id: 'authorized-org-task',
@@ -146,11 +146,11 @@ describe('GET /api/events', () => {
     expect(text).not.toContain('event: jobs')
   })
 
-  it('forbids a workspace API key without remoteDownload read [spec: events/api-key-permission-denied]', async () => {
+  it('forbids a workspace API key without download-tasks read [spec: events/api-key-permission-denied]', async () => {
     const testApp = await createTestApp()
     const keyOwner = await authedOrgFor(testApp, 'api-key-no-read@example.com')
     const key = await createOrgApiKey(testApp.auth, keyOwner.orgId, keyOwner.userId, {
-      remoteDownload: ['create'],
+      'download-tasks': ['create'],
     })
 
     const res = await testApp.app.request('/api/events', {
@@ -164,7 +164,7 @@ describe('GET /api/events', () => {
     const testApp = await createTestApp()
     const keyOwner = await authedOrgFor(testApp, 'api-key-no-opt-in@example.com')
     const key = await createOrgApiKey(testApp.auth, keyOwner.orgId, keyOwner.userId, {
-      remoteDownload: ['read'],
+      'download-tasks': ['read'],
     })
 
     const res = await testApp.app.request('/api/events', {

@@ -13,7 +13,7 @@ const auditEventSchema = z
     id: z.string(),
     orgId: z.string(),
     userId: z.string().nullable(),
-    actorType: z.enum(['user', 'api_key', 'anonymous', 'system', 'downloader']),
+    actorType: z.enum(['user', 'api_key', 'agent_oauth', 'agent', 'anonymous', 'system', 'downloader', 'task-upload']),
     actorRef: z.string().nullable(),
     action: z.string(),
     targetType: z.string(),

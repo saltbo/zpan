@@ -1,3 +1,4 @@
+import type { AuthorizationScope } from '@shared/authorization'
 import { createMiddleware } from 'hono/factory'
 import type { Auth } from '../auth'
 import type { DavLock } from '../domain/webdav'
@@ -13,6 +14,7 @@ export type Env = {
     auth: Auth
     deps: Deps
     principal: AuthPrincipal | null
+    authzContext: AuthzContext
     userId: string | null
     userRole: string | null
     orgId: string | null
@@ -66,11 +68,60 @@ export type AuthPrincipal =
       authMethod: 'bearer'
     }
 
+export type AuthzContext =
+  | { credential: 'anonymous'; userId: null; orgId: null; fixedOrgId: null; grantedScopes: null; actor: null }
+  | {
+      credential: 'session'
+      userId: string
+      orgId: string | null
+      fixedOrgId: null
+      grantedScopes: null
+      actor: { type: 'user'; ref: string }
+      state: { firstParty: true; role?: string }
+    }
+  | {
+      credential: 'api_key'
+      userId: string
+      orgId: string | null
+      fixedOrgId: string | null
+      grantedScopes: ReadonlySet<AuthorizationScope>
+      actor: { type: 'api_key'; ref: string }
+      state: { configId: string; enabled: true }
+    }
+  | {
+      credential: 'downloader'
+      userId: null
+      orgId: null
+      fixedOrgId: null
+      grantedScopes: ReadonlySet<AuthorizationScope>
+      actor: { type: 'downloader'; ref: string }
+      state: Record<string, unknown>
+    }
+  | {
+      credential: 'download-task-upload'
+      userId: string
+      orgId: string
+      fixedOrgId: string
+      grantedScopes: ReadonlySet<AuthorizationScope>
+      actor: { type: 'task-upload'; ref: string }
+      state: { downloaderId: string; taskId: string }
+    }
+
+export const anonymousAuthzContext = (): AuthzContext => ({
+  credential: 'anonymous',
+  userId: null,
+  orgId: null,
+  fixedOrgId: null,
+  grantedScopes: null,
+  actor: null,
+})
+
 export const platformMiddleware = (platform: Platform, auth: Auth) =>
   createMiddleware<Env>(async (c, next) => {
     c.set('platform', platform)
     c.set('auth', auth)
     c.set('principal', null)
+    c.set('authzContext', anonymousAuthzContext())
     c.set('errorLog', null)
     c.set('sitePublicOrigin', null)
     c.set('webDavEnabled', false)

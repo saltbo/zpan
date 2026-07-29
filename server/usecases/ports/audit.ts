@@ -1,6 +1,14 @@
 // Plain, framework-free DTOs and the repository port for audit events.
 
-export type AuditActorType = 'user' | 'api_key' | 'anonymous' | 'system' | 'downloader'
+export type AuditActorType =
+  | 'user'
+  | 'api_key'
+  | 'agent_oauth'
+  | 'agent'
+  | 'anonymous'
+  | 'system'
+  | 'downloader'
+  | 'task-upload'
 
 export interface RecordAuditEventInput {
   orgId: string

@@ -1,5 +1,6 @@
-import type { z } from '@hono/zod-openapi'
+import { createRoute, type RouteConfig, type z } from '@hono/zod-openapi'
 import { errorResponseSchema } from '@shared/schemas'
+import { authorize, type RouteAuthorizationDeclaration } from '../middleware/authz'
 
 // Shared OpenAPI route helpers used by every resource router. Generic over the
 // schema so its precise type reaches `createRoute`: that types `c.req.valid(...)`
@@ -21,3 +22,49 @@ export const jsonBody = <T extends z.ZodType>(schema: T) => ({
 // usecases produce errors as `AppError` values that `app.onError` renders via
 // `jsonError`; this just documents the response shape in the OpenAPI document.
 export const errorResponse = (description: string) => jsonContent(errorResponseSchema, description)
+
+export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> & { path: P }>(
+  auth: RouteAuthorizationDeclaration,
+  config: T,
+): T & { getRoutingPath(): string } {
+  const middleware =
+    auth.access === 'public' ? config.middleware : [authorize(auth), ...((config.middleware ?? []) as [])]
+  return createRoute({
+    ...config,
+    middleware,
+    security: openApiSecurity(auth),
+    'x-zpan-auth': openApiAuthMetadata(auth),
+  } as T) as T & { getRoutingPath(): string }
+}
+
+export function findOperationsMissingAuthContract(paths: Record<string, Record<string, unknown>>): string[] {
+  const methods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options'])
+  const missing: string[] = []
+  for (const [path, operations] of Object.entries(paths)) {
+    for (const [method, operation] of Object.entries(operations)) {
+      if (!methods.has(method)) continue
+      if (!operation || typeof operation !== 'object') continue
+      if ('x-zpan-auth' in operation) continue
+      missing.push(`${method.toUpperCase()} ${path}`)
+    }
+  }
+  return missing
+}
+
+function openApiSecurity(auth: RouteAuthorizationDeclaration) {
+  if (auth.access === 'public' || auth.access === 'internal') return []
+  return auth.scopes?.length
+    ? [{ bearerAuth: [...auth.scopes] }, { cookieAuth: [] }]
+    : [{ bearerAuth: [] }, { cookieAuth: [] }]
+}
+
+function openApiAuthMetadata(auth: RouteAuthorizationDeclaration): Record<string, unknown> {
+  if (auth.access !== 'protected') return { access: auth.access }
+  return {
+    access: auth.access,
+    scopes: auth.scopes ?? [],
+    minTeamRole: auth.minTeamRole ?? null,
+    allowDownloader: auth.allowDownloader ?? false,
+    auditDenied: auth.auditDenied !== false,
+  }
+}

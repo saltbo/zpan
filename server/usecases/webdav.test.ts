@@ -209,8 +209,7 @@ const authParams = {
   db: {} as Database,
   username: 'user@example.com',
   password: 'secret',
-  resource: 'webdav',
-  action: 'read' as const,
+  requiredScopes: [{ resource: 'objects', action: 'read' }],
   configId: 'webdav',
 }
 
@@ -233,7 +232,7 @@ describe('webdav usecase', () => {
       })
       const out = await resolveWebDavAuth(deps, authParams)
       expect(out).toEqual({ ok: true, userId: 'u9', keyId: 'k1', configId: 'webdav', permissions: null })
-      expect(verifyApiKeyForPermission).toHaveBeenCalledWith({}, {}, 'secret', 'webdav', 'read', 'webdav')
+      expect(verifyApiKeyForPermission).toHaveBeenCalledWith({}, {}, 'secret', 'objects', 'read', 'webdav')
       expect(findActiveUserIdByUsername).toHaveBeenCalledWith('user@example.com')
     })
 

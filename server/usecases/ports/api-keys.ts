@@ -1,4 +1,5 @@
-import type { ApiKeyPermissions, ApiKeyScope } from '@shared/api-key-templates'
+import type { ApiKeyScope } from '@shared/api-key-templates'
+import type { ApiKeyPermissions, AuthorizationScope } from '@shared/authorization'
 import type { Database } from '../../platform/interface'
 
 export interface VerifiedApiKey {
@@ -38,4 +39,5 @@ export interface ApiKeyGateway {
     configId?: string,
   ): Promise<VerifiedApiKey | null>
   hasApiKeyPermission(permissions: ApiKeyPermissions | null | undefined, resource: string, action: string): boolean
+  hasApiKeyScope(permissions: ApiKeyPermissions | null | undefined, scope: AuthorizationScope): boolean
 }
