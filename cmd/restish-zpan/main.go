@@ -33,9 +33,9 @@ func commands() []plugin.CommandDecl {
 			Long: "Upload a local file to ZPan using Restish-managed API auth and direct presigned storage PUTs.\n\n" +
 				"Examples:\n" +
 				"  restish zpan-upload ./photo.jpg\n" +
-				"  restish --rsh-profile ci zpan-upload --parent folder-id ./photo.jpg report.jpg\n" +
-				"  restish zpan-upload --resume ./large.bin\n" +
-				"  restish zpan-upload --abort ./large.bin",
+				"  restish --rsh-profile ci zpan-upload --api zpan --profile ci --parent folder-id ./photo.jpg report.jpg\n" +
+				"  restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --resume ./large.bin\n" +
+				"  restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --abort ./large.bin",
 		},
 	}
 }

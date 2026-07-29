@@ -58,34 +58,76 @@ function forbidUnsafeLine(label, pattern) {
   }
 }
 
+function requireCommandLine(label, pattern) {
+  const commandLines = corpus
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('restish '))
+  if (!commandLines.some((line) => pattern.test(line))) {
+    failures.push(`missing executable command example: ${label}`)
+  }
+}
+
+function validateSkillFrontmatter() {
+  const skill = documents.find((doc) => doc.rel === 'skills/zpan/SKILL.md')
+  if (!skill) {
+    failures.push('missing skills/zpan/SKILL.md')
+    return
+  }
+  const match = skill.text.match(/^---\n([\s\S]*?)\n---\n/)
+  if (!match) {
+    failures.push('missing Skill YAML frontmatter')
+    return
+  }
+  const keys = [...match[1].matchAll(/^([A-Za-z0-9_-]+):/gm)].map((entry) => entry[1])
+  const extras = keys.filter((key) => key !== 'name' && key !== 'description')
+  if (extras.length > 0) {
+    failures.push(`unsupported Skill frontmatter key(s): ${extras.join(', ')}`)
+  }
+}
+
+validateSkillFrontmatter()
+
 requireMatch('Restish v2.3 or later', /Restish v2\.3(?:\+| or later)/i)
 requireText('connect exactly /api/openapi.json', '/api/openapi.json')
 requireText('plugin install command', 'restish plugin install saltbo/zpan zpan')
 requireText('upload command surface', 'restish zpan-upload')
 
-for (const operationId of [
-  'listObjects',
-  'getObject',
-  'createObject',
-  'presignObjectUploadParts',
-  'completeObjectUpload',
-  'abortObjectUpload',
-  'updateObject',
-  'copyObject',
-  'transferObject',
-  'deleteObject',
-  'purgeTrashObject',
-  'listShares',
-  'createShare',
-  'revokeShare',
-  'getUserQuota',
-  'getStorageUsage',
-  'listDownloadTasks',
-  'getDownloadTask',
-  'listDownloadTaskEvents',
+for (const command of [
+  'list-objects',
+  'get-object',
+  'create-object',
+  'update-object',
+  'copy-object',
+  'transfer-object',
+  'delete-object',
+  'purge-trash-object',
+  'list-shares',
+  'create-share',
+  'revoke-share',
+  'get-user-quota',
+  'get-storage-usage',
+  'list-download-tasks',
+  'get-download-task',
+  'list-download-task-events',
 ]) {
-  requireText(`generated operation ${operationId}`, operationId)
+  requireCommandLine(`restish zpan ${command}`, new RegExp(`\\brestish\\s+(?:--rsh-profile\\s+\\S+\\s+)?zpan\\s+${command}\\b`))
 }
+
+for (const operationId of ['createObject', 'presignObjectUploadParts', 'completeObjectUpload', 'abortObjectUpload']) {
+  requireText(`upload plugin validates ${operationId}`, operationId)
+}
+
+requireCommandLine('list pagination uses --page-size', /\bzpan\s+list-objects\b.*\s--page-size\s+\d+/)
+requireCommandLine('share pagination uses --page-size', /\bzpan\s+list-shares\b.*\s--page-size\s+\d+/)
+requireCommandLine('task pagination uses --page-size', /\bzpan\s+list-download-tasks\b.*\s--page-size\s+\d+/)
+requireCommandLine('create-object uses positional body input', /\bzpan\s+create-object\s+'[^']*\bname:/)
+requireCommandLine('update-object uses positional body input', /\bzpan\s+update-object\s+\S+\s+'[^']*\bname:/)
+requireCommandLine('copy-object uses positional body input', /\bzpan\s+copy-object\s+\S+\s+'[^']*\bparent:/)
+requireCommandLine('transfer-object uses positional body input', /\bzpan\s+transfer-object\s+\S+\s+'[^']*\btargetOrgId:/)
+requireCommandLine('create-share uses positional body input', /\bzpan\s+create-share\s+'[^']*\bmatterId:/)
+requireCommandLine('revoke-share uses positional body input', /\bzpan\s+revoke-share\s+\S+\s+'[^']*\bstatus:\s*revoked/)
+requireCommandLine('upload passes Restish and plugin profiles', /\brestish\s+--rsh-profile\s+\S+\s+zpan-upload\b.*\s--api\s+zpan\b.*\s--profile\s+\S+/)
 
 requireText('reader profile', '`reader`')
 requireText('file-manager profile', '`file-manager`')
@@ -126,9 +168,13 @@ forbidUnsafeLine('Skill-handled multipart orchestration', /\b(Skill|agent)\b.*\b
 forbidUnsafeLine('Skill-handled ETag retry loop', /\b(Skill|agent)\b.*\b(ETag|ETags)\b.*\b(retry|retries|loop|loops)\b/i)
 forbidUnsafeLine('presigned URL exposure', /\b(expose|return|print|show)\b.*\bpresigned URLs?\b/i)
 forbidMatch('silent plugin install approval', /restish\s+plugin\s+install\s+saltbo\/zpan\s+zpan[^\n]*--yes/gi)
+forbidMatch('old Restish list limit flag', /\brestish\s+(?:--rsh-profile\s+\S+\s+)?zpan\s+(?:list-objects|list-shares|list-download-tasks)\b[^\n]*\s--limit\b/gi)
+forbidMatch('camelCase Restish command example', /\brestish\s+(?:--rsh-profile\s+\S+\s+)?zpan\s+(?:listObjects|getObject|createObject|updateObject|copyObject|transferObject|deleteObject|purgeTrashObject|listShares|createShare|revokeShare|getUserQuota|getStorageUsage|listDownloadTasks|getDownloadTask|listDownloadTaskEvents)\b/gi)
+forbidMatch('profile template purge command', /\brestish\s+--rsh-profile\s+(?:reader|file-manager|publisher|ci)\s+zpan\s+purge-trash-object\b/gi)
+forbidMatch('upload without plugin profile', /\brestish\s+--rsh-profile\s+\S+\s+zpan-upload\b(?![^\n]*\s--profile\s+\S+)/gi)
 forbidMatch(
   'MCP upload control-plane allowlist',
-  /restish\s+mcp\s+serve[\s\S]*?--operations[^\n]*(createObject|presignObjectUploadParts|completeObjectUpload|abortObjectUpload)/gi,
+  /restish\s+mcp\s+serve[\s\S]*?--operations[^\n]*(createObject|create-object|presignObjectUploadParts|presign-object-upload-parts|completeObjectUpload|complete-object-upload|abortObjectUpload|abort-object-upload)/gi,
 )
 
 if (failures.length > 0) {

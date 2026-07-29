@@ -22,9 +22,9 @@ restish plugin install saltbo/zpan zpan
 
 ```bash
 restish zpan-upload ./photo.jpg
-restish --rsh-profile file-manager zpan-upload --api zpan --parent albums ./photo.jpg cover.jpg
-restish zpan-upload --resume ./large.bin
-restish zpan-upload --abort ./large.bin
+restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --parent albums ./photo.jpg cover.jpg
+restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --resume ./large.bin
+restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --abort ./large.bin
 ```
 
 The plugin validates the connected ZPan OpenAPI operations before uploading:

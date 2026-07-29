@@ -1,10 +1,11 @@
 ---
 name: zpan
 description: Manage ZPan files through Restish v2.3+ and the trusted restish-zpan upload plugin.
-version: 2.9.0
 ---
 
 # ZPan Agent Skill
+
+This Skill targets the ZPan v2.9 Restish integration.
 
 Use this Skill when an agent needs to browse, inspect, move, copy, delete,
 upload, download, share, revoke shares, check quota, or inspect background

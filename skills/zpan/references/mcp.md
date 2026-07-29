@@ -7,7 +7,7 @@ Default to read-only MCP:
 
 ```sh
 restish plugin install rest-sh/restish mcp
-restish mcp serve zpan --operations listObjects,getObject,listShares,getUserQuota,getStorageUsage
+restish mcp serve zpan --operations list-objects,get-object,list-shares,get-user-quota,get-storage-usage
 ```
 
 Enable write tools only after reviewing the exact operation allowlist. Do not

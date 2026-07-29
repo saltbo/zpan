@@ -48,9 +48,9 @@ expand to explicit scopes. They are not server-side roles or route names.
 Prefer the narrowest profile:
 
 ```sh
-restish --rsh-profile reader zpan listObjects
-restish --rsh-profile file-manager zpan listObjects
-restish --rsh-profile publisher zpan listShares
+restish --rsh-profile reader zpan list-objects --page-size 50
+restish --rsh-profile file-manager zpan list-objects --page-size 50
+restish --rsh-profile publisher zpan list-shares --page-size 50
 ```
 
 The first safe OAuth-backed command may open the browser for authorization code
