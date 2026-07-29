@@ -1,9 +1,15 @@
+import type { CreateDownloaderInput } from '@shared/schemas'
 import type { BindingState, Downloader } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DownloaderRecord, DownloaderRepo } from '../ports'
 import { type AppError, DownloadError } from '../ports'
 import { loadBindingState } from '../site/licensing'
-import { type DownloadsDeps, downloaderHeartbeatPersistence, updateDownloaderCreditBilling } from './downloads'
+import {
+  createDownloaderWithBootstrapCredential,
+  type DownloadsDeps,
+  downloaderHeartbeatPersistence,
+  updateDownloaderCreditBilling,
+} from './downloads'
 
 vi.mock('../site/licensing', () => ({ loadBindingState: vi.fn() }))
 
@@ -196,5 +202,103 @@ describe('updateDownloaderCreditBilling', () => {
       }),
     ).rejects.toMatchObject({ name: 'DownloadError', code: 'not_found' })
     expect(update).not.toHaveBeenCalled()
+  })
+})
+
+describe('createDownloaderWithBootstrapCredential', () => {
+  const input = {
+    name: 'Bootstrap downloader',
+    heartbeat: {
+      version: '1.2.3',
+      hostname: 'bootstrap-edge',
+      platform: 'linux',
+      arch: 'amd64',
+      engine: 'aria2',
+      capabilities: ['http'],
+      maxConcurrentTasks: 2,
+      currentTasks: 0,
+      downloadBps: 0,
+      uploadBps: 0,
+      freeDiskBytes: 4_096,
+    },
+  } satisfies CreateDownloaderInput
+
+  it('returns the created downloader and token after bootstrap registration succeeds', async () => {
+    const platform = {
+      db: {} as never,
+      getEnv: () => undefined,
+      getBinding: () => undefined,
+    }
+    const get = vi.fn(async () => downloader)
+    const registerDownloader = vi.fn(async () => true)
+    const deps = {
+      ...makeDeps({ get }).deps,
+      downloaderBootstrapCredentials: {
+        issue: vi.fn(),
+        resolve: vi.fn(),
+        consume: vi.fn(),
+        registerDownloader,
+      },
+      downloadTokens: {
+        signDownloadToken: vi.fn(async () => 'signed-token'),
+        hashDownloadToken: vi.fn(async () => 'hashed-token'),
+        verifyDownloadToken: vi.fn(),
+        resolveDownloaderToken: vi.fn(),
+        resolveTaskUploadToken: vi.fn(),
+      },
+    } satisfies DownloadsDeps
+
+    await expect(
+      createDownloaderWithBootstrapCredential(deps, platform, input, 'user-1', 'bootstrap-token'),
+    ).resolves.toEqual({
+      downloader,
+      token: 'signed-token',
+    })
+    expect(get).toHaveBeenCalledWith(expect.any(String))
+  })
+
+  it('rejects when the bootstrap credential cannot be consumed during registration', async () => {
+    const platform = {
+      db: {} as never,
+      getEnv: () => undefined,
+      getBinding: () => undefined,
+    }
+    const get = vi.fn(async () => downloader)
+    const registerDownloader = vi.fn(async () => false)
+    const deps = {
+      ...makeDeps({ get }).deps,
+      downloaderBootstrapCredentials: {
+        issue: vi.fn(),
+        resolve: vi.fn(),
+        consume: vi.fn(),
+        registerDownloader,
+      },
+      downloadTokens: {
+        signDownloadToken: vi.fn(async () => 'signed-token'),
+        hashDownloadToken: vi.fn(async () => 'hashed-token'),
+        verifyDownloadToken: vi.fn(),
+        resolveDownloaderToken: vi.fn(),
+        resolveTaskUploadToken: vi.fn(),
+      },
+    } satisfies DownloadsDeps
+
+    await expect(
+      createDownloaderWithBootstrapCredential(deps, platform, input, 'user-1', 'bootstrap-token'),
+    ).rejects.toMatchObject({
+      name: 'AppError',
+      httpStatus: 401,
+    } satisfies Partial<AppError>)
+
+    expect(registerDownloader).toHaveBeenCalledWith({
+      platform,
+      token: 'bootstrap-token',
+      now: expect.any(Date),
+      downloader: expect.objectContaining({
+        name: input.name,
+        createdBy: 'user-1',
+        tokenHash: 'hashed-token',
+      }),
+    })
+    expect(get).not.toHaveBeenCalled()
   })
 })

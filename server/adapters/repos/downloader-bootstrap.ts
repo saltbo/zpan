@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull } from 'drizzle-orm'
+import { and, eq, gt, isNull, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { downloaderBootstrapCredential, session } from '../../db/auth-schema'
 import { downloaders } from '../../db/schema'
@@ -83,12 +83,12 @@ export function createDownloaderBootstrapCredentialRepo(
             })
             .all(),
       }
-      const insertDownloader = db.insert(downloaders).values(downloaderInsertValues(input.downloader))
+      const insertDownloader = conditionalDownloaderInsertQuery(db, input.downloader, tokenHash)
       const deleteBootstrapSession = db.delete(session).where(eq(session.token, input.token))
-      const [consumeResult] = await executeWriteTransactionWithResults(
+      const [, consumeResult] = await executeWriteTransactionWithResults(
         db,
-        [consumeBootstrap, insertDownloader, deleteBootstrapSession],
-        [0],
+        [insertDownloader, consumeBootstrap, deleteBootstrapSession],
+        [1],
       )
       return Array.isArray(consumeResult) && consumeResult.length === 1
     },
@@ -108,4 +108,48 @@ function consumeBootstrapQuery(db: Database, tokenHash: string, now: Date) {
         gt(downloaderBootstrapCredential.expiresAt, now),
       ),
     )
+}
+
+function conditionalDownloaderInsertQuery(
+  db: Database,
+  input: Parameters<typeof downloaderInsertValues>[0],
+  tokenHash: string,
+) {
+  const values = downloaderInsertValues(input)
+  return db.insert(downloaders).select(sql`
+    SELECT
+      ${values.id},
+      ${values.name},
+      ${values.tokenHash},
+      ${values.tokenJti},
+      ${values.status},
+      ${values.enabled ? 1 : 0},
+      ${values.version},
+      ${values.hostname},
+      ${values.platform},
+      ${values.arch},
+      ${values.engine},
+      ${values.capabilities},
+      ${values.maxConcurrentTasks},
+      ${values.currentTasks},
+      ${values.downloadBps},
+      ${values.uploadBps},
+      ${values.freeDiskBytes},
+      ${values.remoteDownloadCreditBillingEnabled ? 1 : 0},
+      ${values.remoteDownloadCreditUnitBytes},
+      ${values.remoteDownloadCreditPerUnit},
+      ${values.lastHeartbeatAt},
+      ${values.createdBy},
+      ${values.createdAt.getTime()},
+      ${values.updatedAt.getTime()}
+    WHERE EXISTS (
+      SELECT 1
+      FROM ${downloaderBootstrapCredential}
+      WHERE ${downloaderBootstrapCredential.tokenHash} = ${tokenHash}
+        AND ${downloaderBootstrapCredential.clientId} = ${LEGACY_DOWNLOADER_CLIENT_ID}
+        AND ${downloaderBootstrapCredential.scope} = ${LEGACY_DOWNLOADER_REGISTER_SCOPE}
+        AND ${downloaderBootstrapCredential.consumedAt} IS NULL
+        AND ${downloaderBootstrapCredential.expiresAt} > ${input.now.getTime()}
+    )
+  `)
 }
