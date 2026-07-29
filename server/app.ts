@@ -145,11 +145,12 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     return c.get('auth').handler(c.req.raw)
   })
 
-  app.on(['GET', 'HEAD'], '/.well-known/oauth-protected-resource/api', (c) => {
+  app.on(['GET', 'HEAD'], '/.well-known/oauth-protected-resource/api', async (c) => {
     const origin = new URL(c.req.url).origin
+    const authorizationServer = (await c.get('auth').$context).baseURL
     return c.json({
       resource: `${origin}/api`,
-      authorization_servers: [`${origin}/api/auth`],
+      authorization_servers: [authorizationServer],
       bearer_methods_supported: ['header'],
       scopes_supported: [
         'objects:read',

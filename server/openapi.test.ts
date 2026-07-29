@@ -89,7 +89,7 @@ describe('global OpenAPI document', () => {
     expect(protectedResource.status).toBe(200)
     expect(await protectedResource.json()).toMatchObject({
       resource: 'http://localhost/api',
-      authorization_servers: ['http://localhost/api/auth'],
+      authorization_servers: ['http://localhost:3000/api/auth'],
       scopes_supported: expect.arrayContaining([AuthorizationScope.OBJECTS_READ]),
     })
   })
