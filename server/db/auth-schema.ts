@@ -216,6 +216,30 @@ export const deviceCode = sqliteTable(
   ],
 )
 
+export const downloaderBootstrapCredential = sqliteTable(
+  'downloader_bootstrap_credentials',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull().unique(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    deviceCode: text('device_code').notNull(),
+    clientId: text('client_id').notNull(),
+    scope: text('scope').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    consumedAt: integer('consumed_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    index('downloader_bootstrap_token_hash_idx').on(table.tokenHash),
+    index('downloader_bootstrap_user_idx').on(table.userId),
+    index('downloader_bootstrap_consumed_idx').on(table.consumedAt),
+  ],
+)
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),

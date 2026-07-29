@@ -63,6 +63,7 @@ export async function evaluateAuthorization(input: {
       ? { allowed: true, effectiveOrgId: null, reason: 'allowed' }
       : deny(context, 401, 'actor_not_allowed', declaration)
   }
+  if (context.credential === 'downloader-bootstrap') return deny(context, 401, 'actor_not_allowed', declaration)
 
   const requiredScopes = declaration.scopes ?? []
   if (context.grantedScopes) {

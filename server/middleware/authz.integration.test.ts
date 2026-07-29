@@ -55,9 +55,7 @@ async function getUserId(db: TestDb, email: string): Promise<string> {
   return rows[0].id
 }
 
-// Registers a downloader and returns its bearer token. Mirrors the device-login
-// flow the CLI uses; needed to mint a `downloader` principal.
-async function registerDownloader(app: TestApp, name: string): Promise<string> {
+async function issueBootstrapToken(app: TestApp): Promise<string> {
   const admin = await adminHeaders(app)
   const codeRes = await app.request('/api/auth/device/code', {
     method: 'POST',
@@ -65,7 +63,6 @@ async function registerDownloader(app: TestApp, name: string): Promise<string> {
     body: JSON.stringify({ client_id: 'zpan-cli', scope: 'downloader:register' }),
   })
   const code = (await codeRes.json()) as { device_code: string; user_code: string }
-  // Claim the user code with the admin session before approving (device flow).
   await app.request(`/api/auth/device?user_code=${encodeURIComponent(code.user_code)}`, { headers: admin })
   await app.request('/api/auth/device/approve', {
     method: 'POST',
@@ -82,9 +79,16 @@ async function registerDownloader(app: TestApp, name: string): Promise<string> {
     }),
   })
   const token = (await tokenRes.json()) as { access_token: string }
+  return token.access_token
+}
+
+// Registers a downloader and returns its bearer token. Mirrors the device-login
+// flow the CLI uses; needed to mint a `downloader` principal.
+async function registerDownloader(app: TestApp, name: string): Promise<string> {
+  const accessToken = await issueBootstrapToken(app)
   const createRes = await app.request('/api/downloads/downloaders', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token.access_token}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name,
       heartbeat: {
@@ -189,6 +193,42 @@ describe('requirePermission middleware', () => {
     const body = (await res.json()) as { error: { message: string; status: string } }
     expect(body.error.message).toBe('Unauthorized')
     expect(body.error.status).toBe('UNAUTHENTICATED')
+  })
+
+  it('returns 401 for a bootstrap bearer on routes that would allow a session principal', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    mountProbes(app)
+    const bootstrapToken = await issueBootstrapToken(app)
+
+    const res = await app.request('/api/test-authz/api-perm', {
+      headers: { Authorization: `Bearer ${bootstrapToken}` },
+    })
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { error: { message: string; status: string } }
+    expect(body.error.message).toBe('Unauthorized')
+    expect(body.error.status).toBe('UNAUTHENTICATED')
+  })
+
+  it('does not normalize untracked Better Auth bearer sessions as user principals', async () => {
+    const { app, db } = await createTestApp()
+    mountProbes(app)
+    const cookieHeaders = await authedHeaders(app, 'bearer-session@example.com')
+    const cookieAllowed = await app.request('/api/test-authz/api-perm', { headers: cookieHeaders })
+    expect(cookieAllowed.status).toBe(200)
+
+    const [session] = await db.all<{ token: string }>(sql`
+      SELECT s.token
+      FROM session s
+      INNER JOIN user u ON u.id = s.user_id
+      WHERE u.email = 'bearer-session@example.com'
+      ORDER BY s.created_at DESC
+      LIMIT 1
+    `)
+
+    const bearerDenied = await app.request('/api/test-authz/api-perm', {
+      headers: { Authorization: `Bearer ${session.token}` },
+    })
+    expect(bearerDenied.status).toBe(401)
   })
 
   it('returns 403 when a team member role is below the required minTeamRole', async () => {

@@ -40,6 +40,8 @@ import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
 import { createEmailGateway } from './adapters/gateways/email'
 import { deleteApiKeysScopedToOrganization } from './adapters/repos/api-key-scopes'
 import { createAuditRepo } from './adapters/repos/audit'
+import { createDownloadTokenGateway } from './adapters/repos/download-tokens'
+import { createDownloaderBootstrapCredentialRepo } from './adapters/repos/downloader-bootstrap'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createLicenseBindingRepo } from './adapters/repos/license-binding'
 import { createMemberCountRepo } from './adapters/repos/member-count'
@@ -54,6 +56,11 @@ import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { executeWriteTransaction } from './db/transaction'
 import { CAPTCHA_AUTH_ENDPOINTS, type CaptchaConfig } from './domain/captcha'
 import { EMAIL_VERIFICATION_REQUIRED_OPTION_KEY, isEmailVerificationRequired } from './domain/email-verification'
+import {
+  LEGACY_DOWNLOADER_BOOTSTRAP_SESSION_ORG,
+  LEGACY_DOWNLOADER_CLIENT_ID,
+  LEGACY_DOWNLOADER_REGISTER_SCOPE,
+} from './domain/legacy-downloader-bootstrap'
 import { currentTrafficPeriod } from './domain/quota'
 import { recordAuditEffect } from './lib/audit'
 import { isLocalNetworkOrigin } from './lib/local-origin'
@@ -227,6 +234,12 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
+function returnedAccessToken(value: unknown): string | null {
+  const returned = recordValue(value)
+  const token = returned?.access_token
+  return typeof token === 'string' && token.length > 0 ? token : null
+}
+
 async function ensureUserRegistrationAudit(db: Database, userId: string, firstAccountId?: string): Promise<void> {
   const [firstAccount] = await db
     .select({ id: authSchema.account.id, providerId: authSchema.account.providerId })
@@ -321,6 +334,8 @@ export async function createAuth(
   const dbProxy = platformProxy ? platformProxy.db : createDbProxy(rawDb)
 
   const db = dbProxy
+  const downloadTokens = createDownloadTokenGateway()
+  const downloaderBootstrapCredentials = createDownloaderBootstrapCredentialRepo(db, downloadTokens)
   // The email gateway needs a Platform for the Cloudflare EMAIL binding. On the
   // bare-Database path (tests, Node fallbacks) there is no platform, so wrap the
   // db proxy in a binding-free Platform — matching the previous behaviour where
@@ -395,6 +410,19 @@ export async function createAuth(
         if (ctx.path === '/delete-user') {
           throw new APIError('FORBIDDEN', { message: 'Self-service account deletion is not available' })
         }
+        if (ctx.path === '/device/code') {
+          const body = ctx.body as Record<string, unknown> | undefined
+          if (body?.client_id !== LEGACY_DOWNLOADER_CLIENT_ID) {
+            throw new APIError('BAD_REQUEST', { error: 'invalid_client', error_description: 'Invalid client ID' })
+          }
+          if (body.scope !== LEGACY_DOWNLOADER_REGISTER_SCOPE) {
+            throw new APIError('BAD_REQUEST', {
+              error: 'invalid_request',
+              error_description: 'Invalid downloader registration scope',
+            })
+          }
+          return
+        }
         if (ctx.path !== '/api-key/create') return
 
         const body = ctx.body as Record<string, unknown> | undefined
@@ -431,6 +459,37 @@ export async function createAuth(
       // failed, so it skips anything that returned an APIError.
       after: createAuthMiddleware(async (ctx) => {
         if (ctx.context.returned instanceof APIError) return
+        if (ctx.path === '/device/token') {
+          const accessToken = returnedAccessToken(ctx.context.returned)
+          const returned = recordValue(ctx.context.returned)
+          const body = ctx.body as Record<string, unknown> | undefined
+          if (
+            accessToken &&
+            returned?.scope === LEGACY_DOWNLOADER_REGISTER_SCOPE &&
+            typeof body?.device_code === 'string'
+          ) {
+            const [bootstrapSession] = await db
+              .select({ userId: authSchema.session.userId, expiresAt: authSchema.session.expiresAt })
+              .from(authSchema.session)
+              .where(eq(authSchema.session.token, accessToken))
+              .limit(1)
+            if (bootstrapSession) {
+              await Promise.all([
+                downloaderBootstrapCredentials.issue({
+                  platform: authPlatform,
+                  token: accessToken,
+                  userId: bootstrapSession.userId,
+                  deviceCode: body.device_code,
+                  expiresAt: bootstrapSession.expiresAt,
+                }),
+                db
+                  .update(authSchema.session)
+                  .set({ activeOrganizationId: LEGACY_DOWNLOADER_BOOTSTRAP_SESSION_ORG })
+                  .where(eq(authSchema.session.token, accessToken)),
+              ])
+            }
+          }
+        }
         const session = await getSessionFromCtx(ctx)
         const actorId = session?.user?.id
         if (!actorId) return
@@ -545,7 +604,7 @@ export async function createAuth(
       deviceAuthorization({
         schema: {},
         verificationUri: '/device',
-        validateClient: async (clientId) => clientId === 'zpan-cli',
+        validateClient: async (clientId) => clientId === LEGACY_DOWNLOADER_CLIENT_ID,
       }),
       apiKey([
         {

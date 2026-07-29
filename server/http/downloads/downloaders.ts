@@ -11,10 +11,11 @@ import {
 } from '@shared/schemas'
 import { FREE_DOWNLOADER_LIMIT } from '../../../shared/constants'
 import { hasFeature } from '../../domain/licensing'
-import { requireAdmin, requireDownloader } from '../../middleware/auth'
+import { requireAdmin, requireDownloader, requireDownloaderRegistration } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import {
   createDownloader,
+  createDownloaderWithBootstrapCredential,
   deleteDownloader,
   listDownloaders,
   recordDownloaderHeartbeat,
@@ -51,7 +52,7 @@ const createRouteDoc = authRoute(
     tags: ['Downloaders'],
     method: 'post',
     path: '/',
-    middleware: [requireAdmin] as const,
+    middleware: [requireDownloaderRegistration] as const,
     request: jsonBody(createDownloaderSchema),
     responses: {
       201: jsonContent(createDownloaderResponseSchema, 'Downloader registration'),
@@ -154,7 +155,12 @@ const downloadersRoute = new OpenAPIHono<Env>()
         },
       })
     }
-    const result = await createDownloader(deps, c.get('platform'), c.req.valid('json'), userId)
+    const principal = c.get('principal')
+    const input = c.req.valid('json')
+    const result =
+      principal?.kind === 'downloader-bootstrap'
+        ? await createDownloaderWithBootstrapCredential(deps, c.get('platform'), input, userId, principal.sessionToken)
+        : await createDownloader(deps, c.get('platform'), input, userId)
     return c.json(result, 201)
   })
   .openapi(updateRoute, async (c) => {

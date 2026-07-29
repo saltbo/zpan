@@ -25,6 +25,7 @@ import { createCloudTrafficReportRepo } from './adapters/repos/cloud-traffic-rep
 import { createDownloadTaskRepo } from './adapters/repos/download-task'
 import { createDownloadTokenGateway } from './adapters/repos/download-tokens'
 import { createDownloaderRepo } from './adapters/repos/downloader'
+import { createDownloaderBootstrapCredentialRepo } from './adapters/repos/downloader-bootstrap'
 import { createImageHostingRepo } from './adapters/repos/image-hosting'
 import { createImageHostingConfigRepo } from './adapters/repos/image-hosting-config'
 import { createInstanceRepo } from './adapters/repos/instance'
@@ -75,6 +76,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
       distributed: cacheNamespace ? createCloudflareKvBackend(cacheNamespace) : undefined,
     })
   const storages = createStorageRepo(db, cache)
+  const downloadTokens = createDownloadTokenGateway()
   return {
     audit: createAuditRepo(db),
     adminStats: createAdminStatsRepo(db),
@@ -89,8 +91,9 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     cloudStore: createCloudStoreRepo(db),
     cloudTrafficReports: createCloudTrafficReportRepo(db),
     downloaders: createDownloaderRepo(db),
+    downloaderBootstrapCredentials: createDownloaderBootstrapCredentialRepo(db, downloadTokens),
     downloadTasks: createDownloadTaskRepo(db),
-    downloadTokens: createDownloadTokenGateway(),
+    downloadTokens,
     email: createEmailGateway(systemOptions),
     invites: createInviteRepo(db),
     imageHostingConfigs: createImageHostingConfigRepo(db),

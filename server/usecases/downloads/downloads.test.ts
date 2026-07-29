@@ -64,6 +64,7 @@ function makeDeps(downloaders: Partial<DownloaderRepo> = {}) {
   return {
     deps: {
       downloaders: repo,
+      downloaderBootstrapCredentials: {},
       downloadTasks: {},
       downloadTokens: {},
       licenseBinding: {},

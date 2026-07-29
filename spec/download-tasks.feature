@@ -9,6 +9,30 @@ Feature: Remote download tasks
     When a downloader registers
     Then it is registered through BetterAuth device login
 
+  @download-tasks/device-bootstrap-scope @api
+  Scenario: The legacy downloader device flow requires its exact client and scope
+    Given a legacy device-code request
+    When the client id or scope differs from zpan-cli downloader registration
+    Then the request is rejected
+
+  @download-tasks/device-bootstrap-single-use @api
+  Scenario: A downloader bootstrap token is single-use
+    Given an approved legacy downloader bootstrap token
+    When downloader registration succeeds
+    Then replaying the same bootstrap token is rejected
+
+  @download-tasks/device-bootstrap-rollback @api
+  Scenario: Failed downloader registration does not consume the bootstrap token
+    Given an approved legacy downloader bootstrap token
+    When downloader registration fails inside the database transaction
+    Then the same bootstrap token can be retried successfully
+
+  @download-tasks/device-bootstrap-silo @api
+  Scenario: Downloader bootstrap tokens cannot call non-registration APIs
+    Given an approved legacy downloader bootstrap token
+    When it is used on APIs other than downloader registration
+    Then those APIs reject it
+
   @download-tasks/list-status-multi @api
   Scenario: Task listing accepts multiple status values
     Given tasks in several statuses

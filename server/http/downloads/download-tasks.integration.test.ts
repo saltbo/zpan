@@ -92,9 +92,8 @@ async function seedCloudBinding(db: Awaited<ReturnType<typeof createTestApp>>['d
   await seedBusinessLicense(db)
 }
 
-async function registerDownloaderThroughDeviceLogin(
+async function issueDownloaderBootstrapToken(
   app: Awaited<ReturnType<typeof createTestApp>>['app'],
-  name: string,
   headers?: { Cookie: string },
 ) {
   const admin = headers ?? (await adminHeaders(app))
@@ -130,11 +129,21 @@ async function registerDownloaderThroughDeviceLogin(
     }),
   })
   expect(tokenRes.status).toBe(200)
-  const token = (await tokenRes.json()) as { access_token: string }
+  const token = (await tokenRes.json()) as { access_token: string; scope: string }
+  expect(token.scope).toBe('downloader:register')
+  return token.access_token
+}
+
+async function registerDownloaderThroughDeviceLogin(
+  app: Awaited<ReturnType<typeof createTestApp>>['app'],
+  name: string,
+  headers?: { Cookie: string },
+) {
+  const token = await issueDownloaderBootstrapToken(app, headers)
 
   const createDownloaderRes = await app.request('/api/downloads/downloaders', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token.access_token}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, heartbeat }),
   })
   expect(createDownloaderRes.status).toBe(201)
@@ -174,6 +183,105 @@ describe('Download tasks API integration', () => {
     const created = await registerDownloaderThroughDeviceLogin(app, 'device-login-downloader')
     expect(created.downloader.name).toBe('device-login-downloader')
     expect(created.token).toBeTruthy()
+
+    await recordDownloaderHeartbeat(app, created.token)
+  })
+
+  it('requires the exact legacy downloader client and scope [spec: download-tasks/device-bootstrap-scope]', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+
+    const wrongScope = await app.request('/api/auth/device/code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: 'zpan-cli', scope: 'objects:read' }),
+    })
+    expect(wrongScope.status).toBe(400)
+
+    const missingScope = await app.request('/api/auth/device/code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: 'zpan-cli' }),
+    })
+    expect(missingScope.status).toBe(400)
+
+    const wrongClient = await app.request('/api/auth/device/code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: 'zpan-agent', scope: 'downloader:register' }),
+    })
+    expect(wrongClient.status).toBe(400)
+  })
+
+  it('limits downloader bootstrap tokens to one successful registration [spec: download-tasks/device-bootstrap-single-use]', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const token = await issueDownloaderBootstrapToken(app)
+
+    const first = await app.request('/api/downloads/downloaders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'first-bootstrap-registration', heartbeat }),
+    })
+    expect(first.status).toBe(201)
+    const registered = (await first.json()) as { token: string }
+    await recordDownloaderHeartbeat(app, registered.token)
+
+    const replay = await app.request('/api/downloads/downloaders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'replayed-bootstrap-registration', heartbeat }),
+    })
+    expect(replay.status).toBe(401)
+  })
+
+  it('keeps bootstrap credentials usable when transactional registration fails [spec: download-tasks/device-bootstrap-rollback]', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const token = await issueDownloaderBootstrapToken(app)
+    await db.run(sql`
+      CREATE TRIGGER fail_downloader_insert
+      BEFORE INSERT ON downloaders
+      BEGIN
+        SELECT RAISE(ABORT, 'forced_downloader_insert_failure');
+      END;
+    `)
+
+    const failed = await app.request('/api/downloads/downloaders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'failed-bootstrap-registration', heartbeat }),
+    })
+    expect(failed.status).toBe(500)
+    await db.run(sql`DROP TRIGGER fail_downloader_insert`)
+
+    const retry = await app.request('/api/downloads/downloaders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'retried-bootstrap-registration', heartbeat }),
+    })
+    expect(retry.status).toBe(201)
+  })
+
+  it('rejects downloader bootstrap tokens on non-registration APIs [spec: download-tasks/device-bootstrap-silo]', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const token = await issueDownloaderBootstrapToken(app)
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+
+    const denied = await Promise.all([
+      app.request('/api/downloads/downloaders', { headers }),
+      app.request('/api/downloads/downloaders/me/heartbeats', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(heartbeat),
+      }),
+      app.request('/api/downloads/tasks', { headers }),
+      app.request('/api/objects', { headers }),
+      app.request('/api/quotas/me', { headers }),
+      app.request('/api/shares', { headers }),
+    ])
+
+    expect(denied.map((res) => res.status)).toEqual([401, 401, 401, 401, 401, 401])
   })
 
   it('continues task listings with an opaque page token without duplicates', async () => {

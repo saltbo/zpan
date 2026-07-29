@@ -80,6 +80,35 @@ function toDownloader(row: DownloaderRow): Downloader {
 
 const DEFAULT_REMOTE_DOWNLOAD_CREDIT_PER_UNIT = 1
 
+export function downloaderInsertValues(input: CreateDownloaderRecordInput) {
+  return {
+    id: input.id,
+    name: input.name,
+    tokenHash: input.tokenHash,
+    tokenJti: input.tokenJti,
+    status: 'offline',
+    enabled: true,
+    version: input.version,
+    hostname: input.hostname,
+    platform: input.platform,
+    arch: input.arch,
+    engine: input.engine,
+    capabilities: JSON.stringify(input.capabilities),
+    maxConcurrentTasks: input.maxConcurrentTasks,
+    currentTasks: input.currentTasks,
+    downloadBps: input.downloadBps,
+    uploadBps: input.uploadBps,
+    freeDiskBytes: input.freeDiskBytes,
+    remoteDownloadCreditBillingEnabled: false,
+    remoteDownloadCreditUnitBytes: input.remoteDownloadCreditUnitBytes,
+    remoteDownloadCreditPerUnit: DEFAULT_REMOTE_DOWNLOAD_CREDIT_PER_UNIT,
+    lastHeartbeatAt: null,
+    createdBy: input.createdBy,
+    createdAt: input.now,
+    updatedAt: input.now,
+  }
+}
+
 export function createDownloaderRepo(db: Database): DownloaderRepo {
   async function findRow(id: string): Promise<DownloaderRow | null> {
     const rows = await db.select().from(downloaders).where(eq(downloaders.id, id)).limit(1)
@@ -88,32 +117,7 @@ export function createDownloaderRepo(db: Database): DownloaderRepo {
 
   return {
     async insert(input: CreateDownloaderRecordInput) {
-      await db.insert(downloaders).values({
-        id: input.id,
-        name: input.name,
-        tokenHash: input.tokenHash,
-        tokenJti: input.tokenJti,
-        status: 'offline',
-        enabled: true,
-        version: input.version,
-        hostname: input.hostname,
-        platform: input.platform,
-        arch: input.arch,
-        engine: input.engine,
-        capabilities: JSON.stringify(input.capabilities),
-        maxConcurrentTasks: input.maxConcurrentTasks,
-        currentTasks: input.currentTasks,
-        downloadBps: input.downloadBps,
-        uploadBps: input.uploadBps,
-        freeDiskBytes: input.freeDiskBytes,
-        remoteDownloadCreditBillingEnabled: false,
-        remoteDownloadCreditUnitBytes: input.remoteDownloadCreditUnitBytes,
-        remoteDownloadCreditPerUnit: DEFAULT_REMOTE_DOWNLOAD_CREDIT_PER_UNIT,
-        lastHeartbeatAt: null,
-        createdBy: input.createdBy,
-        createdAt: input.now,
-        updatedAt: input.now,
-      })
+      await db.insert(downloaders).values(downloaderInsertValues(input))
     },
 
     async list() {
