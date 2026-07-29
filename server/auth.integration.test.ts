@@ -695,6 +695,52 @@ describe('loadProviderConfigs — builtin social provider resolution', () => {
 })
 
 describe('Agent OAuth consent guards', () => {
+  it('issues an authorization code after full consent for the managed PKCE client', async () => {
+    const ctx = await createTestApp()
+    const previewOrigin = 'https://preview-zpan.example.com'
+    const auth = await createAuth(ctx.platform, 'test-secret', 'https://zpan-staging.example.com', [previewOrigin])
+    const app = createApp(ctx.platform, auth)
+    const signUpResponse = await signUp({ ...ctx, app }, 'agent-oauth-consent@example.com')
+    const cookie = signUpResponse.headers
+      .getSetCookie()
+      .map((value) => value.split(';', 1)[0])
+      .join('; ')
+    const params = new URLSearchParams({
+      client_id: 'zpan-agent',
+      redirect_uri: 'http://127.0.0.1:8484/callback',
+      response_type: 'code',
+      scope: 'openid offline_access objects:read quota:read',
+      state: 'oauth-consent-test',
+      code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+      code_challenge_method: 'S256',
+    })
+    const authorize = await app.request(`${previewOrigin}/api/auth/oauth2/authorize?${params}`, {
+      headers: { Cookie: cookie, Origin: previewOrigin },
+    })
+    const consentLocation = authorize.headers.get('location')
+    expect(authorize.status).toBe(302)
+    expect(consentLocation).toMatch(/^\/settings\/agent-access\?/)
+
+    const consent = await app.request(`${previewOrigin}/api/auth/oauth2/consent`, {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        Origin: previewOrigin,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        accept: true,
+        oauth_query: consentLocation?.slice(consentLocation.indexOf('?') + 1),
+      }),
+    })
+    const consentBody = await consent.text()
+
+    expect(consent.status, consentBody).toBe(200)
+    expect(JSON.parse(consentBody)).toMatchObject({
+      url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:8484\/callback\?code=/),
+    })
+  })
+
   it('blocks partial Agent OAuth consent changes through the Better Auth endpoint', async () => {
     const ctx = await createTestApp()
 
