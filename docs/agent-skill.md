@@ -30,7 +30,7 @@ restish plugin install saltbo/zpan zpan
 Every local upload goes through:
 
 ```sh
-restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --parent root ./file.bin
+RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --parent root ./file.bin
 ```
 
 The Skill does not implement upload transport logic. The plugin owns local file

@@ -6,7 +6,7 @@ API key from the environment and does not require token copy/paste:
 ```sh
 export ZPAN_AGENT_API_KEY="$ZPAN_AGENT_API_KEY"
 restish --rsh-profile ci zpan list-objects --parent root --page-size 50
-restish --rsh-profile ci zpan-upload --api zpan --profile ci --parent releases ./dist/app.tar.gz
+RSH_PROFILE=ci restish zpan-upload --api zpan --profile ci --parent releases ./dist/app.tar.gz
 ```
 
 The key must be created by a user in ZPan Agent Access settings, scoped to one

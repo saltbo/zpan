@@ -3,7 +3,7 @@
 Every local file upload must use the Restish command plugin:
 
 ```sh
-restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --parent root ./artifact.zip
+RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --parent root ./artifact.zip
 ```
 
 The Skill must not implement upload chunking or upload orchestration.
@@ -30,11 +30,13 @@ restish plugin install saltbo/zpan zpan
 
 ## Upload
 
-Use the selected Restish profile and API name explicitly:
+Use the selected Restish host profile, plugin profile, and API name explicitly.
+For plugin delegated HTTP on Restish v2.3, set `RSH_PROFILE` to the same value
+as the plugin `--profile` flag:
 
 ```sh
-restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --parent folder_456 ./release.tar.gz
-restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --parent folder_456 ./release.tar.gz release-linux.tar.gz
+RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --parent folder_456 ./release.tar.gz
+RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --parent folder_456 ./release.tar.gz release-linux.tar.gz
 ```
 
 If the plugin supports a conflict flag in the installed version, pass only the
@@ -45,13 +47,13 @@ user-approved policy.
 Resume interrupted local uploads through the plugin:
 
 ```sh
-restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --resume ./release.tar.gz
+RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --resume ./release.tar.gz
 ```
 
 Abort an upload only after confirmation:
 
 ```sh
-restish --rsh-profile file-manager zpan-upload --api zpan --profile file-manager --abort ./release.tar.gz
+RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --abort ./release.tar.gz
 ```
 
 ## Output

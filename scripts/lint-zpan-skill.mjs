@@ -58,13 +58,26 @@ function forbidUnsafeLine(label, pattern) {
   }
 }
 
+function commandLines() {
+  return corpus
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('restish ') || /^RSH_PROFILE=\S+\s+restish\b/.test(line))
+}
+
 function requireCommandLine(label, pattern) {
   const commandLines = corpus
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line.startsWith('restish '))
+    .filter((line) => line.startsWith('restish ') || /^RSH_PROFILE=\S+\s+restish\b/.test(line))
   if (!commandLines.some((line) => pattern.test(line))) {
     failures.push(`missing executable command example: ${label}`)
+  }
+}
+
+function forbidCommandLine(label, pattern) {
+  for (const line of commandLines()) {
+    if (pattern.test(line)) failures.push(`forbidden command example: ${label} (${line})`)
   }
 }
 
@@ -126,7 +139,7 @@ requireCommandLine('copy-object uses positional body input', /\bzpan\s+copy-obje
 requireCommandLine('transfer-object uses positional body input', /\bzpan\s+transfer-object\s+\S+\s+'[^']*\btargetOrgId:/)
 requireCommandLine('create-share uses positional body input', /\bzpan\s+create-share\s+'[^']*\bmatterId:/)
 requireCommandLine('revoke-share uses positional body input', /\bzpan\s+revoke-share\s+\S+\s+'[^']*\bstatus:\s*revoked/)
-requireCommandLine('upload passes Restish and plugin profiles', /\brestish\s+--rsh-profile\s+\S+\s+zpan-upload\b.*\s--api\s+zpan\b.*\s--profile\s+\S+/)
+requireCommandLine('upload passes Restish and plugin profiles', /\bRSH_PROFILE=\S+\s+restish\s+zpan-upload\b.*\s--api\s+zpan\b.*\s--profile\s+\S+/)
 
 requireText('reader profile', '`reader`')
 requireText('file-manager profile', '`file-manager`')
@@ -171,7 +184,7 @@ forbidMatch('old Restish list limit flag', /\brestish\s+(?:--rsh-profile\s+\S+\s
 forbidMatch('camelCase Restish command example', /\brestish\s+(?:--rsh-profile\s+\S+\s+)?zpan\s+(?:listObjects|getObject|createObject|updateObject|copyObject|transferObject|deleteObject|purgeTrashObject|listShares|createShare|revokeShare|getUserQuota|getStorageUsage|listDownloadTasks|getDownloadTask|listDownloadTaskEvents)\b/gi)
 forbidMatch('profile template purge command', /\brestish\s+--rsh-profile\s+(?:reader|file-manager|publisher|ci)\s+zpan\s+purge-trash-object\b/gi)
 forbidMatch('invented operator profile', /\brestish\s+--rsh-profile\s+operator\b/gi)
-forbidMatch('upload without plugin profile', /\brestish\s+--rsh-profile\s+\S+\s+zpan-upload\b(?![^\n]*\s--profile\s+\S+)/gi)
+forbidCommandLine('upload without plugin profile', /\b(?:RSH_PROFILE=\S+\s+)?restish\s+(?:--rsh-profile\s+\S+\s+)?zpan-upload\b(?!.*\s--profile\s+\S+)/i)
 forbidMatch(
   'MCP upload control-plane allowlist',
   /restish\s+mcp\s+serve[\s\S]*?--operations[^\n]*(createObject|create-object|presignObjectUploadParts|presign-object-upload-parts|completeObjectUpload|complete-object-upload|abortObjectUpload|abort-object-upload)/gi,
