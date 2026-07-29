@@ -16,7 +16,7 @@ export interface AgentOAuthGrant {
   orgId: string
   scopes: AuthorizationScope[]
   createdAt: string
-  updatedAt: string
+  lastUsedAt: string | null
 }
 
 export interface AgentOAuthGateway {
@@ -27,5 +27,6 @@ export interface AgentOAuthGateway {
   ): Promise<void>
   verifyAccessToken(db: Database, token: string): Promise<VerifiedAgentOAuthToken | null>
   listGrants(db: Database, userId: string): Promise<AgentOAuthGrant[]>
+  recordGrantUse(db: Database, input: { grantId: string; userId: string; orgId: string; now: Date }): Promise<void>
   revokeGrant(db: Database, input: { userId: string; grantId: string; now: Date }): Promise<boolean>
 }

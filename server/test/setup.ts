@@ -189,6 +189,7 @@ const AUTH_SCHEMA_SQL = `
     reference_id TEXT,
     scopes TEXT NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+    last_used_at INTEGER,
     updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
   );
   CREATE INDEX IF NOT EXISTS oauthConsent_client_id_idx ON oauthConsent(client_id);

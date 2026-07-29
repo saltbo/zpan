@@ -71,12 +71,12 @@ describe('[CF] Auth API', () => {
     expect(authorize.status).toBe(302)
     expect(consentLocation).toMatch(/^\/settings\/agent-access\?/)
 
-    const consent = await app.request('/api/auth/oauth2/consent', {
+    const consent = await app.request('/api/agent-oauth-consent', {
       method: 'POST',
       headers: { Cookie: cookie, Origin: 'http://localhost', 'Content-Type': 'application/json' },
       body: JSON.stringify({
         accept: true,
-        oauth_query: consentLocation?.slice(consentLocation.indexOf('?') + 1),
+        oauthQuery: consentLocation?.slice(consentLocation.indexOf('?') + 1),
       }),
     })
     const consentBody = await consent.text()

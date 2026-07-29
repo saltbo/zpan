@@ -1,7 +1,12 @@
 import { createHash } from 'node:crypto'
-import { AGENT_OAUTH_CLIENT_ID } from '@shared/agent-oauth'
+import {
+  AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
+  AGENT_OAUTH_CLIENT_ID,
+  AGENT_OAUTH_CLIENT_NAME,
+  AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
+} from '@shared/agent-oauth'
 import { AuthorizationScope } from '@shared/authorization'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
@@ -71,6 +76,88 @@ async function insertGrant(
 }
 
 describe('Agent OAuth grants API integration', () => {
+  it('returns server-owned Agent OAuth consent context for the active workspace', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app, 'agent-consent@example.com')
+    const { orgId } = await getUserAndPersonalOrg(db, 'agent-consent@example.com')
+    const oauthQuery = new URLSearchParams({
+      client_id: AGENT_OAUTH_CLIENT_ID,
+      redirect_uri: 'http://127.0.0.1:8484/callback',
+      response_type: 'code',
+      scope: `${AuthorizationScope.OBJECTS_READ} ${AuthorizationScope.QUOTA_READ} openid offline_access`,
+    }).toString()
+
+    const res = await app.request(`/api/agent-oauth-consent?oauthQuery=${encodeURIComponent(oauthQuery)}`, { headers })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({
+      clientId: AGENT_OAUTH_CLIENT_ID,
+      clientName: AGENT_OAUTH_CLIENT_NAME,
+      instanceOrigin: 'http://localhost',
+      workspace: { id: orgId, name: expect.any(String) },
+      scopes: [AuthorizationScope.OBJECTS_READ, AuthorizationScope.QUOTA_READ],
+      standardScopes: ['openid', 'offline_access'],
+      redirectUri: 'http://127.0.0.1:8484/callback',
+      grantLifetime: {
+        accessTokenSeconds: AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
+        refreshTokenSeconds: AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
+      },
+    })
+  })
+
+  it('revalidates OAuth consent submission through the Agent Access API', async () => {
+    const { app } = await createTestApp()
+    const headers = await authedHeaders(app, 'agent-submit@example.com')
+
+    const res = await app.request('/api/agent-oauth-consent', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accept: true, oauthQuery: 'client_id=zpan-agent&response_type=token' }),
+    })
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        message: 'Invalid Agent OAuth request',
+      },
+    })
+  })
+
+  it('submits full OAuth consent through the Agent Access API', async () => {
+    const { app } = await createTestApp()
+    const headers = await authedHeaders(app, 'agent-submit-success@example.com')
+    const oauthParams = new URLSearchParams({
+      client_id: AGENT_OAUTH_CLIENT_ID,
+      redirect_uri: 'http://127.0.0.1:8484/callback',
+      response_type: 'code',
+      scope: `${AuthorizationScope.OBJECTS_READ} ${AuthorizationScope.QUOTA_READ} openid offline_access`,
+      state: 'agent-submit-success',
+      code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+      code_challenge_method: 'S256',
+    })
+    const authorize = await app.request(`/api/auth/oauth2/authorize?${oauthParams}`, {
+      headers: { ...headers, Origin: 'http://localhost' },
+    })
+    const consentLocation = authorize.headers.get('location')
+    expect(authorize.status).toBe(302)
+    expect(consentLocation).toMatch(/^\/settings\/agent-access\?/)
+
+    const consent = await app.request('/api/agent-oauth-consent', {
+      method: 'POST',
+      headers: { ...headers, Origin: 'http://localhost', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accept: true,
+        oauthQuery: consentLocation?.slice(consentLocation.indexOf('?') + 1),
+      }),
+    })
+    const consentBody = await consent.text()
+
+    expect(consent.status, consentBody).toBe(200)
+    expect(JSON.parse(consentBody)).toMatchObject({
+      url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:8484\/callback\?code=/),
+    })
+  })
+
   it('lists and revokes the current user grant family', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'agent-grants@example.com')
@@ -84,11 +171,14 @@ describe('Agent OAuth grants API integration', () => {
         {
           id: 'grant-1',
           clientId: AGENT_OAUTH_CLIENT_ID,
+          clientName: 'ZPan Agent',
           userId,
           orgId,
+          workspaceName: expect.any(String),
           scopes: [AuthorizationScope.OBJECTS_READ, AuthorizationScope.QUOTA_READ],
           createdAt: '2026-07-29T12:00:00.000Z',
-          updatedAt: '2026-07-29T12:00:00.000Z',
+          lastUsedAt: null,
+          status: 'active',
         },
       ],
     })
@@ -108,9 +198,18 @@ describe('Agent OAuth grants API integration', () => {
     await insertTeamOrg(db, 'other-workspace', userId)
     await insertGrant(db, { userId, orgId, scopes: [AuthorizationScope.OBJECTS_READ] })
 
+    const list = await app.request('/api/agent-oauth-grants', { headers })
+    expect(list.status).toBe(200)
+    await expect(list.json()).resolves.toMatchObject({ items: [{ id: 'grant-1', lastUsedAt: null }] })
+
     const bearer = { Authorization: 'Bearer live-agent-token' }
     const allowed = await app.request('/api/objects', { headers: bearer })
     expect(allowed.status).toBe(200)
+    const [usedGrant] = await db
+      .select({ lastUsedAt: authSchema.oauthConsent.lastUsedAt })
+      .from(authSchema.oauthConsent)
+      .where(eq(authSchema.oauthConsent.id, 'grant-1'))
+    expect(usedGrant.lastUsedAt).toBeInstanceOf(Date)
 
     const wrongWorkspace = await app.request('/api/objects?orgId=other-workspace', { headers: bearer })
     expect(wrongWorkspace.status).toBe(403)

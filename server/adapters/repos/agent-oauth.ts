@@ -125,7 +125,7 @@ export function createAgentOAuthGateway(): AgentOAuthGateway {
           orgId: oauthConsent.referenceId,
           scopes: oauthConsent.scopes,
           createdAt: oauthConsent.createdAt,
-          updatedAt: oauthConsent.updatedAt,
+          lastUsedAt: oauthConsent.lastUsedAt,
         })
         .from(oauthConsent)
         .where(and(eq(oauthConsent.userId, userId), eq(oauthConsent.clientId, AGENT_OAUTH_CLIENT_ID)))
@@ -139,10 +139,24 @@ export function createAgentOAuthGateway(): AgentOAuthGateway {
             orgId: row.orgId,
             scopes: parseScopes(row.scopes).filter(isAuthorizationScope),
             createdAt: toIso(row.createdAt),
-            updatedAt: toIso(row.updatedAt),
+            lastUsedAt: row.lastUsedAt ? toIso(row.lastUsedAt) : null,
           },
         ]
       })
+    },
+
+    async recordGrantUse(db, input) {
+      await db
+        .update(oauthConsent)
+        .set({ lastUsedAt: input.now })
+        .where(
+          and(
+            eq(oauthConsent.id, input.grantId),
+            eq(oauthConsent.userId, input.userId),
+            eq(oauthConsent.referenceId, input.orgId),
+            eq(oauthConsent.clientId, AGENT_OAUTH_CLIENT_ID),
+          ),
+        )
     },
 
     async revokeGrant(db, input) {

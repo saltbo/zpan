@@ -12,6 +12,7 @@ function createGateway(): AgentOAuthGateway {
     assertLiveGrant: vi.fn(),
     verifyAccessToken: vi.fn(),
     listGrants: vi.fn(),
+    recordGrantUse: vi.fn(),
     revokeGrant: vi.fn(),
   }
 }

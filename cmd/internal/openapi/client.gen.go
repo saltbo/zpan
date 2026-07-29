@@ -2029,40 +2029,64 @@ func (e WebDavVerificationStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetAgentOAuthConsentContext200JSONResponseBodyScopes.
+const (
+	GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsCreate    GetAgentOAuthConsentContext200JSONResponseBodyScopes = "objects:create"
+	GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsDelete    GetAgentOAuthConsentContext200JSONResponseBodyScopes = "objects:delete"
+	GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsRead      GetAgentOAuthConsentContext200JSONResponseBodyScopes = "objects:read"
+	GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsUpdate    GetAgentOAuthConsentContext200JSONResponseBodyScopes = "objects:update"
+	GetAgentOAuthConsentContext200JSONResponseBodyScopesQuotaRead        GetAgentOAuthConsentContext200JSONResponseBodyScopes = "quota:read"
+	GetAgentOAuthConsentContext200JSONResponseBodyScopesSharesCreate     GetAgentOAuthConsentContext200JSONResponseBodyScopes = "shares:create"
+	GetAgentOAuthConsentContext200JSONResponseBodyScopesSharesDelete     GetAgentOAuthConsentContext200JSONResponseBodyScopes = "shares:delete"
+	GetAgentOAuthConsentContext200JSONResponseBodyScopesSharesRead       GetAgentOAuthConsentContext200JSONResponseBodyScopes = "shares:read"
+	GetAgentOAuthConsentContext200JSONResponseBodyScopesStorageUsageRead GetAgentOAuthConsentContext200JSONResponseBodyScopes = "storage-usage:read"
+)
+
+// Valid indicates whether the value is a known member of the GetAgentOAuthConsentContext200JSONResponseBodyScopes enum.
+func (e GetAgentOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
+	switch e {
+	case GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsCreate:
+		return true
+	case GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsDelete:
+		return true
+	case GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsRead:
+		return true
+	case GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsUpdate:
+		return true
+	case GetAgentOAuthConsentContext200JSONResponseBodyScopesQuotaRead:
+		return true
+	case GetAgentOAuthConsentContext200JSONResponseBodyScopesSharesCreate:
+		return true
+	case GetAgentOAuthConsentContext200JSONResponseBodyScopesSharesDelete:
+		return true
+	case GetAgentOAuthConsentContext200JSONResponseBodyScopesSharesRead:
+		return true
+	case GetAgentOAuthConsentContext200JSONResponseBodyScopesStorageUsageRead:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListAgentOAuthGrants200JSONResponseBodyItemsScopes.
 const (
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCancel ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:cancel"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCreate ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:create"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksRead   ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:read"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesImagesUpload        ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "images:upload"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsCreate       ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:create"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete       ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:delete"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsPurge        ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:purge"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsRead         ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:read"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsUpdate       ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:update"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesQuotaRead           ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "quota:read"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesSharesCreate        ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "shares:create"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesSharesDelete        ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "shares:delete"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesSharesRead          ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "shares:read"
-	ListAgentOAuthGrants200JSONResponseBodyItemsScopesStorageUsageRead    ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "storage-usage:read"
+	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsCreate    ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:create"
+	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete    ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:delete"
+	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsRead      ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:read"
+	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsUpdate    ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:update"
+	ListAgentOAuthGrants200JSONResponseBodyItemsScopesQuotaRead        ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "quota:read"
+	ListAgentOAuthGrants200JSONResponseBodyItemsScopesSharesCreate     ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "shares:create"
+	ListAgentOAuthGrants200JSONResponseBodyItemsScopesSharesDelete     ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "shares:delete"
+	ListAgentOAuthGrants200JSONResponseBodyItemsScopesSharesRead       ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "shares:read"
+	ListAgentOAuthGrants200JSONResponseBodyItemsScopesStorageUsageRead ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "storage-usage:read"
 )
 
 // Valid indicates whether the value is a known member of the ListAgentOAuthGrants200JSONResponseBodyItemsScopes enum.
 func (e ListAgentOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 	switch e {
-	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCancel:
-		return true
-	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCreate:
-		return true
-	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksRead:
-		return true
-	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesImagesUpload:
-		return true
 	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsCreate:
 		return true
 	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete:
-		return true
-	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsPurge:
 		return true
 	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsRead:
 		return true
@@ -2077,6 +2101,21 @@ func (e ListAgentOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesSharesRead:
 		return true
 	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesStorageUsageRead:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAgentOAuthGrants200JSONResponseBodyItemsStatus.
+const (
+	ListAgentOAuthGrants200JSONResponseBodyItemsStatusActive ListAgentOAuthGrants200JSONResponseBodyItemsStatus = "active"
+)
+
+// Valid indicates whether the value is a known member of the ListAgentOAuthGrants200JSONResponseBodyItemsStatus enum.
+func (e ListAgentOAuthGrants200JSONResponseBodyItemsStatus) Valid() bool {
+	switch e {
+	case ListAgentOAuthGrants200JSONResponseBodyItemsStatusActive:
 		return true
 	default:
 		return false
@@ -3660,37 +3699,37 @@ func (e RotateWorkspaceAgentApiKeyJSONBodyScopes) Valid() bool {
 
 // Defines values for RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes.
 const (
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsCreate    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:create"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsDelete    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:delete"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsRead      RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:read"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsUpdate    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:update"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesQuotaRead        RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "quota:read"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesCreate     RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:create"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesDelete     RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:delete"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesRead       RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:read"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesStorageUsageRead RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "storage-usage:read"
+	ObjectsCreate    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:create"
+	ObjectsDelete    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:delete"
+	ObjectsRead      RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:read"
+	ObjectsUpdate    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:update"
+	QuotaRead        RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "quota:read"
+	SharesCreate     RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:create"
+	SharesDelete     RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:delete"
+	SharesRead       RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:read"
+	StorageUsageRead RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "storage-usage:read"
 )
 
 // Valid indicates whether the value is a known member of the RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes enum.
 func (e RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes) Valid() bool {
 	switch e {
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsCreate:
+	case ObjectsCreate:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsDelete:
+	case ObjectsDelete:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsRead:
+	case ObjectsRead:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsUpdate:
+	case ObjectsUpdate:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesQuotaRead:
+	case QuotaRead:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesCreate:
+	case SharesCreate:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesDelete:
+	case SharesDelete:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesRead:
+	case SharesRead:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopesStorageUsageRead:
+	case StorageUsageRead:
 		return true
 	default:
 		return false
@@ -3699,22 +3738,22 @@ func (e RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes) Valid() bool {
 
 // Defines values for RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus.
 const (
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusActive       RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "active"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusExpired      RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "expired"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusInaccessible RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "inaccessible"
-	RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusRevoked      RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "revoked"
+	Active       RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "active"
+	Expired      RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "expired"
+	Inaccessible RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "inaccessible"
+	Revoked      RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "revoked"
 )
 
 // Valid indicates whether the value is a known member of the RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus enum.
 func (e RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus) Valid() bool {
 	switch e {
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusActive:
+	case Active:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusExpired:
+	case Expired:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusInaccessible:
+	case Inaccessible:
 		return true
-	case RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatusRevoked:
+	case Revoked:
 		return true
 	default:
 		return false
@@ -5989,8 +6028,25 @@ type User struct {
 // WebDavVerificationStatus defines model for WebDavVerificationStatus.
 type WebDavVerificationStatus string
 
+// GetAgentOAuthConsentContextParams defines parameters for GetAgentOAuthConsentContext.
+type GetAgentOAuthConsentContextParams struct {
+	OauthQuery string `form:"oauthQuery" json:"oauthQuery"`
+}
+
+// GetAgentOAuthConsentContext200JSONResponseBodyScopes defines parameters for GetAgentOAuthConsentContext.
+type GetAgentOAuthConsentContext200JSONResponseBodyScopes string
+
+// SubmitAgentOAuthConsentJSONBody defines parameters for SubmitAgentOAuthConsent.
+type SubmitAgentOAuthConsentJSONBody struct {
+	Accept     bool   `json:"accept"`
+	OauthQuery string `json:"oauthQuery"`
+}
+
 // ListAgentOAuthGrants200JSONResponseBodyItemsScopes defines parameters for ListAgentOAuthGrants.
 type ListAgentOAuthGrants200JSONResponseBodyItemsScopes string
+
+// ListAgentOAuthGrants200JSONResponseBodyItemsStatus defines parameters for ListAgentOAuthGrants.
+type ListAgentOAuthGrants200JSONResponseBodyItemsStatus string
 
 // BanUserJSONBody defines parameters for BanUser.
 type BanUserJSONBody struct {
@@ -7798,6 +7854,9 @@ type RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes string
 // RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus defines parameters for RotateWorkspaceAgentApiKey.
 type RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus string
 
+// SubmitAgentOAuthConsentJSONRequestBody defines body for SubmitAgentOAuthConsent for application/json ContentType.
+type SubmitAgentOAuthConsentJSONRequestBody SubmitAgentOAuthConsentJSONBody
+
 // BanUserJSONRequestBody defines body for BanUser for application/json ContentType.
 type BanUserJSONRequestBody BanUserJSONBody
 
@@ -8842,6 +8901,14 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// GetAgentOAuthConsentContext request
+	GetAgentOAuthConsentContext(ctx context.Context, params *GetAgentOAuthConsentContextParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SubmitAgentOAuthConsentWithBody request with any body
+	SubmitAgentOAuthConsentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SubmitAgentOAuthConsent(ctx context.Context, body SubmitAgentOAuthConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAgentOAuthGrants request
 	ListAgentOAuthGrants(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -9871,6 +9938,42 @@ type ClientInterface interface {
 	RotateWorkspaceAgentApiKeyWithBody(ctx context.Context, orgId string, keyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	RotateWorkspaceAgentApiKey(ctx context.Context, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) GetAgentOAuthConsentContext(ctx context.Context, params *GetAgentOAuthConsentContextParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentOAuthConsentContextRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SubmitAgentOAuthConsentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubmitAgentOAuthConsentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SubmitAgentOAuthConsent(ctx context.Context, body SubmitAgentOAuthConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubmitAgentOAuthConsentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) ListAgentOAuthGrants(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -14491,6 +14594,96 @@ func (c *Client) RotateWorkspaceAgentApiKey(ctx context.Context, orgId string, k
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetAgentOAuthConsentContextRequest generates requests for GetAgentOAuthConsentContext
+func NewGetAgentOAuthConsentContextRequest(server string, params *GetAgentOAuthConsentContextParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent-oauth-consent")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "oauthQuery", params.OauthQuery, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSubmitAgentOAuthConsentRequest calls the generic SubmitAgentOAuthConsent builder with application/json body
+func NewSubmitAgentOAuthConsentRequest(server string, body SubmitAgentOAuthConsentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSubmitAgentOAuthConsentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSubmitAgentOAuthConsentRequestWithBody generates requests for SubmitAgentOAuthConsent with any type of body
+func NewSubmitAgentOAuthConsentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent-oauth-consent")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
 }
 
 // NewListAgentOAuthGrantsRequest generates requests for ListAgentOAuthGrants
@@ -25881,6 +26074,14 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// GetAgentOAuthConsentContextWithResponse request
+	GetAgentOAuthConsentContextWithResponse(ctx context.Context, params *GetAgentOAuthConsentContextParams, reqEditors ...RequestEditorFn) (*GetAgentOAuthConsentContextResponse, error)
+
+	// SubmitAgentOAuthConsentWithBodyWithResponse request with any body
+	SubmitAgentOAuthConsentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitAgentOAuthConsentResponse, error)
+
+	SubmitAgentOAuthConsentWithResponse(ctx context.Context, body SubmitAgentOAuthConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitAgentOAuthConsentResponse, error)
+
 	// ListAgentOAuthGrantsWithResponse request
 	ListAgentOAuthGrantsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAgentOAuthGrantsResponse, error)
 
@@ -26912,18 +27113,102 @@ type ClientWithResponsesInterface interface {
 	RotateWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateWorkspaceAgentApiKeyResponse, error)
 }
 
+type GetAgentOAuthConsentContextResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		ClientId      string `json:"clientId"`
+		ClientName    string `json:"clientName"`
+		GrantLifetime struct {
+			AccessTokenSeconds  *int `json:"accessTokenSeconds,omitempty"`
+			RefreshTokenSeconds *int `json:"refreshTokenSeconds,omitempty"`
+		} `json:"grantLifetime"`
+		InstanceOrigin string                                                 `json:"instanceOrigin"`
+		RedirectUri    string                                                 `json:"redirectUri"`
+		Scopes         []GetAgentOAuthConsentContext200JSONResponseBodyScopes `json:"scopes"`
+		StandardScopes []string                                               `json:"standardScopes"`
+		Workspace      struct {
+			Id   string  `json:"id"`
+			Name *string `json:"name"`
+		} `json:"workspace"`
+	}
+	JSON400 *Error
+	JSON403 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentOAuthConsentContextResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentOAuthConsentContextResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAgentOAuthConsentContextResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SubmitAgentOAuthConsentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Url string `json:"url"`
+	}
+	JSON400 *Error
+	JSON403 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r SubmitAgentOAuthConsentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SubmitAgentOAuthConsentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SubmitAgentOAuthConsentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListAgentOAuthGrantsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
 		Items []struct {
-			ClientId  string                                               `json:"clientId"`
-			CreatedAt string                                               `json:"createdAt"`
-			Id        string                                               `json:"id"`
-			OrgId     string                                               `json:"orgId"`
-			Scopes    []ListAgentOAuthGrants200JSONResponseBodyItemsScopes `json:"scopes"`
-			UpdatedAt string                                               `json:"updatedAt"`
-			UserId    string                                               `json:"userId"`
+			ClientId      string                                               `json:"clientId"`
+			ClientName    *string                                              `json:"clientName,omitempty"`
+			CreatedAt     string                                               `json:"createdAt"`
+			Id            string                                               `json:"id"`
+			LastUsedAt    *string                                              `json:"lastUsedAt"`
+			OrgId         string                                               `json:"orgId"`
+			Scopes        []ListAgentOAuthGrants200JSONResponseBodyItemsScopes `json:"scopes"`
+			Status        ListAgentOAuthGrants200JSONResponseBodyItemsStatus   `json:"status"`
+			UserId        string                                               `json:"userId"`
+			WorkspaceName *string                                              `json:"workspaceName"`
 		} `json:"items"`
 	}
 }
@@ -37771,6 +38056,32 @@ func (r RotateWorkspaceAgentApiKeyResponse) ContentType() string {
 	return ""
 }
 
+// GetAgentOAuthConsentContextWithResponse request returning *GetAgentOAuthConsentContextResponse
+func (c *ClientWithResponses) GetAgentOAuthConsentContextWithResponse(ctx context.Context, params *GetAgentOAuthConsentContextParams, reqEditors ...RequestEditorFn) (*GetAgentOAuthConsentContextResponse, error) {
+	rsp, err := c.GetAgentOAuthConsentContext(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentOAuthConsentContextResponse(rsp)
+}
+
+// SubmitAgentOAuthConsentWithBodyWithResponse request with arbitrary body returning *SubmitAgentOAuthConsentResponse
+func (c *ClientWithResponses) SubmitAgentOAuthConsentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitAgentOAuthConsentResponse, error) {
+	rsp, err := c.SubmitAgentOAuthConsentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubmitAgentOAuthConsentResponse(rsp)
+}
+
+func (c *ClientWithResponses) SubmitAgentOAuthConsentWithResponse(ctx context.Context, body SubmitAgentOAuthConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitAgentOAuthConsentResponse, error) {
+	rsp, err := c.SubmitAgentOAuthConsent(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubmitAgentOAuthConsentResponse(rsp)
+}
+
 // ListAgentOAuthGrantsWithResponse request returning *ListAgentOAuthGrantsResponse
 func (c *ClientWithResponses) ListAgentOAuthGrantsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAgentOAuthGrantsResponse, error) {
 	rsp, err := c.ListAgentOAuthGrants(ctx, reqEditors...)
@@ -41111,6 +41422,103 @@ func (c *ClientWithResponses) RotateWorkspaceAgentApiKeyWithResponse(ctx context
 	return ParseRotateWorkspaceAgentApiKeyResponse(rsp)
 }
 
+// ParseGetAgentOAuthConsentContextResponse parses an HTTP response from a GetAgentOAuthConsentContextWithResponse call
+func ParseGetAgentOAuthConsentContextResponse(rsp *http.Response) (*GetAgentOAuthConsentContextResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentOAuthConsentContextResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ClientId      string `json:"clientId"`
+			ClientName    string `json:"clientName"`
+			GrantLifetime struct {
+				AccessTokenSeconds  *int `json:"accessTokenSeconds,omitempty"`
+				RefreshTokenSeconds *int `json:"refreshTokenSeconds,omitempty"`
+			} `json:"grantLifetime"`
+			InstanceOrigin string                                                 `json:"instanceOrigin"`
+			RedirectUri    string                                                 `json:"redirectUri"`
+			Scopes         []GetAgentOAuthConsentContext200JSONResponseBodyScopes `json:"scopes"`
+			StandardScopes []string                                               `json:"standardScopes"`
+			Workspace      struct {
+				Id   string  `json:"id"`
+				Name *string `json:"name"`
+			} `json:"workspace"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSubmitAgentOAuthConsentResponse parses an HTTP response from a SubmitAgentOAuthConsentWithResponse call
+func ParseSubmitAgentOAuthConsentResponse(rsp *http.Response) (*SubmitAgentOAuthConsentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SubmitAgentOAuthConsentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Url string `json:"url"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListAgentOAuthGrantsResponse parses an HTTP response from a ListAgentOAuthGrantsWithResponse call
 func ParseListAgentOAuthGrantsResponse(rsp *http.Response) (*ListAgentOAuthGrantsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -41128,13 +41536,16 @@ func ParseListAgentOAuthGrantsResponse(rsp *http.Response) (*ListAgentOAuthGrant
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
 			Items []struct {
-				ClientId  string                                               `json:"clientId"`
-				CreatedAt string                                               `json:"createdAt"`
-				Id        string                                               `json:"id"`
-				OrgId     string                                               `json:"orgId"`
-				Scopes    []ListAgentOAuthGrants200JSONResponseBodyItemsScopes `json:"scopes"`
-				UpdatedAt string                                               `json:"updatedAt"`
-				UserId    string                                               `json:"userId"`
+				ClientId      string                                               `json:"clientId"`
+				ClientName    *string                                              `json:"clientName,omitempty"`
+				CreatedAt     string                                               `json:"createdAt"`
+				Id            string                                               `json:"id"`
+				LastUsedAt    *string                                              `json:"lastUsedAt"`
+				OrgId         string                                               `json:"orgId"`
+				Scopes        []ListAgentOAuthGrants200JSONResponseBodyItemsScopes `json:"scopes"`
+				Status        ListAgentOAuthGrants200JSONResponseBodyItemsStatus   `json:"status"`
+				UserId        string                                               `json:"userId"`
+				WorkspaceName *string                                              `json:"workspaceName"`
 			} `json:"items"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

@@ -6,6 +6,11 @@ import type {
   AgentApiKeyCreateInput,
   AgentApiKeyList,
   AgentApiKeyRotateInput,
+  AgentOAuthConsentContext,
+  AgentOAuthConsentResult,
+  AgentOAuthConsentSubmit,
+  AgentOAuthGrant,
+  AgentOAuthGrantList,
   AllowedImageMime,
   AnnouncementInput,
   CloudCreditBalanceResponse,
@@ -103,6 +108,7 @@ import {
   adminSiteInvitations,
   adminTeams,
   agentApiKeysApi,
+  agentOAuthGrantsApi,
   announcementsApi,
   authedSharesApi,
   authProviders,
@@ -1092,7 +1098,17 @@ export function deleteIhostConfig() {
 
 // Agent Access API keys
 
-export type { AgentApiKey, AgentApiKeyCreated, AgentApiKeyCreateInput, AgentApiKeyList, AgentApiKeyRotateInput }
+export type {
+  AgentApiKey,
+  AgentApiKeyCreated,
+  AgentApiKeyCreateInput,
+  AgentApiKeyList,
+  AgentApiKeyRotateInput,
+  AgentOAuthConsentContext,
+  AgentOAuthConsentResult,
+  AgentOAuthGrant,
+  AgentOAuthGrantList,
+}
 
 export function listAgentApiKeys(orgId: string, page = 1, pageSize = 50) {
   return unwrap<AgentApiKeyList>(
@@ -1122,6 +1138,22 @@ export function revokeAgentApiKey(orgId: string, keyId: string) {
   return agentApiKeysApi[':orgId']['agent-api-keys'][':keyId'].$delete({ param: { orgId, keyId } }).then((res) => {
     if (!res.ok) throw new ApiError(res.status, toErrorBody(res.status, { error: res.statusText }))
   })
+}
+
+export function getAgentOAuthConsentContext(oauthQuery: string) {
+  return unwrap<AgentOAuthConsentContext>(agentOAuthGrantsApi['agent-oauth-consent'].$get({ query: { oauthQuery } }))
+}
+
+export function submitAgentOAuthConsent(input: AgentOAuthConsentSubmit) {
+  return unwrap<AgentOAuthConsentResult>(agentOAuthGrantsApi['agent-oauth-consent'].$post({ json: input }))
+}
+
+export function listAgentOAuthGrants() {
+  return unwrap<AgentOAuthGrantList>(agentOAuthGrantsApi['agent-oauth-grants'].$get())
+}
+
+export function revokeAgentOAuthGrant(grantId: string) {
+  return discard(agentOAuthGrantsApi['agent-oauth-grants'][':grantId'].$delete({ param: { grantId } }))
 }
 
 // Image Host API Keys (via better-auth apiKey plugin)

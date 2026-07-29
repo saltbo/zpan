@@ -108,6 +108,7 @@ export function authorize(declaration: RouteAuthorizationDeclaration) {
     })
     if (decision.allowed) {
       if (decision.effectiveOrgId) c.set('orgId', decision.effectiveOrgId)
+      await recordAgentOAuthGrantUse(c, declaration, decision.effectiveOrgId)
       await next()
       return
     }
@@ -132,6 +133,23 @@ export function requirePermission(
     minTeamRole: opts.minTeamRole,
     allowDownloader: opts.allowDownloader,
     auditDenied: true,
+  })
+}
+
+async function recordAgentOAuthGrantUse(
+  c: Context<Env>,
+  declaration: RouteAuthorizationDeclaration,
+  effectiveOrgId: string | null,
+) {
+  const context = c.get('authzContext')
+  if (declaration.access !== 'protected' || !declaration.scopes?.length) return
+  if (context.credential !== 'agent_oauth') return
+  if (!context.userId || !effectiveOrgId || context.actor?.type !== 'agent_oauth') return
+  await c.get('deps').agentOAuth.recordGrantUse(c.get('platform').db, {
+    grantId: context.actor.ref,
+    userId: context.userId,
+    orgId: effectiveOrgId,
+    now: new Date(),
   })
 }
 

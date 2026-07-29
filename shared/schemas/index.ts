@@ -31,6 +31,25 @@ export {
   agentGrantableScopeSchema,
   agentScopeLabels,
 } from './agent-api-keys'
+export type {
+  AgentOAuthConsentContext,
+  AgentOAuthConsentContextRequest,
+  AgentOAuthConsentResult,
+  AgentOAuthConsentSubmit,
+  AgentOAuthGrant,
+  AgentOAuthGrantList,
+  AgentOAuthGrantStatus,
+} from './agent-oauth-grants'
+export {
+  agentOAuthConsentContextRequestSchema,
+  agentOAuthConsentContextSchema,
+  agentOAuthConsentResultSchema,
+  agentOAuthConsentSubmitSchema,
+  agentOAuthGrantDTO,
+  agentOAuthGrantListSchema,
+  agentOAuthGrantSchema,
+  agentOAuthGrantStatusSchema,
+} from './agent-oauth-grants'
 
 export type {
   AnnouncementInput,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { listAgentOAuthGrants, revokeAgentOAuthGrant } from './agent-oauth-grants'
-import type { AgentOAuthGateway } from './ports'
+import type { AgentOAuthGateway, OrgRepo } from './ports'
 
 const db = {} as never
 
@@ -10,7 +10,21 @@ function gateway(overrides: Partial<AgentOAuthGateway> = {}): AgentOAuthGateway 
     assertLiveGrant: vi.fn(),
     verifyAccessToken: vi.fn(),
     listGrants: vi.fn(async () => []),
+    recordGrantUse: vi.fn(),
     revokeGrant: vi.fn(async () => true),
+    ...overrides,
+  }
+}
+
+function org(overrides: Partial<OrgRepo> = {}): OrgRepo {
+  return {
+    findPersonalOrg: vi.fn(),
+    getMemberRole: vi.fn(),
+    getOrgNames: vi.fn(async () => new Map([['org-1', 'Personal']])),
+    canReadOrg: vi.fn(),
+    canWriteToOrg: vi.fn(),
+    canManageAgentAccess: vi.fn(),
+    isPersonalOrg: vi.fn(),
     ...overrides,
   }
 }
@@ -26,21 +40,24 @@ describe('Agent OAuth grant usecases', () => {
           orgId: 'org-1',
           scopes: [],
           createdAt: '2026-07-29T12:00:00.000Z',
-          updatedAt: '2026-07-29T12:00:00.000Z',
+          lastUsedAt: null,
         },
       ]),
     })
 
-    await expect(listAgentOAuthGrants({ agentOAuth }, db, { userId: 'user-1' })).resolves.toEqual({
+    await expect(listAgentOAuthGrants({ agentOAuth, org: org() }, db, { userId: 'user-1' })).resolves.toEqual({
       items: [
         {
           id: 'grant-1',
           clientId: 'zpan-agent',
+          clientName: 'ZPan Agent',
           userId: 'user-1',
           orgId: 'org-1',
+          workspaceName: 'Personal',
           scopes: [],
           createdAt: '2026-07-29T12:00:00.000Z',
-          updatedAt: '2026-07-29T12:00:00.000Z',
+          lastUsedAt: null,
+          status: 'active',
         },
       ],
     })
