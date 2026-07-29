@@ -54,6 +54,36 @@ describe('Agent OAuth consent usecase', () => {
     })
   })
 
+  it('keeps the active workspace id when the workspace name is unavailable', async () => {
+    await expect(
+      getAgentOAuthConsentContext(
+        { org: org({ getOrgNames: vi.fn(async () => new Map()) }) },
+        {
+          userId: 'user-1',
+          orgId: 'org-1',
+          requestUrl: 'https://zpan.example.test/api/agent-oauth-consent',
+          oauthQuery: oauthQuery(),
+        },
+      ),
+    ).resolves.toMatchObject({
+      workspace: { id: 'org-1', name: null },
+    })
+  })
+
+  it('rejects requests that are not the managed authorization-code client flow', async () => {
+    await expect(
+      getAgentOAuthConsentContext(
+        { org: org() },
+        {
+          userId: 'user-1',
+          orgId: 'org-1',
+          requestUrl: 'https://zpan.example.test/api/agent-oauth-consent',
+          oauthQuery: oauthQuery({ response_type: 'token' }),
+        },
+      ),
+    ).rejects.toMatchObject({ httpStatus: 400 })
+  })
+
   it('rejects untrusted redirect URIs and non-grantable scopes', async () => {
     await expect(
       getAgentOAuthConsentContext(

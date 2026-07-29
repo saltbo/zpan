@@ -136,6 +136,28 @@ describe('Agent OAuth gateway', () => {
         updatedAt: new Date('2026-07-29T12:03:00.000Z'),
       },
     ])
+    await db.insert(authSchema.oauthAccessToken).values([
+      {
+        id: 'access-older',
+        token: 'hashed-access-older',
+        clientId: AGENT_OAUTH_CLIENT_ID,
+        userId,
+        referenceId: orgId,
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date('2026-07-29T12:05:00.000Z'),
+        scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
+      },
+      {
+        id: 'access-newer',
+        token: 'hashed-access-newer',
+        clientId: AGENT_OAUTH_CLIENT_ID,
+        userId,
+        referenceId: orgId,
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date('2026-07-29T12:10:00.000Z'),
+        scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
+      },
+    ])
 
     await expect(createAgentOAuthGateway().listGrants(db, userId)).resolves.toEqual([
       {
@@ -145,7 +167,7 @@ describe('Agent OAuth gateway', () => {
         orgId,
         scopes: [AuthorizationScope.OBJECTS_READ],
         createdAt: '2026-07-29T12:00:00.000Z',
-        lastUsedAt: null,
+        lastUsedAt: '2026-07-29T12:10:00.000Z',
       },
     ])
   })

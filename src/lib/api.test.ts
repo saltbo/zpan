@@ -3268,6 +3268,21 @@ describe('api', () => {
       })
     })
 
+    it('throws an API error when Better Auth rejects OAuth consent with a non-JSON response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        json: async () => {
+          throw new Error('not json')
+        },
+      } as unknown as Response)
+
+      await expect(submitAgentOAuthConsent({ accept: false, oauthQuery: 'client_id=zpan-agent' })).rejects.toThrow(
+        ApiError,
+      )
+    })
+
     it('lists delegated Agent OAuth grants', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(sampleGrantList))
 
