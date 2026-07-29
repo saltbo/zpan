@@ -11,7 +11,7 @@ Three scenarios, one platform:
 
 - **Image Hosting** — Upload via PicGo / uPic / ShareX / API, get a permanent URL on your own domain
 - **File Sharing** — Upload, generate a link, distribute
-- **Automation & Sync** — Agent-friendly CLI for scripted file management, plus a server-side sync protocol for future desktop clients
+- **Automation & Sync** — Agent-friendly OpenAPI + Restish + upload plugin + Skill workflows for scripted file management, plus a server-side sync protocol for future desktop clients
 
 ## Target Users
 
@@ -37,7 +37,7 @@ Each version ships 1–2 major features. Ship small, ship often.
 | [v2.6](docs/roadmap/v2.6.md) | **Pro / Business Launch** | Cloud binding, entitlement system, white-label, audit log, quota store machinery, site announcements, retroactive gates |
 | [v2.7](docs/roadmap/v2.7.md) | **WebDAV & File Processing** | WebDAV protocol access, small-file zip compression/extraction, and Community remote-download orchestration through Aria2, qBittorrent, and future adapters |
 | [v2.8](docs/roadmap/v2.8.md) | **Admin Analytics & Dashboard** | Admin overview, usage/cost/reliability metrics, share analytics, and offline result coverage |
-| [v2.9](docs/roadmap/v2.9.md) | **Agent CLI** | Scriptable CLI for agents and CI: upload/manage files, shares, spaces, quota, and tasks |
+| [v2.9](docs/roadmap/v2.9.md) | **Agent Access** | Unified OpenAPI + Restish + upload plugin + Skill, protocol-neutral authorization, delegated OAuth, and workspace-scoped CI keys |
 | [v2.10](docs/roadmap/v2.10.md) | **Desktop Sync Foundation** | Sync device model, change log, sync API contract, conflict model, and protocol tests for external clients |
 | Future | **Native Client Projects** | macOS File Provider, Windows/Linux sync clients, Flutter/mobile clients, and other OS-specific apps in separate repositories |
 | Future | **Enterprise Identity & Governance** | SAML, LDAP / SCIM, advanced RBAC/custom roles, retention, and admin support mode if demand proves real |
@@ -76,7 +76,7 @@ Everything an individual, family, or small team needs to self-host:
 - One personal workspace plus one extra team workspace, shared folders, and basic roles
 - Small-file zip compression and extraction within local runtime limits
 - Remote-download orchestration through one user-configured downloader, with Aria2, qBittorrent, and future compatible adapters
-- Agent-friendly CLI once v2.9 ships
+- Agent-friendly OpenAPI + Restish + upload plugin + Skill workflows once v2.9 ships
 - Desktop sync protocol foundation once v2.10 ships; actual native clients live in separate projects
 - All 7 deployment targets
 
