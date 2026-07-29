@@ -122,6 +122,7 @@ export async function listObjects(
   params: {
     orgId: string
     userId: string
+    fixedOrgId?: string | null
     orgOverride?: string
     filters: MatterListFilters
   },
@@ -130,6 +131,7 @@ export async function listObjects(
   // Optional org override so pickers (e.g. cross-space transfer) can browse
   // folders of another space the user has access to.
   if (params.orgOverride && params.orgOverride !== orgId) {
+    if (params.fixedOrgId) return { ok: false, error: forbidden() }
     if (!(await deps.org.canReadOrg(params.userId, params.orgOverride))) {
       return { ok: false, error: forbidden() }
     }

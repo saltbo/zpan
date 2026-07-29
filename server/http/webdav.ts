@@ -69,7 +69,7 @@ import {
 
 const WEBDAV_METHOD_SCOPES: Record<
   string,
-  Array<{ resource: 'objects'; action: 'read' | 'create' | 'update' | 'delete' | 'move' }>
+  Array<{ resource: 'objects'; action: 'read' | 'create' | 'update' | 'delete' }>
 > = {
   OPTIONS: [{ resource: 'objects', action: 'read' }],
   PROPFIND: [{ resource: 'objects', action: 'read' }],
@@ -88,7 +88,7 @@ const WEBDAV_METHOD_SCOPES: Record<
   LOCK: [{ resource: 'objects', action: 'update' }],
   UNLOCK: [{ resource: 'objects', action: 'update' }],
   DELETE: [{ resource: 'objects', action: 'delete' }],
-  MOVE: [{ resource: 'objects', action: 'move' }],
+  MOVE: [{ resource: 'objects', action: 'update' }],
 }
 
 type DavContext = Context<Env>

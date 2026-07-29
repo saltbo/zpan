@@ -456,6 +456,7 @@ export type ListSharesParams = {
   box: 'received' | 'sent' | undefined
   pageSize: number
   status?: string
+  fixedOrgId?: string | null
   after?: { createdAt: Date; id: string }
 }
 
@@ -464,10 +465,10 @@ export async function listShares(deps: ShareDeps, params: ListSharesParams) {
 
   if (box === 'received') {
     const email = await deps.share.getUserEmail(userId)
-    return deps.share.listReceivedForApi(userId, email, { pageSize, after })
+    return deps.share.listReceivedForApi(userId, email, { pageSize, orgId: params.fixedOrgId ?? undefined, after })
   }
 
-  return deps.share.listForApi(userId, { pageSize, status, after })
+  return deps.share.listForApi(userId, { pageSize, status, orgId: params.fixedOrgId ?? undefined, after })
 }
 
 // ─── POST / — create a share (notify + activity; map create errors) ──────────
@@ -563,6 +564,7 @@ export async function createShare(
 export type SetSharePrivacyParams = {
   token: string
   userId: string
+  fixedOrgId?: string | null
   private: boolean
 }
 
@@ -576,6 +578,7 @@ export async function setSharePrivacy(deps: ShareDeps, params: SetSharePrivacyPa
   }
 
   const { share, recipients } = resolved
+  if (params.fixedOrgId && share.orgId !== params.fixedOrgId) return { ok: false, error: forbidden() }
   if (share.creatorId !== userId) return { ok: false, error: forbidden() }
   if (share.kind !== 'landing' || recipients.length > 0) {
     return {
@@ -595,7 +598,7 @@ export function listPublicProfileShares(deps: ShareDeps, username: string, now =
 
 // ─── PUT /:token/status — revoke (ownership-scoped) ──────────────────────────
 
-export type RevokeShareParams = { token: string; userId: string; now?: Date }
+export type RevokeShareParams = { token: string; userId: string; fixedOrgId?: string | null; now?: Date }
 
 export type RevokeShareOutcome = { ok: true; dto: ShareViewerDto | ShareCreatorDto } | { ok: false; error: AppError }
 
@@ -610,6 +613,7 @@ export async function revokeShare(deps: ShareDeps, params: RevokeShareParams): P
   // to shares), so this path stays revocable.
   const resolved = await deps.share.resolveByToken(token)
   if (resolved.status === 'not_found' || resolved.status === 'revoked') return { ok: false, error: notFound() }
+  if (params.fixedOrgId && resolved.share.orgId !== params.fixedOrgId) return { ok: false, error: forbidden() }
   if (resolved.share.creatorId !== userId) return { ok: false, error: forbidden() }
 
   // Race-safe: revokeByToken scopes the UPDATE to (token, creatorId). An
@@ -633,6 +637,7 @@ export type SaveShareParams = {
   token: string
   currentUserId: string
   targetOrgId: string
+  fixedTargetOrgId?: string | null
   targetParent: string
   accessCookie: string | undefined
 }
@@ -662,6 +667,7 @@ export async function saveShare(deps: ShareDeps, params: SaveShareParams): Promi
   if (checkAccessGate(share.passwordHash, recipients, currentUserId, accessCookie) === 'password_required')
     return { ok: false, error: passwordRequired('Authentication required for password-protected share') }
 
+  if (params.fixedTargetOrgId && targetOrgId !== params.fixedTargetOrgId) return { ok: false, error: forbidden() }
   if (!(await deps.org.canWriteToOrg(currentUserId, targetOrgId))) return { ok: false, error: forbidden() }
 
   const totalBytes = await deps.share.computeSourceBytes(matter)

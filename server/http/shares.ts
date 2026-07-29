@@ -1,4 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
@@ -12,7 +13,6 @@ import {
   shareRecipientViewSchema,
 } from '../../shared/schemas/share'
 import { transferAuditActor } from '../middleware/audit-transfers'
-import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import type { Matter, ShareListItem } from '../usecases/ports'
 import {
@@ -409,28 +409,34 @@ export const publicShares = pub
 
 // ─── AUTHED SEGMENT ─────────────────────────────────────────────────────────
 const listSharesRoute = authRoute(
-  { access: 'session' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.SHARES_READ],
+    minTeamRole: 'viewer',
+  },
   {
     operationId: 'listShares',
     summary: 'List my shares',
     tags: ['Shares'],
     method: 'get',
     path: '/',
-    middleware: [requireAuth] as const,
     request: { query: listSharesQuerySchema },
     responses: { 200: jsonContent(shareListSchema, 'Shares') },
   },
 )
 
 const createShareRoute = authRoute(
-  { access: 'session', minTeamRole: 'editor' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.SHARES_CREATE],
+    minTeamRole: 'editor',
+  },
   {
     operationId: 'createShare',
     summary: 'Create a share',
     tags: ['Shares'],
     method: 'post',
     path: '/',
-    middleware: [requireAuth, requireTeamRole('editor')] as const,
     request: jsonBody(createShareRequestSchema),
     responses: {
       201: jsonContent(createdShareSchema, 'Created share'),
@@ -441,14 +447,16 @@ const createShareRoute = authRoute(
 )
 
 const revokeShareRoute = authRoute(
-  { access: 'session' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.SHARES_DELETE],
+  },
   {
     operationId: 'revokeShare',
     summary: 'Revoke a share',
     tags: ['Shares'],
     method: 'put',
     path: '/{token}/status',
-    middleware: [requireAuth] as const,
     request: {
       params: z.object({ token: z.string() }),
       ...jsonBody(z.object({ status: z.literal('revoked') })),
@@ -464,14 +472,16 @@ const revokeShareRoute = authRoute(
 const sharePrivacySchema = z.object({ private: z.boolean() }).openapi('SharePrivacy')
 
 const putSharePrivacyRoute = authRoute(
-  { access: 'session' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.SHARES_CREATE],
+  },
   {
     operationId: 'putSharePrivacy',
     summary: 'Set whether a share is hidden from the owner public profile',
     tags: ['Shares'],
     method: 'put',
     path: '/{token}/privacy',
-    middleware: [requireAuth] as const,
     request: {
       params: z.object({ token: z.string() }),
       ...jsonBody(sharePrivacySchema),
@@ -486,14 +496,17 @@ const putSharePrivacyRoute = authRoute(
 )
 
 const saveShareRoute = authRoute(
-  { access: 'session' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_CREATE],
+    minTeamRole: 'editor',
+  },
   {
     operationId: 'saveShare',
     summary: 'Save a share to my drive',
     tags: ['Shares'],
     method: 'post',
     path: '/{token}/objects',
-    middleware: [requireAuth] as const,
     request: { params: z.object({ token: z.string() }), ...jsonBody(saveShareRequestSchema) },
     responses: {
       201: jsonContent(saveShareResultSchema, 'Saved'),
@@ -518,7 +531,14 @@ export const authedShares = authedApp
       query: fingerprint,
       codec: createdAtIdCursorCodec,
     })
-    const result = await listShares(c.get('deps'), { userId, box, pageSize, status, after })
+    const result = await listShares(c.get('deps'), {
+      userId,
+      box,
+      pageSize,
+      status,
+      fixedOrgId: c.get('authzContext').fixedOrgId,
+      after,
+    })
     return c.json(
       {
         items: result.items.map(toShareListItemDTO),
@@ -555,6 +575,7 @@ export const authedShares = authedApp
     const out = await setSharePrivacy(c.get('deps'), {
       token: c.req.valid('param').token,
       userId: c.get('userId')!,
+      fixedOrgId: c.get('authzContext').fixedOrgId,
       private: c.req.valid('json').private,
     })
     if (out.ok) return c.json({ private: out.private }, 200)
@@ -564,6 +585,7 @@ export const authedShares = authedApp
     const out = await revokeShare(c.get('deps'), {
       token: c.req.valid('param').token,
       userId: c.get('userId')!,
+      fixedOrgId: c.get('authzContext').fixedOrgId,
     })
     if (out.ok) return c.json(toShareViewDTO(out.dto), 200)
     throw out.error
@@ -575,6 +597,7 @@ export const authedShares = authedApp
       token,
       currentUserId: c.get('userId')!,
       targetOrgId,
+      fixedTargetOrgId: c.get('authzContext').fixedOrgId,
       targetParent,
       accessCookie: getCookie(c, cookieName(token)),
     })

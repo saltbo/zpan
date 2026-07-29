@@ -265,10 +265,11 @@ export function createShareRepo(db: Database): ShareRepo {
 
     async listForApi(
       creatorId: string,
-      opts: { pageSize: number; status?: string; after?: { createdAt: Date; id: string } },
+      opts: { pageSize: number; status?: string; orgId?: string; after?: { createdAt: Date; id: string } },
     ): Promise<{ items: ShareListItem[]; nextBoundary: { createdAt: Date; id: string } | null }> {
       const conditions = [eq(shares.creatorId, creatorId)]
       if (opts.status) conditions.push(eq(shares.status, opts.status))
+      if (opts.orgId) conditions.push(eq(shares.orgId, opts.orgId))
       if (opts.after) {
         conditions.push(
           or(
@@ -327,7 +328,7 @@ export function createShareRepo(db: Database): ShareRepo {
     async listReceivedForApi(
       userId: string,
       userEmail: string | null,
-      opts: { pageSize: number; after?: { createdAt: Date; id: string } },
+      opts: { pageSize: number; orgId?: string; after?: { createdAt: Date; id: string } },
     ): Promise<{ items: ShareListItem[]; nextBoundary: { createdAt: Date; id: string } | null }> {
       const recipientMatch = userEmail
         ? or(eq(shareRecipients.recipientUserId, userId), eq(shareRecipients.recipientEmail, userEmail))
@@ -338,7 +339,12 @@ export function createShareRepo(db: Database): ShareRepo {
             and(eq(shares.createdAt, opts.after.createdAt), lt(shares.id, opts.after.id)),
           )
         : undefined
-      const where = and(eq(shares.status, 'active'), recipientMatch, cursor)
+      const where = and(
+        eq(shares.status, 'active'),
+        recipientMatch,
+        opts.orgId ? eq(shares.orgId, opts.orgId) : undefined,
+        cursor,
+      )
 
       const rows = await db
         .select({

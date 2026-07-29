@@ -9,6 +9,7 @@ import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
+type TestAuth = Awaited<ReturnType<typeof createTestApp>>['auth']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,40 @@ async function getOrgId(db: TestDb): Promise<string> {
     SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1
   `)
   return rows[0].id
+}
+
+async function getUserIdByEmail(db: TestDb, email: string): Promise<string> {
+  const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = ${email}`)
+  return rows[0].id
+}
+
+async function createWorkspaceApiKey(
+  auth: TestAuth,
+  orgId: string,
+  userId: string,
+  permissions: Record<string, string[]>,
+): Promise<string> {
+  // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
+  const result = (await (auth.api as any).createApiKey({
+    body: {
+      configId: 'ihost',
+      organizationId: orgId,
+      userId,
+      permissions,
+    },
+  })) as { key: string }
+  return result.key
+}
+
+async function createWebDavApiKey(auth: TestAuth, userId: string): Promise<string> {
+  // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
+  const result = (await (auth.api as any).createApiKey({
+    body: {
+      configId: 'webdav',
+      userId,
+    },
+  })) as { key: string }
+  return result.key
 }
 
 async function createShare(app: TestApp, headers: Record<string, string>, body: Record<string, unknown>) {
@@ -420,6 +455,24 @@ describe('share privacy mutation', () => {
       expect(body.error.details[0]?.reason).toBe('SHARE_PRIVACY_INELIGIBLE')
     }
   })
+
+  it('does not let user-wide WebDAV app passwords mutate share privacy', async () => {
+    const { app, db, auth } = await createTestApp()
+    const ownerHeaders = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertFile(db, orgId, { id: 'webdav-share-privacy', name: 'webdav-share-privacy.txt' })
+    const created = await createShare(app, ownerHeaders, { matterId: 'webdav-share-privacy', kind: 'landing' })
+    const token = ((await created.json()) as { token: string }).token
+    const key = await createWebDavApiKey(auth, userId)
+
+    const res = await privacyRequest(app, token, true, { Authorization: `Bearer ${key}` })
+
+    expect(res.status).toBe(403)
+    const rows = await db.select({ private: shares.private }).from(shares).where(eq(shares.token, token))
+    expect(rows[0]?.private).toBe(false)
+  })
 })
 
 // ─── GET /api/shares auth guard ───────────────────────────────────────────────
@@ -544,6 +597,37 @@ describe('GET /api/shares', () => {
     const resRevoked = await app.request('/api/shares?status=revoked', { headers })
     const revokedBody = (await resRevoked.json()) as { items: unknown[] }
     expect(revokedBody.items).toHaveLength(1)
+  })
+
+  it('filters a fixed-workspace API key share list to its workspace', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    const teamOrgId = `team-share-list-${nanoid()}`
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata, created_at)
+      VALUES (${teamOrgId}, 'Team Share List', ${teamOrgId}, '{"type":"team"}', ${now})
+    `)
+    await insertFile(db, orgId, { id: 'api-share-personal', name: 'personal.txt' })
+    await insertFile(db, teamOrgId, { id: 'api-share-team', name: 'team.txt' })
+    await db.run(sql`
+      INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
+      VALUES
+        ('api-share-personal-row', 'api-share-personal-token', 'landing', 'api-share-personal', ${orgId}, ${userId}, 0, 0, 'active', ${now}),
+        ('api-share-team-row', 'api-share-team-token', 'landing', 'api-share-team', ${teamOrgId}, ${userId}, 0, 0, 'active', ${now + 1})
+    `)
+    const key = await createWorkspaceApiKey(auth, orgId, userId, { shares: ['read'] })
+
+    const res = await app.request('/api/shares', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ orgId: string; matter: { name: string } }> }
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0]).toMatchObject({ orgId, matter: { name: 'personal.txt' } })
   })
 })
 
@@ -802,6 +886,35 @@ describe('POST /api/shares/:token/objects', () => {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: fakeTeamOrgId, targetParent: '' }),
+    })
+    expect(res.status).toBe(403)
+  })
+
+  it('rejects save-share targetOrgId escape for a fixed-workspace API key', async () => {
+    const { app, db, auth } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertFile(db, orgId, { id: 'sv-api-fixed', name: 'fixed-key.txt' })
+    const teamOrgId = `team-save-api-${nanoid()}`
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata, created_at)
+      VALUES (${teamOrgId}, 'Team Save API', ${teamOrgId}, '{"type":"team"}', ${now})
+    `)
+    await db.run(sql`
+      INSERT INTO member (id, organization_id, user_id, role, created_at)
+      VALUES (${nanoid()}, ${teamOrgId}, ${userId}, 'editor', ${now})
+    `)
+    const createRes = await createShare(app, headers, { matterId: 'sv-api-fixed', kind: 'landing' })
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
+    const key = await createWorkspaceApiKey(auth, orgId, userId, { objects: ['create'] })
+
+    const res = await app.request(`/api/shares/${token}/objects`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetOrgId: teamOrgId, targetParent: '' }),
     })
     expect(res.status).toBe(403)
   })
@@ -1087,6 +1200,24 @@ describe('PUT /api/shares/:token/status', () => {
 
     const rows = await db.select({ status: shares.status }).from(shares).where(eq(shares.token, token))
     expect(rows[0]?.status).toBe('revoked')
+  })
+
+  it('does not let user-wide WebDAV app passwords revoke shares', async () => {
+    const { app, db, auth } = await createTestApp()
+    const ownerHeaders = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertFile(db, orgId, { id: 'webdav-share-revoke', name: 'webdav-share-revoke.txt' })
+    const created = await createShare(app, ownerHeaders, { matterId: 'webdav-share-revoke', kind: 'landing' })
+    const token = ((await created.json()) as { token: string }).token
+    const key = await createWebDavApiKey(auth, userId)
+
+    const res = await revokeRequest(app, token, { Authorization: `Bearer ${key}` })
+
+    expect(res.status).toBe(403)
+    const rows = await db.select({ status: shares.status }).from(shares).where(eq(shares.token, token))
+    expect(rows[0]?.status).toBe('active')
   })
 })
 

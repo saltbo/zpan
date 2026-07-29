@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { WEBDAV_API_KEY_PERMISSIONS } from './api-key-templates'
 import {
   AGENT_GRANTABLE_AUTHORIZATION_SCOPES,
   AuthorizationScope,
@@ -23,5 +24,9 @@ describe('authorization scope registry', () => {
     expect(CANONICAL_AUTHORIZATION_SCOPES).toContain(AuthorizationScope.OBJECTS_PURGE)
     expect(AGENT_GRANTABLE_AUTHORIZATION_SCOPES).not.toContain(AuthorizationScope.OBJECTS_PURGE)
     expect(scopePermissions([AuthorizationScope.OBJECTS_DELETE])).toEqual({ objects: ['delete'] })
+  })
+
+  it('does not grant share mutation scopes to user-wide WebDAV app passwords', () => {
+    expect(WEBDAV_API_KEY_PERMISSIONS.shares).toEqual(['read'])
   })
 })

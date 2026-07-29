@@ -57,11 +57,11 @@ Feature: Quotas
     When an authenticated user reads their quota
     Then the built-in 10MB default is returned
 
-  @quotas/me-no-org @api
-  Scenario: A user with no org has no quota
-    Given an authenticated user with no org
-    When they read their quota
-    Then the API responds 404
+  @quotas/me-api-key @api
+  Scenario: Workspace API keys can read their bound workspace quota
+    Given a workspace API key with quota read scope
+    When it reads the personal quota API
+    Then the API returns the quota for the key workspace
 
   @quotas/me-effective @api
   Scenario: My quota includes my active entitlements

@@ -1,4 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import {
   completeObjectUploadSchema,
   copyObjectBodySchema,
@@ -12,10 +13,8 @@ import {
   transferMatterSchema,
 } from '@shared/schemas'
 import type { Context } from 'hono'
-import { createMiddleware } from 'hono/factory'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { transferAuditActor } from '../middleware/audit-transfers'
-import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
   abortUpload,
@@ -24,7 +23,6 @@ import {
   copyObject,
   createObject,
   getObject,
-  hasEditorAccess,
   listObjects,
   type ObjectActor,
   ObjectUploadSessionError,
@@ -33,7 +31,7 @@ import {
   trashObject,
   updateObject,
 } from '../usecases/object'
-import { badRequest, forbidden, type Matter, type MatterListItem, unauthorized } from '../usecases/ports'
+import { badRequest, forbidden, type Matter, type MatterListItem } from '../usecases/ports'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import { decodeOptionalPageToken, directoryCursorCodec, encodeNextPageToken, pageQueryFingerprint } from './page-token'
@@ -150,33 +148,18 @@ function actorId(c: Context<Env>): string {
 
 const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 
-const requireObjectWriteAccess = createMiddleware<Env>(async (c, next) => {
-  const principal = c.get('principal')
-  if (principal?.kind === 'download-task-upload') {
-    await next()
-    return
-  }
-  if (!(await hasEditorAccess(c.get('deps'), { orgId: c.get('orgId'), userId: c.get('userId') }))) {
-    if (c.get('userId')) throw forbidden()
-    throw unauthorized()
-  }
-  await next()
-})
-
-const objectWriteAuth = {
-  access: 'anyOf',
-  policies: [{ access: 'session', minTeamRole: 'editor' }, { access: 'task-upload-token' }],
-} as const
-
 const listRoute = authRoute(
-  { access: 'session', minTeamRole: 'viewer' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_READ],
+    minTeamRole: 'viewer',
+  },
   {
     operationId: 'listObjects',
     summary: 'List objects',
     tags: ['Objects'],
     method: 'get',
     path: '/',
-    middleware: [requireTeamRole('viewer')] as const,
     request: { query: listObjectsQuerySchema },
     responses: {
       200: jsonContent(objectPageSchema, 'Objects'),
@@ -186,84 +169,111 @@ const listRoute = authRoute(
   },
 )
 
-const createObjectRoute = authRoute(objectWriteAuth, {
-  operationId: 'createObject',
-  summary: 'Create object',
-  tags: ['Objects'],
-  method: 'post',
-  path: '/',
-  middleware: [requireObjectWriteAccess] as const,
-  request: jsonBody(createMatterSchema),
-  responses: {
-    201: jsonContent(objectCreateResultSchema, 'Created object (folder, or file draft with upload instructions)'),
-    400: errorResponse('No active organization or file too large'),
-    403: errorResponse('Forbidden'),
-    409: errorResponse('Name conflict'),
-    503: errorResponse('No storage configured'),
+const createObjectRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_CREATE],
+    minTeamRole: 'editor',
   },
-})
+  {
+    operationId: 'createObject',
+    summary: 'Create object',
+    tags: ['Objects'],
+    method: 'post',
+    path: '/',
+    request: jsonBody(createMatterSchema),
+    responses: {
+      201: jsonContent(objectCreateResultSchema, 'Created object (folder, or file draft with upload instructions)'),
+      400: errorResponse('No active organization or file too large'),
+      403: errorResponse('Forbidden'),
+      409: errorResponse('Name conflict'),
+      503: errorResponse('No storage configured'),
+    },
+  },
+)
 
-const presignPartsRoute = authRoute(objectWriteAuth, {
-  operationId: 'presignObjectUploadParts',
-  summary: 'Re-presign upload parts',
-  tags: ['Objects'],
-  method: 'post',
-  path: '/{id}/uploads/{uploadSessionId}/parts',
-  middleware: [requireObjectWriteAccess] as const,
-  request: { params: sessionParams, ...jsonBody(presignObjectUploadPartsSchema) },
-  responses: {
-    200: jsonContent(presignObjectUploadPartsResponseSchema, 'Presigned multipart upload parts'),
-    400: errorResponse('Invalid upload session'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Not found'),
-    502: errorResponse('Storage failure'),
+const presignPartsRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_CREATE],
+    minTeamRole: 'editor',
   },
-})
+  {
+    operationId: 'presignObjectUploadParts',
+    summary: 'Re-presign upload parts',
+    tags: ['Objects'],
+    method: 'post',
+    path: '/{id}/uploads/{uploadSessionId}/parts',
+    request: { params: sessionParams, ...jsonBody(presignObjectUploadPartsSchema) },
+    responses: {
+      200: jsonContent(presignObjectUploadPartsResponseSchema, 'Presigned multipart upload parts'),
+      400: errorResponse('Invalid upload session'),
+      403: errorResponse('Forbidden'),
+      404: errorResponse('Not found'),
+      502: errorResponse('Storage failure'),
+    },
+  },
+)
 
-const completionsRoute = authRoute(objectWriteAuth, {
-  operationId: 'completeObjectUpload',
-  summary: 'Complete upload',
-  tags: ['Objects'],
-  method: 'post',
-  path: '/{id}/uploads/{uploadSessionId}/completions',
-  middleware: [requireObjectWriteAccess] as const,
-  request: { params: sessionParams, ...jsonBody(completeObjectUploadSchema) },
-  responses: {
-    200: jsonContent(matterSchema, 'Finalized live object'),
-    400: errorResponse('Invalid upload session'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Not found'),
-    422: errorResponse('Quota exceeded'),
-    502: errorResponse('Storage failure'),
+const completionsRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_CREATE],
+    minTeamRole: 'editor',
   },
-})
+  {
+    operationId: 'completeObjectUpload',
+    summary: 'Complete upload',
+    tags: ['Objects'],
+    method: 'post',
+    path: '/{id}/uploads/{uploadSessionId}/completions',
+    request: { params: sessionParams, ...jsonBody(completeObjectUploadSchema) },
+    responses: {
+      200: jsonContent(matterSchema, 'Finalized live object'),
+      400: errorResponse('Invalid upload session'),
+      403: errorResponse('Forbidden'),
+      404: errorResponse('Not found'),
+      422: errorResponse('Quota exceeded'),
+      502: errorResponse('Storage failure'),
+    },
+  },
+)
 
-const abortUploadRoute = authRoute(objectWriteAuth, {
-  operationId: 'abortObjectUpload',
-  summary: 'Abort upload',
-  tags: ['Objects'],
-  method: 'delete',
-  path: '/{id}/uploads/{uploadSessionId}',
-  middleware: [requireObjectWriteAccess] as const,
-  request: { params: sessionParams, query: abortUploadQuerySchema },
-  responses: {
-    204: { description: 'Aborted upload and discarded the draft' },
-    400: errorResponse('Invalid upload session'),
-    403: errorResponse('Forbidden'),
-    404: errorResponse('Not found'),
-    502: errorResponse('Storage cleanup failed'),
+const abortUploadRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_CREATE],
+    minTeamRole: 'editor',
   },
-})
+  {
+    operationId: 'abortObjectUpload',
+    summary: 'Abort upload',
+    tags: ['Objects'],
+    method: 'delete',
+    path: '/{id}/uploads/{uploadSessionId}',
+    request: { params: sessionParams, query: abortUploadQuerySchema },
+    responses: {
+      204: { description: 'Aborted upload and discarded the draft' },
+      400: errorResponse('Invalid upload session'),
+      403: errorResponse('Forbidden'),
+      404: errorResponse('Not found'),
+      502: errorResponse('Storage cleanup failed'),
+    },
+  },
+)
 
 const getObjectRoute = authRoute(
-  { access: 'session', minTeamRole: 'viewer' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_READ],
+    minTeamRole: 'viewer',
+  },
   {
     operationId: 'getObject',
     summary: 'Get object',
     tags: ['Objects'],
     method: 'get',
     path: '/{id}',
-    middleware: [requireTeamRole('viewer')] as const,
     request: { params: idParam },
     responses: {
       200: jsonContent(objectWithDownloadSchema, 'Object'),
@@ -275,30 +285,39 @@ const getObjectRoute = authRoute(
   },
 )
 
-const patchObjectRoute = authRoute(objectWriteAuth, {
-  operationId: 'updateObject',
-  summary: 'Update object',
-  tags: ['Objects'],
-  method: 'patch',
-  path: '/{id}',
-  middleware: [requireObjectWriteAccess] as const,
-  request: { params: idParam, ...jsonBody(patchMatterSchema) },
-  responses: {
-    200: jsonContent(matterSchema, 'Updated object'),
-    400: errorResponse('Bad request'),
-    404: errorResponse('Not found'),
+const patchObjectRoute = authRoute(
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_UPDATE],
+    minTeamRole: 'editor',
   },
-})
+  {
+    operationId: 'updateObject',
+    summary: 'Update object',
+    tags: ['Objects'],
+    method: 'patch',
+    path: '/{id}',
+    request: { params: idParam, ...jsonBody(patchMatterSchema) },
+    responses: {
+      200: jsonContent(matterSchema, 'Updated object'),
+      400: errorResponse('Bad request'),
+      404: errorResponse('Not found'),
+    },
+  },
+)
 
 const deleteObjectRoute = authRoute(
-  { access: 'session', minTeamRole: 'editor' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_DELETE],
+    minTeamRole: 'editor',
+  },
   {
     operationId: 'deleteObject',
     summary: 'Delete object',
     tags: ['Objects'],
     method: 'delete',
     path: '/{id}',
-    middleware: [requireTeamRole('editor')] as const,
     request: { params: idParam },
     responses: {
       // Soft delete: the object moves to trash (GET /trash/objects). Permanent
@@ -311,14 +330,17 @@ const deleteObjectRoute = authRoute(
 )
 
 const copyObjectRoute = authRoute(
-  { access: 'session', minTeamRole: 'editor' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_UPDATE],
+    minTeamRole: 'editor',
+  },
   {
     operationId: 'copyObject',
     summary: 'Copy object',
     tags: ['Objects'],
     method: 'post',
     path: '/{id}/copies',
-    middleware: [requireTeamRole('editor')] as const,
     request: { params: idParam, ...jsonBody(copyObjectBodySchema) },
     responses: {
       201: jsonContent(matterSchema, 'Copied object'),
@@ -329,14 +351,17 @@ const copyObjectRoute = authRoute(
 )
 
 const transferObjectRoute = authRoute(
-  { access: 'session', minTeamRole: 'viewer' },
+  {
+    access: 'protected',
+    scopes: [AuthorizationScope.OBJECTS_UPDATE],
+    minTeamRole: 'viewer',
+  },
   {
     operationId: 'transferObject',
     summary: 'Transfer object to another space',
     tags: ['Objects'],
     method: 'post',
     path: '/{id}/transfers',
-    middleware: [requireTeamRole('viewer')] as const,
     request: { params: idParam, ...jsonBody(transferMatterSchema) },
     responses: {
       201: jsonContent(
@@ -358,16 +383,6 @@ const transferObjectRoute = authRoute(
 )
 
 const app = new OpenAPIHono<Env>()
-// Blanket auth gate for every object route. Applied as a statement, not chained,
-// because `.use()` returns the base Hono type and would strip `.openapi()`.
-app.use(async (c, next) => {
-  const principal = c.get('principal')
-  if (principal?.kind === 'user' || principal?.kind === 'download-task-upload') {
-    await next()
-    return
-  }
-  throw unauthorized()
-})
 
 const objects = app
   .openapi(listRoute, async (c) => {
@@ -389,6 +404,7 @@ const objects = app
     const result = await listObjects(c.get('deps'), {
       orgId,
       userId: c.get('userId')!,
+      fixedOrgId: c.get('authzContext').fixedOrgId,
       orgOverride: query.orgId,
       filters: {
         parent: query.path ?? query.parent ?? '',
@@ -550,6 +566,7 @@ const objects = app
   .openapi(transferObjectRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw badRequest('No active organization')
+    if (c.get('authzContext').fixedOrgId) throw forbidden()
 
     const result = await transferObject(c.get('deps'), {
       orgId,

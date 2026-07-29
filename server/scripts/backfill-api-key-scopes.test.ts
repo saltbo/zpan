@@ -68,7 +68,7 @@ describe('API key scope backfill', () => {
       permissions: '{"images":["upload"]}',
     })
     expect(db.prepare('SELECT permissions FROM apikey WHERE id = ?').get('webdav')).toEqual({
-      permissions: '{"objects":["create","delete","move","read","update"]}',
+      permissions: '{"objects":["create","delete","read","update"]}',
     })
     expect(db.prepare('SELECT permissions FROM apikey WHERE id = ?').get('remote')).toEqual({
       permissions: '{"download-tasks":["cancel","create","read"]}',
@@ -176,7 +176,7 @@ describe('API key scope backfill', () => {
         {
           id: 'legacy',
           before: '{"webdav":["write"]}',
-          after: '{"objects":["create","delete","move","update"]}',
+          after: '{"objects":["create","delete","update"]}',
         },
       ])
 
