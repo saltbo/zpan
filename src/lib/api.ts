@@ -8,6 +8,7 @@ import type {
   AgentApiKeyRotateInput,
   AgentOAuthConsentContext,
   AgentOAuthConsentResult,
+  AgentOAuthConsentSubmit,
   AgentOAuthGrant,
   AgentOAuthGrantList,
   AllowedImageMime,
@@ -1143,19 +1144,8 @@ export function getAgentOAuthConsentContext(oauthQuery: string) {
   return unwrap<AgentOAuthConsentContext>(agentOAuthGrantsApi['agent-oauth-consent'].$get({ query: { oauthQuery } }))
 }
 
-export function submitAgentOAuthConsent(input: { accept: boolean; oauthQuery: string }) {
-  return fetch('/api/auth/oauth2/consent', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accept: input.accept, oauth_query: input.oauthQuery }),
-  }).then(async (res) => {
-    if (!res.ok) {
-      const parsed = await res.json().catch(() => ({}))
-      throw new ApiError(res.status, toErrorBody(res.status, parsed))
-    }
-    return res.json() as Promise<AgentOAuthConsentResult>
-  })
+export function submitAgentOAuthConsent(input: AgentOAuthConsentSubmit) {
+  return unwrap<AgentOAuthConsentResult>(agentOAuthGrantsApi['agent-oauth-consent'].$post({ json: input }))
 }
 
 export function listAgentOAuthGrants() {

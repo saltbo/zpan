@@ -124,6 +124,7 @@ describe('Agent OAuth gateway', () => {
         referenceId: orgId,
         scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
         createdAt: new Date('2026-07-29T12:00:00.000Z'),
+        lastUsedAt: new Date('2026-07-29T12:20:00.000Z'),
         updatedAt: new Date('2026-07-29T12:01:00.000Z'),
       },
       {
@@ -133,6 +134,7 @@ describe('Agent OAuth gateway', () => {
         referenceId: null,
         scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
         createdAt: new Date('2026-07-29T12:02:00.000Z'),
+        lastUsedAt: null,
         updatedAt: new Date('2026-07-29T12:03:00.000Z'),
       },
     ])
@@ -167,8 +169,48 @@ describe('Agent OAuth gateway', () => {
         orgId,
         scopes: [AuthorizationScope.OBJECTS_READ],
         createdAt: '2026-07-29T12:00:00.000Z',
-        lastUsedAt: '2026-07-29T12:10:00.000Z',
+        lastUsedAt: '2026-07-29T12:20:00.000Z',
       },
+    ])
+  })
+
+  it('records actual delegated grant use without treating token issuance as use', async () => {
+    const { db } = await createTestApp()
+    const gateway = createAgentOAuthGateway()
+    const userId = 'oauth-user'
+    const orgId = 'oauth-org'
+    await insertUserAndOrg(db, userId, orgId)
+    await db.insert(authSchema.oauthConsent).values({
+      id: 'grant-1',
+      clientId: AGENT_OAUTH_CLIENT_ID,
+      userId,
+      referenceId: orgId,
+      scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
+      createdAt: new Date('2026-07-29T12:00:00.000Z'),
+      updatedAt: new Date('2026-07-29T12:01:00.000Z'),
+    })
+    await db.insert(authSchema.oauthAccessToken).values({
+      id: 'access-1',
+      token: 'hashed-access',
+      clientId: AGENT_OAUTH_CLIENT_ID,
+      userId,
+      referenceId: orgId,
+      expiresAt: new Date(Date.now() + 60_000),
+      createdAt: new Date('2026-07-29T12:10:00.000Z'),
+      scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
+    })
+
+    await expect(gateway.listGrants(db, userId)).resolves.toMatchObject([{ id: 'grant-1', lastUsedAt: null }])
+
+    await gateway.recordGrantUse(db, {
+      grantId: 'grant-1',
+      userId,
+      orgId,
+      now: new Date('2026-07-29T12:30:00.000Z'),
+    })
+
+    await expect(gateway.listGrants(db, userId)).resolves.toMatchObject([
+      { id: 'grant-1', lastUsedAt: '2026-07-29T12:30:00.000Z' },
     ])
   })
 

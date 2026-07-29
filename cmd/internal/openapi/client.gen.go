@@ -6036,6 +6036,12 @@ type GetAgentOAuthConsentContextParams struct {
 // GetAgentOAuthConsentContext200JSONResponseBodyScopes defines parameters for GetAgentOAuthConsentContext.
 type GetAgentOAuthConsentContext200JSONResponseBodyScopes string
 
+// SubmitAgentOAuthConsentJSONBody defines parameters for SubmitAgentOAuthConsent.
+type SubmitAgentOAuthConsentJSONBody struct {
+	Accept     bool   `json:"accept"`
+	OauthQuery string `json:"oauthQuery"`
+}
+
 // ListAgentOAuthGrants200JSONResponseBodyItemsScopes defines parameters for ListAgentOAuthGrants.
 type ListAgentOAuthGrants200JSONResponseBodyItemsScopes string
 
@@ -7848,6 +7854,9 @@ type RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes string
 // RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus defines parameters for RotateWorkspaceAgentApiKey.
 type RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus string
 
+// SubmitAgentOAuthConsentJSONRequestBody defines body for SubmitAgentOAuthConsent for application/json ContentType.
+type SubmitAgentOAuthConsentJSONRequestBody SubmitAgentOAuthConsentJSONBody
+
 // BanUserJSONRequestBody defines body for BanUser for application/json ContentType.
 type BanUserJSONRequestBody BanUserJSONBody
 
@@ -8895,6 +8904,11 @@ type ClientInterface interface {
 	// GetAgentOAuthConsentContext request
 	GetAgentOAuthConsentContext(ctx context.Context, params *GetAgentOAuthConsentContextParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// SubmitAgentOAuthConsentWithBody request with any body
+	SubmitAgentOAuthConsentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SubmitAgentOAuthConsent(ctx context.Context, body SubmitAgentOAuthConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAgentOAuthGrants request
 	ListAgentOAuthGrants(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -9928,6 +9942,30 @@ type ClientInterface interface {
 
 func (c *Client) GetAgentOAuthConsentContext(ctx context.Context, params *GetAgentOAuthConsentContextParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAgentOAuthConsentContextRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SubmitAgentOAuthConsentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubmitAgentOAuthConsentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SubmitAgentOAuthConsent(ctx context.Context, body SubmitAgentOAuthConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubmitAgentOAuthConsentRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14604,6 +14642,46 @@ func NewGetAgentOAuthConsentContextRequest(server string, params *GetAgentOAuthC
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewSubmitAgentOAuthConsentRequest calls the generic SubmitAgentOAuthConsent builder with application/json body
+func NewSubmitAgentOAuthConsentRequest(server string, body SubmitAgentOAuthConsentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSubmitAgentOAuthConsentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSubmitAgentOAuthConsentRequestWithBody generates requests for SubmitAgentOAuthConsent with any type of body
+func NewSubmitAgentOAuthConsentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/agent-oauth-consent")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -25999,6 +26077,11 @@ type ClientWithResponsesInterface interface {
 	// GetAgentOAuthConsentContextWithResponse request
 	GetAgentOAuthConsentContextWithResponse(ctx context.Context, params *GetAgentOAuthConsentContextParams, reqEditors ...RequestEditorFn) (*GetAgentOAuthConsentContextResponse, error)
 
+	// SubmitAgentOAuthConsentWithBodyWithResponse request with any body
+	SubmitAgentOAuthConsentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitAgentOAuthConsentResponse, error)
+
+	SubmitAgentOAuthConsentWithResponse(ctx context.Context, body SubmitAgentOAuthConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitAgentOAuthConsentResponse, error)
+
 	// ListAgentOAuthGrantsWithResponse request
 	ListAgentOAuthGrantsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAgentOAuthGrantsResponse, error)
 
@@ -27071,6 +27154,40 @@ func (r GetAgentOAuthConsentContextResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAgentOAuthConsentContextResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SubmitAgentOAuthConsentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Url string `json:"url"`
+	}
+	JSON400 *Error
+	JSON403 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r SubmitAgentOAuthConsentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SubmitAgentOAuthConsentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SubmitAgentOAuthConsentResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -37948,6 +38065,23 @@ func (c *ClientWithResponses) GetAgentOAuthConsentContextWithResponse(ctx contex
 	return ParseGetAgentOAuthConsentContextResponse(rsp)
 }
 
+// SubmitAgentOAuthConsentWithBodyWithResponse request with arbitrary body returning *SubmitAgentOAuthConsentResponse
+func (c *ClientWithResponses) SubmitAgentOAuthConsentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitAgentOAuthConsentResponse, error) {
+	rsp, err := c.SubmitAgentOAuthConsentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubmitAgentOAuthConsentResponse(rsp)
+}
+
+func (c *ClientWithResponses) SubmitAgentOAuthConsentWithResponse(ctx context.Context, body SubmitAgentOAuthConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitAgentOAuthConsentResponse, error) {
+	rsp, err := c.SubmitAgentOAuthConsent(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubmitAgentOAuthConsentResponse(rsp)
+}
+
 // ListAgentOAuthGrantsWithResponse request returning *ListAgentOAuthGrantsResponse
 func (c *ClientWithResponses) ListAgentOAuthGrantsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAgentOAuthGrantsResponse, error) {
 	rsp, err := c.ListAgentOAuthGrants(ctx, reqEditors...)
@@ -41318,6 +41452,48 @@ func ParseGetAgentOAuthConsentContextResponse(rsp *http.Response) (*GetAgentOAut
 				Id   string  `json:"id"`
 				Name *string `json:"name"`
 			} `json:"workspace"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSubmitAgentOAuthConsentResponse parses an HTTP response from a SubmitAgentOAuthConsentWithResponse call
+func ParseSubmitAgentOAuthConsentResponse(rsp *http.Response) (*SubmitAgentOAuthConsentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SubmitAgentOAuthConsentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Url string `json:"url"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

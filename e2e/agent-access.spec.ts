@@ -23,10 +23,11 @@ test.describe('Agent Access OAuth UI', () => {
         }),
       })
     })
-    await page.route('**/api/auth/oauth2/consent', async (route) => {
+    await page.route('**/api/agent-oauth-consent', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback()
       expect(route.request().method()).toBe('POST')
-      const body = route.request().postDataJSON() as { accept: boolean; oauth_query?: string; scope?: string }
-      expect(body).toEqual({ accept: true, oauth_query: oauthQuery })
+      const body = route.request().postDataJSON() as { accept: boolean; oauthQuery?: string; scope?: string }
+      expect(body).toEqual({ accept: true, oauthQuery })
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({ url: 'http://127.0.0.1:8484/callback?code=e2e-code' }),
@@ -95,5 +96,74 @@ test.describe('Agent Access OAuth UI', () => {
     await expect(page.getByRole('dialog', { name: 'Revoke OAuth Grant' })).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: 'Revoke' }).click()
     await expect(page.getByText('No delegated OAuth grants yet')).toBeVisible()
+  })
+
+  test('keeps consent and delegated grants usable on narrow screens @mobile', async ({ page }) => {
+    await signUpAndGoToFiles(page)
+
+    await page.route('**/api/agent-oauth-consent?*', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          clientId: 'zpan-agent',
+          clientName: 'ZPan Agent',
+          instanceOrigin: 'http://localhost:5185',
+          workspace: { id: 'org-e2e', name: 'Personal' },
+          scopes: ['objects:read', 'shares:create', 'quota:read'],
+          standardScopes: ['openid', 'offline_access'],
+          redirectUri: 'http://127.0.0.1:8484/callback',
+          grantLifetime: { accessTokenSeconds: 900, refreshTokenSeconds: 2_592_000 },
+        }),
+      })
+    })
+    await page.route('**/api/agent-oauth-grants', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback()
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            {
+              id: 'grant-mobile',
+              clientId: 'zpan-agent',
+              clientName: 'ZPan Agent',
+              userId: 'user-e2e',
+              orgId: 'org-e2e',
+              workspaceName: 'Personal',
+              scopes: ['objects:read', 'shares:create', 'quota:read'],
+              createdAt: '2026-07-29T12:00:00.000Z',
+              lastUsedAt: '2026-07-29T12:30:00.000Z',
+              status: 'active',
+            },
+          ],
+        }),
+      })
+    })
+
+    await page.goto(`/settings/agent-access?${oauthQuery}`)
+    await expect(page.getByRole('heading', { name: 'Authorize ZPan Agent' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Approve Access' })).toBeVisible()
+    await expect(page.getByText('Files: read objects')).toBeVisible()
+    await expect(page.getByText('Shares: create shares')).toBeVisible()
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+      .toBe(true)
+
+    await page.goto('/settings/agent-access')
+    await expect(page.getByText('Delegated OAuth Grants')).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'ZPan Agent' })).toBeVisible()
+    const grantsTableContainer = page.locator('[data-slot="table-container"]').last()
+    await expect(grantsTableContainer).toBeVisible()
+    await expect
+      .poll(async () =>
+        grantsTableContainer.evaluate((node) => (node as HTMLElement).scrollWidth > (node as HTMLElement).clientWidth),
+      )
+      .toBe(true)
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+      .toBe(true)
+    await grantsTableContainer.evaluate((node) => {
+      node.scrollLeft = node.scrollWidth
+    })
+    await expect(page.getByRole('button', { name: 'Revoke' }).last()).toBeVisible()
   })
 })

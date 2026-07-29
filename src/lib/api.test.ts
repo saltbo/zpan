@@ -3252,23 +3252,23 @@ describe('api', () => {
       expect(init.method).toBe('GET')
     })
 
-    it('submits full OAuth consent through Better Auth without sending scope overrides', async () => {
+    it('submits full OAuth consent through the Hono RPC wrapper without sending scope overrides', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ url: 'http://127.0.0.1:8484/callback?code=abc' }))
 
       const result = await submitAgentOAuthConsent({ accept: true, oauthQuery: 'client_id=zpan-agent' })
 
       expect(result).toEqual({ url: 'http://127.0.0.1:8484/callback?code=abc' })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/auth/oauth2/consent')
+      expect(url).toBe('/api/agent-oauth-consent')
       expect(init.method).toBe('POST')
       expect(init.credentials).toBe('include')
       expect(JSON.parse(init.body as string)).toEqual({
         accept: true,
-        oauth_query: 'client_id=zpan-agent',
+        oauthQuery: 'client_id=zpan-agent',
       })
     })
 
-    it('throws an API error when Better Auth rejects OAuth consent with a non-JSON response', async () => {
+    it('throws an API error when OAuth consent submission is rejected with a non-JSON response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,
         status: 400,

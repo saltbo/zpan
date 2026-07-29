@@ -154,6 +154,8 @@ describe('Agent OAuth tables', () => {
 
     expect(oauthConsent.referenceId.name).toBe('reference_id')
     expect(oauthConsent.scopes.notNull).toBe(true)
+    expect(oauthConsent.lastUsedAt.name).toBe('last_used_at')
+    expect(oauthConsent.lastUsedAt.notNull).toBe(false)
     expect(foreignKeys).toHaveLength(2)
     expect(oauthConsent.updatedAt.onUpdateFn?.()).toBeInstanceOf(Date)
     expect(foreignKeys.map((foreignKey) => foreignKey.reference().foreignColumns[0].name)).toEqual(['client_id', 'id'])

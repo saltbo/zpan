@@ -499,7 +499,7 @@ function AgentOAuthGrantsSection() {
         ) : grants.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">{t('settings.agentAccess.oauthNoGrants')}</p>
         ) : (
-          <Table>
+          <Table className="min-w-[760px]">
             <TableHeader>
               <TableRow>
                 <TableHead>{t('settings.agentAccess.oauthClient')}</TableHead>
@@ -525,12 +525,14 @@ function AgentOAuthGrantsSection() {
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell>{formatDate(grant.createdAt)}</TableCell>
-                  <TableCell>{formatDate(grant.lastUsedAt) ?? t('settings.agentAccess.never')}</TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">{formatDate(grant.createdAt)}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {formatDate(grant.lastUsedAt) ?? t('settings.agentAccess.never')}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <Badge>{t('settings.agentAccess.status.active')}</Badge>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right whitespace-nowrap">
                     <Button
                       type="button"
                       size="icon"

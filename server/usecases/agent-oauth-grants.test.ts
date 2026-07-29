@@ -10,6 +10,7 @@ function gateway(overrides: Partial<AgentOAuthGateway> = {}): AgentOAuthGateway 
     assertLiveGrant: vi.fn(),
     verifyAccessToken: vi.fn(),
     listGrants: vi.fn(async () => []),
+    recordGrantUse: vi.fn(),
     revokeGrant: vi.fn(async () => true),
     ...overrides,
   }
