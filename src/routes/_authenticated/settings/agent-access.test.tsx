@@ -1,10 +1,20 @@
-import type { AgentApiKey } from '@shared/schemas'
+import type { AgentApiKey, AgentOAuthGrant } from '@shared/schemas'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAgentApiKey, listAgentApiKeys, revokeAgentApiKey, rotateAgentApiKey } from '@/lib/api'
-import { useListOrganizations } from '@/lib/auth-client'
+import {
+  createAgentApiKey,
+  getAgentOAuthConsentContext,
+  listAgentApiKeys,
+  listAgentOAuthGrants,
+  revokeAgentApiKey,
+  revokeAgentOAuthGrant,
+  rotateAgentApiKey,
+  submitAgentOAuthConsent,
+} from '@/lib/api'
+import { setActive, useListOrganizations } from '@/lib/auth-client'
+import { redirectExternal } from '@/lib/browser-navigation'
 import { AgentAccessSettingsPage } from './agent-access'
 import { SettingsLayout } from './route'
 
@@ -14,6 +24,7 @@ const state = vi.hoisted(() => ({
     { id: 'org-2', name: 'Team Alpha' },
   ],
   keys: [] as AgentApiKey[],
+  grants: [] as AgentOAuthGrant[],
   webdavEnabled: true,
 }))
 
@@ -28,6 +39,20 @@ const translations: Record<string, string> = {
   'settings.agentAccess.scope.quotaRead': 'Quota: read workspace quota',
   'settings.agentAccess.scope.storageUsageRead': 'Storage usage: read workspace usage',
   'settings.agentAccess.managementRequired': 'Owner or admin access is required',
+  'settings.agentAccess.oauthConsentTitle': 'Authorize ZPan Agent',
+  'settings.agentAccess.oauthClient': 'Client',
+  'settings.agentAccess.oauthOrigin': 'ZPan instance',
+  'settings.agentAccess.oauthReturn': 'Return URL',
+  'settings.agentAccess.oauthLifetime': 'Grant lifetime',
+  'settings.agentAccess.oauthLifetimeValue': '30 days',
+  'settings.agentAccess.oauthScopesTitle': 'Requested scopes',
+  'settings.agentAccess.oauthApprove': 'Approve Access',
+  'settings.agentAccess.oauthDeny': 'Deny',
+  'settings.agentAccess.oauthExpiredTitle': 'OAuth request expired',
+  'settings.agentAccess.oauthGrantsSection': 'Delegated OAuth Grants',
+  'settings.agentAccess.oauthNoGrants': 'No delegated OAuth grants yet',
+  'settings.agentAccess.oauthGrantRevokeTitle': 'Revoke OAuth Grant',
+  'settings.agentAccess.oauthGrantRevokeSuccess': 'OAuth grant revoked',
 }
 
 vi.mock('react-i18next', () => ({
@@ -59,13 +84,22 @@ vi.mock('@/hooks/use-site-config', () => ({
 
 vi.mock('@/lib/auth-client', () => ({
   useListOrganizations: vi.fn(),
+  setActive: vi.fn(),
+}))
+
+vi.mock('@/lib/browser-navigation', () => ({
+  redirectExternal: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({
   createAgentApiKey: vi.fn(),
+  getAgentOAuthConsentContext: vi.fn(),
   listAgentApiKeys: vi.fn(),
+  listAgentOAuthGrants: vi.fn(),
   revokeAgentApiKey: vi.fn(),
+  revokeAgentOAuthGrant: vi.fn(),
   rotateAgentApiKey: vi.fn(),
+  submitAgentOAuthConsent: vi.fn(),
 }))
 
 const queryClients: QueryClient[] = []
@@ -94,6 +128,7 @@ beforeEach(() => {
       disconnect() {}
     },
   )
+  Element.prototype.scrollIntoView = vi.fn()
   vi.mocked(useListOrganizations).mockReturnValue({ data: state.orgs } as never)
   vi.mocked(listAgentApiKeys).mockImplementation(async (orgId: string) => ({
     items: state.keys.filter((item) => item.orgId === orgId),
@@ -101,6 +136,9 @@ beforeEach(() => {
     page: 1,
     pageSize: 50,
   }))
+  vi.mocked(listAgentOAuthGrants).mockImplementation(async () => ({ items: state.grants }))
+  vi.mocked(setActive).mockResolvedValue({ data: null, error: null } as never)
+  window.history.replaceState(null, '', '/settings/agent-access')
 })
 
 afterEach(() => {
@@ -109,6 +147,7 @@ afterEach(() => {
   vi.clearAllMocks()
   vi.unstubAllGlobals()
   state.keys = []
+  state.grants = []
   state.webdavEnabled = true
 })
 
@@ -118,6 +157,7 @@ describe('Agent Access settings page', () => {
 
     await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledWith('org-1'))
     expect(await screen.findByText('settings.agentAccess.noKeys')).toBeTruthy()
+    expect(await screen.findByText('No delegated OAuth grants yet')).toBeTruthy()
     expect(screen.queryByLabelText('settings.agentAccess.nameLabel')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.agentAccess.create' }))
@@ -295,6 +335,124 @@ describe('Agent Access settings page', () => {
 
     expect(await screen.findByText('Owner or admin access is required')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'settings.agentAccess.create' }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('lists delegated OAuth grants and revokes them server-side', async () => {
+    state.grants = [
+      {
+        id: 'grant-1',
+        clientId: 'zpan-agent',
+        clientName: 'ZPan Agent',
+        userId: 'user-1',
+        orgId: 'org-1',
+        workspaceName: 'Personal',
+        scopes: ['objects:read', 'shares:create'],
+        createdAt: '2026-07-29T12:00:00.000Z',
+        lastUsedAt: '2026-07-29T12:10:00.000Z',
+        status: 'active',
+      },
+    ]
+    vi.mocked(revokeAgentOAuthGrant).mockResolvedValue(undefined)
+
+    renderWithQuery(<AgentAccessSettingsPage />)
+
+    expect(await screen.findByText('Delegated OAuth Grants')).toBeTruthy()
+    expect(await screen.findByText('ZPan Agent')).toBeTruthy()
+    expect(screen.getByText('Files: read objects')).toBeTruthy()
+    expect(screen.getByText('Shares: create shares')).toBeTruthy()
+
+    const revokeButtons = screen.getAllByRole('button', { name: 'settings.agentAccess.revoke' })
+    fireEvent.click(revokeButtons[revokeButtons.length - 1]!)
+    const dialog = await screen.findByRole('dialog', { name: 'Revoke OAuth Grant' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'settings.agentAccess.revoke' }))
+
+    await waitFor(() => expect(revokeAgentOAuthGrant).toHaveBeenCalledWith('grant-1'))
+    expect(toast.success).toHaveBeenCalledWith('OAuth grant revoked')
+  })
+
+  it('renders OAuth consent from server context and submits full approval', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/settings/agent-access?client_id=zpan-agent&redirect_uri=http%3A%2F%2F127.0.0.1%3A8484%2Fcallback&response_type=code&scope=openid%20offline_access%20objects%3Aread%20quota%3Aread',
+    )
+    vi.mocked(getAgentOAuthConsentContext).mockResolvedValue({
+      clientId: 'zpan-agent',
+      clientName: 'ZPan Agent',
+      instanceOrigin: 'https://zpan.example.test',
+      workspace: { id: 'org-1', name: 'Personal' },
+      scopes: ['objects:read', 'quota:read'],
+      standardScopes: ['openid', 'offline_access'],
+      redirectUri: 'http://127.0.0.1:8484/callback',
+      grantLifetime: { accessTokenSeconds: 900, refreshTokenSeconds: 2_592_000 },
+    })
+    vi.mocked(submitAgentOAuthConsent).mockResolvedValue({ url: 'http://127.0.0.1:8484/callback?code=abc' })
+
+    renderWithQuery(<AgentAccessSettingsPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Authorize ZPan Agent' })).toBeTruthy()
+    expect(screen.getByText('https://zpan.example.test')).toBeTruthy()
+    expect(screen.getByText('http://127.0.0.1:8484/callback')).toBeTruthy()
+    expect(screen.getByText('Files: read objects')).toBeTruthy()
+    expect(screen.getByText('Quota: read workspace quota')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve Access' }))
+
+    await waitFor(() =>
+      expect(submitAgentOAuthConsent).toHaveBeenCalledWith({
+        accept: true,
+        oauthQuery: window.location.search.slice(1),
+      }),
+    )
+    expect(redirectExternal).toHaveBeenCalledWith('http://127.0.0.1:8484/callback?code=abc')
+  })
+
+  it('switches active workspace before OAuth consent and supports denial', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/settings/agent-access?client_id=zpan-agent&redirect_uri=http%3A%2F%2F127.0.0.1%3A8484%2Fcallback&response_type=code&scope=objects%3Aread',
+    )
+    vi.mocked(getAgentOAuthConsentContext).mockResolvedValue({
+      clientId: 'zpan-agent',
+      clientName: 'ZPan Agent',
+      instanceOrigin: 'https://zpan.example.test',
+      workspace: { id: 'org-1', name: 'Personal' },
+      scopes: ['objects:read'],
+      standardScopes: [],
+      redirectUri: 'http://127.0.0.1:8484/callback',
+      grantLifetime: { accessTokenSeconds: 900, refreshTokenSeconds: 2_592_000 },
+    })
+    vi.mocked(submitAgentOAuthConsent).mockResolvedValue({ url: 'http://127.0.0.1:8484/callback?error=access_denied' })
+
+    renderWithQuery(<AgentAccessSettingsPage />)
+    await screen.findByRole('heading', { name: 'Authorize ZPan Agent' })
+
+    fireEvent.click(screen.getByRole('combobox'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Team Alpha' }))
+    await waitFor(() => expect(setActive).toHaveBeenCalledWith({ organizationId: 'org-2' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
+    await waitFor(() =>
+      expect(submitAgentOAuthConsent).toHaveBeenCalledWith({
+        accept: false,
+        oauthQuery: window.location.search.slice(1),
+      }),
+    )
+    expect(redirectExternal).toHaveBeenCalledWith('http://127.0.0.1:8484/callback?error=access_denied')
+  })
+
+  it('shows an expired OAuth request state when the consent context fails', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/settings/agent-access?client_id=zpan-agent&redirect_uri=http%3A%2F%2F127.0.0.1%3A8484%2Fcallback',
+    )
+    vi.mocked(getAgentOAuthConsentContext).mockRejectedValue(new Error('expired'))
+
+    renderWithQuery(<AgentAccessSettingsPage />)
+
+    expect(await screen.findByRole('heading', { name: 'OAuth request expired' })).toBeTruthy()
   })
 })
 

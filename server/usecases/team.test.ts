@@ -87,6 +87,7 @@ function makeDeps(
     org: {
       findPersonalOrg: async () => null,
       getMemberRole: async () => null,
+      getOrgNames: async () => new Map(),
       canReadOrg: async () => false,
       canWriteToOrg: async () => false,
       canManageAgentAccess: async () => false,

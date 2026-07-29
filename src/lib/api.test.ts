@@ -48,6 +48,7 @@ import {
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
   getAdminOverview,
+  getAgentOAuthConsentContext,
   getAnnouncement,
   getBackgroundJob,
   getChangelog,
@@ -81,6 +82,7 @@ import {
   listAdminAnnouncements,
   listAdminAuditLogs,
   listAgentApiKeys,
+  listAgentOAuthGrants,
   listAnnouncements,
   listApiKeys,
   listAuthProviders,
@@ -123,6 +125,7 @@ import {
   restoreObject,
   retryBackgroundJob,
   revokeAgentApiKey,
+  revokeAgentOAuthGrant,
   revokeIhostApiKey,
   revokeOrgEntitlement,
   revokeRemoteDownloadApiKey,
@@ -139,6 +142,7 @@ import {
   sendDownloaderHeartbeat,
   serverEventsUrl,
   setSharePrivacy,
+  submitAgentOAuthConsent,
   testEmail,
   testImageDomainProvider,
   transferObject,
@@ -3205,6 +3209,84 @@ describe('api', () => {
           expiresAt: '2026-10-27T00:00:00.000Z',
         }),
       ).rejects.toThrow('Forbidden')
+    })
+  })
+
+  describe('Agent OAuth consent and grants', () => {
+    const sampleGrantList = {
+      items: [
+        {
+          id: 'grant-1',
+          clientId: 'zpan-agent',
+          clientName: 'ZPan Agent',
+          userId: 'user-1',
+          orgId: 'org-1',
+          workspaceName: 'Personal',
+          scopes: ['objects:read'],
+          createdAt: '2026-07-29T00:00:00.000Z',
+          lastUsedAt: null,
+          status: 'active',
+        },
+      ],
+    }
+
+    it('loads server-owned OAuth consent context with the raw OAuth query', async () => {
+      const payload = {
+        clientId: 'zpan-agent',
+        clientName: 'ZPan Agent',
+        instanceOrigin: 'https://zpan.example.test',
+        workspace: { id: 'org-1', name: 'Personal' },
+        scopes: ['objects:read'],
+        standardScopes: ['openid', 'offline_access'],
+        redirectUri: 'http://127.0.0.1:8484/callback',
+        grantLifetime: { accessTokenSeconds: 900, refreshTokenSeconds: 2_592_000 },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getAgentOAuthConsentContext('client_id=zpan-agent&scope=objects%3Aread')
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/agent-oauth-consent')
+      expect(url).toContain('oauthQuery=client_id%3Dzpan-agent%26scope%3Dobjects%253Aread')
+      expect(init.method).toBe('GET')
+    })
+
+    it('submits full OAuth consent through Better Auth without sending scope overrides', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ url: 'http://127.0.0.1:8484/callback?code=abc' }))
+
+      const result = await submitAgentOAuthConsent({ accept: true, oauthQuery: 'client_id=zpan-agent' })
+
+      expect(result).toEqual({ url: 'http://127.0.0.1:8484/callback?code=abc' })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/auth/oauth2/consent')
+      expect(init.method).toBe('POST')
+      expect(init.credentials).toBe('include')
+      expect(JSON.parse(init.body as string)).toEqual({
+        accept: true,
+        oauth_query: 'client_id=zpan-agent',
+      })
+    })
+
+    it('lists delegated Agent OAuth grants', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(sampleGrantList))
+
+      const result = await listAgentOAuthGrants()
+
+      expect(result).toEqual(sampleGrantList)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/agent-oauth-grants')
+      expect(init.method).toBe('GET')
+    })
+
+    it('revokes delegated Agent OAuth grants with DELETE', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
+
+      await revokeAgentOAuthGrant('grant-1')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/agent-oauth-grants/grant-1')
+      expect(init.method).toBe('DELETE')
     })
   })
 

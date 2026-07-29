@@ -145,7 +145,7 @@ describe('Agent OAuth gateway', () => {
         orgId,
         scopes: [AuthorizationScope.OBJECTS_READ],
         createdAt: '2026-07-29T12:00:00.000Z',
-        updatedAt: '2026-07-29T12:01:00.000Z',
+        lastUsedAt: null,
       },
     ])
   })

@@ -1,0 +1,99 @@
+import { expect, test } from '@playwright/test'
+import { signUpAndGoToFiles } from './helpers'
+
+const oauthQuery =
+  'client_id=zpan-agent&redirect_uri=http%3A%2F%2F127.0.0.1%3A8484%2Fcallback&response_type=code&scope=openid%20offline_access%20objects%3Aread%20shares%3Acreate%20quota%3Aread'
+
+test.describe('Agent Access OAuth UI', () => {
+  test('renders consent details and submits full approval @desktop', async ({ page }) => {
+    await signUpAndGoToFiles(page)
+
+    await page.route('**/api/agent-oauth-consent?*', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          clientId: 'zpan-agent',
+          clientName: 'ZPan Agent',
+          instanceOrigin: 'http://localhost:5185',
+          workspace: { id: 'org-e2e', name: 'Personal' },
+          scopes: ['objects:read', 'shares:create', 'quota:read'],
+          standardScopes: ['openid', 'offline_access'],
+          redirectUri: 'http://127.0.0.1:8484/callback',
+          grantLifetime: { accessTokenSeconds: 900, refreshTokenSeconds: 2_592_000 },
+        }),
+      })
+    })
+    await page.route('**/api/auth/oauth2/consent', async (route) => {
+      expect(route.request().method()).toBe('POST')
+      const body = route.request().postDataJSON() as { accept: boolean; oauth_query?: string; scope?: string }
+      expect(body).toEqual({ accept: true, oauth_query: oauthQuery })
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ url: 'http://127.0.0.1:8484/callback?code=e2e-code' }),
+      })
+    })
+    await page.route('http://127.0.0.1:8484/callback?code=e2e-code', async (route) => {
+      await route.fulfill({ contentType: 'text/html', body: '<main>Returned to Restish</main>' })
+    })
+
+    await page.goto(`/settings/agent-access?${oauthQuery}`)
+
+    await expect(page.getByRole('heading', { name: 'Authorize ZPan Agent' })).toBeVisible()
+    await expect(page.getByText('http://localhost:5185')).toBeVisible()
+    await expect(page.getByText('http://127.0.0.1:8484/callback')).toBeVisible()
+    await expect(page.getByText('Files: read objects')).toBeVisible()
+    await expect(page.getByText('Shares: create shares')).toBeVisible()
+    await expect(page.getByText('Quota: read workspace quota')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Approve Access' }).click()
+    await expect(page).toHaveURL(/127\.0\.0\.1:8484\/callback\?code=e2e-code/, { timeout: 10000 })
+    await expect(page.getByText('Returned to Restish')).toBeVisible()
+  })
+
+  test('lists and revokes delegated grants in settings @desktop', async ({ page }) => {
+    await signUpAndGoToFiles(page)
+    let revoked = false
+
+    await page.route('**/api/agent-oauth-grants', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback()
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: revoked
+            ? []
+            : [
+                {
+                  id: 'grant-e2e',
+                  clientId: 'zpan-agent',
+                  clientName: 'ZPan Agent',
+                  userId: 'user-e2e',
+                  orgId: 'org-e2e',
+                  workspaceName: 'Personal',
+                  scopes: ['objects:read', 'shares:create'],
+                  createdAt: '2026-07-29T12:00:00.000Z',
+                  lastUsedAt: null,
+                  status: 'active',
+                },
+              ],
+        }),
+      })
+    })
+    await page.route('**/api/agent-oauth-grants/grant-e2e', async (route) => {
+      expect(route.request().method()).toBe('DELETE')
+      revoked = true
+      await route.fulfill({ status: 204 })
+    })
+
+    await page.goto('/settings/agent-access')
+
+    await expect(page.getByText('Delegated OAuth Grants')).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'ZPan Agent' })).toBeVisible()
+    await expect(page.getByText('Shares: create shares')).toBeVisible()
+
+    const revokeButtons = page.getByRole('button', { name: 'Revoke' })
+    await revokeButtons.last().click()
+    await expect(page.getByRole('dialog', { name: 'Revoke OAuth Grant' })).toBeVisible()
+    await page.getByRole('dialog').getByRole('button', { name: 'Revoke' }).click()
+    await expect(page.getByText('No delegated OAuth grants yet')).toBeVisible()
+  })
+})

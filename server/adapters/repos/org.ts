@@ -1,5 +1,5 @@
 import { isPersonalOrgLike } from '@shared/org-slugs'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { member, organization } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
 import type { OrgRepo } from '../../usecases/ports'
@@ -27,6 +27,16 @@ export function createOrgRepo(db: Database): OrgRepo {
       .where(and(eq(member.organizationId, orgId), eq(member.userId, userId)))
       .limit(1)
     return rows[0]?.role ?? null
+  }
+
+  async function getOrgNames(orgIds: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(orgIds)].filter(Boolean)
+    if (unique.length === 0) return new Map()
+    const rows = await db
+      .select({ id: organization.id, name: organization.name })
+      .from(organization)
+      .where(inArray(organization.id, unique))
+    return new Map(rows.map((row) => [row.id, row.name]))
   }
 
   async function isPersonalOrg(orgId: string): Promise<boolean> {
@@ -61,5 +71,5 @@ export function createOrgRepo(db: Database): OrgRepo {
     return orgId === (await findPersonalOrg(userId))
   }
 
-  return { findPersonalOrg, getMemberRole, canReadOrg, canWriteToOrg, canManageAgentAccess, isPersonalOrg }
+  return { findPersonalOrg, getMemberRole, getOrgNames, canReadOrg, canWriteToOrg, canManageAgentAccess, isPersonalOrg }
 }

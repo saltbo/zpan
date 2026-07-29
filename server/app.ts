@@ -537,3 +537,4 @@ export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats
 export type StorageUsageRoute = typeof storageUsage
 export type AgentApiKeysRoute = typeof agentApiKeys
+export type AgentOAuthGrantsRoute = typeof agentOAuthGrants

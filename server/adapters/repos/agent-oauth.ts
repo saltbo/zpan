@@ -125,24 +125,40 @@ export function createAgentOAuthGateway(): AgentOAuthGateway {
           orgId: oauthConsent.referenceId,
           scopes: oauthConsent.scopes,
           createdAt: oauthConsent.createdAt,
-          updatedAt: oauthConsent.updatedAt,
+          lastUsedAt: oauthAccessToken.createdAt,
         })
         .from(oauthConsent)
+        .leftJoin(
+          oauthAccessToken,
+          and(
+            eq(oauthAccessToken.clientId, oauthConsent.clientId),
+            eq(oauthAccessToken.userId, oauthConsent.userId),
+            eq(oauthAccessToken.referenceId, oauthConsent.referenceId),
+          ),
+        )
         .where(and(eq(oauthConsent.userId, userId), eq(oauthConsent.clientId, AGENT_OAUTH_CLIENT_ID)))
-      return rows.flatMap((row): AgentOAuthGrant[] => {
-        if (!row.userId || !row.orgId) return []
-        return [
-          {
-            id: row.id,
-            clientId: row.clientId,
-            userId: row.userId,
-            orgId: row.orgId,
-            scopes: parseScopes(row.scopes).filter(isAuthorizationScope),
-            createdAt: toIso(row.createdAt),
-            updatedAt: toIso(row.updatedAt),
-          },
-        ]
-      })
+      const grants = new Map<string, AgentOAuthGrant>()
+      for (const row of rows) {
+        if (!row.userId || !row.orgId) continue
+        const existing = grants.get(row.id)
+        const lastUsedAt = row.lastUsedAt ? toIso(row.lastUsedAt) : null
+        if (existing) {
+          if (lastUsedAt && (!existing.lastUsedAt || lastUsedAt > existing.lastUsedAt)) {
+            existing.lastUsedAt = lastUsedAt
+          }
+          continue
+        }
+        grants.set(row.id, {
+          id: row.id,
+          clientId: row.clientId,
+          userId: row.userId,
+          orgId: row.orgId,
+          scopes: parseScopes(row.scopes).filter(isAuthorizationScope),
+          createdAt: toIso(row.createdAt),
+          lastUsedAt,
+        })
+      }
+      return [...grants.values()]
     },
 
     async revokeGrant(db, input) {

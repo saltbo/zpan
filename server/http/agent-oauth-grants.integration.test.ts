@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto'
-import { AGENT_OAUTH_CLIENT_ID } from '@shared/agent-oauth'
+import {
+  AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
+  AGENT_OAUTH_CLIENT_ID,
+  AGENT_OAUTH_CLIENT_NAME,
+  AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
+} from '@shared/agent-oauth'
 import { AuthorizationScope } from '@shared/authorization'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -71,6 +76,35 @@ async function insertGrant(
 }
 
 describe('Agent OAuth grants API integration', () => {
+  it('returns server-owned Agent OAuth consent context for the active workspace', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app, 'agent-consent@example.com')
+    const { orgId } = await getUserAndPersonalOrg(db, 'agent-consent@example.com')
+    const oauthQuery = new URLSearchParams({
+      client_id: AGENT_OAUTH_CLIENT_ID,
+      redirect_uri: 'http://127.0.0.1:8484/callback',
+      response_type: 'code',
+      scope: `${AuthorizationScope.OBJECTS_READ} ${AuthorizationScope.QUOTA_READ} openid offline_access`,
+    }).toString()
+
+    const res = await app.request(`/api/agent-oauth-consent?oauthQuery=${encodeURIComponent(oauthQuery)}`, { headers })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({
+      clientId: AGENT_OAUTH_CLIENT_ID,
+      clientName: AGENT_OAUTH_CLIENT_NAME,
+      instanceOrigin: 'http://localhost',
+      workspace: { id: orgId, name: expect.any(String) },
+      scopes: [AuthorizationScope.OBJECTS_READ, AuthorizationScope.QUOTA_READ],
+      standardScopes: ['openid', 'offline_access'],
+      redirectUri: 'http://127.0.0.1:8484/callback',
+      grantLifetime: {
+        accessTokenSeconds: AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
+        refreshTokenSeconds: AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
+      },
+    })
+  })
+
   it('lists and revokes the current user grant family', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'agent-grants@example.com')
@@ -84,11 +118,14 @@ describe('Agent OAuth grants API integration', () => {
         {
           id: 'grant-1',
           clientId: AGENT_OAUTH_CLIENT_ID,
+          clientName: 'ZPan Agent',
           userId,
           orgId,
+          workspaceName: expect.any(String),
           scopes: [AuthorizationScope.OBJECTS_READ, AuthorizationScope.QUOTA_READ],
           createdAt: '2026-07-29T12:00:00.000Z',
-          updatedAt: '2026-07-29T12:00:00.000Z',
+          lastUsedAt: expect.any(String),
+          status: 'active',
         },
       ],
     })

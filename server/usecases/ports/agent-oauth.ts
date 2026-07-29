@@ -16,7 +16,7 @@ export interface AgentOAuthGrant {
   orgId: string
   scopes: AuthorizationScope[]
   createdAt: string
-  updatedAt: string
+  lastUsedAt: string | null
 }
 
 export interface AgentOAuthGateway {
