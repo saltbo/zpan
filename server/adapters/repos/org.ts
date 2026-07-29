@@ -4,7 +4,7 @@ import { member, organization } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
 import type { OrgRepo } from '../../usecases/ports'
 
-const ROLE_LEVELS: Record<string, number> = { owner: 3, editor: 2, viewer: 1, member: 1 }
+const ROLE_LEVELS: Record<string, number> = { owner: 3, admin: 3, editor: 2, viewer: 1, member: 1 }
 
 export function createOrgRepo(db: Database): OrgRepo {
   // Find the user's personal org, if they still belong to it. New personal orgs
@@ -55,5 +55,11 @@ export function createOrgRepo(db: Database): OrgRepo {
     return orgId === (await findPersonalOrg(userId))
   }
 
-  return { findPersonalOrg, getMemberRole, canReadOrg, canWriteToOrg, isPersonalOrg }
+  async function canManageAgentAccess(userId: string, orgId: string): Promise<boolean> {
+    const role = await getMemberRole(orgId, userId)
+    if (role !== null) return role === 'owner' || role === 'admin'
+    return orgId === (await findPersonalOrg(userId))
+  }
+
+  return { findPersonalOrg, getMemberRole, canReadOrg, canWriteToOrg, canManageAgentAccess, isPersonalOrg }
 }

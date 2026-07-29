@@ -1237,6 +1237,7 @@
   "settings.agentAccess.status.revoked": "Revoked",
   "settings.agentAccess.status.inaccessible": "Inaccessible",
   "settings.agentAccess.noKeys": "No Agent API keys yet",
+  "settings.agentAccess.managementRequired": "Owner or admin access is required to manage Agent API keys for this workspace.",
   "settings.agentAccess.never": "Never",
   "settings.agentAccess.copy": "Copy",
   "settings.agentAccess.copied": "Copied",

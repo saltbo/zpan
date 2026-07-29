@@ -307,7 +307,11 @@ export function AgentAccessSettingsPage() {
           <CardTitle>{t('settings.agentAccess.section')}</CardTitle>
           <CardDescription>{t('settings.agentAccess.description')}</CardDescription>
           <CardAction>
-            <Button type="button" disabled={!orgId} onClick={() => setCreateOpen(true)}>
+            <Button
+              type="button"
+              disabled={!orgId || keysQuery.isLoading || keysQuery.isError}
+              onClick={() => setCreateOpen(true)}
+            >
               <Plus className="size-4" />
               {t('settings.agentAccess.create')}
             </Button>
@@ -331,6 +335,8 @@ export function AgentAccessSettingsPage() {
           </div>
           {keysQuery.isLoading ? (
             <p className="py-6 text-center text-sm text-muted-foreground">{t('common.loading')}</p>
+          ) : keysQuery.isError ? (
+            <p className="py-6 text-center text-sm text-destructive">{t('settings.agentAccess.managementRequired')}</p>
           ) : rows.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">{t('settings.agentAccess.noKeys')}</p>
           ) : (
@@ -375,16 +381,18 @@ export function AgentAccessSettingsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        aria-label={t('settings.agentAccess.rotate')}
-                        onClick={() => rotate(row)}
-                      >
-                        <RotateCw className="size-4" />
-                        <span className="sr-only">{t('settings.agentAccess.rotate')}</span>
-                      </Button>
+                      {row.status === 'active' ? (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label={t('settings.agentAccess.rotate')}
+                          onClick={() => rotate(row)}
+                        >
+                          <RotateCw className="size-4" />
+                          <span className="sr-only">{t('settings.agentAccess.rotate')}</span>
+                        </Button>
+                      ) : null}
                       <Button
                         type="button"
                         size="icon"

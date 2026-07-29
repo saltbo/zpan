@@ -5,16 +5,23 @@ Feature: Agent API keys
 
   @agent-api-keys/lifecycle @api
   Scenario: A user manages a personal workspace Agent API key
-    Given an authenticated workspace editor
+    Given an authenticated personal workspace owner
     When they create, list, rotate, and revoke an Agent API key
     Then the plaintext key is returned only on create or rotation
     And revoked keys stop working immediately
 
   @agent-api-keys/team-file-ops @api
   Scenario: A team Agent API key performs granted file operations
-    Given a team workspace where the owner is an editor
-    When they create an Agent API key with file read and create scopes
+    Given a team workspace owner creates an Agent API key with file read and create scopes
+    When the owner later becomes an editor
     Then the key can list files and create folders in that workspace
+
+  @agent-api-keys/management-role @api
+  Scenario: Team credential management is restricted to owners and admins
+    Given a team workspace member
+    When an editor tries to list or create Agent API keys
+    Then the API denies credential management
+    And an owner or admin can manage Agent API keys
 
   @agent-api-keys/scope-boundary @api
   Scenario: Agent API keys cannot request non-Agent scopes
@@ -30,6 +37,12 @@ Feature: Agent API keys
 
   @agent-api-keys/role-reduction @api
   Scenario: Agent API keys recheck current workspace role
-    Given a team Agent API key created by an editor
+    Given a team Agent API key created by an owner
     When the owner is reduced to viewer
     Then management and editor-only file operations are denied
+
+  @agent-api-keys/terminal-rotation @api
+  Scenario: Expired and revoked Agent API keys are terminal
+    Given an expired or revoked Agent API key
+    When an owner tries to rotate it
+    Then the API rejects rotation and requires a new key

@@ -8,7 +8,7 @@ import type {
 } from '@shared/schemas'
 import type { Database } from '../platform/interface'
 import type { Deps } from './deps'
-import { badRequest, forbidden, notFound } from './ports'
+import { badRequest, conflict, forbidden, notFound } from './ports'
 
 const MAX_AGENT_API_KEY_AGE_MS = 365 * 24 * 60 * 60 * 1000
 const AGENT_GRANTABLE_SCOPE_SET = new Set<string>(AGENT_GRANTABLE_API_KEY_SCOPES)
@@ -54,6 +54,9 @@ export async function rotateAgentApiKey(
   await requireWorkspaceManager(deps, input.userId, input.orgId)
   const existing = await deps.apiKeys.getAgentApiKey(db, input.userId, input.orgId, input.keyId, now)
   if (!existing) throw notFound('Agent API key not found')
+  if (existing.status !== 'active') {
+    throw conflict('Only active Agent API keys can be rotated', 'AGENT_API_KEY_NOT_ACTIVE')
+  }
   return deps.apiKeys.issueAgentApiKey(db, {
     name: input.body.name?.trim() || `${existing.name} rotation`,
     orgId: input.orgId,
@@ -82,7 +85,9 @@ export async function revokeAgentApiKey(
 }
 
 async function requireWorkspaceManager(deps: Pick<Deps, 'org'>, userId: string, orgId: string): Promise<void> {
-  if (!(await deps.org.canWriteToOrg(userId, orgId))) throw forbidden('Editor access to the workspace is required')
+  if (!(await deps.org.canManageAgentAccess(userId, orgId))) {
+    throw forbidden('Owner or admin access to the workspace is required')
+  }
 }
 
 function parseExpiresAt(value: string, now: Date): Date {

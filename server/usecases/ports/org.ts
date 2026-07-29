@@ -3,5 +3,6 @@ export interface OrgRepo {
   getMemberRole(orgId: string, userId: string): Promise<string | null>
   canReadOrg(userId: string, orgId: string): Promise<boolean>
   canWriteToOrg(userId: string, orgId: string): Promise<boolean>
+  canManageAgentAccess(userId: string, orgId: string): Promise<boolean>
   isPersonalOrg(orgId: string): Promise<boolean>
 }

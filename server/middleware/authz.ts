@@ -7,6 +7,7 @@ import type { AuthzContext, Env } from './platform'
 
 const ROLE_LEVELS: Record<string, number> = {
   owner: 3,
+  admin: 3,
   editor: 2,
   viewer: 1,
   member: 1,

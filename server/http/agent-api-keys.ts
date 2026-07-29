@@ -65,6 +65,7 @@ const rotateRoute = authRoute(
     responses: {
       201: jsonContent(agentApiKeyCreatedSchema, 'Rotated Agent API key'),
       400: errorResponse('Bad request'),
+      409: errorResponse('Agent API key is not active'),
       403: errorResponse('Forbidden'),
       404: errorResponse('Agent API key not found'),
     },

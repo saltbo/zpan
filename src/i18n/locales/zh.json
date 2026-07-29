@@ -1237,6 +1237,7 @@
   "settings.agentAccess.status.revoked": "已撤销",
   "settings.agentAccess.status.inaccessible": "不可访问",
   "settings.agentAccess.noKeys": "暂无 Agent API Key",
+  "settings.agentAccess.managementRequired": "需要工作空间所有者或管理员权限才能管理 Agent API Key。",
   "settings.agentAccess.never": "从未",
   "settings.agentAccess.copy": "复制",
   "settings.agentAccess.copied": "已复制",

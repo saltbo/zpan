@@ -81,7 +81,7 @@ function actorLogId(actor: ObjectActor): string {
   return actor.kind === 'download-task-upload' ? `downloader:${actor.downloaderId}` : actor.userId
 }
 
-const ROLE_LEVELS: Record<string, number> = { owner: 3, editor: 2, viewer: 1, member: 1 }
+const ROLE_LEVELS: Record<string, number> = { owner: 3, admin: 3, editor: 2, viewer: 1, member: 1 }
 
 // Whether the user may write (editor+) in the org. Personal orgs grant full
 // access to their owner even without a member row.

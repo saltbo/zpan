@@ -34083,6 +34083,7 @@ type RotateWorkspaceAgentApiKeyResponse struct {
 	JSON400 *Error
 	JSON403 *Error
 	JSON404 *Error
+	JSON409 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -50106,6 +50107,13 @@ func ParseRotateWorkspaceAgentApiKeyResponse(rsp *http.Response) (*RotateWorkspa
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 

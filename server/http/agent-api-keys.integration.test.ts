@@ -142,9 +142,10 @@ describe('Agent API keys', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const { userId } = await getUserAndPersonalOrg(db)
-    await insertTeamOrg(db, 'agent-team', userId, 'editor')
+    await insertTeamOrg(db, 'agent-team', userId, 'owner')
     await insertFile(db, 'agent-team', 'agent-readable')
     const created = await createAgentKey(app, headers, 'agent-team', ['objects:read', 'objects:create'])
+    await db.run(sql`UPDATE member SET role = 'editor' WHERE organization_id = 'agent-team' AND user_id = ${userId}`)
     const auth = { Authorization: `Bearer ${created.key}` }
 
     const list = await app.request('/api/objects', { headers: auth })
@@ -158,6 +159,32 @@ describe('Agent API keys', () => {
       body: JSON.stringify({ name: 'agent-folder', type: 'folder', dirtype: 1, parent: '' }),
     })
     expect(create.status).toBe(201)
+  })
+
+  it('allows team owners and admins to manage keys but denies editors [spec: agent-api-keys/management-role]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const { userId } = await getUserAndPersonalOrg(db)
+    await insertStorage(db)
+    await insertTeamOrg(db, 'agent-editor-team', userId, 'editor')
+    await insertTeamOrg(db, 'agent-admin-team', userId, 'admin')
+    await insertFile(db, 'agent-admin-team', 'agent-admin-readable')
+
+    const editorList = await app.request('/api/workspaces/agent-editor-team/agent-api-keys', { headers })
+    expect(editorList.status).toBe(403)
+    const editorCreate = await app.request('/api/workspaces/agent-editor-team/agent-api-keys', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Denied', scopes: ['objects:read'], expiresAt: futureIso(90) }),
+    })
+    expect(editorCreate.status).toBe(403)
+
+    const adminCreated = await createAgentKey(app, headers, 'agent-admin-team', ['objects:read'])
+    expect(adminCreated.item.orgId).toBe('agent-admin-team')
+    const adminList = await app.request('/api/objects', {
+      headers: { Authorization: `Bearer ${adminCreated.key}` },
+    })
+    expect(adminList.status).toBe(200)
   })
 
   it('rejects disallowed scopes and raw Better Auth Agent key creation [spec: agent-api-keys/scope-boundary]', async () => {
@@ -209,12 +236,45 @@ describe('Agent API keys', () => {
     expect(bannedRes.status).toBe(401)
   })
 
+  it('treats expired and revoked keys as terminal for rotation [spec: agent-api-keys/terminal-rotation]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const { orgId } = await getUserAndPersonalOrg(db)
+
+    const expired = await createAgentKey(app, headers, orgId, ['objects:read'])
+    await db.run(sql`UPDATE apikey SET expires_at = ${Date.now() - 1000} WHERE id = ${expired.item.id}`)
+    const expiredRotation = await app.request(`/api/workspaces/${orgId}/agent-api-keys/${expired.item.id}/rotations`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiresAt: futureIso(90) }),
+    })
+    expect(expiredRotation.status).toBe(409)
+    await expect(expiredRotation.json()).resolves.toMatchObject({
+      error: { details: [{ reason: 'AGENT_API_KEY_NOT_ACTIVE' }] },
+    })
+
+    const revoked = await createAgentKey(app, headers, orgId, ['objects:read'])
+    await app.request(`/api/workspaces/${orgId}/agent-api-keys/${revoked.item.id}`, {
+      method: 'DELETE',
+      headers,
+    })
+    const revokedRotation = await app.request(`/api/workspaces/${orgId}/agent-api-keys/${revoked.item.id}/rotations`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(revokedRotation.status).toBe(409)
+    await expect(revokedRotation.json()).resolves.toMatchObject({
+      error: { details: [{ reason: 'AGENT_API_KEY_NOT_ACTIVE' }] },
+    })
+  })
+
   it('rechecks team role before management and file operations [spec: agent-api-keys/role-reduction]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const { userId } = await getUserAndPersonalOrg(db)
     await insertStorage(db)
-    await insertTeamOrg(db, 'agent-role-team', userId, 'editor')
+    await insertTeamOrg(db, 'agent-role-team', userId, 'owner')
     await insertFile(db, 'agent-role-team', 'agent-role-share-file')
     await insertLandingShare(db, {
       token: 'agent-role-share',
@@ -262,7 +322,7 @@ describe('Agent API keys', () => {
     const headers = await authedHeaders(app)
     const { userId } = await getUserAndPersonalOrg(db)
     await insertStorage(db)
-    await insertTeamOrg(db, 'agent-removed-team', userId, 'editor')
+    await insertTeamOrg(db, 'agent-removed-team', userId, 'owner')
     await insertFile(db, 'agent-removed-team', 'agent-removed-readable')
     const created = await createAgentKey(app, headers, 'agent-removed-team', ['objects:read'])
 

@@ -27,6 +27,7 @@ const translations: Record<string, string> = {
   'settings.agentAccess.scope.sharesDelete': 'Shares: revoke shares',
   'settings.agentAccess.scope.quotaRead': 'Quota: read workspace quota',
   'settings.agentAccess.scope.storageUsageRead': 'Storage usage: read workspace usage',
+  'settings.agentAccess.managementRequired': 'Owner or admin access is required',
 }
 
 vi.mock('react-i18next', () => ({
@@ -157,6 +158,7 @@ describe('Agent Access settings page', () => {
 
     renderWithQuery(<AgentAccessSettingsPage />)
     await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledWith('org-1'))
+    await screen.findByText('settings.agentAccess.noKeys')
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.agentAccess.create' }))
     const dialog = await screen.findByRole('dialog', { name: 'settings.agentAccess.createTitle' })
@@ -252,6 +254,47 @@ describe('Agent Access settings page', () => {
 
     fireEvent.click(within(revokeDialog).getByRole('button', { name: 'common.close' }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'settings.agentAccess.revokeTitle' })).toBeNull())
+  })
+
+  it('does not offer rotation for expired or revoked keys', async () => {
+    state.keys = [
+      {
+        id: 'expired-key',
+        name: 'Expired key',
+        orgId: 'org-1',
+        workspaceName: 'Personal',
+        scopes: ['objects:read'],
+        createdAt: '2026-01-01T00:00:00.000Z',
+        expiresAt: '2026-02-01T00:00:00.000Z',
+        lastUsedAt: null,
+        status: 'expired',
+      },
+      {
+        id: 'revoked-key',
+        name: 'Revoked key',
+        orgId: 'org-1',
+        workspaceName: 'Personal',
+        scopes: ['objects:read'],
+        createdAt: '2026-01-01T00:00:00.000Z',
+        expiresAt: '2026-12-01T00:00:00.000Z',
+        lastUsedAt: null,
+        status: 'revoked',
+      },
+    ]
+
+    renderWithQuery(<AgentAccessSettingsPage />)
+    await screen.findByText('Expired key')
+    expect(screen.getByText('Revoked key')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'settings.agentAccess.rotate' })).toBeNull()
+  })
+
+  it('disables credential creation when the workspace management check fails', async () => {
+    vi.mocked(listAgentApiKeys).mockRejectedValue(new Error('Forbidden'))
+
+    renderWithQuery(<AgentAccessSettingsPage />)
+
+    expect(await screen.findByText('Owner or admin access is required')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'settings.agentAccess.create' }).hasAttribute('disabled')).toBe(true)
   })
 })
 
