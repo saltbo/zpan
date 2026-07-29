@@ -9,6 +9,28 @@ export {
   adminAnalyticsTrafficSchema,
   adminOverviewSchema,
 } from './admin-analytics'
+export type {
+  AgentApiKey,
+  AgentApiKeyCreated,
+  AgentApiKeyCreateInput,
+  AgentApiKeyList,
+  AgentApiKeyRotateInput,
+  AgentApiKeyShortcutInput,
+  AgentApiKeyStatus,
+  AgentGrantableScope,
+} from './agent-api-keys'
+export {
+  agentApiKeyCreatedSchema,
+  agentApiKeyCreateSchema,
+  agentApiKeyListSchema,
+  agentApiKeyRotateSchema,
+  agentApiKeySchema,
+  agentApiKeyShortcutOptions,
+  agentApiKeyShortcutSchema,
+  agentApiKeyStatusSchema,
+  agentGrantableScopeSchema,
+  agentScopeLabels,
+} from './agent-api-keys'
 
 export type {
   AnnouncementInput,

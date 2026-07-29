@@ -450,6 +450,7 @@ const revokeShareRoute = authRoute(
   {
     access: 'protected',
     scopes: [AuthorizationScope.SHARES_DELETE],
+    minTeamRole: 'editor',
   },
   {
     operationId: 'revokeShare',
@@ -475,6 +476,7 @@ const putSharePrivacyRoute = authRoute(
   {
     access: 'protected',
     scopes: [AuthorizationScope.SHARES_CREATE],
+    minTeamRole: 'editor',
   },
   {
     operationId: 'putSharePrivacy',
