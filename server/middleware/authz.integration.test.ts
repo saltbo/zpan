@@ -2,23 +2,32 @@ import { AuthorizationScope } from '@shared/authorization'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
-import { evaluateAuthorization, requirePermission } from './authz.js'
+import { authorize, evaluateAuthorization } from './authz.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
 type TestApp = TestCtx['app']
 type TestDb = TestCtx['db']
 type TestAuth = TestCtx['auth']
 
-// Mounts the permission-gated probe routes on a real app so requirePermission
-// runs after the production authMiddleware (which resolves the principal,
-// userId, orgId, and deps from the request). Each route maps to one guard in
-// requirePermission; the body is a sentinel proving the middleware called next.
+// Mounts directly declared scope policies after the production authMiddleware.
+// The body is a sentinel proving that the declaration allowed the request.
 function mountProbes(app: TestApp) {
-  app.get('/api/test-authz/api-perm', requirePermission('download-tasks', 'create'), (c) => c.json({ ok: true }))
-  app.get('/api/test-authz/no-downloader', requirePermission('download-tasks', 'read'), (c) => c.json({ ok: true }))
+  app.get(
+    '/api/test-authz/api-perm',
+    authorize({
+      scopes: [AuthorizationScope.DOWNLOAD_TASKS_CREATE],
+    }),
+    (c) => c.json({ ok: true }),
+  )
+  app.get('/api/test-authz/no-downloader', authorize({ scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ] }), (c) =>
+    c.json({ ok: true }),
+  )
   app.get(
     '/api/test-authz/team-editor',
-    requirePermission('download-tasks', 'create', { minTeamRole: 'editor' }),
+    authorize({
+      scopes: [AuthorizationScope.DOWNLOAD_TASKS_CREATE],
+      minTeamRole: 'editor',
+    }),
     (c) => c.json({ ok: true }),
   )
 }
@@ -110,7 +119,7 @@ async function registerDownloader(app: TestApp, name: string): Promise<string> {
   return created.token
 }
 
-describe('requirePermission middleware', () => {
+describe('direct protected scope declaration', () => {
   it('returns 401 when there is no principal (unauthenticated)', async () => {
     const { app } = await createTestApp()
     mountProbes(app)
@@ -181,7 +190,7 @@ describe('requirePermission middleware', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns 401 for a downloader principal when allowDownloader is not set', async () => {
+  it('allows a downloader principal when its fixed scopes satisfy the route', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     mountProbes(app)
     const downloaderToken = await registerDownloader(app, 'authz-downloader')
@@ -189,13 +198,11 @@ describe('requirePermission middleware', () => {
     const res = await app.request('/api/test-authz/no-downloader', {
       headers: { Authorization: `Bearer ${downloaderToken}` },
     })
-    expect(res.status).toBe(401)
-    const body = (await res.json()) as { error: { message: string; status: string } }
-    expect(body.error.message).toBe('Unauthorized')
-    expect(body.error.status).toBe('UNAUTHENTICATED')
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ ok: true })
   })
 
-  it('returns 401 for a bootstrap bearer on routes that would allow a session principal', async () => {
+  it('returns 401 when a one-purpose bootstrap credential is used outside registration', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     mountProbes(app)
     const bootstrapToken = await issueBootstrapToken(app)
@@ -373,7 +380,7 @@ describe('requirePermission middleware', () => {
     expect(rows[0]).toMatchObject({
       action: 'authorization_denied',
       actorType: 'api_key',
-      targetName: 'protected route',
+      targetName: 'scoped route',
     })
     expect(JSON.parse(rows[0].metadata)).toEqual({
       credential: 'api_key',
@@ -404,8 +411,122 @@ describe('requirePermission middleware', () => {
 })
 
 describe('evaluateAuthorization', () => {
-  it('lets sessions bypass declared scopes but keeps role policy', async () => {
-    const deps = {
+  const deps = {
+    getMemberRole: async () => 'owner',
+    findPersonalOrg: async () => 'org-1',
+  }
+  const sessionContext = {
+    credential: 'session' as const,
+    userId: 'user-1',
+    orgId: 'org-1',
+    fixedOrgId: null,
+    grantedScopes: null,
+    actor: { type: 'user' as const, ref: 'user-1' },
+    state: { firstParty: true as const, role: 'admin' },
+  }
+
+  it('uses user roles for sessions without requiring token scopes', async () => {
+    await expect(
+      evaluateAuthorization({
+        context: sessionContext,
+        declaration: { scopes: [AuthorizationScope.TEAMS_READ] },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: true })
+    await expect(
+      evaluateAuthorization({
+        context: sessionContext,
+        declaration: {
+          scopes: [AuthorizationScope.SITE_ANALYTICS_READ],
+          siteRole: 'admin',
+        },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: true })
+    await expect(
+      evaluateAuthorization({
+        context: { ...sessionContext, state: { firstParty: true, role: 'member' } },
+        declaration: {
+          scopes: [AuthorizationScope.SITE_ANALYTICS_READ],
+          siteRole: 'admin',
+        },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'insufficient_site_role' })
+  })
+
+  it('uses scopes for downloader and bootstrap credentials', async () => {
+    const downloaderContext = {
+      credential: 'downloader' as const,
+      userId: null,
+      orgId: null,
+      fixedOrgId: null,
+      grantedScopes: new Set([AuthorizationScope.DOWNLOADERS_UPDATE]),
+      actor: { type: 'downloader' as const, ref: 'downloader-1' },
+      state: {},
+    }
+    const bootstrapContext = {
+      credential: 'downloader-bootstrap' as const,
+      userId: 'user-1',
+      orgId: null,
+      fixedOrgId: null,
+      grantedScopes: new Set([AuthorizationScope.DOWNLOADERS_CREATE]),
+      actor: { type: 'user' as const, ref: 'user-1' },
+      state: { clientId: 'zpan-cli' as const, scope: 'downloader:register' as const },
+    }
+
+    await expect(
+      evaluateAuthorization({
+        context: downloaderContext,
+        declaration: { scopes: [AuthorizationScope.DOWNLOADERS_UPDATE] },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: true })
+    await expect(
+      evaluateAuthorization({
+        context: bootstrapContext,
+        declaration: { scopes: [AuthorizationScope.DOWNLOADERS_CREATE], siteRole: 'admin' },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: true })
+    await expect(
+      evaluateAuthorization({
+        context: downloaderContext,
+        declaration: { scopes: [AuthorizationScope.DOWNLOADERS_CREATE] },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'missing_scope' })
+  })
+
+  it('uses task-upload token scopes', async () => {
+    const taskUploadContext = {
+      credential: 'download-task-upload' as const,
+      userId: 'user-1',
+      orgId: 'org-1',
+      fixedOrgId: 'org-1',
+      grantedScopes: new Set([AuthorizationScope.OBJECTS_CREATE]),
+      actor: { type: 'task-upload' as const, ref: 'task-1' },
+      state: { downloaderId: 'downloader-1', taskId: 'task-1' },
+    }
+
+    await expect(
+      evaluateAuthorization({
+        context: taskUploadContext,
+        declaration: { scopes: [AuthorizationScope.OBJECTS_CREATE] },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: true })
+    await expect(
+      evaluateAuthorization({
+        context: { ...taskUploadContext, grantedScopes: new Set<AuthorizationScope>() },
+        declaration: { scopes: [AuthorizationScope.OBJECTS_CREATE] },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'missing_scope' })
+  })
+
+  it('evaluates session team roles independently of scopes', async () => {
+    const viewerDeps = {
       getMemberRole: async () => 'viewer',
       findPersonalOrg: async () => 'personal-org',
     }
@@ -421,8 +542,11 @@ describe('evaluateAuthorization', () => {
           actor: { type: 'user', ref: 'user-1' },
           state: { firstParty: true },
         },
-        declaration: { access: 'protected', scopes: [AuthorizationScope.DOWNLOAD_TASKS_CREATE], minTeamRole: 'editor' },
-        deps,
+        declaration: {
+          scopes: [AuthorizationScope.DOWNLOAD_TASKS_CREATE],
+          minTeamRole: 'editor',
+        },
+        deps: viewerDeps,
       }),
     ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'insufficient_role' })
   })
@@ -439,7 +563,10 @@ describe('evaluateAuthorization', () => {
           actor: { type: 'api_key', ref: 'key-1' },
           state: { configId: 'remote-download', enabled: true },
         },
-        declaration: { access: 'protected', scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ], minTeamRole: 'viewer' },
+        declaration: {
+          scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
+          minTeamRole: 'viewer',
+        },
         deps: {
           getMemberRole: async () => 'owner',
           findPersonalOrg: async () => null,

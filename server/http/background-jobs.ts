@@ -1,7 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { createBackgroundJobRequestSchema, cursorPageSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
-import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
   cancelBackgroundJob,
@@ -66,10 +65,7 @@ function requireOrg(c: { get(key: 'orgId'): string | null }): string {
 }
 
 const listRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
-  },
+  { scopes: [AuthorizationScope.BACKGROUND_JOBS_READ] },
   {
     operationId: 'listBackgroundJobs',
     summary: 'List background jobs',
@@ -85,14 +81,13 @@ const listRoute = authRoute(
 )
 
 const createJobRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.BACKGROUND_JOBS_CREATE] },
   {
     operationId: 'createBackgroundJob',
     summary: 'Create background job',
     tags: ['Background Jobs'],
     method: 'post',
     path: '/',
-    middleware: [requireAuth] as const,
     request: jsonBody(createBackgroundJobRequestSchema),
     responses: {
       201: jsonContent(backgroundJobSchema, 'Created background job'),
@@ -102,10 +97,7 @@ const createJobRoute = authRoute(
 )
 
 const statsRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
-  },
+  { scopes: [AuthorizationScope.BACKGROUND_JOBS_READ] },
   {
     operationId: 'getBackgroundJobStats',
     summary: 'Get active background job count',
@@ -120,10 +112,7 @@ const statsRoute = authRoute(
 )
 
 const getJobRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
-  },
+  { scopes: [AuthorizationScope.BACKGROUND_JOBS_READ] },
   {
     operationId: 'getBackgroundJob',
     summary: 'Get background job',
@@ -139,14 +128,13 @@ const getJobRoute = authRoute(
 )
 
 const cancelJobRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.BACKGROUND_JOBS_UPDATE] },
   {
     operationId: 'cancelBackgroundJob',
     summary: 'Cancel background job',
     tags: ['Background Jobs'],
     method: 'put',
     path: '/{id}/status',
-    middleware: [requireAuth] as const,
     request: { params: z.object({ id: z.string() }), ...jsonBody(cancelJobSchema) },
     responses: {
       200: jsonContent(backgroundJobSchema, 'Canceled background job'),
@@ -157,14 +145,13 @@ const cancelJobRoute = authRoute(
 )
 
 const retryJobRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.BACKGROUND_JOBS_UPDATE] },
   {
     operationId: 'retryBackgroundJob',
     summary: 'Retry background job',
     tags: ['Background Jobs'],
     method: 'post',
     path: '/{id}/retries',
-    middleware: [requireAuth] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       201: jsonContent(backgroundJobSchema, 'Retried background job'),

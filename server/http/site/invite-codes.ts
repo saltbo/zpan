@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
-import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { type InviteCodeRecord, unauthorized } from '../../usecases/ports'
 import {
@@ -49,28 +49,26 @@ const validateSchema = z.object({
 })
 
 const listRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.INVITE_CODES_READ], siteRole: 'admin' },
   {
     operationId: 'listInviteCodes',
     summary: 'List invite codes',
     tags: ['Invite Codes'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin] as const,
     request: { query: pageQuerySchema },
     responses: { 200: jsonContent(inviteCodeListSchema, 'Invite codes') },
   },
 )
 
 const generateRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.INVITE_CODES_CREATE], siteRole: 'admin' },
   {
     operationId: 'generateInviteCodes',
     summary: 'Generate invite codes',
     tags: ['Invite Codes'],
     method: 'post',
     path: '/',
-    middleware: [requireAdmin] as const,
     request: jsonBody(generateSchema),
     responses: {
       201: jsonContent(z.object({ codes: z.array(inviteCodeSchema) }), 'Generated invite codes'),
@@ -80,14 +78,13 @@ const generateRoute = authRoute(
 )
 
 const deleteRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.INVITE_CODES_DELETE], siteRole: 'admin' },
   {
     operationId: 'deleteInviteCode',
     summary: 'Delete invite code',
     tags: ['Invite Codes'],
     method: 'delete',
     path: '/{id}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       204: { description: 'Deleted invite code' },
@@ -98,7 +95,7 @@ const deleteRoute = authRoute(
 )
 
 const validateRoute = authRoute(
-  { access: 'public' },
+  { public: true },
   {
     operationId: 'validateInviteCode',
     summary: 'Validate an invite code',

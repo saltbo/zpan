@@ -105,10 +105,7 @@ const taskErrorResponses = {
 }
 
 const listRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
-  },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ] },
   {
     operationId: 'listDownloadTasks',
     summary: 'List download tasks',
@@ -125,11 +122,7 @@ const listRoute = authRoute(
 )
 
 const downloaderTaskListRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
-    allowDownloader: true,
-  },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ] },
   {
     operationId: 'listDownloaderTasks',
     summary: 'List tasks owned by the authenticated downloader',
@@ -146,11 +139,7 @@ const downloaderTaskListRoute = authRoute(
 )
 
 const createRouteDoc = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_CREATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CREATE], minTeamRole: 'editor' },
   {
     operationId: 'createDownloadTask',
     summary: 'Create download task',
@@ -166,10 +155,7 @@ const createRouteDoc = authRoute(
 )
 
 const getRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
-  },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ] },
   {
     operationId: 'getDownloadTask',
     summary: 'Get download task',
@@ -185,10 +171,7 @@ const getRoute = authRoute(
 )
 
 const eventsRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
-  },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ] },
   {
     operationId: 'listDownloadTaskEvents',
     summary: 'List download task timeline events',
@@ -204,11 +187,7 @@ const eventsRoute = authRoute(
 )
 
 const updateRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL],
-    allowDownloader: true,
-  },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL] },
   {
     operationId: 'updateDownloadTask',
     summary: 'Update download task',
@@ -224,10 +203,7 @@ const updateRoute = authRoute(
 )
 
 const statusRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL],
-  },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL] },
   {
     operationId: 'setDownloadTaskStatus',
     summary: 'Pause, resume, or cancel a task',
@@ -243,10 +219,7 @@ const statusRoute = authRoute(
 )
 
 const attemptRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL],
-  },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL] },
   {
     operationId: 'retryDownloadTask',
     summary: 'Retry or restart a task',
@@ -262,10 +235,7 @@ const attemptRoute = authRoute(
 )
 
 const deleteRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL],
-  },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL] },
   {
     operationId: 'deleteDownloadTask',
     summary: 'Delete download task',

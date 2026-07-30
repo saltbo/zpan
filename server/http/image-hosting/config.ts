@@ -1,7 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { putIhostConfigSchema } from '../../../shared/schemas'
 import type { IhostConfigResponse } from '../../../shared/types'
-import { requireAuth, requireTeamRole } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import {
   deleteImageHostingConfig,
@@ -82,14 +82,13 @@ function buildResponse(
 }
 
 const getRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.IMAGE_HOSTING_CONFIG_READ] },
   {
     operationId: 'getImageHostingConfig',
     summary: 'Get image-hosting config',
     tags: ['Image Hosting'],
     method: 'get',
     path: '/',
-    middleware: [requireAuth] as const,
     responses: {
       200: jsonContent(ihostConfigSchema, 'Image-hosting config'),
       401: errorResponse('Unauthorized'),
@@ -98,14 +97,13 @@ const getRoute = authRoute(
 )
 
 const putRoute = authRoute(
-  { access: 'session', minTeamRole: 'owner' },
+  { scopes: [AuthorizationScope.IMAGE_HOSTING_CONFIG_UPDATE], minTeamRole: 'owner' },
   {
     operationId: 'updateImageHostingConfig',
     summary: 'Update image-hosting config',
     tags: ['Image Hosting'],
     method: 'put',
     path: '/',
-    middleware: [requireAuth, requireTeamRole('owner')] as const,
     request: jsonBody(putIhostConfigSchema),
     responses: {
       200: jsonContent(ihostConfigSchema, 'Updated config'),
@@ -117,14 +115,13 @@ const putRoute = authRoute(
 )
 
 const deleteRoute = authRoute(
-  { access: 'session', minTeamRole: 'owner' },
+  { scopes: [AuthorizationScope.IMAGE_HOSTING_CONFIG_DELETE], minTeamRole: 'owner' },
   {
     operationId: 'deleteImageHostingConfig',
     summary: 'Delete image-hosting config',
     tags: ['Image Hosting'],
     method: 'delete',
     path: '/',
-    middleware: [requireAuth, requireTeamRole('owner')] as const,
     responses: {
       204: { description: 'Deleted' },
       401: errorResponse('Unauthorized'),

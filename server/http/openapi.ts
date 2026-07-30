@@ -1,7 +1,7 @@
 import { createRoute, type RouteConfig, type z } from '@hono/zod-openapi'
 import { AGENT_GRANTABLE_API_KEY_SCOPES } from '@shared/api-key-templates'
 import { errorResponseSchema } from '@shared/schemas'
-import { authorize, type RouteAuthorizationDeclaration } from '../middleware/authz'
+import { authorize, type RouteAuthorizationDeclaration, type ScopedAuthorizationPolicy } from '../middleware/authz'
 
 // Shared OpenAPI route helpers used by every resource router. Generic over the
 // schema so its precise type reaches `createRoute`: that types `c.req.valid(...)`
@@ -30,8 +30,7 @@ export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> 
   auth: RouteAuthorizationDeclaration,
   config: T,
 ): T & { getRoutingPath(): string } {
-  const middleware =
-    auth.access === 'protected' ? [authorize(auth), ...((config.middleware ?? []) as [])] : config.middleware
+  const middleware = [authorize(auth), ...((config.middleware ?? []) as [])]
   return createRoute({
     ...config,
     middleware,
@@ -48,44 +47,54 @@ export function findOperationsMissingAuthContract(paths: Record<string, Record<s
     for (const [method, operation] of Object.entries(operations)) {
       if (!methods.has(method)) continue
       if (!operation || typeof operation !== 'object') continue
-      if ('x-zpan-auth' in operation) continue
+      if (hasValidAuthContract(operation)) continue
       missing.push(`${method.toUpperCase()} ${path}`)
     }
   }
   return missing
 }
 
+function hasValidAuthContract(operation: object): boolean {
+  if (!('x-zpan-auth' in operation)) return false
+  const auth = operation['x-zpan-auth']
+  if (!auth || typeof auth !== 'object' || !('public' in auth) || !('scopes' in auth)) return false
+  if (typeof auth.public !== 'boolean' || !Array.isArray(auth.scopes)) return false
+  return auth.public ? auth.scopes.length === 0 : auth.scopes.length > 0
+}
+
 function openApiSecurity(auth: RouteAuthorizationDeclaration): Record<string, string[]>[] {
-  if (auth.access === 'anyOf') return auth.policies.flatMap(openApiSecurity)
-  if (auth.access === 'public' || auth.access === 'internal' || auth.access === 'signed-webhook') return []
-  if (auth.access === 'admin' || auth.access === 'session') return [{ cookieAuth: [] }]
-  if (auth.access === 'downloader' || auth.access === 'downloader-bootstrap' || auth.access === 'task-upload-token') {
-    return [{ bearerAuth: [] }]
-  }
-  if (!auth.scopes?.length) return [{ bearerAuth: [] }, { cookieAuth: [] }]
-  return auth.scopes.every((scope) => AGENT_GRANTABLE_SCOPE_SET.has(scope))
-    ? [{ agentOAuth2: [...auth.scopes] }, { agentApiKey: [...auth.scopes] }, { cookieAuth: [] }]
-    : [{ bearerAuth: [...auth.scopes] }, { cookieAuth: [] }]
+  if ('public' in auth) return []
+  return openApiPolicySecurity(auth)
 }
 
 function openApiCliMetadata(auth: RouteAuthorizationDeclaration): Record<string, boolean> {
-  if (auth.access === 'anyOf') {
-    return auth.policies.every((policy) => openApiCliMetadata(policy)['x-mcp-ignore']) ? { 'x-mcp-ignore': true } : {}
-  }
-  if (auth.access === 'public' || auth.access === 'protected') return {}
-  if (auth.access === 'internal') return { 'x-cli-ignore': true, 'x-mcp-ignore': true }
-  return { 'x-mcp-ignore': true }
+  if ('public' in auth) return {}
+  return isAgentCallablePolicy(auth) ? {} : { 'x-mcp-ignore': true }
 }
 
 function openApiAuthMetadata(auth: RouteAuthorizationDeclaration): Record<string, unknown> {
-  if (auth.access === 'anyOf') return { access: auth.access, policies: auth.policies.map(openApiAuthMetadata) }
-  if (auth.access === 'session') return { access: auth.access, minTeamRole: auth.minTeamRole ?? null }
-  if (auth.access !== 'protected') return { access: auth.access }
+  if ('public' in auth) return { public: true, scopes: [] }
   return {
-    access: auth.access,
-    scopes: auth.scopes ?? [],
-    minTeamRole: auth.minTeamRole ?? null,
-    allowDownloader: auth.allowDownloader ?? false,
-    auditDenied: auth.auditDenied !== false,
+    public: false,
+    ...openApiPolicyMetadata(auth),
+  }
+}
+
+function openApiPolicySecurity(policy: ScopedAuthorizationPolicy): Record<string, string[]>[] {
+  return policy.scopes.every((scope) => AGENT_GRANTABLE_SCOPE_SET.has(scope))
+    ? [{ agentOAuth2: [...policy.scopes] }, { agentApiKey: [...policy.scopes] }, { cookieAuth: [] }]
+    : [{ bearerAuth: [...policy.scopes] }, { cookieAuth: [] }]
+}
+
+function isAgentCallablePolicy(policy: ScopedAuthorizationPolicy): boolean {
+  return policy.scopes.every((scope) => AGENT_GRANTABLE_SCOPE_SET.has(scope))
+}
+
+function openApiPolicyMetadata(policy: ScopedAuthorizationPolicy): Record<string, unknown> {
+  return {
+    scopes: [...policy.scopes],
+    minTeamRole: policy.minTeamRole ?? null,
+    siteRole: policy.siteRole ?? null,
+    auditDenied: policy.auditDenied !== false,
   }
 }

@@ -53,11 +53,7 @@ const trashPageSchema = cursorPageSchema(matterSchema, 'TrashObjectPage')
 const idParam = z.object({ id: z.string() })
 
 const listTrashRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_READ],
-    minTeamRole: 'viewer',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_READ], minTeamRole: 'viewer' },
   {
     operationId: 'listTrashObjects',
     summary: 'List trashed objects',
@@ -73,11 +69,7 @@ const listTrashRoute = authRoute(
 )
 
 const getTrashObjectRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_READ],
-    minTeamRole: 'viewer',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_READ], minTeamRole: 'viewer' },
   {
     operationId: 'getTrashObject',
     summary: 'Get trashed object',
@@ -94,11 +86,7 @@ const getTrashObjectRoute = authRoute(
 )
 
 const restoreObjectRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_UPDATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_UPDATE], minTeamRole: 'editor' },
   {
     operationId: 'restoreObject',
     summary: 'Restore trashed object',
@@ -116,11 +104,7 @@ const restoreObjectRoute = authRoute(
 )
 
 const purgeObjectRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_PURGE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_PURGE], minTeamRole: 'editor' },
   {
     operationId: 'purgeTrashObject',
     summary: 'Permanently delete trashed object',

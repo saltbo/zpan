@@ -251,7 +251,7 @@ describe('global OpenAPI document', () => {
     expect(events?.description).toContain('download-tasks:read')
     expect(events?.description).toContain('resource-change')
     expect(events?.['x-zpan-auth']).toMatchObject({
-      access: 'protected',
+      public: false,
       scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
     })
   })
@@ -276,7 +276,6 @@ describe('global OpenAPI document', () => {
   it('emits OpenAPI authorization metadata from one route declaration helper', () => {
     const route = authRoute(
       {
-        access: 'protected',
         scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
         minTeamRole: 'viewer',
       },
@@ -294,19 +293,46 @@ describe('global OpenAPI document', () => {
 
     expect(route.security).toEqual([{ bearerAuth: [AuthorizationScope.DOWNLOAD_TASKS_READ] }, { cookieAuth: [] }])
     expect(route['x-zpan-auth']).toEqual({
-      access: 'protected',
+      public: false,
       scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
       minTeamRole: 'viewer',
-      allowDownloader: false,
+      siteRole: null,
       auditDenied: true,
     })
     expect(route.middleware).toHaveLength(1)
   })
 
+  it('installs runtime authorization for public and scoped policies', () => {
+    const declarations = [
+      { public: true },
+      { scopes: [AuthorizationScope.OBJECTS_READ] },
+      {
+        scopes: [AuthorizationScope.SITE_ANALYTICS_READ],
+        siteRole: 'admin',
+      },
+      {
+        scopes: [AuthorizationScope.TEAMS_READ],
+        minTeamRole: 'viewer',
+      },
+      { scopes: [AuthorizationScope.DOWNLOADERS_UPDATE] },
+      { scopes: [AuthorizationScope.DOWNLOADERS_CREATE], siteRole: 'admin' },
+    ] as const
+
+    for (const [index, declaration] of declarations.entries()) {
+      const route = authRoute(declaration, {
+        operationId: `runtimeAuthProbe${index}`,
+        method: 'get',
+        path: `/runtime-auth-probe-${index}`,
+        responses: { 200: { description: 'OK' } },
+      }) as { middleware?: unknown[] }
+
+      expect(route.middleware).toHaveLength(1)
+    }
+  })
+
   it('emits Agent OAuth and API-key security only for Agent-grantable protected scopes', () => {
     const route = authRoute(
       {
-        access: 'protected',
         scopes: [AuthorizationScope.OBJECTS_CREATE],
         minTeamRole: 'editor',
       },
@@ -325,62 +351,51 @@ describe('global OpenAPI document', () => {
     ])
   })
 
-  it('emits CLI metadata for non-agent authorization policies', () => {
-    const protectedWithoutScopes = authRoute(
-      { access: 'protected' },
+  it('hides non-agent scoped policies from MCP without hiding them from Restish', () => {
+    const adminRoute = authRoute(
       {
-        operationId: 'genericProtectedProbe',
+        scopes: [AuthorizationScope.SITE_ANALYTICS_READ],
+        siteRole: 'admin',
+      },
+      {
+        operationId: 'sessionProbe',
         method: 'get',
         path: '/probe',
         responses: { 200: { description: 'OK' } },
       },
-    ) as { security?: unknown; 'x-zpan-auth'?: unknown }
-    const internalRoute = authRoute(
-      { access: 'internal' },
-      {
-        operationId: 'internalProbe',
-        method: 'post',
-        path: '/internal-probe',
-        responses: { 204: { description: 'No Content' } },
-      },
     ) as { security?: unknown; 'x-zpan-auth'?: unknown; 'x-cli-ignore'?: boolean; 'x-mcp-ignore'?: boolean }
 
-    expect(protectedWithoutScopes.security).toEqual([{ bearerAuth: [] }, { cookieAuth: [] }])
-    expect(protectedWithoutScopes['x-zpan-auth']).toEqual({
-      access: 'protected',
-      scopes: [],
+    expect(adminRoute.security).toEqual([{ bearerAuth: [AuthorizationScope.SITE_ANALYTICS_READ] }, { cookieAuth: [] }])
+    expect(adminRoute['x-zpan-auth']).toEqual({
+      public: false,
+      scopes: [AuthorizationScope.SITE_ANALYTICS_READ],
       minTeamRole: null,
-      allowDownloader: false,
+      siteRole: 'admin',
       auditDenied: true,
     })
-    expect(internalRoute.security).toEqual([])
-    expect(internalRoute['x-zpan-auth']).toEqual({ access: 'internal' })
-    expect(internalRoute['x-cli-ignore']).toBe(true)
-    expect(internalRoute['x-mcp-ignore']).toBe(true)
+    expect(adminRoute['x-cli-ignore']).toBeUndefined()
+    expect(adminRoute['x-mcp-ignore']).toBe(true)
   })
 
   it('detects OpenAPI operations missing explicit authorization declarations without an allowlist', () => {
     expect(
       findOperationsMissingAuthContract({
-        '/public': { get: { 'x-zpan-auth': { access: 'public' } } },
-        '/protected': { post: { 'x-zpan-auth': { access: 'protected' } } },
+        '/public': { get: { 'x-zpan-auth': { public: true, scopes: [] } } },
+        '/protected': { post: { 'x-zpan-auth': { public: false, scopes: ['objects:read'] } } },
         '/missing': { delete: { responses: { 204: { description: 'Deleted' } } } },
       }),
     ).toEqual(['DELETE /missing'])
   })
 
-  it('emits explicit authorization metadata for every hand-written OpenAPI operation', async () => {
+  it('requires every non-public OpenAPI operation to declare at least one scope', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as { paths: Record<string, Record<string, unknown>> }
-    const handWrittenPaths = Object.fromEntries(
-      Object.entries(doc.paths).filter(([path]) => !path.startsWith('/api/auth/')),
-    )
 
-    expect(findOperationsMissingAuthContract(handWrittenPaths)).toEqual([])
+    expect(findOperationsMissingAuthContract(doc.paths)).toEqual([])
   })
 
-  it('documents downloader registration as admin or one-purpose bootstrap bearer auth', async () => {
+  it('documents downloader registration with its scope and session admin constraint', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
@@ -388,10 +403,13 @@ describe('global OpenAPI document', () => {
     }
 
     const operation = doc.paths['/api/downloads/downloaders']?.post
-    expect(operation?.security).toEqual([{ cookieAuth: [] }, { bearerAuth: [] }])
+    expect(operation?.security).toEqual([{ bearerAuth: [AuthorizationScope.DOWNLOADERS_CREATE] }, { cookieAuth: [] }])
     expect(operation?.['x-zpan-auth']).toEqual({
-      access: 'anyOf',
-      policies: [{ access: 'admin' }, { access: 'downloader-bootstrap' }],
+      public: false,
+      scopes: [AuthorizationScope.DOWNLOADERS_CREATE],
+      minTeamRole: null,
+      siteRole: 'admin',
+      auditDenied: true,
     })
     expect(operation?.['x-mcp-ignore']).toBe(true)
   })
@@ -584,7 +602,7 @@ describe('global OpenAPI document', () => {
 
     for (const operation of ownerOperations) {
       expect(operation?.['x-zpan-auth']).toMatchObject({
-        access: 'session',
+        public: false,
         minTeamRole: 'owner',
       })
     }

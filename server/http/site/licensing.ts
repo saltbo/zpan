@@ -1,9 +1,9 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import type { Context } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import type { BindingState } from '../../../shared/types'
 import { originFromRequestUrl } from '../../domain/site-public-origin'
-import { requireAdmin, requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { runtimeInfo } from '../../usecases/site/instance-info'
 import {
@@ -79,53 +79,49 @@ const pairingStatusSchema = z
   .openapi('LicensePairingStatus')
 
 const entitlementsRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.LICENSING_READ] },
   {
     operationId: 'getLicenseEntitlements',
     summary: 'Get the current user-visible license entitlements',
     tags: ['Licensing'],
     method: 'get',
     path: '/entitlements',
-    middleware: [requireAuth] as const,
     responses: { 200: jsonContent(licenseEntitlementsSchema, 'License entitlements') },
   },
 )
 
 const bindingRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.LICENSING_READ], siteRole: 'admin' },
   {
     operationId: 'getLicenseBinding',
     summary: 'Get license binding details',
     tags: ['Licensing'],
     method: 'get',
     path: '/binding',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(bindingStateSchema, 'License binding') },
   },
 )
 
 const initiatePairingRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.LICENSING_UPDATE], siteRole: 'admin' },
   {
     operationId: 'initiateLicensePairing',
     summary: 'Initiate cloud pairing',
     tags: ['Licensing'],
     method: 'post',
     path: '/pairings',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(pairingSchema, 'Pairing') },
   },
 )
 
 const pollPairingRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.LICENSING_READ], siteRole: 'admin' },
   {
     operationId: 'pollLicensePairing',
     summary: 'Poll cloud pairing status',
     tags: ['Licensing'],
     method: 'get',
     path: '/pairings/{code}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ code: z.string() }) },
     responses: {
       200: jsonContent(pairingStatusSchema, 'Pairing status'),
@@ -135,14 +131,13 @@ const pollPairingRoute = authRoute(
 )
 
 const refreshRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.LICENSING_UPDATE], siteRole: 'admin' },
   {
     operationId: 'refreshLicense',
     summary: 'Refresh the license',
     tags: ['Licensing'],
     method: 'post',
     path: '/refresh-runs',
-    middleware: [requireAdmin] as const,
     responses: {
       200: jsonContent(z.object({ success: z.boolean(), last_refresh_at: z.number().int().nullable() }), 'Refreshed'),
     },
@@ -150,14 +145,13 @@ const refreshRoute = authRoute(
 )
 
 const unbindRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.LICENSING_UPDATE], siteRole: 'admin' },
   {
     operationId: 'unbindLicense',
     summary: 'Unbind the license',
     tags: ['Licensing'],
     method: 'delete',
     path: '/binding',
-    middleware: [requireAdmin] as const,
     responses: {
       204: { description: 'Unbound' },
       502: errorResponse('Cloud unbind failed'),

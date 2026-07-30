@@ -180,11 +180,7 @@ async function authorizeUploadSessionControl(
 const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 
 const listRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_READ],
-    minTeamRole: 'viewer',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_READ], minTeamRole: 'viewer' },
   {
     operationId: 'listObjects',
     summary: 'List objects',
@@ -201,11 +197,7 @@ const listRoute = authRoute(
 )
 
 const createObjectRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_CREATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor' },
   {
     operationId: 'createObject',
     summary: 'Create object',
@@ -224,11 +216,7 @@ const createObjectRoute = authRoute(
 )
 
 const presignPartsRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_CREATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor' },
   {
     operationId: 'presignObjectUploadParts',
     summary: 'Re-presign upload parts',
@@ -247,11 +235,7 @@ const presignPartsRoute = authRoute(
 )
 
 const completionsRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_CREATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor' },
   {
     operationId: 'completeObjectUpload',
     summary: 'Complete upload',
@@ -271,11 +255,7 @@ const completionsRoute = authRoute(
 )
 
 const abortUploadRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_CREATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor' },
   {
     operationId: 'abortObjectUpload',
     summary: 'Abort upload',
@@ -294,11 +274,7 @@ const abortUploadRoute = authRoute(
 )
 
 const getObjectRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_READ],
-    minTeamRole: 'viewer',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_READ], minTeamRole: 'viewer' },
   {
     operationId: 'getObject',
     summary: 'Get object',
@@ -317,11 +293,7 @@ const getObjectRoute = authRoute(
 )
 
 const patchObjectRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_UPDATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_UPDATE], minTeamRole: 'editor' },
   {
     operationId: 'updateObject',
     summary: 'Update object',
@@ -338,11 +310,7 @@ const patchObjectRoute = authRoute(
 )
 
 const deleteObjectRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_DELETE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_DELETE], minTeamRole: 'editor' },
   {
     operationId: 'deleteObject',
     summary: 'Delete object',
@@ -361,11 +329,7 @@ const deleteObjectRoute = authRoute(
 )
 
 const copyObjectRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_UPDATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_UPDATE], minTeamRole: 'editor' },
   {
     operationId: 'copyObject',
     summary: 'Copy object',
@@ -382,11 +346,7 @@ const copyObjectRoute = authRoute(
 )
 
 const transferObjectRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_UPDATE],
-    minTeamRole: 'viewer',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_UPDATE], minTeamRole: 'viewer' },
   {
     operationId: 'transferObject',
     summary: 'Transfer object to another space',

@@ -1,7 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { pageSchema } from '@shared/schemas'
-import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
 import { getUserQuota, listQuotaOverview } from '../usecases/quota'
@@ -47,24 +46,19 @@ const quotaOverviewItemSchema = effectiveQuotaSchema
 const quotaOverviewSchema = pageSchema(quotaOverviewItemSchema, 'QuotaOverview')
 
 const listQuotaOverviewRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.QUOTA_READ], siteRole: 'admin' },
   {
     operationId: 'listQuotaOverview',
     summary: 'List quota overview across all spaces',
     tags: ['Quotas'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(quotaOverviewSchema, 'Quota overview') },
   },
 )
 
 const getMyQuotaRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.QUOTA_READ],
-    minTeamRole: 'viewer',
-  },
+  { scopes: [AuthorizationScope.QUOTA_READ], minTeamRole: 'viewer' },
   {
     operationId: 'getMyQuota',
     summary: "Get the current user's effective quota",

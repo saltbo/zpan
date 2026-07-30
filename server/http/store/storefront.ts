@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { checkoutInputSchema, discountQuoteInputSchema, redeemGiftCardInputSchema } from '@shared/schemas'
-import { requireAuth, requireTeamRole } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { badGateway, badRequest, forbidden } from '../../usecases/ports'
@@ -29,14 +29,14 @@ const cloudValue = z.unknown().openapi('CloudStoreValue')
 const cloudBody = (description: string) => jsonContent(cloudValue, description)
 
 const packagesRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.STORE_READ] },
   {
     operationId: 'listStorePackages',
     summary: 'List store packages',
     tags: ['Store'],
     method: 'get',
     path: '/packages',
-    middleware: [requireAuth, requireFeature('quota_store')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     responses: {
       200: cloudBody('Packages'),
       403: errorResponse('License not bound'),
@@ -46,14 +46,14 @@ const packagesRoute = authRoute(
 )
 
 const creditProductsRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.STORE_READ] },
   {
     operationId: 'listCreditProducts',
     summary: 'List credit products',
     tags: ['Store'],
     method: 'get',
     path: '/credits/products',
-    middleware: [requireAuth, requireFeature('quota_store')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     responses: {
       200: cloudBody('Credit products'),
       403: errorResponse('License not bound'),
@@ -63,14 +63,14 @@ const creditProductsRoute = authRoute(
 )
 
 const targetsRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.STORE_READ] },
   {
     operationId: 'listStoreTargets',
     summary: 'List store targets',
     tags: ['Store'],
     method: 'get',
     path: '/targets',
-    middleware: [requireAuth, requireFeature('quota_store')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     responses: {
       200: cloudBody('Targets'),
       403: errorResponse('License not bound'),
@@ -80,14 +80,14 @@ const targetsRoute = authRoute(
 )
 
 const creditsRoute = authRoute(
-  { access: 'session', minTeamRole: 'owner' },
+  { scopes: [AuthorizationScope.STORE_READ], minTeamRole: 'owner' },
   {
     operationId: 'getCreditBalance',
     summary: 'Get credit balance',
     tags: ['Store'],
     method: 'get',
     path: '/credits',
-    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     responses: {
       200: cloudBody('Credit balance'),
       400: errorResponse('No active organization'),
@@ -98,14 +98,14 @@ const creditsRoute = authRoute(
 )
 
 const ledgerRoute = authRoute(
-  { access: 'session', minTeamRole: 'owner' },
+  { scopes: [AuthorizationScope.STORE_READ], minTeamRole: 'owner' },
   {
     operationId: 'getCreditLedger',
     summary: 'Get credit ledger',
     tags: ['Store'],
     method: 'get',
     path: '/credits/ledger-entries',
-    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     responses: {
       200: cloudBody('Credit ledger'),
       400: errorResponse('No active organization'),
@@ -116,14 +116,14 @@ const ledgerRoute = authRoute(
 )
 
 const redeemRoute = authRoute(
-  { access: 'session', minTeamRole: 'owner' },
+  { scopes: [AuthorizationScope.STORE_CREATE], minTeamRole: 'owner' },
   {
     operationId: 'redeemGiftCard',
     summary: 'Redeem a gift card',
     tags: ['Store'],
     method: 'post',
     path: '/credits/redemptions',
-    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     request: jsonBody(redeemGiftCardInputSchema),
     responses: {
       200: cloudBody('Redemption result'),
@@ -135,14 +135,14 @@ const redeemRoute = authRoute(
 )
 
 const checkoutRoute = authRoute(
-  { access: 'session', minTeamRole: 'owner' },
+  { scopes: [AuthorizationScope.STORE_CREATE], minTeamRole: 'owner' },
   {
     operationId: 'createCheckout',
     summary: 'Create a checkout',
     tags: ['Store'],
     method: 'post',
     path: '/checkouts',
-    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     request: jsonBody(checkoutInputSchema),
     responses: {
       200: cloudBody('Checkout session'),
@@ -155,14 +155,14 @@ const checkoutRoute = authRoute(
 )
 
 const discountRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.STORE_CREATE] },
   {
     operationId: 'getDiscountQuote',
     summary: 'Get a discount quote',
     tags: ['Store'],
     method: 'post',
     path: '/discount-quotes',
-    middleware: [requireAuth, requireFeature('quota_store')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     request: jsonBody(discountQuoteInputSchema),
     responses: {
       200: cloudBody('Discount quote'),
@@ -173,14 +173,14 @@ const discountRoute = authRoute(
 )
 
 const billingPortalRoute = authRoute(
-  { access: 'session', minTeamRole: 'owner' },
+  { scopes: [AuthorizationScope.STORE_CREATE], minTeamRole: 'owner' },
   {
     operationId: 'createBillingPortalSession',
     summary: 'Create a billing portal session',
     tags: ['Store'],
     method: 'post',
     path: '/billing-portal-sessions',
-    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     responses: {
       200: cloudBody('Billing portal session'),
       400: errorResponse('No active organization'),
@@ -191,14 +191,14 @@ const billingPortalRoute = authRoute(
 )
 
 const ordersRoute = authRoute(
-  { access: 'session', minTeamRole: 'owner' },
+  { scopes: [AuthorizationScope.STORE_READ], minTeamRole: 'owner' },
   {
     operationId: 'listOrders',
     summary: 'List orders',
     tags: ['Store'],
     method: 'get',
     path: '/orders',
-    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     request: { query: cloudStoreOrdersQuerySchema },
     responses: {
       200: cloudBody('Orders'),
@@ -210,14 +210,14 @@ const ordersRoute = authRoute(
 )
 
 const continuePaymentRoute = authRoute(
-  { access: 'session', minTeamRole: 'owner' },
+  { scopes: [AuthorizationScope.STORE_CREATE], minTeamRole: 'owner' },
   {
     operationId: 'continueOrderPayment',
     summary: 'Continue an order payment',
     tags: ['Store'],
     method: 'post',
     path: '/orders/{orderId}/payments',
-    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     request: { params: z.object({ orderId: z.string() }) },
     responses: {
       200: cloudBody('Payment continuation'),
@@ -230,14 +230,14 @@ const continuePaymentRoute = authRoute(
 )
 
 const cancelOrderRoute = authRoute(
-  { access: 'session', minTeamRole: 'owner' },
+  { scopes: [AuthorizationScope.STORE_UPDATE], minTeamRole: 'owner' },
   {
     operationId: 'cancelOrder',
     summary: 'Cancel an order',
     tags: ['Store'],
     method: 'put',
     path: '/orders/{orderId}/status',
-    middleware: [requireAuth, requireFeature('quota_store'), requireTeamRole('owner')] as const,
+    middleware: [requireFeature('quota_store')] as const,
     request: { params: z.object({ orderId: z.string() }), ...jsonBody(z.object({ status: z.literal('canceled') })) },
     responses: {
       200: cloudBody('Canceled order'),

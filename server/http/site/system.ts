@@ -1,5 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
-import { requireAdmin } from '../../middleware/auth'
+import { AuthorizationScope } from '@shared/authorization'
 import type { Env } from '../../middleware/platform'
 import { runtimeInfo } from '../../usecases/site/instance-info'
 import { getChangelog, resolveInstanceInfo } from '../../usecases/site/system'
@@ -41,27 +41,25 @@ const changelogSchema = z
   .openapi('Changelog')
 
 const instanceRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SYSTEM_READ], siteRole: 'admin' },
   {
     operationId: 'getInstanceInfo',
     summary: 'Get instance info',
     tags: ['System'],
     method: 'get',
     path: '/instance',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(instanceInfoSchema, 'Instance info') },
   },
 )
 
 const changelogRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SYSTEM_READ], siteRole: 'admin' },
   {
     operationId: 'getChangelog',
     summary: 'Get changelog',
     tags: ['System'],
     method: 'get',
     path: '/changelog',
-    middleware: [requireAdmin] as const,
     request: { query: z.object({ refresh: z.string().optional() }) },
     responses: { 200: jsonContent(changelogSchema, 'Changelog') },
   },

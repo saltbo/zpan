@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { publicProfileSchema } from '@shared/schemas/profile'
-import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
   badRequest,
@@ -67,14 +67,13 @@ function imageUploadError(status: 400 | 403 | 413 | 500 | 503, error: string) {
 }
 
 const setAvatarRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.USERS_UPDATE] },
   {
     operationId: 'setMyAvatar',
     summary: 'Set my avatar',
     tags: ['Users'],
     method: 'put',
     path: '/me/avatar',
-    middleware: [requireAuth] as const,
     // Body is multipart/form-data (a `file` field); parsed directly in the handler
     // rather than via a request schema (the form validator conflicts with formData()).
     responses: {
@@ -88,20 +87,19 @@ const setAvatarRoute = authRoute(
 )
 
 const deleteAvatarRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.USERS_UPDATE] },
   {
     operationId: 'deleteMyAvatar',
     summary: 'Remove my avatar',
     tags: ['Users'],
     method: 'delete',
     path: '/me/avatar',
-    middleware: [requireAuth] as const,
     responses: { 204: { description: 'Removed' } },
   },
 )
 
 const getUserRoute = authRoute(
-  { access: 'public' },
+  { public: true },
   {
     operationId: 'getUserProfile',
     summary: 'Get a user public profile',
@@ -125,28 +123,26 @@ const userQuotaSchema = z
   .openapi('AdminUserQuota')
 
 const getUserQuotaRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.USERS_READ], siteRole: 'admin' },
   {
     operationId: 'getUserQuota',
     summary: "Get a user's storage quota",
     tags: ['Users'],
     method: 'get',
     path: '/{userId}/quota',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ userId: z.string() }) },
     responses: { 200: jsonContent(userQuotaSchema, 'User quota') },
   },
 )
 
 const listUserEntitlementsRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.USER_ENTITLEMENTS_READ], siteRole: 'admin' },
   {
     operationId: 'listUserEntitlements',
     summary: 'List a user’s entitlements',
     tags: ['Users'],
     method: 'get',
     path: '/{userId}/entitlements',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ userId: z.string() }) },
     responses: {
       200: jsonContent(entitlementListSchema, 'Entitlements'),
@@ -157,14 +153,13 @@ const listUserEntitlementsRoute = authRoute(
 )
 
 const grantUserEntitlementRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.USER_ENTITLEMENTS_CREATE], siteRole: 'admin' },
   {
     operationId: 'grantUserEntitlement',
     summary: 'Grant a user entitlement',
     tags: ['Users'],
     method: 'post',
     path: '/{userId}/entitlements',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ userId: z.string() }), ...jsonBody(grantEntitlementSchema) },
     responses: {
       201: jsonContent(entitlementResultSchema, 'Granted'),
@@ -175,14 +170,13 @@ const grantUserEntitlementRoute = authRoute(
 )
 
 const updateUserEntitlementRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.USER_ENTITLEMENTS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateUserEntitlement',
     summary: 'Update a user entitlement',
     tags: ['Users'],
     method: 'patch',
     path: '/{userId}/entitlements/{eid}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ userId: z.string(), eid: z.string() }), ...jsonBody(updateEntitlementSchema) },
     responses: {
       200: jsonContent(entitlementResultSchema, 'Updated'),
@@ -193,14 +187,13 @@ const updateUserEntitlementRoute = authRoute(
 )
 
 const revokeUserEntitlementRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.USER_ENTITLEMENTS_DELETE], siteRole: 'admin' },
   {
     operationId: 'revokeUserEntitlement',
     summary: 'Revoke a user entitlement',
     tags: ['Users'],
     method: 'delete',
     path: '/{userId}/entitlements/{eid}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ userId: z.string(), eid: z.string() }) },
     responses: {
       204: { description: 'Revoked' },

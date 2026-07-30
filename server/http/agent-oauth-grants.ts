@@ -1,11 +1,11 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import {
   agentOAuthConsentContextSchema,
   agentOAuthConsentResultSchema,
   agentOAuthConsentSubmitSchema,
   agentOAuthGrantListSchema,
 } from '@shared/schemas'
-import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { getAgentOAuthConsentContext } from '../usecases/agent-oauth-consent'
 import { listAgentOAuthGrants, revokeAgentOAuthGrant } from '../usecases/agent-oauth-grants'
@@ -15,14 +15,13 @@ const paramsSchema = z.object({ grantId: z.string().min(1) })
 const consentContextQuerySchema = z.object({ oauthQuery: z.string().min(1) })
 
 const consentContextRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.AGENT_OAUTH_GRANTS_CREATE] },
   {
     operationId: 'getAgentOAuthConsentContext',
     summary: 'Get pending Agent OAuth consent context',
     tags: ['Agent Access'],
     method: 'get',
     path: '/agent-oauth-consent',
-    middleware: [requireAuth] as const,
     request: { query: consentContextQuerySchema },
     responses: {
       200: jsonContent(agentOAuthConsentContextSchema, 'Agent OAuth consent context'),
@@ -33,14 +32,13 @@ const consentContextRoute = authRoute(
 )
 
 const consentSubmitRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.AGENT_OAUTH_GRANTS_CREATE] },
   {
     operationId: 'submitAgentOAuthConsent',
     summary: 'Submit Agent OAuth consent decision',
     tags: ['Agent Access'],
     method: 'post',
     path: '/agent-oauth-consent',
-    middleware: [requireAuth] as const,
     request: jsonBody(agentOAuthConsentSubmitSchema),
     responses: {
       200: jsonContent(agentOAuthConsentResultSchema, 'Agent OAuth consent result'),
@@ -51,14 +49,13 @@ const consentSubmitRoute = authRoute(
 )
 
 const listRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.AGENT_OAUTH_GRANTS_READ] },
   {
     operationId: 'listAgentOAuthGrants',
     summary: 'List Agent OAuth grants',
     tags: ['Agent Access'],
     method: 'get',
     path: '/agent-oauth-grants',
-    middleware: [requireAuth] as const,
     responses: {
       200: jsonContent(agentOAuthGrantListSchema, 'Agent OAuth grants'),
     },
@@ -66,14 +63,13 @@ const listRoute = authRoute(
 )
 
 const revokeRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.AGENT_OAUTH_GRANTS_DELETE] },
   {
     operationId: 'revokeAgentOAuthGrant',
     summary: 'Revoke an Agent OAuth grant',
     tags: ['Agent Access'],
     method: 'delete',
     path: '/agent-oauth-grants/{grantId}',
-    middleware: [requireAuth] as const,
     request: { params: paramsSchema },
     responses: {
       204: { description: 'Revoked' },

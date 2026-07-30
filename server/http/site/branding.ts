@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { type BrandingField, type BrandingThemeMode, isBrandingThemePresetId } from '../../../shared/types'
-import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { AppError, badRequest, payloadTooLarge, unsupportedMediaType } from '../../usecases/ports'
@@ -90,14 +90,14 @@ function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | {
 }
 
 const updateRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.BRANDING_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateBranding',
     summary: 'Update branding',
     tags: ['Branding'],
     method: 'put',
     path: '/',
-    middleware: [requireAdmin, requireFeature('white_label')] as const,
+    middleware: [requireFeature('white_label')] as const,
     // Body is multipart/form-data (logo/favicon files + theme fields); parsed
     // directly in the handler rather than via a request schema (the form validator
     // conflicts with formData()).
@@ -112,14 +112,14 @@ const updateRoute = authRoute(
 )
 
 const resetRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.BRANDING_UPDATE], siteRole: 'admin' },
   {
     operationId: 'resetBrandingField',
     summary: 'Reset a branding field',
     tags: ['Branding'],
     method: 'delete',
     path: '/{field}',
-    middleware: [requireAdmin, requireFeature('white_label')] as const,
+    middleware: [requireFeature('white_label')] as const,
     request: { params: z.object({ field: z.string() }) },
     responses: {
       204: { description: 'Reset field' },

@@ -27,10 +27,7 @@ const requireEventsAccess = createMiddleware<Env>(async (c, next) => {
 // is just a string. OpenAPI 3.x has no native way to type the named events of a
 // single stream, so they're spelled out in the route description below.
 const eventStreamRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ],
-  },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ] },
   {
     operationId: 'streamEvents',
     tags: ['Events'],

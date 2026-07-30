@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
-import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import type { AdminAuditEventWithOrg } from '../../usecases/ports'
@@ -44,14 +44,14 @@ const listAuditQuerySchema = pageQuerySchema.extend({
 })
 
 const listRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.AUDIT_EVENTS_READ], siteRole: 'admin' },
   {
     operationId: 'listAuditEvents',
     summary: 'List audit events',
     tags: ['Audit'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin, requireFeature('audit_log')] as const,
+    middleware: [requireFeature('audit_log')] as const,
     request: { query: listAuditQuerySchema },
     responses: { 200: jsonContent(auditPageSchema, 'Audit events'), 400: errorResponse('Invalid query') },
   },

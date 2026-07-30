@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { imageDomainProviderResponseSchema, updateImageDomainSettingsSchema } from '@shared/schemas'
-import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import {
@@ -13,27 +13,26 @@ import { authRoute, errorResponse, jsonContent } from '../openapi'
 const successSchema = z.object({ success: z.literal(true) })
 
 const getRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.IMAGE_DOMAIN_PROVIDER_READ], siteRole: 'admin' },
   {
     operationId: 'getImageDomainProvider',
     summary: 'Get image custom-domain provider',
     tags: ['Image Domain Provider'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(imageDomainProviderResponseSchema, 'Image custom-domain provider') },
   },
 )
 
 const saveRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.IMAGE_DOMAIN_PROVIDER_UPDATE], siteRole: 'admin' },
   {
     operationId: 'saveImageDomainProvider',
     summary: 'Save image custom-domain provider',
     tags: ['Image Domain Provider'],
     method: 'put',
     path: '/',
-    middleware: [requireAdmin, requireFeature('image_custom_domains')] as const,
+    middleware: [requireFeature('image_custom_domains')] as const,
     request: {
       body: { content: { 'application/json': { schema: updateImageDomainSettingsSchema } }, required: true },
     },
@@ -45,14 +44,14 @@ const saveRoute = authRoute(
 )
 
 const testRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.IMAGE_DOMAIN_PROVIDER_TEST], siteRole: 'admin' },
   {
     operationId: 'testImageDomainProvider',
     summary: 'Test image custom-domain provider and reconcile domains',
     tags: ['Image Domain Provider'],
     method: 'post',
     path: '/tests',
-    middleware: [requireAdmin, requireFeature('image_custom_domains')] as const,
+    middleware: [requireFeature('image_custom_domains')] as const,
     responses: {
       200: jsonContent(successSchema, 'Provider ready'),
       400: errorResponse('Provider test failed'),

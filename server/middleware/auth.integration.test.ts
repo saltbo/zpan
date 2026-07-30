@@ -1,9 +1,10 @@
+import { AuthorizationScope } from '@shared/authorization'
 import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it, vi } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
-import { requireAdmin, requireTeamRole } from './auth.js'
+import { authorize } from './authz.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
 type TestDb = TestCtx['db']
@@ -11,8 +12,12 @@ type TestApp = TestCtx['app']
 
 async function createAdminTestApp() {
   const { app, db, auth } = await createTestApp()
-  app.get('/api/admin-only', requireAdmin, (c) => c.json({ ok: true }))
-  app.post('/api/admin-only', requireAdmin, (c) => c.json({ ok: true }))
+  const adminPolicy = {
+    scopes: [AuthorizationScope.SITE_ANALYTICS_READ],
+    siteRole: 'admin',
+  } as const
+  app.get('/api/admin-only', authorize(adminPolicy), (c) => c.json({ ok: true }))
+  app.post('/api/admin-only', authorize(adminPolicy), (c) => c.json({ ok: true }))
   return { app, db, auth }
 }
 
@@ -37,7 +42,7 @@ async function authedHeadersWithFreshSession(
   return { Cookie: cookies.join('; ') }
 }
 
-describe('requireAdmin middleware', () => {
+describe('admin authorization declaration', () => {
   it('returns 403 when user is not authenticated', async () => {
     const { app } = await createAdminTestApp()
     const res = await app.request('/api/admin-only')
@@ -157,7 +162,7 @@ describe('authenticated user activity', () => {
   })
 })
 
-// --- requireTeamRole helpers ---
+// --- session role policy helpers ---
 
 async function insertOrg(db: TestDb, slug: string) {
   const id = nanoid()
@@ -224,13 +229,27 @@ async function setActiveOrg(app: TestApp, cookies: string, orgId: string): Promi
 
 function createTeamRoleTestApp() {
   return createTestApp().then(({ app, db, deps }) => {
-    app.get('/api/test/viewer', requireTeamRole('viewer'), (c) => c.json({ ok: true }))
-    app.post('/api/test/editor', requireTeamRole('editor'), (c) => c.json({ ok: true }))
+    app.get(
+      '/api/test/viewer',
+      authorize({
+        scopes: [AuthorizationScope.TEAMS_READ],
+        minTeamRole: 'viewer',
+      }),
+      (c) => c.json({ ok: true }),
+    )
+    app.post(
+      '/api/test/editor',
+      authorize({
+        scopes: [AuthorizationScope.TEAMS_READ],
+        minTeamRole: 'editor',
+      }),
+      (c) => c.json({ ok: true }),
+    )
     return { app, db, deps }
   })
 }
 
-describe('requireTeamRole — personal org bypass', () => {
+describe('session role policy — personal org bypass', () => {
   it('viewer-level route passes for personal org owner', async () => {
     const { app } = await createTeamRoleTestApp()
     const headers = await authedHeaders(app)
@@ -246,8 +265,8 @@ describe('requireTeamRole — personal org bypass', () => {
   })
 })
 
-describe('requireTeamRole — team org with owner role', () => {
-  it('caches repeated safe-method membership checks but not writes', async () => {
+describe('session role policy — team org with owner role', () => {
+  it('rechecks current membership on every request', async () => {
     const { app, db, deps } = await createTeamRoleTestApp()
     const { userId, cookies } = await signUpAndGetSession(app, db, 'owner-cache@example.com')
     const teamOrgId = await insertOrg(db, `team-${nanoid()}`)
@@ -257,7 +276,7 @@ describe('requireTeamRole — team org with owner role', () => {
 
     expect((await app.request('/api/test/viewer', { headers: { Cookie: updatedCookies } })).status).toBe(200)
     expect((await app.request('/api/test/viewer', { headers: { Cookie: updatedCookies } })).status).toBe(200)
-    expect(getMemberRole).toHaveBeenCalledOnce()
+    expect(getMemberRole).toHaveBeenCalledTimes(2)
 
     await db
       .update(authSchema.member)
@@ -266,7 +285,7 @@ describe('requireTeamRole — team org with owner role', () => {
     expect(
       (await app.request('/api/test/editor', { method: 'POST', headers: { Cookie: updatedCookies } })).status,
     ).toBe(403)
-    expect(getMemberRole).toHaveBeenCalledTimes(2)
+    expect(getMemberRole).toHaveBeenCalledTimes(3)
   })
 
   it('viewer-level route passes for owner', async () => {
@@ -292,7 +311,7 @@ describe('requireTeamRole — team org with owner role', () => {
   })
 })
 
-describe('requireTeamRole — team org with editor role', () => {
+describe('session role policy — team org with editor role', () => {
   it('editor-level route passes for editor', async () => {
     const { app, db } = await createTeamRoleTestApp()
     const { userId, cookies } = await signUpAndGetSession(app, db, 'editor@example.com')
@@ -316,7 +335,7 @@ describe('requireTeamRole — team org with editor role', () => {
   })
 })
 
-describe('requireTeamRole — team org with viewer role', () => {
+describe('session role policy — team org with viewer role', () => {
   it('viewer-level route passes for viewer', async () => {
     const { app, db } = await createTeamRoleTestApp()
     const { userId, cookies } = await signUpAndGetSession(app, db, 'viewer@example.com')
@@ -352,7 +371,7 @@ describe('requireTeamRole — team org with viewer role', () => {
   })
 })
 
-describe('requireTeamRole — team org with no membership', () => {
+describe('session role policy — team org with no membership', () => {
   it('viewer-level route returns 403 when user has no membership in the team org', async () => {
     const { app, db } = await createTeamRoleTestApp()
     const { userId, cookies } = await signUpAndGetSession(app, db, 'nomember@example.com')
@@ -383,7 +402,7 @@ describe('requireTeamRole — team org with no membership', () => {
   })
 })
 
-describe('requireTeamRole — unknown role', () => {
+describe('session role policy — unknown role', () => {
   it('editor-level route returns 403 for a user with an unknown role', async () => {
     const { app, db } = await createTeamRoleTestApp()
     const { userId, cookies } = await signUpAndGetSession(app, db, 'contrib@example.com')

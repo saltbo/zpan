@@ -1,4 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import {
   adminAnalyticsGrowthSchema,
   adminAnalyticsOperationsSchema,
@@ -8,7 +9,6 @@ import {
   adminAnalyticsTrafficSchema,
 } from '@shared/schemas'
 import { addCalendarDays, utcDateStart } from '../domain/admin-stats-time'
-import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
 import {
@@ -61,17 +61,14 @@ function analyticsRoute(
   gated = true,
 ) {
   return authRoute(
-    { access: 'admin' },
+    { scopes: [AuthorizationScope.SITE_ANALYTICS_READ], siteRole: 'admin' },
     {
       operationId,
       summary,
       tags: ['Site Analytics'],
       method: 'get',
       path,
-      middleware: (gated ? [requireAdmin, requireFeature('analytics')] : [requireAdmin]) as [
-        typeof requireAdmin,
-        ...Array<ReturnType<typeof requireFeature>>,
-      ],
+      middleware: gated ? [requireFeature('analytics')] : [],
       request: { query: rangeQuerySchema },
       responses: { 200: jsonContent(schema, summary) },
     },

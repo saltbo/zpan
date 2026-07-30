@@ -199,7 +199,7 @@ const verifyPasswordSchema = z.object({ password: z.string() })
 
 // ─── PUBLIC SEGMENT ──────────────────────────────────────────────────────────
 const viewShareRoute = authRoute(
-  { access: 'public' },
+  { public: true },
   {
     operationId: 'getShare',
     summary: 'View a share',
@@ -216,7 +216,7 @@ const viewShareRoute = authRoute(
 )
 
 const verifyShareRoute = authRoute(
-  { access: 'public' },
+  { public: true },
   {
     operationId: 'verifySharePassword',
     summary: 'Verify a share password',
@@ -233,7 +233,7 @@ const verifyShareRoute = authRoute(
 )
 
 const listShareObjectsRoute = authRoute(
-  { access: 'public' },
+  { public: true },
   {
     operationId: 'listShareObjects',
     summary: 'List objects in a folder share',
@@ -252,7 +252,7 @@ const listShareObjectsRoute = authRoute(
 )
 
 const readShareReadmeRoute = authRoute(
-  { access: 'public' },
+  { public: true },
   {
     operationId: 'readShareReadme',
     summary: 'Read a shared folder README',
@@ -409,11 +409,7 @@ export const publicShares = pub
 
 // ─── AUTHED SEGMENT ─────────────────────────────────────────────────────────
 const listSharesRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.SHARES_READ],
-    minTeamRole: 'viewer',
-  },
+  { scopes: [AuthorizationScope.SHARES_READ], minTeamRole: 'viewer' },
   {
     operationId: 'listShares',
     summary: 'List my shares',
@@ -426,11 +422,7 @@ const listSharesRoute = authRoute(
 )
 
 const createShareRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.SHARES_CREATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.SHARES_CREATE], minTeamRole: 'editor' },
   {
     operationId: 'createShare',
     summary: 'Create a share',
@@ -447,11 +439,7 @@ const createShareRoute = authRoute(
 )
 
 const revokeShareRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.SHARES_DELETE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.SHARES_DELETE], minTeamRole: 'editor' },
   {
     operationId: 'revokeShare',
     summary: 'Revoke a share',
@@ -473,11 +461,7 @@ const revokeShareRoute = authRoute(
 const sharePrivacySchema = z.object({ private: z.boolean() }).openapi('SharePrivacy')
 
 const putSharePrivacyRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.SHARES_CREATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.SHARES_CREATE], minTeamRole: 'editor' },
   {
     operationId: 'putSharePrivacy',
     summary: 'Set whether a share is hidden from the owner public profile',
@@ -498,11 +482,7 @@ const putSharePrivacyRoute = authRoute(
 )
 
 const saveShareRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.OBJECTS_CREATE],
-    minTeamRole: 'editor',
-  },
+  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor' },
   {
     operationId: 'saveShare',
     summary: 'Save a share to my drive',

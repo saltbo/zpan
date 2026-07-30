@@ -39,8 +39,8 @@ Feature: Image hosting
     When it is posted
     Then the API responds 400
 
-  @image-hosting/presign-session-only @api
-  Scenario: Presign requires a session, not an API key
+  @image-hosting/presign-scope-required @api
+  Scenario: Presign requires images:create for scoped credentials
     Given an API-key request to presign
     When it is called
     Then the API responds 401
