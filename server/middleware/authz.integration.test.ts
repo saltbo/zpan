@@ -418,8 +418,7 @@ describe('evaluateAuthorization', () => {
   const sessionContext = {
     credential: 'session' as const,
     userId: 'user-1',
-    orgId: 'org-1',
-    fixedOrgId: null,
+    workspace: { mode: 'selected' as const, orgId: 'org-1' },
     grantedScopes: null,
     actor: { type: 'user' as const, ref: 'user-1' },
     state: { firstParty: true as const, role: 'admin' },
@@ -459,8 +458,7 @@ describe('evaluateAuthorization', () => {
     const downloaderContext = {
       credential: 'downloader' as const,
       userId: null,
-      orgId: null,
-      fixedOrgId: null,
+      workspace: { mode: 'none' as const, orgId: null },
       grantedScopes: new Set([AuthorizationScope.DOWNLOADERS_UPDATE]),
       actor: { type: 'downloader' as const, ref: 'downloader-1' },
       state: {},
@@ -468,8 +466,7 @@ describe('evaluateAuthorization', () => {
     const bootstrapContext = {
       credential: 'downloader-bootstrap' as const,
       userId: 'user-1',
-      orgId: null,
-      fixedOrgId: null,
+      workspace: { mode: 'none' as const, orgId: null },
       grantedScopes: new Set([AuthorizationScope.DOWNLOADERS_CREATE]),
       actor: { type: 'user' as const, ref: 'user-1' },
       state: { clientId: 'zpan-cli' as const, scope: 'downloader:register' as const },
@@ -502,8 +499,7 @@ describe('evaluateAuthorization', () => {
     const taskUploadContext = {
       credential: 'download-task-upload' as const,
       userId: 'user-1',
-      orgId: 'org-1',
-      fixedOrgId: 'org-1',
+      workspace: { mode: 'bound' as const, orgId: 'org-1' },
       grantedScopes: new Set([AuthorizationScope.OBJECTS_CREATE]),
       actor: { type: 'task-upload' as const, ref: 'task-1' },
       state: { downloaderId: 'downloader-1', taskId: 'task-1' },
@@ -536,8 +532,7 @@ describe('evaluateAuthorization', () => {
         context: {
           credential: 'session',
           userId: 'user-1',
-          orgId: 'org-1',
-          fixedOrgId: null,
+          workspace: { mode: 'selected', orgId: 'org-1' },
           grantedScopes: null,
           actor: { type: 'user', ref: 'user-1' },
           state: { firstParty: true },
@@ -551,14 +546,14 @@ describe('evaluateAuthorization', () => {
     ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'insufficient_role' })
   })
 
-  it('blocks fixed-workspace credentials from a different effective workspace', async () => {
+  it('uses the bound workspace for current-role checks', async () => {
+    let checkedOrgId: string | null = null
     await expect(
       evaluateAuthorization({
         context: {
           credential: 'api_key',
           userId: 'user-1',
-          orgId: 'org-2',
-          fixedOrgId: 'org-1',
+          workspace: { mode: 'bound', orgId: 'org-1' },
           grantedScopes: new Set([AuthorizationScope.DOWNLOAD_TASKS_READ]),
           actor: { type: 'api_key', ref: 'key-1' },
           state: { configId: 'remote-download', enabled: true },
@@ -568,10 +563,14 @@ describe('evaluateAuthorization', () => {
           minTeamRole: 'viewer',
         },
         deps: {
-          getMemberRole: async () => 'owner',
+          getMemberRole: async (orgId) => {
+            checkedOrgId = orgId
+            return 'owner'
+          },
           findPersonalOrg: async () => null,
         },
       }),
-    ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'workspace_mismatch' })
+    ).resolves.toMatchObject({ allowed: true, effectiveOrgId: 'org-1' })
+    expect(checkedOrgId).toBe('org-1')
   })
 })

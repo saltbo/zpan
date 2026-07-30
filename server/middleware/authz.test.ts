@@ -2,7 +2,7 @@ import { AuthorizationScope } from '@shared/authorization'
 import { Hono } from 'hono'
 import { describe, expect, it, vi } from 'vitest'
 import { authorize, type RouteAuthorizationDeclaration } from './authz'
-import type { AuthzContext, Env } from './platform'
+import { type AuthzContext, type Env, workspaceOrgId } from './platform'
 
 function probeApp(context: AuthzContext, declaration: RouteAuthorizationDeclaration) {
   const recordGrantUse = vi.fn(async () => {})
@@ -15,7 +15,7 @@ function probeApp(context: AuthzContext, declaration: RouteAuthorizationDeclarat
       audit: { record: vi.fn() },
       org: {
         getMemberRole: vi.fn(async () => 'owner'),
-        findPersonalOrg: vi.fn(async () => context.orgId),
+        findPersonalOrg: vi.fn(async () => workspaceOrgId(context)),
       },
     } as unknown as Env['Variables']['deps'])
     await next()
@@ -28,8 +28,7 @@ describe('authorize Agent OAuth grant-use tracking', () => {
   const context: AuthzContext = {
     credential: 'agent_oauth',
     userId: 'user-1',
-    orgId: 'org-1',
-    fixedOrgId: 'org-1',
+    workspace: { mode: 'bound', orgId: 'org-1' },
     grantedScopes: new Set([AuthorizationScope.OBJECTS_READ]),
     actor: { type: 'agent_oauth', ref: 'grant-1' },
     state: { clientId: 'zpan-agent' },
@@ -69,8 +68,7 @@ describe('authorize Agent OAuth grant-use tracking', () => {
       {
         credential: 'session',
         userId: 'user-1',
-        orgId: 'org-1',
-        fixedOrgId: null,
+        workspace: { mode: 'selected', orgId: 'org-1' },
         grantedScopes: null,
         actor: { type: 'user', ref: 'user-1' },
         state: { firstParty: true },

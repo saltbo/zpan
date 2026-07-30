@@ -28,7 +28,7 @@ Anonymous upload and preview-and-claim are explicitly excluded. Every Agent file
 operation belongs to an existing user-authorized workspace from the beginning.
 
 OAuth and API keys are v2.9 credential adapters, not the file API's identity
-model. Both resolve to a protocol-neutral principal, scope set, fixed workspace,
+model. Both resolve to a protocol-neutral principal, scope set, bound workspace,
 and audit actor. A future Agent Auth verifier plugs into that same boundary.
 
 ## 2. Why OAuth for Interactive Agents
@@ -79,7 +79,7 @@ ZPan separates four concepts:
 | Concept | Responsibility |
 |---------|----------------|
 | Credential adapter | Validate OAuth, API key, or future Agent JWT |
-| Principal | Identify the authorizing user, credential actor, and fixed workspace |
+| Principal | Identify the authorizing user, credential actor, and bound workspace |
 | Scope and policy authorization | Intersect credential scopes with current workspace authority |
 | Use case | Perform the file operation without knowing the credential protocol |
 
@@ -405,17 +405,17 @@ For OAuth:
 
 1. validate/introspect the access token;
 2. require the built-in Agent client ID and the route's required scopes;
-3. resolve user and fixed workspace grant;
+3. resolve user and bound workspace grant;
 4. recheck current workspace authority.
 
 For API keys:
 
 1. verify key, expiry, revocation, rate limit, and owner status;
 2. require `configId = "agent"` and the route's required scopes;
-3. resolve fixed workspace metadata;
+3. resolve bound workspace metadata;
 4. recheck current workspace authority.
 
-Both then invoke the same use case with the fixed `orgId` and a typed audit
+Both then invoke the same use case with the bound `orgId` and a typed audit
 actor. Routes use shared permission middleware instead of session-only or
 principal-specific checks. The shared middleware accepts the internal principal
 contract, so tests for protected operations do not need to know how the

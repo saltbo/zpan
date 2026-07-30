@@ -191,7 +191,7 @@ describe('Agent OAuth grants API integration', () => {
     expect(refresh.revoked).not.toBeNull()
   })
 
-  it('enforces live grant membership and fixed workspace for Agent OAuth bearer access', async () => {
+  it('enforces live grant membership and a bound workspace for Agent OAuth bearer access', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'agent-scope@example.com')
     const { userId, orgId } = await getUserAndPersonalOrg(db, 'agent-scope@example.com')

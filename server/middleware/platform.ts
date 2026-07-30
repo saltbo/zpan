@@ -84,13 +84,23 @@ export type AuthPrincipal =
       authMethod: 'bearer'
     }
 
+export type AuthzWorkspace =
+  | { mode: 'none'; orgId: null }
+  | { mode: 'selected'; orgId: string | null }
+  | { mode: 'bound'; orgId: string }
+
 export type AuthzContext =
-  | { credential: 'anonymous'; userId: null; orgId: null; fixedOrgId: null; grantedScopes: null; actor: null }
+  | {
+      credential: 'anonymous'
+      userId: null
+      workspace: { mode: 'none'; orgId: null }
+      grantedScopes: null
+      actor: null
+    }
   | {
       credential: 'session'
       userId: string
-      orgId: string | null
-      fixedOrgId: null
+      workspace: { mode: 'selected'; orgId: string | null }
       grantedScopes: null
       actor: { type: 'user'; ref: string }
       state: { firstParty: true; role?: string }
@@ -98,8 +108,7 @@ export type AuthzContext =
   | {
       credential: 'api_key'
       userId: string
-      orgId: string | null
-      fixedOrgId: string | null
+      workspace: { mode: 'none'; orgId: null } | { mode: 'bound'; orgId: string }
       grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'api_key'; ref: string }
       state: { configId: string; enabled: true }
@@ -107,8 +116,7 @@ export type AuthzContext =
   | {
       credential: 'agent_oauth'
       userId: string
-      orgId: string
-      fixedOrgId: string
+      workspace: { mode: 'bound'; orgId: string }
       grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'agent_oauth'; ref: string }
       state: { clientId: string }
@@ -116,8 +124,7 @@ export type AuthzContext =
   | {
       credential: 'downloader'
       userId: null
-      orgId: null
-      fixedOrgId: null
+      workspace: { mode: 'none'; orgId: null }
       grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'downloader'; ref: string }
       state: Record<string, unknown>
@@ -125,8 +132,7 @@ export type AuthzContext =
   | {
       credential: 'downloader-bootstrap'
       userId: string
-      orgId: null
-      fixedOrgId: null
+      workspace: { mode: 'none'; orgId: null }
       grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'user'; ref: string }
       state: { clientId: 'zpan-cli'; scope: 'downloader:register' }
@@ -134,18 +140,24 @@ export type AuthzContext =
   | {
       credential: 'download-task-upload'
       userId: string
-      orgId: string
-      fixedOrgId: string
+      workspace: { mode: 'bound'; orgId: string }
       grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'task-upload'; ref: string }
       state: { downloaderId: string; taskId: string }
     }
 
+export function workspaceOrgId(context: AuthzContext): string | null {
+  return context.workspace.orgId
+}
+
+export function boundWorkspaceOrgId(context: AuthzContext): string | null {
+  return context.workspace.mode === 'bound' ? context.workspace.orgId : null
+}
+
 export const anonymousAuthzContext = (): AuthzContext => ({
   credential: 'anonymous',
   userId: null,
-  orgId: null,
-  fixedOrgId: null,
+  workspace: { mode: 'none', orgId: null },
   grantedScopes: null,
   actor: null,
 })

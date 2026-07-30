@@ -13,7 +13,7 @@ import {
   shareRecipientViewSchema,
 } from '../../shared/schemas/share'
 import { transferAuditActor } from '../middleware/audit-transfers'
-import type { Env } from '../middleware/platform'
+import { boundWorkspaceOrgId, type Env } from '../middleware/platform'
 import type { Matter, ShareListItem } from '../usecases/ports'
 import {
   createShare,
@@ -518,7 +518,7 @@ export const authedShares = authedApp
       box,
       pageSize,
       status,
-      fixedOrgId: c.get('authzContext').fixedOrgId,
+      boundOrgId: boundWorkspaceOrgId(c.get('authzContext')),
       after,
     })
     return c.json(
@@ -557,7 +557,7 @@ export const authedShares = authedApp
     const out = await setSharePrivacy(c.get('deps'), {
       token: c.req.valid('param').token,
       userId: c.get('userId')!,
-      fixedOrgId: c.get('authzContext').fixedOrgId,
+      boundOrgId: boundWorkspaceOrgId(c.get('authzContext')),
       private: c.req.valid('json').private,
     })
     if (out.ok) return c.json({ private: out.private }, 200)
@@ -567,7 +567,7 @@ export const authedShares = authedApp
     const out = await revokeShare(c.get('deps'), {
       token: c.req.valid('param').token,
       userId: c.get('userId')!,
-      fixedOrgId: c.get('authzContext').fixedOrgId,
+      boundOrgId: boundWorkspaceOrgId(c.get('authzContext')),
     })
     if (out.ok) return c.json(toShareViewDTO(out.dto), 200)
     throw out.error
@@ -579,7 +579,7 @@ export const authedShares = authedApp
       token,
       currentUserId: c.get('userId')!,
       targetOrgId,
-      fixedTargetOrgId: c.get('authzContext').fixedOrgId,
+      boundTargetOrgId: boundWorkspaceOrgId(c.get('authzContext')),
       targetParent,
       accessCookie: getCookie(c, cookieName(token)),
     })

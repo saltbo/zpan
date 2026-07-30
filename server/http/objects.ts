@@ -15,7 +15,7 @@ import {
 import type { Context } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { transferAuditActor } from '../middleware/audit-transfers'
-import type { Env } from '../middleware/platform'
+import { boundWorkspaceOrgId, type Env } from '../middleware/platform'
 import {
   abortUpload,
   authorizeTaskUploadAbort,
@@ -395,7 +395,7 @@ const objects = app
     const result = await listObjects(c.get('deps'), {
       orgId,
       userId: c.get('userId')!,
-      fixedOrgId: c.get('authzContext').fixedOrgId,
+      boundOrgId: boundWorkspaceOrgId(c.get('authzContext')),
       orgOverride: query.orgId,
       filters: {
         parent: query.path ?? query.parent ?? '',
@@ -553,7 +553,7 @@ const objects = app
   .openapi(transferObjectRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw badRequest('No active organization')
-    if (c.get('authzContext').fixedOrgId) throw forbidden()
+    if (boundWorkspaceOrgId(c.get('authzContext'))) throw forbidden()
 
     const result = await transferObject(c.get('deps'), {
       orgId,

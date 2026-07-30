@@ -26,8 +26,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       c.set('authzContext', {
         credential: 'download-task-upload',
         userId: taskUpload.createdByUserId,
-        orgId: taskUpload.orgId,
-        fixedOrgId: taskUpload.orgId,
+        workspace: { mode: 'bound', orgId: taskUpload.orgId },
         grantedScopes: new Set(taskUpload.scopes.filter(isAuthorizationScope)),
         actor: { type: 'task-upload', ref: taskUpload.taskId },
         state: { downloaderId: taskUpload.downloaderId, taskId: taskUpload.taskId },
@@ -44,8 +43,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       c.set('authzContext', {
         credential: 'downloader',
         userId: null,
-        orgId: null,
-        fixedOrgId: null,
+        workspace: { mode: 'none', orgId: null },
         grantedScopes: new Set([
           AuthorizationScope.DOWNLOAD_TASKS_READ,
           AuthorizationScope.DOWNLOAD_TASKS_CANCEL,
@@ -89,8 +87,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       c.set('authzContext', {
         credential: 'api_key',
         userId,
-        orgId,
-        fixedOrgId: orgId,
+        workspace: orgId ? { mode: 'bound', orgId } : { mode: 'none', orgId: null },
         grantedScopes: new Set(permissionScopes(apiKey.permissions)),
         actor: { type: 'api_key', ref: apiKey.id },
         state: { configId: apiKey.configId, enabled: true },
@@ -116,8 +113,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       c.set('authzContext', {
         credential: 'agent_oauth',
         userId: agentOAuth.userId,
-        orgId: agentOAuth.orgId,
-        fixedOrgId: agentOAuth.orgId,
+        workspace: { mode: 'bound', orgId: agentOAuth.orgId },
         grantedScopes: new Set(agentOAuth.scopes),
         actor: { type: 'agent_oauth', ref: agentOAuth.grantId },
         state: { clientId: agentOAuth.clientId },
@@ -143,8 +139,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       c.set('authzContext', {
         credential: 'downloader-bootstrap',
         userId: bootstrap.userId,
-        orgId: null,
-        fixedOrgId: null,
+        workspace: { mode: 'none', orgId: null },
         grantedScopes: new Set([AuthorizationScope.DOWNLOADERS_CREATE]),
         actor: { type: 'user', ref: bootstrap.userId },
         state: { clientId: LEGACY_DOWNLOADER_CLIENT_ID, scope: LEGACY_DOWNLOADER_REGISTER_SCOPE },
@@ -179,8 +174,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     c.set('authzContext', {
       credential: 'session',
       userId: result.user.id,
-      orgId,
-      fixedOrgId: null,
+      workspace: { mode: 'selected', orgId },
       grantedScopes: null,
       actor: { type: 'user', ref: result.user.id },
       state: { firstParty: true, role: result.user.role },

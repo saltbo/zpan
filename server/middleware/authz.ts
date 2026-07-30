@@ -3,7 +3,7 @@ import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { recordAuditEffect } from '../lib/audit'
 import { forbidden, unauthorized } from '../usecases/ports'
-import { type AuthzContext, anonymousAuthzContext, type Env } from './platform'
+import { type AuthzContext, anonymousAuthzContext, type Env, workspaceOrgId } from './platform'
 
 const ROLE_LEVELS: Record<string, number> = {
   owner: 3,
@@ -30,7 +30,6 @@ export type AuthzDenialReason =
   | 'actor_not_allowed'
   | 'missing_scope'
   | 'workspace_required'
-  | 'workspace_mismatch'
   | 'insufficient_role'
   | 'insufficient_site_role'
 
@@ -53,7 +52,7 @@ export async function evaluateAuthorization(input: {
   deps: AuthzDeps
 }): Promise<AuthzDecision> {
   const { context, declaration, deps } = input
-  if ('public' in declaration) return allow(context.orgId)
+  if ('public' in declaration) return allow(workspaceOrgId(context))
   return evaluateScopedPolicy(context, declaration, deps)
 }
 
@@ -83,14 +82,11 @@ async function evaluateRole(
   declaration: RouteAuthorizationDeclaration,
   deps: AuthzDeps,
 ): Promise<AuthzDecision> {
-  if (!minTeamRole) return allow(context.orgId)
+  if (!minTeamRole) return allow(workspaceOrgId(context))
   const userId = context.userId
   if (!userId) return deny(context, 401, 'actor_not_allowed', declaration)
-  const orgId = context.fixedOrgId ?? context.orgId
+  const orgId = workspaceOrgId(context)
   if (!orgId) return deny(context, 401, 'workspace_required', declaration)
-  if (context.fixedOrgId && context.orgId && context.fixedOrgId !== context.orgId) {
-    return deny(context, 403, 'workspace_mismatch', declaration)
-  }
 
   const role = await deps.getMemberRole(orgId, userId)
   if (role !== null) {
@@ -211,7 +207,7 @@ function declaredScopes(declaration: RouteAuthorizationDeclaration): Authorizati
 async function recordDenialAudit(c: Context<Env>, reason: AuthzDenialReason) {
   const context = c.get('authzContext')
   if (!context.actor) return
-  const orgId = context.fixedOrgId ?? context.orgId ?? c.get('orgId')
+  const orgId = workspaceOrgId(context) ?? c.get('orgId')
   if (!orgId) return
   await c.get('deps').audit.record({
     orgId,

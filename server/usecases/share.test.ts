@@ -851,7 +851,7 @@ describe('listShares', () => {
       box: 'sent',
       pageSize: 10,
       status: 'active',
-      fixedOrgId: 'o-1',
+      boundOrgId: 'o-1',
       after,
     })
     expect(listForApi).toHaveBeenCalledWith('u1', { pageSize: 10, status: 'active', orgId: 'o-1', after })
@@ -996,11 +996,11 @@ describe('createShare', () => {
 // ─── setSharePrivacy ─────────────────────────────────────────────────────────
 
 describe('setSharePrivacy', () => {
-  it('returns forbidden when a fixed org does not match the share org', async () => {
+  it('returns forbidden when the bound workspace does not match the share org', async () => {
     const setPrivacy = vi.fn()
     const { deps } = makeDeps({ share: { setPrivacy } })
     expectError(
-      await setSharePrivacy(deps, { token: 'sk_token1', userId: 'creator-1', fixedOrgId: 'other-org', private: true }),
+      await setSharePrivacy(deps, { token: 'sk_token1', userId: 'creator-1', boundOrgId: 'other-org', private: true }),
       403,
       undefined,
       'Forbidden',
@@ -1029,11 +1029,11 @@ describe('revokeShare', () => {
     expectError(await revokeShare(deps, { token: 't', userId: 'someone-else' }), 403, undefined, 'Forbidden')
   })
 
-  it('returns forbidden when a fixed org does not match the share org', async () => {
+  it('returns forbidden when the bound workspace does not match the share org', async () => {
     const revokeByToken = vi.fn()
     const { deps } = makeDeps({ share: { revokeByToken } })
     expectError(
-      await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1', fixedOrgId: 'other-org' }),
+      await revokeShare(deps, { token: 'sk_token1', userId: 'creator-1', boundOrgId: 'other-org' }),
       403,
       undefined,
       'Forbidden',
@@ -1133,10 +1133,10 @@ describe('saveShare', () => {
     expectError(await saveShare(deps, baseParams), 403, undefined, 'Forbidden')
   })
 
-  it('returns forbidden before org write checks when a fixed target org does not match', async () => {
+  it('returns forbidden before org write checks when the bound target workspace does not match', async () => {
     const canWriteToOrg = vi.fn()
     const { deps } = makeDeps({ org: { canWriteToOrg } })
-    expectError(await saveShare(deps, { ...baseParams, fixedTargetOrgId: 'other-org' }), 403, undefined, 'Forbidden')
+    expectError(await saveShare(deps, { ...baseParams, boundTargetOrgId: 'other-org' }), 403, undefined, 'Forbidden')
     expect(canWriteToOrg).not.toHaveBeenCalled()
   })
 
