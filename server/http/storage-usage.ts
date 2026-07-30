@@ -35,11 +35,7 @@ const itemSchema = z.object({
 })
 
 const getUsageRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.STORAGE_USAGE_READ],
-    minTeamRole: 'viewer',
-  },
+  { scopes: [AuthorizationScope.STORAGE_USAGE_READ], minTeamRole: 'viewer' },
   {
     operationId: 'getStorageUsage',
     summary: 'Get current storage usage by category',
@@ -51,11 +47,7 @@ const getUsageRoute = authRoute(
 )
 
 const listItemsRoute = authRoute(
-  {
-    access: 'protected',
-    scopes: [AuthorizationScope.STORAGE_USAGE_READ],
-    minTeamRole: 'viewer',
-  },
+  { scopes: [AuthorizationScope.STORAGE_USAGE_READ], minTeamRole: 'viewer' },
   {
     operationId: 'listStorageUsageItems',
     summary: 'List files in a storage usage category',

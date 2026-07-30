@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
-import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
   type AuditEventWithUser,
@@ -147,7 +147,7 @@ function imageUploadError(status: 400 | 403 | 413 | 500 | 503, error: string) {
 
 // ── publicTeams ──────────────────────────────────────────────────────────────
 const inviteLinkInfoRoute = authRoute(
-  { access: 'public' },
+  { public: true },
   {
     operationId: 'getTeamInviteLink',
     summary: 'Get team invite link info',
@@ -170,14 +170,13 @@ export const publicTeams = new OpenAPIHono<Env>().openapi(inviteLinkInfoRoute, a
 
 // ── teams (member-scoped) ────────────────────────────────────────────────────
 const createInviteLinkRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.TEAM_INVITATIONS_CREATE] },
   {
     operationId: 'createTeamInviteLink',
     summary: 'Create a team invite link',
     tags: ['Teams'],
     method: 'post',
     path: '/{teamId}/invite-links',
-    middleware: [requireAuth] as const,
     request: { params: z.object({ teamId: z.string() }), ...jsonBody(createLinkSchema) },
     responses: {
       201: jsonContent(inviteLinkCreatedSchema, 'Created invite link'),
@@ -187,14 +186,13 @@ const createInviteLinkRoute = authRoute(
 )
 
 const listInvitationsRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.TEAM_INVITATIONS_READ] },
   {
     operationId: 'listTeamInvitations',
     summary: 'List pending team invitations',
     tags: ['Teams'],
     method: 'get',
     path: '/{teamId}/invitations',
-    middleware: [requireAuth] as const,
     request: { params: z.object({ teamId: z.string() }) },
     responses: {
       200: jsonContent(pendingInvitationListSchema, 'Pending invitations'),
@@ -204,14 +202,13 @@ const listInvitationsRoute = authRoute(
 )
 
 const joinTeamRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.TEAM_MEMBERS_CREATE] },
   {
     operationId: 'joinTeam',
     summary: 'Join a team with an invite token',
     tags: ['Teams'],
     method: 'post',
     path: '/{teamId}/members',
-    middleware: [requireAuth] as const,
     request: { params: z.object({ teamId: z.string() }), ...jsonBody(joinSchema) },
     responses: {
       200: jsonContent(z.object({ ok: z.literal(true) }), 'Joined'),
@@ -223,14 +220,13 @@ const joinTeamRoute = authRoute(
 )
 
 const activityRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.TEAMS_READ] },
   {
     operationId: 'listTeamActivity',
     summary: 'List team activity',
     tags: ['Teams'],
     method: 'get',
     path: '/{teamId}/activity',
-    middleware: [requireAuth] as const,
     request: {
       params: z.object({ teamId: z.string() }),
       query: pageQuerySchema,
@@ -243,14 +239,13 @@ const activityRoute = authRoute(
 )
 
 const setLogoRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.TEAMS_UPDATE] },
   {
     operationId: 'setTeamLogo',
     summary: 'Set team logo',
     tags: ['Teams'],
     method: 'put',
     path: '/{teamId}/logo',
-    middleware: [requireAuth] as const,
     // Body is multipart/form-data (a `file` field); parsed directly in the handler
     // rather than via a request schema (the form validator conflicts with formData()).
     request: { params: z.object({ teamId: z.string() }) },
@@ -266,14 +261,13 @@ const setLogoRoute = authRoute(
 )
 
 const deleteLogoRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.TEAMS_UPDATE] },
   {
     operationId: 'deleteTeamLogo',
     summary: 'Delete team logo',
     tags: ['Teams'],
     method: 'delete',
     path: '/{teamId}/logo',
-    middleware: [requireAuth] as const,
     request: { params: z.object({ teamId: z.string() }) },
     responses: {
       204: { description: 'Deleted' },
@@ -356,27 +350,25 @@ export const teams = teamsApp
 
 // ── adminTeams ───────────────────────────────────────────────────────────────
 const listTeamsRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.TEAMS_READ], siteRole: 'admin' },
   {
     operationId: 'listTeams',
     summary: 'List teams',
     tags: ['Teams'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(teamListSchema, 'Teams') },
   },
 )
 
 const getTeamRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.TEAMS_READ], siteRole: 'admin' },
   {
     operationId: 'getTeam',
     summary: 'Get a team',
     tags: ['Teams'],
     method: 'get',
     path: '/{teamId}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ teamId: z.string() }) },
     responses: {
       200: jsonContent(teamSummarySchema, 'Team'),
@@ -386,14 +378,13 @@ const getTeamRoute = authRoute(
 )
 
 const listEntitlementsRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.TEAM_ENTITLEMENTS_READ], siteRole: 'admin' },
   {
     operationId: 'listTeamEntitlements',
     summary: 'List team quota entitlements',
     tags: ['Teams'],
     method: 'get',
     path: '/{teamId}/entitlements',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ teamId: z.string() }) },
     responses: {
       200: jsonContent(entitlementListSchema, 'Entitlements'),
@@ -404,14 +395,13 @@ const listEntitlementsRoute = authRoute(
 )
 
 const grantEntitlementRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.TEAM_ENTITLEMENTS_CREATE], siteRole: 'admin' },
   {
     operationId: 'grantTeamEntitlement',
     summary: 'Grant a team entitlement',
     tags: ['Teams'],
     method: 'post',
     path: '/{teamId}/entitlements',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ teamId: z.string() }), ...jsonBody(grantEntitlementSchema) },
     responses: {
       201: jsonContent(entitlementResultSchema, 'Granted entitlement'),
@@ -422,14 +412,13 @@ const grantEntitlementRoute = authRoute(
 )
 
 const updateEntitlementRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.TEAM_ENTITLEMENTS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateTeamEntitlement',
     summary: 'Update a team entitlement',
     tags: ['Teams'],
     method: 'patch',
     path: '/{teamId}/entitlements/{eid}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ teamId: z.string(), eid: z.string() }), ...jsonBody(updateEntitlementSchema) },
     responses: {
       200: jsonContent(entitlementResultSchema, 'Updated entitlement'),
@@ -440,14 +429,13 @@ const updateEntitlementRoute = authRoute(
 )
 
 const revokeEntitlementRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.TEAM_ENTITLEMENTS_DELETE], siteRole: 'admin' },
   {
     operationId: 'revokeTeamEntitlement',
     summary: 'Revoke a team entitlement',
     tags: ['Teams'],
     method: 'delete',
     path: '/{teamId}/entitlements/{eid}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ teamId: z.string(), eid: z.string() }) },
     responses: {
       204: { description: 'Revoked entitlement' },

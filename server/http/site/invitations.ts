@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
-import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { notFound, unauthorized } from '../../usecases/ports'
 import {
@@ -36,28 +36,26 @@ const siteInvitationListSchema = pageSchema(siteInvitationSchema, 'SiteInvitatio
 const createSchema = z.object({ email: z.string().email() })
 
 const listRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_INVITATIONS_READ], siteRole: 'admin' },
   {
     operationId: 'listSiteInvitations',
     summary: 'List site invitations',
     tags: ['Invitations'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin] as const,
     request: { query: pageQuerySchema },
     responses: { 200: jsonContent(siteInvitationListSchema, 'Invitations') },
   },
 )
 
 const createRouteDoc = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_INVITATIONS_CREATE], siteRole: 'admin' },
   {
     operationId: 'createSiteInvitation',
     summary: 'Create site invitation',
     tags: ['Invitations'],
     method: 'post',
     path: '/',
-    middleware: [requireAdmin] as const,
     request: jsonBody(createSchema),
     responses: {
       201: jsonContent(siteInvitationSchema, 'Created invitation'),
@@ -68,14 +66,13 @@ const createRouteDoc = authRoute(
 )
 
 const resendRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_INVITATIONS_CREATE], siteRole: 'admin' },
   {
     operationId: 'resendSiteInvitation',
     summary: 'Resend a site invitation',
     tags: ['Invitations'],
     method: 'post',
     path: '/{id}/deliveries',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       200: jsonContent(siteInvitationSchema, 'Resent invitation'),
@@ -86,14 +83,13 @@ const resendRoute = authRoute(
 )
 
 const revokeRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_INVITATIONS_DELETE], siteRole: 'admin' },
   {
     operationId: 'revokeSiteInvitation',
     summary: 'Revoke a site invitation',
     tags: ['Invitations'],
     method: 'delete',
     path: '/{id}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       204: { description: 'Revoked invitation' },
@@ -105,7 +101,7 @@ const revokeRoute = authRoute(
 )
 
 const getByTokenRoute = authRoute(
-  { access: 'public' },
+  { public: true },
   {
     operationId: 'getSiteInvitation',
     summary: 'Get a site invitation by token',

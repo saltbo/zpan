@@ -259,7 +259,10 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       if (!path.startsWith('/api/auth/') || !pathItem || typeof pathItem !== 'object') continue
       for (const operation of Object.values(pathItem)) {
         if (!operation || typeof operation !== 'object') continue
-        Object.assign(operation, { 'x-mcp-ignore': true })
+        Object.assign(operation, {
+          'x-zpan-auth': { public: true, scopes: [] },
+          'x-mcp-ignore': true,
+        })
         if (path.includes('/callback')) Object.assign(operation, { 'x-cli-ignore': true })
       }
     }
@@ -279,11 +282,10 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   const skipsPrincipalResolution = (path: string) =>
     path === '/api/configz' || path === '/api/configz/' || path === '/api/health'
 
-  // authMiddleware is
-  // soft-fail: it populates userId/orgId/principal (or null) and never rejects an
-  // anonymous caller — per-route guards (requireAuth/requireAdmin/requireTeamRole,
-  // or a shared-secret/signature check) do the gating. Running it ahead of every
-  // /api route lets one router per resource mix public and authed endpoints.
+  // authMiddleware is soft-fail: it resolves the protocol-specific credential
+  // into a principal and protocol-neutral authorization context. Each authRoute
+  // declaration then performs the runtime authorization, so one router can mix
+  // public and protected endpoints without a second guard mapping.
   app.use('/api/*', async (c, next) => {
     if (skipsPrincipalResolution(c.req.path)) {
       await next()
@@ -319,8 +321,8 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
 
   // Mount routes separately to avoid deep type chain accumulation.
   // Each .route() call is independent — TypeScript doesn't stack types.
-  // Authorization is per-route (requireAuth/requireAdmin/requireTeamRole), so a
-  // single resource path serves both public/user and admin callers.
+  // Authorization comes from each authRoute declaration, so a single resource
+  // path can serve public, user, and admin callers.
   app.route('/api/objects', objects)
   app.route('/api/shares', authedShares)
   app.route('/api/trash', trash)
@@ -333,9 +335,8 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/site/settings/email', emailConfig)
   app.route('/api/site/settings/image-domains', imageDomainProvider)
   app.route('/api/site/auth-providers', authProviders)
-  // Public/user router mounts BEFORE the admin router on a shared path: a sub-app's
-  // blanket `.use(requireAdmin)` becomes prefix-wide middleware, so mounting admin
-  // first would gate the public routes too.
+  // Public/user routes mount before admin routes on this shared path to preserve
+  // route matching order.
   app.route('/api/site/invite-codes', publicInviteCodes)
   app.route('/api/site/invite-codes', adminInviteCodes)
   app.route('/api/site/invitations', adminSiteInvitations)

@@ -1,5 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
-import { requireAdmin } from '../../middleware/auth'
+import { AuthorizationScope } from '@shared/authorization'
 import type { Env } from '../../middleware/platform'
 import { deleteAuthProvider, listAuthProviders, upsertAuthProvider } from '../../usecases/site/auth-provider'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
@@ -41,27 +41,25 @@ const upsertSchema = z.object({
 })
 
 const listRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.AUTH_PROVIDERS_READ], siteRole: 'admin' },
   {
     operationId: 'listAuthProviders',
     summary: 'List auth providers',
     tags: ['Auth Providers'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(authProviderListSchema, 'Auth providers') },
   },
 )
 
 const upsertRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.AUTH_PROVIDERS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'upsertAuthProvider',
     summary: 'Create or update an auth provider',
     tags: ['Auth Providers'],
     method: 'put',
     path: '/{providerId}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ providerId: z.string() }), ...jsonBody(upsertSchema) },
     responses: {
       200: jsonContent(authProviderSchema, 'Upserted auth provider'),
@@ -72,14 +70,13 @@ const upsertRoute = authRoute(
 )
 
 const deleteProviderRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.AUTH_PROVIDERS_DELETE], siteRole: 'admin' },
   {
     operationId: 'deleteAuthProvider',
     summary: 'Delete an auth provider',
     tags: ['Auth Providers'],
     method: 'delete',
     path: '/{providerId}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ providerId: z.string() }) },
     responses: {
       204: { description: 'Deleted auth provider' },

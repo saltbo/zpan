@@ -1,9 +1,9 @@
-import { type AuthorizationScope, authorizationScope } from '@shared/authorization'
+import type { AuthorizationScope } from '@shared/authorization'
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { recordAuditEffect } from '../lib/audit'
 import { forbidden, unauthorized } from '../usecases/ports'
-import type { AuthzContext, Env } from './platform'
+import { type AuthzContext, anonymousAuthzContext, type Env } from './platform'
 
 const ROLE_LEVELS: Record<string, number> = {
   owner: 3,
@@ -14,24 +14,16 @@ const ROLE_LEVELS: Record<string, number> = {
 }
 
 export type TeamRole = 'viewer' | 'editor' | 'owner'
+export type RequiredAuthorizationScopes = readonly [AuthorizationScope, ...AuthorizationScope[]]
 
-export type RouteAuthorizationDeclaration =
-  | { access: 'public' }
-  | { access: 'internal' }
-  | { access: 'admin' }
-  | { access: 'session'; minTeamRole?: TeamRole }
-  | { access: 'downloader' }
-  | { access: 'downloader-bootstrap' }
-  | { access: 'signed-webhook' }
-  | { access: 'task-upload-token' }
-  | { access: 'anyOf'; policies: readonly RouteAuthorizationDeclaration[] }
-  | {
-      access: 'protected'
-      scopes?: readonly AuthorizationScope[]
-      minTeamRole?: TeamRole
-      allowDownloader?: boolean
-      auditDenied?: boolean
-    }
+export type ScopedAuthorizationPolicy = {
+  scopes: RequiredAuthorizationScopes
+  minTeamRole?: TeamRole
+  siteRole?: 'admin'
+  auditDenied?: boolean
+}
+
+export type RouteAuthorizationDeclaration = { public: true } | ScopedAuthorizationPolicy
 
 export type AuthzDenialReason =
   | 'missing_credential'
@@ -40,6 +32,7 @@ export type AuthzDenialReason =
   | 'workspace_required'
   | 'workspace_mismatch'
   | 'insufficient_role'
+  | 'insufficient_site_role'
 
 export type AuthzDecision =
   | { allowed: true; effectiveOrgId: string | null; reason: 'allowed' }
@@ -50,31 +43,47 @@ type AuthzDeps = {
   findPersonalOrg(userId: string): Promise<string | null>
 }
 
+type SessionWithPlugins = {
+  user: { id: string; role?: string }
+}
+
 export async function evaluateAuthorization(input: {
   context: AuthzContext
   declaration: RouteAuthorizationDeclaration
   deps: AuthzDeps
 }): Promise<AuthzDecision> {
   const { context, declaration, deps } = input
-  if (declaration.access === 'public') return { allowed: true, effectiveOrgId: context.orgId, reason: 'allowed' }
-  if (declaration.access === 'internal') return deny(context, 403, 'actor_not_allowed', declaration)
-  if (declaration.access !== 'protected') return deny(context, 403, 'actor_not_allowed', declaration)
-  if (context.credential === 'anonymous') return deny(context, 401, 'missing_credential', declaration)
-  if (context.credential === 'downloader') {
-    return declaration.allowDownloader
-      ? { allowed: true, effectiveOrgId: null, reason: 'allowed' }
-      : deny(context, 401, 'actor_not_allowed', declaration)
-  }
-  if (context.credential === 'downloader-bootstrap') return deny(context, 401, 'actor_not_allowed', declaration)
+  if ('public' in declaration) return allow(context.orgId)
+  return evaluateScopedPolicy(context, declaration, deps)
+}
 
-  const requiredScopes = declaration.scopes ?? []
-  if (context.grantedScopes) {
-    for (const scope of requiredScopes) {
-      if (!context.grantedScopes.has(scope)) return deny(context, 403, 'missing_scope', declaration)
+async function evaluateScopedPolicy(
+  context: AuthzContext,
+  policy: ScopedAuthorizationPolicy,
+  deps: AuthzDeps,
+): Promise<AuthzDecision> {
+  if (context.credential === 'anonymous') return deny(context, 401, 'missing_credential', policy)
+
+  if (context.credential !== 'session') {
+    for (const scope of policy.scopes) {
+      if (!context.grantedScopes.has(scope)) return deny(context, 403, 'missing_scope', policy)
     }
   }
 
-  if (!declaration.minTeamRole) return { allowed: true, effectiveOrgId: context.orgId, reason: 'allowed' }
+  if (context.credential === 'session' && policy.siteRole === 'admin' && context.state.role !== 'admin') {
+    return deny(context, 403, 'insufficient_site_role', policy)
+  }
+
+  return evaluateRole(context, policy.minTeamRole, policy, deps)
+}
+
+async function evaluateRole(
+  context: AuthzContext,
+  minTeamRole: TeamRole | undefined,
+  declaration: RouteAuthorizationDeclaration,
+  deps: AuthzDeps,
+): Promise<AuthzDecision> {
+  if (!minTeamRole) return allow(context.orgId)
   const userId = context.userId
   if (!userId) return deny(context, 401, 'actor_not_allowed', declaration)
   const orgId = context.fixedOrgId ?? context.orgId
@@ -85,21 +94,24 @@ export async function evaluateAuthorization(input: {
 
   const role = await deps.getMemberRole(orgId, userId)
   if (role !== null) {
-    return (ROLE_LEVELS[role] ?? 0) >= ROLE_LEVELS[declaration.minTeamRole]
-      ? { allowed: true, effectiveOrgId: orgId, reason: 'allowed' }
+    return (ROLE_LEVELS[role] ?? 0) >= ROLE_LEVELS[minTeamRole]
+      ? allow(orgId)
       : deny(context, 403, 'insufficient_role', declaration)
   }
 
   const personalOrgId = await deps.findPersonalOrg(userId)
-  return personalOrgId === orgId
-    ? { allowed: true, effectiveOrgId: orgId, reason: 'allowed' }
-    : deny(context, 403, 'insufficient_role', declaration)
+  return personalOrgId === orgId ? allow(orgId) : deny(context, 403, 'insufficient_role', declaration)
 }
 
 export function authorize(declaration: RouteAuthorizationDeclaration) {
   return createMiddleware<Env>(async (c, next) => {
+    if ('public' in declaration) {
+      await next()
+      return
+    }
+    const context = await currentAuthorizationContext(c, declaration)
     const decision = await evaluateAuthorization({
-      context: c.get('authzContext'),
+      context,
       declaration,
       deps: {
         getMemberRole: (orgId, userId) => c.get('deps').org.getMemberRole(orgId, userId),
@@ -113,27 +125,42 @@ export function authorize(declaration: RouteAuthorizationDeclaration) {
       return
     }
     if (decision.audit) {
-      await recordAuditEffect('authorization_denied', () => recordDenialAudit(c, declaration, decision.reason))
+      await recordAuditEffect('authorization_denied', () => recordDenialAudit(c, decision.reason))
     }
     if (decision.status === 401) throw unauthorized('Unauthorized')
     throw forbidden('Forbidden')
   })
 }
 
-export function requirePermission(
-  resource: string,
-  action: string,
-  opts: { minTeamRole?: TeamRole; allowDownloader?: boolean } = {},
-) {
-  const scope = authorizationScope(resource, action)
-  if (!scope) throw new Error(`Unknown authorization scope: ${resource}:${action}`)
-  return authorize({
-    access: 'protected',
-    scopes: [scope],
-    minTeamRole: opts.minTeamRole,
-    allowDownloader: opts.allowDownloader,
-    auditDenied: true,
-  })
+async function currentAuthorizationContext(
+  c: Context<Env>,
+  declaration: RouteAuthorizationDeclaration,
+): Promise<AuthzContext> {
+  const context = c.get('authzContext')
+  if (context.credential !== 'session' || isSafeMethod(c.req.method) || !containsSiteAdmin(declaration)) {
+    return context
+  }
+
+  const freshSession = (await c.get('auth').api.getSession({
+    headers: c.req.raw.headers,
+    query: { disableCookieCache: true },
+  })) as SessionWithPlugins | null
+  if (!freshSession?.user?.id) return anonymousAuthzContext()
+  return {
+    ...context,
+    userId: freshSession.user.id,
+    actor: { type: 'user', ref: freshSession.user.id },
+    state: { firstParty: true, role: freshSession.user.role },
+  }
+}
+
+function containsSiteAdmin(declaration: RouteAuthorizationDeclaration): boolean {
+  if ('public' in declaration) return false
+  return declaration.siteRole === 'admin'
+}
+
+function isSafeMethod(method: string): boolean {
+  return method === 'GET' || method === 'HEAD' || method === 'OPTIONS'
 }
 
 async function recordAgentOAuthGrantUse(
@@ -142,8 +169,8 @@ async function recordAgentOAuthGrantUse(
   effectiveOrgId: string | null,
 ) {
   const context = c.get('authzContext')
-  if (declaration.access !== 'protected' || !declaration.scopes?.length) return
   if (context.credential !== 'agent_oauth') return
+  if (!declaredScopes(declaration).length) return
   if (!context.userId || !effectiveOrgId || context.actor?.type !== 'agent_oauth') return
   await c.get('deps').agentOAuth.recordGrantUse(c.get('platform').db, {
     grantId: context.actor.ref,
@@ -151,6 +178,10 @@ async function recordAgentOAuthGrantUse(
     orgId: effectiveOrgId,
     now: new Date(),
   })
+}
+
+function allow(effectiveOrgId: string | null): AuthzDecision {
+  return { allowed: true, effectiveOrgId, reason: 'allowed' }
 }
 
 function deny(
@@ -168,14 +199,16 @@ function deny(
 }
 
 function shouldAudit(declaration: RouteAuthorizationDeclaration): boolean {
-  return declaration.access === 'protected' && declaration.auditDenied !== false
+  if ('public' in declaration) return false
+  return declaration.auditDenied !== false
 }
 
-async function recordDenialAudit(
-  c: Context<Env>,
-  _declaration: RouteAuthorizationDeclaration,
-  reason: AuthzDenialReason,
-) {
+function declaredScopes(declaration: RouteAuthorizationDeclaration): AuthorizationScope[] {
+  if ('public' in declaration) return []
+  return [...declaration.scopes]
+}
+
+async function recordDenialAudit(c: Context<Env>, reason: AuthzDenialReason) {
   const context = c.get('authzContext')
   if (!context.actor) return
   const orgId = context.fixedOrgId ?? context.orgId ?? c.get('orgId')
@@ -187,7 +220,7 @@ async function recordDenialAudit(
     actorRef: context.actor.ref,
     action: 'authorization_denied',
     targetType: 'route',
-    targetName: 'protected route',
+    targetName: 'scoped route',
     metadata: {
       method: c.req.method.toUpperCase(),
       credential: context.credential,

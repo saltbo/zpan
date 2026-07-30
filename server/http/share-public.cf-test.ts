@@ -93,7 +93,7 @@ async function insertFolder(
   `)
 }
 
-describe('[CF] Public share routes — no requireAuth', () => {
+describe('[CF] Public share routes — no session authorization', () => {
   it('GET /api/shares/:token returns share metadata without auth', async () => {
     const { app, db } = await buildApp()
     const { orgId, userId } = await signUpAndGetIds(app, db)

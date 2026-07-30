@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { createTestEmailSchema, emailSettingsSchema, updateEmailSettingsSchema } from '@shared/schemas'
-import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { getEmailConfig, saveEmailConfig, sendTestEmail } from '../../usecases/site/email-config'
 import { authRoute, errorResponse, jsonContent } from '../openapi'
@@ -8,27 +8,25 @@ import { authRoute, errorResponse, jsonContent } from '../openapi'
 const successSchema = z.object({ success: z.boolean() })
 
 const getRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.EMAIL_CONFIG_READ], siteRole: 'admin' },
   {
     operationId: 'getEmailConfig',
     summary: 'Get email configuration',
     tags: ['Email Config'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(emailSettingsSchema, 'Email settings') },
   },
 )
 
 const saveRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.EMAIL_CONFIG_UPDATE], siteRole: 'admin' },
   {
     operationId: 'saveEmailConfig',
     summary: 'Save email configuration',
     tags: ['Email Config'],
     method: 'put',
     path: '/',
-    middleware: [requireAdmin] as const,
     request: { body: { content: { 'application/json': { schema: updateEmailSettingsSchema } }, required: true } },
     responses: {
       200: jsonContent(successSchema, 'Saved'),
@@ -38,14 +36,13 @@ const saveRoute = authRoute(
 )
 
 const testRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.EMAIL_CONFIG_TEST], siteRole: 'admin' },
   {
     operationId: 'sendTestEmail',
     summary: 'Send a test email',
     tags: ['Email Config'],
     method: 'post',
     path: '/test-messages',
-    middleware: [requireAdmin] as const,
     request: { body: { content: { 'application/json': { schema: createTestEmailSchema } }, required: true } },
     responses: {
       200: jsonContent(successSchema, 'Sent'),

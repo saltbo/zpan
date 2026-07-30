@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { announcementInputSchema, announcementStatusSchema, pageQuerySchema, pageSchema } from '@shared/schemas'
-import { requireAdmin, requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { type AnnouncementRecord, forbidden, notFound } from '../../usecases/ports'
@@ -51,14 +51,14 @@ const listAnnouncementsQuerySchema = pageQuerySchema.extend({
 })
 
 const listRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.ANNOUNCEMENTS_READ] },
   {
     operationId: 'listAnnouncements',
     summary: 'List announcements',
     tags: ['Announcements'],
     method: 'get',
     path: '/',
-    middleware: [requireAuth, requireFeature('site_announcements')] as const,
+    middleware: [requireFeature('site_announcements')] as const,
     request: { query: listAnnouncementsQuerySchema },
     responses: {
       200: jsonContent(announcementListSchema, 'Announcements'),
@@ -68,28 +68,28 @@ const listRoute = authRoute(
 )
 
 const createAnnouncementRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.ANNOUNCEMENTS_CREATE], siteRole: 'admin' },
   {
     operationId: 'createAnnouncement',
     summary: 'Create announcement',
     tags: ['Announcements'],
     method: 'post',
     path: '/',
-    middleware: [requireAdmin, requireFeature('site_announcements')] as const,
+    middleware: [requireFeature('site_announcements')] as const,
     request: jsonBody(announcementInputSchema),
     responses: { 201: jsonContent(announcementSchema, 'Created announcement') },
   },
 )
 
 const getAnnouncementRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.ANNOUNCEMENTS_READ], siteRole: 'admin' },
   {
     operationId: 'getAnnouncement',
     summary: 'Get announcement',
     tags: ['Announcements'],
     method: 'get',
     path: '/{id}',
-    middleware: [requireAdmin, requireFeature('site_announcements')] as const,
+    middleware: [requireFeature('site_announcements')] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       200: jsonContent(announcementSchema, 'Announcement'),
@@ -99,14 +99,14 @@ const getAnnouncementRoute = authRoute(
 )
 
 const updateAnnouncementRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.ANNOUNCEMENTS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateAnnouncement',
     summary: 'Update announcement',
     tags: ['Announcements'],
     method: 'put',
     path: '/{id}',
-    middleware: [requireAdmin, requireFeature('site_announcements')] as const,
+    middleware: [requireFeature('site_announcements')] as const,
     request: { params: z.object({ id: z.string() }), ...jsonBody(announcementInputSchema) },
     responses: {
       200: jsonContent(announcementSchema, 'Updated announcement'),
@@ -116,14 +116,14 @@ const updateAnnouncementRoute = authRoute(
 )
 
 const deleteAnnouncementRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.ANNOUNCEMENTS_DELETE], siteRole: 'admin' },
   {
     operationId: 'deleteAnnouncement',
     summary: 'Delete announcement',
     tags: ['Announcements'],
     method: 'delete',
     path: '/{id}',
-    middleware: [requireAdmin, requireFeature('site_announcements')] as const,
+    middleware: [requireFeature('site_announcements')] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       204: { description: 'Deleted announcement' },

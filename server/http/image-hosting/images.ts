@@ -1,4 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { nanoid } from 'nanoid'
 import {
   ALLOWED_IMAGE_MIMES,
@@ -10,8 +11,7 @@ import {
 import { buildImageUrl, validatePath } from '../../domain/image-hosting'
 import { mapDomainError } from '../../lib/http-errors'
 import { mimeToExt } from '../../lib/mime-utils'
-import { requireAuth, requireTeamRole } from '../../middleware/auth'
-import { requirePermission } from '../../middleware/authz'
+import { authorize } from '../../middleware/authz'
 import type { Env } from '../../middleware/platform'
 import {
   confirmImageHosting,
@@ -118,14 +118,13 @@ function detectMimeFromBytes(bytes: Uint8Array): string | null {
 }
 
 const presignRoute = authRoute(
-  { access: 'session', minTeamRole: 'editor' },
+  { scopes: [AuthorizationScope.IMAGES_CREATE], minTeamRole: 'editor' },
   {
     operationId: 'presignImageHostingUpload',
     summary: 'Presign an image upload',
     tags: ['Image Hosting'],
     method: 'post',
     path: '/images/presign',
-    middleware: [requireAuth, requireTeamRole('editor')] as const,
     request: jsonBody(createIhostImageSchema),
     responses: {
       201: jsonContent(imageDraftSchema, 'Image upload draft'),
@@ -138,14 +137,13 @@ const presignRoute = authRoute(
 )
 
 const listRoute = authRoute(
-  { access: 'session', minTeamRole: 'viewer' },
+  { scopes: [AuthorizationScope.IMAGES_READ], minTeamRole: 'viewer' },
   {
     operationId: 'listImageHostings',
     summary: 'List hosted images',
     tags: ['Image Hosting'],
     method: 'get',
     path: '/images',
-    middleware: [requireAuth, requireTeamRole('viewer')] as const,
     request: { query: listIhostImagesSchema },
     responses: {
       200: jsonContent(imageListSchema, 'Hosted images'),
@@ -156,14 +154,13 @@ const listRoute = authRoute(
 )
 
 const getRoute = authRoute(
-  { access: 'session', minTeamRole: 'viewer' },
+  { scopes: [AuthorizationScope.IMAGES_READ], minTeamRole: 'viewer' },
   {
     operationId: 'getImageHosting',
     summary: 'Get a hosted image',
     tags: ['Image Hosting'],
     method: 'get',
     path: '/images/{id}',
-    middleware: [requireAuth, requireTeamRole('viewer')] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       200: jsonContent(imageHostingSchema, 'Hosted image'),
@@ -175,14 +172,13 @@ const getRoute = authRoute(
 )
 
 const confirmRoute = authRoute(
-  { access: 'session', minTeamRole: 'editor' },
+  { scopes: [AuthorizationScope.IMAGES_UPDATE], minTeamRole: 'editor' },
   {
     operationId: 'confirmImageHosting',
     summary: 'Confirm an uploaded image',
     tags: ['Image Hosting'],
     method: 'put',
     path: '/images/{id}/status',
-    middleware: [requireAuth, requireTeamRole('editor')] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       200: jsonContent(imageHostingSchema, 'Confirmed image'),
@@ -195,14 +191,13 @@ const confirmRoute = authRoute(
 )
 
 const deleteRoute = authRoute(
-  { access: 'session', minTeamRole: 'editor' },
+  { scopes: [AuthorizationScope.IMAGES_DELETE], minTeamRole: 'editor' },
   {
     operationId: 'deleteImageHosting',
     summary: 'Delete a hosted image',
     tags: ['Image Hosting'],
     method: 'delete',
     path: '/images/{id}',
-    middleware: [requireAuth, requireTeamRole('editor')] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       204: { description: 'Deleted' },
@@ -219,7 +214,7 @@ const app = new OpenAPIHono<Env>()
 // base64). Tool-oriented and not RESTful, so it stays a plain route, excluded from
 // the OpenAPI document / SDK. Registered as a statement so the `.openapi()` chain
 // below keeps its typing.
-app.post('/images', requirePermission('images', 'upload'), async (c) => {
+app.post('/images', authorize({ scopes: [AuthorizationScope.IMAGES_UPLOAD] }), async (c) => {
   const orgId = c.get('orgId')
   if (!orgId) throw unauthorized()
 

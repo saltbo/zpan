@@ -7,7 +7,7 @@ import { getSiteConfig } from '../usecases/site/configz'
 import { authRoute, jsonContent } from './openapi'
 
 const getRoute = authRoute(
-  { access: 'public' },
+  { public: true },
   {
     operationId: 'getSiteConfig',
     summary: 'Get public site configuration',

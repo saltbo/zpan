@@ -1,4 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import {
   createDownloaderResponseSchema,
   createDownloaderSchema,
@@ -11,7 +12,6 @@ import {
 } from '@shared/schemas'
 import { FREE_DOWNLOADER_LIMIT } from '../../../shared/constants'
 import { hasFeature } from '../../domain/licensing'
-import { requireAdmin, requireDownloader, requireDownloaderRegistration } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import {
   createDownloader,
@@ -29,14 +29,13 @@ import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 const downloaderListSchema = pageSchema(downloaderSchema, 'DownloaderList')
 
 const listRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.DOWNLOADERS_READ], siteRole: 'admin' },
   {
     operationId: 'listDownloaders',
     summary: 'List downloaders',
     tags: ['Downloaders'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin] as const,
     responses: {
       200: jsonContent(downloaderListSchema, 'Downloaders'),
       401: errorResponse('Unauthorized'),
@@ -45,14 +44,16 @@ const listRoute = authRoute(
 )
 
 const createRouteDoc = authRoute(
-  { access: 'anyOf', policies: [{ access: 'admin' }, { access: 'downloader-bootstrap' }] },
+  {
+    scopes: [AuthorizationScope.DOWNLOADERS_CREATE],
+    siteRole: 'admin',
+  },
   {
     operationId: 'createDownloader',
     summary: 'Register downloader',
     tags: ['Downloaders'],
     method: 'post',
     path: '/',
-    middleware: [requireDownloaderRegistration] as const,
     request: jsonBody(createDownloaderSchema),
     responses: {
       201: jsonContent(createDownloaderResponseSchema, 'Downloader registration'),
@@ -63,14 +64,13 @@ const createRouteDoc = authRoute(
 )
 
 const updateRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.DOWNLOADERS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateDownloader',
     summary: 'Update downloader',
     tags: ['Downloaders'],
     method: 'patch',
     path: '/{id}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderSchema) },
     responses: {
       200: jsonContent(downloaderSchema, 'Updated downloader'),
@@ -81,14 +81,13 @@ const updateRoute = authRoute(
 )
 
 const updateCreditBillingRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.DOWNLOADERS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateDownloaderCreditBilling',
     summary: 'Update downloader credit billing',
     tags: ['Downloaders'],
     method: 'put',
     path: '/{id}/credit-billing',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderCreditBillingSchema) },
     responses: {
       200: jsonContent(downloaderSchema, 'Updated downloader'),
@@ -99,14 +98,13 @@ const updateCreditBillingRoute = authRoute(
 )
 
 const deleteRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.DOWNLOADERS_DELETE], siteRole: 'admin' },
   {
     operationId: 'deleteDownloader',
     summary: 'Delete downloader',
     tags: ['Downloaders'],
     method: 'delete',
     path: '/{id}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       204: { description: 'Deleted downloader' },
@@ -116,14 +114,13 @@ const deleteRoute = authRoute(
 )
 
 const heartbeatRoute = authRoute(
-  { access: 'downloader' },
+  { scopes: [AuthorizationScope.DOWNLOADERS_UPDATE] },
   {
     operationId: 'recordDownloaderHeartbeat',
     summary: 'Send downloader heartbeat',
     tags: ['Downloaders'],
     method: 'post',
     path: '/me/heartbeats',
-    middleware: [requireDownloader] as const,
     request: jsonBody(downloaderHeartbeatSchema),
     responses: {
       200: jsonContent(downloaderHeartbeatResultSchema, 'Updated downloader and task commands'),

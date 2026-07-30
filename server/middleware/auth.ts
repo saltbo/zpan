@@ -1,4 +1,4 @@
-import { isAuthorizationScope, permissionScopes } from '@shared/authorization'
+import { AuthorizationScope, isAuthorizationScope, permissionScopes } from '@shared/authorization'
 import { createMiddleware } from 'hono/factory'
 import {
   isDownloaderBootstrapRegistrationRequest,
@@ -6,28 +6,8 @@ import {
   LEGACY_DOWNLOADER_CLIENT_ID,
   LEGACY_DOWNLOADER_REGISTER_SCOPE,
 } from '../domain/legacy-downloader-bootstrap'
-import { ApiKeyRateLimitError, type CachePolicy, forbidden, rateLimited, unauthorized } from '../usecases/ports'
+import { ApiKeyRateLimitError, rateLimited, unauthorized } from '../usecases/ports'
 import { anonymousAuthzContext, type Env } from './platform'
-
-// 'member' is the better-auth schema default; map it to viewer level so
-// existing org members get read access rather than being silently denied.
-const ROLE_LEVELS: Record<string, number> = {
-  owner: 3,
-  admin: 3,
-  editor: 2,
-  viewer: 1,
-  member: 1,
-}
-
-const MEMBER_ROLE_CACHE_POLICY: CachePolicy<string | null> = {
-  namespace: 'member-role',
-  version: 1,
-  ttlMs: 30_000,
-  negativeTtlMs: 5_000,
-  maxEntries: 1024,
-  distributed: false,
-  validate: (value): value is string | null => value === null || typeof value === 'string',
-}
 
 type SessionWithPlugins = {
   user: { id: string; role?: string }
@@ -66,7 +46,11 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
         userId: null,
         orgId: null,
         fixedOrgId: null,
-        grantedScopes: new Set(),
+        grantedScopes: new Set([
+          AuthorizationScope.DOWNLOAD_TASKS_READ,
+          AuthorizationScope.DOWNLOAD_TASKS_CANCEL,
+          AuthorizationScope.DOWNLOADERS_UPDATE,
+        ]),
         actor: { type: 'downloader', ref: downloader.downloaderId },
         state: {},
       })
@@ -161,7 +145,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
         userId: bootstrap.userId,
         orgId: null,
         fixedOrgId: null,
-        grantedScopes: new Set(),
+        grantedScopes: new Set([AuthorizationScope.DOWNLOADERS_CREATE]),
         actor: { type: 'user', ref: bootstrap.userId },
         state: { clientId: LEGACY_DOWNLOADER_CLIENT_ID, scope: LEGACY_DOWNLOADER_REGISTER_SCOPE },
       })
@@ -209,94 +193,3 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
 
   await next()
 })
-
-export const requireDownloader = createMiddleware<Env>(async (c, next) => {
-  const principal = c.get('principal')
-  if (principal?.kind !== 'downloader') throw unauthorized('Unauthorized')
-  await next()
-})
-
-export const requireAuth = createMiddleware<Env>(async (c, next) => {
-  if (c.get('principal')?.kind !== 'user') {
-    throw unauthorized('Unauthorized')
-  }
-  await next()
-})
-
-export const requireAdmin = createMiddleware<Env>(async (c, next) => {
-  const method = c.req.method.toUpperCase()
-  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
-    const principal = c.get('principal')
-    if (principal?.kind !== 'user') throw unauthorized('Unauthorized')
-    if (principal.role !== 'admin') throw forbidden('Forbidden')
-    await next()
-    return
-  }
-
-  const freshSession = (await c.get('auth').api.getSession({
-    headers: c.req.raw.headers,
-    query: { disableCookieCache: true },
-  })) as SessionWithPlugins | null
-  if (!freshSession?.user?.id) throw unauthorized('Unauthorized')
-  if (freshSession.user.role !== 'admin') {
-    throw forbidden('Forbidden')
-  }
-  await next()
-})
-
-export const requireDownloaderRegistration = createMiddleware<Env>(async (c, next) => {
-  const principal = c.get('principal')
-  if (principal?.kind === 'downloader-bootstrap') {
-    await next()
-    return
-  }
-  if (principal?.kind !== 'user') throw unauthorized('Unauthorized')
-  const freshSession = (await c.get('auth').api.getSession({
-    headers: c.req.raw.headers,
-    query: { disableCookieCache: true },
-  })) as SessionWithPlugins | null
-  if (!freshSession?.user?.id) throw unauthorized('Unauthorized')
-  if (freshSession.user.role !== 'admin') throw forbidden('Forbidden')
-  await next()
-})
-
-// requireTeamRole enforces a minimum role level for the current org.
-// Personal orgs bypass the check — the owner of a personal space has full access.
-// Must be used after requireAuth so orgId and userId are guaranteed non-null.
-export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
-  return createMiddleware<Env>(async (c, next) => {
-    const orgId = c.get('orgId')
-    const userId = c.get('userId')
-    if (!orgId || !userId) {
-      throw unauthorized('Unauthorized')
-    }
-
-    const method = c.req.method.toUpperCase()
-    const role =
-      method === 'GET' || method === 'HEAD' || method === 'OPTIONS'
-        ? (
-            await c
-              .get('deps')
-              .cache.getOrLoad(MEMBER_ROLE_CACHE_POLICY, `${orgId}:${userId}`, () =>
-                c.get('deps').org.getMemberRole(orgId, userId),
-              )
-          ).value
-        : await c.get('deps').org.getMemberRole(orgId, userId)
-    if (role !== null) {
-      const userLevel = ROLE_LEVELS[role] ?? 0
-      if (userLevel < ROLE_LEVELS[minRole]) {
-        throw forbidden('Forbidden')
-      }
-      await next()
-      return
-    }
-
-    // No member row — could be a personal org accessed without a session refresh.
-    if (await c.get('deps').org.isPersonalOrg(orgId)) {
-      await next()
-      return
-    }
-
-    throw forbidden('Forbidden')
-  })
-}

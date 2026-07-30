@@ -1,4 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import {
   createStorageSchema,
   pageSchema,
@@ -6,7 +7,6 @@ import {
   replaceStorageSchema,
   updateStorageEgressBillingSchema,
 } from '@shared/schemas'
-import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { type StorageRecord, storageNotFound } from '../../usecases/ports'
 import {
@@ -64,27 +64,25 @@ function toStorageDTO(s: StorageRecord): StorageDTO {
 const storageListSchema = pageSchema(storageSchema, 'StorageList')
 
 const listRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.STORAGES_READ], siteRole: 'admin' },
   {
     operationId: 'listStorages',
     summary: 'List storages',
     tags: ['Storages'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(storageListSchema, 'Storages') },
   },
 )
 
 const createStorageRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.STORAGES_CREATE], siteRole: 'admin' },
   {
     operationId: 'createStorage',
     summary: 'Create storage',
     tags: ['Storages'],
     method: 'post',
     path: '/',
-    middleware: [requireAdmin] as const,
     request: jsonBody(createStorageSchema),
     responses: {
       201: jsonContent(storageSchema, 'Created storage'),
@@ -94,14 +92,13 @@ const createStorageRoute = authRoute(
 )
 
 const getStorageRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.STORAGES_READ], siteRole: 'admin' },
   {
     operationId: 'getStorage',
     summary: 'Get storage',
     tags: ['Storages'],
     method: 'get',
     path: '/{id}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       200: jsonContent(storageSchema, 'Storage'),
@@ -111,14 +108,13 @@ const getStorageRoute = authRoute(
 )
 
 const replaceStorageRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.STORAGES_UPDATE], siteRole: 'admin' },
   {
     operationId: 'replaceStorage',
     summary: 'Replace storage',
     tags: ['Storages'],
     method: 'put',
     path: '/{id}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }), ...jsonBody(replaceStorageSchema) },
     responses: {
       200: jsonContent(storageSchema, 'Replaced storage'),
@@ -129,14 +125,13 @@ const replaceStorageRoute = authRoute(
 )
 
 const patchStorageRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.STORAGES_UPDATE], siteRole: 'admin' },
   {
     operationId: 'patchStorage',
     summary: 'Patch storage',
     tags: ['Storages'],
     method: 'patch',
     path: '/{id}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }), ...jsonBody(patchStorageSchema) },
     responses: {
       200: jsonContent(storageSchema, 'Updated storage'),
@@ -147,14 +142,13 @@ const patchStorageRoute = authRoute(
 )
 
 const updateStorageEgressBillingRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.STORAGES_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateStorageEgressBilling',
     summary: 'Update storage egress billing',
     tags: ['Storages'],
     method: 'put',
     path: '/{id}/egress-billing',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }), ...jsonBody(updateStorageEgressBillingSchema) },
     responses: {
       200: jsonContent(storageSchema, 'Updated storage'),
@@ -165,14 +159,13 @@ const updateStorageEgressBillingRoute = authRoute(
 )
 
 const deleteStorageRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.STORAGES_DELETE], siteRole: 'admin' },
   {
     operationId: 'deleteStorage',
     summary: 'Delete storage',
     tags: ['Storages'],
     method: 'delete',
     path: '/{id}',
-    middleware: [requireAdmin] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       204: { description: 'Deleted storage' },

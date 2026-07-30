@@ -1,11 +1,11 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import {
   agentApiKeyCreatedSchema,
   agentApiKeyCreateSchema,
   agentApiKeyListSchema,
   agentApiKeyRotateSchema,
 } from '@shared/schemas'
-import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { createAgentApiKey, listAgentApiKeys, revokeAgentApiKey, rotateAgentApiKey } from '../usecases/agent-api-keys'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
@@ -18,14 +18,13 @@ const listQuerySchema = z.object({
 })
 
 const listRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.AGENT_API_KEYS_READ] },
   {
     operationId: 'listWorkspaceAgentApiKeys',
     summary: 'List Agent API keys for a workspace',
     tags: ['Agent Access'],
     method: 'get',
     path: '/{orgId}/agent-api-keys',
-    middleware: [requireAuth] as const,
     request: { params: workspaceParamsSchema, query: listQuerySchema },
     responses: {
       200: jsonContent(agentApiKeyListSchema, 'Agent API keys'),
@@ -35,14 +34,13 @@ const listRoute = authRoute(
 )
 
 const createRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.AGENT_API_KEYS_CREATE] },
   {
     operationId: 'createWorkspaceAgentApiKey',
     summary: 'Create an Agent API key for a workspace',
     tags: ['Agent Access'],
     method: 'post',
     path: '/{orgId}/agent-api-keys',
-    middleware: [requireAuth] as const,
     request: { params: workspaceParamsSchema, ...jsonBody(agentApiKeyCreateSchema) },
     responses: {
       201: jsonContent(agentApiKeyCreatedSchema, 'Created Agent API key'),
@@ -53,14 +51,13 @@ const createRoute = authRoute(
 )
 
 const rotateRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.AGENT_API_KEYS_UPDATE] },
   {
     operationId: 'rotateWorkspaceAgentApiKey',
     summary: 'Rotate an Agent API key for a workspace',
     tags: ['Agent Access'],
     method: 'post',
     path: '/{orgId}/agent-api-keys/{keyId}/rotations',
-    middleware: [requireAuth] as const,
     request: { params: keyParamsSchema, ...jsonBody(agentApiKeyRotateSchema) },
     responses: {
       201: jsonContent(agentApiKeyCreatedSchema, 'Rotated Agent API key'),
@@ -73,14 +70,13 @@ const rotateRoute = authRoute(
 )
 
 const revokeRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.AGENT_API_KEYS_DELETE] },
   {
     operationId: 'revokeWorkspaceAgentApiKey',
     summary: 'Revoke an Agent API key for a workspace',
     tags: ['Agent Access'],
     method: 'delete',
     path: '/{orgId}/agent-api-keys/{keyId}',
-    middleware: [requireAuth] as const,
     request: { params: keyParamsSchema },
     responses: {
       204: { description: 'Revoked' },

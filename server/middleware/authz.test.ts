@@ -37,7 +37,6 @@ describe('authorize Agent OAuth grant-use tracking', () => {
 
   it('records actual Agent OAuth use for scoped protected routes', async () => {
     const { app, recordGrantUse } = probeApp(context, {
-      access: 'protected',
       scopes: [AuthorizationScope.OBJECTS_READ],
     })
 
@@ -56,8 +55,8 @@ describe('authorize Agent OAuth grant-use tracking', () => {
     )
   })
 
-  it('does not record display-only unscoped protected access as grant use', async () => {
-    const { app, recordGrantUse } = probeApp(context, { access: 'protected' })
+  it('does not record public access as grant use', async () => {
+    const { app, recordGrantUse } = probeApp(context, { public: true })
 
     const res = await app.request('/probe')
 
@@ -76,7 +75,7 @@ describe('authorize Agent OAuth grant-use tracking', () => {
         actor: { type: 'user', ref: 'user-1' },
         state: { firstParty: true },
       },
-      { access: 'protected', scopes: [AuthorizationScope.OBJECTS_READ] },
+      { scopes: [AuthorizationScope.OBJECTS_READ] },
     )
 
     const res = await app.request('/probe')

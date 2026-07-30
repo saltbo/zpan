@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { WEBDAV_API_KEY_PERMISSIONS } from './api-key-templates'
+import { AGENT_GRANTABLE_API_KEY_SCOPES, WEBDAV_API_KEY_PERMISSIONS } from './api-key-templates'
 import {
-  AGENT_GRANTABLE_AUTHORIZATION_SCOPES,
   AuthorizationScope,
   authorizationScope,
   CANONICAL_AUTHORIZATION_SCOPES,
@@ -22,7 +21,7 @@ describe('authorization scope registry', () => {
 
   it('keeps permanent object purge out of agent-grantable scopes', () => {
     expect(CANONICAL_AUTHORIZATION_SCOPES).toContain(AuthorizationScope.OBJECTS_PURGE)
-    expect(AGENT_GRANTABLE_AUTHORIZATION_SCOPES).not.toContain(AuthorizationScope.OBJECTS_PURGE)
+    expect(AGENT_GRANTABLE_API_KEY_SCOPES).not.toContain(AuthorizationScope.OBJECTS_PURGE)
     expect(scopePermissions([AuthorizationScope.OBJECTS_DELETE])).toEqual({ objects: ['delete'] })
   })
 

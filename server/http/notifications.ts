@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageSchema, listNotificationsQuerySchema } from '@shared/schemas'
-import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
   getUnreadCount,
@@ -56,41 +56,38 @@ function toNotificationDTO(n: NotificationRecord): NotificationDTO {
 const notificationPageSchema = cursorPageSchema(notificationSchema, 'NotificationPage')
 
 const listRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.NOTIFICATIONS_READ] },
   {
     operationId: 'listNotifications',
     summary: 'List notifications',
     tags: ['Notifications'],
     method: 'get',
     path: '/',
-    middleware: [requireAuth] as const,
     request: { query: listNotificationsQuerySchema },
     responses: { 200: jsonContent(notificationPageSchema, 'Notifications') },
   },
 )
 
 const statsRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.NOTIFICATIONS_READ] },
   {
     operationId: 'getNotificationStats',
     summary: 'Get unread notification count',
     tags: ['Notifications'],
     method: 'get',
     path: '/stats',
-    middleware: [requireAuth] as const,
     responses: { 200: jsonContent(z.object({ count: z.number().int() }), 'Unread count') },
   },
 )
 
 const markReadRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.NOTIFICATIONS_UPDATE] },
   {
     operationId: 'markNotificationRead',
     summary: 'Mark a notification read',
     tags: ['Notifications'],
     method: 'patch',
     path: '/{id}',
-    middleware: [requireAuth] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       204: { description: 'Marked read' },
@@ -100,14 +97,13 @@ const markReadRoute = authRoute(
 )
 
 const markAllReadRoute = authRoute(
-  { access: 'session' },
+  { scopes: [AuthorizationScope.NOTIFICATIONS_UPDATE] },
   {
     operationId: 'markAllNotificationsRead',
     summary: 'Mark all notifications read',
     tags: ['Notifications'],
     method: 'patch',
     path: '/',
-    middleware: [requireAuth] as const,
     responses: { 200: jsonContent(z.object({ count: z.number().int() }), 'Number marked read') },
   },
 )

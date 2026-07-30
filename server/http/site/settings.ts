@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
+import { AuthorizationScope } from '@shared/authorization'
 import {
   siteCaptchaSettingsSchema,
   siteIdentitySettingsSchema,
@@ -12,7 +13,6 @@ import {
   updateSiteRegistrationSchema,
   updateSiteWebDavSchema,
 } from '@shared/schemas'
-import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import {
   getSiteSettings,
@@ -26,27 +26,25 @@ import {
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const getRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_SETTINGS_READ], siteRole: 'admin' },
   {
     operationId: 'getSiteSettings',
     summary: 'Get editable site settings',
     tags: ['Site Settings'],
     method: 'get',
     path: '/',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(siteSettingsSchema, 'Editable site settings') },
   },
 )
 
 const updateIdentityRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_SETTINGS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateSiteIdentity',
     summary: 'Update site identity settings',
     tags: ['Site Settings'],
     method: 'put',
     path: '/identity',
-    middleware: [requireAdmin] as const,
     request: jsonBody(updateSiteIdentitySchema),
     responses: {
       200: jsonContent(siteIdentitySettingsSchema, 'Updated site identity settings'),
@@ -57,14 +55,13 @@ const updateIdentityRoute = authRoute(
 )
 
 const updateRegistrationRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_SETTINGS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateSiteRegistration',
     summary: 'Update registration settings',
     tags: ['Site Settings'],
     method: 'put',
     path: '/registration',
-    middleware: [requireAdmin] as const,
     request: jsonBody(updateSiteRegistrationSchema),
     responses: {
       200: jsonContent(siteRegistrationSettingsSchema, 'Updated registration settings'),
@@ -74,14 +71,13 @@ const updateRegistrationRoute = authRoute(
 )
 
 const updateCaptchaRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_SETTINGS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateSiteCaptcha',
     summary: 'Update captcha settings',
     tags: ['Site Settings'],
     method: 'put',
     path: '/captcha',
-    middleware: [requireAdmin] as const,
     request: jsonBody(updateSiteCaptchaSchema),
     responses: {
       200: jsonContent(siteCaptchaSettingsSchema, 'Updated captcha settings'),
@@ -91,41 +87,38 @@ const updateCaptchaRoute = authRoute(
 )
 
 const updateQuotasRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_SETTINGS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateSiteQuotas',
     summary: 'Update default quota settings',
     tags: ['Site Settings'],
     method: 'put',
     path: '/quotas',
-    middleware: [requireAdmin] as const,
     request: jsonBody(updateSiteQuotasSchema),
     responses: { 200: jsonContent(siteQuotaSettingsSchema, 'Updated quota settings') },
   },
 )
 
 const verifyWebDavRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_SETTINGS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'verifySiteWebDav',
     summary: 'Verify the configured or derived WebDAV domain',
     tags: ['Site Settings'],
     method: 'post',
     path: '/webdav/verifications',
-    middleware: [requireAdmin] as const,
     responses: { 200: jsonContent(siteWebDavSettingsSchema, 'Current WebDAV verification status') },
   },
 )
 
 const updateWebDavRoute = authRoute(
-  { access: 'admin' },
+  { scopes: [AuthorizationScope.SITE_SETTINGS_UPDATE], siteRole: 'admin' },
   {
     operationId: 'updateSiteWebDav',
     summary: 'Update WebDAV settings',
     tags: ['Site Settings'],
     method: 'put',
     path: '/webdav',
-    middleware: [requireAdmin] as const,
     request: jsonBody(updateSiteWebDavSchema),
     responses: {
       200: jsonContent(siteWebDavSettingsSchema, 'Updated WebDAV settings'),

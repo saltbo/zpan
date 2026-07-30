@@ -243,7 +243,7 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 401 for API key (presign requires session auth) [spec: image-hosting/presign-session-only]', async () => {
+  it('returns 403 for an API key missing images:create scope [spec: image-hosting/presign-scope-required]', async () => {
     const { app, db, auth } = await createTestApp()
     await insertStorage(db)
     await authedHeaders(app)
@@ -257,7 +257,7 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
     })
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(403)
   })
 
   it('returns 403 when org has no image_hosting_configs row [spec: image-hosting/requires-config]', async () => {
