@@ -12,7 +12,7 @@ type TestDb = ReturnType<typeof createCloudflarePlatform>['db']
 
 async function buildApp() {
   const platform = createCloudflarePlatform(env)
-  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
+  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET, 'http://localhost')
   return { app: createApp(platform, auth), db: platform.db }
 }
 

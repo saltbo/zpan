@@ -11,7 +11,7 @@ const MOCK_INLINE_URL = 'https://presigned-inline-cf-domain.example.com/image.pn
 
 async function buildApp() {
   const platform = createCloudflarePlatform(env)
-  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
+  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET, 'http://localhost')
   return { app: createApp(platform, auth), db: platform.db }
 }
 

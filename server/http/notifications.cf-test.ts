@@ -6,7 +6,7 @@ import { createCloudflarePlatform } from '../platform/cloudflare'
 
 async function buildApp() {
   const platform = createCloudflarePlatform(env)
-  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
+  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET, 'http://localhost')
   return createApp(platform, auth)
 }
 

@@ -13,7 +13,7 @@ import { createCloudflarePlatform } from '../platform/cloudflare'
 describe('[CF] Routing regression — share routes must be under /api/* or /r/*', () => {
   it('/s/:token returns 404 (not routed) — JSON share API is not mounted at /s', async () => {
     const platform = createCloudflarePlatform(env)
-    const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
+    const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET, 'http://localhost')
     const app = createApp(platform, auth)
 
     const res = await app.request('/s/any-token')
@@ -26,7 +26,7 @@ describe('[CF] Routing regression — share routes must be under /api/* or /r/*'
 
   it('/api/shares/:token returns JSON (not SPA) — correct path for share API', async () => {
     const platform = createCloudflarePlatform(env)
-    const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
+    const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET, 'http://localhost')
     const app = createApp(platform, auth)
 
     const res = await app.request('/api/shares/nonexistent')
@@ -40,7 +40,7 @@ const STORAGE_ID = 'st-cf-share'
 
 async function buildApp() {
   const platform = createCloudflarePlatform(env)
-  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
+  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET, 'http://localhost')
   return { app: createApp(platform, auth), db: platform.db }
 }
 
