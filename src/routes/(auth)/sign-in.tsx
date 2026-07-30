@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import { useSiteConfig } from '@/hooks/use-site-config'
 import { authClient, signIn } from '@/lib/auth-client'
 import { isCredentialLoginMethod } from '@/lib/last-login-method'
+import { clearSignInRedirect, loadSignInRedirect } from '@/lib/sign-in-redirect'
 
 export const Route = createFileRoute('/(auth)/sign-in')({
   component: SignIn,
@@ -20,17 +21,10 @@ export const Route = createFileRoute('/(auth)/sign-in')({
 function SignIn() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const redirectTo: string | null = (() => {
-    const raw = new URLSearchParams(window.location.search).get('redirect')
-    if (!raw) return null
-    try {
-      const parsed = new URL(raw, window.location.origin)
-      if (parsed.origin !== window.location.origin) return null
-      return parsed.pathname + parsed.search + parsed.hash
-    } catch {
-      return null
-    }
-  })()
+  const [redirectTo] = useState(() =>
+    loadSignInRedirect(window.location.search, window.location.origin, window.sessionStorage),
+  )
+  const callbackURL = redirectTo ?? '/files'
   const { data: siteConfig } = useSiteConfig()
   const authSignupMode = siteConfig?.auth.signupMode
   const captcha = siteConfig?.auth.captcha
@@ -53,8 +47,8 @@ function SignIn() {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity)
       const fetchOptions = captcha?.enabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined
       const result = isEmail
-        ? await signIn.email({ email: identity, password, callbackURL: '/files', fetchOptions })
-        : await signIn.username({ username: identity, password, callbackURL: '/files', fetchOptions })
+        ? await signIn.email({ email: identity, password, callbackURL, fetchOptions })
+        : await signIn.username({ username: identity, password, callbackURL, fetchOptions })
 
       if (result.error) {
         setError(
@@ -65,6 +59,7 @@ function SignIn() {
         return
       }
       if (redirectTo) {
+        clearSignInRedirect(window.sessionStorage)
         window.location.href = redirectTo
       } else {
         navigate({ to: '/files' })
@@ -83,7 +78,11 @@ function SignIn() {
           <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.signInSubtitle')}</p>
         </div>
-        <OAuthButtons showLastUsed />
+        <OAuthButtons
+          showLastUsed
+          callbackURL={callbackURL}
+          onSignIn={() => clearSignInRedirect(window.sessionStorage)}
+        />
         {showDivider && (
           <div className="flex items-center gap-3">
             <Separator className="flex-1" />

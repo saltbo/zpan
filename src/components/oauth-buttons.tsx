@@ -10,7 +10,15 @@ export function useOAuthProviders() {
   return { providers: data?.auth.providers ?? [], isLoading }
 }
 
-export function OAuthButtons({ showLastUsed = false }: { showLastUsed?: boolean }) {
+export function OAuthButtons({
+  showLastUsed = false,
+  callbackURL = '/files',
+  onSignIn,
+}: {
+  showLastUsed?: boolean
+  callbackURL?: string
+  onSignIn?: () => void
+}) {
   const { t } = useTranslation()
   const [error, setError] = useState('')
   const { providers, isLoading } = useOAuthProviders()
@@ -20,7 +28,8 @@ export function OAuthButtons({ showLastUsed = false }: { showLastUsed?: boolean 
 
   async function handleOAuth(providerId: string) {
     setError('')
-    const result = await authClient.signIn.social({ provider: providerId, callbackURL: '/files' })
+    onSignIn?.()
+    const result = await authClient.signIn.social({ provider: providerId, callbackURL })
     if (result.error) {
       setError(result.error.message ?? t('auth.signInFailed'))
     }

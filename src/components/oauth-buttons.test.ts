@@ -91,16 +91,23 @@ describe('OAuthButtons — provider data contract', () => {
 })
 
 // ---------------------------------------------------------------------------
-// OAuth sign-in handler — callbackURL is always '/files'
+// OAuth sign-in handler — callbackURL defaults to '/files' and can continue
+// an authorization request supplied by the sign-in page.
 // ---------------------------------------------------------------------------
 
-function buildOAuthCallbackUrl(): string {
-  return '/files'
+function buildOAuthCallbackUrl(callbackURL = '/files'): string {
+  return callbackURL
 }
 
 describe('OAuthButtons — OAuth callback URL', () => {
-  it('OAuth sign-in callback URL is "/files"', () => {
+  it('defaults the OAuth sign-in callback URL to "/files"', () => {
     expect(buildOAuthCallbackUrl()).toBe('/files')
+  })
+
+  it('uses the supplied authorization continuation', () => {
+    expect(buildOAuthCallbackUrl('/api/auth/oauth2/authorize?state=oauth-state')).toBe(
+      '/api/auth/oauth2/authorize?state=oauth-state',
+    )
   })
 })
 

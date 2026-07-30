@@ -85,14 +85,14 @@ describe('SignIn — sign-up link visibility', () => {
 })
 
 // ---------------------------------------------------------------------------
-// OAuth callback URL used for social sign-in
+// Default callback URL used when no continuation is present
 // ---------------------------------------------------------------------------
 
-const SIGN_IN_CALLBACK_URL = '/files'
+const DEFAULT_SIGN_IN_CALLBACK_URL = '/files'
 
-describe('SignIn — OAuth and form callback URL', () => {
-  it('callback URL for sign-in is "/files"', () => {
-    expect(SIGN_IN_CALLBACK_URL).toBe('/files')
+describe('SignIn — default callback URL', () => {
+  it('uses "/files" for an ordinary sign-in', () => {
+    expect(DEFAULT_SIGN_IN_CALLBACK_URL).toBe('/files')
   })
 })
 
