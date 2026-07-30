@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/rest-sh/restish/v2/plugin"
@@ -35,6 +36,10 @@ func TestCommandDiscoveryContract(t *testing.T) {
 	}
 	if len(discovery.Commands) != 1 || discovery.Commands[0].Name != "zpan-upload" {
 		t.Fatalf("unexpected commands: %#v", discovery.Commands)
+	}
+	help := discovery.Commands[0].Long
+	if !strings.Contains(help, "RSH_PROFILE=file-manager") || strings.Contains(help, "--rsh-profile") {
+		t.Fatalf("upload help must use the delegated HTTP profile environment: %q", help)
 	}
 }
 

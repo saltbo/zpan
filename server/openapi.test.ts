@@ -325,6 +325,40 @@ describe('global OpenAPI document', () => {
     ])
   })
 
+  it('emits CLI metadata for non-agent authorization policies', () => {
+    const protectedWithoutScopes = authRoute(
+      { access: 'protected' },
+      {
+        operationId: 'genericProtectedProbe',
+        method: 'get',
+        path: '/probe',
+        responses: { 200: { description: 'OK' } },
+      },
+    ) as { security?: unknown; 'x-zpan-auth'?: unknown }
+    const internalRoute = authRoute(
+      { access: 'internal' },
+      {
+        operationId: 'internalProbe',
+        method: 'post',
+        path: '/internal-probe',
+        responses: { 204: { description: 'No Content' } },
+      },
+    ) as { security?: unknown; 'x-zpan-auth'?: unknown; 'x-cli-ignore'?: boolean; 'x-mcp-ignore'?: boolean }
+
+    expect(protectedWithoutScopes.security).toEqual([{ bearerAuth: [] }, { cookieAuth: [] }])
+    expect(protectedWithoutScopes['x-zpan-auth']).toEqual({
+      access: 'protected',
+      scopes: [],
+      minTeamRole: null,
+      allowDownloader: false,
+      auditDenied: true,
+    })
+    expect(internalRoute.security).toEqual([])
+    expect(internalRoute['x-zpan-auth']).toEqual({ access: 'internal' })
+    expect(internalRoute['x-cli-ignore']).toBe(true)
+    expect(internalRoute['x-mcp-ignore']).toBe(true)
+  })
+
   it('detects OpenAPI operations missing explicit authorization declarations without an allowlist', () => {
     expect(
       findOperationsMissingAuthContract({

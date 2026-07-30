@@ -1036,6 +1036,24 @@ func TestRunRejectsInvalidArgs(t *testing.T) {
 	}
 }
 
+func TestRunReturnsHelp(t *testing.T) {
+	host := &fakeHost{}
+	if err := Run(nil, []string{"--help"}, host); err != nil {
+		t.Fatal(err)
+	}
+	body, ok := host.body.(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected help body: %#v", host.body)
+	}
+	examples := strings.Join(body["examples"].([]string), "\n")
+	if !strings.Contains(examples, "RSH_PROFILE=file-manager") || !strings.Contains(examples, "--profile file-manager") {
+		t.Fatalf("help examples do not select profiles: %q", examples)
+	}
+	if len(host.requests) != 0 {
+		t.Fatalf("help should not make delegated requests: %#v", host.requests)
+	}
+}
+
 func TestRunWithStorageRejectsMissingSource(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing.bin")
 	err := runWithStorage(context.Background(), uploadOptions{API: "zpan", Source: missing, Name: "missing.bin", Conflict: "fail", Concurrency: 1}, &fakeHost{}, &fakeStorage{})

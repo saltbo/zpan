@@ -4,7 +4,15 @@
 profiles for ZPan API calls and streams file bytes directly from disk to
 presigned storage URLs.
 
+The companion [ZPan Agent Skill](agent-skill.md) selects when to use generated
+Restish commands and when to invoke this plugin. The Skill does not implement
+multipart upload behavior itself.
+
 ## Install
+
+Restish plugins are trusted local executable code. Agents must explain that
+trust boundary and get explicit user approval for the `saltbo/zpan` source
+before installing:
 
 ```bash
 restish plugin install saltbo/zpan zpan
@@ -13,10 +21,10 @@ restish plugin install saltbo/zpan zpan
 ## Usage
 
 ```bash
-restish zpan-upload ./photo.jpg
-restish --rsh-profile file-manager zpan-upload --api zpan --parent albums ./photo.jpg cover.jpg
-restish zpan-upload --resume ./large.bin
-restish zpan-upload --abort ./large.bin
+RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager ./photo.jpg
+RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --parent albums ./photo.jpg cover.jpg
+RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --resume ./large.bin
+RSH_PROFILE=file-manager restish zpan-upload --api zpan --profile file-manager --abort ./large.bin
 ```
 
 The plugin validates the connected ZPan OpenAPI operations before uploading:
@@ -33,6 +41,7 @@ They contain API/profile identity, source file identity, destination identity,
 the ZPan object/session IDs, part size/count, and completed part ETags. They do
 not contain credentials, cookies, presigned URLs, or file bytes.
 
-Restish v2.3 delegated HTTP uses the host's active profile. Select profiles with
-Restish's global profile flag or `RSH_PROFILE`; the plugin's `--profile` value is
-used for spec validation and checkpoint identity.
+Restish v2.3 command plugins receive the delegated HTTP profile through
+`RSH_PROFILE`; use it for the host credential selection. The plugin's
+`--profile` value is separately used for spec validation and checkpoint
+identity.

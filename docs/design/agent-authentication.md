@@ -103,6 +103,11 @@ routes must authorize scopes rather than require a concrete `kind`.
 Credential-specific fields remain available for diagnostics and revocation;
 they do not select business behavior.
 
+The versioned ZPan Agent Skill is published under `skills/zpan` and summarized
+in [ZPan Agent Skill](../agent-skill.md). It consumes this authorization model
+through Restish profiles instead of adding a second credential or upload
+protocol.
+
 This boundary deliberately avoids two migration traps:
 
 - File routes must not treat an OAuth bearer as an unrestricted browser user.
@@ -381,7 +386,9 @@ restish plugin install saltbo/zpan zpan
 
 The plugin uses Restish delegated HTTP for ZPan draft, part re-sign, complete,
 and abort operations, preserving the selected profile, OAuth/API-key
-authentication, TLS, and normalized output. It streams local file sections
+authentication, TLS, and normalized output. With Restish v2.3 command plugins,
+the host profile is selected through `RSH_PROFILE` while the plugin's matching
+`--profile` selects spec validation and checkpoint identity. It streams local file sections
 directly to presigned S3 URLs with bounded concurrency, retry, ETag capture,
 resume checkpoints, and idempotent completion.
 
