@@ -278,7 +278,13 @@ export const createMatterSchema = z.object({
   parent: z.string().default(''),
   dirtype: z.number().int().default(0),
   onConflict: conflictStrategySchema.optional(),
-  storageId: z.string().min(1).optional(),
+  storageId: z
+    .string()
+    .min(1)
+    .describe(
+      'Only site administrators may set this field; omit it to let ZPan automatically select an available storage.',
+    )
+    .optional(),
 })
 
 export type CreateMatterInput = z.infer<typeof createMatterSchema>

@@ -509,7 +509,10 @@ describe('global OpenAPI document', () => {
         size: expect.any(Object),
         parent: expect.any(Object),
         onConflict: expect.any(Object),
-        storageId: expect.any(Object),
+        storageId: {
+          description:
+            'Only site administrators may set this field; omit it to let ZPan automatically select an available storage.',
+        },
       },
     })
     expect(doc.paths['/api/objects']?.post?.responses?.['201']?.content?.['application/json']?.schema).toMatchObject({

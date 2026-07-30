@@ -7907,8 +7907,10 @@ type CreateObjectJSONBody struct {
 	OnConflict *CreateObjectJSONBodyOnConflict `json:"onConflict,omitempty"`
 	Parent     *string                         `json:"parent,omitempty"`
 	Size       *int                            `json:"size,omitempty"`
-	StorageId  *string                         `json:"storageId,omitempty"`
-	Type       *string                         `json:"type,omitempty"`
+
+	// StorageId Only site administrators may set this field; omit it to let ZPan automatically select an available storage.
+	StorageId *string `json:"storageId,omitempty"`
+	Type      *string `json:"type,omitempty"`
 }
 
 // CreateObjectJSONBodyOnConflict defines parameters for CreateObject.
