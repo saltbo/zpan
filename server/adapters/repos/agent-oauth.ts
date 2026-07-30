@@ -1,119 +1,94 @@
-import { createHash } from 'node:crypto'
-import {
-  AGENT_OAUTH_CLIENT_ID,
-  AGENT_OAUTH_CLIENT_NAME,
-  AGENT_OAUTH_SCOPES,
-  RESTISH_OAUTH_REDIRECT_URIS,
-} from '@shared/agent-oauth'
 import { type AuthorizationScope, isAuthorizationScope } from '@shared/authorization'
 import { and, eq, gt, inArray, isNull } from 'drizzle-orm'
-import { oauthAccessToken, oauthClient, oauthConsent, oauthRefreshToken, user as userTable } from '../../db/auth-schema'
+import { decodeJwt } from 'jose'
+import {
+  oauthAccessToken,
+  oauthClient,
+  oauthConsent,
+  oauthJwtRevocation,
+  oauthRefreshToken,
+} from '../../db/auth-schema'
 import { executeWriteTransaction } from '../../db/transaction'
-import type { Database } from '../../platform/interface'
-import type { AgentOAuthGateway, AgentOAuthGrant } from '../../usecases/ports'
+import type { AgentOAuthClient, AgentOAuthGateway } from '../../usecases/ports'
 
 export function createAgentOAuthGateway(): AgentOAuthGateway {
   return {
-    async ensureSystemClient(db) {
-      const now = new Date()
-      const row = {
-        id: AGENT_OAUTH_CLIENT_ID,
-        clientId: AGENT_OAUTH_CLIENT_ID,
-        clientSecret: null,
-        disabled: false,
-        skipConsent: false,
-        enableEndSession: false,
-        subjectType: 'public',
-        scopes: JSON.stringify([...AGENT_OAUTH_SCOPES]),
-        userId: null,
-        createdAt: now,
-        updatedAt: now,
-        name: AGENT_OAUTH_CLIENT_NAME,
-        uri: null,
-        icon: null,
-        contacts: null,
-        tos: null,
-        policy: null,
-        softwareId: 'zpan-agent',
-        softwareVersion: null,
-        softwareStatement: null,
-        redirectUris: JSON.stringify([...RESTISH_OAUTH_REDIRECT_URIS]),
-        postLogoutRedirectUris: null,
-        tokenEndpointAuthMethod: 'none',
-        grantTypes: JSON.stringify(['authorization_code', 'refresh_token']),
-        responseTypes: JSON.stringify(['code']),
-        public: true,
-        type: 'native',
-        requirePKCE: true,
-        referenceId: 'system',
-        metadata: JSON.stringify({ systemManaged: true }),
-      }
-      await db
-        .insert(oauthClient)
-        .values(row)
-        .onConflictDoUpdate({
-          target: oauthClient.clientId,
-          set: {
-            disabled: false,
-            scopes: row.scopes,
-            updatedAt: now,
-            redirectUris: row.redirectUris,
-            tokenEndpointAuthMethod: row.tokenEndpointAuthMethod,
-            grantTypes: row.grantTypes,
-            responseTypes: row.responseTypes,
-            public: true,
-            type: row.type,
-            requirePKCE: true,
-            metadata: row.metadata,
-          },
+    async findClient(db, clientId) {
+      const [row] = await db
+        .select({
+          clientId: oauthClient.clientId,
+          name: oauthClient.name,
+          disabled: oauthClient.disabled,
+          redirectUris: oauthClient.redirectUris,
+          responseTypes: oauthClient.responseTypes,
+          scopes: oauthClient.scopes,
+          referenceId: oauthClient.referenceId,
         })
+        .from(oauthClient)
+        .where(eq(oauthClient.clientId, clientId))
+        .limit(1)
+      if (!row || row.referenceId === 'system') return null
+      return {
+        clientId: row.clientId,
+        clientName: row.name || row.clientId,
+        disabled: row.disabled === true,
+        redirectUris: parseStringArray(row.redirectUris),
+        responseTypes: parseStringArray(row.responseTypes),
+        scopes: parseStringArray(row.scopes),
+      } satisfies AgentOAuthClient
     },
 
-    async assertLiveGrant(db, input) {
-      const orgId = input.orgId
-      if (!orgId) throw new Error('agent_oauth_workspace_required')
-      if (input.clientId !== AGENT_OAUTH_CLIENT_ID) throw new Error('agent_oauth_client_denied')
-      const requestedScopes = input.scopes.filter(isAuthorizationScope)
-      const consent = await findConsent(db, input.userId, input.clientId, orgId)
-      if (!consent) throw new Error('agent_oauth_grant_revoked')
-      const grantedScopes = parseScopes(consent.scopes).filter(isAuthorizationScope)
-      if (!requestedScopes.every((scope) => grantedScopes.includes(scope))) throw new Error('agent_oauth_scope_denied')
-    },
-
-    async verifyAccessToken(db, token) {
+    async listRegisteredApplications(db) {
       const rows = await db
         .select({
-          userId: oauthAccessToken.userId,
-          clientId: oauthAccessToken.clientId,
-          orgId: oauthAccessToken.referenceId,
-          scopes: oauthAccessToken.scopes,
+          clientId: oauthClient.clientId,
+          name: oauthClient.name,
+          uri: oauthClient.uri,
+          redirectUris: oauthClient.redirectUris,
+          grantTypes: oauthClient.grantTypes,
+          scopes: oauthClient.scopes,
+          disabled: oauthClient.disabled,
+          createdAt: oauthClient.createdAt,
+          referenceId: oauthClient.referenceId,
         })
-        .from(oauthAccessToken)
-        .innerJoin(userTable, eq(userTable.id, oauthAccessToken.userId))
-        .innerJoin(oauthClient, eq(oauthClient.clientId, oauthAccessToken.clientId))
-        .where(
-          and(
-            eq(oauthAccessToken.token, hashStoredToken(token)),
-            eq(oauthAccessToken.clientId, AGENT_OAUTH_CLIENT_ID),
-            gt(oauthAccessToken.expiresAt, new Date()),
-            eq(oauthClient.disabled, false),
-            eq(userTable.banned, false),
-          ),
-        )
-        .limit(1)
-      const result = rows[0]
-      if (!result?.userId || !result.orgId) return null
-      const scopes = parseScopes(result.scopes).filter(isAuthorizationScope)
-      const consent = await findConsent(db, result.userId, result.clientId, result.orgId)
-      if (!consent) return null
-      const grantedScopes = parseScopes(consent.scopes).filter(isAuthorizationScope)
-      return {
-        grantId: consent.id,
-        userId: result.userId,
-        orgId: result.orgId,
-        clientId: result.clientId,
-        scopes: scopes.filter((scope) => grantedScopes.includes(scope)),
+        .from(oauthClient)
+      return rows
+        .filter((row) => row.referenceId !== 'system')
+        .map((row) => ({
+          clientId: row.clientId,
+          name: row.name || row.clientId,
+          uri: row.uri,
+          redirectUris: parseStringArray(row.redirectUris),
+          grantTypes: parseStringArray(row.grantTypes),
+          scopes: parseStringArray(row.scopes),
+          disabled: row.disabled === true,
+          createdAt: toIso(row.createdAt),
+        }))
+    },
+
+    async revokeJwtAccessToken(db, token) {
+      const payload = decodeJwt(token)
+      if (typeof payload.jti !== 'string' || typeof payload.client_id !== 'string' || typeof payload.exp !== 'number') {
+        throw new Error('invalid_oauth_jwt_revocation')
       }
+      await db
+        .insert(oauthJwtRevocation)
+        .values({
+          id: payload.jti,
+          clientId: payload.client_id,
+          expiresAt: new Date(payload.exp * 1000),
+          createdAt: new Date(),
+        })
+        .onConflictDoNothing({ target: oauthJwtRevocation.id })
+    },
+
+    async isJwtAccessTokenRevoked(db, tokenId) {
+      const [row] = await db
+        .select({ id: oauthJwtRevocation.id })
+        .from(oauthJwtRevocation)
+        .where(and(eq(oauthJwtRevocation.id, tokenId), gt(oauthJwtRevocation.expiresAt, new Date())))
+        .limit(1)
+      return Boolean(row)
     },
 
     async listGrants(db, userId) {
@@ -121,6 +96,7 @@ export function createAgentOAuthGateway(): AgentOAuthGateway {
         .select({
           id: oauthConsent.id,
           clientId: oauthConsent.clientId,
+          clientName: oauthClient.name,
           userId: oauthConsent.userId,
           orgId: oauthConsent.referenceId,
           scopes: oauthConsent.scopes,
@@ -128,16 +104,18 @@ export function createAgentOAuthGateway(): AgentOAuthGateway {
           lastUsedAt: oauthConsent.lastUsedAt,
         })
         .from(oauthConsent)
-        .where(and(eq(oauthConsent.userId, userId), eq(oauthConsent.clientId, AGENT_OAUTH_CLIENT_ID)))
-      return rows.flatMap((row): AgentOAuthGrant[] => {
+        .innerJoin(oauthClient, eq(oauthClient.clientId, oauthConsent.clientId))
+        .where(eq(oauthConsent.userId, userId))
+      return rows.flatMap((row) => {
         if (!row.userId || !row.orgId) return []
         return [
           {
             id: row.id,
             clientId: row.clientId,
+            clientName: row.clientName || row.clientId,
             userId: row.userId,
             orgId: row.orgId,
-            scopes: parseScopes(row.scopes).filter(isAuthorizationScope),
+            scopes: parseScopes(row.scopes),
             createdAt: toIso(row.createdAt),
             lastUsedAt: row.lastUsedAt ? toIso(row.lastUsedAt) : null,
           },
@@ -145,22 +123,8 @@ export function createAgentOAuthGateway(): AgentOAuthGateway {
       })
     },
 
-    async recordGrantUse(db, input) {
-      await db
-        .update(oauthConsent)
-        .set({ lastUsedAt: input.now })
-        .where(
-          and(
-            eq(oauthConsent.id, input.grantId),
-            eq(oauthConsent.userId, input.userId),
-            eq(oauthConsent.referenceId, input.orgId),
-            eq(oauthConsent.clientId, AGENT_OAUTH_CLIENT_ID),
-          ),
-        )
-    },
-
     async revokeGrant(db, input) {
-      const grants = await db
+      const [grant] = await db
         .select({
           id: oauthConsent.id,
           clientId: oauthConsent.clientId,
@@ -168,15 +132,8 @@ export function createAgentOAuthGateway(): AgentOAuthGateway {
           referenceId: oauthConsent.referenceId,
         })
         .from(oauthConsent)
-        .where(
-          and(
-            eq(oauthConsent.id, input.grantId),
-            eq(oauthConsent.userId, input.userId),
-            eq(oauthConsent.clientId, AGENT_OAUTH_CLIENT_ID),
-          ),
-        )
+        .where(and(eq(oauthConsent.id, input.grantId), eq(oauthConsent.userId, input.userId)))
         .limit(1)
-      const grant = grants[0]
       if (!grant?.userId || !grant.referenceId) return false
       const refreshRows = await db
         .select({ id: oauthRefreshToken.id })
@@ -210,23 +167,6 @@ export function createAgentOAuthGateway(): AgentOAuthGateway {
   }
 }
 
-async function findConsent(db: Database, userId: string, clientId: string, orgId: string) {
-  const rows = await db
-    .select({ id: oauthConsent.id, scopes: oauthConsent.scopes })
-    .from(oauthConsent)
-    .innerJoin(userTable, eq(userTable.id, oauthConsent.userId))
-    .where(
-      and(
-        eq(oauthConsent.userId, userId),
-        eq(oauthConsent.clientId, clientId),
-        eq(oauthConsent.referenceId, orgId),
-        eq(userTable.banned, false),
-      ),
-    )
-    .limit(1)
-  return rows[0] ?? null
-}
-
 function parseScopes(value: string | string[] | null): AuthorizationScope[] {
   if (Array.isArray(value)) return value.filter(isAuthorizationScope)
   if (!value) return []
@@ -236,12 +176,15 @@ function parseScopes(value: string | string[] | null): AuthorizationScope[] {
     : []
 }
 
-function toIso(value: Date | number | string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) throw new Error('invalid_agent_oauth_date')
-  return date.toISOString()
+function parseStringArray(value: string | string[] | null): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string')
+  if (!value) return []
+  const parsed = JSON.parse(value) as unknown
+  return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
 }
 
-function hashStoredToken(token: string): string {
-  return createHash('sha256').update(token).digest('base64url')
+function toIso(value: Date | number | string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) throw new Error('invalid_oauth_date')
+  return date.toISOString()
 }

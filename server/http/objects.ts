@@ -201,6 +201,8 @@ const createObjectRoute = authRoute(
   {
     operationId: 'createObject',
     summary: 'Create object',
+    description:
+      'For a file, creates a draft and returns a self-contained direct-upload workflow. PUT each local file slice identified by upload.parts[].offset and upload.parts[].length to its presigned URL with the supplied headers, record each response ETag, then call upload.workflow.complete.operationId with every {partNumber, etag}. File bytes go directly to storage and never pass through ZPan. Use the advertised re-presign action for expired URLs and abort action to discard an unfinished draft.',
     tags: ['Objects'],
     method: 'post',
     path: '/',
@@ -220,6 +222,8 @@ const presignPartsRoute = authRoute(
   {
     operationId: 'presignObjectUploadParts',
     summary: 'Re-presign upload parts',
+    description:
+      'Returns replacement presigned PUT descriptors for the requested part numbers. Each descriptor includes the exact local file offset and length. Upload those slices, capture each response ETag, and finish through completeObjectUpload.',
     tags: ['Objects'],
     method: 'post',
     path: '/{id}/uploads/{uploadSessionId}/parts',
@@ -239,6 +243,8 @@ const completionsRoute = authRoute(
   {
     operationId: 'completeObjectUpload',
     summary: 'Complete upload',
+    description:
+      'Finalizes a direct upload after every advertised part has been PUT to storage. Send one {partNumber, etag} entry per part, using the ETag response header returned by storage.',
     tags: ['Objects'],
     method: 'post',
     path: '/{id}/uploads/{uploadSessionId}/completions',

@@ -1,19 +1,17 @@
 import {
   AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
-  AGENT_OAUTH_CLIENT_ID,
-  AGENT_OAUTH_CLIENT_NAME,
   AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
   AGENT_OAUTH_STANDARD_SCOPES,
-  RESTISH_OAUTH_REDIRECT_URIS,
 } from '@shared/agent-oauth'
 import { isAuthorizationScope } from '@shared/authorization'
-import { type AgentGrantableScope, type AgentOAuthConsentContext, agentGrantableScopeSchema } from '@shared/schemas'
+import { type AgentOAuthConsentContext, type OAuthResourceScope, oauthResourceScopeSchema } from '@shared/schemas'
+import type { Database } from '../platform/interface'
 import type { Deps } from './deps'
 import { badRequest, forbidden } from './ports'
 
 export async function getAgentOAuthConsentContext(
-  deps: Pick<Deps, 'org'>,
-  input: { userId: string; orgId: string | null; requestUrl: string; oauthQuery: string },
+  deps: Pick<Deps, 'agentOAuth' | 'org'>,
+  input: { db: Database; userId: string; orgId: string | null; requestUrl: string; oauthQuery: string },
 ): Promise<AgentOAuthConsentContext> {
   const params = new URLSearchParams(input.oauthQuery)
   const clientId = params.get('client_id')
@@ -21,10 +19,16 @@ export async function getAgentOAuthConsentContext(
   const responseType = params.get('response_type')
   const scopeValue = params.get('scope') ?? ''
 
-  if (clientId !== AGENT_OAUTH_CLIENT_ID || responseType !== 'code' || !redirectUri) {
+  if (!clientId || responseType !== 'code' || !redirectUri) {
     throw badRequest('Invalid Agent OAuth request')
   }
-  if (!RESTISH_OAUTH_REDIRECT_URIS.includes(redirectUri as (typeof RESTISH_OAUTH_REDIRECT_URIS)[number])) {
+  const client = await deps.agentOAuth.findClient(input.db, clientId)
+  if (
+    !client ||
+    client.disabled ||
+    !client.responseTypes.includes('code') ||
+    !client.redirectUris.includes(redirectUri)
+  ) {
     throw badRequest('Invalid Agent OAuth redirect URI')
   }
 
@@ -32,8 +36,12 @@ export async function getAgentOAuthConsentContext(
   const standardScopes = requestedScopes.filter((scope) =>
     (AGENT_OAUTH_STANDARD_SCOPES as readonly string[]).includes(scope),
   )
-  const scopes = requestedScopes.filter(isAgentGrantableScope)
-  if (scopes.length === 0 || requestedScopes.length !== standardScopes.length + scopes.length) {
+  const scopes = requestedScopes.filter(isOAuthResourceScope)
+  if (
+    scopes.length === 0 ||
+    requestedScopes.length !== standardScopes.length + scopes.length ||
+    requestedScopes.some((scope) => !client.scopes.includes(scope))
+  ) {
     throw badRequest('Invalid Agent OAuth scope')
   }
 
@@ -45,7 +53,7 @@ export async function getAgentOAuthConsentContext(
 
   return {
     clientId,
-    clientName: AGENT_OAUTH_CLIENT_NAME,
+    clientName: client.clientName,
     instanceOrigin: new URL(input.requestUrl).origin,
     workspace: { id: orgId, name: names.get(orgId) ?? null },
     scopes,
@@ -58,6 +66,6 @@ export async function getAgentOAuthConsentContext(
   }
 }
 
-function isAgentGrantableScope(scope: string): scope is AgentGrantableScope {
-  return isAuthorizationScope(scope) && agentGrantableScopeSchema.safeParse(scope).success
+function isOAuthResourceScope(scope: string): scope is OAuthResourceScope {
+  return isAuthorizationScope(scope) && oauthResourceScopeSchema.safeParse(scope).success
 }

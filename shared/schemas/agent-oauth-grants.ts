@@ -1,10 +1,6 @@
 import { z } from 'zod'
-import {
-  AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
-  AGENT_OAUTH_CLIENT_NAME,
-  AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
-} from '../agent-oauth'
-import { agentGrantableScopeSchema } from './agent-api-keys'
+import { AGENT_OAUTH_ACCESS_TOKEN_SECONDS, AGENT_OAUTH_REFRESH_TOKEN_SECONDS } from '../agent-oauth'
+import { oauthResourceScopeSchema } from './oauth-resource'
 
 export const agentOAuthGrantStatusSchema = z.enum(['active'])
 export type AgentOAuthGrantStatus = z.infer<typeof agentOAuthGrantStatusSchema>
@@ -12,11 +8,11 @@ export type AgentOAuthGrantStatus = z.infer<typeof agentOAuthGrantStatusSchema>
 export const agentOAuthGrantSchema = z.object({
   id: z.string(),
   clientId: z.string(),
-  clientName: z.string().default(AGENT_OAUTH_CLIENT_NAME),
+  clientName: z.string(),
   userId: z.string(),
   orgId: z.string(),
   workspaceName: z.string().nullable(),
-  scopes: z.array(agentGrantableScopeSchema),
+  scopes: z.array(oauthResourceScopeSchema),
   createdAt: z.string(),
   lastUsedAt: z.string().nullable(),
   status: agentOAuthGrantStatusSchema,
@@ -34,7 +30,7 @@ export const agentOAuthConsentContextSchema = z.object({
     id: z.string(),
     name: z.string().nullable(),
   }),
-  scopes: z.array(agentGrantableScopeSchema),
+  scopes: z.array(oauthResourceScopeSchema),
   standardScopes: z.array(z.string()),
   redirectUri: z.string(),
   grantLifetime: z.object({
@@ -60,10 +56,9 @@ export const agentOAuthConsentResultSchema = z.object({
 })
 export type AgentOAuthConsentResult = z.infer<typeof agentOAuthConsentResultSchema>
 
-export function agentOAuthGrantDTO(input: Omit<AgentOAuthGrant, 'clientName' | 'status'>): AgentOAuthGrant {
+export function agentOAuthGrantDTO(input: Omit<AgentOAuthGrant, 'status'>): AgentOAuthGrant {
   return {
     ...input,
-    clientName: AGENT_OAUTH_CLIENT_NAME,
     status: 'active',
   }
 }

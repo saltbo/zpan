@@ -2122,6 +2122,108 @@ func (e ListAgentOAuthGrants200JSONResponseBodyItemsStatus) Valid() bool {
 	}
 }
 
+// Defines values for ListUsersParamsSearchField.
+const (
+	ListUsersParamsSearchFieldEmail ListUsersParamsSearchField = "email"
+	ListUsersParamsSearchFieldName  ListUsersParamsSearchField = "name"
+)
+
+// Valid indicates whether the value is a known member of the ListUsersParamsSearchField enum.
+func (e ListUsersParamsSearchField) Valid() bool {
+	switch e {
+	case ListUsersParamsSearchFieldEmail:
+		return true
+	case ListUsersParamsSearchFieldName:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListUsersParamsSearchOperator.
+const (
+	ListUsersParamsSearchOperatorContains   ListUsersParamsSearchOperator = "contains"
+	ListUsersParamsSearchOperatorEndsWith   ListUsersParamsSearchOperator = "ends_with"
+	ListUsersParamsSearchOperatorStartsWith ListUsersParamsSearchOperator = "starts_with"
+)
+
+// Valid indicates whether the value is a known member of the ListUsersParamsSearchOperator enum.
+func (e ListUsersParamsSearchOperator) Valid() bool {
+	switch e {
+	case ListUsersParamsSearchOperatorContains:
+		return true
+	case ListUsersParamsSearchOperatorEndsWith:
+		return true
+	case ListUsersParamsSearchOperatorStartsWith:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListUsersParamsSortDirection.
+const (
+	ListUsersParamsSortDirectionAsc  ListUsersParamsSortDirection = "asc"
+	ListUsersParamsSortDirectionDesc ListUsersParamsSortDirection = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListUsersParamsSortDirection enum.
+func (e ListUsersParamsSortDirection) Valid() bool {
+	switch e {
+	case ListUsersParamsSortDirectionAsc:
+		return true
+	case ListUsersParamsSortDirectionDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListUsersParamsFilterOperator.
+const (
+	ListUsersParamsFilterOperatorContains   ListUsersParamsFilterOperator = "contains"
+	ListUsersParamsFilterOperatorEndsWith   ListUsersParamsFilterOperator = "ends_with"
+	ListUsersParamsFilterOperatorEq         ListUsersParamsFilterOperator = "eq"
+	ListUsersParamsFilterOperatorGt         ListUsersParamsFilterOperator = "gt"
+	ListUsersParamsFilterOperatorGte        ListUsersParamsFilterOperator = "gte"
+	ListUsersParamsFilterOperatorIn         ListUsersParamsFilterOperator = "in"
+	ListUsersParamsFilterOperatorLt         ListUsersParamsFilterOperator = "lt"
+	ListUsersParamsFilterOperatorLte        ListUsersParamsFilterOperator = "lte"
+	ListUsersParamsFilterOperatorNe         ListUsersParamsFilterOperator = "ne"
+	ListUsersParamsFilterOperatorNotIn      ListUsersParamsFilterOperator = "not_in"
+	ListUsersParamsFilterOperatorStartsWith ListUsersParamsFilterOperator = "starts_with"
+)
+
+// Valid indicates whether the value is a known member of the ListUsersParamsFilterOperator enum.
+func (e ListUsersParamsFilterOperator) Valid() bool {
+	switch e {
+	case ListUsersParamsFilterOperatorContains:
+		return true
+	case ListUsersParamsFilterOperatorEndsWith:
+		return true
+	case ListUsersParamsFilterOperatorEq:
+		return true
+	case ListUsersParamsFilterOperatorGt:
+		return true
+	case ListUsersParamsFilterOperatorGte:
+		return true
+	case ListUsersParamsFilterOperatorIn:
+		return true
+	case ListUsersParamsFilterOperatorLt:
+		return true
+	case ListUsersParamsFilterOperatorLte:
+		return true
+	case ListUsersParamsFilterOperatorNe:
+		return true
+	case ListUsersParamsFilterOperatorNotIn:
+		return true
+	case ListUsersParamsFilterOperatorStartsWith:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ChangeEmail200JSONResponseBodyMessage.
 const (
 	ChangeEmail200JSONResponseBodyMessageEmailUpdated          ChangeEmail200JSONResponseBodyMessage = "Email updated"
@@ -2242,228 +2344,294 @@ func (e PostApiAuthDeviceToken400JSONResponseBodyError) Valid() bool {
 	}
 }
 
-// Defines values for PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypes.
+// Defines values for GetJSONWebKeySet200JSONResponseBodyKeysUse.
 const (
-	PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypesAuthorizationCode PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypes = "authorization_code"
-	PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypesClientCredentials PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypes = "client_credentials"
-	PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypesRefreshToken      PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypes = "refresh_token"
+	Sig GetJSONWebKeySet200JSONResponseBodyKeysUse = "sig"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypes enum.
-func (e PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypes) Valid() bool {
+// Valid indicates whether the value is a known member of the GetJSONWebKeySet200JSONResponseBodyKeysUse enum.
+func (e GetJSONWebKeySet200JSONResponseBodyKeysUse) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypesAuthorizationCode:
-		return true
-	case PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypesClientCredentials:
-		return true
-	case PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypesRefreshToken:
+	case Sig:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiAuthOauth2CreateClient200JSONResponseBodyResponseTypes.
+// Defines values for LinkSocialAccountJSONBodyProvider0.
 const (
-	PostApiAuthOauth2CreateClient200JSONResponseBodyResponseTypesCode PostApiAuthOauth2CreateClient200JSONResponseBodyResponseTypes = "code"
+	LinkSocialAccountJSONBodyProvider0Apple       LinkSocialAccountJSONBodyProvider0 = "apple"
+	LinkSocialAccountJSONBodyProvider0Atlassian   LinkSocialAccountJSONBodyProvider0 = "atlassian"
+	LinkSocialAccountJSONBodyProvider0Cognito     LinkSocialAccountJSONBodyProvider0 = "cognito"
+	LinkSocialAccountJSONBodyProvider0Discord     LinkSocialAccountJSONBodyProvider0 = "discord"
+	LinkSocialAccountJSONBodyProvider0Dropbox     LinkSocialAccountJSONBodyProvider0 = "dropbox"
+	LinkSocialAccountJSONBodyProvider0Facebook    LinkSocialAccountJSONBodyProvider0 = "facebook"
+	LinkSocialAccountJSONBodyProvider0Figma       LinkSocialAccountJSONBodyProvider0 = "figma"
+	LinkSocialAccountJSONBodyProvider0Github      LinkSocialAccountJSONBodyProvider0 = "github"
+	LinkSocialAccountJSONBodyProvider0Gitlab      LinkSocialAccountJSONBodyProvider0 = "gitlab"
+	LinkSocialAccountJSONBodyProvider0Google      LinkSocialAccountJSONBodyProvider0 = "google"
+	LinkSocialAccountJSONBodyProvider0Huggingface LinkSocialAccountJSONBodyProvider0 = "huggingface"
+	LinkSocialAccountJSONBodyProvider0Kakao       LinkSocialAccountJSONBodyProvider0 = "kakao"
+	LinkSocialAccountJSONBodyProvider0Kick        LinkSocialAccountJSONBodyProvider0 = "kick"
+	LinkSocialAccountJSONBodyProvider0Line        LinkSocialAccountJSONBodyProvider0 = "line"
+	LinkSocialAccountJSONBodyProvider0Linear      LinkSocialAccountJSONBodyProvider0 = "linear"
+	LinkSocialAccountJSONBodyProvider0Linkedin    LinkSocialAccountJSONBodyProvider0 = "linkedin"
+	LinkSocialAccountJSONBodyProvider0Microsoft   LinkSocialAccountJSONBodyProvider0 = "microsoft"
+	LinkSocialAccountJSONBodyProvider0Naver       LinkSocialAccountJSONBodyProvider0 = "naver"
+	LinkSocialAccountJSONBodyProvider0Notion      LinkSocialAccountJSONBodyProvider0 = "notion"
+	LinkSocialAccountJSONBodyProvider0Paybin      LinkSocialAccountJSONBodyProvider0 = "paybin"
+	LinkSocialAccountJSONBodyProvider0Paypal      LinkSocialAccountJSONBodyProvider0 = "paypal"
+	LinkSocialAccountJSONBodyProvider0Polar       LinkSocialAccountJSONBodyProvider0 = "polar"
+	LinkSocialAccountJSONBodyProvider0Railway     LinkSocialAccountJSONBodyProvider0 = "railway"
+	LinkSocialAccountJSONBodyProvider0Reddit      LinkSocialAccountJSONBodyProvider0 = "reddit"
+	LinkSocialAccountJSONBodyProvider0Roblox      LinkSocialAccountJSONBodyProvider0 = "roblox"
+	LinkSocialAccountJSONBodyProvider0Salesforce  LinkSocialAccountJSONBodyProvider0 = "salesforce"
+	LinkSocialAccountJSONBodyProvider0Slack       LinkSocialAccountJSONBodyProvider0 = "slack"
+	LinkSocialAccountJSONBodyProvider0Spotify     LinkSocialAccountJSONBodyProvider0 = "spotify"
+	LinkSocialAccountJSONBodyProvider0Tiktok      LinkSocialAccountJSONBodyProvider0 = "tiktok"
+	LinkSocialAccountJSONBodyProvider0Twitch      LinkSocialAccountJSONBodyProvider0 = "twitch"
+	LinkSocialAccountJSONBodyProvider0Twitter     LinkSocialAccountJSONBodyProvider0 = "twitter"
+	LinkSocialAccountJSONBodyProvider0Vercel      LinkSocialAccountJSONBodyProvider0 = "vercel"
+	LinkSocialAccountJSONBodyProvider0Vk          LinkSocialAccountJSONBodyProvider0 = "vk"
+	LinkSocialAccountJSONBodyProvider0Wechat      LinkSocialAccountJSONBodyProvider0 = "wechat"
+	LinkSocialAccountJSONBodyProvider0Zoom        LinkSocialAccountJSONBodyProvider0 = "zoom"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2CreateClient200JSONResponseBodyResponseTypes enum.
-func (e PostApiAuthOauth2CreateClient200JSONResponseBodyResponseTypes) Valid() bool {
+// Valid indicates whether the value is a known member of the LinkSocialAccountJSONBodyProvider0 enum.
+func (e LinkSocialAccountJSONBodyProvider0) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2CreateClient200JSONResponseBodyResponseTypesCode:
+	case LinkSocialAccountJSONBodyProvider0Apple:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Atlassian:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Cognito:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Discord:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Dropbox:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Facebook:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Figma:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Github:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Gitlab:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Google:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Huggingface:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Kakao:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Kick:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Line:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Linear:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Linkedin:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Microsoft:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Naver:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Notion:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Paybin:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Paypal:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Polar:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Railway:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Reddit:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Roblox:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Salesforce:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Slack:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Spotify:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Tiktok:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Twitch:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Twitter:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Vercel:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Vk:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Wechat:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Zoom:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethod.
+// Defines values for PostApiAuthOauth2CreateClientJSONBodyResponseTypes.
 const (
-	PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethodClientSecretBasic PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethod = "client_secret_basic"
-	PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethodClientSecretPost  PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethod = "client_secret_post"
-	PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethodNone              PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethod = "none"
+	PostApiAuthOauth2CreateClientJSONBodyResponseTypesCode PostApiAuthOauth2CreateClientJSONBodyResponseTypes = "code"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethod enum.
-func (e PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethod) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2CreateClientJSONBodyResponseTypes enum.
+func (e PostApiAuthOauth2CreateClientJSONBodyResponseTypes) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethodClientSecretBasic:
-		return true
-	case PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethodClientSecretPost:
-		return true
-	case PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethodNone:
+	case PostApiAuthOauth2CreateClientJSONBodyResponseTypesCode:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiAuthOauth2CreateClient200JSONResponseBodyType.
+// Defines values for PostApiAuthOauth2CreateClientJSONBodyType.
 const (
-	PostApiAuthOauth2CreateClient200JSONResponseBodyTypeNative         PostApiAuthOauth2CreateClient200JSONResponseBodyType = "native"
-	PostApiAuthOauth2CreateClient200JSONResponseBodyTypeUserAgentBased PostApiAuthOauth2CreateClient200JSONResponseBodyType = "user-agent-based"
-	PostApiAuthOauth2CreateClient200JSONResponseBodyTypeWeb            PostApiAuthOauth2CreateClient200JSONResponseBodyType = "web"
+	PostApiAuthOauth2CreateClientJSONBodyTypeNative         PostApiAuthOauth2CreateClientJSONBodyType = "native"
+	PostApiAuthOauth2CreateClientJSONBodyTypeUserAgentBased PostApiAuthOauth2CreateClientJSONBodyType = "user-agent-based"
+	PostApiAuthOauth2CreateClientJSONBodyTypeWeb            PostApiAuthOauth2CreateClientJSONBodyType = "web"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2CreateClient200JSONResponseBodyType enum.
-func (e PostApiAuthOauth2CreateClient200JSONResponseBodyType) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2CreateClientJSONBodyType enum.
+func (e PostApiAuthOauth2CreateClientJSONBodyType) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2CreateClient200JSONResponseBodyTypeNative:
+	case PostApiAuthOauth2CreateClientJSONBodyTypeNative:
 		return true
-	case PostApiAuthOauth2CreateClient200JSONResponseBodyTypeUserAgentBased:
+	case PostApiAuthOauth2CreateClientJSONBodyTypeUserAgentBased:
 		return true
-	case PostApiAuthOauth2CreateClient200JSONResponseBodyTypeWeb:
+	case PostApiAuthOauth2CreateClientJSONBodyTypeWeb:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiAuthOauth2IntrospectJSONBodyTokenTypeHint.
+// Defines values for PostApiAuthOauth2CreateClient201JSONResponseBodyResponseTypes.
 const (
-	PostApiAuthOauth2IntrospectJSONBodyTokenTypeHintAccessToken  PostApiAuthOauth2IntrospectJSONBodyTokenTypeHint = "access_token"
-	PostApiAuthOauth2IntrospectJSONBodyTokenTypeHintRefreshToken PostApiAuthOauth2IntrospectJSONBodyTokenTypeHint = "refresh_token"
+	PostApiAuthOauth2CreateClient201JSONResponseBodyResponseTypesCode PostApiAuthOauth2CreateClient201JSONResponseBodyResponseTypes = "code"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2IntrospectJSONBodyTokenTypeHint enum.
-func (e PostApiAuthOauth2IntrospectJSONBodyTokenTypeHint) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2CreateClient201JSONResponseBodyResponseTypes enum.
+func (e PostApiAuthOauth2CreateClient201JSONResponseBodyResponseTypes) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2IntrospectJSONBodyTokenTypeHintAccessToken:
-		return true
-	case PostApiAuthOauth2IntrospectJSONBodyTokenTypeHintRefreshToken:
+	case PostApiAuthOauth2CreateClient201JSONResponseBodyResponseTypesCode:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiAuthOauth2Link200JSONResponseBodyRedirect.
+// Defines values for PostApiAuthOauth2CreateClient201JSONResponseBodyType.
 const (
-	PostApiAuthOauth2Link200JSONResponseBodyRedirectTrue PostApiAuthOauth2Link200JSONResponseBodyRedirect = true
+	PostApiAuthOauth2CreateClient201JSONResponseBodyTypeNative         PostApiAuthOauth2CreateClient201JSONResponseBodyType = "native"
+	PostApiAuthOauth2CreateClient201JSONResponseBodyTypeUserAgentBased PostApiAuthOauth2CreateClient201JSONResponseBodyType = "user-agent-based"
+	PostApiAuthOauth2CreateClient201JSONResponseBodyTypeWeb            PostApiAuthOauth2CreateClient201JSONResponseBodyType = "web"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2Link200JSONResponseBodyRedirect enum.
-func (e PostApiAuthOauth2Link200JSONResponseBodyRedirect) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2CreateClient201JSONResponseBodyType enum.
+func (e PostApiAuthOauth2CreateClient201JSONResponseBodyType) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2Link200JSONResponseBodyRedirectTrue:
+	case PostApiAuthOauth2CreateClient201JSONResponseBodyTypeNative:
+		return true
+	case PostApiAuthOauth2CreateClient201JSONResponseBodyTypeUserAgentBased:
+		return true
+	case PostApiAuthOauth2CreateClient201JSONResponseBodyTypeWeb:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiAuthOauth2Register200JSONResponseBodyGrantTypes.
+// Defines values for PostApiAuthOauth2RegisterJSONBodyResponseTypes.
 const (
-	PostApiAuthOauth2Register200JSONResponseBodyGrantTypesAuthorizationCode PostApiAuthOauth2Register200JSONResponseBodyGrantTypes = "authorization_code"
-	PostApiAuthOauth2Register200JSONResponseBodyGrantTypesClientCredentials PostApiAuthOauth2Register200JSONResponseBodyGrantTypes = "client_credentials"
-	PostApiAuthOauth2Register200JSONResponseBodyGrantTypesRefreshToken      PostApiAuthOauth2Register200JSONResponseBodyGrantTypes = "refresh_token"
+	PostApiAuthOauth2RegisterJSONBodyResponseTypesCode PostApiAuthOauth2RegisterJSONBodyResponseTypes = "code"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2Register200JSONResponseBodyGrantTypes enum.
-func (e PostApiAuthOauth2Register200JSONResponseBodyGrantTypes) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2RegisterJSONBodyResponseTypes enum.
+func (e PostApiAuthOauth2RegisterJSONBodyResponseTypes) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2Register200JSONResponseBodyGrantTypesAuthorizationCode:
-		return true
-	case PostApiAuthOauth2Register200JSONResponseBodyGrantTypesClientCredentials:
-		return true
-	case PostApiAuthOauth2Register200JSONResponseBodyGrantTypesRefreshToken:
+	case PostApiAuthOauth2RegisterJSONBodyResponseTypesCode:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiAuthOauth2Register200JSONResponseBodyResponseTypes.
+// Defines values for PostApiAuthOauth2RegisterJSONBodySubjectType.
 const (
-	PostApiAuthOauth2Register200JSONResponseBodyResponseTypesCode PostApiAuthOauth2Register200JSONResponseBodyResponseTypes = "code"
+	Pairwise PostApiAuthOauth2RegisterJSONBodySubjectType = "pairwise"
+	Public   PostApiAuthOauth2RegisterJSONBodySubjectType = "public"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2Register200JSONResponseBodyResponseTypes enum.
-func (e PostApiAuthOauth2Register200JSONResponseBodyResponseTypes) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2RegisterJSONBodySubjectType enum.
+func (e PostApiAuthOauth2RegisterJSONBodySubjectType) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2Register200JSONResponseBodyResponseTypesCode:
+	case Pairwise:
+		return true
+	case Public:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethod.
+// Defines values for PostApiAuthOauth2RegisterJSONBodyType.
 const (
-	PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethodClientSecretBasic PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethod = "client_secret_basic"
-	PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethodClientSecretPost  PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethod = "client_secret_post"
-	PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethodNone              PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethod = "none"
+	PostApiAuthOauth2RegisterJSONBodyTypeNative         PostApiAuthOauth2RegisterJSONBodyType = "native"
+	PostApiAuthOauth2RegisterJSONBodyTypeUserAgentBased PostApiAuthOauth2RegisterJSONBodyType = "user-agent-based"
+	PostApiAuthOauth2RegisterJSONBodyTypeWeb            PostApiAuthOauth2RegisterJSONBodyType = "web"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethod enum.
-func (e PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethod) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2RegisterJSONBodyType enum.
+func (e PostApiAuthOauth2RegisterJSONBodyType) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethodClientSecretBasic:
+	case PostApiAuthOauth2RegisterJSONBodyTypeNative:
 		return true
-	case PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethodClientSecretPost:
+	case PostApiAuthOauth2RegisterJSONBodyTypeUserAgentBased:
 		return true
-	case PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethodNone:
+	case PostApiAuthOauth2RegisterJSONBodyTypeWeb:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiAuthOauth2Register200JSONResponseBodyType.
+// Defines values for PostApiAuthOauth2Register201JSONResponseBodyResponseTypes.
 const (
-	PostApiAuthOauth2Register200JSONResponseBodyTypeNative         PostApiAuthOauth2Register200JSONResponseBodyType = "native"
-	PostApiAuthOauth2Register200JSONResponseBodyTypeUserAgentBased PostApiAuthOauth2Register200JSONResponseBodyType = "user-agent-based"
-	PostApiAuthOauth2Register200JSONResponseBodyTypeWeb            PostApiAuthOauth2Register200JSONResponseBodyType = "web"
+	PostApiAuthOauth2Register201JSONResponseBodyResponseTypesCode PostApiAuthOauth2Register201JSONResponseBodyResponseTypes = "code"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2Register200JSONResponseBodyType enum.
-func (e PostApiAuthOauth2Register200JSONResponseBodyType) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2Register201JSONResponseBodyResponseTypes enum.
+func (e PostApiAuthOauth2Register201JSONResponseBodyResponseTypes) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2Register200JSONResponseBodyTypeNative:
-		return true
-	case PostApiAuthOauth2Register200JSONResponseBodyTypeUserAgentBased:
-		return true
-	case PostApiAuthOauth2Register200JSONResponseBodyTypeWeb:
+	case PostApiAuthOauth2Register201JSONResponseBodyResponseTypesCode:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiAuthOauth2RevokeJSONBodyTokenTypeHint.
+// Defines values for PostApiAuthOauth2Register201JSONResponseBodyType.
 const (
-	PostApiAuthOauth2RevokeJSONBodyTokenTypeHintAccessToken  PostApiAuthOauth2RevokeJSONBodyTokenTypeHint = "access_token"
-	PostApiAuthOauth2RevokeJSONBodyTokenTypeHintRefreshToken PostApiAuthOauth2RevokeJSONBodyTokenTypeHint = "refresh_token"
+	PostApiAuthOauth2Register201JSONResponseBodyTypeNative         PostApiAuthOauth2Register201JSONResponseBodyType = "native"
+	PostApiAuthOauth2Register201JSONResponseBodyTypeUserAgentBased PostApiAuthOauth2Register201JSONResponseBodyType = "user-agent-based"
+	PostApiAuthOauth2Register201JSONResponseBodyTypeWeb            PostApiAuthOauth2Register201JSONResponseBodyType = "web"
 )
 
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2RevokeJSONBodyTokenTypeHint enum.
-func (e PostApiAuthOauth2RevokeJSONBodyTokenTypeHint) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2Register201JSONResponseBodyType enum.
+func (e PostApiAuthOauth2Register201JSONResponseBodyType) Valid() bool {
 	switch e {
-	case PostApiAuthOauth2RevokeJSONBodyTokenTypeHintAccessToken:
+	case PostApiAuthOauth2Register201JSONResponseBodyTypeNative:
 		return true
-	case PostApiAuthOauth2RevokeJSONBodyTokenTypeHintRefreshToken:
+	case PostApiAuthOauth2Register201JSONResponseBodyTypeUserAgentBased:
 		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for PostApiAuthOauth2TokenJSONBodyGrantType.
-const (
-	AuthorizationCode PostApiAuthOauth2TokenJSONBodyGrantType = "authorization_code"
-	ClientCredentials PostApiAuthOauth2TokenJSONBodyGrantType = "client_credentials"
-	RefreshToken      PostApiAuthOauth2TokenJSONBodyGrantType = "refresh_token"
-)
-
-// Valid indicates whether the value is a known member of the PostApiAuthOauth2TokenJSONBodyGrantType enum.
-func (e PostApiAuthOauth2TokenJSONBodyGrantType) Valid() bool {
-	switch e {
-	case AuthorizationCode:
-		return true
-	case ClientCredentials:
-		return true
-	case RefreshToken:
+	case PostApiAuthOauth2Register201JSONResponseBodyTypeWeb:
 		return true
 	default:
 		return false
@@ -2473,12 +2641,51 @@ func (e PostApiAuthOauth2TokenJSONBodyGrantType) Valid() bool {
 // Defines values for PostApiAuthOauth2Token200JSONResponseBodyTokenType.
 const (
 	Bearer PostApiAuthOauth2Token200JSONResponseBodyTokenType = "Bearer"
+	DPoP   PostApiAuthOauth2Token200JSONResponseBodyTokenType = "DPoP"
 )
 
 // Valid indicates whether the value is a known member of the PostApiAuthOauth2Token200JSONResponseBodyTokenType enum.
 func (e PostApiAuthOauth2Token200JSONResponseBodyTokenType) Valid() bool {
 	switch e {
 	case Bearer:
+		return true
+	case DPoP:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiAuthOauth2UpdateClientJSONBodyUpdateResponseTypes.
+const (
+	Code PostApiAuthOauth2UpdateClientJSONBodyUpdateResponseTypes = "code"
+)
+
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2UpdateClientJSONBodyUpdateResponseTypes enum.
+func (e PostApiAuthOauth2UpdateClientJSONBodyUpdateResponseTypes) Valid() bool {
+	switch e {
+	case Code:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiAuthOauth2UpdateClientJSONBodyUpdateType.
+const (
+	Native         PostApiAuthOauth2UpdateClientJSONBodyUpdateType = "native"
+	UserAgentBased PostApiAuthOauth2UpdateClientJSONBodyUpdateType = "user-agent-based"
+	Web            PostApiAuthOauth2UpdateClientJSONBodyUpdateType = "web"
+)
+
+// Valid indicates whether the value is a known member of the PostApiAuthOauth2UpdateClientJSONBodyUpdateType enum.
+func (e PostApiAuthOauth2UpdateClientJSONBodyUpdateType) Valid() bool {
+	switch e {
+	case Native:
+		return true
+	case UserAgentBased:
+		return true
+	case Web:
 		return true
 	default:
 		return false
@@ -2494,6 +2701,123 @@ const (
 func (e SignInEmail200JSONResponseBodyRedirect) Valid() bool {
 	switch e {
 	case False:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SocialSignInJSONBodyProvider0.
+const (
+	SocialSignInJSONBodyProvider0Apple       SocialSignInJSONBodyProvider0 = "apple"
+	SocialSignInJSONBodyProvider0Atlassian   SocialSignInJSONBodyProvider0 = "atlassian"
+	SocialSignInJSONBodyProvider0Cognito     SocialSignInJSONBodyProvider0 = "cognito"
+	SocialSignInJSONBodyProvider0Discord     SocialSignInJSONBodyProvider0 = "discord"
+	SocialSignInJSONBodyProvider0Dropbox     SocialSignInJSONBodyProvider0 = "dropbox"
+	SocialSignInJSONBodyProvider0Facebook    SocialSignInJSONBodyProvider0 = "facebook"
+	SocialSignInJSONBodyProvider0Figma       SocialSignInJSONBodyProvider0 = "figma"
+	SocialSignInJSONBodyProvider0Github      SocialSignInJSONBodyProvider0 = "github"
+	SocialSignInJSONBodyProvider0Gitlab      SocialSignInJSONBodyProvider0 = "gitlab"
+	SocialSignInJSONBodyProvider0Google      SocialSignInJSONBodyProvider0 = "google"
+	SocialSignInJSONBodyProvider0Huggingface SocialSignInJSONBodyProvider0 = "huggingface"
+	SocialSignInJSONBodyProvider0Kakao       SocialSignInJSONBodyProvider0 = "kakao"
+	SocialSignInJSONBodyProvider0Kick        SocialSignInJSONBodyProvider0 = "kick"
+	SocialSignInJSONBodyProvider0Line        SocialSignInJSONBodyProvider0 = "line"
+	SocialSignInJSONBodyProvider0Linear      SocialSignInJSONBodyProvider0 = "linear"
+	SocialSignInJSONBodyProvider0Linkedin    SocialSignInJSONBodyProvider0 = "linkedin"
+	SocialSignInJSONBodyProvider0Microsoft   SocialSignInJSONBodyProvider0 = "microsoft"
+	SocialSignInJSONBodyProvider0Naver       SocialSignInJSONBodyProvider0 = "naver"
+	SocialSignInJSONBodyProvider0Notion      SocialSignInJSONBodyProvider0 = "notion"
+	SocialSignInJSONBodyProvider0Paybin      SocialSignInJSONBodyProvider0 = "paybin"
+	SocialSignInJSONBodyProvider0Paypal      SocialSignInJSONBodyProvider0 = "paypal"
+	SocialSignInJSONBodyProvider0Polar       SocialSignInJSONBodyProvider0 = "polar"
+	SocialSignInJSONBodyProvider0Railway     SocialSignInJSONBodyProvider0 = "railway"
+	SocialSignInJSONBodyProvider0Reddit      SocialSignInJSONBodyProvider0 = "reddit"
+	SocialSignInJSONBodyProvider0Roblox      SocialSignInJSONBodyProvider0 = "roblox"
+	SocialSignInJSONBodyProvider0Salesforce  SocialSignInJSONBodyProvider0 = "salesforce"
+	SocialSignInJSONBodyProvider0Slack       SocialSignInJSONBodyProvider0 = "slack"
+	SocialSignInJSONBodyProvider0Spotify     SocialSignInJSONBodyProvider0 = "spotify"
+	SocialSignInJSONBodyProvider0Tiktok      SocialSignInJSONBodyProvider0 = "tiktok"
+	SocialSignInJSONBodyProvider0Twitch      SocialSignInJSONBodyProvider0 = "twitch"
+	SocialSignInJSONBodyProvider0Twitter     SocialSignInJSONBodyProvider0 = "twitter"
+	SocialSignInJSONBodyProvider0Vercel      SocialSignInJSONBodyProvider0 = "vercel"
+	SocialSignInJSONBodyProvider0Vk          SocialSignInJSONBodyProvider0 = "vk"
+	SocialSignInJSONBodyProvider0Wechat      SocialSignInJSONBodyProvider0 = "wechat"
+	SocialSignInJSONBodyProvider0Zoom        SocialSignInJSONBodyProvider0 = "zoom"
+)
+
+// Valid indicates whether the value is a known member of the SocialSignInJSONBodyProvider0 enum.
+func (e SocialSignInJSONBodyProvider0) Valid() bool {
+	switch e {
+	case SocialSignInJSONBodyProvider0Apple:
+		return true
+	case SocialSignInJSONBodyProvider0Atlassian:
+		return true
+	case SocialSignInJSONBodyProvider0Cognito:
+		return true
+	case SocialSignInJSONBodyProvider0Discord:
+		return true
+	case SocialSignInJSONBodyProvider0Dropbox:
+		return true
+	case SocialSignInJSONBodyProvider0Facebook:
+		return true
+	case SocialSignInJSONBodyProvider0Figma:
+		return true
+	case SocialSignInJSONBodyProvider0Github:
+		return true
+	case SocialSignInJSONBodyProvider0Gitlab:
+		return true
+	case SocialSignInJSONBodyProvider0Google:
+		return true
+	case SocialSignInJSONBodyProvider0Huggingface:
+		return true
+	case SocialSignInJSONBodyProvider0Kakao:
+		return true
+	case SocialSignInJSONBodyProvider0Kick:
+		return true
+	case SocialSignInJSONBodyProvider0Line:
+		return true
+	case SocialSignInJSONBodyProvider0Linear:
+		return true
+	case SocialSignInJSONBodyProvider0Linkedin:
+		return true
+	case SocialSignInJSONBodyProvider0Microsoft:
+		return true
+	case SocialSignInJSONBodyProvider0Naver:
+		return true
+	case SocialSignInJSONBodyProvider0Notion:
+		return true
+	case SocialSignInJSONBodyProvider0Paybin:
+		return true
+	case SocialSignInJSONBodyProvider0Paypal:
+		return true
+	case SocialSignInJSONBodyProvider0Polar:
+		return true
+	case SocialSignInJSONBodyProvider0Railway:
+		return true
+	case SocialSignInJSONBodyProvider0Reddit:
+		return true
+	case SocialSignInJSONBodyProvider0Roblox:
+		return true
+	case SocialSignInJSONBodyProvider0Salesforce:
+		return true
+	case SocialSignInJSONBodyProvider0Slack:
+		return true
+	case SocialSignInJSONBodyProvider0Spotify:
+		return true
+	case SocialSignInJSONBodyProvider0Tiktok:
+		return true
+	case SocialSignInJSONBodyProvider0Twitch:
+		return true
+	case SocialSignInJSONBodyProvider0Twitter:
+		return true
+	case SocialSignInJSONBodyProvider0Vercel:
+		return true
+	case SocialSignInJSONBodyProvider0Vk:
+		return true
+	case SocialSignInJSONBodyProvider0Wechat:
+		return true
+	case SocialSignInJSONBodyProvider0Zoom:
 		return true
 	default:
 		return false
@@ -2848,6 +3172,231 @@ func (e CreateObject201JSONResponseBodyUploadMode) Valid() bool {
 	}
 }
 
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowAbortMethod.
+const (
+	DELETE CreateObject201JSONResponseBodyUploadWorkflowAbortMethod = "DELETE"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowAbortMethod enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowAbortMethod) Valid() bool {
+	switch e {
+	case DELETE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowAbortOperationId.
+const (
+	AbortObjectUpload CreateObject201JSONResponseBodyUploadWorkflowAbortOperationId = "abortObjectUpload"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowAbortOperationId enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowAbortOperationId) Valid() bool {
+	switch e {
+	case AbortObjectUpload:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowCompleteMethod.
+const (
+	CreateObject201JSONResponseBodyUploadWorkflowCompleteMethodPOST CreateObject201JSONResponseBodyUploadWorkflowCompleteMethod = "POST"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowCompleteMethod enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowCompleteMethod) Valid() bool {
+	switch e {
+	case CreateObject201JSONResponseBodyUploadWorkflowCompleteMethodPOST:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowCompleteOperationId.
+const (
+	CompleteObjectUpload CreateObject201JSONResponseBodyUploadWorkflowCompleteOperationId = "completeObjectUpload"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowCompleteOperationId enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowCompleteOperationId) Valid() bool {
+	switch e {
+	case CompleteObjectUpload:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowCompletePartsBodyField.
+const (
+	Parts CreateObject201JSONResponseBodyUploadWorkflowCompletePartsBodyField = "parts"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowCompletePartsBodyField enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowCompletePartsBodyField) Valid() bool {
+	switch e {
+	case Parts:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowRePresignMethod.
+const (
+	CreateObject201JSONResponseBodyUploadWorkflowRePresignMethodPOST CreateObject201JSONResponseBodyUploadWorkflowRePresignMethod = "POST"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowRePresignMethod enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowRePresignMethod) Valid() bool {
+	switch e {
+	case CreateObject201JSONResponseBodyUploadWorkflowRePresignMethodPOST:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowRePresignOperationId.
+const (
+	PresignObjectUploadParts CreateObject201JSONResponseBodyUploadWorkflowRePresignOperationId = "presignObjectUploadParts"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowRePresignOperationId enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowRePresignOperationId) Valid() bool {
+	switch e {
+	case PresignObjectUploadParts:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowRePresignPartNumbersBodyField.
+const (
+	PartNumbers CreateObject201JSONResponseBodyUploadWorkflowRePresignPartNumbersBodyField = "partNumbers"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowRePresignPartNumbersBodyField enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowRePresignPartNumbersBodyField) Valid() bool {
+	switch e {
+	case PartNumbers:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowUploadContentLengthField.
+const (
+	PartsLength CreateObject201JSONResponseBodyUploadWorkflowUploadContentLengthField = "parts[].length"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowUploadContentLengthField enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowUploadContentLengthField) Valid() bool {
+	switch e {
+	case PartsLength:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowUploadEtagHeader.
+const (
+	ETag CreateObject201JSONResponseBodyUploadWorkflowUploadEtagHeader = "ETag"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowUploadEtagHeader enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowUploadEtagHeader) Valid() bool {
+	switch e {
+	case ETag:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowUploadFileOffsetField.
+const (
+	PartsOffset CreateObject201JSONResponseBodyUploadWorkflowUploadFileOffsetField = "parts[].offset"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowUploadFileOffsetField enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowUploadFileOffsetField) Valid() bool {
+	switch e {
+	case PartsOffset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowUploadHeadersField.
+const (
+	PartsHeaders CreateObject201JSONResponseBodyUploadWorkflowUploadHeadersField = "parts[].headers"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowUploadHeadersField enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowUploadHeadersField) Valid() bool {
+	switch e {
+	case PartsHeaders:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowUploadMethod.
+const (
+	PUT CreateObject201JSONResponseBodyUploadWorkflowUploadMethod = "PUT"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowUploadMethod enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowUploadMethod) Valid() bool {
+	switch e {
+	case PUT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowUploadUrlField.
+const (
+	PartsUrl CreateObject201JSONResponseBodyUploadWorkflowUploadUrlField = "parts[].url"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowUploadUrlField enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowUploadUrlField) Valid() bool {
+	switch e {
+	case PartsUrl:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateObject201JSONResponseBodyUploadWorkflowVersion.
+const (
+	N1 CreateObject201JSONResponseBodyUploadWorkflowVersion = "1"
+)
+
+// Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowVersion enum.
+func (e CreateObject201JSONResponseBodyUploadWorkflowVersion) Valid() bool {
+	switch e {
+	case N1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateObjectJSONBodyOnConflict.
 const (
 	UpdateObjectJSONBodyOnConflictFail    UpdateObjectJSONBodyOnConflict = "fail"
@@ -3015,13 +3564,13 @@ func (e VerifySharePassword200JSONResponseBodyOk) Valid() bool {
 
 // Defines values for RevokeShareJSONBodyStatus.
 const (
-	RevokeShareJSONBodyStatusRevoked RevokeShareJSONBodyStatus = "revoked"
+	Revoked RevokeShareJSONBodyStatus = "revoked"
 )
 
 // Valid indicates whether the value is a known member of the RevokeShareJSONBodyStatus enum.
 func (e RevokeShareJSONBodyStatus) Valid() bool {
 	switch e {
-	case RevokeShareJSONBodyStatusRevoked:
+	case Revoked:
 		return true
 	default:
 		return false
@@ -3120,16 +3669,16 @@ func (e GetAdminAnalyticsTrafficParamsTimeZone) Valid() bool {
 
 // Defines values for ListAnnouncementsParamsScope.
 const (
-	ListAnnouncementsParamsScopeActive ListAnnouncementsParamsScope = "active"
-	ListAnnouncementsParamsScopeAll    ListAnnouncementsParamsScope = "all"
+	Active ListAnnouncementsParamsScope = "active"
+	All    ListAnnouncementsParamsScope = "all"
 )
 
 // Valid indicates whether the value is a known member of the ListAnnouncementsParamsScope enum.
 func (e ListAnnouncementsParamsScope) Valid() bool {
 	switch e {
-	case ListAnnouncementsParamsScopeActive:
+	case Active:
 		return true
-	case ListAnnouncementsParamsScopeAll:
+	case All:
 		return true
 	default:
 		return false
@@ -3339,19 +3888,19 @@ func (e ListStorageUsageItemsParamsCategory) Valid() bool {
 
 // Defines values for ListStorageUsageItemsParamsSortBy.
 const (
-	Name      ListStorageUsageItemsParamsSortBy = "name"
-	Size      ListStorageUsageItemsParamsSortBy = "size"
-	UpdatedAt ListStorageUsageItemsParamsSortBy = "updatedAt"
+	ListStorageUsageItemsParamsSortByName      ListStorageUsageItemsParamsSortBy = "name"
+	ListStorageUsageItemsParamsSortBySize      ListStorageUsageItemsParamsSortBy = "size"
+	ListStorageUsageItemsParamsSortByUpdatedAt ListStorageUsageItemsParamsSortBy = "updatedAt"
 )
 
 // Valid indicates whether the value is a known member of the ListStorageUsageItemsParamsSortBy enum.
 func (e ListStorageUsageItemsParamsSortBy) Valid() bool {
 	switch e {
-	case Name:
+	case ListStorageUsageItemsParamsSortByName:
 		return true
-	case Size:
+	case ListStorageUsageItemsParamsSortBySize:
 		return true
-	case UpdatedAt:
+	case ListStorageUsageItemsParamsSortByUpdatedAt:
 		return true
 	default:
 		return false
@@ -3360,16 +3909,16 @@ func (e ListStorageUsageItemsParamsSortBy) Valid() bool {
 
 // Defines values for ListStorageUsageItemsParamsSortDir.
 const (
-	Asc  ListStorageUsageItemsParamsSortDir = "asc"
-	Desc ListStorageUsageItemsParamsSortDir = "desc"
+	ListStorageUsageItemsParamsSortDirAsc  ListStorageUsageItemsParamsSortDir = "asc"
+	ListStorageUsageItemsParamsSortDirDesc ListStorageUsageItemsParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListStorageUsageItemsParamsSortDir enum.
 func (e ListStorageUsageItemsParamsSortDir) Valid() bool {
 	switch e {
-	case Asc:
+	case ListStorageUsageItemsParamsSortDirAsc:
 		return true
-	case Desc:
+	case ListStorageUsageItemsParamsSortDirDesc:
 		return true
 	default:
 		return false
@@ -3447,13 +3996,13 @@ func (e CreateTeamInviteLinkJSONBodyRole) Valid() bool {
 
 // Defines values for JoinTeam200JSONResponseBodyOk.
 const (
-	True JoinTeam200JSONResponseBodyOk = true
+	JoinTeam200JSONResponseBodyOkTrue JoinTeam200JSONResponseBodyOk = true
 )
 
 // Valid indicates whether the value is a known member of the JoinTeam200JSONResponseBodyOk enum.
 func (e JoinTeam200JSONResponseBodyOk) Valid() bool {
 	switch e {
-	case True:
+	case JoinTeam200JSONResponseBodyOkTrue:
 		return true
 	default:
 		return false
@@ -3490,273 +4039,6 @@ const (
 func (e GrantUserEntitlementJSONBodyResourceType) Valid() bool {
 	switch e {
 	case GrantUserEntitlementJSONBodyResourceTypeStorage:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes.
-const (
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsCreate    ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "objects:create"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsDelete    ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "objects:delete"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsRead      ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "objects:read"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsUpdate    ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "objects:update"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesQuotaRead        ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "quota:read"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesCreate     ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "shares:create"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesDelete     ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "shares:delete"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesRead       ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "shares:read"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesStorageUsageRead ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes = "storage-usage:read"
-)
-
-// Valid indicates whether the value is a known member of the ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes enum.
-func (e ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes) Valid() bool {
-	switch e {
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsCreate:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsDelete:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsRead:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesObjectsUpdate:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesQuotaRead:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesCreate:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesDelete:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesSharesRead:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopesStorageUsageRead:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus.
-const (
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusActive       ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus = "active"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusExpired      ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus = "expired"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusInaccessible ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus = "inaccessible"
-	ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusRevoked      ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus = "revoked"
-)
-
-// Valid indicates whether the value is a known member of the ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus enum.
-func (e ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus) Valid() bool {
-	switch e {
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusActive:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusExpired:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusInaccessible:
-		return true
-	case ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatusRevoked:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateWorkspaceAgentApiKeyJSONBodyScopes.
-const (
-	CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsCreate    CreateWorkspaceAgentApiKeyJSONBodyScopes = "objects:create"
-	CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsDelete    CreateWorkspaceAgentApiKeyJSONBodyScopes = "objects:delete"
-	CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsRead      CreateWorkspaceAgentApiKeyJSONBodyScopes = "objects:read"
-	CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsUpdate    CreateWorkspaceAgentApiKeyJSONBodyScopes = "objects:update"
-	CreateWorkspaceAgentApiKeyJSONBodyScopesQuotaRead        CreateWorkspaceAgentApiKeyJSONBodyScopes = "quota:read"
-	CreateWorkspaceAgentApiKeyJSONBodyScopesSharesCreate     CreateWorkspaceAgentApiKeyJSONBodyScopes = "shares:create"
-	CreateWorkspaceAgentApiKeyJSONBodyScopesSharesDelete     CreateWorkspaceAgentApiKeyJSONBodyScopes = "shares:delete"
-	CreateWorkspaceAgentApiKeyJSONBodyScopesSharesRead       CreateWorkspaceAgentApiKeyJSONBodyScopes = "shares:read"
-	CreateWorkspaceAgentApiKeyJSONBodyScopesStorageUsageRead CreateWorkspaceAgentApiKeyJSONBodyScopes = "storage-usage:read"
-)
-
-// Valid indicates whether the value is a known member of the CreateWorkspaceAgentApiKeyJSONBodyScopes enum.
-func (e CreateWorkspaceAgentApiKeyJSONBodyScopes) Valid() bool {
-	switch e {
-	case CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsCreate:
-		return true
-	case CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsDelete:
-		return true
-	case CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsRead:
-		return true
-	case CreateWorkspaceAgentApiKeyJSONBodyScopesObjectsUpdate:
-		return true
-	case CreateWorkspaceAgentApiKeyJSONBodyScopesQuotaRead:
-		return true
-	case CreateWorkspaceAgentApiKeyJSONBodyScopesSharesCreate:
-		return true
-	case CreateWorkspaceAgentApiKeyJSONBodyScopesSharesDelete:
-		return true
-	case CreateWorkspaceAgentApiKeyJSONBodyScopesSharesRead:
-		return true
-	case CreateWorkspaceAgentApiKeyJSONBodyScopesStorageUsageRead:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes.
-const (
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsCreate    CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:create"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsDelete    CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:delete"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsRead      CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:read"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsUpdate    CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:update"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesQuotaRead        CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "quota:read"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesCreate     CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:create"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesDelete     CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:delete"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesRead       CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:read"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesStorageUsageRead CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "storage-usage:read"
-)
-
-// Valid indicates whether the value is a known member of the CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes enum.
-func (e CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes) Valid() bool {
-	switch e {
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsCreate:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsDelete:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsRead:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesObjectsUpdate:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesQuotaRead:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesCreate:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesDelete:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesSharesRead:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopesStorageUsageRead:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus.
-const (
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusActive       CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "active"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusExpired      CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "expired"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusInaccessible CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "inaccessible"
-	CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusRevoked      CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "revoked"
-)
-
-// Valid indicates whether the value is a known member of the CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus enum.
-func (e CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus) Valid() bool {
-	switch e {
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusActive:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusExpired:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusInaccessible:
-		return true
-	case CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatusRevoked:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for RotateWorkspaceAgentApiKeyJSONBodyScopes.
-const (
-	RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsCreate    RotateWorkspaceAgentApiKeyJSONBodyScopes = "objects:create"
-	RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsDelete    RotateWorkspaceAgentApiKeyJSONBodyScopes = "objects:delete"
-	RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsRead      RotateWorkspaceAgentApiKeyJSONBodyScopes = "objects:read"
-	RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsUpdate    RotateWorkspaceAgentApiKeyJSONBodyScopes = "objects:update"
-	RotateWorkspaceAgentApiKeyJSONBodyScopesQuotaRead        RotateWorkspaceAgentApiKeyJSONBodyScopes = "quota:read"
-	RotateWorkspaceAgentApiKeyJSONBodyScopesSharesCreate     RotateWorkspaceAgentApiKeyJSONBodyScopes = "shares:create"
-	RotateWorkspaceAgentApiKeyJSONBodyScopesSharesDelete     RotateWorkspaceAgentApiKeyJSONBodyScopes = "shares:delete"
-	RotateWorkspaceAgentApiKeyJSONBodyScopesSharesRead       RotateWorkspaceAgentApiKeyJSONBodyScopes = "shares:read"
-	RotateWorkspaceAgentApiKeyJSONBodyScopesStorageUsageRead RotateWorkspaceAgentApiKeyJSONBodyScopes = "storage-usage:read"
-)
-
-// Valid indicates whether the value is a known member of the RotateWorkspaceAgentApiKeyJSONBodyScopes enum.
-func (e RotateWorkspaceAgentApiKeyJSONBodyScopes) Valid() bool {
-	switch e {
-	case RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsCreate:
-		return true
-	case RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsDelete:
-		return true
-	case RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsRead:
-		return true
-	case RotateWorkspaceAgentApiKeyJSONBodyScopesObjectsUpdate:
-		return true
-	case RotateWorkspaceAgentApiKeyJSONBodyScopesQuotaRead:
-		return true
-	case RotateWorkspaceAgentApiKeyJSONBodyScopesSharesCreate:
-		return true
-	case RotateWorkspaceAgentApiKeyJSONBodyScopesSharesDelete:
-		return true
-	case RotateWorkspaceAgentApiKeyJSONBodyScopesSharesRead:
-		return true
-	case RotateWorkspaceAgentApiKeyJSONBodyScopesStorageUsageRead:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes.
-const (
-	ObjectsCreate    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:create"
-	ObjectsDelete    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:delete"
-	ObjectsRead      RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:read"
-	ObjectsUpdate    RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "objects:update"
-	QuotaRead        RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "quota:read"
-	SharesCreate     RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:create"
-	SharesDelete     RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:delete"
-	SharesRead       RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "shares:read"
-	StorageUsageRead RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes = "storage-usage:read"
-)
-
-// Valid indicates whether the value is a known member of the RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes enum.
-func (e RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes) Valid() bool {
-	switch e {
-	case ObjectsCreate:
-		return true
-	case ObjectsDelete:
-		return true
-	case ObjectsRead:
-		return true
-	case ObjectsUpdate:
-		return true
-	case QuotaRead:
-		return true
-	case SharesCreate:
-		return true
-	case SharesDelete:
-		return true
-	case SharesRead:
-		return true
-	case StorageUsageRead:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus.
-const (
-	Active       RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "active"
-	Expired      RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "expired"
-	Inaccessible RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "inaccessible"
-	Revoked      RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus = "revoked"
-)
-
-// Valid indicates whether the value is a known member of the RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus enum.
-func (e RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus) Valid() bool {
-	switch e {
-	case Active:
-		return true
-	case Expired:
-		return true
-	case Inaccessible:
-		return true
-	case Revoked:
 		return true
 	default:
 		return false
@@ -4640,11 +4922,21 @@ type AuthProvider struct {
 
 // AuthProviderList defines model for AuthProviderList.
 type AuthProviderList struct {
-	CallbackBaseUri string         `json:"callbackBaseUri"`
-	Items           []AuthProvider `json:"items"`
-	Page            int            `json:"page"`
-	PageSize        int            `json:"pageSize"`
-	Total           int            `json:"total"`
+	CallbackBaseUri        string         `json:"callbackBaseUri"`
+	Items                  []AuthProvider `json:"items"`
+	Page                   int            `json:"page"`
+	PageSize               int            `json:"pageSize"`
+	RegisteredApplications []struct {
+		ClientId     string   `json:"clientId"`
+		CreatedAt    string   `json:"createdAt"`
+		Disabled     bool     `json:"disabled"`
+		GrantTypes   []string `json:"grantTypes"`
+		Name         string   `json:"name"`
+		RedirectUris []string `json:"redirectUris"`
+		Scopes       []string `json:"scopes"`
+		Uri          *string  `json:"uri"`
+	} `json:"registeredApplications"`
+	Total int `json:"total"`
 }
 
 // BackgroundJob defines model for BackgroundJob.
@@ -6065,15 +6357,26 @@ type BanUserJSONBody struct {
 
 // CreateUserJSONBody defines parameters for CreateUser.
 type CreateUserJSONBody struct {
-	Data *string `json:"data,omitempty"`
+	Data *map[string]interface{} `json:"data,omitempty"`
 
 	// Email The email of the user
 	Email string `json:"email"`
 
 	// Name The name of the user
-	Name     string  `json:"name"`
-	Password *string `json:"password,omitempty"`
-	Role     *string `json:"role,omitempty"`
+	Name     string                   `json:"name"`
+	Password *string                  `json:"password,omitempty"`
+	Role     *CreateUserJSONBody_Role `json:"role,omitempty"`
+}
+
+// CreateUserJSONBodyRole0 defines parameters for CreateUser.
+type CreateUserJSONBodyRole0 = string
+
+// CreateUserJSONBodyRole1 defines parameters for CreateUser.
+type CreateUserJSONBodyRole1 = []string
+
+// CreateUserJSONBody_Role defines parameters for CreateUser.
+type CreateUserJSONBody_Role struct {
+	union json.RawMessage
 }
 
 // GetUserParams defines parameters for GetUser.
@@ -6101,17 +6404,77 @@ type AdminListUserSessionsJSONBody struct {
 
 // ListUsersParams defines parameters for ListUsers.
 type ListUsersParams struct {
-	SearchValue    *string `form:"searchValue,omitempty" json:"searchValue,omitempty"`
-	SearchField    *string `form:"searchField,omitempty" json:"searchField,omitempty"`
-	SearchOperator *string `form:"searchOperator,omitempty" json:"searchOperator,omitempty"`
-	Limit          *string `form:"limit,omitempty" json:"limit,omitempty"`
-	Offset         *string `form:"offset,omitempty" json:"offset,omitempty"`
-	SortBy         *string `form:"sortBy,omitempty" json:"sortBy,omitempty"`
-	SortDirection  *string `form:"sortDirection,omitempty" json:"sortDirection,omitempty"`
-	FilterField    *string `form:"filterField,omitempty" json:"filterField,omitempty"`
-	FilterValue    *string `form:"filterValue,omitempty" json:"filterValue,omitempty"`
-	FilterOperator *string `form:"filterOperator,omitempty" json:"filterOperator,omitempty"`
+	SearchValue    *string                        `form:"searchValue,omitempty" json:"searchValue,omitempty"`
+	SearchField    *ListUsersParamsSearchField    `form:"searchField,omitempty" json:"searchField,omitempty"`
+	SearchOperator *ListUsersParamsSearchOperator `form:"searchOperator,omitempty" json:"searchOperator,omitempty"`
+	Limit          *struct {
+		union json.RawMessage
+	} `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *struct {
+		union json.RawMessage
+	} `form:"offset,omitempty" json:"offset,omitempty"`
+	SortBy        *string                       `form:"sortBy,omitempty" json:"sortBy,omitempty"`
+	SortDirection *ListUsersParamsSortDirection `form:"sortDirection,omitempty" json:"sortDirection,omitempty"`
+	FilterField   *string                       `form:"filterField,omitempty" json:"filterField,omitempty"`
+	FilterValue   *struct {
+		union json.RawMessage
+	} `form:"filterValue,omitempty" json:"filterValue,omitempty"`
+	FilterOperator *ListUsersParamsFilterOperator `form:"filterOperator,omitempty" json:"filterOperator,omitempty"`
 }
+
+// ListUsersParamsSearchField defines parameters for ListUsers.
+type ListUsersParamsSearchField string
+
+// ListUsersParamsSearchOperator defines parameters for ListUsers.
+type ListUsersParamsSearchOperator string
+
+// ListUsersParamsLimit0 defines parameters for ListUsers.
+type ListUsersParamsLimit0 = string
+
+// ListUsersParamsLimit1 defines parameters for ListUsers.
+type ListUsersParamsLimit1 = float32
+
+// ListUsersParamsOffset0 defines parameters for ListUsers.
+type ListUsersParamsOffset0 = string
+
+// ListUsersParamsOffset1 defines parameters for ListUsers.
+type ListUsersParamsOffset1 = float32
+
+// ListUsersParamsSortDirection defines parameters for ListUsers.
+type ListUsersParamsSortDirection string
+
+// ListUsersParamsFilterValue0 defines parameters for ListUsers.
+type ListUsersParamsFilterValue0 struct {
+	union json.RawMessage
+}
+
+// ListUsersParamsFilterValue00 defines parameters for ListUsers.
+type ListUsersParamsFilterValue00 struct {
+	union json.RawMessage
+}
+
+// ListUsersParamsFilterValue000 defines parameters for ListUsers.
+type ListUsersParamsFilterValue000 struct {
+	union json.RawMessage
+}
+
+// ListUsersParamsFilterValue0000 defines parameters for ListUsers.
+type ListUsersParamsFilterValue0000 = string
+
+// ListUsersParamsFilterValue0001 defines parameters for ListUsers.
+type ListUsersParamsFilterValue0001 = float32
+
+// ListUsersParamsFilterValue001 defines parameters for ListUsers.
+type ListUsersParamsFilterValue001 = bool
+
+// ListUsersParamsFilterValue01 defines parameters for ListUsers.
+type ListUsersParamsFilterValue01 = []string
+
+// ListUsersParamsFilterValue1 defines parameters for ListUsers.
+type ListUsersParamsFilterValue1 = []float32
+
+// ListUsersParamsFilterOperator defines parameters for ListUsers.
+type ListUsersParamsFilterOperator string
 
 // RemoveUserJSONBody defines parameters for RemoveUser.
 type RemoveUserJSONBody struct {
@@ -6134,10 +6497,21 @@ type RevokeUserSessionsJSONBody struct {
 // SetUserRoleJSONBody defines parameters for SetUserRole.
 type SetUserRoleJSONBody struct {
 	// Role The role to set, this can be a string or an array of strings. Eg: `admin` or `[admin, user]`
-	Role string `json:"role"`
+	Role SetUserRoleJSONBody_Role `json:"role"`
 
 	// UserId The user id
 	UserId string `json:"userId"`
+}
+
+// SetUserRoleJSONBodyRole0 defines parameters for SetUserRole.
+type SetUserRoleJSONBodyRole0 = string
+
+// SetUserRoleJSONBodyRole1 defines parameters for SetUserRole.
+type SetUserRoleJSONBodyRole1 = []string
+
+// SetUserRoleJSONBody_Role defines parameters for SetUserRole.
+type SetUserRoleJSONBody_Role struct {
+	union json.RawMessage
 }
 
 // SetUserPasswordJSONBody defines parameters for SetUserPassword.
@@ -6158,7 +6532,7 @@ type UnbanUserJSONBody struct {
 // AdminUpdateUserJSONBody defines parameters for AdminUpdateUser.
 type AdminUpdateUserJSONBody struct {
 	// Data The user data to update
-	Data string `json:"data"`
+	Data map[string]interface{} `json:"data"`
 
 	// UserId The user id
 	UserId string `json:"userId"`
@@ -6167,9 +6541,11 @@ type AdminUpdateUserJSONBody struct {
 // PostApiAuthApiKeyCreateJSONBody defines parameters for PostApiAuthApiKeyCreate.
 type PostApiAuthApiKeyCreateJSONBody struct {
 	// ConfigId The configuration ID to use for the API key. If not provided, the default configuration will be used.
-	ConfigId  *string `json:"configId,omitempty"`
-	ExpiresIn string  `json:"expiresIn"`
-	Metadata  *string `json:"metadata,omitempty"`
+	ConfigId *string `json:"configId,omitempty"`
+
+	// ExpiresIn Expiration time of the Api Key in seconds
+	ExpiresIn *float32    `json:"expiresIn,omitempty"`
+	Metadata  interface{} `json:"metadata,omitempty"`
 
 	// Name Name of the Api Key
 	Name *string `json:"name,omitempty"`
@@ -6178,7 +6554,7 @@ type PostApiAuthApiKeyCreateJSONBody struct {
 	OrganizationId *string `json:"organizationId,omitempty"`
 
 	// Permissions Permissions of the Api Key.
-	Permissions *string `json:"permissions,omitempty"`
+	Permissions *map[string][]string `json:"permissions,omitempty"`
 
 	// Prefix Prefix of the Api Key
 	Prefix *string `json:"prefix,omitempty"`
@@ -6197,7 +6573,9 @@ type PostApiAuthApiKeyCreateJSONBody struct {
 
 	// RefillInterval Interval to refill the Api Key in milliseconds. server-only. Eg: 1000
 	RefillInterval *float32 `json:"refillInterval,omitempty"`
-	Remaining      string   `json:"remaining"`
+
+	// Remaining Remaining number of requests. Server side only
+	Remaining *float32 `json:"remaining,omitempty"`
 
 	// UserId User Id of the user that the Api Key belongs to. server-only. Eg: "user-id"
 	UserId *string `json:"userId,omitempty"`
@@ -6221,16 +6599,20 @@ type PostApiAuthApiKeyUpdateJSONBody struct {
 	ConfigId *string `json:"configId,omitempty"`
 
 	// Enabled Whether the Api Key is enabled or not
-	Enabled   *bool  `json:"enabled,omitempty"`
-	ExpiresIn string `json:"expiresIn"`
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// ExpiresIn Expiration time of the Api Key in seconds
+	ExpiresIn *float32 `json:"expiresIn,omitempty"`
 
 	// KeyId The id of the Api Key
-	KeyId    string  `json:"keyId"`
-	Metadata *string `json:"metadata,omitempty"`
+	KeyId    string      `json:"keyId"`
+	Metadata interface{} `json:"metadata,omitempty"`
 
 	// Name The name of the key
-	Name        *string `json:"name,omitempty"`
-	Permissions string  `json:"permissions"`
+	Name *string `json:"name,omitempty"`
+
+	// Permissions Update the permissions on the API Key. server-only.
+	Permissions *map[string][]string `json:"permissions,omitempty"`
 
 	// RateLimitEnabled Whether the key has rate limiting enabled.
 	RateLimitEnabled *bool `json:"rateLimitEnabled,omitempty"`
@@ -6255,7 +6637,15 @@ type PostApiAuthApiKeyUpdateJSONBody struct {
 }
 
 // PostApiAuthCallbackIdJSONBody defines parameters for PostApiAuthCallbackId.
-type PostApiAuthCallbackIdJSONBody = map[string]interface{}
+type PostApiAuthCallbackIdJSONBody struct {
+	Code             *string `json:"code,omitempty"`
+	DeviceId         *string `json:"device_id,omitempty"`
+	Error            *string `json:"error,omitempty"`
+	ErrorDescription *string `json:"error_description,omitempty"`
+	Iss              *string `json:"iss,omitempty"`
+	State            *string `json:"state,omitempty"`
+	User             *string `json:"user,omitempty"`
+}
 
 // ChangeEmailJSONBody defines parameters for ChangeEmail.
 type ChangeEmailJSONBody struct {
@@ -6326,6 +6716,9 @@ type PostApiAuthDeviceCodeJSONBody struct {
 
 	// Scope Space-separated list of scopes
 	Scope *string `json:"scope,omitempty"`
+
+	// UserId The user ID to which the device code should be pre-bound.
+	UserId *string `json:"user_id,omitempty"`
 }
 
 // PostApiAuthDeviceCode400JSONResponseBodyError defines parameters for PostApiAuthDeviceCode.
@@ -6346,7 +6739,7 @@ type PostApiAuthDeviceTokenJSONBody struct {
 	DeviceCode string `json:"device_code"`
 
 	// GrantType The grant type for device flow
-	GrantType string `json:"grant_type"`
+	GrantType interface{} `json:"grant_type"`
 }
 
 // PostApiAuthDeviceToken400JSONResponseBodyError defines parameters for PostApiAuthDeviceToken.
@@ -6354,11 +6747,22 @@ type PostApiAuthDeviceToken400JSONResponseBodyError string
 
 // PostApiAuthGetAccessTokenJSONBody defines parameters for PostApiAuthGetAccessToken.
 type PostApiAuthGetAccessTokenJSONBody struct {
-	// AccountId The account ID associated with the refresh token
-	AccountId *string `json:"accountId,omitempty"`
+	union json.RawMessage
+}
 
-	// ProviderId The provider ID for the OAuth provider
-	ProviderId string `json:"providerId"`
+// PostApiAuthGetAccessTokenJSONBody0 defines parameters for PostApiAuthGetAccessToken.
+type PostApiAuthGetAccessTokenJSONBody0 struct {
+	// AccountId The Better Auth account ID
+	AccountId string `json:"accountId"`
+
+	// UserId The user ID associated with the account
+	UserId *string `json:"userId,omitempty"`
+}
+
+// PostApiAuthGetAccessTokenJSONBody1 defines parameters for PostApiAuthGetAccessToken.
+type PostApiAuthGetAccessTokenJSONBody1 struct {
+	// UseAccountCookie Select the current OAuth account from its signed cookie
+	UseAccountCookie interface{} `json:"useAccountCookie"`
 
 	// UserId The user ID associated with the account
 	UserId *string `json:"userId,omitempty"`
@@ -6373,9 +6777,15 @@ type PostApiAuthIsUsernameAvailableJSONBody struct {
 	Username string `json:"username"`
 }
 
+// GetJSONWebKeySet200JSONResponseBodyKeysUse defines parameters for GetJSONWebKeySet.
+type GetJSONWebKeySet200JSONResponseBodyKeysUse string
+
 // LinkSocialAccountJSONBody defines parameters for LinkSocialAccount.
 type LinkSocialAccountJSONBody struct {
-	AdditionalData *string `json:"additionalData,omitempty"`
+	AdditionalData *map[string]interface{} `json:"additionalData,omitempty"`
+
+	// AdditionalParams Extra query parameters to append to the provider authorization URL (e.g. Cognito identity_provider, Google hd).
+	AdditionalParams *map[string]string `json:"additionalParams,omitempty"`
 
 	// CallbackURL The URL to redirect to after the user has signed in
 	CallbackURL *string `json:"callbackURL,omitempty"`
@@ -6386,34 +6796,47 @@ type LinkSocialAccountJSONBody struct {
 	// ErrorCallbackURL The URL to redirect to if there is an error during the link process
 	ErrorCallbackURL *string `json:"errorCallbackURL,omitempty"`
 	IdToken          *struct {
-		AccessToken  *string        `json:"accessToken,omitempty"`
-		Nonce        *string        `json:"nonce,omitempty"`
-		RefreshToken *string        `json:"refreshToken,omitempty"`
-		Scopes       *[]interface{} `json:"scopes,omitempty"`
-		Token        string         `json:"token"`
+		AccessToken  *string `json:"accessToken,omitempty"`
+		Nonce        *string `json:"nonce,omitempty"`
+		RefreshToken *string `json:"refreshToken,omitempty"`
+		Token        string  `json:"token"`
 	} `json:"idToken,omitempty"`
-	Provider      string `json:"provider"`
-	RequestSignUp *bool  `json:"requestSignUp,omitempty"`
+
+	// LoginHint The login hint to use for the authorization code request
+	LoginHint     *string                            `json:"loginHint,omitempty"`
+	Provider      LinkSocialAccountJSONBody_Provider `json:"provider"`
+	RequestSignUp *bool                              `json:"requestSignUp,omitempty"`
 
 	// Scopes Additional scopes to request from the provider
-	Scopes *[]interface{} `json:"scopes,omitempty"`
+	Scopes *[]string `json:"scopes,omitempty"`
+}
+
+// LinkSocialAccountJSONBodyProvider0 defines parameters for LinkSocialAccount.
+type LinkSocialAccountJSONBodyProvider0 string
+
+// LinkSocialAccountJSONBodyProvider1 defines parameters for LinkSocialAccount.
+type LinkSocialAccountJSONBodyProvider1 = string
+
+// LinkSocialAccountJSONBody_Provider defines parameters for LinkSocialAccount.
+type LinkSocialAccountJSONBody_Provider struct {
+	union json.RawMessage
 }
 
 // GetApiAuthOauth2AuthorizeParams defines parameters for GetApiAuthOauth2Authorize.
 type GetApiAuthOauth2AuthorizeParams struct {
-	// ResponseType OAuth2 response type (e.g., 'code')
+	// ResponseType OAuth 2.1 response type (e.g., 'code')
 	ResponseType *string `form:"response_type,omitempty" json:"response_type,omitempty"`
 
-	// ClientId OAuth2 client ID
+	// ClientId OAuth 2.1 client ID
 	ClientId string `form:"client_id" json:"client_id"`
 
-	// RedirectUri OAuth2 redirect URI
+	// RedirectUri OAuth 2.1 redirect URI
 	RedirectUri *string `form:"redirect_uri,omitempty" json:"redirect_uri,omitempty"`
 
-	// Scope OAuth2 scopes (space-separated)
+	// Scope OAuth 2.1 scopes (space-separated)
 	Scope *string `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// State OAuth2 state parameter
+	// State OAuth 2.1 state parameter
 	State *string `form:"state,omitempty" json:"state,omitempty"`
 
 	// RequestUri Pushed Authorization Request URI referencing stored parameters
@@ -6428,17 +6851,53 @@ type GetApiAuthOauth2AuthorizeParams struct {
 	// Nonce OpenID Connect nonce
 	Nonce *string `form:"nonce,omitempty" json:"nonce,omitempty"`
 
+	// MaxAge Maximum authentication age in seconds; forces re-authentication when exceeded
+	MaxAge *int `form:"max_age,omitempty" json:"max_age,omitempty"`
+
+	// Resource Requested protected resource(s) for the access token. May be supplied multiple times as repeated 'resource' query parameters (RFC 8707) or as an array of strings.
+	Resource *[]string `form:"resource,omitempty" json:"resource,omitempty"`
+
 	// Prompt OAuth2 prompt parameter
 	Prompt *string `form:"prompt,omitempty" json:"prompt,omitempty"`
 }
 
-// GetApiAuthOauth2CallbackProviderIdParams defines parameters for GetApiAuthOauth2CallbackProviderId.
-type GetApiAuthOauth2CallbackProviderIdParams struct {
-	Code             *string `form:"code,omitempty" json:"code,omitempty"`
-	Error            *string `form:"error,omitempty" json:"error,omitempty"`
-	ErrorDescription *string `form:"error_description,omitempty" json:"error_description,omitempty"`
-	State            *string `form:"state,omitempty" json:"state,omitempty"`
-	Iss              *string `form:"iss,omitempty" json:"iss,omitempty"`
+// PostApiAuthOauth2AuthorizeParams defines parameters for PostApiAuthOauth2Authorize.
+type PostApiAuthOauth2AuthorizeParams struct {
+	// ResponseType OAuth 2.1 response type (e.g., 'code')
+	ResponseType *string `form:"response_type,omitempty" json:"response_type,omitempty"`
+
+	// ClientId OAuth 2.1 client ID
+	ClientId string `form:"client_id" json:"client_id"`
+
+	// RedirectUri OAuth 2.1 redirect URI
+	RedirectUri *string `form:"redirect_uri,omitempty" json:"redirect_uri,omitempty"`
+
+	// Scope OAuth 2.1 scopes (space-separated)
+	Scope *string `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// State OAuth 2.1 state parameter
+	State *string `form:"state,omitempty" json:"state,omitempty"`
+
+	// RequestUri Pushed Authorization Request URI referencing stored parameters
+	RequestUri *string `form:"request_uri,omitempty" json:"request_uri,omitempty"`
+
+	// CodeChallenge PKCE code challenge
+	CodeChallenge *string `form:"code_challenge,omitempty" json:"code_challenge,omitempty"`
+
+	// CodeChallengeMethod PKCE code challenge method
+	CodeChallengeMethod *string `form:"code_challenge_method,omitempty" json:"code_challenge_method,omitempty"`
+
+	// Nonce OpenID Connect nonce
+	Nonce *string `form:"nonce,omitempty" json:"nonce,omitempty"`
+
+	// MaxAge Maximum authentication age in seconds; forces re-authentication when exceeded
+	MaxAge *int `form:"max_age,omitempty" json:"max_age,omitempty"`
+
+	// Resource Requested protected resource(s) for the access token. May be supplied multiple times as repeated 'resource' query parameters (RFC 8707) or as an array of strings.
+	Resource *[]string `form:"resource,omitempty" json:"resource,omitempty"`
+
+	// Prompt OAuth2 prompt parameter
+	Prompt *string `form:"prompt,omitempty" json:"prompt,omitempty"`
 }
 
 // PostApiAuthOauth2ClientRotateSecretJSONBody defines parameters for PostApiAuthOauth2ClientRotateSecret.
@@ -6449,9 +6908,21 @@ type PostApiAuthOauth2ClientRotateSecretJSONBody struct {
 // PostApiAuthOauth2ConsentJSONBody defines parameters for PostApiAuthOauth2Consent.
 type PostApiAuthOauth2ConsentJSONBody struct {
 	// Accept Accept or deny user consent for a set of scopes
-	Accept     bool    `json:"accept"`
-	OauthQuery *string `json:"oauth_query,omitempty"`
-	Scope      *string `json:"scope,omitempty"`
+	Accept     bool                                     `json:"accept"`
+	Claims     *PostApiAuthOauth2ConsentJSONBody_Claims `json:"claims,omitempty"`
+	OauthQuery *string                                  `json:"oauth_query,omitempty"`
+	Scope      *string                                  `json:"scope,omitempty"`
+}
+
+// PostApiAuthOauth2ConsentJSONBodyClaims0 defines parameters for PostApiAuthOauth2Consent.
+type PostApiAuthOauth2ConsentJSONBodyClaims0 = string
+
+// PostApiAuthOauth2ConsentJSONBodyClaims1 defines parameters for PostApiAuthOauth2Consent.
+type PostApiAuthOauth2ConsentJSONBodyClaims1 map[string]interface{}
+
+// PostApiAuthOauth2ConsentJSONBody_Claims defines parameters for PostApiAuthOauth2Consent.
+type PostApiAuthOauth2ConsentJSONBody_Claims struct {
+	union json.RawMessage
 }
 
 // PostApiAuthOauth2ContinueJSONBody defines parameters for PostApiAuthOauth2Continue.
@@ -6464,35 +6935,53 @@ type PostApiAuthOauth2ContinueJSONBody struct {
 
 // PostApiAuthOauth2CreateClientJSONBody defines parameters for PostApiAuthOauth2CreateClient.
 type PostApiAuthOauth2CreateClientJSONBody struct {
-	ClientName              *string        `json:"client_name,omitempty"`
-	ClientUri               *string        `json:"client_uri,omitempty"`
-	Contacts                *[]interface{} `json:"contacts,omitempty"`
-	GrantTypes              *[]interface{} `json:"grant_types,omitempty"`
-	LogoUri                 *string        `json:"logo_uri,omitempty"`
-	PolicyUri               *string        `json:"policy_uri,omitempty"`
-	PostLogoutRedirectUris  *[]interface{} `json:"post_logout_redirect_uris,omitempty"`
-	RedirectUris            []interface{}  `json:"redirect_uris"`
-	ResponseTypes           *[]interface{} `json:"response_types,omitempty"`
-	Scope                   *string        `json:"scope,omitempty"`
-	SoftwareId              *string        `json:"software_id,omitempty"`
-	SoftwareStatement       *string        `json:"software_statement,omitempty"`
-	SoftwareVersion         *string        `json:"software_version,omitempty"`
-	TokenEndpointAuthMethod *string        `json:"token_endpoint_auth_method,omitempty"`
-	TosUri                  *string        `json:"tos_uri,omitempty"`
-	Type                    *string        `json:"type,omitempty"`
+	BackchannelLogoutSessionRequired *bool                                                 `json:"backchannel_logout_session_required,omitempty"`
+	BackchannelLogoutUri             *string                                               `json:"backchannel_logout_uri,omitempty"`
+	ClientName                       *string                                               `json:"client_name,omitempty"`
+	ClientUri                        *string                                               `json:"client_uri,omitempty"`
+	Contacts                         *[]string                                             `json:"contacts,omitempty"`
+	DpopBoundAccessTokens            *bool                                                 `json:"dpop_bound_access_tokens,omitempty"`
+	GrantTypes                       *[]string                                             `json:"grant_types,omitempty"`
+	Jwks                             *PostApiAuthOauth2CreateClientJSONBody_Jwks           `json:"jwks,omitempty"`
+	JwksUri                          *string                                               `json:"jwks_uri,omitempty"`
+	LogoUri                          *string                                               `json:"logo_uri,omitempty"`
+	PolicyUri                        *string                                               `json:"policy_uri,omitempty"`
+	PostLogoutRedirectUris           *[]string                                             `json:"post_logout_redirect_uris,omitempty"`
+	RedirectUris                     *[]string                                             `json:"redirect_uris,omitempty"`
+	ResponseTypes                    *[]PostApiAuthOauth2CreateClientJSONBodyResponseTypes `json:"response_types,omitempty"`
+	Scope                            *string                                               `json:"scope,omitempty"`
+	SoftwareId                       *string                                               `json:"software_id,omitempty"`
+	SoftwareStatement                *string                                               `json:"software_statement,omitempty"`
+	SoftwareVersion                  *string                                               `json:"software_version,omitempty"`
+	TokenEndpointAuthMethod          *string                                               `json:"token_endpoint_auth_method,omitempty"`
+	TosUri                           *string                                               `json:"tos_uri,omitempty"`
+	Type                             *PostApiAuthOauth2CreateClientJSONBodyType            `json:"type,omitempty"`
 }
 
-// PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypes defines parameters for PostApiAuthOauth2CreateClient.
-type PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypes string
+// PostApiAuthOauth2CreateClientJSONBodyJwks0 defines parameters for PostApiAuthOauth2CreateClient.
+type PostApiAuthOauth2CreateClientJSONBodyJwks0 = []map[string]interface{}
 
-// PostApiAuthOauth2CreateClient200JSONResponseBodyResponseTypes defines parameters for PostApiAuthOauth2CreateClient.
-type PostApiAuthOauth2CreateClient200JSONResponseBodyResponseTypes string
+// PostApiAuthOauth2CreateClientJSONBodyJwks1 defines parameters for PostApiAuthOauth2CreateClient.
+type PostApiAuthOauth2CreateClientJSONBodyJwks1 struct {
+	Keys []map[string]interface{} `json:"keys"`
+}
 
-// PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethod defines parameters for PostApiAuthOauth2CreateClient.
-type PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethod string
+// PostApiAuthOauth2CreateClientJSONBody_Jwks defines parameters for PostApiAuthOauth2CreateClient.
+type PostApiAuthOauth2CreateClientJSONBody_Jwks struct {
+	union json.RawMessage
+}
 
-// PostApiAuthOauth2CreateClient200JSONResponseBodyType defines parameters for PostApiAuthOauth2CreateClient.
-type PostApiAuthOauth2CreateClient200JSONResponseBodyType string
+// PostApiAuthOauth2CreateClientJSONBodyResponseTypes defines parameters for PostApiAuthOauth2CreateClient.
+type PostApiAuthOauth2CreateClientJSONBodyResponseTypes string
+
+// PostApiAuthOauth2CreateClientJSONBodyType defines parameters for PostApiAuthOauth2CreateClient.
+type PostApiAuthOauth2CreateClientJSONBodyType string
+
+// PostApiAuthOauth2CreateClient201JSONResponseBodyResponseTypes defines parameters for PostApiAuthOauth2CreateClient.
+type PostApiAuthOauth2CreateClient201JSONResponseBodyResponseTypes string
+
+// PostApiAuthOauth2CreateClient201JSONResponseBodyType defines parameters for PostApiAuthOauth2CreateClient.
+type PostApiAuthOauth2CreateClient201JSONResponseBodyType string
 
 // PostApiAuthOauth2DeleteClientJSONBody defines parameters for PostApiAuthOauth2DeleteClient.
 type PostApiAuthOauth2DeleteClientJSONBody struct {
@@ -6530,33 +7019,12 @@ type PostApiAuthOauth2IntrospectJSONBody struct {
 	// ClientSecret OAuth2 client secret
 	ClientSecret *string `json:"client_secret,omitempty"`
 
-	// Resource Introspects a token for a specific resource.
-	Resource *string `json:"resource,omitempty"`
-
 	// Token The token to introspect (access or refresh token)
 	Token string `json:"token"`
 
-	// TokenTypeHint Hint about the type of the token submitted for introspection
-	TokenTypeHint *PostApiAuthOauth2IntrospectJSONBodyTokenTypeHint `json:"token_type_hint,omitempty"`
+	// TokenTypeHint Hint about the token type. Recognized values: `access_token`, `refresh_token`.
+	TokenTypeHint *string `json:"token_type_hint,omitempty"`
 }
-
-// PostApiAuthOauth2IntrospectJSONBodyTokenTypeHint defines parameters for PostApiAuthOauth2Introspect.
-type PostApiAuthOauth2IntrospectJSONBodyTokenTypeHint string
-
-// PostApiAuthOauth2LinkJSONBody defines parameters for PostApiAuthOauth2Link.
-type PostApiAuthOauth2LinkJSONBody struct {
-	CallbackURL string `json:"callbackURL"`
-
-	// ErrorCallbackURL The URL to redirect to if there is an error during the link process
-	ErrorCallbackURL *string `json:"errorCallbackURL,omitempty"`
-	ProviderId       string  `json:"providerId"`
-
-	// Scopes Additional scopes to request when linking the account
-	Scopes *[]interface{} `json:"scopes,omitempty"`
-}
-
-// PostApiAuthOauth2Link200JSONResponseBodyRedirect defines parameters for PostApiAuthOauth2Link.
-type PostApiAuthOauth2Link200JSONResponseBodyRedirect bool
 
 // GetApiAuthOauth2PublicClientParams defines parameters for GetApiAuthOauth2PublicClient.
 type GetApiAuthOauth2PublicClientParams struct {
@@ -6571,37 +7039,59 @@ type PostApiAuthOauth2PublicClientPreloginJSONBody struct {
 
 // PostApiAuthOauth2RegisterJSONBody defines parameters for PostApiAuthOauth2Register.
 type PostApiAuthOauth2RegisterJSONBody struct {
-	ClientName              *string        `json:"client_name,omitempty"`
-	ClientUri               *string        `json:"client_uri,omitempty"`
-	Contacts                *[]interface{} `json:"contacts,omitempty"`
-	GrantTypes              *[]interface{} `json:"grant_types,omitempty"`
-	LogoUri                 *string        `json:"logo_uri,omitempty"`
-	PolicyUri               *string        `json:"policy_uri,omitempty"`
-	PostLogoutRedirectUris  *[]interface{} `json:"post_logout_redirect_uris,omitempty"`
-	RedirectUris            []interface{}  `json:"redirect_uris"`
-	ResponseTypes           *[]interface{} `json:"response_types,omitempty"`
-	Scope                   *string        `json:"scope,omitempty"`
-	SkipConsent             *string        `json:"skip_consent,omitempty"`
-	SoftwareId              *string        `json:"software_id,omitempty"`
-	SoftwareStatement       *string        `json:"software_statement,omitempty"`
-	SoftwareVersion         *string        `json:"software_version,omitempty"`
-	SubjectType             *string        `json:"subject_type,omitempty"`
-	TokenEndpointAuthMethod *string        `json:"token_endpoint_auth_method,omitempty"`
-	TosUri                  *string        `json:"tos_uri,omitempty"`
-	Type                    *string        `json:"type,omitempty"`
+	BackchannelLogoutSessionRequired *bool                                             `json:"backchannel_logout_session_required,omitempty"`
+	BackchannelLogoutUri             *string                                           `json:"backchannel_logout_uri,omitempty"`
+	ClientName                       *string                                           `json:"client_name,omitempty"`
+	ClientUri                        *string                                           `json:"client_uri,omitempty"`
+	Contacts                         *[]string                                         `json:"contacts,omitempty"`
+	DpopBoundAccessTokens            *bool                                             `json:"dpop_bound_access_tokens,omitempty"`
+	GrantTypes                       *[]string                                         `json:"grant_types,omitempty"`
+	Jwks                             *PostApiAuthOauth2RegisterJSONBody_Jwks           `json:"jwks,omitempty"`
+	JwksUri                          *string                                           `json:"jwks_uri,omitempty"`
+	LogoUri                          *string                                           `json:"logo_uri,omitempty"`
+	PolicyUri                        *string                                           `json:"policy_uri,omitempty"`
+	PostLogoutRedirectUris           *[]string                                         `json:"post_logout_redirect_uris,omitempty"`
+	RedirectUris                     *[]string                                         `json:"redirect_uris,omitempty"`
+	Resources                        *[]string                                         `json:"resources,omitempty"`
+	ResponseTypes                    *[]PostApiAuthOauth2RegisterJSONBodyResponseTypes `json:"response_types,omitempty"`
+	Scope                            *string                                           `json:"scope,omitempty"`
+	SkipConsent                      *string                                           `json:"skip_consent,omitempty"`
+	SoftwareId                       *string                                           `json:"software_id,omitempty"`
+	SoftwareStatement                *string                                           `json:"software_statement,omitempty"`
+	SoftwareVersion                  *string                                           `json:"software_version,omitempty"`
+	SubjectType                      *PostApiAuthOauth2RegisterJSONBodySubjectType     `json:"subject_type,omitempty"`
+	TokenEndpointAuthMethod          *string                                           `json:"token_endpoint_auth_method,omitempty"`
+	TosUri                           *string                                           `json:"tos_uri,omitempty"`
+	Type                             *PostApiAuthOauth2RegisterJSONBodyType            `json:"type,omitempty"`
 }
 
-// PostApiAuthOauth2Register200JSONResponseBodyGrantTypes defines parameters for PostApiAuthOauth2Register.
-type PostApiAuthOauth2Register200JSONResponseBodyGrantTypes string
+// PostApiAuthOauth2RegisterJSONBodyJwks0 defines parameters for PostApiAuthOauth2Register.
+type PostApiAuthOauth2RegisterJSONBodyJwks0 = []map[string]interface{}
 
-// PostApiAuthOauth2Register200JSONResponseBodyResponseTypes defines parameters for PostApiAuthOauth2Register.
-type PostApiAuthOauth2Register200JSONResponseBodyResponseTypes string
+// PostApiAuthOauth2RegisterJSONBodyJwks1 defines parameters for PostApiAuthOauth2Register.
+type PostApiAuthOauth2RegisterJSONBodyJwks1 struct {
+	Keys []map[string]interface{} `json:"keys"`
+}
 
-// PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethod defines parameters for PostApiAuthOauth2Register.
-type PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethod string
+// PostApiAuthOauth2RegisterJSONBody_Jwks defines parameters for PostApiAuthOauth2Register.
+type PostApiAuthOauth2RegisterJSONBody_Jwks struct {
+	union json.RawMessage
+}
 
-// PostApiAuthOauth2Register200JSONResponseBodyType defines parameters for PostApiAuthOauth2Register.
-type PostApiAuthOauth2Register200JSONResponseBodyType string
+// PostApiAuthOauth2RegisterJSONBodyResponseTypes defines parameters for PostApiAuthOauth2Register.
+type PostApiAuthOauth2RegisterJSONBodyResponseTypes string
+
+// PostApiAuthOauth2RegisterJSONBodySubjectType defines parameters for PostApiAuthOauth2Register.
+type PostApiAuthOauth2RegisterJSONBodySubjectType string
+
+// PostApiAuthOauth2RegisterJSONBodyType defines parameters for PostApiAuthOauth2Register.
+type PostApiAuthOauth2RegisterJSONBodyType string
+
+// PostApiAuthOauth2Register201JSONResponseBodyResponseTypes defines parameters for PostApiAuthOauth2Register.
+type PostApiAuthOauth2Register201JSONResponseBodyResponseTypes string
+
+// PostApiAuthOauth2Register201JSONResponseBodyType defines parameters for PostApiAuthOauth2Register.
+type PostApiAuthOauth2Register201JSONResponseBodyType string
 
 // PostApiAuthOauth2RevokeJSONBody defines parameters for PostApiAuthOauth2Revoke.
 type PostApiAuthOauth2RevokeJSONBody struct {
@@ -6614,12 +7104,9 @@ type PostApiAuthOauth2RevokeJSONBody struct {
 	// Token The token to revoke (access or refresh token)
 	Token string `json:"token"`
 
-	// TokenTypeHint Hint about the type of the token submitted for revocation
-	TokenTypeHint *PostApiAuthOauth2RevokeJSONBodyTokenTypeHint `json:"token_type_hint,omitempty"`
+	// TokenTypeHint Hint about the token type. Recognized values: `access_token`, `refresh_token`.
+	TokenTypeHint *string `json:"token_type_hint,omitempty"`
 }
-
-// PostApiAuthOauth2RevokeJSONBodyTokenTypeHint defines parameters for PostApiAuthOauth2Revoke.
-type PostApiAuthOauth2RevokeJSONBodyTokenTypeHint string
 
 // PostApiAuthOauth2TokenJSONBody defines parameters for PostApiAuthOauth2Token.
 type PostApiAuthOauth2TokenJSONBody struct {
@@ -6636,7 +7123,7 @@ type PostApiAuthOauth2TokenJSONBody struct {
 	CodeVerifier *string `json:"code_verifier,omitempty"`
 
 	// GrantType OAuth2 grant type
-	GrantType PostApiAuthOauth2TokenJSONBodyGrantType `json:"grant_type"`
+	GrantType string `json:"grant_type"`
 
 	// RedirectUri Redirect URI (for authorization_code grant)
 	RedirectUri *string `json:"redirect_uri,omitempty"`
@@ -6644,15 +7131,29 @@ type PostApiAuthOauth2TokenJSONBody struct {
 	// RefreshToken Refresh token (for refresh_token grant)
 	RefreshToken *string `json:"refresh_token,omitempty"`
 
-	// Resource Requested token resource (ie audience) to obtain a JWT formatted access token
-	Resource *string `json:"resource,omitempty"`
+	// Resource Requested protected resource(s) for the access token
+	Resource *PostApiAuthOauth2TokenJSONBody_Resource `json:"resource,omitempty"`
 
 	// Scope Requested scopes (for client_credentials grant)
 	Scope *string `json:"scope,omitempty"`
 }
 
-// PostApiAuthOauth2TokenJSONBodyGrantType defines parameters for PostApiAuthOauth2Token.
-type PostApiAuthOauth2TokenJSONBodyGrantType string
+// PostApiAuthOauth2TokenParams defines parameters for PostApiAuthOauth2Token.
+type PostApiAuthOauth2TokenParams struct {
+	// DPoP RFC 9449 DPoP proof JWT for issuing DPoP-bound tokens
+	DPoP *string `json:"DPoP,omitempty"`
+}
+
+// PostApiAuthOauth2TokenJSONBodyResource0 defines parameters for PostApiAuthOauth2Token.
+type PostApiAuthOauth2TokenJSONBodyResource0 = string
+
+// PostApiAuthOauth2TokenJSONBodyResource1 defines parameters for PostApiAuthOauth2Token.
+type PostApiAuthOauth2TokenJSONBodyResource1 = []string
+
+// PostApiAuthOauth2TokenJSONBody_Resource defines parameters for PostApiAuthOauth2Token.
+type PostApiAuthOauth2TokenJSONBody_Resource struct {
+	union json.RawMessage
+}
 
 // PostApiAuthOauth2Token200JSONResponseBodyTokenType defines parameters for PostApiAuthOauth2Token.
 type PostApiAuthOauth2Token200JSONResponseBodyTokenType string
@@ -6661,36 +7162,61 @@ type PostApiAuthOauth2Token200JSONResponseBodyTokenType string
 type PostApiAuthOauth2UpdateClientJSONBody struct {
 	ClientId string `json:"client_id"`
 	Update   struct {
-		ClientName             *string        `json:"client_name,omitempty"`
-		ClientUri              *string        `json:"client_uri,omitempty"`
-		Contacts               *[]interface{} `json:"contacts,omitempty"`
-		GrantTypes             *[]interface{} `json:"grant_types,omitempty"`
-		LogoUri                *string        `json:"logo_uri,omitempty"`
-		PolicyUri              *string        `json:"policy_uri,omitempty"`
-		PostLogoutRedirectUris *[]interface{} `json:"post_logout_redirect_uris,omitempty"`
-		RedirectUris           *[]interface{} `json:"redirect_uris,omitempty"`
-		ResponseTypes          *[]interface{} `json:"response_types,omitempty"`
-		Scope                  *string        `json:"scope,omitempty"`
-		SoftwareId             *string        `json:"software_id,omitempty"`
-		SoftwareStatement      *string        `json:"software_statement,omitempty"`
-		SoftwareVersion        *string        `json:"software_version,omitempty"`
-		TosUri                 *string        `json:"tos_uri,omitempty"`
-		Type                   *string        `json:"type,omitempty"`
+		BackchannelLogoutSessionRequired *bool                                                       `json:"backchannel_logout_session_required,omitempty"`
+		BackchannelLogoutUri             *string                                                     `json:"backchannel_logout_uri,omitempty"`
+		ClientName                       *string                                                     `json:"client_name,omitempty"`
+		ClientUri                        *string                                                     `json:"client_uri,omitempty"`
+		Contacts                         *[]string                                                   `json:"contacts,omitempty"`
+		GrantTypes                       *[]string                                                   `json:"grant_types,omitempty"`
+		LogoUri                          *string                                                     `json:"logo_uri,omitempty"`
+		PolicyUri                        *string                                                     `json:"policy_uri,omitempty"`
+		PostLogoutRedirectUris           *[]string                                                   `json:"post_logout_redirect_uris,omitempty"`
+		RedirectUris                     *[]string                                                   `json:"redirect_uris,omitempty"`
+		ResponseTypes                    *[]PostApiAuthOauth2UpdateClientJSONBodyUpdateResponseTypes `json:"response_types,omitempty"`
+		Scope                            *string                                                     `json:"scope,omitempty"`
+		SoftwareId                       *string                                                     `json:"software_id,omitempty"`
+		SoftwareStatement                *string                                                     `json:"software_statement,omitempty"`
+		SoftwareVersion                  *string                                                     `json:"software_version,omitempty"`
+		TosUri                           *string                                                     `json:"tos_uri,omitempty"`
+		Type                             *PostApiAuthOauth2UpdateClientJSONBodyUpdateType            `json:"type,omitempty"`
 	} `json:"update"`
 }
+
+// PostApiAuthOauth2UpdateClientJSONBodyUpdateResponseTypes defines parameters for PostApiAuthOauth2UpdateClient.
+type PostApiAuthOauth2UpdateClientJSONBodyUpdateResponseTypes string
+
+// PostApiAuthOauth2UpdateClientJSONBodyUpdateType defines parameters for PostApiAuthOauth2UpdateClient.
+type PostApiAuthOauth2UpdateClientJSONBodyUpdateType string
 
 // PostApiAuthOauth2UpdateConsentJSONBody defines parameters for PostApiAuthOauth2UpdateConsent.
 type PostApiAuthOauth2UpdateConsentJSONBody struct {
 	Id     string `json:"id"`
 	Update struct {
-		Scopes []interface{} `json:"scopes"`
+		Scopes []string `json:"scopes"`
 	} `json:"update"`
 }
 
 // GetApiAuthOauth2UserinfoParams defines parameters for GetApiAuthOauth2Userinfo.
 type GetApiAuthOauth2UserinfoParams struct {
-	// Authorization Bearer access token
+	// Authorization Bearer or DPoP access token
 	Authorization *string `json:"Authorization,omitempty"`
+
+	// DPoP RFC 9449 DPoP proof JWT when using a DPoP-bound access token
+	DPoP *string `json:"DPoP,omitempty"`
+}
+
+// PostApiAuthOauth2UserinfoJSONBody defines parameters for PostApiAuthOauth2Userinfo.
+type PostApiAuthOauth2UserinfoJSONBody struct {
+	AccessToken *string `json:"access_token,omitempty"`
+}
+
+// PostApiAuthOauth2UserinfoParams defines parameters for PostApiAuthOauth2Userinfo.
+type PostApiAuthOauth2UserinfoParams struct {
+	// Authorization Bearer or DPoP access token
+	Authorization *string `json:"Authorization,omitempty"`
+
+	// DPoP RFC 9449 DPoP proof JWT when using a DPoP-bound access token
+	DPoP *string `json:"DPoP,omitempty"`
 }
 
 // PostApiAuthOrganizationAcceptInvitationJSONBody defines parameters for PostApiAuthOrganizationAcceptInvitation.
@@ -6714,11 +7240,13 @@ type PostApiAuthOrganizationCheckSlugJSONBody struct {
 // PostApiAuthOrganizationCreateJSONBody defines parameters for PostApiAuthOrganizationCreate.
 type PostApiAuthOrganizationCreateJSONBody struct {
 	// KeepCurrentActiveOrganization Whether to keep the current active organization active after creating a new one. Eg: true
-	KeepCurrentActiveOrganization *bool   `json:"keepCurrentActiveOrganization,omitempty"`
-	Logo                          *string `json:"logo,omitempty"`
+	KeepCurrentActiveOrganization *bool `json:"keepCurrentActiveOrganization,omitempty"`
+
+	// Logo The logo of the organization
+	Logo *string `json:"logo,omitempty"`
 
 	// Metadata The metadata of the organization
-	Metadata *string `json:"metadata,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
 
 	// Name The name of the organization
 	Name string `json:"name"`
@@ -6763,8 +7291,30 @@ type CreateOrganizationInvitationJSONBody struct {
 	Resend *bool `json:"resend,omitempty"`
 
 	// Role The role(s) to assign to the user. It can be `admin`, `member`, owner. Eg: "member"
-	Role   string `json:"role"`
-	TeamId string `json:"teamId"`
+	Role   CreateOrganizationInvitationJSONBody_Role    `json:"role"`
+	TeamId *CreateOrganizationInvitationJSONBody_TeamId `json:"teamId,omitempty"`
+}
+
+// CreateOrganizationInvitationJSONBodyRole0 defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBodyRole0 = string
+
+// CreateOrganizationInvitationJSONBodyRole1 defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBodyRole1 = []string
+
+// CreateOrganizationInvitationJSONBody_Role defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBody_Role struct {
+	union json.RawMessage
+}
+
+// CreateOrganizationInvitationJSONBodyTeamId0 defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBodyTeamId0 = string
+
+// CreateOrganizationInvitationJSONBodyTeamId1 defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBodyTeamId1 = []string
+
+// CreateOrganizationInvitationJSONBody_TeamId defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBody_TeamId struct {
+	union json.RawMessage
 }
 
 // PostApiAuthOrganizationLeaveJSONBody defines parameters for PostApiAuthOrganizationLeave.
@@ -6790,6 +7340,7 @@ type PostApiAuthOrganizationRemoveMemberJSONBody struct {
 
 // SetActiveOrganizationJSONBody defines parameters for SetActiveOrganization.
 type SetActiveOrganizationJSONBody struct {
+	// OrganizationId The organization id to set as active. It can be null to unset the active organization. Eg: "org-id"
 	OrganizationId *string `json:"organizationId,omitempty"`
 
 	// OrganizationSlug The organization slug to set as active. It can be null to unset the active organization if organizationId is not provided. Eg: "org-slug"
@@ -6799,10 +7350,11 @@ type SetActiveOrganizationJSONBody struct {
 // PostApiAuthOrganizationUpdateJSONBody defines parameters for PostApiAuthOrganizationUpdate.
 type PostApiAuthOrganizationUpdateJSONBody struct {
 	Data struct {
+		// Logo The logo of the organization
 		Logo *string `json:"logo,omitempty"`
 
 		// Metadata The metadata of the organization
-		Metadata *string `json:"metadata,omitempty"`
+		Metadata *map[string]interface{} `json:"metadata,omitempty"`
 
 		// Name The name of the organization
 		Name *string `json:"name,omitempty"`
@@ -6824,16 +7376,38 @@ type UpdateOrganizationMemberRoleJSONBody struct {
 	OrganizationId *string `json:"organizationId,omitempty"`
 
 	// Role The new role to be applied. This can be a string or array of strings representing the roles. Eg: ["admin", "sale"]
-	Role string `json:"role"`
+	Role UpdateOrganizationMemberRoleJSONBody_Role `json:"role"`
+}
+
+// UpdateOrganizationMemberRoleJSONBodyRole0 defines parameters for UpdateOrganizationMemberRole.
+type UpdateOrganizationMemberRoleJSONBodyRole0 = string
+
+// UpdateOrganizationMemberRoleJSONBodyRole1 defines parameters for UpdateOrganizationMemberRole.
+type UpdateOrganizationMemberRoleJSONBodyRole1 = []string
+
+// UpdateOrganizationMemberRoleJSONBody_Role defines parameters for UpdateOrganizationMemberRole.
+type UpdateOrganizationMemberRoleJSONBody_Role struct {
+	union json.RawMessage
 }
 
 // PostApiAuthRefreshTokenJSONBody defines parameters for PostApiAuthRefreshToken.
 type PostApiAuthRefreshTokenJSONBody struct {
-	// AccountId The account ID associated with the refresh token
-	AccountId *string `json:"accountId,omitempty"`
+	union json.RawMessage
+}
 
-	// ProviderId The provider ID for the OAuth provider
-	ProviderId string `json:"providerId"`
+// PostApiAuthRefreshTokenJSONBody0 defines parameters for PostApiAuthRefreshToken.
+type PostApiAuthRefreshTokenJSONBody0 struct {
+	// AccountId The Better Auth account ID
+	AccountId string `json:"accountId"`
+
+	// UserId The user ID associated with the account
+	UserId *string `json:"userId,omitempty"`
+}
+
+// PostApiAuthRefreshTokenJSONBody1 defines parameters for PostApiAuthRefreshToken.
+type PostApiAuthRefreshTokenJSONBody1 struct {
+	// UseAccountCookie Select the current OAuth account from its signed cookie
+	UseAccountCookie interface{} `json:"useAccountCookie"`
 
 	// UserId The user ID associated with the account
 	UserId *string `json:"userId,omitempty"`
@@ -6902,35 +7476,12 @@ type SignInEmailJSONBody struct {
 // SignInEmail200JSONResponseBodyRedirect defines parameters for SignInEmail.
 type SignInEmail200JSONResponseBodyRedirect bool
 
-// PostApiAuthSignInOauth2JSONBody defines parameters for PostApiAuthSignInOauth2.
-type PostApiAuthSignInOauth2JSONBody struct {
-	AdditionalData *string `json:"additionalData,omitempty"`
-
-	// CallbackURL The URL to redirect to after sign in
-	CallbackURL *string `json:"callbackURL,omitempty"`
-
-	// DisableRedirect Disable redirect
-	DisableRedirect *bool `json:"disableRedirect,omitempty"`
-
-	// ErrorCallbackURL The URL to redirect to if an error occurs
-	ErrorCallbackURL *string `json:"errorCallbackURL,omitempty"`
-
-	// NewUserCallbackURL The URL to redirect to after login if the user is new. Eg: "/welcome"
-	NewUserCallbackURL *string `json:"newUserCallbackURL,omitempty"`
-
-	// ProviderId The provider ID for the OAuth provider
-	ProviderId string `json:"providerId"`
-
-	// RequestSignUp Explicitly request sign-up. Useful when disableImplicitSignUp is true for this provider. Eg: false
-	RequestSignUp *bool `json:"requestSignUp,omitempty"`
-
-	// Scopes Scopes to be passed to the provider authorization request.
-	Scopes *[]interface{} `json:"scopes,omitempty"`
-}
-
 // SocialSignInJSONBody defines parameters for SocialSignIn.
 type SocialSignInJSONBody struct {
-	AdditionalData *string `json:"additionalData,omitempty"`
+	AdditionalData *map[string]interface{} `json:"additionalData,omitempty"`
+
+	// AdditionalParams Extra query parameters to append to the provider authorization URL (e.g. Cognito identity_provider, Google hd).
+	AdditionalParams *map[string]string `json:"additionalParams,omitempty"`
 
 	// CallbackURL Callback URL to redirect to after the user has signed in
 	CallbackURL *string `json:"callbackURL,omitempty"`
@@ -6967,15 +7518,26 @@ type SocialSignInJSONBody struct {
 	} `json:"idToken,omitempty"`
 
 	// LoginHint The login hint to use for the authorization code request
-	LoginHint          *string `json:"loginHint,omitempty"`
-	NewUserCallbackURL *string `json:"newUserCallbackURL,omitempty"`
-	Provider           string  `json:"provider"`
+	LoginHint          *string                       `json:"loginHint,omitempty"`
+	NewUserCallbackURL *string                       `json:"newUserCallbackURL,omitempty"`
+	Provider           SocialSignInJSONBody_Provider `json:"provider"`
 
 	// RequestSignUp Explicitly request sign-up. Useful when disableImplicitSignUp is true for this provider
 	RequestSignUp *bool `json:"requestSignUp,omitempty"`
 
 	// Scopes Array of scopes to request from the provider. This will override the default scopes passed.
-	Scopes *[]interface{} `json:"scopes,omitempty"`
+	Scopes *[]string `json:"scopes,omitempty"`
+}
+
+// SocialSignInJSONBodyProvider0 defines parameters for SocialSignIn.
+type SocialSignInJSONBodyProvider0 string
+
+// SocialSignInJSONBodyProvider1 defines parameters for SocialSignIn.
+type SocialSignInJSONBodyProvider1 = string
+
+// SocialSignInJSONBody_Provider defines parameters for SocialSignIn.
+type SocialSignInJSONBody_Provider struct {
+	union json.RawMessage
 }
 
 // PostApiAuthSignInUsernameJSONBody defines parameters for PostApiAuthSignInUsername.
@@ -6999,7 +7561,8 @@ type SignOutJSONBody = map[string]interface{}
 // SignUpWithEmailAndPasswordJSONBody defines parameters for SignUpWithEmailAndPassword.
 type SignUpWithEmailAndPasswordJSONBody struct {
 	// CallbackURL The URL to use for email verification callback
-	CallbackURL *string `json:"callbackURL,omitempty"`
+	CallbackURL     *string `json:"callbackURL,omitempty"`
+	DisplayUsername *string `json:"displayUsername,omitempty"`
 
 	// Email The email of the user
 	Email string `json:"email"`
@@ -7014,25 +7577,29 @@ type SignUpWithEmailAndPasswordJSONBody struct {
 	Password string `json:"password"`
 
 	// RememberMe If this is false, the session will not be remembered. Default is `true`.
-	RememberMe *bool `json:"rememberMe,omitempty"`
+	RememberMe *bool   `json:"rememberMe,omitempty"`
+	Username   *string `json:"username,omitempty"`
 }
 
 // PostApiAuthUnlinkAccountJSONBody defines parameters for PostApiAuthUnlinkAccount.
 type PostApiAuthUnlinkAccountJSONBody struct {
-	AccountId  *string `json:"accountId,omitempty"`
-	ProviderId string  `json:"providerId"`
+	// AccountId The Better Auth account ID to unlink
+	AccountId string `json:"accountId"`
 }
 
 // UpdateSessionJSONBody defines parameters for UpdateSession.
-type UpdateSessionJSONBody = map[string]interface{}
+type UpdateSessionJSONBody map[string]interface{}
 
 // UpdateUserJSONBody defines parameters for UpdateUser.
 type UpdateUserJSONBody struct {
+	DisplayUsername *string `json:"displayUsername,omitempty"`
+
 	// Image The image of the user
 	Image *string `json:"image,omitempty"`
 
 	// Name The name of the user
-	Name *string `json:"name,omitempty"`
+	Name     *string `json:"name,omitempty"`
+	Username *string `json:"username,omitempty"`
 }
 
 // GetApiAuthVerifyEmailParams defines parameters for GetApiAuthVerifyEmail.
@@ -7349,6 +7916,51 @@ type CreateObjectJSONBodyOnConflict string
 
 // CreateObject201JSONResponseBodyUploadMode defines parameters for CreateObject.
 type CreateObject201JSONResponseBodyUploadMode string
+
+// CreateObject201JSONResponseBodyUploadWorkflowAbortMethod defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowAbortMethod string
+
+// CreateObject201JSONResponseBodyUploadWorkflowAbortOperationId defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowAbortOperationId string
+
+// CreateObject201JSONResponseBodyUploadWorkflowCompleteMethod defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowCompleteMethod string
+
+// CreateObject201JSONResponseBodyUploadWorkflowCompleteOperationId defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowCompleteOperationId string
+
+// CreateObject201JSONResponseBodyUploadWorkflowCompletePartsBodyField defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowCompletePartsBodyField string
+
+// CreateObject201JSONResponseBodyUploadWorkflowRePresignMethod defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowRePresignMethod string
+
+// CreateObject201JSONResponseBodyUploadWorkflowRePresignOperationId defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowRePresignOperationId string
+
+// CreateObject201JSONResponseBodyUploadWorkflowRePresignPartNumbersBodyField defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowRePresignPartNumbersBodyField string
+
+// CreateObject201JSONResponseBodyUploadWorkflowUploadContentLengthField defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowUploadContentLengthField string
+
+// CreateObject201JSONResponseBodyUploadWorkflowUploadEtagHeader defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowUploadEtagHeader string
+
+// CreateObject201JSONResponseBodyUploadWorkflowUploadFileOffsetField defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowUploadFileOffsetField string
+
+// CreateObject201JSONResponseBodyUploadWorkflowUploadHeadersField defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowUploadHeadersField string
+
+// CreateObject201JSONResponseBodyUploadWorkflowUploadMethod defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowUploadMethod string
+
+// CreateObject201JSONResponseBodyUploadWorkflowUploadUrlField defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowUploadUrlField string
+
+// CreateObject201JSONResponseBodyUploadWorkflowVersion defines parameters for CreateObject.
+type CreateObject201JSONResponseBodyUploadWorkflowVersion string
 
 // UpdateObjectJSONBody defines parameters for UpdateObject.
 type UpdateObjectJSONBody struct {
@@ -7813,50 +8425,6 @@ type UpdateUserEntitlementJSONBody struct {
 	Note      *string    `json:"note,omitempty"`
 }
 
-// ListWorkspaceAgentApiKeysParams defines parameters for ListWorkspaceAgentApiKeys.
-type ListWorkspaceAgentApiKeysParams struct {
-	Page     *int `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-}
-
-// ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes defines parameters for ListWorkspaceAgentApiKeys.
-type ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes string
-
-// ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus defines parameters for ListWorkspaceAgentApiKeys.
-type ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus string
-
-// CreateWorkspaceAgentApiKeyJSONBody defines parameters for CreateWorkspaceAgentApiKey.
-type CreateWorkspaceAgentApiKeyJSONBody struct {
-	ExpiresAt time.Time                                  `json:"expiresAt"`
-	Name      string                                     `json:"name"`
-	Scopes    []CreateWorkspaceAgentApiKeyJSONBodyScopes `json:"scopes"`
-}
-
-// CreateWorkspaceAgentApiKeyJSONBodyScopes defines parameters for CreateWorkspaceAgentApiKey.
-type CreateWorkspaceAgentApiKeyJSONBodyScopes string
-
-// CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes defines parameters for CreateWorkspaceAgentApiKey.
-type CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes string
-
-// CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus defines parameters for CreateWorkspaceAgentApiKey.
-type CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus string
-
-// RotateWorkspaceAgentApiKeyJSONBody defines parameters for RotateWorkspaceAgentApiKey.
-type RotateWorkspaceAgentApiKeyJSONBody struct {
-	ExpiresAt *time.Time                                  `json:"expiresAt,omitempty"`
-	Name      *string                                     `json:"name,omitempty"`
-	Scopes    *[]RotateWorkspaceAgentApiKeyJSONBodyScopes `json:"scopes,omitempty"`
-}
-
-// RotateWorkspaceAgentApiKeyJSONBodyScopes defines parameters for RotateWorkspaceAgentApiKey.
-type RotateWorkspaceAgentApiKeyJSONBodyScopes string
-
-// RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes defines parameters for RotateWorkspaceAgentApiKey.
-type RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes string
-
-// RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus defines parameters for RotateWorkspaceAgentApiKey.
-type RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus string
-
 // SubmitAgentOAuthConsentJSONRequestBody defines body for SubmitAgentOAuthConsent for application/json ContentType.
 type SubmitAgentOAuthConsentJSONRequestBody SubmitAgentOAuthConsentJSONBody
 
@@ -7906,7 +8474,7 @@ type PostApiAuthApiKeyDeleteJSONRequestBody PostApiAuthApiKeyDeleteJSONBody
 type PostApiAuthApiKeyUpdateJSONRequestBody PostApiAuthApiKeyUpdateJSONBody
 
 // PostApiAuthCallbackIdJSONRequestBody defines body for PostApiAuthCallbackId for application/json ContentType.
-type PostApiAuthCallbackIdJSONRequestBody = PostApiAuthCallbackIdJSONBody
+type PostApiAuthCallbackIdJSONRequestBody PostApiAuthCallbackIdJSONBody
 
 // ChangeEmailJSONRequestBody defines body for ChangeEmail for application/json ContentType.
 type ChangeEmailJSONRequestBody ChangeEmailJSONBody
@@ -7962,9 +8530,6 @@ type PostApiAuthOauth2DeleteConsentJSONRequestBody PostApiAuthOauth2DeleteConsen
 // PostApiAuthOauth2IntrospectJSONRequestBody defines body for PostApiAuthOauth2Introspect for application/json ContentType.
 type PostApiAuthOauth2IntrospectJSONRequestBody PostApiAuthOauth2IntrospectJSONBody
 
-// PostApiAuthOauth2LinkJSONRequestBody defines body for PostApiAuthOauth2Link for application/json ContentType.
-type PostApiAuthOauth2LinkJSONRequestBody PostApiAuthOauth2LinkJSONBody
-
 // PostApiAuthOauth2PublicClientPreloginJSONRequestBody defines body for PostApiAuthOauth2PublicClientPrelogin for application/json ContentType.
 type PostApiAuthOauth2PublicClientPreloginJSONRequestBody PostApiAuthOauth2PublicClientPreloginJSONBody
 
@@ -7982,6 +8547,9 @@ type PostApiAuthOauth2UpdateClientJSONRequestBody PostApiAuthOauth2UpdateClientJ
 
 // PostApiAuthOauth2UpdateConsentJSONRequestBody defines body for PostApiAuthOauth2UpdateConsent for application/json ContentType.
 type PostApiAuthOauth2UpdateConsentJSONRequestBody PostApiAuthOauth2UpdateConsentJSONBody
+
+// PostApiAuthOauth2UserinfoJSONRequestBody defines body for PostApiAuthOauth2Userinfo for application/json ContentType.
+type PostApiAuthOauth2UserinfoJSONRequestBody PostApiAuthOauth2UserinfoJSONBody
 
 // PostApiAuthOrganizationAcceptInvitationJSONRequestBody defines body for PostApiAuthOrganizationAcceptInvitation for application/json ContentType.
 type PostApiAuthOrganizationAcceptInvitationJSONRequestBody PostApiAuthOrganizationAcceptInvitationJSONBody
@@ -8046,9 +8614,6 @@ type SendVerificationEmailJSONRequestBody SendVerificationEmailJSONBody
 // SignInEmailJSONRequestBody defines body for SignInEmail for application/json ContentType.
 type SignInEmailJSONRequestBody SignInEmailJSONBody
 
-// PostApiAuthSignInOauth2JSONRequestBody defines body for PostApiAuthSignInOauth2 for application/json ContentType.
-type PostApiAuthSignInOauth2JSONRequestBody PostApiAuthSignInOauth2JSONBody
-
 // SocialSignInJSONRequestBody defines body for SocialSignIn for application/json ContentType.
 type SocialSignInJSONRequestBody SocialSignInJSONBody
 
@@ -8065,7 +8630,7 @@ type SignUpWithEmailAndPasswordJSONRequestBody SignUpWithEmailAndPasswordJSONBod
 type PostApiAuthUnlinkAccountJSONRequestBody PostApiAuthUnlinkAccountJSONBody
 
 // UpdateSessionJSONRequestBody defines body for UpdateSession for application/json ContentType.
-type UpdateSessionJSONRequestBody = UpdateSessionJSONBody
+type UpdateSessionJSONRequestBody UpdateSessionJSONBody
 
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody UpdateUserJSONBody
@@ -8228,12 +8793,6 @@ type GrantUserEntitlementJSONRequestBody GrantUserEntitlementJSONBody
 
 // UpdateUserEntitlementJSONRequestBody defines body for UpdateUserEntitlement for application/json ContentType.
 type UpdateUserEntitlementJSONRequestBody UpdateUserEntitlementJSONBody
-
-// CreateWorkspaceAgentApiKeyJSONRequestBody defines body for CreateWorkspaceAgentApiKey for application/json ContentType.
-type CreateWorkspaceAgentApiKeyJSONRequestBody CreateWorkspaceAgentApiKeyJSONBody
-
-// RotateWorkspaceAgentApiKeyJSONRequestBody defines body for RotateWorkspaceAgentApiKey for application/json ContentType.
-type RotateWorkspaceAgentApiKeyJSONRequestBody RotateWorkspaceAgentApiKeyJSONBody
 
 // AsCloudflareSaasImageDomainSettingsCloudflare0 returns the union data inside the CloudflareSaasImageDomainSettings_Cloudflare as a CloudflareSaasImageDomainSettingsCloudflare0
 func (t CloudflareSaasImageDomainSettings_Cloudflare) AsCloudflareSaasImageDomainSettingsCloudflare0() (CloudflareSaasImageDomainSettingsCloudflare0, error) {
@@ -8769,6 +9328,998 @@ func (t *UpdateImageDomainSettings) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsCreateUserJSONBodyRole0 returns the union data inside the CreateUserJSONBody_Role as a CreateUserJSONBodyRole0
+func (t CreateUserJSONBody_Role) AsCreateUserJSONBodyRole0() (CreateUserJSONBodyRole0, error) {
+	var body CreateUserJSONBodyRole0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateUserJSONBodyRole0 overwrites any union data inside the CreateUserJSONBody_Role as the provided CreateUserJSONBodyRole0
+func (t *CreateUserJSONBody_Role) FromCreateUserJSONBodyRole0(v CreateUserJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateUserJSONBodyRole0 performs a merge with any union data inside the CreateUserJSONBody_Role, using the provided CreateUserJSONBodyRole0
+func (t *CreateUserJSONBody_Role) MergeCreateUserJSONBodyRole0(v CreateUserJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateUserJSONBodyRole1 returns the union data inside the CreateUserJSONBody_Role as a CreateUserJSONBodyRole1
+func (t CreateUserJSONBody_Role) AsCreateUserJSONBodyRole1() (CreateUserJSONBodyRole1, error) {
+	var body CreateUserJSONBodyRole1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateUserJSONBodyRole1 overwrites any union data inside the CreateUserJSONBody_Role as the provided CreateUserJSONBodyRole1
+func (t *CreateUserJSONBody_Role) FromCreateUserJSONBodyRole1(v CreateUserJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateUserJSONBodyRole1 performs a merge with any union data inside the CreateUserJSONBody_Role, using the provided CreateUserJSONBodyRole1
+func (t *CreateUserJSONBody_Role) MergeCreateUserJSONBodyRole1(v CreateUserJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateUserJSONBody_Role) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateUserJSONBody_Role) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsListUsersParamsFilterValue00 returns the union data inside the ListUsersParamsFilterValue0 as a ListUsersParamsFilterValue00
+func (t ListUsersParamsFilterValue0) AsListUsersParamsFilterValue00() (ListUsersParamsFilterValue00, error) {
+	var body ListUsersParamsFilterValue00
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue00 overwrites any union data inside the ListUsersParamsFilterValue0 as the provided ListUsersParamsFilterValue00
+func (t *ListUsersParamsFilterValue0) FromListUsersParamsFilterValue00(v ListUsersParamsFilterValue00) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue00 performs a merge with any union data inside the ListUsersParamsFilterValue0, using the provided ListUsersParamsFilterValue00
+func (t *ListUsersParamsFilterValue0) MergeListUsersParamsFilterValue00(v ListUsersParamsFilterValue00) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsListUsersParamsFilterValue01 returns the union data inside the ListUsersParamsFilterValue0 as a ListUsersParamsFilterValue01
+func (t ListUsersParamsFilterValue0) AsListUsersParamsFilterValue01() (ListUsersParamsFilterValue01, error) {
+	var body ListUsersParamsFilterValue01
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue01 overwrites any union data inside the ListUsersParamsFilterValue0 as the provided ListUsersParamsFilterValue01
+func (t *ListUsersParamsFilterValue0) FromListUsersParamsFilterValue01(v ListUsersParamsFilterValue01) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue01 performs a merge with any union data inside the ListUsersParamsFilterValue0, using the provided ListUsersParamsFilterValue01
+func (t *ListUsersParamsFilterValue0) MergeListUsersParamsFilterValue01(v ListUsersParamsFilterValue01) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ListUsersParamsFilterValue0) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ListUsersParamsFilterValue0) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsListUsersParamsFilterValue000 returns the union data inside the ListUsersParamsFilterValue00 as a ListUsersParamsFilterValue000
+func (t ListUsersParamsFilterValue00) AsListUsersParamsFilterValue000() (ListUsersParamsFilterValue000, error) {
+	var body ListUsersParamsFilterValue000
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue000 overwrites any union data inside the ListUsersParamsFilterValue00 as the provided ListUsersParamsFilterValue000
+func (t *ListUsersParamsFilterValue00) FromListUsersParamsFilterValue000(v ListUsersParamsFilterValue000) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue000 performs a merge with any union data inside the ListUsersParamsFilterValue00, using the provided ListUsersParamsFilterValue000
+func (t *ListUsersParamsFilterValue00) MergeListUsersParamsFilterValue000(v ListUsersParamsFilterValue000) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsListUsersParamsFilterValue001 returns the union data inside the ListUsersParamsFilterValue00 as a ListUsersParamsFilterValue001
+func (t ListUsersParamsFilterValue00) AsListUsersParamsFilterValue001() (ListUsersParamsFilterValue001, error) {
+	var body ListUsersParamsFilterValue001
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue001 overwrites any union data inside the ListUsersParamsFilterValue00 as the provided ListUsersParamsFilterValue001
+func (t *ListUsersParamsFilterValue00) FromListUsersParamsFilterValue001(v ListUsersParamsFilterValue001) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue001 performs a merge with any union data inside the ListUsersParamsFilterValue00, using the provided ListUsersParamsFilterValue001
+func (t *ListUsersParamsFilterValue00) MergeListUsersParamsFilterValue001(v ListUsersParamsFilterValue001) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ListUsersParamsFilterValue00) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ListUsersParamsFilterValue00) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsListUsersParamsFilterValue0000 returns the union data inside the ListUsersParamsFilterValue000 as a ListUsersParamsFilterValue0000
+func (t ListUsersParamsFilterValue000) AsListUsersParamsFilterValue0000() (ListUsersParamsFilterValue0000, error) {
+	var body ListUsersParamsFilterValue0000
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue0000 overwrites any union data inside the ListUsersParamsFilterValue000 as the provided ListUsersParamsFilterValue0000
+func (t *ListUsersParamsFilterValue000) FromListUsersParamsFilterValue0000(v ListUsersParamsFilterValue0000) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue0000 performs a merge with any union data inside the ListUsersParamsFilterValue000, using the provided ListUsersParamsFilterValue0000
+func (t *ListUsersParamsFilterValue000) MergeListUsersParamsFilterValue0000(v ListUsersParamsFilterValue0000) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsListUsersParamsFilterValue0001 returns the union data inside the ListUsersParamsFilterValue000 as a ListUsersParamsFilterValue0001
+func (t ListUsersParamsFilterValue000) AsListUsersParamsFilterValue0001() (ListUsersParamsFilterValue0001, error) {
+	var body ListUsersParamsFilterValue0001
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue0001 overwrites any union data inside the ListUsersParamsFilterValue000 as the provided ListUsersParamsFilterValue0001
+func (t *ListUsersParamsFilterValue000) FromListUsersParamsFilterValue0001(v ListUsersParamsFilterValue0001) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue0001 performs a merge with any union data inside the ListUsersParamsFilterValue000, using the provided ListUsersParamsFilterValue0001
+func (t *ListUsersParamsFilterValue000) MergeListUsersParamsFilterValue0001(v ListUsersParamsFilterValue0001) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ListUsersParamsFilterValue000) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ListUsersParamsFilterValue000) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsSetUserRoleJSONBodyRole0 returns the union data inside the SetUserRoleJSONBody_Role as a SetUserRoleJSONBodyRole0
+func (t SetUserRoleJSONBody_Role) AsSetUserRoleJSONBodyRole0() (SetUserRoleJSONBodyRole0, error) {
+	var body SetUserRoleJSONBodyRole0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSetUserRoleJSONBodyRole0 overwrites any union data inside the SetUserRoleJSONBody_Role as the provided SetUserRoleJSONBodyRole0
+func (t *SetUserRoleJSONBody_Role) FromSetUserRoleJSONBodyRole0(v SetUserRoleJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSetUserRoleJSONBodyRole0 performs a merge with any union data inside the SetUserRoleJSONBody_Role, using the provided SetUserRoleJSONBodyRole0
+func (t *SetUserRoleJSONBody_Role) MergeSetUserRoleJSONBodyRole0(v SetUserRoleJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSetUserRoleJSONBodyRole1 returns the union data inside the SetUserRoleJSONBody_Role as a SetUserRoleJSONBodyRole1
+func (t SetUserRoleJSONBody_Role) AsSetUserRoleJSONBodyRole1() (SetUserRoleJSONBodyRole1, error) {
+	var body SetUserRoleJSONBodyRole1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSetUserRoleJSONBodyRole1 overwrites any union data inside the SetUserRoleJSONBody_Role as the provided SetUserRoleJSONBodyRole1
+func (t *SetUserRoleJSONBody_Role) FromSetUserRoleJSONBodyRole1(v SetUserRoleJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSetUserRoleJSONBodyRole1 performs a merge with any union data inside the SetUserRoleJSONBody_Role, using the provided SetUserRoleJSONBodyRole1
+func (t *SetUserRoleJSONBody_Role) MergeSetUserRoleJSONBodyRole1(v SetUserRoleJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SetUserRoleJSONBody_Role) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SetUserRoleJSONBody_Role) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPostApiAuthGetAccessTokenJSONBody0 returns the union data inside the PostApiAuthGetAccessTokenJSONBody as a PostApiAuthGetAccessTokenJSONBody0
+func (t PostApiAuthGetAccessTokenJSONBody) AsPostApiAuthGetAccessTokenJSONBody0() (PostApiAuthGetAccessTokenJSONBody0, error) {
+	var body PostApiAuthGetAccessTokenJSONBody0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthGetAccessTokenJSONBody0 overwrites any union data inside the PostApiAuthGetAccessTokenJSONBody as the provided PostApiAuthGetAccessTokenJSONBody0
+func (t *PostApiAuthGetAccessTokenJSONBody) FromPostApiAuthGetAccessTokenJSONBody0(v PostApiAuthGetAccessTokenJSONBody0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthGetAccessTokenJSONBody0 performs a merge with any union data inside the PostApiAuthGetAccessTokenJSONBody, using the provided PostApiAuthGetAccessTokenJSONBody0
+func (t *PostApiAuthGetAccessTokenJSONBody) MergePostApiAuthGetAccessTokenJSONBody0(v PostApiAuthGetAccessTokenJSONBody0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPostApiAuthGetAccessTokenJSONBody1 returns the union data inside the PostApiAuthGetAccessTokenJSONBody as a PostApiAuthGetAccessTokenJSONBody1
+func (t PostApiAuthGetAccessTokenJSONBody) AsPostApiAuthGetAccessTokenJSONBody1() (PostApiAuthGetAccessTokenJSONBody1, error) {
+	var body PostApiAuthGetAccessTokenJSONBody1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthGetAccessTokenJSONBody1 overwrites any union data inside the PostApiAuthGetAccessTokenJSONBody as the provided PostApiAuthGetAccessTokenJSONBody1
+func (t *PostApiAuthGetAccessTokenJSONBody) FromPostApiAuthGetAccessTokenJSONBody1(v PostApiAuthGetAccessTokenJSONBody1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthGetAccessTokenJSONBody1 performs a merge with any union data inside the PostApiAuthGetAccessTokenJSONBody, using the provided PostApiAuthGetAccessTokenJSONBody1
+func (t *PostApiAuthGetAccessTokenJSONBody) MergePostApiAuthGetAccessTokenJSONBody1(v PostApiAuthGetAccessTokenJSONBody1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PostApiAuthGetAccessTokenJSONBody) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PostApiAuthGetAccessTokenJSONBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsLinkSocialAccountJSONBodyProvider0 returns the union data inside the LinkSocialAccountJSONBody_Provider as a LinkSocialAccountJSONBodyProvider0
+func (t LinkSocialAccountJSONBody_Provider) AsLinkSocialAccountJSONBodyProvider0() (LinkSocialAccountJSONBodyProvider0, error) {
+	var body LinkSocialAccountJSONBodyProvider0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLinkSocialAccountJSONBodyProvider0 overwrites any union data inside the LinkSocialAccountJSONBody_Provider as the provided LinkSocialAccountJSONBodyProvider0
+func (t *LinkSocialAccountJSONBody_Provider) FromLinkSocialAccountJSONBodyProvider0(v LinkSocialAccountJSONBodyProvider0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLinkSocialAccountJSONBodyProvider0 performs a merge with any union data inside the LinkSocialAccountJSONBody_Provider, using the provided LinkSocialAccountJSONBodyProvider0
+func (t *LinkSocialAccountJSONBody_Provider) MergeLinkSocialAccountJSONBodyProvider0(v LinkSocialAccountJSONBodyProvider0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsLinkSocialAccountJSONBodyProvider1 returns the union data inside the LinkSocialAccountJSONBody_Provider as a LinkSocialAccountJSONBodyProvider1
+func (t LinkSocialAccountJSONBody_Provider) AsLinkSocialAccountJSONBodyProvider1() (LinkSocialAccountJSONBodyProvider1, error) {
+	var body LinkSocialAccountJSONBodyProvider1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLinkSocialAccountJSONBodyProvider1 overwrites any union data inside the LinkSocialAccountJSONBody_Provider as the provided LinkSocialAccountJSONBodyProvider1
+func (t *LinkSocialAccountJSONBody_Provider) FromLinkSocialAccountJSONBodyProvider1(v LinkSocialAccountJSONBodyProvider1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLinkSocialAccountJSONBodyProvider1 performs a merge with any union data inside the LinkSocialAccountJSONBody_Provider, using the provided LinkSocialAccountJSONBodyProvider1
+func (t *LinkSocialAccountJSONBody_Provider) MergeLinkSocialAccountJSONBodyProvider1(v LinkSocialAccountJSONBodyProvider1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t LinkSocialAccountJSONBody_Provider) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *LinkSocialAccountJSONBody_Provider) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPostApiAuthOauth2ConsentJSONBodyClaims0 returns the union data inside the PostApiAuthOauth2ConsentJSONBody_Claims as a PostApiAuthOauth2ConsentJSONBodyClaims0
+func (t PostApiAuthOauth2ConsentJSONBody_Claims) AsPostApiAuthOauth2ConsentJSONBodyClaims0() (PostApiAuthOauth2ConsentJSONBodyClaims0, error) {
+	var body PostApiAuthOauth2ConsentJSONBodyClaims0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthOauth2ConsentJSONBodyClaims0 overwrites any union data inside the PostApiAuthOauth2ConsentJSONBody_Claims as the provided PostApiAuthOauth2ConsentJSONBodyClaims0
+func (t *PostApiAuthOauth2ConsentJSONBody_Claims) FromPostApiAuthOauth2ConsentJSONBodyClaims0(v PostApiAuthOauth2ConsentJSONBodyClaims0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthOauth2ConsentJSONBodyClaims0 performs a merge with any union data inside the PostApiAuthOauth2ConsentJSONBody_Claims, using the provided PostApiAuthOauth2ConsentJSONBodyClaims0
+func (t *PostApiAuthOauth2ConsentJSONBody_Claims) MergePostApiAuthOauth2ConsentJSONBodyClaims0(v PostApiAuthOauth2ConsentJSONBodyClaims0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPostApiAuthOauth2ConsentJSONBodyClaims1 returns the union data inside the PostApiAuthOauth2ConsentJSONBody_Claims as a PostApiAuthOauth2ConsentJSONBodyClaims1
+func (t PostApiAuthOauth2ConsentJSONBody_Claims) AsPostApiAuthOauth2ConsentJSONBodyClaims1() (PostApiAuthOauth2ConsentJSONBodyClaims1, error) {
+	var body PostApiAuthOauth2ConsentJSONBodyClaims1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthOauth2ConsentJSONBodyClaims1 overwrites any union data inside the PostApiAuthOauth2ConsentJSONBody_Claims as the provided PostApiAuthOauth2ConsentJSONBodyClaims1
+func (t *PostApiAuthOauth2ConsentJSONBody_Claims) FromPostApiAuthOauth2ConsentJSONBodyClaims1(v PostApiAuthOauth2ConsentJSONBodyClaims1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthOauth2ConsentJSONBodyClaims1 performs a merge with any union data inside the PostApiAuthOauth2ConsentJSONBody_Claims, using the provided PostApiAuthOauth2ConsentJSONBodyClaims1
+func (t *PostApiAuthOauth2ConsentJSONBody_Claims) MergePostApiAuthOauth2ConsentJSONBodyClaims1(v PostApiAuthOauth2ConsentJSONBodyClaims1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PostApiAuthOauth2ConsentJSONBody_Claims) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PostApiAuthOauth2ConsentJSONBody_Claims) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPostApiAuthOauth2CreateClientJSONBodyJwks0 returns the union data inside the PostApiAuthOauth2CreateClientJSONBody_Jwks as a PostApiAuthOauth2CreateClientJSONBodyJwks0
+func (t PostApiAuthOauth2CreateClientJSONBody_Jwks) AsPostApiAuthOauth2CreateClientJSONBodyJwks0() (PostApiAuthOauth2CreateClientJSONBodyJwks0, error) {
+	var body PostApiAuthOauth2CreateClientJSONBodyJwks0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthOauth2CreateClientJSONBodyJwks0 overwrites any union data inside the PostApiAuthOauth2CreateClientJSONBody_Jwks as the provided PostApiAuthOauth2CreateClientJSONBodyJwks0
+func (t *PostApiAuthOauth2CreateClientJSONBody_Jwks) FromPostApiAuthOauth2CreateClientJSONBodyJwks0(v PostApiAuthOauth2CreateClientJSONBodyJwks0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthOauth2CreateClientJSONBodyJwks0 performs a merge with any union data inside the PostApiAuthOauth2CreateClientJSONBody_Jwks, using the provided PostApiAuthOauth2CreateClientJSONBodyJwks0
+func (t *PostApiAuthOauth2CreateClientJSONBody_Jwks) MergePostApiAuthOauth2CreateClientJSONBodyJwks0(v PostApiAuthOauth2CreateClientJSONBodyJwks0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPostApiAuthOauth2CreateClientJSONBodyJwks1 returns the union data inside the PostApiAuthOauth2CreateClientJSONBody_Jwks as a PostApiAuthOauth2CreateClientJSONBodyJwks1
+func (t PostApiAuthOauth2CreateClientJSONBody_Jwks) AsPostApiAuthOauth2CreateClientJSONBodyJwks1() (PostApiAuthOauth2CreateClientJSONBodyJwks1, error) {
+	var body PostApiAuthOauth2CreateClientJSONBodyJwks1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthOauth2CreateClientJSONBodyJwks1 overwrites any union data inside the PostApiAuthOauth2CreateClientJSONBody_Jwks as the provided PostApiAuthOauth2CreateClientJSONBodyJwks1
+func (t *PostApiAuthOauth2CreateClientJSONBody_Jwks) FromPostApiAuthOauth2CreateClientJSONBodyJwks1(v PostApiAuthOauth2CreateClientJSONBodyJwks1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthOauth2CreateClientJSONBodyJwks1 performs a merge with any union data inside the PostApiAuthOauth2CreateClientJSONBody_Jwks, using the provided PostApiAuthOauth2CreateClientJSONBodyJwks1
+func (t *PostApiAuthOauth2CreateClientJSONBody_Jwks) MergePostApiAuthOauth2CreateClientJSONBodyJwks1(v PostApiAuthOauth2CreateClientJSONBodyJwks1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PostApiAuthOauth2CreateClientJSONBody_Jwks) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PostApiAuthOauth2CreateClientJSONBody_Jwks) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPostApiAuthOauth2RegisterJSONBodyJwks0 returns the union data inside the PostApiAuthOauth2RegisterJSONBody_Jwks as a PostApiAuthOauth2RegisterJSONBodyJwks0
+func (t PostApiAuthOauth2RegisterJSONBody_Jwks) AsPostApiAuthOauth2RegisterJSONBodyJwks0() (PostApiAuthOauth2RegisterJSONBodyJwks0, error) {
+	var body PostApiAuthOauth2RegisterJSONBodyJwks0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthOauth2RegisterJSONBodyJwks0 overwrites any union data inside the PostApiAuthOauth2RegisterJSONBody_Jwks as the provided PostApiAuthOauth2RegisterJSONBodyJwks0
+func (t *PostApiAuthOauth2RegisterJSONBody_Jwks) FromPostApiAuthOauth2RegisterJSONBodyJwks0(v PostApiAuthOauth2RegisterJSONBodyJwks0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthOauth2RegisterJSONBodyJwks0 performs a merge with any union data inside the PostApiAuthOauth2RegisterJSONBody_Jwks, using the provided PostApiAuthOauth2RegisterJSONBodyJwks0
+func (t *PostApiAuthOauth2RegisterJSONBody_Jwks) MergePostApiAuthOauth2RegisterJSONBodyJwks0(v PostApiAuthOauth2RegisterJSONBodyJwks0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPostApiAuthOauth2RegisterJSONBodyJwks1 returns the union data inside the PostApiAuthOauth2RegisterJSONBody_Jwks as a PostApiAuthOauth2RegisterJSONBodyJwks1
+func (t PostApiAuthOauth2RegisterJSONBody_Jwks) AsPostApiAuthOauth2RegisterJSONBodyJwks1() (PostApiAuthOauth2RegisterJSONBodyJwks1, error) {
+	var body PostApiAuthOauth2RegisterJSONBodyJwks1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthOauth2RegisterJSONBodyJwks1 overwrites any union data inside the PostApiAuthOauth2RegisterJSONBody_Jwks as the provided PostApiAuthOauth2RegisterJSONBodyJwks1
+func (t *PostApiAuthOauth2RegisterJSONBody_Jwks) FromPostApiAuthOauth2RegisterJSONBodyJwks1(v PostApiAuthOauth2RegisterJSONBodyJwks1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthOauth2RegisterJSONBodyJwks1 performs a merge with any union data inside the PostApiAuthOauth2RegisterJSONBody_Jwks, using the provided PostApiAuthOauth2RegisterJSONBodyJwks1
+func (t *PostApiAuthOauth2RegisterJSONBody_Jwks) MergePostApiAuthOauth2RegisterJSONBodyJwks1(v PostApiAuthOauth2RegisterJSONBodyJwks1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PostApiAuthOauth2RegisterJSONBody_Jwks) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PostApiAuthOauth2RegisterJSONBody_Jwks) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPostApiAuthOauth2TokenJSONBodyResource0 returns the union data inside the PostApiAuthOauth2TokenJSONBody_Resource as a PostApiAuthOauth2TokenJSONBodyResource0
+func (t PostApiAuthOauth2TokenJSONBody_Resource) AsPostApiAuthOauth2TokenJSONBodyResource0() (PostApiAuthOauth2TokenJSONBodyResource0, error) {
+	var body PostApiAuthOauth2TokenJSONBodyResource0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthOauth2TokenJSONBodyResource0 overwrites any union data inside the PostApiAuthOauth2TokenJSONBody_Resource as the provided PostApiAuthOauth2TokenJSONBodyResource0
+func (t *PostApiAuthOauth2TokenJSONBody_Resource) FromPostApiAuthOauth2TokenJSONBodyResource0(v PostApiAuthOauth2TokenJSONBodyResource0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthOauth2TokenJSONBodyResource0 performs a merge with any union data inside the PostApiAuthOauth2TokenJSONBody_Resource, using the provided PostApiAuthOauth2TokenJSONBodyResource0
+func (t *PostApiAuthOauth2TokenJSONBody_Resource) MergePostApiAuthOauth2TokenJSONBodyResource0(v PostApiAuthOauth2TokenJSONBodyResource0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPostApiAuthOauth2TokenJSONBodyResource1 returns the union data inside the PostApiAuthOauth2TokenJSONBody_Resource as a PostApiAuthOauth2TokenJSONBodyResource1
+func (t PostApiAuthOauth2TokenJSONBody_Resource) AsPostApiAuthOauth2TokenJSONBodyResource1() (PostApiAuthOauth2TokenJSONBodyResource1, error) {
+	var body PostApiAuthOauth2TokenJSONBodyResource1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthOauth2TokenJSONBodyResource1 overwrites any union data inside the PostApiAuthOauth2TokenJSONBody_Resource as the provided PostApiAuthOauth2TokenJSONBodyResource1
+func (t *PostApiAuthOauth2TokenJSONBody_Resource) FromPostApiAuthOauth2TokenJSONBodyResource1(v PostApiAuthOauth2TokenJSONBodyResource1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthOauth2TokenJSONBodyResource1 performs a merge with any union data inside the PostApiAuthOauth2TokenJSONBody_Resource, using the provided PostApiAuthOauth2TokenJSONBodyResource1
+func (t *PostApiAuthOauth2TokenJSONBody_Resource) MergePostApiAuthOauth2TokenJSONBodyResource1(v PostApiAuthOauth2TokenJSONBodyResource1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PostApiAuthOauth2TokenJSONBody_Resource) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PostApiAuthOauth2TokenJSONBody_Resource) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCreateOrganizationInvitationJSONBodyRole0 returns the union data inside the CreateOrganizationInvitationJSONBody_Role as a CreateOrganizationInvitationJSONBodyRole0
+func (t CreateOrganizationInvitationJSONBody_Role) AsCreateOrganizationInvitationJSONBodyRole0() (CreateOrganizationInvitationJSONBodyRole0, error) {
+	var body CreateOrganizationInvitationJSONBodyRole0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateOrganizationInvitationJSONBodyRole0 overwrites any union data inside the CreateOrganizationInvitationJSONBody_Role as the provided CreateOrganizationInvitationJSONBodyRole0
+func (t *CreateOrganizationInvitationJSONBody_Role) FromCreateOrganizationInvitationJSONBodyRole0(v CreateOrganizationInvitationJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateOrganizationInvitationJSONBodyRole0 performs a merge with any union data inside the CreateOrganizationInvitationJSONBody_Role, using the provided CreateOrganizationInvitationJSONBodyRole0
+func (t *CreateOrganizationInvitationJSONBody_Role) MergeCreateOrganizationInvitationJSONBodyRole0(v CreateOrganizationInvitationJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateOrganizationInvitationJSONBodyRole1 returns the union data inside the CreateOrganizationInvitationJSONBody_Role as a CreateOrganizationInvitationJSONBodyRole1
+func (t CreateOrganizationInvitationJSONBody_Role) AsCreateOrganizationInvitationJSONBodyRole1() (CreateOrganizationInvitationJSONBodyRole1, error) {
+	var body CreateOrganizationInvitationJSONBodyRole1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateOrganizationInvitationJSONBodyRole1 overwrites any union data inside the CreateOrganizationInvitationJSONBody_Role as the provided CreateOrganizationInvitationJSONBodyRole1
+func (t *CreateOrganizationInvitationJSONBody_Role) FromCreateOrganizationInvitationJSONBodyRole1(v CreateOrganizationInvitationJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateOrganizationInvitationJSONBodyRole1 performs a merge with any union data inside the CreateOrganizationInvitationJSONBody_Role, using the provided CreateOrganizationInvitationJSONBodyRole1
+func (t *CreateOrganizationInvitationJSONBody_Role) MergeCreateOrganizationInvitationJSONBodyRole1(v CreateOrganizationInvitationJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateOrganizationInvitationJSONBody_Role) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateOrganizationInvitationJSONBody_Role) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCreateOrganizationInvitationJSONBodyTeamId0 returns the union data inside the CreateOrganizationInvitationJSONBody_TeamId as a CreateOrganizationInvitationJSONBodyTeamId0
+func (t CreateOrganizationInvitationJSONBody_TeamId) AsCreateOrganizationInvitationJSONBodyTeamId0() (CreateOrganizationInvitationJSONBodyTeamId0, error) {
+	var body CreateOrganizationInvitationJSONBodyTeamId0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateOrganizationInvitationJSONBodyTeamId0 overwrites any union data inside the CreateOrganizationInvitationJSONBody_TeamId as the provided CreateOrganizationInvitationJSONBodyTeamId0
+func (t *CreateOrganizationInvitationJSONBody_TeamId) FromCreateOrganizationInvitationJSONBodyTeamId0(v CreateOrganizationInvitationJSONBodyTeamId0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateOrganizationInvitationJSONBodyTeamId0 performs a merge with any union data inside the CreateOrganizationInvitationJSONBody_TeamId, using the provided CreateOrganizationInvitationJSONBodyTeamId0
+func (t *CreateOrganizationInvitationJSONBody_TeamId) MergeCreateOrganizationInvitationJSONBodyTeamId0(v CreateOrganizationInvitationJSONBodyTeamId0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateOrganizationInvitationJSONBodyTeamId1 returns the union data inside the CreateOrganizationInvitationJSONBody_TeamId as a CreateOrganizationInvitationJSONBodyTeamId1
+func (t CreateOrganizationInvitationJSONBody_TeamId) AsCreateOrganizationInvitationJSONBodyTeamId1() (CreateOrganizationInvitationJSONBodyTeamId1, error) {
+	var body CreateOrganizationInvitationJSONBodyTeamId1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateOrganizationInvitationJSONBodyTeamId1 overwrites any union data inside the CreateOrganizationInvitationJSONBody_TeamId as the provided CreateOrganizationInvitationJSONBodyTeamId1
+func (t *CreateOrganizationInvitationJSONBody_TeamId) FromCreateOrganizationInvitationJSONBodyTeamId1(v CreateOrganizationInvitationJSONBodyTeamId1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateOrganizationInvitationJSONBodyTeamId1 performs a merge with any union data inside the CreateOrganizationInvitationJSONBody_TeamId, using the provided CreateOrganizationInvitationJSONBodyTeamId1
+func (t *CreateOrganizationInvitationJSONBody_TeamId) MergeCreateOrganizationInvitationJSONBodyTeamId1(v CreateOrganizationInvitationJSONBodyTeamId1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateOrganizationInvitationJSONBody_TeamId) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateOrganizationInvitationJSONBody_TeamId) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsUpdateOrganizationMemberRoleJSONBodyRole0 returns the union data inside the UpdateOrganizationMemberRoleJSONBody_Role as a UpdateOrganizationMemberRoleJSONBodyRole0
+func (t UpdateOrganizationMemberRoleJSONBody_Role) AsUpdateOrganizationMemberRoleJSONBodyRole0() (UpdateOrganizationMemberRoleJSONBodyRole0, error) {
+	var body UpdateOrganizationMemberRoleJSONBodyRole0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromUpdateOrganizationMemberRoleJSONBodyRole0 overwrites any union data inside the UpdateOrganizationMemberRoleJSONBody_Role as the provided UpdateOrganizationMemberRoleJSONBodyRole0
+func (t *UpdateOrganizationMemberRoleJSONBody_Role) FromUpdateOrganizationMemberRoleJSONBodyRole0(v UpdateOrganizationMemberRoleJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeUpdateOrganizationMemberRoleJSONBodyRole0 performs a merge with any union data inside the UpdateOrganizationMemberRoleJSONBody_Role, using the provided UpdateOrganizationMemberRoleJSONBodyRole0
+func (t *UpdateOrganizationMemberRoleJSONBody_Role) MergeUpdateOrganizationMemberRoleJSONBodyRole0(v UpdateOrganizationMemberRoleJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsUpdateOrganizationMemberRoleJSONBodyRole1 returns the union data inside the UpdateOrganizationMemberRoleJSONBody_Role as a UpdateOrganizationMemberRoleJSONBodyRole1
+func (t UpdateOrganizationMemberRoleJSONBody_Role) AsUpdateOrganizationMemberRoleJSONBodyRole1() (UpdateOrganizationMemberRoleJSONBodyRole1, error) {
+	var body UpdateOrganizationMemberRoleJSONBodyRole1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromUpdateOrganizationMemberRoleJSONBodyRole1 overwrites any union data inside the UpdateOrganizationMemberRoleJSONBody_Role as the provided UpdateOrganizationMemberRoleJSONBodyRole1
+func (t *UpdateOrganizationMemberRoleJSONBody_Role) FromUpdateOrganizationMemberRoleJSONBodyRole1(v UpdateOrganizationMemberRoleJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeUpdateOrganizationMemberRoleJSONBodyRole1 performs a merge with any union data inside the UpdateOrganizationMemberRoleJSONBody_Role, using the provided UpdateOrganizationMemberRoleJSONBodyRole1
+func (t *UpdateOrganizationMemberRoleJSONBody_Role) MergeUpdateOrganizationMemberRoleJSONBodyRole1(v UpdateOrganizationMemberRoleJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t UpdateOrganizationMemberRoleJSONBody_Role) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *UpdateOrganizationMemberRoleJSONBody_Role) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPostApiAuthRefreshTokenJSONBody0 returns the union data inside the PostApiAuthRefreshTokenJSONBody as a PostApiAuthRefreshTokenJSONBody0
+func (t PostApiAuthRefreshTokenJSONBody) AsPostApiAuthRefreshTokenJSONBody0() (PostApiAuthRefreshTokenJSONBody0, error) {
+	var body PostApiAuthRefreshTokenJSONBody0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthRefreshTokenJSONBody0 overwrites any union data inside the PostApiAuthRefreshTokenJSONBody as the provided PostApiAuthRefreshTokenJSONBody0
+func (t *PostApiAuthRefreshTokenJSONBody) FromPostApiAuthRefreshTokenJSONBody0(v PostApiAuthRefreshTokenJSONBody0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthRefreshTokenJSONBody0 performs a merge with any union data inside the PostApiAuthRefreshTokenJSONBody, using the provided PostApiAuthRefreshTokenJSONBody0
+func (t *PostApiAuthRefreshTokenJSONBody) MergePostApiAuthRefreshTokenJSONBody0(v PostApiAuthRefreshTokenJSONBody0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPostApiAuthRefreshTokenJSONBody1 returns the union data inside the PostApiAuthRefreshTokenJSONBody as a PostApiAuthRefreshTokenJSONBody1
+func (t PostApiAuthRefreshTokenJSONBody) AsPostApiAuthRefreshTokenJSONBody1() (PostApiAuthRefreshTokenJSONBody1, error) {
+	var body PostApiAuthRefreshTokenJSONBody1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPostApiAuthRefreshTokenJSONBody1 overwrites any union data inside the PostApiAuthRefreshTokenJSONBody as the provided PostApiAuthRefreshTokenJSONBody1
+func (t *PostApiAuthRefreshTokenJSONBody) FromPostApiAuthRefreshTokenJSONBody1(v PostApiAuthRefreshTokenJSONBody1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePostApiAuthRefreshTokenJSONBody1 performs a merge with any union data inside the PostApiAuthRefreshTokenJSONBody, using the provided PostApiAuthRefreshTokenJSONBody1
+func (t *PostApiAuthRefreshTokenJSONBody) MergePostApiAuthRefreshTokenJSONBody1(v PostApiAuthRefreshTokenJSONBody1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PostApiAuthRefreshTokenJSONBody) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PostApiAuthRefreshTokenJSONBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsSocialSignInJSONBodyProvider0 returns the union data inside the SocialSignInJSONBody_Provider as a SocialSignInJSONBodyProvider0
+func (t SocialSignInJSONBody_Provider) AsSocialSignInJSONBodyProvider0() (SocialSignInJSONBodyProvider0, error) {
+	var body SocialSignInJSONBodyProvider0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSocialSignInJSONBodyProvider0 overwrites any union data inside the SocialSignInJSONBody_Provider as the provided SocialSignInJSONBodyProvider0
+func (t *SocialSignInJSONBody_Provider) FromSocialSignInJSONBodyProvider0(v SocialSignInJSONBodyProvider0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSocialSignInJSONBodyProvider0 performs a merge with any union data inside the SocialSignInJSONBody_Provider, using the provided SocialSignInJSONBodyProvider0
+func (t *SocialSignInJSONBody_Provider) MergeSocialSignInJSONBodyProvider0(v SocialSignInJSONBodyProvider0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSocialSignInJSONBodyProvider1 returns the union data inside the SocialSignInJSONBody_Provider as a SocialSignInJSONBodyProvider1
+func (t SocialSignInJSONBody_Provider) AsSocialSignInJSONBodyProvider1() (SocialSignInJSONBodyProvider1, error) {
+	var body SocialSignInJSONBodyProvider1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSocialSignInJSONBodyProvider1 overwrites any union data inside the SocialSignInJSONBody_Provider as the provided SocialSignInJSONBodyProvider1
+func (t *SocialSignInJSONBody_Provider) FromSocialSignInJSONBodyProvider1(v SocialSignInJSONBodyProvider1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSocialSignInJSONBodyProvider1 performs a merge with any union data inside the SocialSignInJSONBody_Provider, using the provided SocialSignInJSONBodyProvider1
+func (t *SocialSignInJSONBody_Provider) MergeSocialSignInJSONBodyProvider1(v SocialSignInJSONBodyProvider1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SocialSignInJSONBody_Provider) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SocialSignInJSONBody_Provider) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsCreateBackgroundJobJSONBody0 returns the union data inside the CreateBackgroundJobJSONBody as a CreateBackgroundJobJSONBody0
 func (t CreateBackgroundJobJSONBody) AsCreateBackgroundJobJSONBody0() (CreateBackgroundJobJSONBody0, error) {
 	var body CreateBackgroundJobJSONBody0
@@ -9081,6 +10632,9 @@ type ClientInterface interface {
 
 	PostApiAuthIsUsernameAvailable(ctx context.Context, body PostApiAuthIsUsernameAvailableJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetJSONWebKeySet request
+	GetJSONWebKeySet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// LinkSocialAccountWithBody request with any body
 	LinkSocialAccountWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -9095,8 +10649,8 @@ type ClientInterface interface {
 	// GetApiAuthOauth2Authorize request
 	GetApiAuthOauth2Authorize(ctx context.Context, params *GetApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiAuthOauth2CallbackProviderId request
-	GetApiAuthOauth2CallbackProviderId(ctx context.Context, providerId string, params *GetApiAuthOauth2CallbackProviderIdParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PostApiAuthOauth2Authorize request
+	PostApiAuthOauth2Authorize(ctx context.Context, params *PostApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiAuthOauth2ClientRotateSecretWithBody request with any body
 	PostApiAuthOauth2ClientRotateSecretWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -9148,11 +10702,6 @@ type ClientInterface interface {
 
 	PostApiAuthOauth2Introspect(ctx context.Context, body PostApiAuthOauth2IntrospectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiAuthOauth2LinkWithBody request with any body
-	PostApiAuthOauth2LinkWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostApiAuthOauth2Link(ctx context.Context, body PostApiAuthOauth2LinkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetApiAuthOauth2PublicClient request
 	GetApiAuthOauth2PublicClient(ctx context.Context, params *GetApiAuthOauth2PublicClientParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -9172,9 +10721,9 @@ type ClientInterface interface {
 	PostApiAuthOauth2Revoke(ctx context.Context, body PostApiAuthOauth2RevokeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiAuthOauth2TokenWithBody request with any body
-	PostApiAuthOauth2TokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiAuthOauth2TokenWithBody(ctx context.Context, params *PostApiAuthOauth2TokenParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PostApiAuthOauth2Token(ctx context.Context, body PostApiAuthOauth2TokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiAuthOauth2Token(ctx context.Context, params *PostApiAuthOauth2TokenParams, body PostApiAuthOauth2TokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiAuthOauth2UpdateClientWithBody request with any body
 	PostApiAuthOauth2UpdateClientWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -9188,6 +10737,11 @@ type ClientInterface interface {
 
 	// GetApiAuthOauth2Userinfo request
 	GetApiAuthOauth2Userinfo(ctx context.Context, params *GetApiAuthOauth2UserinfoParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiAuthOauth2UserinfoWithBody request with any body
+	PostApiAuthOauth2UserinfoWithBody(ctx context.Context, params *PostApiAuthOauth2UserinfoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostApiAuthOauth2Userinfo(ctx context.Context, params *PostApiAuthOauth2UserinfoParams, body PostApiAuthOauth2UserinfoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiAuthOk request
 	GetApiAuthOk(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -9223,11 +10777,14 @@ type ClientInterface interface {
 	// GetApiAuthOrganizationGetActiveMemberRole request
 	GetApiAuthOrganizationGetActiveMemberRole(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetOrganization request
-	GetOrganization(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetFullOrganization request
+	GetFullOrganization(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiAuthOrganizationGetInvitation request
 	GetApiAuthOrganizationGetInvitation(ctx context.Context, params *GetApiAuthOrganizationGetInvitationParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetOrganization request
+	GetOrganization(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiAuthOrganizationHasPermissionWithBody request with any body
 	PostApiAuthOrganizationHasPermissionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -9324,11 +10881,6 @@ type ClientInterface interface {
 
 	SignInEmail(ctx context.Context, body SignInEmailJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiAuthSignInOauth2WithBody request with any body
-	PostApiAuthSignInOauth2WithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostApiAuthSignInOauth2(ctx context.Context, body PostApiAuthSignInOauth2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// SocialSignInWithBody request with any body
 	SocialSignInWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -9348,6 +10900,9 @@ type ClientInterface interface {
 	SignUpWithEmailAndPasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	SignUpWithEmailAndPassword(ctx context.Context, body SignUpWithEmailAndPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetJSONWebToken request
+	GetJSONWebToken(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiAuthUnlinkAccountWithBody request with any body
 	PostApiAuthUnlinkAccountWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -9500,6 +11055,9 @@ type ClientInterface interface {
 
 	// MarkNotificationRead request
 	MarkNotificationRead(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListOAuthResourceScopes request
+	ListOAuthResourceScopes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListObjects request
 	ListObjects(ctx context.Context, params *ListObjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -9925,22 +11483,6 @@ type ClientInterface interface {
 
 	// GetUserProfile request
 	GetUserProfile(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListWorkspaceAgentApiKeys request
-	ListWorkspaceAgentApiKeys(ctx context.Context, orgId string, params *ListWorkspaceAgentApiKeysParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateWorkspaceAgentApiKeyWithBody request with any body
-	CreateWorkspaceAgentApiKeyWithBody(ctx context.Context, orgId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateWorkspaceAgentApiKey(ctx context.Context, orgId string, body CreateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RevokeWorkspaceAgentApiKey request
-	RevokeWorkspaceAgentApiKey(ctx context.Context, orgId string, keyId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RotateWorkspaceAgentApiKeyWithBody request with any body
-	RotateWorkspaceAgentApiKeyWithBody(ctx context.Context, orgId string, keyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	RotateWorkspaceAgentApiKey(ctx context.Context, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetAgentOAuthConsentContext(ctx context.Context, params *GetAgentOAuthConsentContextParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -10759,6 +12301,18 @@ func (c *Client) PostApiAuthIsUsernameAvailable(ctx context.Context, body PostAp
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetJSONWebKeySet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetJSONWebKeySetRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) LinkSocialAccountWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewLinkSocialAccountRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -10819,8 +12373,8 @@ func (c *Client) GetApiAuthOauth2Authorize(ctx context.Context, params *GetApiAu
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiAuthOauth2CallbackProviderId(ctx context.Context, providerId string, params *GetApiAuthOauth2CallbackProviderIdParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiAuthOauth2CallbackProviderIdRequest(c.Server, providerId, params)
+func (c *Client) PostApiAuthOauth2Authorize(ctx context.Context, params *PostApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthOauth2AuthorizeRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -11059,30 +12613,6 @@ func (c *Client) PostApiAuthOauth2Introspect(ctx context.Context, body PostApiAu
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiAuthOauth2LinkWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiAuthOauth2LinkRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiAuthOauth2Link(ctx context.Context, body PostApiAuthOauth2LinkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiAuthOauth2LinkRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) GetApiAuthOauth2PublicClient(ctx context.Context, params *GetApiAuthOauth2PublicClientParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetApiAuthOauth2PublicClientRequest(c.Server, params)
 	if err != nil {
@@ -11167,8 +12697,8 @@ func (c *Client) PostApiAuthOauth2Revoke(ctx context.Context, body PostApiAuthOa
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiAuthOauth2TokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiAuthOauth2TokenRequestWithBody(c.Server, contentType, body)
+func (c *Client) PostApiAuthOauth2TokenWithBody(ctx context.Context, params *PostApiAuthOauth2TokenParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthOauth2TokenRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11179,8 +12709,8 @@ func (c *Client) PostApiAuthOauth2TokenWithBody(ctx context.Context, contentType
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiAuthOauth2Token(ctx context.Context, body PostApiAuthOauth2TokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiAuthOauth2TokenRequest(c.Server, body)
+func (c *Client) PostApiAuthOauth2Token(ctx context.Context, params *PostApiAuthOauth2TokenParams, body PostApiAuthOauth2TokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthOauth2TokenRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11241,6 +12771,30 @@ func (c *Client) PostApiAuthOauth2UpdateConsent(ctx context.Context, body PostAp
 
 func (c *Client) GetApiAuthOauth2Userinfo(ctx context.Context, params *GetApiAuthOauth2UserinfoParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetApiAuthOauth2UserinfoRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiAuthOauth2UserinfoWithBody(ctx context.Context, params *PostApiAuthOauth2UserinfoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthOauth2UserinfoRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiAuthOauth2Userinfo(ctx context.Context, params *PostApiAuthOauth2UserinfoParams, body PostApiAuthOauth2UserinfoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthOauth2UserinfoRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11407,8 +12961,8 @@ func (c *Client) GetApiAuthOrganizationGetActiveMemberRole(ctx context.Context, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetOrganization(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetOrganizationRequest(c.Server)
+func (c *Client) GetFullOrganization(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFullOrganizationRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -11421,6 +12975,18 @@ func (c *Client) GetOrganization(ctx context.Context, reqEditors ...RequestEdito
 
 func (c *Client) GetApiAuthOrganizationGetInvitation(ctx context.Context, params *GetApiAuthOrganizationGetInvitationParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetApiAuthOrganizationGetInvitationRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetOrganization(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOrganizationRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -11875,30 +13441,6 @@ func (c *Client) SignInEmail(ctx context.Context, body SignInEmailJSONRequestBod
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiAuthSignInOauth2WithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiAuthSignInOauth2RequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiAuthSignInOauth2(ctx context.Context, body PostApiAuthSignInOauth2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiAuthSignInOauth2Request(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) SocialSignInWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSocialSignInRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -11985,6 +13527,18 @@ func (c *Client) SignUpWithEmailAndPasswordWithBody(ctx context.Context, content
 
 func (c *Client) SignUpWithEmailAndPassword(ctx context.Context, body SignUpWithEmailAndPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSignUpWithEmailAndPasswordRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetJSONWebToken(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetJSONWebTokenRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -12657,6 +14211,18 @@ func (c *Client) GetNotificationStats(ctx context.Context, reqEditors ...Request
 
 func (c *Client) MarkNotificationRead(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewMarkNotificationReadRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListOAuthResourceScopes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOAuthResourceScopesRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -14527,78 +16093,6 @@ func (c *Client) GetUserProfile(ctx context.Context, username string, reqEditors
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListWorkspaceAgentApiKeys(ctx context.Context, orgId string, params *ListWorkspaceAgentApiKeysParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListWorkspaceAgentApiKeysRequest(c.Server, orgId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateWorkspaceAgentApiKeyWithBody(ctx context.Context, orgId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateWorkspaceAgentApiKeyRequestWithBody(c.Server, orgId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateWorkspaceAgentApiKey(ctx context.Context, orgId string, body CreateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateWorkspaceAgentApiKeyRequest(c.Server, orgId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RevokeWorkspaceAgentApiKey(ctx context.Context, orgId string, keyId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRevokeWorkspaceAgentApiKeyRequest(c.Server, orgId, keyId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RotateWorkspaceAgentApiKeyWithBody(ctx context.Context, orgId string, keyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRotateWorkspaceAgentApiKeyRequestWithBody(c.Server, orgId, keyId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RotateWorkspaceAgentApiKey(ctx context.Context, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRotateWorkspaceAgentApiKeyRequest(c.Server, orgId, keyId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // NewGetAgentOAuthConsentContextRequest generates requests for GetAgentOAuthConsentContext
 func NewGetAgentOAuthConsentContextRequest(server string, params *GetAgentOAuthConsentContextParams) (*http.Request, error) {
 	var err error
@@ -15097,7 +16591,7 @@ func NewListUsersRequest(server string, params *ListUsersParams) (*http.Request,
 
 		if params.Limit != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15109,7 +16603,7 @@ func NewListUsersRequest(server string, params *ListUsersParams) (*http.Request,
 
 		if params.Offset != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15157,7 +16651,7 @@ func NewListUsersRequest(server string, params *ListUsersParams) (*http.Request,
 
 		if params.FilterValue != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "filterValue", *params.FilterValue, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "filterValue", *params.FilterValue, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -16368,6 +17862,33 @@ func NewPostApiAuthIsUsernameAvailableRequestWithBody(server string, contentType
 	return req, nil
 }
 
+// NewGetJSONWebKeySetRequest generates requests for GetJSONWebKeySet
+func NewGetJSONWebKeySetRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/jwks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewLinkSocialAccountRequest calls the generic LinkSocialAccount builder with application/json body
 func NewLinkSocialAccountRequest(server string, body LinkSocialAccountJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -16594,6 +18115,30 @@ func NewGetApiAuthOauth2AuthorizeRequest(server string, params *GetApiAuthOauth2
 
 		}
 
+		if params.MaxAge != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "max_age", *params.MaxAge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Resource != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "resource", *params.Resource, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.Prompt != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "prompt", *params.Prompt, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -16620,23 +18165,16 @@ func NewGetApiAuthOauth2AuthorizeRequest(server string, params *GetApiAuthOauth2
 	return req, nil
 }
 
-// NewGetApiAuthOauth2CallbackProviderIdRequest generates requests for GetApiAuthOauth2CallbackProviderId
-func NewGetApiAuthOauth2CallbackProviderIdRequest(server string, providerId string, params *GetApiAuthOauth2CallbackProviderIdParams) (*http.Request, error) {
+// NewPostApiAuthOauth2AuthorizeRequest generates requests for PostApiAuthOauth2Authorize
+func NewPostApiAuthOauth2AuthorizeRequest(server string, params *PostApiAuthOauth2AuthorizeParams) (*http.Request, error) {
 	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "providerId", providerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/oauth2/callback/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/auth/oauth2/authorize")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -16655,9 +18193,9 @@ func NewGetApiAuthOauth2CallbackProviderIdRequest(server string, providerId stri
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if params.Code != nil {
+		if params.ResponseType != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "code", *params.Code, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "response_type", *params.ResponseType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -16667,9 +18205,17 @@ func NewGetApiAuthOauth2CallbackProviderIdRequest(server string, providerId stri
 
 		}
 
-		if params.Error != nil {
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "client_id", params.ClientId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "error", *params.Error, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+		if params.RedirectUri != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "redirect_uri", *params.RedirectUri, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uri"}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -16679,9 +18225,9 @@ func NewGetApiAuthOauth2CallbackProviderIdRequest(server string, providerId stri
 
 		}
 
-		if params.ErrorDescription != nil {
+		if params.Scope != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "error_description", *params.ErrorDescription, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scope", *params.Scope, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -16703,9 +18249,81 @@ func NewGetApiAuthOauth2CallbackProviderIdRequest(server string, providerId stri
 
 		}
 
-		if params.Iss != nil {
+		if params.RequestUri != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "iss", *params.Iss, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "request_uri", *params.RequestUri, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.CodeChallenge != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "code_challenge", *params.CodeChallenge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.CodeChallengeMethod != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "code_challenge_method", *params.CodeChallengeMethod, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Nonce != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "nonce", *params.Nonce, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.MaxAge != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "max_age", *params.MaxAge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Resource != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "resource", *params.Resource, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Prompt != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "prompt", *params.Prompt, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -16721,7 +18339,7 @@ func NewGetApiAuthOauth2CallbackProviderIdRequest(server string, providerId stri
 		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -17261,46 +18879,6 @@ func NewPostApiAuthOauth2IntrospectRequestWithBody(server string, contentType st
 	return req, nil
 }
 
-// NewPostApiAuthOauth2LinkRequest calls the generic PostApiAuthOauth2Link builder with application/json body
-func NewPostApiAuthOauth2LinkRequest(server string, body PostApiAuthOauth2LinkJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostApiAuthOauth2LinkRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostApiAuthOauth2LinkRequestWithBody generates requests for PostApiAuthOauth2Link with any type of body
-func NewPostApiAuthOauth2LinkRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/auth/oauth2/link")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewGetApiAuthOauth2PublicClientRequest generates requests for GetApiAuthOauth2PublicClient
 func NewGetApiAuthOauth2PublicClientRequest(server string, params *GetApiAuthOauth2PublicClientParams) (*http.Request, error) {
 	var err error
@@ -17476,18 +19054,18 @@ func NewPostApiAuthOauth2RevokeRequestWithBody(server string, contentType string
 }
 
 // NewPostApiAuthOauth2TokenRequest calls the generic PostApiAuthOauth2Token builder with application/json body
-func NewPostApiAuthOauth2TokenRequest(server string, body PostApiAuthOauth2TokenJSONRequestBody) (*http.Request, error) {
+func NewPostApiAuthOauth2TokenRequest(server string, params *PostApiAuthOauth2TokenParams, body PostApiAuthOauth2TokenJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiAuthOauth2TokenRequestWithBody(server, "application/json", bodyReader)
+	return NewPostApiAuthOauth2TokenRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewPostApiAuthOauth2TokenRequestWithBody generates requests for PostApiAuthOauth2Token with any type of body
-func NewPostApiAuthOauth2TokenRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewPostApiAuthOauth2TokenRequestWithBody(server string, params *PostApiAuthOauth2TokenParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -17511,6 +19089,21 @@ func NewPostApiAuthOauth2TokenRequestWithBody(server string, contentType string,
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.DPoP != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "DPoP", *params.DPoP, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("DPoP", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -17630,6 +19223,83 @@ func NewGetApiAuthOauth2UserinfoRequest(server string, params *GetApiAuthOauth2U
 			}
 
 			req.Header.Set("Authorization", headerParam0)
+		}
+
+		if params.DPoP != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "DPoP", *params.DPoP, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("DPoP", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiAuthOauth2UserinfoRequest calls the generic PostApiAuthOauth2Userinfo builder with application/json body
+func NewPostApiAuthOauth2UserinfoRequest(server string, params *PostApiAuthOauth2UserinfoParams, body PostApiAuthOauth2UserinfoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiAuthOauth2UserinfoRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewPostApiAuthOauth2UserinfoRequestWithBody generates requests for PostApiAuthOauth2Userinfo with any type of body
+func NewPostApiAuthOauth2UserinfoRequestWithBody(server string, params *PostApiAuthOauth2UserinfoParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/oauth2/userinfo")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.Authorization != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Authorization", *params.Authorization, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Authorization", headerParam0)
+		}
+
+		if params.DPoP != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "DPoP", *params.DPoP, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("DPoP", headerParam1)
 		}
 
 	}
@@ -17918,8 +19588,8 @@ func NewGetApiAuthOrganizationGetActiveMemberRoleRequest(server string) (*http.R
 	return req, nil
 }
 
-// NewGetOrganizationRequest generates requests for GetOrganization
-func NewGetOrganizationRequest(server string) (*http.Request, error) {
+// NewGetFullOrganizationRequest generates requests for GetFullOrganization
+func NewGetFullOrganizationRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -17989,6 +19659,33 @@ func NewGetApiAuthOrganizationGetInvitationRequest(server string, params *GetApi
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
 		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetOrganizationRequest generates requests for GetOrganization
+func NewGetOrganizationRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/organization/get-organization")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -18804,46 +20501,6 @@ func NewSignInEmailRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
-// NewPostApiAuthSignInOauth2Request calls the generic PostApiAuthSignInOauth2 builder with application/json body
-func NewPostApiAuthSignInOauth2Request(server string, body PostApiAuthSignInOauth2JSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostApiAuthSignInOauth2RequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostApiAuthSignInOauth2RequestWithBody generates requests for PostApiAuthSignInOauth2 with any type of body
-func NewPostApiAuthSignInOauth2RequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/auth/sign-in/oauth2")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewSocialSignInRequest calls the generic SocialSignIn builder with application/json body
 func NewSocialSignInRequest(server string, body SocialSignInJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -19000,6 +20657,33 @@ func NewSignUpWithEmailAndPasswordRequestWithBody(server string, contentType str
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetJSONWebTokenRequest generates requests for GetJSONWebToken
+func NewGetJSONWebTokenRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/token")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -20747,6 +22431,33 @@ func NewMarkNotificationReadRequest(server string, id string) (*http.Request, er
 	}
 
 	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListOAuthResourceScopesRequest generates requests for ListOAuthResourceScopes
+func NewListOAuthResourceScopesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/oauth-resource-scopes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -25819,221 +27530,6 @@ func NewGetUserProfileRequest(server string, username string) (*http.Request, er
 	return req, nil
 }
 
-// NewListWorkspaceAgentApiKeysRequest generates requests for ListWorkspaceAgentApiKeys
-func NewListWorkspaceAgentApiKeysRequest(server string, orgId string, params *ListWorkspaceAgentApiKeysParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgId", orgId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/workspaces/%s/agent-api-keys", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.PageSize != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateWorkspaceAgentApiKeyRequest calls the generic CreateWorkspaceAgentApiKey builder with application/json body
-func NewCreateWorkspaceAgentApiKeyRequest(server string, orgId string, body CreateWorkspaceAgentApiKeyJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateWorkspaceAgentApiKeyRequestWithBody(server, orgId, "application/json", bodyReader)
-}
-
-// NewCreateWorkspaceAgentApiKeyRequestWithBody generates requests for CreateWorkspaceAgentApiKey with any type of body
-func NewCreateWorkspaceAgentApiKeyRequestWithBody(server string, orgId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgId", orgId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/workspaces/%s/agent-api-keys", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewRevokeWorkspaceAgentApiKeyRequest generates requests for RevokeWorkspaceAgentApiKey
-func NewRevokeWorkspaceAgentApiKeyRequest(server string, orgId string, keyId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgId", orgId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "keyId", keyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/workspaces/%s/agent-api-keys/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewRotateWorkspaceAgentApiKeyRequest calls the generic RotateWorkspaceAgentApiKey builder with application/json body
-func NewRotateWorkspaceAgentApiKeyRequest(server string, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRotateWorkspaceAgentApiKeyRequestWithBody(server, orgId, keyId, "application/json", bodyReader)
-}
-
-// NewRotateWorkspaceAgentApiKeyRequestWithBody generates requests for RotateWorkspaceAgentApiKey with any type of body
-func NewRotateWorkspaceAgentApiKeyRequestWithBody(server string, orgId string, keyId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgId", orgId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "keyId", keyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/workspaces/%s/agent-api-keys/%s/rotations", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -26254,6 +27750,9 @@ type ClientWithResponsesInterface interface {
 
 	PostApiAuthIsUsernameAvailableWithResponse(ctx context.Context, body PostApiAuthIsUsernameAvailableJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthIsUsernameAvailableResponse, error)
 
+	// GetJSONWebKeySetWithResponse request
+	GetJSONWebKeySetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetJSONWebKeySetResponse, error)
+
 	// LinkSocialAccountWithBodyWithResponse request with any body
 	LinkSocialAccountWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LinkSocialAccountResponse, error)
 
@@ -26268,8 +27767,8 @@ type ClientWithResponsesInterface interface {
 	// GetApiAuthOauth2AuthorizeWithResponse request
 	GetApiAuthOauth2AuthorizeWithResponse(ctx context.Context, params *GetApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2AuthorizeResponse, error)
 
-	// GetApiAuthOauth2CallbackProviderIdWithResponse request
-	GetApiAuthOauth2CallbackProviderIdWithResponse(ctx context.Context, providerId string, params *GetApiAuthOauth2CallbackProviderIdParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2CallbackProviderIdResponse, error)
+	// PostApiAuthOauth2AuthorizeWithResponse request
+	PostApiAuthOauth2AuthorizeWithResponse(ctx context.Context, params *PostApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2AuthorizeResponse, error)
 
 	// PostApiAuthOauth2ClientRotateSecretWithBodyWithResponse request with any body
 	PostApiAuthOauth2ClientRotateSecretWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2ClientRotateSecretResponse, error)
@@ -26321,11 +27820,6 @@ type ClientWithResponsesInterface interface {
 
 	PostApiAuthOauth2IntrospectWithResponse(ctx context.Context, body PostApiAuthOauth2IntrospectJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2IntrospectResponse, error)
 
-	// PostApiAuthOauth2LinkWithBodyWithResponse request with any body
-	PostApiAuthOauth2LinkWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2LinkResponse, error)
-
-	PostApiAuthOauth2LinkWithResponse(ctx context.Context, body PostApiAuthOauth2LinkJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2LinkResponse, error)
-
 	// GetApiAuthOauth2PublicClientWithResponse request
 	GetApiAuthOauth2PublicClientWithResponse(ctx context.Context, params *GetApiAuthOauth2PublicClientParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2PublicClientResponse, error)
 
@@ -26345,9 +27839,9 @@ type ClientWithResponsesInterface interface {
 	PostApiAuthOauth2RevokeWithResponse(ctx context.Context, body PostApiAuthOauth2RevokeJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2RevokeResponse, error)
 
 	// PostApiAuthOauth2TokenWithBodyWithResponse request with any body
-	PostApiAuthOauth2TokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2TokenResponse, error)
+	PostApiAuthOauth2TokenWithBodyWithResponse(ctx context.Context, params *PostApiAuthOauth2TokenParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2TokenResponse, error)
 
-	PostApiAuthOauth2TokenWithResponse(ctx context.Context, body PostApiAuthOauth2TokenJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2TokenResponse, error)
+	PostApiAuthOauth2TokenWithResponse(ctx context.Context, params *PostApiAuthOauth2TokenParams, body PostApiAuthOauth2TokenJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2TokenResponse, error)
 
 	// PostApiAuthOauth2UpdateClientWithBodyWithResponse request with any body
 	PostApiAuthOauth2UpdateClientWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2UpdateClientResponse, error)
@@ -26361,6 +27855,11 @@ type ClientWithResponsesInterface interface {
 
 	// GetApiAuthOauth2UserinfoWithResponse request
 	GetApiAuthOauth2UserinfoWithResponse(ctx context.Context, params *GetApiAuthOauth2UserinfoParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2UserinfoResponse, error)
+
+	// PostApiAuthOauth2UserinfoWithBodyWithResponse request with any body
+	PostApiAuthOauth2UserinfoWithBodyWithResponse(ctx context.Context, params *PostApiAuthOauth2UserinfoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2UserinfoResponse, error)
+
+	PostApiAuthOauth2UserinfoWithResponse(ctx context.Context, params *PostApiAuthOauth2UserinfoParams, body PostApiAuthOauth2UserinfoJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2UserinfoResponse, error)
 
 	// GetApiAuthOkWithResponse request
 	GetApiAuthOkWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAuthOkResponse, error)
@@ -26396,11 +27895,14 @@ type ClientWithResponsesInterface interface {
 	// GetApiAuthOrganizationGetActiveMemberRoleWithResponse request
 	GetApiAuthOrganizationGetActiveMemberRoleWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAuthOrganizationGetActiveMemberRoleResponse, error)
 
-	// GetOrganizationWithResponse request
-	GetOrganizationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOrganizationResponse, error)
+	// GetFullOrganizationWithResponse request
+	GetFullOrganizationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetFullOrganizationResponse, error)
 
 	// GetApiAuthOrganizationGetInvitationWithResponse request
 	GetApiAuthOrganizationGetInvitationWithResponse(ctx context.Context, params *GetApiAuthOrganizationGetInvitationParams, reqEditors ...RequestEditorFn) (*GetApiAuthOrganizationGetInvitationResponse, error)
+
+	// GetOrganizationWithResponse request
+	GetOrganizationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOrganizationResponse, error)
 
 	// PostApiAuthOrganizationHasPermissionWithBodyWithResponse request with any body
 	PostApiAuthOrganizationHasPermissionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOrganizationHasPermissionResponse, error)
@@ -26497,11 +27999,6 @@ type ClientWithResponsesInterface interface {
 
 	SignInEmailWithResponse(ctx context.Context, body SignInEmailJSONRequestBody, reqEditors ...RequestEditorFn) (*SignInEmailResponse, error)
 
-	// PostApiAuthSignInOauth2WithBodyWithResponse request with any body
-	PostApiAuthSignInOauth2WithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthSignInOauth2Response, error)
-
-	PostApiAuthSignInOauth2WithResponse(ctx context.Context, body PostApiAuthSignInOauth2JSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthSignInOauth2Response, error)
-
 	// SocialSignInWithBodyWithResponse request with any body
 	SocialSignInWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SocialSignInResponse, error)
 
@@ -26521,6 +28018,9 @@ type ClientWithResponsesInterface interface {
 	SignUpWithEmailAndPasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SignUpWithEmailAndPasswordResponse, error)
 
 	SignUpWithEmailAndPasswordWithResponse(ctx context.Context, body SignUpWithEmailAndPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*SignUpWithEmailAndPasswordResponse, error)
+
+	// GetJSONWebTokenWithResponse request
+	GetJSONWebTokenWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetJSONWebTokenResponse, error)
 
 	// PostApiAuthUnlinkAccountWithBodyWithResponse request with any body
 	PostApiAuthUnlinkAccountWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthUnlinkAccountResponse, error)
@@ -26673,6 +28173,9 @@ type ClientWithResponsesInterface interface {
 
 	// MarkNotificationReadWithResponse request
 	MarkNotificationReadWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*MarkNotificationReadResponse, error)
+
+	// ListOAuthResourceScopesWithResponse request
+	ListOAuthResourceScopesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListOAuthResourceScopesResponse, error)
 
 	// ListObjectsWithResponse request
 	ListObjectsWithResponse(ctx context.Context, params *ListObjectsParams, reqEditors ...RequestEditorFn) (*ListObjectsResponse, error)
@@ -27098,22 +28601,6 @@ type ClientWithResponsesInterface interface {
 
 	// GetUserProfileWithResponse request
 	GetUserProfileWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*GetUserProfileResponse, error)
-
-	// ListWorkspaceAgentApiKeysWithResponse request
-	ListWorkspaceAgentApiKeysWithResponse(ctx context.Context, orgId string, params *ListWorkspaceAgentApiKeysParams, reqEditors ...RequestEditorFn) (*ListWorkspaceAgentApiKeysResponse, error)
-
-	// CreateWorkspaceAgentApiKeyWithBodyWithResponse request with any body
-	CreateWorkspaceAgentApiKeyWithBodyWithResponse(ctx context.Context, orgId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkspaceAgentApiKeyResponse, error)
-
-	CreateWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, body CreateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkspaceAgentApiKeyResponse, error)
-
-	// RevokeWorkspaceAgentApiKeyWithResponse request
-	RevokeWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, keyId string, reqEditors ...RequestEditorFn) (*RevokeWorkspaceAgentApiKeyResponse, error)
-
-	// RotateWorkspaceAgentApiKeyWithBodyWithResponse request with any body
-	RotateWorkspaceAgentApiKeyWithBodyWithResponse(ctx context.Context, orgId string, keyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateWorkspaceAgentApiKeyResponse, error)
-
-	RotateWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateWorkspaceAgentApiKeyResponse, error)
 }
 
 type GetAgentOAuthConsentContextResponse struct {
@@ -27203,7 +28690,7 @@ type ListAgentOAuthGrantsResponse struct {
 	JSON200      *struct {
 		Items []struct {
 			ClientId      string                                               `json:"clientId"`
-			ClientName    *string                                              `json:"clientName,omitempty"`
+			ClientName    string                                               `json:"clientName"`
 			CreatedAt     string                                               `json:"createdAt"`
 			Id            string                                               `json:"id"`
 			LastUsedAt    *string                                              `json:"lastUsedAt"`
@@ -27274,11 +28761,16 @@ type GetApiAuthAccountInfoResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
+		Account struct {
+			Id                string `json:"id"`
+			Issuer            string `json:"issuer"`
+			ProviderAccountId string `json:"providerAccountId"`
+			ProviderId        string `json:"providerId"`
+		} `json:"account"`
 		Data map[string]interface{} `json:"data"`
 		User struct {
 			Email         *string `json:"email,omitempty"`
 			EmailVerified bool    `json:"emailVerified"`
-			Id            string  `json:"id"`
 			Image         *string `json:"image,omitempty"`
 			Name          *string `json:"name,omitempty"`
 		} `json:"user"`
@@ -29427,6 +30919,84 @@ func (r PostApiAuthIsUsernameAvailableResponse) ContentType() string {
 	return ""
 }
 
+type GetJSONWebKeySetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		// Keys Array of public JSON Web Keys
+		Keys []struct {
+			// Alg Algorithm intended for use with the key (e.g., 'EdDSA', 'RS256')
+			Alg string `json:"alg"`
+
+			// Crv Curve name for elliptic curve keys (e.g., 'Ed25519', 'P-256')
+			Crv *string `json:"crv,omitempty"`
+
+			// E Exponent for RSA keys (base64url-encoded)
+			E *string `json:"e,omitempty"`
+
+			// Kid Key ID uniquely identifying the key, corresponds to the 'id' from the stored Jwk
+			Kid string `json:"kid"`
+
+			// Kty Key type (e.g., 'RSA', 'EC', 'OKP')
+			Kty string `json:"kty"`
+
+			// N Modulus for RSA keys (base64url-encoded)
+			N *string `json:"n,omitempty"`
+
+			// Use Intended use of the public key (e.g., 'sig' for signature)
+			Use *GetJSONWebKeySet200JSONResponseBodyKeysUse `json:"use,omitempty"`
+
+			// X X coordinate for elliptic curve keys (base64url-encoded)
+			X *string `json:"x,omitempty"`
+
+			// Y Y coordinate for elliptic curve keys (base64url-encoded)
+			Y *string `json:"y,omitempty"`
+		} `json:"keys"`
+	}
+	JSON400 *struct {
+		Message string `json:"message"`
+	}
+	JSON401 *struct {
+		Message string `json:"message"`
+	}
+	JSON403 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON404 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON429 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON500 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetJSONWebKeySetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetJSONWebKeySetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetJSONWebKeySetResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type LinkSocialAccountResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29486,13 +31056,14 @@ type ListUserAccountsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *[]struct {
-		AccountId  string    `json:"accountId"`
-		CreatedAt  time.Time `json:"createdAt"`
-		Id         string    `json:"id"`
-		ProviderId string    `json:"providerId"`
-		Scopes     []string  `json:"scopes"`
-		UpdatedAt  time.Time `json:"updatedAt"`
-		UserId     string    `json:"userId"`
+		CreatedAt         time.Time `json:"createdAt"`
+		Id                string    `json:"id"`
+		Issuer            string    `json:"issuer"`
+		ProviderAccountId string    `json:"providerAccountId"`
+		ProviderId        string    `json:"providerId"`
+		Scopes            []string  `json:"scopes"`
+		UpdatedAt         time.Time `json:"updatedAt"`
+		UserId            string    `json:"userId"`
 	}
 	JSON400 *struct {
 		Message string `json:"message"`
@@ -29635,14 +31206,13 @@ func (r GetApiAuthOauth2AuthorizeResponse) ContentType() string {
 	return ""
 }
 
-type GetApiAuthOauth2CallbackProviderIdResponse struct {
+type PostApiAuthOauth2AuthorizeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Url *string `json:"url,omitempty"`
-	}
-	JSON400 *struct {
-		Message string `json:"message"`
+	JSON400      *struct {
+		Error            string  `json:"error"`
+		ErrorDescription *string `json:"error_description,omitempty"`
+		State            *string `json:"state,omitempty"`
 	}
 	JSON401 *struct {
 		Message string `json:"message"`
@@ -29662,7 +31232,7 @@ type GetApiAuthOauth2CallbackProviderIdResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiAuthOauth2CallbackProviderIdResponse) Status() string {
+func (r PostApiAuthOauth2AuthorizeResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -29670,7 +31240,7 @@ func (r GetApiAuthOauth2CallbackProviderIdResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiAuthOauth2CallbackProviderIdResponse) StatusCode() int {
+func (r PostApiAuthOauth2AuthorizeResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -29678,7 +31248,7 @@ func (r GetApiAuthOauth2CallbackProviderIdResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetApiAuthOauth2CallbackProviderIdResponse) ContentType() string {
+func (r PostApiAuthOauth2AuthorizeResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -29837,7 +31407,7 @@ func (r PostApiAuthOauth2ContinueResponse) ContentType() string {
 type PostApiAuthOauth2CreateClientResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
+	JSON201      *struct {
 		// ClientId Unique identifier for the client
 		ClientId string `json:"client_id"`
 
@@ -29862,8 +31432,8 @@ type PostApiAuthOauth2CreateClientResponse struct {
 		// Disabled Whether the client is disabled
 		Disabled *bool `json:"disabled,omitempty"`
 
-		// GrantTypes Requested authentication method for the token endpoint
-		GrantTypes *[]PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypes `json:"grant_types,omitempty"`
+		// GrantTypes Grant types the client may use at the token endpoint
+		GrantTypes *[]string `json:"grant_types,omitempty"`
 
 		// LogoUri Icon URI for the application
 		LogoUri *string `json:"logo_uri,omitempty"`
@@ -29880,8 +31450,8 @@ type PostApiAuthOauth2CreateClientResponse struct {
 		// RedirectUris List of allowed redirect uris
 		RedirectUris *[]string `json:"redirect_uris,omitempty"`
 
-		// ResponseTypes Requested authentication method for the token endpoint
-		ResponseTypes *[]PostApiAuthOauth2CreateClient200JSONResponseBodyResponseTypes `json:"response_types,omitempty"`
+		// ResponseTypes Response types the client may use at the authorization endpoint
+		ResponseTypes *[]PostApiAuthOauth2CreateClient201JSONResponseBodyResponseTypes `json:"response_types,omitempty"`
 
 		// Scope Space-separated scopes allowed by the client
 		Scope *string `json:"scope,omitempty"`
@@ -29895,14 +31465,14 @@ type PostApiAuthOauth2CreateClientResponse struct {
 		// SoftwareVersion Version identifier for the software_id
 		SoftwareVersion *string `json:"software_version,omitempty"`
 
-		// TokenEndpointAuthMethod Response types the client may use
-		TokenEndpointAuthMethod *PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethod `json:"token_endpoint_auth_method,omitempty"`
+		// TokenEndpointAuthMethod Requested authentication method for the token endpoint
+		TokenEndpointAuthMethod *string `json:"token_endpoint_auth_method,omitempty"`
 
 		// TosUri Client's terms of service uri
 		TosUri *string `json:"tos_uri,omitempty"`
 
 		// Type Type of the client
-		Type *PostApiAuthOauth2CreateClient200JSONResponseBodyType `json:"type,omitempty"`
+		Type *PostApiAuthOauth2CreateClient201JSONResponseBodyType `json:"type,omitempty"`
 
 		// UserId ID of the user who registered the client, null if registered anonymously
 		UserId *string `json:"user_id,omitempty"`
@@ -30373,60 +31943,6 @@ func (r PostApiAuthOauth2IntrospectResponse) ContentType() string {
 	return ""
 }
 
-type PostApiAuthOauth2LinkResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		// Redirect Indicates that the client should redirect to the provided URL
-		Redirect PostApiAuthOauth2Link200JSONResponseBodyRedirect `json:"redirect"`
-
-		// Url The authorization URL to redirect the user to for linking the OAuth2 account
-		Url string `json:"url"`
-	}
-	JSON400 *struct {
-		Message string `json:"message"`
-	}
-	JSON401 *struct {
-		Message string `json:"message"`
-	}
-	JSON403 *struct {
-		Message *string `json:"message,omitempty"`
-	}
-	JSON404 *struct {
-		Message *string `json:"message,omitempty"`
-	}
-	JSON429 *struct {
-		Message *string `json:"message,omitempty"`
-	}
-	JSON500 *struct {
-		Message *string `json:"message,omitempty"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiAuthOauth2LinkResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiAuthOauth2LinkResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r PostApiAuthOauth2LinkResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type GetApiAuthOauth2PublicClientResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -30524,7 +32040,13 @@ func (r PostApiAuthOauth2PublicClientPreloginResponse) ContentType() string {
 type PostApiAuthOauth2RegisterResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
+	JSON201      *struct {
+		// BackchannelLogoutSessionRequired Whether the RP requires a `sid` claim in every Logout Token
+		BackchannelLogoutSessionRequired *bool `json:"backchannel_logout_session_required,omitempty"`
+
+		// BackchannelLogoutUri RP URL to receive signed Logout Tokens when the end-user's OP session terminates
+		BackchannelLogoutUri *string `json:"backchannel_logout_uri,omitempty"`
+
 		// ClientId Unique identifier for the client
 		ClientId string `json:"client_id"`
 
@@ -30549,8 +32071,8 @@ type PostApiAuthOauth2RegisterResponse struct {
 		// Disabled Whether the client is disabled
 		Disabled *bool `json:"disabled,omitempty"`
 
-		// GrantTypes Requested authentication method for the token endpoint
-		GrantTypes *[]PostApiAuthOauth2Register200JSONResponseBodyGrantTypes `json:"grant_types,omitempty"`
+		// GrantTypes Grant types the client may use at the token endpoint
+		GrantTypes *[]string `json:"grant_types,omitempty"`
 
 		// LogoUri Icon URL for the application
 		LogoUri *string `json:"logo_uri,omitempty"`
@@ -30567,8 +32089,8 @@ type PostApiAuthOauth2RegisterResponse struct {
 		// RedirectUris List of allowed redirect uris
 		RedirectUris *[]string `json:"redirect_uris,omitempty"`
 
-		// ResponseTypes Requested authentication method for the token endpoint
-		ResponseTypes *[]PostApiAuthOauth2Register200JSONResponseBodyResponseTypes `json:"response_types,omitempty"`
+		// ResponseTypes Response types the client may use at the authorization endpoint
+		ResponseTypes *[]PostApiAuthOauth2Register201JSONResponseBodyResponseTypes `json:"response_types,omitempty"`
 
 		// Scope Space-separated scopes allowed by the client
 		Scope *string `json:"scope,omitempty"`
@@ -30583,13 +32105,13 @@ type PostApiAuthOauth2RegisterResponse struct {
 		SoftwareVersion *string `json:"software_version,omitempty"`
 
 		// TokenEndpointAuthMethod Requested authentication method for the token endpoint
-		TokenEndpointAuthMethod *PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethod `json:"token_endpoint_auth_method,omitempty"`
+		TokenEndpointAuthMethod *string `json:"token_endpoint_auth_method,omitempty"`
 
 		// TosUri Client's terms of service uri
 		TosUri *string `json:"tos_uri,omitempty"`
 
 		// Type Type of the client
-		Type *PostApiAuthOauth2Register200JSONResponseBodyType `json:"type,omitempty"`
+		Type *PostApiAuthOauth2Register201JSONResponseBodyType `json:"type,omitempty"`
 
 		// UserId ID of the user who registered the client, null if registered anonymously
 		UserId *string `json:"user_id,omitempty"`
@@ -30915,6 +32437,77 @@ func (r GetApiAuthOauth2UserinfoResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetApiAuthOauth2UserinfoResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiAuthOauth2UserinfoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		// Email User's email address, included if 'email' scope is granted
+		Email *openapi_types.Email `json:"email,omitempty"`
+
+		// EmailVerified Whether the email is verified, included if 'email' scope is granted
+		EmailVerified *bool `json:"email_verified,omitempty"`
+
+		// FamilyName User's family name, included if 'profile' scope is granted
+		FamilyName *string `json:"family_name,omitempty"`
+
+		// GivenName User's given name, included if 'profile' scope is granted
+		GivenName *string `json:"given_name,omitempty"`
+
+		// Name User's full name, included if 'profile' scope is granted
+		Name *string `json:"name,omitempty"`
+
+		// Picture User's profile picture URL, included if 'profile' scope is granted
+		Picture *string `json:"picture,omitempty"`
+
+		// Sub Subject identifier (user ID)
+		Sub string `json:"sub"`
+	}
+	JSON400 *struct {
+		Message string `json:"message"`
+	}
+	JSON401 *struct {
+		Error            string  `json:"error"`
+		ErrorDescription *string `json:"error_description,omitempty"`
+	}
+	JSON403 *struct {
+		Error            string  `json:"error"`
+		ErrorDescription *string `json:"error_description,omitempty"`
+	}
+	JSON404 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON429 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON500 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiAuthOauth2UserinfoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiAuthOauth2UserinfoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiAuthOauth2UserinfoResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -31313,7 +32906,7 @@ func (r GetApiAuthOrganizationGetActiveMemberRoleResponse) ContentType() string 
 	return ""
 }
 
-type GetOrganizationResponse struct {
+type GetFullOrganizationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Organization
@@ -31338,7 +32931,7 @@ type GetOrganizationResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetOrganizationResponse) Status() string {
+func (r GetFullOrganizationResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -31346,7 +32939,7 @@ func (r GetOrganizationResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetOrganizationResponse) StatusCode() int {
+func (r GetFullOrganizationResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -31354,7 +32947,7 @@ func (r GetOrganizationResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetOrganizationResponse) ContentType() string {
+func (r GetFullOrganizationResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -31414,6 +33007,54 @@ func (r GetApiAuthOrganizationGetInvitationResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetApiAuthOrganizationGetInvitationResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetOrganizationResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Organization
+	JSON400      *struct {
+		Message string `json:"message"`
+	}
+	JSON401 *struct {
+		Message string `json:"message"`
+	}
+	JSON403 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON404 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON429 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON500 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetOrganizationResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetOrganizationResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetOrganizationResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -32500,57 +34141,6 @@ func (r SignInEmailResponse) ContentType() string {
 	return ""
 }
 
-type PostApiAuthSignInOauth2Response struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Redirect *bool   `json:"redirect,omitempty"`
-		Url      *string `json:"url,omitempty"`
-	}
-	JSON400 *struct {
-		Message string `json:"message"`
-	}
-	JSON401 *struct {
-		Message string `json:"message"`
-	}
-	JSON403 *struct {
-		Message *string `json:"message,omitempty"`
-	}
-	JSON404 *struct {
-		Message *string `json:"message,omitempty"`
-	}
-	JSON429 *struct {
-		Message *string `json:"message,omitempty"`
-	}
-	JSON500 *struct {
-		Message *string `json:"message,omitempty"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiAuthSignInOauth2Response) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiAuthSignInOauth2Response) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r PostApiAuthSignInOauth2Response) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type SocialSignInResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -32785,6 +34375,56 @@ func (r SignUpWithEmailAndPasswordResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SignUpWithEmailAndPasswordResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetJSONWebTokenResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Token *string `json:"token,omitempty"`
+	}
+	JSON400 *struct {
+		Message string `json:"message"`
+	}
+	JSON401 *struct {
+		Message string `json:"message"`
+	}
+	JSON403 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON404 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON429 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON500 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetJSONWebTokenResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetJSONWebTokenResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetJSONWebTokenResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -34170,6 +35810,41 @@ func (r MarkNotificationReadResponse) ContentType() string {
 	return ""
 }
 
+type ListOAuthResourceScopesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Scopes []struct {
+			Description string `json:"description"`
+			Value       string `json:"value"`
+		} `json:"scopes"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOAuthResourceScopesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOAuthResourceScopesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListOAuthResourceScopesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListObjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -34228,6 +35903,8 @@ type CreateObjectResponse struct {
 			Parts     []struct {
 				ExpiresAt  string            `json:"expiresAt"`
 				Headers    map[string]string `json:"headers"`
+				Length     int               `json:"length"`
+				Offset     int               `json:"offset"`
 				PartNumber int               `json:"partNumber"`
 				Url        string            `json:"url"`
 			} `json:"parts"`
@@ -34236,6 +35913,34 @@ type CreateObjectResponse struct {
 			SessionId          string            `json:"sessionId"`
 			UploadId           *string           `json:"uploadId"`
 			Urls               []string          `json:"urls"`
+			Workflow           struct {
+				Abort struct {
+					Method      CreateObject201JSONResponseBodyUploadWorkflowAbortMethod      `json:"method"`
+					OperationId CreateObject201JSONResponseBodyUploadWorkflowAbortOperationId `json:"operationId"`
+					Path        string                                                        `json:"path"`
+				} `json:"abort"`
+				Complete struct {
+					Method         CreateObject201JSONResponseBodyUploadWorkflowCompleteMethod         `json:"method"`
+					OperationId    CreateObject201JSONResponseBodyUploadWorkflowCompleteOperationId    `json:"operationId"`
+					PartsBodyField CreateObject201JSONResponseBodyUploadWorkflowCompletePartsBodyField `json:"partsBodyField"`
+					Path           string                                                              `json:"path"`
+				} `json:"complete"`
+				RePresign struct {
+					Method               CreateObject201JSONResponseBodyUploadWorkflowRePresignMethod               `json:"method"`
+					OperationId          CreateObject201JSONResponseBodyUploadWorkflowRePresignOperationId          `json:"operationId"`
+					PartNumbersBodyField CreateObject201JSONResponseBodyUploadWorkflowRePresignPartNumbersBodyField `json:"partNumbersBodyField"`
+					Path                 string                                                                     `json:"path"`
+				} `json:"rePresign"`
+				Upload struct {
+					ContentLengthField CreateObject201JSONResponseBodyUploadWorkflowUploadContentLengthField `json:"contentLengthField"`
+					EtagHeader         CreateObject201JSONResponseBodyUploadWorkflowUploadEtagHeader         `json:"etagHeader"`
+					FileOffsetField    CreateObject201JSONResponseBodyUploadWorkflowUploadFileOffsetField    `json:"fileOffsetField"`
+					HeadersField       CreateObject201JSONResponseBodyUploadWorkflowUploadHeadersField       `json:"headersField"`
+					Method             CreateObject201JSONResponseBodyUploadWorkflowUploadMethod             `json:"method"`
+					UrlField           CreateObject201JSONResponseBodyUploadWorkflowUploadUrlField           `json:"urlField"`
+				} `json:"upload"`
+				Version CreateObject201JSONResponseBodyUploadWorkflowVersion `json:"version"`
+			} `json:"workflow"`
 		} `json:"upload,omitempty"`
 	}
 	JSON400 *Error
@@ -34525,6 +36230,8 @@ type PresignObjectUploadPartsResponse struct {
 		Parts     []struct {
 			ExpiresAt  string            `json:"expiresAt"`
 			Headers    map[string]string `json:"headers"`
+			Length     int               `json:"length"`
+			Offset     int               `json:"offset"`
 			PartNumber int               `json:"partNumber"`
 			Url        string            `json:"url"`
 		} `json:"parts"`
@@ -37890,175 +39597,6 @@ func (r GetUserProfileResponse) ContentType() string {
 	return ""
 }
 
-type ListWorkspaceAgentApiKeysResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Items []struct {
-			CreatedAt     string                                                    `json:"createdAt"`
-			ExpiresAt     string                                                    `json:"expiresAt"`
-			Id            string                                                    `json:"id"`
-			LastUsedAt    *string                                                   `json:"lastUsedAt"`
-			Name          string                                                    `json:"name"`
-			OrgId         string                                                    `json:"orgId"`
-			Scopes        []ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes `json:"scopes"`
-			Status        ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus   `json:"status"`
-			WorkspaceName *string                                                   `json:"workspaceName"`
-		} `json:"items"`
-		Page     int `json:"page"`
-		PageSize int `json:"pageSize"`
-		Total    int `json:"total"`
-	}
-	JSON403 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r ListWorkspaceAgentApiKeysResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListWorkspaceAgentApiKeysResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListWorkspaceAgentApiKeysResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CreateWorkspaceAgentApiKeyResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *struct {
-		Item struct {
-			CreatedAt     string                                                    `json:"createdAt"`
-			ExpiresAt     string                                                    `json:"expiresAt"`
-			Id            string                                                    `json:"id"`
-			LastUsedAt    *string                                                   `json:"lastUsedAt"`
-			Name          string                                                    `json:"name"`
-			OrgId         string                                                    `json:"orgId"`
-			Scopes        []CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes `json:"scopes"`
-			Status        CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus   `json:"status"`
-			WorkspaceName *string                                                   `json:"workspaceName"`
-		} `json:"item"`
-		Key string `json:"key"`
-	}
-	JSON400 *Error
-	JSON403 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateWorkspaceAgentApiKeyResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateWorkspaceAgentApiKeyResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateWorkspaceAgentApiKeyResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type RevokeWorkspaceAgentApiKeyResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON403      *Error
-	JSON404      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r RevokeWorkspaceAgentApiKeyResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RevokeWorkspaceAgentApiKeyResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r RevokeWorkspaceAgentApiKeyResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type RotateWorkspaceAgentApiKeyResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *struct {
-		Item struct {
-			CreatedAt     string                                                    `json:"createdAt"`
-			ExpiresAt     string                                                    `json:"expiresAt"`
-			Id            string                                                    `json:"id"`
-			LastUsedAt    *string                                                   `json:"lastUsedAt"`
-			Name          string                                                    `json:"name"`
-			OrgId         string                                                    `json:"orgId"`
-			Scopes        []RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes `json:"scopes"`
-			Status        RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus   `json:"status"`
-			WorkspaceName *string                                                   `json:"workspaceName"`
-		} `json:"item"`
-		Key string `json:"key"`
-	}
-	JSON400 *Error
-	JSON403 *Error
-	JSON404 *Error
-	JSON409 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r RotateWorkspaceAgentApiKeyResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RotateWorkspaceAgentApiKeyResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r RotateWorkspaceAgentApiKeyResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 // GetAgentOAuthConsentContextWithResponse request returning *GetAgentOAuthConsentContextResponse
 func (c *ClientWithResponses) GetAgentOAuthConsentContextWithResponse(ctx context.Context, params *GetAgentOAuthConsentContextParams, reqEditors ...RequestEditorFn) (*GetAgentOAuthConsentContextResponse, error) {
 	rsp, err := c.GetAgentOAuthConsentContext(ctx, params, reqEditors...)
@@ -38644,6 +40182,15 @@ func (c *ClientWithResponses) PostApiAuthIsUsernameAvailableWithResponse(ctx con
 	return ParsePostApiAuthIsUsernameAvailableResponse(rsp)
 }
 
+// GetJSONWebKeySetWithResponse request returning *GetJSONWebKeySetResponse
+func (c *ClientWithResponses) GetJSONWebKeySetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetJSONWebKeySetResponse, error) {
+	rsp, err := c.GetJSONWebKeySet(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetJSONWebKeySetResponse(rsp)
+}
+
 // LinkSocialAccountWithBodyWithResponse request with arbitrary body returning *LinkSocialAccountResponse
 func (c *ClientWithResponses) LinkSocialAccountWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LinkSocialAccountResponse, error) {
 	rsp, err := c.LinkSocialAccountWithBody(ctx, contentType, body, reqEditors...)
@@ -38688,13 +40235,13 @@ func (c *ClientWithResponses) GetApiAuthOauth2AuthorizeWithResponse(ctx context.
 	return ParseGetApiAuthOauth2AuthorizeResponse(rsp)
 }
 
-// GetApiAuthOauth2CallbackProviderIdWithResponse request returning *GetApiAuthOauth2CallbackProviderIdResponse
-func (c *ClientWithResponses) GetApiAuthOauth2CallbackProviderIdWithResponse(ctx context.Context, providerId string, params *GetApiAuthOauth2CallbackProviderIdParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2CallbackProviderIdResponse, error) {
-	rsp, err := c.GetApiAuthOauth2CallbackProviderId(ctx, providerId, params, reqEditors...)
+// PostApiAuthOauth2AuthorizeWithResponse request returning *PostApiAuthOauth2AuthorizeResponse
+func (c *ClientWithResponses) PostApiAuthOauth2AuthorizeWithResponse(ctx context.Context, params *PostApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2AuthorizeResponse, error) {
+	rsp, err := c.PostApiAuthOauth2Authorize(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiAuthOauth2CallbackProviderIdResponse(rsp)
+	return ParsePostApiAuthOauth2AuthorizeResponse(rsp)
 }
 
 // PostApiAuthOauth2ClientRotateSecretWithBodyWithResponse request with arbitrary body returning *PostApiAuthOauth2ClientRotateSecretResponse
@@ -38861,23 +40408,6 @@ func (c *ClientWithResponses) PostApiAuthOauth2IntrospectWithResponse(ctx contex
 	return ParsePostApiAuthOauth2IntrospectResponse(rsp)
 }
 
-// PostApiAuthOauth2LinkWithBodyWithResponse request with arbitrary body returning *PostApiAuthOauth2LinkResponse
-func (c *ClientWithResponses) PostApiAuthOauth2LinkWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2LinkResponse, error) {
-	rsp, err := c.PostApiAuthOauth2LinkWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiAuthOauth2LinkResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostApiAuthOauth2LinkWithResponse(ctx context.Context, body PostApiAuthOauth2LinkJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2LinkResponse, error) {
-	rsp, err := c.PostApiAuthOauth2Link(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiAuthOauth2LinkResponse(rsp)
-}
-
 // GetApiAuthOauth2PublicClientWithResponse request returning *GetApiAuthOauth2PublicClientResponse
 func (c *ClientWithResponses) GetApiAuthOauth2PublicClientWithResponse(ctx context.Context, params *GetApiAuthOauth2PublicClientParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2PublicClientResponse, error) {
 	rsp, err := c.GetApiAuthOauth2PublicClient(ctx, params, reqEditors...)
@@ -38939,16 +40469,16 @@ func (c *ClientWithResponses) PostApiAuthOauth2RevokeWithResponse(ctx context.Co
 }
 
 // PostApiAuthOauth2TokenWithBodyWithResponse request with arbitrary body returning *PostApiAuthOauth2TokenResponse
-func (c *ClientWithResponses) PostApiAuthOauth2TokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2TokenResponse, error) {
-	rsp, err := c.PostApiAuthOauth2TokenWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PostApiAuthOauth2TokenWithBodyWithResponse(ctx context.Context, params *PostApiAuthOauth2TokenParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2TokenResponse, error) {
+	rsp, err := c.PostApiAuthOauth2TokenWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParsePostApiAuthOauth2TokenResponse(rsp)
 }
 
-func (c *ClientWithResponses) PostApiAuthOauth2TokenWithResponse(ctx context.Context, body PostApiAuthOauth2TokenJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2TokenResponse, error) {
-	rsp, err := c.PostApiAuthOauth2Token(ctx, body, reqEditors...)
+func (c *ClientWithResponses) PostApiAuthOauth2TokenWithResponse(ctx context.Context, params *PostApiAuthOauth2TokenParams, body PostApiAuthOauth2TokenJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2TokenResponse, error) {
+	rsp, err := c.PostApiAuthOauth2Token(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -38996,6 +40526,23 @@ func (c *ClientWithResponses) GetApiAuthOauth2UserinfoWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseGetApiAuthOauth2UserinfoResponse(rsp)
+}
+
+// PostApiAuthOauth2UserinfoWithBodyWithResponse request with arbitrary body returning *PostApiAuthOauth2UserinfoResponse
+func (c *ClientWithResponses) PostApiAuthOauth2UserinfoWithBodyWithResponse(ctx context.Context, params *PostApiAuthOauth2UserinfoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2UserinfoResponse, error) {
+	rsp, err := c.PostApiAuthOauth2UserinfoWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiAuthOauth2UserinfoResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostApiAuthOauth2UserinfoWithResponse(ctx context.Context, params *PostApiAuthOauth2UserinfoParams, body PostApiAuthOauth2UserinfoJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2UserinfoResponse, error) {
+	rsp, err := c.PostApiAuthOauth2Userinfo(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiAuthOauth2UserinfoResponse(rsp)
 }
 
 // GetApiAuthOkWithResponse request returning *GetApiAuthOkResponse
@@ -39110,13 +40657,13 @@ func (c *ClientWithResponses) GetApiAuthOrganizationGetActiveMemberRoleWithRespo
 	return ParseGetApiAuthOrganizationGetActiveMemberRoleResponse(rsp)
 }
 
-// GetOrganizationWithResponse request returning *GetOrganizationResponse
-func (c *ClientWithResponses) GetOrganizationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOrganizationResponse, error) {
-	rsp, err := c.GetOrganization(ctx, reqEditors...)
+// GetFullOrganizationWithResponse request returning *GetFullOrganizationResponse
+func (c *ClientWithResponses) GetFullOrganizationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetFullOrganizationResponse, error) {
+	rsp, err := c.GetFullOrganization(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetOrganizationResponse(rsp)
+	return ParseGetFullOrganizationResponse(rsp)
 }
 
 // GetApiAuthOrganizationGetInvitationWithResponse request returning *GetApiAuthOrganizationGetInvitationResponse
@@ -39126,6 +40673,15 @@ func (c *ClientWithResponses) GetApiAuthOrganizationGetInvitationWithResponse(ct
 		return nil, err
 	}
 	return ParseGetApiAuthOrganizationGetInvitationResponse(rsp)
+}
+
+// GetOrganizationWithResponse request returning *GetOrganizationResponse
+func (c *ClientWithResponses) GetOrganizationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOrganizationResponse, error) {
+	rsp, err := c.GetOrganization(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetOrganizationResponse(rsp)
 }
 
 // PostApiAuthOrganizationHasPermissionWithBodyWithResponse request with arbitrary body returning *PostApiAuthOrganizationHasPermissionResponse
@@ -39445,23 +41001,6 @@ func (c *ClientWithResponses) SignInEmailWithResponse(ctx context.Context, body 
 	return ParseSignInEmailResponse(rsp)
 }
 
-// PostApiAuthSignInOauth2WithBodyWithResponse request with arbitrary body returning *PostApiAuthSignInOauth2Response
-func (c *ClientWithResponses) PostApiAuthSignInOauth2WithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthSignInOauth2Response, error) {
-	rsp, err := c.PostApiAuthSignInOauth2WithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiAuthSignInOauth2Response(rsp)
-}
-
-func (c *ClientWithResponses) PostApiAuthSignInOauth2WithResponse(ctx context.Context, body PostApiAuthSignInOauth2JSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthSignInOauth2Response, error) {
-	rsp, err := c.PostApiAuthSignInOauth2(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiAuthSignInOauth2Response(rsp)
-}
-
 // SocialSignInWithBodyWithResponse request with arbitrary body returning *SocialSignInResponse
 func (c *ClientWithResponses) SocialSignInWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SocialSignInResponse, error) {
 	rsp, err := c.SocialSignInWithBody(ctx, contentType, body, reqEditors...)
@@ -39528,6 +41067,15 @@ func (c *ClientWithResponses) SignUpWithEmailAndPasswordWithResponse(ctx context
 		return nil, err
 	}
 	return ParseSignUpWithEmailAndPasswordResponse(rsp)
+}
+
+// GetJSONWebTokenWithResponse request returning *GetJSONWebTokenResponse
+func (c *ClientWithResponses) GetJSONWebTokenWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetJSONWebTokenResponse, error) {
+	rsp, err := c.GetJSONWebToken(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetJSONWebTokenResponse(rsp)
 }
 
 // PostApiAuthUnlinkAccountWithBodyWithResponse request with arbitrary body returning *PostApiAuthUnlinkAccountResponse
@@ -40016,6 +41564,15 @@ func (c *ClientWithResponses) MarkNotificationReadWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseMarkNotificationReadResponse(rsp)
+}
+
+// ListOAuthResourceScopesWithResponse request returning *ListOAuthResourceScopesResponse
+func (c *ClientWithResponses) ListOAuthResourceScopesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListOAuthResourceScopesResponse, error) {
+	rsp, err := c.ListOAuthResourceScopes(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOAuthResourceScopesResponse(rsp)
 }
 
 // ListObjectsWithResponse request returning *ListObjectsResponse
@@ -41373,58 +42930,6 @@ func (c *ClientWithResponses) GetUserProfileWithResponse(ctx context.Context, us
 	return ParseGetUserProfileResponse(rsp)
 }
 
-// ListWorkspaceAgentApiKeysWithResponse request returning *ListWorkspaceAgentApiKeysResponse
-func (c *ClientWithResponses) ListWorkspaceAgentApiKeysWithResponse(ctx context.Context, orgId string, params *ListWorkspaceAgentApiKeysParams, reqEditors ...RequestEditorFn) (*ListWorkspaceAgentApiKeysResponse, error) {
-	rsp, err := c.ListWorkspaceAgentApiKeys(ctx, orgId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListWorkspaceAgentApiKeysResponse(rsp)
-}
-
-// CreateWorkspaceAgentApiKeyWithBodyWithResponse request with arbitrary body returning *CreateWorkspaceAgentApiKeyResponse
-func (c *ClientWithResponses) CreateWorkspaceAgentApiKeyWithBodyWithResponse(ctx context.Context, orgId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkspaceAgentApiKeyResponse, error) {
-	rsp, err := c.CreateWorkspaceAgentApiKeyWithBody(ctx, orgId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateWorkspaceAgentApiKeyResponse(rsp)
-}
-
-func (c *ClientWithResponses) CreateWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, body CreateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkspaceAgentApiKeyResponse, error) {
-	rsp, err := c.CreateWorkspaceAgentApiKey(ctx, orgId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateWorkspaceAgentApiKeyResponse(rsp)
-}
-
-// RevokeWorkspaceAgentApiKeyWithResponse request returning *RevokeWorkspaceAgentApiKeyResponse
-func (c *ClientWithResponses) RevokeWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, keyId string, reqEditors ...RequestEditorFn) (*RevokeWorkspaceAgentApiKeyResponse, error) {
-	rsp, err := c.RevokeWorkspaceAgentApiKey(ctx, orgId, keyId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRevokeWorkspaceAgentApiKeyResponse(rsp)
-}
-
-// RotateWorkspaceAgentApiKeyWithBodyWithResponse request with arbitrary body returning *RotateWorkspaceAgentApiKeyResponse
-func (c *ClientWithResponses) RotateWorkspaceAgentApiKeyWithBodyWithResponse(ctx context.Context, orgId string, keyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateWorkspaceAgentApiKeyResponse, error) {
-	rsp, err := c.RotateWorkspaceAgentApiKeyWithBody(ctx, orgId, keyId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRotateWorkspaceAgentApiKeyResponse(rsp)
-}
-
-func (c *ClientWithResponses) RotateWorkspaceAgentApiKeyWithResponse(ctx context.Context, orgId string, keyId string, body RotateWorkspaceAgentApiKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateWorkspaceAgentApiKeyResponse, error) {
-	rsp, err := c.RotateWorkspaceAgentApiKey(ctx, orgId, keyId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRotateWorkspaceAgentApiKeyResponse(rsp)
-}
-
 // ParseGetAgentOAuthConsentContextResponse parses an HTTP response from a GetAgentOAuthConsentContextWithResponse call
 func ParseGetAgentOAuthConsentContextResponse(rsp *http.Response) (*GetAgentOAuthConsentContextResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -41540,7 +43045,7 @@ func ParseListAgentOAuthGrantsResponse(rsp *http.Response) (*ListAgentOAuthGrant
 		var dest struct {
 			Items []struct {
 				ClientId      string                                               `json:"clientId"`
-				ClientName    *string                                              `json:"clientName,omitempty"`
+				ClientName    string                                               `json:"clientName"`
 				CreatedAt     string                                               `json:"createdAt"`
 				Id            string                                               `json:"id"`
 				LastUsedAt    *string                                              `json:"lastUsedAt"`
@@ -41603,11 +43108,16 @@ func ParseGetApiAuthAccountInfoResponse(rsp *http.Response) (*GetApiAuthAccountI
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
+			Account struct {
+				Id                string `json:"id"`
+				Issuer            string `json:"issuer"`
+				ProviderAccountId string `json:"providerAccountId"`
+				ProviderId        string `json:"providerId"`
+			} `json:"account"`
 			Data map[string]interface{} `json:"data"`
 			User struct {
 				Email         *string `json:"email,omitempty"`
 				EmailVerified bool    `json:"emailVerified"`
-				Id            string  `json:"id"`
 				Image         *string `json:"image,omitempty"`
 				Name          *string `json:"name,omitempty"`
 			} `json:"user"`
@@ -44892,6 +46402,116 @@ func ParsePostApiAuthIsUsernameAvailableResponse(rsp *http.Response) (*PostApiAu
 	return response, nil
 }
 
+// ParseGetJSONWebKeySetResponse parses an HTTP response from a GetJSONWebKeySetWithResponse call
+func ParseGetJSONWebKeySetResponse(rsp *http.Response) (*GetJSONWebKeySetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetJSONWebKeySetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			// Keys Array of public JSON Web Keys
+			Keys []struct {
+				// Alg Algorithm intended for use with the key (e.g., 'EdDSA', 'RS256')
+				Alg string `json:"alg"`
+
+				// Crv Curve name for elliptic curve keys (e.g., 'Ed25519', 'P-256')
+				Crv *string `json:"crv,omitempty"`
+
+				// E Exponent for RSA keys (base64url-encoded)
+				E *string `json:"e,omitempty"`
+
+				// Kid Key ID uniquely identifying the key, corresponds to the 'id' from the stored Jwk
+				Kid string `json:"kid"`
+
+				// Kty Key type (e.g., 'RSA', 'EC', 'OKP')
+				Kty string `json:"kty"`
+
+				// N Modulus for RSA keys (base64url-encoded)
+				N *string `json:"n,omitempty"`
+
+				// Use Intended use of the public key (e.g., 'sig' for signature)
+				Use *GetJSONWebKeySet200JSONResponseBodyKeysUse `json:"use,omitempty"`
+
+				// X X coordinate for elliptic curve keys (base64url-encoded)
+				X *string `json:"x,omitempty"`
+
+				// Y Y coordinate for elliptic curve keys (base64url-encoded)
+				Y *string `json:"y,omitempty"`
+			} `json:"keys"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseLinkSocialAccountResponse parses an HTTP response from a LinkSocialAccountWithResponse call
 func ParseLinkSocialAccountResponse(rsp *http.Response) (*LinkSocialAccountResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -44995,13 +46615,14 @@ func ParseListUserAccountsResponse(rsp *http.Response) (*ListUserAccountsRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest []struct {
-			AccountId  string    `json:"accountId"`
-			CreatedAt  time.Time `json:"createdAt"`
-			Id         string    `json:"id"`
-			ProviderId string    `json:"providerId"`
-			Scopes     []string  `json:"scopes"`
-			UpdatedAt  time.Time `json:"updatedAt"`
-			UserId     string    `json:"userId"`
+			CreatedAt         time.Time `json:"createdAt"`
+			Id                string    `json:"id"`
+			Issuer            string    `json:"issuer"`
+			ProviderAccountId string    `json:"providerAccountId"`
+			ProviderId        string    `json:"providerId"`
+			Scopes            []string  `json:"scopes"`
+			UpdatedAt         time.Time `json:"updatedAt"`
+			UserId            string    `json:"userId"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -45222,32 +46843,25 @@ func ParseGetApiAuthOauth2AuthorizeResponse(rsp *http.Response) (*GetApiAuthOaut
 	return response, nil
 }
 
-// ParseGetApiAuthOauth2CallbackProviderIdResponse parses an HTTP response from a GetApiAuthOauth2CallbackProviderIdWithResponse call
-func ParseGetApiAuthOauth2CallbackProviderIdResponse(rsp *http.Response) (*GetApiAuthOauth2CallbackProviderIdResponse, error) {
+// ParsePostApiAuthOauth2AuthorizeResponse parses an HTTP response from a PostApiAuthOauth2AuthorizeWithResponse call
+func ParsePostApiAuthOauth2AuthorizeResponse(rsp *http.Response) (*PostApiAuthOauth2AuthorizeResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiAuthOauth2CallbackProviderIdResponse{
+	response := &PostApiAuthOauth2AuthorizeResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Url *string `json:"url,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest struct {
-			Message string `json:"message"`
+			Error            string  `json:"error"`
+			ErrorDescription *string `json:"error_description,omitempty"`
+			State            *string `json:"state,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -45557,7 +47171,7 @@ func ParsePostApiAuthOauth2CreateClientResponse(rsp *http.Response) (*PostApiAut
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest struct {
 			// ClientId Unique identifier for the client
 			ClientId string `json:"client_id"`
@@ -45583,8 +47197,8 @@ func ParsePostApiAuthOauth2CreateClientResponse(rsp *http.Response) (*PostApiAut
 			// Disabled Whether the client is disabled
 			Disabled *bool `json:"disabled,omitempty"`
 
-			// GrantTypes Requested authentication method for the token endpoint
-			GrantTypes *[]PostApiAuthOauth2CreateClient200JSONResponseBodyGrantTypes `json:"grant_types,omitempty"`
+			// GrantTypes Grant types the client may use at the token endpoint
+			GrantTypes *[]string `json:"grant_types,omitempty"`
 
 			// LogoUri Icon URI for the application
 			LogoUri *string `json:"logo_uri,omitempty"`
@@ -45601,8 +47215,8 @@ func ParsePostApiAuthOauth2CreateClientResponse(rsp *http.Response) (*PostApiAut
 			// RedirectUris List of allowed redirect uris
 			RedirectUris *[]string `json:"redirect_uris,omitempty"`
 
-			// ResponseTypes Requested authentication method for the token endpoint
-			ResponseTypes *[]PostApiAuthOauth2CreateClient200JSONResponseBodyResponseTypes `json:"response_types,omitempty"`
+			// ResponseTypes Response types the client may use at the authorization endpoint
+			ResponseTypes *[]PostApiAuthOauth2CreateClient201JSONResponseBodyResponseTypes `json:"response_types,omitempty"`
 
 			// Scope Space-separated scopes allowed by the client
 			Scope *string `json:"scope,omitempty"`
@@ -45616,14 +47230,14 @@ func ParsePostApiAuthOauth2CreateClientResponse(rsp *http.Response) (*PostApiAut
 			// SoftwareVersion Version identifier for the software_id
 			SoftwareVersion *string `json:"software_version,omitempty"`
 
-			// TokenEndpointAuthMethod Response types the client may use
-			TokenEndpointAuthMethod *PostApiAuthOauth2CreateClient200JSONResponseBodyTokenEndpointAuthMethod `json:"token_endpoint_auth_method,omitempty"`
+			// TokenEndpointAuthMethod Requested authentication method for the token endpoint
+			TokenEndpointAuthMethod *string `json:"token_endpoint_auth_method,omitempty"`
 
 			// TosUri Client's terms of service uri
 			TosUri *string `json:"tos_uri,omitempty"`
 
 			// Type Type of the client
-			Type *PostApiAuthOauth2CreateClient200JSONResponseBodyType `json:"type,omitempty"`
+			Type *PostApiAuthOauth2CreateClient201JSONResponseBodyType `json:"type,omitempty"`
 
 			// UserId ID of the user who registered the client, null if registered anonymously
 			UserId *string `json:"user_id,omitempty"`
@@ -45631,7 +47245,7 @@ func ParsePostApiAuthOauth2CreateClientResponse(rsp *http.Response) (*PostApiAut
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest struct {
@@ -46334,92 +47948,6 @@ func ParsePostApiAuthOauth2IntrospectResponse(rsp *http.Response) (*PostApiAuthO
 	return response, nil
 }
 
-// ParsePostApiAuthOauth2LinkResponse parses an HTTP response from a PostApiAuthOauth2LinkWithResponse call
-func ParsePostApiAuthOauth2LinkResponse(rsp *http.Response) (*PostApiAuthOauth2LinkResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiAuthOauth2LinkResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			// Redirect Indicates that the client should redirect to the provided URL
-			Redirect PostApiAuthOauth2Link200JSONResponseBodyRedirect `json:"redirect"`
-
-			// Url The authorization URL to redirect the user to for linking the OAuth2 account
-			Url string `json:"url"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest struct {
-			Message string `json:"message"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest struct {
-			Message string `json:"message"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest struct {
-			Message *string `json:"message,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest struct {
-			Message *string `json:"message,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest struct {
-			Message *string `json:"message,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON429 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest struct {
-			Message *string `json:"message,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseGetApiAuthOauth2PublicClientResponse parses an HTTP response from a GetApiAuthOauth2PublicClientWithResponse call
 func ParseGetApiAuthOauth2PublicClientResponse(rsp *http.Response) (*GetApiAuthOauth2PublicClientResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -46580,8 +48108,14 @@ func ParsePostApiAuthOauth2RegisterResponse(rsp *http.Response) (*PostApiAuthOau
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest struct {
+			// BackchannelLogoutSessionRequired Whether the RP requires a `sid` claim in every Logout Token
+			BackchannelLogoutSessionRequired *bool `json:"backchannel_logout_session_required,omitempty"`
+
+			// BackchannelLogoutUri RP URL to receive signed Logout Tokens when the end-user's OP session terminates
+			BackchannelLogoutUri *string `json:"backchannel_logout_uri,omitempty"`
+
 			// ClientId Unique identifier for the client
 			ClientId string `json:"client_id"`
 
@@ -46606,8 +48140,8 @@ func ParsePostApiAuthOauth2RegisterResponse(rsp *http.Response) (*PostApiAuthOau
 			// Disabled Whether the client is disabled
 			Disabled *bool `json:"disabled,omitempty"`
 
-			// GrantTypes Requested authentication method for the token endpoint
-			GrantTypes *[]PostApiAuthOauth2Register200JSONResponseBodyGrantTypes `json:"grant_types,omitempty"`
+			// GrantTypes Grant types the client may use at the token endpoint
+			GrantTypes *[]string `json:"grant_types,omitempty"`
 
 			// LogoUri Icon URL for the application
 			LogoUri *string `json:"logo_uri,omitempty"`
@@ -46624,8 +48158,8 @@ func ParsePostApiAuthOauth2RegisterResponse(rsp *http.Response) (*PostApiAuthOau
 			// RedirectUris List of allowed redirect uris
 			RedirectUris *[]string `json:"redirect_uris,omitempty"`
 
-			// ResponseTypes Requested authentication method for the token endpoint
-			ResponseTypes *[]PostApiAuthOauth2Register200JSONResponseBodyResponseTypes `json:"response_types,omitempty"`
+			// ResponseTypes Response types the client may use at the authorization endpoint
+			ResponseTypes *[]PostApiAuthOauth2Register201JSONResponseBodyResponseTypes `json:"response_types,omitempty"`
 
 			// Scope Space-separated scopes allowed by the client
 			Scope *string `json:"scope,omitempty"`
@@ -46640,13 +48174,13 @@ func ParsePostApiAuthOauth2RegisterResponse(rsp *http.Response) (*PostApiAuthOau
 			SoftwareVersion *string `json:"software_version,omitempty"`
 
 			// TokenEndpointAuthMethod Requested authentication method for the token endpoint
-			TokenEndpointAuthMethod *PostApiAuthOauth2Register200JSONResponseBodyTokenEndpointAuthMethod `json:"token_endpoint_auth_method,omitempty"`
+			TokenEndpointAuthMethod *string `json:"token_endpoint_auth_method,omitempty"`
 
 			// TosUri Client's terms of service uri
 			TosUri *string `json:"tos_uri,omitempty"`
 
 			// Type Type of the client
-			Type *PostApiAuthOauth2Register200JSONResponseBodyType `json:"type,omitempty"`
+			Type *PostApiAuthOauth2Register201JSONResponseBodyType `json:"type,omitempty"`
 
 			// UserId ID of the user who registered the client, null if registered anonymously
 			UserId *string `json:"user_id,omitempty"`
@@ -46654,7 +48188,7 @@ func ParsePostApiAuthOauth2RegisterResponse(rsp *http.Response) (*PostApiAuthOau
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest struct {
@@ -47052,6 +48586,109 @@ func ParseGetApiAuthOauth2UserinfoResponse(rsp *http.Response) (*GetApiAuthOauth
 	}
 
 	response := &GetApiAuthOauth2UserinfoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			// Email User's email address, included if 'email' scope is granted
+			Email *openapi_types.Email `json:"email,omitempty"`
+
+			// EmailVerified Whether the email is verified, included if 'email' scope is granted
+			EmailVerified *bool `json:"email_verified,omitempty"`
+
+			// FamilyName User's family name, included if 'profile' scope is granted
+			FamilyName *string `json:"family_name,omitempty"`
+
+			// GivenName User's given name, included if 'profile' scope is granted
+			GivenName *string `json:"given_name,omitempty"`
+
+			// Name User's full name, included if 'profile' scope is granted
+			Name *string `json:"name,omitempty"`
+
+			// Picture User's profile picture URL, included if 'profile' scope is granted
+			Picture *string `json:"picture,omitempty"`
+
+			// Sub Subject identifier (user ID)
+			Sub string `json:"sub"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			Error            string  `json:"error"`
+			ErrorDescription *string `json:"error_description,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Error            string  `json:"error"`
+			ErrorDescription *string `json:"error_description,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiAuthOauth2UserinfoResponse parses an HTTP response from a PostApiAuthOauth2UserinfoWithResponse call
+func ParsePostApiAuthOauth2UserinfoResponse(rsp *http.Response) (*PostApiAuthOauth2UserinfoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiAuthOauth2UserinfoResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -47776,15 +49413,15 @@ func ParseGetApiAuthOrganizationGetActiveMemberRoleResponse(rsp *http.Response) 
 	return response, nil
 }
 
-// ParseGetOrganizationResponse parses an HTTP response from a GetOrganizationWithResponse call
-func ParseGetOrganizationResponse(rsp *http.Response) (*GetOrganizationResponse, error) {
+// ParseGetFullOrganizationResponse parses an HTTP response from a GetFullOrganizationWithResponse call
+func ParseGetFullOrganizationResponse(rsp *http.Response) (*GetFullOrganizationResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetOrganizationResponse{
+	response := &GetFullOrganizationResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -47883,6 +49520,86 @@ func ParseGetApiAuthOrganizationGetInvitationResponse(rsp *http.Response) (*GetA
 			Role             string `json:"role"`
 			Status           string `json:"status"`
 		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetOrganizationResponse parses an HTTP response from a GetOrganizationWithResponse call
+func ParseGetOrganizationResponse(rsp *http.Response) (*GetOrganizationResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetOrganizationResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Organization
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -49675,89 +51392,6 @@ func ParseSignInEmailResponse(rsp *http.Response) (*SignInEmailResponse, error) 
 	return response, nil
 }
 
-// ParsePostApiAuthSignInOauth2Response parses an HTTP response from a PostApiAuthSignInOauth2WithResponse call
-func ParsePostApiAuthSignInOauth2Response(rsp *http.Response) (*PostApiAuthSignInOauth2Response, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiAuthSignInOauth2Response{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Redirect *bool   `json:"redirect,omitempty"`
-			Url      *string `json:"url,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest struct {
-			Message string `json:"message"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest struct {
-			Message string `json:"message"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest struct {
-			Message *string `json:"message,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest struct {
-			Message *string `json:"message,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest struct {
-			Message *string `json:"message,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON429 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest struct {
-			Message *string `json:"message,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseSocialSignInResponse parses an HTTP response from a SocialSignInWithResponse call
 func ParseSocialSignInResponse(rsp *http.Response) (*SocialSignInResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -50114,6 +51748,88 @@ func ParseSignUpWithEmailAndPasswordResponse(rsp *http.Response) (*SignUpWithEma
 			return nil, err
 		}
 		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetJSONWebTokenResponse parses an HTTP response from a GetJSONWebTokenWithResponse call
+func ParseGetJSONWebTokenResponse(rsp *http.Response) (*GetJSONWebTokenResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetJSONWebTokenResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Token *string `json:"token,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest struct {
@@ -51945,6 +53661,37 @@ func ParseMarkNotificationReadResponse(rsp *http.Response) (*MarkNotificationRea
 	return response, nil
 }
 
+// ParseListOAuthResourceScopesResponse parses an HTTP response from a ListOAuthResourceScopesWithResponse call
+func ParseListOAuthResourceScopesResponse(rsp *http.Response) (*ListOAuthResourceScopesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOAuthResourceScopesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Scopes []struct {
+				Description string `json:"description"`
+				Value       string `json:"value"`
+			} `json:"scopes"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListObjectsResponse parses an HTTP response from a ListObjectsWithResponse call
 func ParseListObjectsResponse(rsp *http.Response) (*ListObjectsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -52023,6 +53770,8 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 				Parts     []struct {
 					ExpiresAt  string            `json:"expiresAt"`
 					Headers    map[string]string `json:"headers"`
+					Length     int               `json:"length"`
+					Offset     int               `json:"offset"`
 					PartNumber int               `json:"partNumber"`
 					Url        string            `json:"url"`
 				} `json:"parts"`
@@ -52031,6 +53780,34 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 				SessionId          string            `json:"sessionId"`
 				UploadId           *string           `json:"uploadId"`
 				Urls               []string          `json:"urls"`
+				Workflow           struct {
+					Abort struct {
+						Method      CreateObject201JSONResponseBodyUploadWorkflowAbortMethod      `json:"method"`
+						OperationId CreateObject201JSONResponseBodyUploadWorkflowAbortOperationId `json:"operationId"`
+						Path        string                                                        `json:"path"`
+					} `json:"abort"`
+					Complete struct {
+						Method         CreateObject201JSONResponseBodyUploadWorkflowCompleteMethod         `json:"method"`
+						OperationId    CreateObject201JSONResponseBodyUploadWorkflowCompleteOperationId    `json:"operationId"`
+						PartsBodyField CreateObject201JSONResponseBodyUploadWorkflowCompletePartsBodyField `json:"partsBodyField"`
+						Path           string                                                              `json:"path"`
+					} `json:"complete"`
+					RePresign struct {
+						Method               CreateObject201JSONResponseBodyUploadWorkflowRePresignMethod               `json:"method"`
+						OperationId          CreateObject201JSONResponseBodyUploadWorkflowRePresignOperationId          `json:"operationId"`
+						PartNumbersBodyField CreateObject201JSONResponseBodyUploadWorkflowRePresignPartNumbersBodyField `json:"partNumbersBodyField"`
+						Path                 string                                                                     `json:"path"`
+					} `json:"rePresign"`
+					Upload struct {
+						ContentLengthField CreateObject201JSONResponseBodyUploadWorkflowUploadContentLengthField `json:"contentLengthField"`
+						EtagHeader         CreateObject201JSONResponseBodyUploadWorkflowUploadEtagHeader         `json:"etagHeader"`
+						FileOffsetField    CreateObject201JSONResponseBodyUploadWorkflowUploadFileOffsetField    `json:"fileOffsetField"`
+						HeadersField       CreateObject201JSONResponseBodyUploadWorkflowUploadHeadersField       `json:"headersField"`
+						Method             CreateObject201JSONResponseBodyUploadWorkflowUploadMethod             `json:"method"`
+						UrlField           CreateObject201JSONResponseBodyUploadWorkflowUploadUrlField           `json:"urlField"`
+					} `json:"upload"`
+					Version CreateObject201JSONResponseBodyUploadWorkflowVersion `json:"version"`
+				} `json:"workflow"`
 			} `json:"upload,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -52438,6 +54215,8 @@ func ParsePresignObjectUploadPartsResponse(rsp *http.Response) (*PresignObjectUp
 			Parts     []struct {
 				ExpiresAt  string            `json:"expiresAt"`
 				Headers    map[string]string `json:"headers"`
+				Length     int               `json:"length"`
+				Offset     int               `json:"offset"`
 				PartNumber int               `json:"partNumber"`
 				Url        string            `json:"url"`
 			} `json:"parts"`
@@ -56210,207 +57989,6 @@ func ParseGetUserProfileResponse(rsp *http.Response) (*GetUserProfileResponse, e
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListWorkspaceAgentApiKeysResponse parses an HTTP response from a ListWorkspaceAgentApiKeysWithResponse call
-func ParseListWorkspaceAgentApiKeysResponse(rsp *http.Response) (*ListWorkspaceAgentApiKeysResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListWorkspaceAgentApiKeysResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Items []struct {
-				CreatedAt     string                                                    `json:"createdAt"`
-				ExpiresAt     string                                                    `json:"expiresAt"`
-				Id            string                                                    `json:"id"`
-				LastUsedAt    *string                                                   `json:"lastUsedAt"`
-				Name          string                                                    `json:"name"`
-				OrgId         string                                                    `json:"orgId"`
-				Scopes        []ListWorkspaceAgentApiKeys200JSONResponseBodyItemsScopes `json:"scopes"`
-				Status        ListWorkspaceAgentApiKeys200JSONResponseBodyItemsStatus   `json:"status"`
-				WorkspaceName *string                                                   `json:"workspaceName"`
-			} `json:"items"`
-			Page     int `json:"page"`
-			PageSize int `json:"pageSize"`
-			Total    int `json:"total"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateWorkspaceAgentApiKeyResponse parses an HTTP response from a CreateWorkspaceAgentApiKeyWithResponse call
-func ParseCreateWorkspaceAgentApiKeyResponse(rsp *http.Response) (*CreateWorkspaceAgentApiKeyResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateWorkspaceAgentApiKeyResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest struct {
-			Item struct {
-				CreatedAt     string                                                    `json:"createdAt"`
-				ExpiresAt     string                                                    `json:"expiresAt"`
-				Id            string                                                    `json:"id"`
-				LastUsedAt    *string                                                   `json:"lastUsedAt"`
-				Name          string                                                    `json:"name"`
-				OrgId         string                                                    `json:"orgId"`
-				Scopes        []CreateWorkspaceAgentApiKey201JSONResponseBodyItemScopes `json:"scopes"`
-				Status        CreateWorkspaceAgentApiKey201JSONResponseBodyItemStatus   `json:"status"`
-				WorkspaceName *string                                                   `json:"workspaceName"`
-			} `json:"item"`
-			Key string `json:"key"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRevokeWorkspaceAgentApiKeyResponse parses an HTTP response from a RevokeWorkspaceAgentApiKeyWithResponse call
-func ParseRevokeWorkspaceAgentApiKeyResponse(rsp *http.Response) (*RevokeWorkspaceAgentApiKeyResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RevokeWorkspaceAgentApiKeyResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRotateWorkspaceAgentApiKeyResponse parses an HTTP response from a RotateWorkspaceAgentApiKeyWithResponse call
-func ParseRotateWorkspaceAgentApiKeyResponse(rsp *http.Response) (*RotateWorkspaceAgentApiKeyResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RotateWorkspaceAgentApiKeyResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest struct {
-			Item struct {
-				CreatedAt     string                                                    `json:"createdAt"`
-				ExpiresAt     string                                                    `json:"expiresAt"`
-				Id            string                                                    `json:"id"`
-				LastUsedAt    *string                                                   `json:"lastUsedAt"`
-				Name          string                                                    `json:"name"`
-				OrgId         string                                                    `json:"orgId"`
-				Scopes        []RotateWorkspaceAgentApiKey201JSONResponseBodyItemScopes `json:"scopes"`
-				Status        RotateWorkspaceAgentApiKey201JSONResponseBodyItemStatus   `json:"status"`
-				WorkspaceName *string                                                   `json:"workspaceName"`
-			} `json:"item"`
-			Key string `json:"key"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
 
 	}
 

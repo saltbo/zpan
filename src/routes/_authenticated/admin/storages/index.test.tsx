@@ -117,8 +117,38 @@ const uploadDraft: CreateObjectResult = {
         url: 'https://uploads.example.com/object-1',
         expiresAt: '2026-01-01T00:15:00.000Z',
         headers: { 'content-type': 'text/plain' },
+        offset: 0,
+        length: 5,
       },
     ],
+    workflow: {
+      version: '1',
+      upload: {
+        method: 'PUT',
+        urlField: 'parts[].url',
+        headersField: 'parts[].headers',
+        fileOffsetField: 'parts[].offset',
+        contentLengthField: 'parts[].length',
+        etagHeader: 'ETag',
+      },
+      complete: {
+        operationId: 'completeObjectUpload',
+        method: 'POST',
+        path: '/api/objects/object-1/upload/completions',
+        partsBodyField: 'parts',
+      },
+      rePresign: {
+        operationId: 'presignObjectUploadParts',
+        method: 'POST',
+        path: '/api/objects/object-1/upload/parts',
+        partNumbersBodyField: 'partNumbers',
+      },
+      abort: {
+        operationId: 'abortObjectUpload',
+        method: 'DELETE',
+        path: '/api/objects/object-1/upload',
+      },
+    },
   },
 }
 

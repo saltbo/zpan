@@ -575,6 +575,27 @@
       "when": 1785351402721,
       "tag": "0082_agent_oauth_consent_last_used_at",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "6",
+      "when": 1785388050472,
+      "tag": "0083_external-resource-oauth",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "6",
+      "when": 1785388374965,
+      "tag": "0084_better-auth-account-issuer",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "6",
+      "when": 1785388778835,
+      "tag": "0085_oauth-jwt-revocation",
+      "breakpoints": true
     }
   ]
 }

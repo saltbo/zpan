@@ -9,6 +9,7 @@ import {
   bearer,
   captcha,
   deviceAuthorization,
+  jwt,
   lastLoginMethod,
   openAPI,
   organization,
@@ -18,6 +19,7 @@ import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
 import { customAlphabet, nanoid } from 'nanoid'
+import { AGENT_OAUTH_SCOPES, JWT_BEARER_GRANT_TYPE, TOKEN_EXCHANGE_GRANT_TYPE } from '../shared/agent-oauth'
 import {
   API_KEY_TEMPLATES,
   ApiKeyTemplate,
@@ -39,7 +41,6 @@ import {
 } from '../shared/oauth-providers'
 import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
 import { createEmailGateway } from './adapters/gateways/email'
-import { createAgentOAuthGateway } from './adapters/repos/agent-oauth'
 import { deleteApiKeysScopedToOrganization } from './adapters/repos/api-key-scopes'
 import { createAuditRepo } from './adapters/repos/audit'
 import { createDownloadTokenGateway } from './adapters/repos/download-tokens'
@@ -90,6 +91,49 @@ async function authVerifyPassword({ hash, password }: { hash: string; password: 
 interface ProviderConfigs {
   oidc: OAuthProviderConfig[]
   builtin: Array<{ providerId: string; clientId: string; clientSecret: string }>
+}
+
+const EXTERNAL_RESOURCE_GRANTS = new Set([
+  'authorization_code',
+  'refresh_token',
+  JWT_BEARER_GRANT_TYPE,
+  TOKEN_EXCHANGE_GRANT_TYPE,
+])
+
+function isExternalResourceClientRegistration(body: Record<string, unknown>): boolean {
+  const grants = Array.isArray(body.grant_types) ? body.grant_types : []
+  const responses = Array.isArray(body.response_types) ? body.response_types : []
+  return (
+    body.token_endpoint_auth_method === 'client_secret_basic' &&
+    typeof body.jwks_uri === 'string' &&
+    Array.isArray(body.redirect_uris) &&
+    body.redirect_uris.length > 0 &&
+    grants.length === EXTERNAL_RESOURCE_GRANTS.size &&
+    grants.every((grant) => typeof grant === 'string' && EXTERNAL_RESOURCE_GRANTS.has(grant)) &&
+    responses.length === 1 &&
+    responses[0] === 'code'
+  )
+}
+
+async function dynamicRegistrationOrigins(request: Request): Promise<string[]> {
+  if (!new URL(request.url).pathname.endsWith('/oauth2/register') || request.method !== 'POST') return []
+  let body: Record<string, unknown>
+  try {
+    body = (await request.clone().json()) as Record<string, unknown>
+  } catch {
+    return []
+  }
+  if (!isExternalResourceClientRegistration(body)) return []
+  const redirectUris = body.redirect_uris as string[]
+  const jwksUri = body.jwks_uri as string
+  try {
+    const origins = new Set(redirectUris.map((uri) => new URL(uri).origin))
+    const jwksOrigin = new URL(jwksUri).origin
+    if (origins.size !== 1 || !origins.has(jwksOrigin)) return []
+    return [jwksOrigin]
+  } catch {
+    return []
+  }
 }
 
 // One query loads every oauth_provider_* row. Configs are snapshotted at auth
@@ -347,20 +391,21 @@ export async function createAuth(
   const systemOptionsRepo = createSystemOptionsRepo(db)
   const email = createEmailGateway(systemOptionsRepo)
   const providerConfigs = await loadProviderConfigs(rawDb)
-  const agentOAuth = createAgentOAuthGateway()
-  await agentOAuth.ensureSystemClient(db)
+  const resourceAudience = baseURL ? `${new URL(baseURL).origin}/api` : undefined
   const usesNativeWebDavRateLimit = Boolean(authPlatform.getBinding(WEBDAV_RATE_LIMITER_BINDING))
   const authOptions = {
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,
     baseURL,
+    basePath: '/api/auth',
     // Function form: better-auth merges the result with baseURL per request.
     // Loopback/LAN origins are trusted automatically so self-hosted users can
     // log in via 127.0.0.1 or a LAN IP without configuring TRUSTED_ORIGINS.
-    trustedOrigins: (request?: Request) => {
+    trustedOrigins: async (request?: Request) => {
       const origin = request?.headers.get('origin')
       const list = trustedOrigins ?? []
-      return origin && isLocalNetworkOrigin(origin) ? [...list, origin] : list
+      const registrationOrigins = request ? await dynamicRegistrationOrigins(request) : []
+      return [...list, ...(origin && isLocalNetworkOrigin(origin) ? [origin] : []), ...registrationOrigins]
     },
     advanced: {
       cookiePrefix: 'zp',
@@ -438,6 +483,13 @@ export async function createAuth(
           }
           return
         }
+        if (ctx.path === '/oauth2/register') {
+          const body = ctx.body as Record<string, unknown> | undefined
+          if (body && isExternalResourceClientRegistration(body)) {
+            body.scope = AGENT_OAUTH_SCOPES.join(' ')
+          }
+          return
+        }
         if (ctx.path === '/oauth2/update-consent' || ctx.path === '/oauth2/delete-consent') {
           throw new APIError('FORBIDDEN', {
             error: 'invalid_request',
@@ -450,10 +502,6 @@ export async function createAuth(
         if (!body) return
         const configId = body.configId
         if (typeof configId !== 'string' || !API_KEY_TEMPLATES.includes(configId as ApiKeyTemplate)) return
-        if (configId === ApiKeyTemplate.AGENT) {
-          throw new APIError('BAD_REQUEST', { message: 'Create Agent API keys from the Agent Access API' })
-        }
-
         const session = await getSessionFromCtx(ctx)
         const userId = session?.user.id ?? (typeof body?.userId === 'string' ? body.userId : null)
         if (!userId) throw new APIError('UNAUTHORIZED', { message: 'Unauthorized' })
@@ -630,7 +678,8 @@ export async function createAuth(
         verificationUri: '/device',
         validateClient: async (clientId) => clientId === LEGACY_DOWNLOADER_CLIENT_ID,
       }),
-      oauthProvider(createAgentOAuthProviderOptions({ db, agentOAuth })),
+      jwt(),
+      oauthProvider(createAgentOAuthProviderOptions({ db, resourceAudience })),
       apiKey([
         {
           configId: ApiKeyTemplate.IHOST,
@@ -675,19 +724,6 @@ export async function createAuth(
           },
           permissions: {
             defaultPermissions: REMOTE_DOWNLOAD_API_KEY_PERMISSIONS,
-          },
-        },
-        {
-          configId: ApiKeyTemplate.AGENT,
-          references: 'user',
-          enableMetadata: true,
-          rateLimit: {
-            enabled: true,
-            timeWindow: 60_000,
-            maxRequests: 600,
-          },
-          permissions: {
-            defaultPermissions: {},
           },
         },
       ]),

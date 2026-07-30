@@ -1,7 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import type { Env } from '../../middleware/platform'
-import { deleteAuthProvider, listAuthProviders, upsertAuthProvider } from '../../usecases/site/auth-provider'
+import { deleteAuthProvider, listAuthProviderSettings, upsertAuthProvider } from '../../usecases/site/auth-provider'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 // Full management shape. Public consumers receive the minimal provider projection
@@ -28,6 +28,18 @@ const authProviderListSchema = z
     page: z.number().int(),
     pageSize: z.number().int(),
     callbackBaseUri: z.string(),
+    registeredApplications: z.array(
+      z.object({
+        clientId: z.string(),
+        name: z.string(),
+        uri: z.string().nullable(),
+        redirectUris: z.array(z.string()),
+        grantTypes: z.array(z.string()),
+        scopes: z.array(z.string()),
+        disabled: z.boolean(),
+        createdAt: z.string(),
+      }),
+    ),
   })
   .openapi('AuthProviderList')
 
@@ -97,8 +109,20 @@ function resolveAuthBaseUri(c: { get(key: 'platform'): Env['Variables']['platfor
 export const authProviders = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
     const authOrigin = resolveAuthBaseUri(c)
-    const { items } = await listAuthProviders(c.get('deps'), { authOrigin })
-    return c.json({ items, total: items.length, page: 1, pageSize: items.length, callbackBaseUri: authOrigin }, 200)
+    const { items, registeredApplications } = await listAuthProviderSettings(c.get('deps'), c.get('platform').db, {
+      authOrigin,
+    })
+    return c.json(
+      {
+        items,
+        total: items.length,
+        page: 1,
+        pageSize: items.length,
+        callbackBaseUri: authOrigin,
+        registeredApplications,
+      },
+      200,
+    )
   })
   .openapi(upsertRoute, async (c) => {
     const authOrigin = resolveAuthBaseUri(c)

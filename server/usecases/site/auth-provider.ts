@@ -20,7 +20,9 @@ import {
 import type { SiteConfig } from '@shared/schemas'
 import type { AuthProvider } from '@shared/types'
 import { hasFeature } from '../../domain/licensing'
+import type { Database } from '../../platform/interface'
 import {
+  type AgentOAuthGateway,
   type AppError,
   badRequest,
   type CacheService,
@@ -103,6 +105,18 @@ export async function listAuthProviders(
     .filter((config) => config !== null)
     .map((config) => toAuthProvider(config, authOrigin))
   return { items }
+}
+
+export async function listAuthProviderSettings(
+  deps: Pick<AuthProviderDeps, 'systemOptions'> & { agentOAuth: AgentOAuthGateway },
+  db: Database,
+  { authOrigin }: { authOrigin: string },
+) {
+  const [{ items }, registeredApplications] = await Promise.all([
+    listAuthProviders(deps, { authOrigin }),
+    deps.agentOAuth.listRegisteredApplications(db),
+  ])
+  return { items, registeredApplications }
 }
 
 export async function listPublicAuthProviders(

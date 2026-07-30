@@ -200,6 +200,18 @@ export interface AuthProvider {
 export interface AuthProviderList {
   items: AuthProvider[]
   callbackBaseUri: string
+  registeredApplications?: RegisteredOAuthApplication[]
+}
+
+export interface RegisteredOAuthApplication {
+  clientId: string
+  name: string
+  uri: string | null
+  redirectUris: string[]
+  grantTypes: string[]
+  scopes: string[]
+  disabled: boolean
+  createdAt: string
 }
 
 export interface CursorPage<T> {
@@ -423,6 +435,37 @@ export interface ObjectUploadPartDescriptor {
   url: string
   expiresAt: string
   headers: Record<string, string>
+  offset: number
+  length: number
+}
+
+export interface ObjectUploadWorkflow {
+  version: '1'
+  upload: {
+    method: 'PUT'
+    urlField: 'parts[].url'
+    headersField: 'parts[].headers'
+    fileOffsetField: 'parts[].offset'
+    contentLengthField: 'parts[].length'
+    etagHeader: 'ETag'
+  }
+  complete: {
+    operationId: 'completeObjectUpload'
+    method: 'POST'
+    path: string
+    partsBodyField: 'parts'
+  }
+  rePresign: {
+    operationId: 'presignObjectUploadParts'
+    method: 'POST'
+    path: string
+    partNumbersBodyField: 'partNumbers'
+  }
+  abort: {
+    operationId: 'abortObjectUpload'
+    method: 'DELETE'
+    path: string
+  }
 }
 
 // The upload instructions returned by POST /objects for a file draft: the
@@ -439,6 +482,7 @@ export interface ObjectUploadInstructions {
   requiredHeaders: Record<string, string>
   urls: string[]
   parts: ObjectUploadPartDescriptor[]
+  workflow: ObjectUploadWorkflow
 }
 
 export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled'

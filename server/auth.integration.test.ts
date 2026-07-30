@@ -1,5 +1,8 @@
+import { createHash } from 'node:crypto'
 import { isPersonalOrgLike } from '@shared/org-slugs'
+import { deriveDpopAth } from 'better-auth/oauth2'
 import { eq } from 'drizzle-orm'
+import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations.js'
@@ -8,7 +11,7 @@ import { createAuth } from './auth.js'
 import * as authSchema from './db/auth-schema.js'
 import * as schema from './db/schema.js'
 import { inviteCodes, siteInvitations } from './db/schema.js'
-import { createTestApp, seedProLicense } from './test/setup.js'
+import { adminHeaders, createTestApp, seedProLicense } from './test/setup.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
 
@@ -527,6 +530,18 @@ describe('buildVerificationEmailHtml — via send-verification-email with email_
 describe('loadProviderConfigs — createAuth with OIDC provider pre-configured', () => {
   it('createAuth succeeds when a valid enabled OIDC provider config is present', async () => {
     const ctx = await createTestApp()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          issuer: 'https://auth.example.com',
+          authorization_endpoint: 'https://auth.example.com/authorize',
+          token_endpoint: 'https://auth.example.com/token',
+          userinfo_endpoint: 'https://auth.example.com/userinfo',
+          jwks_uri: 'https://auth.example.com/jwks',
+        }),
+      ),
+    )
     const oidcConfig = JSON.stringify({
       providerId: 'my-oidc',
       type: 'oidc',
@@ -666,7 +681,7 @@ describe('loadProviderConfigs — builtin social provider resolution', () => {
     expect(res.status).not.toBe(200)
   })
 
-  it('createAuth runs exactly one DB query during init (no per-provider I/O)', async () => {
+  it('createAuth initializes provider config and the two OAuth resources with three DB reads', async () => {
     const ctx = await createTestApp()
     let selectCalls = 0
     const countingDb = new Proxy(ctx.db, {
@@ -677,7 +692,7 @@ describe('loadProviderConfigs — builtin social provider resolution', () => {
       },
     })
     await createAuth(countingDb as typeof ctx.db, 'test-secret', 'http://localhost:3000')
-    expect(selectCalls).toBe(1)
+    expect(selectCalls).toBe(3)
   })
 
   it('createAuth resolves better-auth $context before returning', async () => {
@@ -695,7 +710,272 @@ describe('loadProviderConfigs — builtin social provider resolution', () => {
 })
 
 describe('Agent OAuth consent guards', () => {
-  it('issues an authorization code after full consent for the managed PKCE client', async () => {
+  it('publishes the external resource discovery contract at the exact API URL', async () => {
+    const ctx = await createTestApp()
+    const resource = await ctx.app.request('http://localhost:3000/api')
+    const metadata = await ctx.app.request('http://localhost:3000/.well-known/oauth-protected-resource/api')
+    const authorizationServer = await ctx.app.request(
+      'http://localhost:3000/.well-known/oauth-authorization-server/api/auth',
+    )
+
+    expect(resource.status).toBe(200)
+    expect(resource.headers.get('link')).toBe(
+      [
+        '</api/openapi.json>; rel="service-desc"; type="application/openapi+json"',
+        '</api/workflows.arazzo.json>; rel="describedby"; type="application/vnd.oai.workflows+json"',
+      ].join(', '),
+    )
+    await expect(metadata.json()).resolves.toMatchObject({
+      resource: 'http://localhost:3000/api',
+      authorization_servers: ['http://localhost:3000/api/auth'],
+    })
+    await expect(authorizationServer.json()).resolves.toMatchObject({
+      registration_endpoint: 'http://localhost:3000/api/auth/oauth2/register',
+      grant_types_supported: expect.arrayContaining([
+        'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        'urn:ietf:params:oauth:grant-type:token-exchange',
+      ]),
+      dpop_signing_alg_values_supported: expect.any(Array),
+    })
+  })
+
+  it('dynamically registers an external resource client without hard-coded identity', async () => {
+    const ctx = await createTestApp()
+    const res = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'External Resource Broker',
+        redirect_uris: ['https://broker.example.com/api/account-connections/oauth/callback'],
+        grant_types: [
+          'authorization_code',
+          'refresh_token',
+          'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          'urn:ietf:params:oauth:grant-type:token-exchange',
+        ],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+        scope: 'openid offline_access',
+        jwks_uri: 'https://broker.example.com/api/auth/jwks',
+      }),
+    })
+    const body = (await res.json()) as Record<string, unknown>
+
+    expect(res.status, JSON.stringify(body)).toBe(201)
+    expect(body).toMatchObject({
+      client_id: expect.any(String),
+      client_secret: expect.any(String),
+      token_endpoint_auth_method: 'client_secret_basic',
+    })
+    expect(String(body.scope).split(' ')).toEqual(expect.arrayContaining(['openid', 'offline_access', 'objects:read']))
+
+    const applicationsResponse = await ctx.app.request('/api/site/auth-providers', {
+      headers: await adminHeaders(ctx.app),
+    })
+    const applications = (await applicationsResponse.json()) as {
+      registeredApplications: Array<{ clientId: string; name: string }>
+    }
+    expect(applicationsResponse.status).toBe(200)
+    expect(applications.registeredApplications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          clientId: body.client_id,
+          name: 'External Resource Broker',
+        }),
+      ]),
+    )
+  })
+
+  it('issues a DPoP API token through JWT bearer and token exchange grants', async () => {
+    const ctx = await createTestApp()
+    const { privateKey: agentPrivateKey, publicKey: agentPublicKey } = await generateKeyPair('ES256')
+    const agentPublicJwk = { ...(await exportJWK(agentPublicKey)), kid: 'agent-key', use: 'sig', alg: 'ES256' }
+    const getJwks = ctx.auth.api.getJwks
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = input instanceof Request ? input.url : String(input)
+        if (url === 'https://broker.example.com/api/auth/jwks') {
+          return Response.json({ keys: [agentPublicJwk] })
+        }
+        if (url === 'http://localhost:3000/api/auth/jwks') {
+          return Response.json(await getJwks())
+        }
+        throw new Error(`Unexpected fetch: ${url}`)
+      }),
+    )
+
+    const registration = await ctx.app.request('http://localhost:3000/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'External Resource Broker',
+        redirect_uris: ['https://broker.example.com/api/account-connections/oauth/callback'],
+        grant_types: [
+          'authorization_code',
+          'refresh_token',
+          'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          'urn:ietf:params:oauth:grant-type:token-exchange',
+        ],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+        scope: 'openid offline_access',
+        jwks_uri: 'https://broker.example.com/api/auth/jwks',
+      }),
+    })
+    const registered = (await registration.json()) as { client_id: string; client_secret: string }
+    expect(registration.status).toBe(201)
+
+    const signUpResponse = await signUp(ctx, 'external-resource@example.com')
+    const cookie = signUpResponse.headers
+      .getSetCookie()
+      .map((value) => value.split(';', 1)[0])
+      .join('; ')
+    const verifier = 'external-resource-verifier-with-sufficient-entropy-1234567890'
+    const challenge = createHash('sha256').update(verifier).digest('base64url')
+    const redirectUri = 'https://broker.example.com/api/account-connections/oauth/callback'
+    const scope = 'openid offline_access objects:read quota:read'
+    const authorizeParams = new URLSearchParams({
+      client_id: registered.client_id,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      resource: 'http://localhost:3000/api',
+      scope,
+      state: 'external-resource',
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+    })
+    const authorize = await ctx.app.request(
+      `http://localhost:3000/api/auth/oauth2/authorize?${authorizeParams.toString()}`,
+      { headers: { Cookie: cookie, Origin: 'http://localhost:3000' } },
+    )
+    const consentLocation = authorize.headers.get('location')
+    expect(authorize.status).toBe(302)
+    expect(consentLocation).toMatch(/^\/settings\/agent-access\?/)
+    const consent = await ctx.app.request('http://localhost:3000/api/auth/oauth2/consent', {
+      method: 'POST',
+      headers: { Cookie: cookie, Origin: 'http://localhost:3000', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accept: true,
+        oauth_query: consentLocation?.slice(consentLocation.indexOf('?') + 1),
+      }),
+    })
+    const consentBody = (await consent.json()) as { url: string }
+    expect(consent.status).toBe(200)
+    const code = new URL(consentBody.url).searchParams.get('code')
+    expect(code).toBeTruthy()
+
+    const tokenEndpoint = 'http://localhost:3000/api/auth/oauth2/token'
+    const basic = `Basic ${Buffer.from(`${registered.client_id}:${registered.client_secret}`).toString('base64')}`
+    const subjectResponse = await ctx.app.request(tokenEndpoint, {
+      method: 'POST',
+      headers: { Authorization: basic, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code!,
+        redirect_uri: redirectUri,
+        code_verifier: verifier,
+        resource: 'http://localhost:3000/api',
+      }).toString(),
+    })
+    const subject = (await subjectResponse.json()) as { access_token: string }
+    expect(subjectResponse.status).toBe(200)
+
+    const now = Math.floor(Date.now() / 1000)
+    const assertion = await new SignJWT({})
+      .setProtectedHeader({ typ: 'JWT', alg: 'ES256', kid: 'agent-key' })
+      .setIssuer('https://broker.example.com/api/auth')
+      .setSubject('agent-123')
+      .setAudience(tokenEndpoint)
+      .setIssuedAt(now)
+      .setExpirationTime(now + 300)
+      .setJti(crypto.randomUUID())
+      .sign(agentPrivateKey)
+    const actorResponse = await ctx.app.request(tokenEndpoint, {
+      method: 'POST',
+      headers: { Authorization: basic, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
+      }).toString(),
+    })
+    const actor = (await actorResponse.json()) as { access_token: string }
+    expect(actorResponse.status, JSON.stringify(actor)).toBe(200)
+
+    const { privateKey: dpopPrivateKey, publicKey: dpopPublicKey } = await generateKeyPair('ES256')
+    const dpopPublicJwk = await exportJWK(dpopPublicKey)
+    const exchangeProof = await new SignJWT({
+      htm: 'POST',
+      htu: tokenEndpoint,
+    })
+      .setProtectedHeader({ typ: 'dpop+jwt', alg: 'ES256', jwk: dpopPublicJwk })
+      .setIssuedAt()
+      .setJti(crypto.randomUUID())
+      .sign(dpopPrivateKey)
+    const exchangeResponse = await ctx.app.request(tokenEndpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: basic,
+        DPoP: exchangeProof,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+        subject_token: subject.access_token,
+        subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        actor_token: actor.access_token,
+        actor_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        resource: 'http://localhost:3000/api',
+        scope: 'objects:read quota:read',
+      }).toString(),
+    })
+    const exchanged = (await exchangeResponse.json()) as { access_token: string; token_type: string; scope: string }
+    expect(exchangeResponse.status).toBe(200)
+    expect(exchanged).toMatchObject({ token_type: 'DPoP', scope: 'objects:read quota:read' })
+
+    const apiUrl = 'http://localhost:3000/api/objects'
+    const apiProof = await new SignJWT({
+      htm: 'GET',
+      htu: apiUrl,
+      ath: await deriveDpopAth(exchanged.access_token),
+    })
+      .setProtectedHeader({ typ: 'dpop+jwt', alg: 'ES256', jwk: dpopPublicJwk })
+      .setIssuedAt()
+      .setJti(crypto.randomUUID())
+      .sign(dpopPrivateKey)
+    const apiResponse = await ctx.app.request(apiUrl, {
+      headers: { Authorization: `DPoP ${exchanged.access_token}`, DPoP: apiProof },
+    })
+    expect(apiResponse.status).toBe(200)
+
+    const revokeResponse = await ctx.app.request('http://localhost:3000/api/auth/oauth2/revoke', {
+      method: 'POST',
+      headers: { Authorization: basic, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        token: exchanged.access_token,
+        token_type_hint: 'access_token',
+      }).toString(),
+    })
+    expect(revokeResponse.status).toBe(200)
+
+    const revokedProof = await new SignJWT({
+      htm: 'GET',
+      htu: apiUrl,
+      ath: await deriveDpopAth(exchanged.access_token),
+    })
+      .setProtectedHeader({ typ: 'dpop+jwt', alg: 'ES256', jwk: dpopPublicJwk })
+      .setIssuedAt()
+      .setJti(crypto.randomUUID())
+      .sign(dpopPrivateKey)
+    const revokedResponse = await ctx.app.request(apiUrl, {
+      headers: { Authorization: `DPoP ${exchanged.access_token}`, DPoP: revokedProof },
+    })
+    expect(revokedResponse.status).toBe(401)
+    expect(revokedResponse.headers.get('www-authenticate')).toContain('DPoP')
+  })
+
+  it('issues an authorization code after full consent for a dynamically registered PKCE client', async () => {
     const ctx = await createTestApp()
     const previewOrigin = 'https://preview-zpan.example.com'
     const auth = await createAuth(ctx.platform, 'test-secret', 'https://zpan-staging.example.com', [previewOrigin])
@@ -705,9 +985,23 @@ describe('Agent OAuth consent guards', () => {
       .getSetCookie()
       .map((value) => value.split(';', 1)[0])
       .join('; ')
+    const registration = await app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Consent Test Client',
+        redirect_uris: ['https://broker.example.com/callback'],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+        scope: 'openid offline_access objects:read quota:read',
+      }),
+    })
+    const registered = (await registration.json()) as { client_id: string }
+    expect(registration.status).toBe(201)
     const params = new URLSearchParams({
-      client_id: 'zpan-agent',
-      redirect_uri: 'http://127.0.0.1:8484/callback',
+      client_id: registered.client_id,
+      redirect_uri: 'https://broker.example.com/callback',
       response_type: 'code',
       scope: 'openid offline_access objects:read quota:read',
       state: 'oauth-consent-test',
@@ -737,7 +1031,7 @@ describe('Agent OAuth consent guards', () => {
 
     expect(consent.status, consentBody).toBe(200)
     expect(JSON.parse(consentBody)).toMatchObject({
-      url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:8484\/callback\?code=/),
+      url: expect.stringMatching(/^https:\/\/broker\.example\.com\/callback\?code=/),
     })
   })
 
@@ -747,7 +1041,7 @@ describe('Agent OAuth consent guards', () => {
     const res = await ctx.app.request('/api/auth/oauth2/consent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: 'zpan-agent', scope: 'objects:read' }),
+      body: JSON.stringify({ client_id: 'dynamic-client', scope: 'objects:read' }),
     })
 
     expect(res.status).toBe(400)

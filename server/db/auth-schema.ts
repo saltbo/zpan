@@ -1,5 +1,5 @@
 import { relations, sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const user = sqliteTable(
   'user',
@@ -54,7 +54,8 @@ export const account = sqliteTable(
   'account',
   {
     id: text('id').primaryKey(),
-    accountId: text('account_id').notNull(),
+    issuer: text('issuer').notNull().default(''),
+    providerAccountId: text('account_id').notNull(),
     providerId: text('provider_id').notNull(),
     userId: text('user_id')
       .notNull()
@@ -77,7 +78,10 @@ export const account = sqliteTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index('account_userId_idx').on(table.userId)],
+  (table) => [
+    index('account_userId_idx').on(table.userId),
+    uniqueIndex('account_issuer_providerAccountId_unique').on(table.issuer, table.providerAccountId),
+  ],
 )
 
 export const verification = sqliteTable(
@@ -97,6 +101,18 @@ export const verification = sqliteTable(
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)],
 )
+
+export const jwks = sqliteTable('jwks', {
+  id: text('id').primaryKey(),
+  publicKey: text('public_key').notNull(),
+  privateKey: text('private_key').notNull(),
+  alg: text('alg'),
+  crv: text('crv'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    .notNull(),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+})
 
 export const organization = sqliteTable('organization', {
   id: text('id').primaryKey(),
@@ -246,16 +262,69 @@ export const oauthClient = sqliteTable(
     softwareStatement: text('software_statement'),
     redirectUris: text('redirect_uris').notNull(), // JSON-serialized string[]
     postLogoutRedirectUris: text('post_logout_redirect_uris'), // JSON-serialized string[]
+    backchannelLogoutUri: text('backchannel_logout_uri'),
+    backchannelLogoutSessionRequired: integer('backchannel_logout_session_required', { mode: 'boolean' }),
     tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    jwks: text('jwks'),
+    jwksUri: text('jwks_uri'),
     grantTypes: text('grant_types'), // JSON-serialized string[]
     responseTypes: text('response_types'), // JSON-serialized string[]
     public: integer('public', { mode: 'boolean' }),
     type: text('type'),
     requirePKCE: integer('require_pkce', { mode: 'boolean' }),
+    dpopBoundAccessTokens: integer('dpop_bound_access_tokens', { mode: 'boolean' }).default(false),
     referenceId: text('reference_id'),
     metadata: text('metadata'),
   },
   (table) => [index('oauthClient_client_id_idx').on(table.clientId), index('oauthClient_user_id_idx').on(table.userId)],
+)
+
+export const oauthResource = sqliteTable(
+  'oauthResource',
+  {
+    id: text('id').primaryKey(),
+    identifier: text('identifier').notNull().unique(),
+    name: text('name').notNull(),
+    accessTokenTtl: integer('access_token_ttl'),
+    refreshTokenTtl: integer('refresh_token_ttl'),
+    signingAlgorithm: text('signing_algorithm'),
+    signingKeyId: text('signing_key_id'),
+    allowedScopes: text('allowed_scopes'),
+    customClaims: text('custom_claims', { mode: 'json' }),
+    dpopBoundAccessTokensRequired: integer('dpop_bound_access_tokens_required', { mode: 'boolean' }).default(false),
+    disabled: integer('disabled', { mode: 'boolean' }).default(false),
+    policyVersion: integer('policy_version').default(1),
+    metadata: text('metadata', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [index('oauthResource_identifier_idx').on(table.identifier)],
+)
+
+export const oauthClientResource = sqliteTable(
+  'oauthClientResource',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    resourceId: text('resource_id')
+      .notNull()
+      .references(() => oauthResource.identifier, { onDelete: 'cascade' }),
+    metadata: text('metadata', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    index('oauthClientResource_client_id_idx').on(table.clientId),
+    index('oauthClientResource_resource_id_idx').on(table.resourceId),
+  ],
 )
 
 export const oauthRefreshToken = sqliteTable(
@@ -271,12 +340,19 @@ export const oauthRefreshToken = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     referenceId: text('reference_id'),
+    authorizationCodeId: text('authorization_code_id'),
+    resources: text('resources'),
+    requestedUserInfoClaims: text('requested_user_info_claims'),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
     revoked: integer('revoked', { mode: 'timestamp_ms' }),
+    rotatedAt: integer('rotated_at', { mode: 'timestamp_ms' }),
+    rotationReplayResponse: text('rotation_replay_response'),
+    rotationReplayExpiresAt: integer('rotation_replay_expires_at', { mode: 'timestamp_ms' }),
     authTime: integer('auth_time', { mode: 'timestamp_ms' }),
+    confirmation: text('confirmation', { mode: 'json' }),
     scopes: text('scopes').notNull(), // JSON-serialized string[]
   },
   (table) => [
@@ -298,11 +374,16 @@ export const oauthAccessToken = sqliteTable(
     sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     referenceId: text('reference_id'),
+    authorizationCodeId: text('authorization_code_id'),
+    resources: text('resources'),
+    requestedUserInfoClaims: text('requested_user_info_claims'),
     refreshId: text('refresh_id').references(() => oauthRefreshToken.id, { onDelete: 'cascade' }),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
+    revoked: integer('revoked', { mode: 'timestamp_ms' }),
+    confirmation: text('confirmation', { mode: 'json' }),
     scopes: text('scopes').notNull(), // JSON-serialized string[]
   },
   (table) => [
@@ -323,6 +404,8 @@ export const oauthConsent = sqliteTable(
       .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     referenceId: text('reference_id'),
+    resources: text('resources'),
+    requestedUserInfoClaims: text('requested_user_info_claims'),
     scopes: text('scopes').notNull(), // JSON-serialized string[]
     createdAt: integer('created_at', { mode: 'timestamp_ms' })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -337,6 +420,24 @@ export const oauthConsent = sqliteTable(
     index('oauthConsent_client_id_idx').on(table.clientId),
     index('oauthConsent_user_id_idx').on(table.userId),
   ],
+)
+
+export const oauthClientAssertion = sqliteTable('oauthClientAssertion', {
+  id: text('id').primaryKey(),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+export const oauthJwtRevocation = sqliteTable(
+  'oauthJwtRevocation',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [index('oauthJwtRevocation_expires_at_idx').on(table.expiresAt)],
 )
 
 export const downloaderBootstrapCredential = sqliteTable(

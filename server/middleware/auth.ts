@@ -1,4 +1,7 @@
+import { oauthProviderResourceClient } from '@better-auth/oauth-provider/resource-client'
 import { AuthorizationScope, isAuthorizationScope, permissionScopes } from '@shared/authorization'
+import { APIError } from 'better-auth'
+import { createDpopReplayStore } from 'better-auth/oauth2'
 import { createMiddleware } from 'hono/factory'
 import {
   isDownloaderBootstrapRegistrationRequest,
@@ -6,7 +9,7 @@ import {
   LEGACY_DOWNLOADER_CLIENT_ID,
   LEGACY_DOWNLOADER_REGISTER_SCOPE,
 } from '../domain/legacy-downloader-bootstrap'
-import { ApiKeyRateLimitError, rateLimited, unauthorized } from '../usecases/ports'
+import { ApiKeyRateLimitError, AppError, rateLimited, unauthorized } from '../usecases/ports'
 import { anonymousAuthzContext, type Env } from './platform'
 
 type SessionWithPlugins = {
@@ -16,6 +19,61 @@ type SessionWithPlugins = {
 
 export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   const authHeader = c.req.raw.headers.get('Authorization')
+  if (authHeader?.startsWith('DPoP ')) {
+    const auth = c.get('auth')
+    const authContext = await auth.$context
+    const audience = `${new URL(c.req.url).origin}/api`
+    let payload: Awaited<
+      ReturnType<ReturnType<ReturnType<typeof oauthProviderResourceClient>['getActions']>['verifyAccessTokenRequest']>
+    >
+    try {
+      payload = await oauthProviderResourceClient(auth)
+        .getActions()
+        .verifyAccessTokenRequest(c.req.raw, {
+          verifyOptions: { audience, issuer: authContext.baseURL },
+          dpop: { replayStore: createDpopReplayStore(authContext.internalAdapter) },
+        })
+    } catch (error) {
+      if (error instanceof APIError) throw dpopUnauthorized(audience)
+      throw error
+    }
+    const userId = typeof payload.sub === 'string' ? payload.sub : null
+    const orgId = typeof payload.zpan_org_id === 'string' ? payload.zpan_org_id : null
+    const clientId = typeof payload.client_id === 'string' ? payload.client_id : null
+    const actor = payload.act && typeof payload.act === 'object' ? (payload.act as Record<string, unknown>).sub : null
+    if (!userId || !orgId || !clientId || typeof actor !== 'string') throw unauthorized('Unauthorized')
+    if (
+      typeof payload.jti !== 'string' ||
+      (await c.get('deps').agentOAuth.isJwtAccessTokenRevoked(c.get('platform').db, payload.jti))
+    ) {
+      throw dpopUnauthorized(audience)
+    }
+    if (await c.get('deps').userAdmin.isBanned(userId)) throw unauthorized('Unauthorized')
+    const scopes = typeof payload.scope === 'string' ? payload.scope.split(/\s+/).filter(isAuthorizationScope) : []
+    const grantId = typeof payload.jti === 'string' ? payload.jti : actor
+    c.set('principal', {
+      kind: 'agent-oauth',
+      grantId,
+      clientId,
+      orgId,
+      userId,
+      scopes,
+      authMethod: 'dpop',
+    })
+    c.set('authzContext', {
+      credential: 'agent_oauth',
+      userId,
+      workspace: { mode: 'bound', orgId },
+      grantedScopes: new Set(scopes),
+      actor: { type: 'agent_oauth', ref: actor },
+      state: { clientId },
+    })
+    c.set('userId', userId)
+    c.set('userRole', null)
+    c.set('orgId', orgId)
+    await next()
+    return
+  }
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice('Bearer '.length).trim()
     const platform = c.get('platform')
@@ -98,32 +156,6 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       await next()
       return
     }
-    const agentOAuth = await deps.agentOAuth.verifyAccessToken(platform.db, token)
-    if (agentOAuth) {
-      if (await deps.userAdmin.isBanned(agentOAuth.userId)) throw unauthorized('Unauthorized')
-      c.set('principal', {
-        kind: 'agent-oauth',
-        grantId: agentOAuth.grantId,
-        clientId: agentOAuth.clientId,
-        orgId: agentOAuth.orgId,
-        userId: agentOAuth.userId,
-        scopes: agentOAuth.scopes,
-        authMethod: 'bearer',
-      })
-      c.set('authzContext', {
-        credential: 'agent_oauth',
-        userId: agentOAuth.userId,
-        workspace: { mode: 'bound', orgId: agentOAuth.orgId },
-        grantedScopes: new Set(agentOAuth.scopes),
-        actor: { type: 'agent_oauth', ref: agentOAuth.grantId },
-        state: { clientId: agentOAuth.clientId },
-      })
-      c.set('userId', agentOAuth.userId)
-      c.set('userRole', null)
-      c.set('orgId', agentOAuth.orgId)
-      await next()
-      return
-    }
     const bootstrap = await deps.downloaderBootstrapCredentials.resolve(platform, token, new Date())
     if (bootstrap) {
       c.set('userId', bootstrap.userId)
@@ -187,3 +219,11 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
 
   await next()
 })
+
+function dpopUnauthorized(resource: string): AppError {
+  return new AppError(401, 'Unauthorized', {
+    headers: {
+      'WWW-Authenticate': `DPoP resource_metadata="${new URL('/.well-known/oauth-protected-resource/api', resource).toString()}"`,
+    },
+  })
+}

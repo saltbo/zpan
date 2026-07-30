@@ -1,5 +1,5 @@
 import { createRoute, type RouteConfig, type z } from '@hono/zod-openapi'
-import { AGENT_GRANTABLE_API_KEY_SCOPES } from '@shared/api-key-templates'
+import { AGENT_OAUTH_SCOPES } from '@shared/agent-oauth'
 import { errorResponseSchema } from '@shared/schemas'
 import { authorize, type RouteAuthorizationDeclaration, type ScopedAuthorizationPolicy } from '../middleware/authz'
 
@@ -24,7 +24,7 @@ export const jsonBody = <T extends z.ZodType>(schema: T) => ({
 // `jsonError`; this just documents the response shape in the OpenAPI document.
 export const errorResponse = (description: string) => jsonContent(errorResponseSchema, description)
 
-const AGENT_GRANTABLE_SCOPE_SET = new Set<string>(AGENT_GRANTABLE_API_KEY_SCOPES)
+const AGENT_OAUTH_SCOPE_SET = new Set<string>(AGENT_OAUTH_SCOPES)
 
 export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> & { path: P }>(
   auth: RouteAuthorizationDeclaration,
@@ -34,7 +34,7 @@ export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> 
   return createRoute({
     ...config,
     middleware,
-    security: openApiSecurity(auth),
+    ...openApiSecurity(auth),
     'x-zpan-auth': openApiAuthMetadata(auth),
     ...openApiCliMetadata(auth),
   } as T) as T & { getRoutingPath(): string }
@@ -62,9 +62,10 @@ function hasValidAuthContract(operation: object): boolean {
   return auth.public ? auth.scopes.length === 0 : auth.scopes.length > 0
 }
 
-function openApiSecurity(auth: RouteAuthorizationDeclaration): Record<string, string[]>[] {
-  if ('public' in auth) return []
-  return openApiPolicySecurity(auth)
+function openApiSecurity(auth: RouteAuthorizationDeclaration): { security?: Record<string, string[]>[] } {
+  if ('public' in auth) return { security: [] }
+  if (isAgentCallablePolicy(auth)) return {}
+  return { security: openApiPolicySecurity(auth) }
 }
 
 function openApiCliMetadata(auth: RouteAuthorizationDeclaration): Record<string, boolean> {
@@ -81,13 +82,11 @@ function openApiAuthMetadata(auth: RouteAuthorizationDeclaration): Record<string
 }
 
 function openApiPolicySecurity(policy: ScopedAuthorizationPolicy): Record<string, string[]>[] {
-  return policy.scopes.every((scope) => AGENT_GRANTABLE_SCOPE_SET.has(scope))
-    ? [{ agentOAuth2: [...policy.scopes] }, { agentApiKey: [...policy.scopes] }, { cookieAuth: [] }]
-    : [{ bearerAuth: [...policy.scopes] }, { cookieAuth: [] }]
+  return [{ bearerAuth: [...policy.scopes] }, { cookieAuth: [] }]
 }
 
 function isAgentCallablePolicy(policy: ScopedAuthorizationPolicy): boolean {
-  return policy.scopes.every((scope) => AGENT_GRANTABLE_SCOPE_SET.has(scope))
+  return policy.scopes.every((scope) => AGENT_OAUTH_SCOPE_SET.has(scope))
 }
 
 function openApiPolicyMetadata(policy: ScopedAuthorizationPolicy): Record<string, unknown> {

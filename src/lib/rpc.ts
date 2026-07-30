@@ -6,7 +6,6 @@ import type {
   AdminSiteInvitationsRoute,
   AdminStatsRoute,
   AdminTeamsRoute,
-  AgentApiKeysRoute,
   AgentOAuthGrantsRoute,
   AnnouncementsRoute,
   AuthedSharesRoute,
@@ -51,7 +50,6 @@ export const objects = hc<ObjectsRoute>('/api/objects', opts)
 export const downloadTasksApi = hc<DownloadTasksRoute>('/api/downloads/tasks', opts)
 export const downloaderSelfApi = hc<DownloaderSelfRoute>('/api/downloads/downloaders', opts)
 export const trash = hc<TrashRoute>('/api/trash', opts)
-export const agentApiKeysApi = hc<AgentApiKeysRoute>('/api/workspaces', opts)
 export const agentOAuthGrantsApi = hc<AgentOAuthGrantsRoute>('/api', opts)
 export const storages = hc<StoragesRoute>('/api/site/storages', opts)
 export const storageUsageApi = hc<StorageUsageRoute>('/api/storage', opts)

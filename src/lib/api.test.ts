@@ -12,7 +12,6 @@ import {
   connectCloud,
   continueCloudOrderPayment,
   copyObject,
-  createAgentApiKey,
   createAnnouncement,
   createBackgroundJob,
   createCloudBillingPortalSession,
@@ -81,7 +80,6 @@ import {
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
-  listAgentApiKeys,
   listAgentOAuthGrants,
   listAnnouncements,
   listApiKeys,
@@ -124,7 +122,6 @@ import {
   resetBrandingField,
   restoreObject,
   retryBackgroundJob,
-  revokeAgentApiKey,
   revokeAgentOAuthGrant,
   revokeIhostApiKey,
   revokeOrgEntitlement,
@@ -133,7 +130,6 @@ import {
   revokeSiteInvitation,
   revokeUserEntitlement,
   revokeWebDavAppPassword,
-  rotateAgentApiKey,
   runDownloadTaskAction,
   saveBranding,
   saveEmailConfig,
@@ -3122,102 +3118,12 @@ describe('api', () => {
     })
   })
 
-  describe('Agent Access API keys', () => {
-    const sampleList = {
-      items: [
-        {
-          id: 'agent-key-1',
-          name: 'CI',
-          orgId: 'org-1',
-          workspaceName: 'Personal',
-          scopes: ['objects:read'],
-          createdAt: '2026-07-29T00:00:00.000Z',
-          expiresAt: '2026-10-27T00:00:00.000Z',
-          lastUsedAt: null,
-          status: 'active',
-        },
-      ],
-      total: 1,
-      page: 1,
-      pageSize: 50,
-    }
-
-    it('lists workspace Agent API keys through the Hono RPC route', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(sampleList))
-
-      const result = await listAgentApiKeys('org-1')
-
-      expect(result).toEqual(sampleList)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/workspaces/org-1/agent-api-keys')
-      expect(url).toContain('page=1')
-      expect(url).toContain('pageSize=50')
-      expect(init.method).toBe('GET')
-    })
-
-    it('creates a workspace Agent API key with explicit scopes and expiry', async () => {
-      const payload = { key: 'zpan_agent_secret', item: sampleList.items[0] }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload, true, 201))
-
-      const result = await createAgentApiKey('org-1', {
-        name: 'CI',
-        scopes: ['objects:read'],
-        expiresAt: '2026-10-27T00:00:00.000Z',
-      })
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/workspaces/org-1/agent-api-keys')
-      expect(init.method).toBe('POST')
-      expect(JSON.parse(init.body as string)).toEqual({
-        name: 'CI',
-        scopes: ['objects:read'],
-        expiresAt: '2026-10-27T00:00:00.000Z',
-      })
-    })
-
-    it('rotates a workspace Agent API key without sending the old secret', async () => {
-      const payload = { key: 'zpan_agent_rotated', item: { ...sampleList.items[0], id: 'agent-key-2' } }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload, true, 201))
-
-      const result = await rotateAgentApiKey('org-1', 'agent-key-1', { name: 'CI rotated' })
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/workspaces/org-1/agent-api-keys/agent-key-1/rotations')
-      expect(init.method).toBe('POST')
-      expect(JSON.parse(init.body as string)).toEqual({ name: 'CI rotated' })
-    })
-
-    it('revokes a workspace Agent API key with DELETE', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
-
-      await revokeAgentApiKey('org-1', 'agent-key-1')
-
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/workspaces/org-1/agent-api-keys/agent-key-1')
-      expect(init.method).toBe('DELETE')
-    })
-
-    it('throws ApiError when Agent key creation fails', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
-
-      await expect(
-        createAgentApiKey('org-1', {
-          name: 'CI',
-          scopes: ['objects:read'],
-          expiresAt: '2026-10-27T00:00:00.000Z',
-        }),
-      ).rejects.toThrow('Forbidden')
-    })
-  })
-
   describe('Agent OAuth consent and grants', () => {
     const sampleGrantList = {
       items: [
         {
           id: 'grant-1',
-          clientId: 'zpan-agent',
+          clientId: 'dynamic-client',
           clientName: 'ZPan Agent',
           userId: 'user-1',
           orgId: 'org-1',
@@ -3232,7 +3138,7 @@ describe('api', () => {
 
     it('loads server-owned OAuth consent context with the raw OAuth query', async () => {
       const payload = {
-        clientId: 'zpan-agent',
+        clientId: 'dynamic-client',
         clientName: 'ZPan Agent',
         instanceOrigin: 'https://zpan.example.test',
         workspace: { id: 'org-1', name: 'Personal' },
@@ -3243,19 +3149,19 @@ describe('api', () => {
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await getAgentOAuthConsentContext('client_id=zpan-agent&scope=objects%3Aread')
+      const result = await getAgentOAuthConsentContext('client_id=dynamic-client&scope=objects%3Aread')
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/agent-oauth-consent')
-      expect(url).toContain('oauthQuery=client_id%3Dzpan-agent%26scope%3Dobjects%253Aread')
+      expect(url).toContain('oauthQuery=client_id%3Ddynamic-client%26scope%3Dobjects%253Aread')
       expect(init.method).toBe('GET')
     })
 
     it('submits full OAuth consent through the Hono RPC wrapper without sending scope overrides', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ url: 'http://127.0.0.1:8484/callback?code=abc' }))
 
-      const result = await submitAgentOAuthConsent({ accept: true, oauthQuery: 'client_id=zpan-agent' })
+      const result = await submitAgentOAuthConsent({ accept: true, oauthQuery: 'client_id=dynamic-client' })
 
       expect(result).toEqual({ url: 'http://127.0.0.1:8484/callback?code=abc' })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
@@ -3264,7 +3170,7 @@ describe('api', () => {
       expect(init.credentials).toBe('include')
       expect(JSON.parse(init.body as string)).toEqual({
         accept: true,
-        oauthQuery: 'client_id=zpan-agent',
+        oauthQuery: 'client_id=dynamic-client',
       })
     })
 
@@ -3278,7 +3184,7 @@ describe('api', () => {
         },
       } as unknown as Response)
 
-      await expect(submitAgentOAuthConsent({ accept: false, oauthQuery: 'client_id=zpan-agent' })).rejects.toThrow(
+      await expect(submitAgentOAuthConsent({ accept: false, oauthQuery: 'client_id=dynamic-client' })).rejects.toThrow(
         ApiError,
       )
     })

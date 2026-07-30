@@ -337,6 +337,8 @@ describe('object usecase', () => {
             url: 'https://up',
             expiresAt: out.upload.presignedExpiresAt,
             headers: { 'content-type': 'image/jpeg' },
+            offset: 0,
+            length: 2048,
           },
         ])
         expect(out.matter.status).toBe('draft')
@@ -467,8 +469,22 @@ describe('object usecase', () => {
         expect(out.upload.requiredHeaders).toEqual({})
         expect(out.upload.urls).toEqual(['https://part-1', 'https://part-2'])
         expect(out.upload.parts).toEqual([
-          { partNumber: 1, url: 'https://part-1', expiresAt: out.upload.presignedExpiresAt, headers: {} },
-          { partNumber: 2, url: 'https://part-2', expiresAt: out.upload.presignedExpiresAt, headers: {} },
+          {
+            partNumber: 1,
+            url: 'https://part-1',
+            expiresAt: out.upload.presignedExpiresAt,
+            headers: {},
+            offset: 0,
+            length: multipartPartSize,
+          },
+          {
+            partNumber: 2,
+            url: 'https://part-2',
+            expiresAt: out.upload.presignedExpiresAt,
+            headers: {},
+            offset: multipartPartSize,
+            length: 1,
+          },
         ])
         expect(createMultipartUpload).toHaveBeenCalled()
         expect(presignUploadPart).toHaveBeenCalledWith(
@@ -1001,8 +1017,22 @@ describe('object usecase', () => {
       expect(out.uploadId).toBe('mp-1')
       expect(out.partCount).toBe(3)
       expect(out.parts).toEqual([
-        { partNumber: 3, url: 'https://part-3', expiresAt: out.presignedExpiresAt, headers: {} },
-        { partNumber: 1, url: 'https://part-1', expiresAt: out.presignedExpiresAt, headers: {} },
+        {
+          partNumber: 3,
+          url: 'https://part-3',
+          expiresAt: out.presignedExpiresAt,
+          headers: {},
+          offset: 200,
+          length: 50,
+        },
+        {
+          partNumber: 1,
+          url: 'https://part-1',
+          expiresAt: out.presignedExpiresAt,
+          headers: {},
+          offset: 0,
+          length: 100,
+        },
       ])
       expect(presignUploadPart).toHaveBeenCalledWith(storage, 'key/d1', 'mp-1', 3, UPLOAD_PRESIGNED_URL_TTL_SECONDS)
     })

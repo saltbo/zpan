@@ -1,10 +1,12 @@
 import { FREE_SOCIAL_LOGIN_LIMIT } from '@shared/constants'
 import type { BindingState } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LicenseBindingRepo, SystemOption, SystemOptionsRepo } from '../ports'
+import type { Database } from '../../platform/interface'
+import type { AgentOAuthGateway, LicenseBindingRepo, SystemOption, SystemOptionsRepo } from '../ports'
 import {
   type AuthProviderDeps,
   deleteAuthProvider,
+  listAuthProviderSettings,
   listAuthProviders,
   listPublicAuthProviders,
   type UpsertProviderInput,
@@ -119,6 +121,43 @@ describe('auth-provider usecase', () => {
         listByPrefix: async () => [{ key: 'oauth_provider_bad', value: '{' }],
       })
       expect(await listAuthProviders(deps, listOptions)).toEqual({ items: [] })
+    })
+  })
+
+  describe('listAuthProviderSettings', () => {
+    it('combines provider configuration with dynamically registered applications', async () => {
+      const { deps } = makeDeps({
+        listByPrefix: async () => [
+          row({
+            providerId: 'github',
+            type: 'builtin',
+            clientId: 'a',
+            clientSecret: 'super-secret-value',
+            enabled: true,
+          }),
+        ],
+      })
+      const registeredApplications = [
+        {
+          clientId: 'dynamic-client',
+          name: 'Build Agent',
+          uri: null,
+          redirectUris: ['http://127.0.0.1/callback'],
+          grantTypes: ['authorization_code'],
+          scopes: ['objects:read'],
+          disabled: false,
+          createdAt: '2026-07-30T12:00:00.000Z',
+        },
+      ]
+      const listRegisteredApplications = vi.fn(async () => registeredApplications)
+      const agentOAuth = { listRegisteredApplications } as unknown as AgentOAuthGateway
+      const db = {} as Database
+
+      const result = await listAuthProviderSettings({ ...deps, agentOAuth }, db, listOptions)
+
+      expect(result.items).toHaveLength(1)
+      expect(result.registeredApplications).toEqual(registeredApplications)
+      expect(listRegisteredApplications).toHaveBeenCalledWith(db)
     })
   })
 

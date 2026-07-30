@@ -59,7 +59,7 @@ export type AuthPrincipal =
       orgId: string
       userId: string
       scopes: readonly AuthorizationScope[]
-      authMethod: 'bearer'
+      authMethod: 'bearer' | 'dpop'
     }
   | {
       kind: 'downloader'

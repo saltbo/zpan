@@ -42,7 +42,37 @@ function makeUpload(urls: string[], partSize: number): ObjectUploadInstructions 
       url,
       expiresAt: '2026-01-01T00:15:00.000Z',
       headers: {},
+      offset: index * partSize,
+      length: partSize,
     })),
+    workflow: {
+      version: '1',
+      upload: {
+        method: 'PUT',
+        urlField: 'parts[].url',
+        headersField: 'parts[].headers',
+        fileOffsetField: 'parts[].offset',
+        contentLengthField: 'parts[].length',
+        etagHeader: 'ETag',
+      },
+      complete: {
+        operationId: 'completeObjectUpload',
+        method: 'POST',
+        path: '/api/objects/object-1/upload/completions',
+        partsBodyField: 'parts',
+      },
+      rePresign: {
+        operationId: 'presignObjectUploadParts',
+        method: 'POST',
+        path: '/api/objects/object-1/upload/parts',
+        partNumbersBodyField: 'partNumbers',
+      },
+      abort: {
+        operationId: 'abortObjectUpload',
+        method: 'DELETE',
+        path: '/api/objects/object-1/upload',
+      },
+    },
   }
 }
 

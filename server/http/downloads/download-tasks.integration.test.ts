@@ -207,7 +207,7 @@ describe('Download tasks API integration', () => {
     const wrongClient = await app.request('/api/auth/device/code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: 'zpan-agent', scope: 'downloader:register' }),
+      body: JSON.stringify({ client_id: 'unrelated-client', scope: 'downloader:register' }),
     })
     expect(wrongClient.status).toBe(400)
   })

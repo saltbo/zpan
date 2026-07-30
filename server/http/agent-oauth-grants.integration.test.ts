@@ -1,15 +1,13 @@
-import { createHash } from 'node:crypto'
-import {
-  AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
-  AGENT_OAUTH_CLIENT_ID,
-  AGENT_OAUTH_CLIENT_NAME,
-  AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
-} from '@shared/agent-oauth'
+import { AGENT_OAUTH_ACCESS_TOKEN_SECONDS, AGENT_OAUTH_REFRESH_TOKEN_SECONDS } from '@shared/agent-oauth'
 import { AuthorizationScope } from '@shared/authorization'
-import { eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
+
+const CLIENT_ID = 'dynamic-client'
+const CLIENT_NAME = 'FlareAuth'
+const REDIRECT_URI = 'https://flareauth.example/callback'
 
 type TestContext = Awaited<ReturnType<typeof createTestApp>>
 
@@ -26,16 +24,31 @@ async function getUserAndPersonalOrg(db: TestContext['db'], email: string) {
   return rows[0]
 }
 
-async function insertTeamOrg(db: TestContext['db'], orgId: string, userId: string) {
-  const now = Date.now()
-  await db.run(sql`
-    INSERT INTO organization (id, name, slug, metadata, created_at, updated_at)
-    VALUES (${orgId}, ${`Team ${orgId}`}, ${orgId}, '{"type":"team"}', ${now}, ${now})
-  `)
-  await db.run(sql`
-    INSERT INTO member (id, organization_id, user_id, role, created_at)
-    VALUES (${`${orgId}-member`}, ${orgId}, ${userId}, 'owner', ${now})
-  `)
+async function insertClient(db: TestContext['db']) {
+  await db.insert(authSchema.oauthClient).values({
+    id: CLIENT_ID,
+    clientId: CLIENT_ID,
+    clientSecret: null,
+    disabled: false,
+    skipConsent: false,
+    enableEndSession: false,
+    subjectType: 'public',
+    scopes: JSON.stringify([
+      'openid',
+      'offline_access',
+      AuthorizationScope.OBJECTS_READ,
+      AuthorizationScope.QUOTA_READ,
+    ]),
+    name: CLIENT_NAME,
+    uri: 'https://flareauth.example',
+    redirectUris: JSON.stringify([REDIRECT_URI]),
+    tokenEndpointAuthMethod: 'none',
+    grantTypes: JSON.stringify(['authorization_code', 'refresh_token']),
+    responseTypes: JSON.stringify(['code']),
+    public: true,
+    type: 'web',
+    requirePKCE: true,
+  })
 }
 
 async function insertGrant(
@@ -45,7 +58,7 @@ async function insertGrant(
   const now = new Date('2026-07-29T12:00:00.000Z')
   await db.insert(authSchema.oauthConsent).values({
     id: 'grant-1',
-    clientId: AGENT_OAUTH_CLIENT_ID,
+    clientId: CLIENT_ID,
     userId: input.userId,
     referenceId: input.orgId,
     scopes: JSON.stringify(input.scopes),
@@ -55,7 +68,7 @@ async function insertGrant(
   await db.insert(authSchema.oauthRefreshToken).values({
     id: 'refresh-1',
     token: 'hashed-refresh',
-    clientId: AGENT_OAUTH_CLIENT_ID,
+    clientId: CLIENT_ID,
     userId: input.userId,
     referenceId: input.orgId,
     expiresAt: new Date(Date.now() + 60_000),
@@ -64,8 +77,8 @@ async function insertGrant(
   })
   await db.insert(authSchema.oauthAccessToken).values({
     id: 'access-1',
-    token: hashStoredToken('live-agent-token'),
-    clientId: AGENT_OAUTH_CLIENT_ID,
+    token: 'hashed-access',
+    clientId: CLIENT_ID,
     userId: input.userId,
     referenceId: input.orgId,
     refreshId: 'refresh-1',
@@ -75,29 +88,35 @@ async function insertGrant(
   })
 }
 
+function oauthQuery() {
+  return new URLSearchParams({
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    response_type: 'code',
+    scope: `${AuthorizationScope.OBJECTS_READ} ${AuthorizationScope.QUOTA_READ} openid offline_access`,
+  }).toString()
+}
+
 describe('Agent OAuth grants API integration', () => {
-  it('returns server-owned Agent OAuth consent context for the active workspace', async () => {
+  it('returns consent context for a dynamically registered application', async () => {
     const { app, db } = await createTestApp()
+    await insertClient(db)
     const headers = await authedHeaders(app, 'agent-consent@example.com')
     const { orgId } = await getUserAndPersonalOrg(db, 'agent-consent@example.com')
-    const oauthQuery = new URLSearchParams({
-      client_id: AGENT_OAUTH_CLIENT_ID,
-      redirect_uri: 'http://127.0.0.1:8484/callback',
-      response_type: 'code',
-      scope: `${AuthorizationScope.OBJECTS_READ} ${AuthorizationScope.QUOTA_READ} openid offline_access`,
-    }).toString()
 
-    const res = await app.request(`/api/agent-oauth-consent?oauthQuery=${encodeURIComponent(oauthQuery)}`, { headers })
+    const res = await app.request(`/api/agent-oauth-consent?oauthQuery=${encodeURIComponent(oauthQuery())}`, {
+      headers,
+    })
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({
-      clientId: AGENT_OAUTH_CLIENT_ID,
-      clientName: AGENT_OAUTH_CLIENT_NAME,
+      clientId: CLIENT_ID,
+      clientName: CLIENT_NAME,
       instanceOrigin: 'http://localhost',
       workspace: { id: orgId, name: expect.any(String) },
       scopes: [AuthorizationScope.OBJECTS_READ, AuthorizationScope.QUOTA_READ],
       standardScopes: ['openid', 'offline_access'],
-      redirectUri: 'http://127.0.0.1:8484/callback',
+      redirectUri: REDIRECT_URI,
       grantLifetime: {
         accessTokenSeconds: AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
         refreshTokenSeconds: AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
@@ -105,61 +124,24 @@ describe('Agent OAuth grants API integration', () => {
     })
   })
 
-  it('revalidates OAuth consent submission through the Agent Access API', async () => {
-    const { app } = await createTestApp()
+  it('revalidates malformed OAuth consent submissions', async () => {
+    const { app, db } = await createTestApp()
+    await insertClient(db)
     const headers = await authedHeaders(app, 'agent-submit@example.com')
 
     const res = await app.request('/api/agent-oauth-consent', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accept: true, oauthQuery: 'client_id=zpan-agent&response_type=token' }),
+      body: JSON.stringify({ accept: true, oauthQuery: `client_id=${CLIENT_ID}&response_type=token` }),
     })
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({
-      error: {
-        message: 'Invalid Agent OAuth request',
-      },
-    })
+    await expect(res.json()).resolves.toMatchObject({ error: { message: 'Invalid Agent OAuth request' } })
   })
 
-  it('submits full OAuth consent through the Agent Access API', async () => {
-    const { app } = await createTestApp()
-    const headers = await authedHeaders(app, 'agent-submit-success@example.com')
-    const oauthParams = new URLSearchParams({
-      client_id: AGENT_OAUTH_CLIENT_ID,
-      redirect_uri: 'http://127.0.0.1:8484/callback',
-      response_type: 'code',
-      scope: `${AuthorizationScope.OBJECTS_READ} ${AuthorizationScope.QUOTA_READ} openid offline_access`,
-      state: 'agent-submit-success',
-      code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
-      code_challenge_method: 'S256',
-    })
-    const authorize = await app.request(`/api/auth/oauth2/authorize?${oauthParams}`, {
-      headers: { ...headers, Origin: 'http://localhost' },
-    })
-    const consentLocation = authorize.headers.get('location')
-    expect(authorize.status).toBe(302)
-    expect(consentLocation).toMatch(/^\/settings\/agent-access\?/)
-
-    const consent = await app.request('/api/agent-oauth-consent', {
-      method: 'POST',
-      headers: { ...headers, Origin: 'http://localhost', 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        accept: true,
-        oauthQuery: consentLocation?.slice(consentLocation.indexOf('?') + 1),
-      }),
-    })
-    const consentBody = await consent.text()
-
-    expect(consent.status, consentBody).toBe(200)
-    expect(JSON.parse(consentBody)).toMatchObject({
-      url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:8484\/callback\?code=/),
-    })
-  })
-
-  it('lists and revokes the current user grant family', async () => {
+  it('lists and revokes the current user dynamic-client grant family', async () => {
     const { app, db } = await createTestApp()
+    await insertClient(db)
     const headers = await authedHeaders(app, 'agent-grants@example.com')
     const { userId, orgId } = await getUserAndPersonalOrg(db, 'agent-grants@example.com')
     await insertGrant(db, { userId, orgId, scopes: [AuthorizationScope.OBJECTS_READ, AuthorizationScope.QUOTA_READ] })
@@ -170,8 +152,8 @@ describe('Agent OAuth grants API integration', () => {
       items: [
         {
           id: 'grant-1',
-          clientId: AGENT_OAUTH_CLIENT_ID,
-          clientName: 'ZPan Agent',
+          clientId: CLIENT_ID,
+          clientName: CLIENT_NAME,
           userId,
           orgId,
           workspaceName: expect.any(String),
@@ -191,68 +173,13 @@ describe('Agent OAuth grants API integration', () => {
     expect(refresh.revoked).not.toBeNull()
   })
 
-  it('enforces live grant membership and a bound workspace for Agent OAuth bearer access', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app, 'agent-scope@example.com')
-    const { userId, orgId } = await getUserAndPersonalOrg(db, 'agent-scope@example.com')
-    await insertTeamOrg(db, 'other-workspace', userId)
-    await insertGrant(db, { userId, orgId, scopes: [AuthorizationScope.OBJECTS_READ] })
-
-    const list = await app.request('/api/agent-oauth-grants', { headers })
-    expect(list.status).toBe(200)
-    await expect(list.json()).resolves.toMatchObject({ items: [{ id: 'grant-1', lastUsedAt: null }] })
-
-    const bearer = { Authorization: 'Bearer live-agent-token' }
-    const allowed = await app.request('/api/objects', { headers: bearer })
-    expect(allowed.status).toBe(200)
-    const [usedGrant] = await db
-      .select({ lastUsedAt: authSchema.oauthConsent.lastUsedAt })
-      .from(authSchema.oauthConsent)
-      .where(eq(authSchema.oauthConsent.id, 'grant-1'))
-    expect(usedGrant.lastUsedAt).toBeInstanceOf(Date)
-
-    const wrongWorkspace = await app.request('/api/objects?orgId=other-workspace', { headers: bearer })
-    expect(wrongWorkspace.status).toBe(403)
-
-    const revoke = await app.request('/api/agent-oauth-grants/grant-1', { method: 'DELETE', headers })
-    expect(revoke.status).toBe(204)
-
-    const revoked = await app.request('/api/objects', { headers: bearer })
-    expect(revoked.status).toBe(401)
-  })
-
-  it('blocks generic Better Auth OAuth consent mutation endpoints', async () => {
-    const { app } = await createTestApp()
-
-    for (const path of ['/api/auth/oauth2/update-consent', '/api/auth/oauth2/delete-consent']) {
-      const res = await app.request(path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: AGENT_OAUTH_CLIENT_ID }),
-      })
-
-      expect(res.status).toBe(403)
-      await expect(res.json()).resolves.toMatchObject({
-        error_description: 'Manage Agent OAuth grants from the Agent Access API',
-      })
-    }
-  })
-
-  it('returns 404 when revoking a missing Agent OAuth grant', async () => {
+  it('returns 404 when revoking a missing grant', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app, 'agent-missing-grant@example.com')
 
     const revoke = await app.request('/api/agent-oauth-grants/missing-grant', { method: 'DELETE', headers })
 
     expect(revoke.status).toBe(404)
-    await expect(revoke.json()).resolves.toMatchObject({
-      error: {
-        message: 'Agent OAuth grant not found',
-      },
-    })
+    await expect(revoke.json()).resolves.toMatchObject({ error: { message: 'Agent OAuth grant not found' } })
   })
 })
-
-function hashStoredToken(token: string): string {
-  return createHash('sha256').update(token).digest('base64url')
-}

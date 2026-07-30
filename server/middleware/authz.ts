@@ -116,7 +116,6 @@ export function authorize(declaration: RouteAuthorizationDeclaration) {
     })
     if (decision.allowed) {
       if (decision.effectiveOrgId) c.set('orgId', decision.effectiveOrgId)
-      await recordAgentOAuthGrantUse(c, declaration, decision.effectiveOrgId)
       await next()
       return
     }
@@ -159,23 +158,6 @@ function isSafeMethod(method: string): boolean {
   return method === 'GET' || method === 'HEAD' || method === 'OPTIONS'
 }
 
-async function recordAgentOAuthGrantUse(
-  c: Context<Env>,
-  declaration: RouteAuthorizationDeclaration,
-  effectiveOrgId: string | null,
-) {
-  const context = c.get('authzContext')
-  if (context.credential !== 'agent_oauth') return
-  if (!declaredScopes(declaration).length) return
-  if (!context.userId || !effectiveOrgId || context.actor?.type !== 'agent_oauth') return
-  await c.get('deps').agentOAuth.recordGrantUse(c.get('platform').db, {
-    grantId: context.actor.ref,
-    userId: context.userId,
-    orgId: effectiveOrgId,
-    now: new Date(),
-  })
-}
-
 function allow(effectiveOrgId: string | null): AuthzDecision {
   return { allowed: true, effectiveOrgId, reason: 'allowed' }
 }
@@ -197,11 +179,6 @@ function deny(
 function shouldAudit(declaration: RouteAuthorizationDeclaration): boolean {
   if ('public' in declaration) return false
   return declaration.auditDenied !== false
-}
-
-function declaredScopes(declaration: RouteAuthorizationDeclaration): AuthorizationScope[] {
-  if ('public' in declaration) return []
-  return [...declaration.scopes]
 }
 
 async function recordDenialAudit(c: Context<Env>, reason: AuthzDenialReason) {

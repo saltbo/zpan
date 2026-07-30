@@ -44,6 +44,7 @@ interface WorkerRuntime {
   cache: CacheService
   authBySlot: Map<AuthSlot, Auth>
   appBySlot: Map<AuthSlot, ReturnType<typeof createApp>>
+  appInitBySlot: Map<AuthSlot, Promise<ReturnType<typeof createApp>>>
 }
 
 let cachedRuntime: WorkerRuntime | undefined
@@ -71,6 +72,7 @@ function runtimeFor(env: Env): WorkerRuntime {
     deps: createDeps(platform, { cache }),
     authBySlot: new Map(),
     appBySlot: new Map(),
+    appInitBySlot: new Map(),
   }
   return cachedRuntime
 }
@@ -93,11 +95,23 @@ async function appForRequest(
   const cachedAuth = runtime.authBySlot.get(slot)
   if (cachedApp && cachedAuth) return cachedApp
 
-  const auth = await createAuth(runtime.platform, env.BETTER_AUTH_SECRET, baseURL, trustedOrigins, waitUntil)
-  const app = createApp(runtime.platform, auth, runtime.deps)
-  runtime.authBySlot.set(slot, auth)
-  runtime.appBySlot.set(slot, app)
-  return app
+  const pendingApp = runtime.appInitBySlot.get(slot)
+  if (pendingApp) return pendingApp
+
+  const appPromise = createAuth(runtime.platform, env.BETTER_AUTH_SECRET, baseURL, trustedOrigins, waitUntil).then(
+    (auth) => {
+      const app = createApp(runtime.platform, auth, runtime.deps)
+      runtime.authBySlot.set(slot, auth)
+      runtime.appBySlot.set(slot, app)
+      return app
+    },
+  )
+  runtime.appInitBySlot.set(slot, appPromise)
+  try {
+    return await appPromise
+  } finally {
+    runtime.appInitBySlot.delete(slot)
+  }
 }
 
 export default {

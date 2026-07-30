@@ -265,6 +265,8 @@ async function prepareUpload(
         url: await deps.s3.presignUpload(storage, storageKey, contentType, UPLOAD_PRESIGNED_URL_TTL_SECONDS),
         expiresAt: presignedExpiresAt,
         headers,
+        offset: 0,
+        length: size,
       },
     ]
   } else {
@@ -285,6 +287,8 @@ async function prepareUpload(
         url: await deps.s3.presignUploadPart(storage, storageKey, mpId, i + 1, UPLOAD_PRESIGNED_URL_TTL_SECONDS),
         expiresAt: presignedExpiresAt,
         headers: {},
+        offset: i * partSize,
+        length: Math.min(partSize, size - i * partSize),
       })),
     )
   }
@@ -310,6 +314,39 @@ async function prepareUpload(
     requiredHeaders: uploadId == null ? headers : {},
     urls: parts.map((part) => part.url),
     parts,
+    workflow: uploadWorkflow(params.objectId, record.id),
+  }
+}
+
+function uploadWorkflow(objectId: string, sessionId: string): ObjectUploadInstructions['workflow'] {
+  const sessionPath = `/api/objects/${objectId}/uploads/${sessionId}`
+  return {
+    version: '1',
+    upload: {
+      method: 'PUT',
+      urlField: 'parts[].url',
+      headersField: 'parts[].headers',
+      fileOffsetField: 'parts[].offset',
+      contentLengthField: 'parts[].length',
+      etagHeader: 'ETag',
+    },
+    complete: {
+      operationId: 'completeObjectUpload',
+      method: 'POST',
+      path: `${sessionPath}/completions`,
+      partsBodyField: 'parts',
+    },
+    rePresign: {
+      operationId: 'presignObjectUploadParts',
+      method: 'POST',
+      path: `${sessionPath}/parts`,
+      partNumbersBodyField: 'partNumbers',
+    },
+    abort: {
+      operationId: 'abortObjectUpload',
+      method: 'DELETE',
+      path: sessionPath,
+    },
   }
 }
 
@@ -408,6 +445,8 @@ export async function presignUploadSessionParts(
         ),
         expiresAt: presignedExpiresAt,
         headers,
+        offset: 0,
+        length: matter.size ?? 0,
       })),
     )
     return {
@@ -433,6 +472,8 @@ export async function presignUploadSessionParts(
       ),
       expiresAt: presignedExpiresAt,
       headers: {},
+      offset: (partNumber - 1) * record.partSize,
+      length: Math.min(record.partSize, (matter.size ?? 0) - (partNumber - 1) * record.partSize),
     })),
   )
   return {

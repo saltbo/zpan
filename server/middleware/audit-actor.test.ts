@@ -8,7 +8,7 @@ describe('auditActor', () => {
       kind: 'agent-oauth',
       userId: 'user-1',
       grantId: 'grant-1',
-      clientId: 'zpan-agent',
+      clientId: 'dynamic-client',
       orgId: 'org-1',
       scopes: [],
       authMethod: 'bearer',

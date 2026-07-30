@@ -3,7 +3,7 @@ import { inArray } from 'drizzle-orm'
 import { apikey } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
 
-const WORKSPACE_TEMPLATES = [ApiKeyTemplate.IHOST, ApiKeyTemplate.REMOTE_DOWNLOAD, ApiKeyTemplate.AGENT]
+const WORKSPACE_TEMPLATES = [ApiKeyTemplate.IHOST, ApiKeyTemplate.REMOTE_DOWNLOAD]
 
 export function scopeForApiKey(configId: string, metadata: unknown): ApiKeyScope | null {
   const scope = parseApiKeyScope(metadata)

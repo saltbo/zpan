@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { signUpAndGoToFiles } from './helpers'
 
 const oauthQuery =
-  'client_id=zpan-agent&redirect_uri=http%3A%2F%2F127.0.0.1%3A8484%2Fcallback&response_type=code&scope=openid%20offline_access%20objects%3Aread%20shares%3Acreate%20quota%3Aread'
+  'client_id=dynamic-client&redirect_uri=https%3A%2F%2Fbroker.example.com%2Fcallback&response_type=code&scope=openid%20offline_access%20objects%3Aread%20shares%3Acreate%20quota%3Aread'
 
 test.describe('Agent Access OAuth UI', () => {
   test('renders consent details and submits full approval @desktop', async ({ page }) => {
@@ -12,13 +12,13 @@ test.describe('Agent Access OAuth UI', () => {
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
-          clientId: 'zpan-agent',
-          clientName: 'ZPan Agent',
+          clientId: 'dynamic-client',
+          clientName: 'FlareAuth',
           instanceOrigin: 'http://localhost:5185',
           workspace: { id: 'org-e2e', name: 'Personal' },
           scopes: ['objects:read', 'shares:create', 'quota:read'],
           standardScopes: ['openid', 'offline_access'],
-          redirectUri: 'http://127.0.0.1:8484/callback',
+          redirectUri: 'https://broker.example.com/callback',
           grantLifetime: { accessTokenSeconds: 900, refreshTokenSeconds: 2_592_000 },
         }),
       })
@@ -30,25 +30,25 @@ test.describe('Agent Access OAuth UI', () => {
       expect(body).toEqual({ accept: true, oauthQuery })
       await route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify({ url: 'http://127.0.0.1:8484/callback?code=e2e-code' }),
+        body: JSON.stringify({ url: 'https://broker.example.com/callback?code=e2e-code' }),
       })
     })
-    await page.route('http://127.0.0.1:8484/callback?code=e2e-code', async (route) => {
-      await route.fulfill({ contentType: 'text/html', body: '<main>Returned to Restish</main>' })
+    await page.route('https://broker.example.com/callback?code=e2e-code', async (route) => {
+      await route.fulfill({ contentType: 'text/html', body: '<main>Returned to FlareAuth</main>' })
     })
 
     await page.goto(`/settings/agent-access?${oauthQuery}`)
 
-    await expect(page.getByRole('heading', { name: 'Authorize ZPan Agent' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Authorize Application' })).toBeVisible()
     await expect(page.getByText('http://localhost:5185')).toBeVisible()
-    await expect(page.getByText('http://127.0.0.1:8484/callback')).toBeVisible()
+    await expect(page.getByText('https://broker.example.com/callback')).toBeVisible()
     await expect(page.getByText('Files: read objects')).toBeVisible()
     await expect(page.getByText('Shares: create shares')).toBeVisible()
     await expect(page.getByText('Quota: read workspace quota')).toBeVisible()
 
     await page.getByRole('button', { name: 'Approve Access' }).click()
-    await expect(page).toHaveURL(/127\.0\.0\.1:8484\/callback\?code=e2e-code/, { timeout: 10000 })
-    await expect(page.getByText('Returned to Restish')).toBeVisible()
+    await expect(page).toHaveURL(/broker\.example\.com\/callback\?code=e2e-code/, { timeout: 10000 })
+    await expect(page.getByText('Returned to FlareAuth')).toBeVisible()
   })
 
   test('lists and revokes delegated grants in settings @desktop', async ({ page }) => {
@@ -65,8 +65,8 @@ test.describe('Agent Access OAuth UI', () => {
             : [
                 {
                   id: 'grant-e2e',
-                  clientId: 'zpan-agent',
-                  clientName: 'ZPan Agent',
+                  clientId: 'dynamic-client',
+                  clientName: 'FlareAuth',
                   userId: 'user-e2e',
                   orgId: 'org-e2e',
                   workspaceName: 'Personal',
@@ -88,7 +88,7 @@ test.describe('Agent Access OAuth UI', () => {
     await page.goto('/settings/agent-access')
 
     await expect(page.getByText('Delegated OAuth Grants')).toBeVisible()
-    await expect(page.getByRole('cell', { name: 'ZPan Agent' })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'FlareAuth' })).toBeVisible()
     await expect(page.getByText('Shares: create shares')).toBeVisible()
 
     const revokeButtons = page.getByRole('button', { name: 'Revoke' })
@@ -105,13 +105,13 @@ test.describe('Agent Access OAuth UI', () => {
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
-          clientId: 'zpan-agent',
-          clientName: 'ZPan Agent',
+          clientId: 'dynamic-client',
+          clientName: 'FlareAuth',
           instanceOrigin: 'http://localhost:5185',
           workspace: { id: 'org-e2e', name: 'Personal' },
           scopes: ['objects:read', 'shares:create', 'quota:read'],
           standardScopes: ['openid', 'offline_access'],
-          redirectUri: 'http://127.0.0.1:8484/callback',
+          redirectUri: 'https://broker.example.com/callback',
           grantLifetime: { accessTokenSeconds: 900, refreshTokenSeconds: 2_592_000 },
         }),
       })
@@ -124,8 +124,8 @@ test.describe('Agent Access OAuth UI', () => {
           items: [
             {
               id: 'grant-mobile',
-              clientId: 'zpan-agent',
-              clientName: 'ZPan Agent',
+              clientId: 'dynamic-client',
+              clientName: 'FlareAuth',
               userId: 'user-e2e',
               orgId: 'org-e2e',
               workspaceName: 'Personal',
@@ -140,7 +140,7 @@ test.describe('Agent Access OAuth UI', () => {
     })
 
     await page.goto(`/settings/agent-access?${oauthQuery}`)
-    await expect(page.getByRole('heading', { name: 'Authorize ZPan Agent' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Authorize Application' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Approve Access' })).toBeVisible()
     await expect(page.getByText('Files: read objects')).toBeVisible()
     await expect(page.getByText('Shares: create shares')).toBeVisible()
@@ -150,7 +150,7 @@ test.describe('Agent Access OAuth UI', () => {
 
     await page.goto('/settings/agent-access')
     await expect(page.getByText('Delegated OAuth Grants')).toBeVisible()
-    await expect(page.getByRole('cell', { name: 'ZPan Agent' })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'FlareAuth' })).toBeVisible()
     const grantsTableContainer = page.locator('[data-slot="table-container"]').last()
     await expect(grantsTableContainer).toBeVisible()
     await expect

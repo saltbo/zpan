@@ -10,28 +10,6 @@ export {
   adminOverviewSchema,
 } from './admin-analytics'
 export type {
-  AgentApiKey,
-  AgentApiKeyCreated,
-  AgentApiKeyCreateInput,
-  AgentApiKeyList,
-  AgentApiKeyRotateInput,
-  AgentApiKeyShortcutInput,
-  AgentApiKeyStatus,
-  AgentGrantableScope,
-} from './agent-api-keys'
-export {
-  agentApiKeyCreatedSchema,
-  agentApiKeyCreateSchema,
-  agentApiKeyListSchema,
-  agentApiKeyRotateSchema,
-  agentApiKeySchema,
-  agentApiKeyShortcutOptions,
-  agentApiKeyShortcutSchema,
-  agentApiKeyStatusSchema,
-  agentGrantableScopeSchema,
-  agentScopeLabels,
-} from './agent-api-keys'
-export type {
   AgentOAuthConsentContext,
   AgentOAuthConsentContextRequest,
   AgentOAuthConsentResult,
@@ -50,7 +28,6 @@ export {
   agentOAuthGrantSchema,
   agentOAuthGrantStatusSchema,
 } from './agent-oauth-grants'
-
 export type {
   AnnouncementInput,
   AnnouncementStatus,
@@ -185,6 +162,8 @@ export {
 } from './errors'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
+export type { OAuthResourceScope } from './oauth-resource'
+export { oauthResourceScopeLabels, oauthResourceScopeSchema } from './oauth-resource'
 export type { CursorPage, CursorPageQuery, Page, PageQuery } from './pagination'
 export { cursorPageQuerySchema, cursorPageSchema, pageQuerySchema, pageSchema } from './pagination'
 export type { PublicProfile, PublicProfileShare, PublicUser } from './profile'
@@ -318,6 +297,37 @@ export const presignedObjectUploadPartSchema = z.object({
   url: z.string(),
   expiresAt: z.string(),
   headers: z.record(z.string(), z.string()),
+  offset: z.number().int().min(0),
+  length: z.number().int().min(0),
+})
+
+export const objectUploadWorkflowSchema = z.object({
+  version: z.literal('1'),
+  upload: z.object({
+    method: z.literal('PUT'),
+    urlField: z.literal('parts[].url'),
+    headersField: z.literal('parts[].headers'),
+    fileOffsetField: z.literal('parts[].offset'),
+    contentLengthField: z.literal('parts[].length'),
+    etagHeader: z.literal('ETag'),
+  }),
+  complete: z.object({
+    operationId: z.literal('completeObjectUpload'),
+    method: z.literal('POST'),
+    path: z.string(),
+    partsBodyField: z.literal('parts'),
+  }),
+  rePresign: z.object({
+    operationId: z.literal('presignObjectUploadParts'),
+    method: z.literal('POST'),
+    path: z.string(),
+    partNumbersBodyField: z.literal('partNumbers'),
+  }),
+  abort: z.object({
+    operationId: z.literal('abortObjectUpload'),
+    method: z.literal('DELETE'),
+    path: z.string(),
+  }),
 })
 
 // The upload instructions returned by POST /objects for a file draft. File bytes
@@ -334,6 +344,7 @@ export const objectUploadInstructionsSchema = z.object({
   requiredHeaders: z.record(z.string(), z.string()),
   urls: z.array(z.string()),
   parts: z.array(presignedObjectUploadPartSchema),
+  workflow: objectUploadWorkflowSchema,
 })
 
 export const presignObjectUploadPartsResponseSchema = z.object({

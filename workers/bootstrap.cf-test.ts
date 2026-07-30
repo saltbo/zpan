@@ -27,6 +27,23 @@ describe('[CF] Worker fetch handler', () => {
     expect(await res.json()).toEqual({ status: 'ok' })
   })
 
+  it('publishes the Arazzo workflow description from the Worker runtime', async () => {
+    const root = await worker.fetch(new Request('https://pan.example.com/api'), testEnv)
+    const workflow = await worker.fetch(new Request('https://pan.example.com/api/workflows.arazzo.json'), testEnv)
+
+    expect(root.status).toBe(200)
+    expect(root.headers.get('Link')).toContain(
+      '</api/workflows.arazzo.json>; rel="describedby"; type="application/vnd.oai.workflows+json"',
+    )
+    expect(workflow.status).toBe(200)
+    expect(workflow.headers.get('Content-Type')).toBe('application/vnd.oai.workflows+json; version=1.1.0')
+    expect(await workflow.json()).toMatchObject({
+      arazzo: '1.1.0',
+      $self: 'https://pan.example.com/api/workflows.arazzo.json',
+      sourceDescriptions: [{ url: './openapi.json', type: 'openapi' }],
+    })
+  })
+
   it('splits and trims TRUSTED_ORIGINS when provided', async () => {
     const request = new Request('http://localhost/api/health')
     const envWithOrigins = { ...testEnv, TRUSTED_ORIGINS: ' https://a.example.com , https://b.example.com ' }

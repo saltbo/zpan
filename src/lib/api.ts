@@ -1,11 +1,6 @@
 import { type ApiKeyMetadata, ApiKeyTemplate } from '@shared/api-key-templates'
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
-  AgentApiKey,
-  AgentApiKeyCreated,
-  AgentApiKeyCreateInput,
-  AgentApiKeyList,
-  AgentApiKeyRotateInput,
   AgentOAuthConsentContext,
   AgentOAuthConsentResult,
   AgentOAuthConsentSubmit,
@@ -107,7 +102,6 @@ import {
   adminQuotas,
   adminSiteInvitations,
   adminTeams,
-  agentApiKeysApi,
   agentOAuthGrantsApi,
   announcementsApi,
   authedSharesApi,
@@ -1096,49 +1090,7 @@ export function deleteIhostConfig() {
   })
 }
 
-// Agent Access API keys
-
-export type {
-  AgentApiKey,
-  AgentApiKeyCreated,
-  AgentApiKeyCreateInput,
-  AgentApiKeyList,
-  AgentApiKeyRotateInput,
-  AgentOAuthConsentContext,
-  AgentOAuthConsentResult,
-  AgentOAuthGrant,
-  AgentOAuthGrantList,
-}
-
-export function listAgentApiKeys(orgId: string, page = 1, pageSize = 50) {
-  return unwrap<AgentApiKeyList>(
-    agentApiKeysApi[':orgId']['agent-api-keys'].$get({
-      param: { orgId },
-      query: { page: String(page), pageSize: String(pageSize) },
-    }),
-  )
-}
-
-export function createAgentApiKey(orgId: string, input: AgentApiKeyCreateInput) {
-  return unwrap<AgentApiKeyCreated>(
-    agentApiKeysApi[':orgId']['agent-api-keys'].$post({ param: { orgId }, json: input }),
-  )
-}
-
-export function rotateAgentApiKey(orgId: string, keyId: string, input: AgentApiKeyRotateInput = {}) {
-  return unwrap<AgentApiKeyCreated>(
-    agentApiKeysApi[':orgId']['agent-api-keys'][':keyId'].rotations.$post({
-      param: { orgId, keyId },
-      json: input,
-    }),
-  )
-}
-
-export function revokeAgentApiKey(orgId: string, keyId: string) {
-  return agentApiKeysApi[':orgId']['agent-api-keys'][':keyId'].$delete({ param: { orgId, keyId } }).then((res) => {
-    if (!res.ok) throw new ApiError(res.status, toErrorBody(res.status, { error: res.statusText }))
-  })
-}
+export type { AgentOAuthConsentContext, AgentOAuthConsentResult, AgentOAuthGrant, AgentOAuthGrantList }
 
 export function getAgentOAuthConsentContext(oauthQuery: string) {
   return unwrap<AgentOAuthConsentContext>(agentOAuthGrantsApi['agent-oauth-consent'].$get({ query: { oauthQuery } }))

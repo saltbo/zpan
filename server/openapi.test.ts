@@ -53,7 +53,83 @@ describe('global OpenAPI document', () => {
     expect(html).toContain('/api/openapi.json')
   })
 
-  it('publishes Agent OAuth security schemes and Restish profiles', async () => {
+  it('advertises and serves the Arazzo workflow description', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const [rootResponse, workflowResponse, documentResponse] = await Promise.all([
+      app.request('https://zpan.example/api'),
+      app.request('https://zpan.example/api/workflows.arazzo.json'),
+      app.request('https://zpan.example/api/openapi.json'),
+    ])
+    const root = (await rootResponse.json()) as { workflows?: string }
+    const workflows = (await workflowResponse.json()) as {
+      arazzo?: string
+      $self?: string
+      sourceDescriptions?: { name?: string; url?: string; type?: string }[]
+      workflows?: {
+        workflowId?: string
+        steps?: { operationId?: string }[]
+        outputs?: Record<string, string>
+      }[]
+    }
+    const document = (await documentResponse.json()) as {
+      externalDocs?: { description?: string; url?: string }
+      paths?: Record<string, Record<string, { operationId?: string }>>
+    }
+
+    expect(rootResponse.status).toBe(200)
+    expect(rootResponse.headers.get('link')).toContain(
+      '</api/openapi.json>; rel="service-desc"; type="application/openapi+json"',
+    )
+    expect(rootResponse.headers.get('link')).toContain(
+      '</api/workflows.arazzo.json>; rel="describedby"; type="application/vnd.oai.workflows+json"',
+    )
+    expect(root.workflows).toBe('/api/workflows.arazzo.json')
+
+    expect(workflowResponse.status).toBe(200)
+    expect(workflowResponse.headers.get('content-type')).toBe('application/vnd.oai.workflows+json; version=1.1.0')
+    expect(workflows).toMatchObject({
+      arazzo: '1.1.0',
+      $self: 'https://zpan.example/api/workflows.arazzo.json',
+      sourceDescriptions: [{ name: 'zpan', url: './openapi.json', type: 'openapi' }],
+    })
+    expect(workflows.workflows?.map((workflow) => workflow.workflowId)).toEqual([
+      'prepareDirectFileUpload',
+      'refreshDirectFileUploadParts',
+      'completeDirectFileUpload',
+      'abortDirectFileUpload',
+    ])
+    const workflowOperationIds = workflows.workflows
+      ?.flatMap((workflow) => workflow.steps ?? [])
+      .map((step) => step.operationId)
+    expect(workflowOperationIds).toEqual([
+      'createObject',
+      'presignObjectUploadParts',
+      'completeObjectUpload',
+      'abortObjectUpload',
+    ])
+    const openApiOperationIds = new Set(
+      Object.values(document.paths ?? {}).flatMap((path) =>
+        Object.values(path).flatMap((operation) => operation.operationId ?? []),
+      ),
+    )
+    expect(workflowOperationIds?.every((operationId) => operationId && openApiOperationIds.has(operationId))).toBe(true)
+    expect(workflows.workflows?.[0]?.outputs).toMatchObject({
+      objectId: '$steps.createUploadDraft.outputs.objectId',
+      sessionId: '$steps.createUploadDraft.outputs.sessionId',
+      upload: '$steps.createUploadDraft.outputs.upload',
+    })
+    expect(document.externalDocs).toEqual({
+      description: 'Machine-readable API workflows (Arazzo 1.1)',
+      url: '/api/workflows.arazzo.json',
+    })
+
+    const headResponse = await app.request('https://zpan.example/api/workflows.arazzo.json', { method: 'HEAD' })
+    expect(headResponse.status).toBe(200)
+    expect(headResponse.headers.get('content-type')).toBe('application/vnd.oai.workflows+json; version=1.1.0')
+    expect(await headResponse.text()).toBe('')
+  })
+
+  it('publishes the external OAuth scope catalog without Restish profiles', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
@@ -63,20 +139,7 @@ describe('global OpenAPI document', () => {
           { type?: string; scheme?: string; flows?: { authorizationCode?: { scopes?: Record<string, string> } } }
         >
       }
-      'x-cli-config'?: {
-        profiles?: Record<
-          string,
-          {
-            credentials?: Record<
-              string,
-              {
-                auth?: { type?: string; params?: Record<string, string> }
-                satisfies?: string[]
-              }
-            >
-          }
-        >
-      }
+      'x-cli-config'?: unknown
     }
 
     expect(doc.components?.securitySchemes?.agentOAuth2).toMatchObject({
@@ -94,86 +157,48 @@ describe('global OpenAPI document', () => {
         },
       },
     })
-    expect(doc.components?.securitySchemes?.agentApiKey).toMatchObject({ type: 'http', scheme: 'bearer' })
-    const profiles = doc['x-cli-config']?.profiles
-    expect(Object.keys(profiles ?? {})).toEqual(['default', 'reader', 'file-manager', 'publisher', 'ci'])
-    expect(profiles?.reader?.credentials?.agentOAuth2).toMatchObject({
-      auth: {
-        type: 'oauth-authorization-code',
-        params: {
-          authorize_url: '/api/auth/oauth2/authorize',
-          token_url: '/api/auth/oauth2/token',
-          client_id: 'zpan-agent',
-          redirect_path: '/callback',
-          scopes: 'openid offline_access objects:read shares:read quota:read storage-usage:read',
+    expect(doc.components?.securitySchemes?.agentApiKey).toBeUndefined()
+    expect(doc['x-cli-config']).toBeUndefined()
+  })
+
+  it('publishes a public resource-scope catalog for external controller discovery', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const [catalogResponse, documentResponse] = await Promise.all([
+      app.request('/api/oauth-resource-scopes'),
+      app.request('/api/openapi.json'),
+    ])
+    const catalog = (await catalogResponse.json()) as {
+      scopes: { value: string; description: string }[]
+    }
+    const document = (await documentResponse.json()) as {
+      paths: Record<string, { get?: { security?: Record<string, string[]>[]; 'x-zpan-auth'?: unknown } }>
+    }
+
+    expect(catalogResponse.status).toBe(200)
+    expect(catalog.scopes).toEqual(
+      expect.arrayContaining([
+        {
+          value: AuthorizationScope.OBJECTS_CREATE,
+          description: 'Create folders and upload objects',
         },
-      },
-      satisfies: [
-        AuthorizationScope.OBJECTS_READ,
-        AuthorizationScope.SHARES_READ,
-        AuthorizationScope.QUOTA_READ,
-        AuthorizationScope.STORAGE_USAGE_READ,
-      ],
-    })
-    expect(profiles?.default?.credentials?.agentOAuth2).toEqual(profiles?.reader?.credentials?.agentOAuth2)
-    expect(profiles?.['file-manager']?.credentials?.agentOAuth2).toMatchObject({
-      auth: {
-        type: 'oauth-authorization-code',
-        params: {
-          authorize_url: '/api/auth/oauth2/authorize',
-          token_url: '/api/auth/oauth2/token',
-          client_id: 'zpan-agent',
-          redirect_path: '/callback',
-          scopes:
-            'openid offline_access objects:read objects:create objects:update objects:delete shares:read quota:read storage-usage:read',
+        {
+          value: AuthorizationScope.OBJECTS_UPDATE,
+          description: 'Rename, move, and copy objects',
         },
-      },
-      satisfies: [
-        AuthorizationScope.OBJECTS_READ,
-        AuthorizationScope.OBJECTS_CREATE,
-        AuthorizationScope.OBJECTS_UPDATE,
-        AuthorizationScope.OBJECTS_DELETE,
-        AuthorizationScope.SHARES_READ,
-        AuthorizationScope.QUOTA_READ,
-        AuthorizationScope.STORAGE_USAGE_READ,
-      ],
-    })
-    expect(profiles?.publisher?.credentials?.agentOAuth2).toMatchObject({
-      auth: {
-        type: 'oauth-authorization-code',
-        params: {
-          authorize_url: '/api/auth/oauth2/authorize',
-          token_url: '/api/auth/oauth2/token',
-          client_id: 'zpan-agent',
-          redirect_path: '/callback',
-          scopes:
-            'openid offline_access objects:read shares:read shares:create shares:delete quota:read storage-usage:read',
+      ]),
+    )
+    expect(document.paths['/api/oauth-resource-scopes']?.get).toMatchObject({
+      security: [
+        {
+          agentOAuth2: expect.arrayContaining([
+            AuthorizationScope.OBJECTS_READ,
+            AuthorizationScope.OBJECTS_CREATE,
+            AuthorizationScope.OBJECTS_UPDATE,
+          ]),
         },
-      },
-      satisfies: [
-        AuthorizationScope.OBJECTS_READ,
-        AuthorizationScope.SHARES_READ,
-        AuthorizationScope.SHARES_CREATE,
-        AuthorizationScope.SHARES_DELETE,
-        AuthorizationScope.QUOTA_READ,
-        AuthorizationScope.STORAGE_USAGE_READ,
+        {},
       ],
-    })
-    expect(profiles?.default?.credentials?.agentOAuth2?.auth?.params).toMatchObject({
-      client_id: 'zpan-agent',
-      redirect_path: '/callback',
-    })
-    expect(profiles?.ci?.credentials?.agentApiKey).toMatchObject({
-      auth: { type: 'bearer', params: { token: 'env:ZPAN_AGENT_API_KEY' } },
-      satisfies: [
-        AuthorizationScope.OBJECTS_READ,
-        AuthorizationScope.OBJECTS_CREATE,
-        AuthorizationScope.OBJECTS_UPDATE,
-        AuthorizationScope.OBJECTS_DELETE,
-        AuthorizationScope.SHARES_READ,
-        AuthorizationScope.QUOTA_READ,
-        AuthorizationScope.STORAGE_USAGE_READ,
-      ],
+      'x-zpan-auth': { public: true, scopes: [] },
     })
   })
 
@@ -330,7 +355,7 @@ describe('global OpenAPI document', () => {
     }
   })
 
-  it('emits Agent OAuth and API-key security only for Agent-grantable protected scopes', () => {
+  it('leaves externally authorized operations unbound so delegated hooks can authenticate them', () => {
     const route = authRoute(
       {
         scopes: [AuthorizationScope.OBJECTS_CREATE],
@@ -344,11 +369,7 @@ describe('global OpenAPI document', () => {
       },
     ) as { security?: unknown }
 
-    expect(route.security).toEqual([
-      { agentOAuth2: [AuthorizationScope.OBJECTS_CREATE] },
-      { agentApiKey: [AuthorizationScope.OBJECTS_CREATE] },
-      { cookieAuth: [] },
-    ])
+    expect(route.security).toBeUndefined()
   })
 
   it('hides non-agent scoped policies from MCP without hiding them from Restish', () => {
@@ -422,8 +443,6 @@ describe('global OpenAPI document', () => {
     }
 
     const ignoredOperations = [
-      doc.paths['/api/workspaces/{orgId}/agent-api-keys']?.get,
-      doc.paths['/api/workspaces/{orgId}/agent-api-keys']?.post,
       doc.paths['/api/agent-oauth-grants']?.get,
       doc.paths['/api/agent-oauth-grants/{grantId}']?.delete,
       doc.paths['/api/site/storages']?.post,
@@ -474,12 +493,12 @@ describe('global OpenAPI document', () => {
 
     expect(doc.paths['/api/objects']?.post).toMatchObject({
       operationId: 'createObject',
-      security: [
-        { agentOAuth2: [AuthorizationScope.OBJECTS_CREATE] },
-        { agentApiKey: [AuthorizationScope.OBJECTS_CREATE] },
-        { cookieAuth: [] },
-      ],
+      'x-zpan-auth': {
+        public: false,
+        scopes: [AuthorizationScope.OBJECTS_CREATE],
+      },
     })
+    expect(doc.paths['/api/objects']?.post?.security).toBeUndefined()
     expect(doc.paths['/api/objects']?.post?.responses?.['201']).toBeDefined()
     expect(doc.paths['/api/objects']?.post?.requestBody).toBeDefined()
     expect(doc.paths['/api/objects']?.post?.requestBody?.content?.['application/json']?.schema).toMatchObject({
@@ -512,6 +531,7 @@ describe('global OpenAPI document', () => {
                 'requiredHeaders',
                 'urls',
                 'parts',
+                'workflow',
               ],
             },
           },

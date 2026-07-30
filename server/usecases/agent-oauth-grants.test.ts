@@ -6,11 +6,11 @@ const db = {} as never
 
 function gateway(overrides: Partial<AgentOAuthGateway> = {}): AgentOAuthGateway {
   return {
-    ensureSystemClient: vi.fn(),
-    assertLiveGrant: vi.fn(),
-    verifyAccessToken: vi.fn(),
+    findClient: vi.fn(),
+    listRegisteredApplications: vi.fn(),
+    revokeJwtAccessToken: vi.fn(),
+    isJwtAccessTokenRevoked: vi.fn(),
     listGrants: vi.fn(async () => []),
-    recordGrantUse: vi.fn(),
     revokeGrant: vi.fn(async () => true),
     ...overrides,
   }
@@ -35,7 +35,8 @@ describe('Agent OAuth grant usecases', () => {
       listGrants: vi.fn(async () => [
         {
           id: 'grant-1',
-          clientId: 'zpan-agent',
+          clientId: 'dynamic-client',
+          clientName: 'FlareAuth',
           userId: 'user-1',
           orgId: 'org-1',
           scopes: [],
@@ -49,8 +50,8 @@ describe('Agent OAuth grant usecases', () => {
       items: [
         {
           id: 'grant-1',
-          clientId: 'zpan-agent',
-          clientName: 'ZPan Agent',
+          clientId: 'dynamic-client',
+          clientName: 'FlareAuth',
           userId: 'user-1',
           orgId: 'org-1',
           workspaceName: 'Personal',

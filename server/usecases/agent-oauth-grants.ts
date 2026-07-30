@@ -1,8 +1,8 @@
 import {
-  type AgentGrantableScope,
   type AgentOAuthGrant as AgentOAuthGrantDTO,
-  agentGrantableScopeSchema,
   agentOAuthGrantDTO,
+  type OAuthResourceScope,
+  oauthResourceScopeSchema,
 } from '@shared/schemas'
 import type { Database } from '../platform/interface'
 import type { Deps } from './deps'
@@ -19,15 +19,15 @@ export async function listAgentOAuthGrants(
     items: items.map((item) =>
       agentOAuthGrantDTO({
         ...item,
-        scopes: item.scopes.filter(isAgentGrantableScope),
+        scopes: item.scopes.filter(isOAuthResourceScope),
         workspaceName: orgNames.get(item.orgId) ?? null,
       }),
     ),
   }
 }
 
-function isAgentGrantableScope(scope: string): scope is AgentGrantableScope {
-  return agentGrantableScopeSchema.safeParse(scope).success
+function isOAuthResourceScope(scope: string): scope is OAuthResourceScope {
+  return oauthResourceScopeSchema.safeParse(scope).success
 }
 
 export async function revokeAgentOAuthGrant(

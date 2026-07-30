@@ -82,6 +82,7 @@ export const agentOAuthGrants = new OpenAPIHono<Env>()
   .openapi(consentContextRoute, async (c) => {
     const { oauthQuery } = c.req.valid('query')
     const context = await getAgentOAuthConsentContext(c.get('deps'), {
+      db: c.get('platform').db,
       userId: c.get('userId')!,
       orgId: c.get('orgId'),
       requestUrl: c.req.url,
@@ -92,6 +93,7 @@ export const agentOAuthGrants = new OpenAPIHono<Env>()
   .openapi(consentSubmitRoute, async (c) => {
     const { accept, oauthQuery } = c.req.valid('json')
     await getAgentOAuthConsentContext(c.get('deps'), {
+      db: c.get('platform').db,
       userId: c.get('userId')!,
       orgId: c.get('orgId'),
       requestUrl: c.req.url,

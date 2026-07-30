@@ -55,9 +55,23 @@ describe('[CF] Auth API', () => {
       .getSetCookie()
       .map((value) => value.split(';', 1)[0])
       .join('; ')
+    const registration = await app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'CF Consent Test Client',
+        redirect_uris: ['https://broker.example.com/callback'],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+        scope: 'openid offline_access objects:read quota:read',
+      }),
+    })
+    const registered = (await registration.json()) as { client_id: string }
+    expect(registration.status).toBe(201)
     const params = new URLSearchParams({
-      client_id: 'zpan-agent',
-      redirect_uri: 'http://127.0.0.1:8484/callback',
+      client_id: registered.client_id,
+      redirect_uri: 'https://broker.example.com/callback',
       response_type: 'code',
       scope: 'openid offline_access objects:read quota:read',
       state: 'cf-agent-oauth',
@@ -83,7 +97,7 @@ describe('[CF] Auth API', () => {
 
     expect(consent.status, consentBody).toBe(200)
     expect(JSON.parse(consentBody)).toMatchObject({
-      url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:8484\/callback\?code=/),
+      url: expect.stringMatching(/^https:\/\/broker\.example\.com\/callback\?code=/),
     })
   })
 

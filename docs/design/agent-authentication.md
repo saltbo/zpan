@@ -1,604 +1,204 @@
-# Agent Authentication and Authorization — Design
+# External Agent Access — Design
 
-> Status: Proposed (2026-07-28)
-> Scope: Agent OAuth, API keys, workspace grants, protocol-neutral
-> authorization, Restish profiles, future Agent Auth compatibility, revocation,
-> and auditing
+> Status: Implemented
+> Scope: dynamic OAuth clients, external resource authorization, DPoP, resource
+> discovery, consent, revocation, and direct uploads
 
-## 1. Decision
+## Decision
 
-ZPan distinguishes delegated user access from unattended service access:
+ZPan is an OAuth protected resource and authorization server. An Agent platform
+such as FlareAuth discovers ZPan from its public API URL, dynamically registers
+itself, asks the user for delegated access, and exchanges the resulting subject
+grant for a DPoP-bound ZPan resource token.
 
-| Actor | Authorization flow | Runtime credential |
-|-------|--------------------|--------------------|
-| Interactive Agent, local callback | Authorization code + PKCE | OAuth access/refresh tokens |
-| CI or unattended service | Manual issuance | Workspace-scoped Agent API key |
+ZPan does not ship or require:
 
-This follows the current FlareAuth Restish v2 design: standard OpenAPI OAuth
-metadata and `x-cli-config` let Restish connect, authorize, cache, refresh, and
-revoke local tokens without a custom authorization script.
+- a fixed first-party Agent OAuth client;
+- an Agent-specific API key;
+- Restish credential profiles in OpenAPI;
+- a Restish upload plugin;
+- a ZPan-specific Agent skill.
 
-Standard Agent device authorization is deferred to v2.9.x. The existing
-`zpan-cli` device flow remains a narrowly scoped compatibility bootstrap for
-downloader registration and does not manufacture an Agent API key or a general
-OAuth grant. Its device-issued bearer is normalized as a single-use downloader
-registration credential and is consumed after successful downloader creation.
+The integration contract is the public protocol surface: OAuth metadata,
+OpenAPI, route authorization metadata, and structured API responses.
 
-Anonymous upload and preview-and-claim are explicitly excluded. Every Agent file
-operation belongs to an existing user-authorized workspace from the beginning.
+## Discovery
 
-OAuth and API keys are v2.9 credential adapters, not the file API's identity
-model. Both resolve to a protocol-neutral principal, scope set, bound workspace,
-and audit actor. A future Agent Auth verifier plugs into that same boundary.
+Given the exact resource URL `https://zpan.example/api`, a client can discover:
 
-## 2. Why OAuth for Interactive Agents
+| Contract | Path |
+|---|---|
+| API, OpenAPI, and workflow discovery links | `/api` |
+| OpenAPI | `/api/openapi.json` |
+| Arazzo workflows | `/api/workflows.arazzo.json` |
+| Protected resource metadata | `/.well-known/oauth-protected-resource/api` |
+| Authorization server metadata | `/.well-known/oauth-authorization-server/api/auth` |
+| Dynamic client registration | `/api/auth/oauth2/register` |
 
-Interactive Agents act on behalf of a signed-in human. OAuth gives that
-relationship first-class semantics:
+Protected-resource metadata identifies the exact `/api` audience and the
+authorization server. Authorization-server metadata advertises authorization
+code, refresh token, JWT bearer, token exchange, dynamic registration, and
+DPoP capabilities.
 
-- short-lived access tokens
-- refresh-token rotation and revocation
-- explicit client identity
-- explicit resource scopes
-- browser consent
-- authorization code + PKCE for public native clients
-- no browser-cookie or raw-token copy/paste
+OpenAPI remains tool-neutral. It contains no `x-cli-config`, built-in client ID,
+credential environment variable, or executable helper. Agent-callable
+operations publish their exact runtime requirements through `x-zpan-auth`.
+`GET /api/oauth-resource-scopes` is a public scope catalog whose OpenAPI
+operation carries the standard OAuth scope declaration used by external
+resource registries. Keeping the business operations themselves unbound avoids
+selecting a built-in Restish OAuth profile before a delegated-credential hook
+can provide the resource token. Browser and administration operations retain
+their normal cookie/bearer declarations.
 
-Restish v2 natively supports authorization code + PKCE. It caches OAuth tokens
-separately from HTTP responses, refreshes them, retries once after a `401`, and
-supports explicit logout.
+The API resource response publishes OpenAPI through an RFC 8631 `service-desc`
+link and its Arazzo 1.1 description through a typed `describedby` link. The
+OpenAPI document also links the Arazzo document through `externalDocs`. A
+controller can therefore discover both contracts from the exact resource URL
+without assuming a ZPan-specific path.
 
-Restish v2.3 uses port `8484` and path `/callback` by default for browser
-authorization-code callbacks. Restish sends `localhost` in the authorization
-request; ZPan also registers the equivalent `127.0.0.1` loopback callback for
-clients and tooling that distinguish loopback hostnames.
+The Arazzo document defines separate prepare, re-presign, complete, and abort
+workflows backed by stable OpenAPI operation IDs. Preparing an upload returns
+the runtime descriptor for the direct storage transfer. This split is
+intentional: an Arazzo operation target comes from its source OpenAPI server,
+while a presigned storage URL is an arbitrary absolute URL generated at
+runtime. The controller executes those PUT requests from the returned
+descriptor, then supplies their ETags to the completion workflow.
 
-## 3. Why API Keys Still Exist
+## Dynamic Registration and Administration
 
-CI and unattended services are different: no human is present to complete
-consent or periodically reauthorize. The existing Better Auth API-key
-foundation already supplies:
+The OAuth provider accepts RFC 7591-style dynamic client registration with PKCE.
+Each controller registers its own:
 
-- hashed credential storage
-- named and independently revocable keys
-- expiry and enabled state
-- rate-limit state
-- resource/action permissions
-- workspace scope in metadata
-- owning user reference
-- per-key audit attribution
+- client name and URI;
+- callback URI;
+- grant and response types;
+- token endpoint authentication method;
+- JWKS or JWKS URI when JWT bearer exchange is used;
+- requested scopes.
 
-An Agent API key is therefore the pragmatic v2.9 service credential. It is
-created manually and stored in a CI secret. Future workload identity federation
-can replace it without changing the canonical scope and policy model.
+The server assigns the client ID. No client identity or callback is hard-coded
+in ZPan.
 
-## 4. Stable Upgrade Boundary
+Administrators can inspect dynamically registered applications in the existing
+authentication settings. This first version does not add application approval:
+registration is immediately usable, but user consent is still mandatory before
+workspace access is granted. System/reference clients are not presented as
+external registered applications.
 
-ZPan separates four concepts:
+## Consent and Workspace Binding
 
-| Concept | Responsibility |
-|---------|----------------|
-| Credential adapter | Validate OAuth, API key, or future Agent JWT |
-| Principal | Identify the authorizing user, credential actor, and bound workspace |
-| Scope and policy authorization | Intersect credential scopes with current workspace authority |
-| Use case | Perform the file operation without knowing the credential protocol |
+Authorization code + PKCE creates a user-controlled subject grant. The consent
+page resolves the registered client record and displays its real name, callback,
+requested scopes, ZPan instance, selected workspace, and grant lifetime.
 
-Conceptually, an Agent-facing principal contains:
+Each consent is bound to:
 
-```ts
-type AgentPrincipal = {
-  kind: 'delegated-user' | 'service' | 'agent'
-  userId: string
-  orgId: string
-  scopes: ReadonlySet<Scope>
-  actor: {
-    type: 'agent_oauth' | 'api_key' | 'agent'
-    id: string
-  }
-}
-```
+- the signed-in user;
+- the dynamically registered client;
+- exactly one workspace;
+- the approved ZPan resource scopes.
 
-The exact TypeScript representation may remain a discriminated union, but
-routes must authorize scopes rather than require a concrete `kind`.
-Credential-specific fields remain available for diagnostics and revocation;
-they do not select business behavior.
+The request cannot replace that workspace with a query or body field. Team
+membership and role checks still apply. Revoking a consent removes its access
+tokens, revokes its refresh tokens, and deletes the consent. The Agent Access
+page lists the real client name and workspace for every current-user grant.
 
-The versioned ZPan Agent Skill is published under `skills/zpan` and summarized
-in [ZPan Agent Skill](../agent-skill.md). It consumes this authorization model
-through Restish profiles instead of adding a second credential or upload
-protocol.
+## External Resource Token Flow
 
-This boundary deliberately avoids two migration traps:
+FlareAuth-style controllers use three credentials with separate purposes:
 
-- File routes must not treat an OAuth bearer as an unrestricted browser user.
-- Agent API keys must not become ZPan's proprietary Agent identity,
-  registration, signing, or capability-grant protocol.
+1. A user-approved ZPan subject token represents the connected account.
+2. A JWT bearer assertion identifies the Agent/controller actor and mints a
+   short-lived actor token.
+3. OAuth token exchange combines subject and actor tokens for the exact ZPan
+   `/api` audience and requested scopes.
 
-With this boundary, adopting Agent Auth later adds a verifier, persistence,
-approval UI, and management UI. It does not change operation IDs, the unified
-OpenAPI document, Skill/plugin workflows, workspace authorization, or file use
-cases.
+The exchanged access token is a JWT containing the user, workspace,
+`zpan_actor`, delegated actor (`act`), audience, scopes, client ID, expiry, and
+JTI. API requests use `Authorization: DPoP` plus a proof bound to the method,
+URL, access token, and Agent key. ZPan verifies issuer, audience, signature,
+expiry, scopes, DPoP proof, and JTI revocation.
 
-## 5. System-Managed OAuth Client
+Revoking an exchanged JWT stores its JTI until token expiry. The resource API
+rejects revoked tokens. Opaque-token compatibility and fixed-client grant
+assertions are intentionally not part of this path.
 
-Create a built-in public native application such as `zpan-agent`.
+## Scope Model
 
-Properties:
+Resource scopes use stable `<resource>:<action>` names. The external Agent scope
+catalog includes:
 
-- system-managed and not editable/deletable
-- public client; no client secret
-- authorization code grant with PKCE
-- loopback redirect URIs `http://localhost:8484/callback` and
-  `http://127.0.0.1:8484/callback`
-- refresh-token support through `offline_access`
-- Agent scopes only
-
-Dynamic client registration is not required in v2.9. One first-party client is
-enough for the versioned ZPan Skill and Restish integration.
-
-The authorization server publishes discovery metadata. Better Auth OAuth
-Provider 1.6.x mounts the runtime endpoints below the Better Auth base path:
-
-| Endpoint | Path |
-|----------|------|
-| Authorization | `/api/auth/oauth2/authorize` |
-| Token and refresh | `/api/auth/oauth2/token` |
-| Revocation | `/api/auth/oauth2/revoke` |
-| Introspection | `/api/auth/oauth2/introspect` |
-| UserInfo | `/api/auth/oauth2/userinfo` |
-| Consent | `/api/auth/oauth2/consent` |
-| Continue login flow | `/api/auth/oauth2/continue` |
-
-Because Better Auth is mounted at `/api/auth`, ZPan forwards the required
-well-known authorization-server and OIDC metadata at root locations and also
-publishes protected-resource metadata for `/api`.
-
-## 6. Workspace Grant
-
-OAuth scopes describe allowed operation classes, but a ZPan grant also needs a
-resource boundary: exactly one workspace.
-
-The consent record binds:
-
-- authorization/grant ID
-- user ID
-- OAuth client ID
-- workspace `orgId`
-- approved scopes
-- created, expiry, revoked, and last-used state
-
-Access/refresh tokens resolve to that grant. The API does not derive workspace
-from the user's mutable active-organization session.
-
-Effective authorization is:
-
-```text
-credential is valid
-AND grant/key allows the requested action
-AND request targets the bound workspace
-AND authorizing user still has the required workspace role
-```
-
-For a team workspace, relevant requests recheck current membership and role.
-Removing the user or reducing their role immediately reduces Agent access.
-
-For a personal workspace, authorization verifies that the organization is the
-authorizing user's personal organization. The current API-key branch in
-`requirePermission` lacks this personal-ownership fallback and must add it.
-
-Request bodies and query parameters cannot override the credential's workspace.
-A mismatch is `403`, never a fallback to another active or personal workspace.
-
-## 7. Scope Model
-
-ZPan defines one canonical authorization vocabulary for scoped credentials.
-OAuth grants, Agent API keys, and future Agent credentials resolve to the same
-scope set. A browser cookie is a first-party, unbounded credential: it does not
-need a role-to-scope mapping, but it still passes the route's declared
-workspace, minimum-role, ownership, and resource policies. There is no
-separately named permission vocabulary and no `Scope -> Permission` mapping.
-
-Scope names follow:
-
-```text
-<resource>:<action>
-```
-
-Rules:
-
-- lowercase ASCII only;
-- plural domain resource names such as `objects`, `shares`, and `tasks`;
-- a small shared action vocabulary such as `read`, `create`, `update`, and
-  `delete`;
-- business operations rather than HTTP methods;
-- no wildcard semantics or access implied by string prefixes;
-- no `zpan:` prefix, because token issuer and audience already identify the
-  ZPan API;
-- published scope meanings are stable and must never silently broaden.
-
-Initial Agent-grantable scopes are:
-
-| Scope | Intended operations |
-|-------|---------------------|
+| Scope | Authority |
+|---|---|
 | `objects:read` | List, inspect, and download objects |
-| `objects:create` | Create folders, upload drafts, upload-part signatures, and complete uploads |
-| `objects:update` | Rename, move, and copy objects within the authorized workspace |
+| `objects:create` | Create folders and direct-upload sessions |
+| `objects:update` | Rename, move, and copy objects |
 | `objects:delete` | Soft-delete objects |
-| `shares:read` | List and inspect shares |
+| `shares:read` | Inspect shares |
 | `shares:create` | Create public shares |
 | `shares:delete` | Revoke shares |
 | `quota:read` | Inspect workspace quota |
+| `storage-usage:read` | Inspect workspace storage usage |
 | `tasks:read` | Inspect task state |
 
-Protocol scopes such as `openid` and `offline_access` retain their standard
-OAuth/OIDC meaning. They are not ZPan route permissions.
-
-Every protected route declares the minimum scopes required to perform its
-operation. It does not enumerate the roles, presets, credential types, broad
-scopes, or Agent classes allowed to call it. For example:
-
-```ts
-auth: {
-  allOf: ['objects:delete'],
-  workspace: 'required',
-}
-```
-
-Scope authorization is necessary but not sufficient. Workspace membership,
-resource ownership, resource state, quota, and other request-specific
-constraints remain explicit policy checks.
-
-The consent and API-key UIs can present Reader, File manager, and Publisher
-shortcuts. A shortcut expands to an explicit set of scopes; it is not itself a
-scope, and routes never reference its name. Destructive and public-sharing
-scopes remain separately selectable.
-
-No Agent-grantable scope implies admin, billing, entitlement, membership,
-credential management, WebDAV, image-hosting configuration, or downloader
-registration. Those protected APIs still use the same route scope mechanism but
-are excluded from the Agent credential grant policy.
-
-## 8. Authorization Code + PKCE
-
-This is the default Restish flow:
-
-1. Skill identifies and confirms the ZPan origin and Restish API name.
-2. Skill requires Restish v2.
-3. `restish api connect` discovers `/api/openapi.json` and applies its
-   server-published OAuth binding.
-4. The first safe Agent operation starts browser authorization.
-5. Restish creates a PKCE verifier/challenge and listens on its loopback
-   callback.
-6. User signs in, selects one workspace, reviews scopes, and approves or denies.
-7. Restish exchanges the authorization code and caches the tokens.
-8. Later commands refresh tokens without exposing them to the Agent response.
-
-The consent page displays the Agent client, instance hostname, workspace,
-requested scopes, destructive/public side effects, and grant lifetime.
-
-Restish's `--rsh-no-browser` may be used when a browser cannot be opened but the
-authorization-code callback can still be completed manually.
-
-## 9. Deferred Agent Device Authorization
-
-Standard Agent device authorization is a v2.9.x follow-up. It must issue tokens
-for the same workspace grant and scope model as authorization code + PKCE, not a
-broad Better Auth session token. The existing Better Auth device plugin remains
-restricted to the legacy `zpan-cli` downloader bootstrap until that follow-up.
-
-## 10. Agent API-Key Issuance
-
-Manual API-key creation is the initial CI path:
-
-1. User opens Agent Access settings.
-2. User selects a workspace.
-3. User names the Agent or environment.
-4. User selects permissions and expiry.
-5. Server verifies current authority and creates an `agent` API key.
-6. The plaintext key is shown once.
-
-New Agent keys never use `scope.mode = "user-workspaces"`. One key authorizes one
-workspace. Expiry is required, defaults to 90 days, and cannot exceed one year.
-Use one key per CI environment. Personal workspace owners and team
-owners/admins can manage Agent keys; team editors cannot issue credentials.
-
-The UI lists name, workspace, permission summary, creation, expiry, last use,
-and status. Revocation is immediate. Only active keys can rotate. Rotation
-creates a new key and never reveals or mutates the old secret; expired and
-revoked keys are terminal, so the user creates a new key instead.
-
-## 11. OpenAPI and Restish v2 Binding
-
-ZPan publishes one unified `/api/openapi.json`. It defines:
-
-- relative server URL for Agent API routes
-- OAuth authorization-code security scheme with Agent scopes
-- Bearer alternative for Agent API keys
-- stable operation IDs and structured errors
-- document-level Restish v2 `x-cli-config` profiles
-
-Conceptual configuration:
-
-```yaml
-components:
-  securitySchemes:
-    agentOAuth2:
-      type: oauth2
-      flows:
-        authorizationCode:
-          authorizationUrl: /api/auth/oauth2/authorize
-          tokenUrl: /api/auth/oauth2/token
-          scopes:
-            objects:read: Read files and folders
-            objects:create: Upload files and create folders
-            objects:update: Rename, move, and copy files and folders
-            objects:delete: Delete files and folders
-    agentApiKey:
-      type: http
-      scheme: bearer
-
-x-cli-config:
-  profiles:
-    default:
-      credentials:
-        agentOAuth2:
-          params:
-            client_id: zpan-agent
-            scopes: openid offline_access objects:read quota:read
-            redirect_path: /callback
-    file-manager:
-      credentials:
-        agentOAuth2:
-          params:
-            client_id: zpan-agent
-            scopes: openid offline_access objects:read objects:create objects:update objects:delete quota:read tasks:read
-            redirect_path: /callback
-```
-
-The real document also provides a Publisher shortcut. Reader is the default, so
-connecting the API does not silently request write or share permission. These
-profile names only expand to explicit scopes; routes never reference them.
-
-A separate environment-backed profile selects `agentApiKey` for CI. No Agent
-device-code profile is published in v2.9.
-
-The OpenAPI document never contains credentials or configures an executable
-credential helper. Skill instructions select a named Restish profile rather
-than assuming OAuth or a particular environment-variable name. This keeps
-operation workflows unchanged if a future local profile uses an Agent Auth
-signer.
-
-All formal API operations remain visible to Restish CLI generation. Declared
-scopes and dynamic policy decide whether a credential may call them. Only
-browser callbacks and internal-only endpoints are hidden from CLI generation.
-MCP additionally ignores authentication, administration, and credential
-management operations and keeps write tools disabled by default. ZPan does not
-maintain a second Agent operation allowlist.
-
-## 12. Restish Upload Plugin
-
-`restish-zpan` is a Restish v2 command plugin shipped from this repository. It
-contributes `restish zpan-upload` and is installed with:
-
-```sh
-restish plugin install saltbo/zpan zpan
-```
-
-The plugin uses Restish delegated HTTP for ZPan draft, part re-sign, complete,
-and abort operations, preserving the selected profile, OAuth/API-key
-authentication, TLS, and normalized output. With Restish v2.3 command plugins,
-the host profile is selected through `RSH_PROFILE` while the plugin's matching
-`--profile` selects spec validation and checkpoint identity. It streams local file sections
-directly to presigned S3 URLs with bounded concurrency, retry, ETag capture,
-resume checkpoints, and idempotent completion.
-
-The plugin never asks Restish for authentication secrets. Checkpoints contain
-only safe API/profile identity, upload session and file identity, and completed
-part/ETag state; they contain no token, cookie, API key, or presigned URL. The
-Skill invokes this command and never implements multipart state itself.
-
-## 13. Route Authorization
-
-Both credential types enter a shared Agent authorization boundary.
-
-For OAuth:
-
-1. validate/introspect the access token;
-2. require the built-in Agent client ID and the route's required scopes;
-3. resolve user and bound workspace grant;
-4. recheck current workspace authority.
-
-For API keys:
-
-1. verify key, expiry, revocation, rate limit, and owner status;
-2. require `configId = "agent"` and the route's required scopes;
-3. resolve bound workspace metadata;
-4. recheck current workspace authority.
-
-Both then invoke the same use case with the bound `orgId` and a typed audit
-actor. Routes use shared permission middleware instead of session-only or
-principal-specific checks. The shared middleware accepts the internal principal
-contract, so tests for protected operations do not need to know how the
-principal authenticated.
-
-Special considerations:
-
-- A presigned upload URL may remain usable briefly after credential revocation
-  because S3 validates the signature independently. Keep presigned lifetimes
-  short.
-- Upload completion and new part presigning always reauthorize.
-- Issuing a new download URL requires object-read permission.
-- Listing and task responses remain workspace-filtered and paginated.
-- Share creation requires `shares:create` even when the Agent can read the
-  object.
-
-## 14. Audit and Management
-
-Audit records distinguish resource ownership from the actor that initiated the
-operation. OAuth actions record an `agent_oauth` actor with grant/client
-attribution. API-key actions retain `api_key` with the key ID as `actorRef`.
-Both record the authorizing user, workspace, action, target, outcome, and safe
-metadata. A future Agent Auth adapter records `agent` with its Agent ID while
-retaining the delegated user as resource owner.
-
-Agent Access settings show two sections:
-
-- delegated OAuth grants, with client, workspace, scopes, last use, and revoke;
-- service API keys, with name, workspace, permissions, expiry, last use, and
-  revoke/rotate for active keys.
-
-Revoking a delegated grant invalidates its refresh tokens and prevents new
-access tokens. Short access-token lifetime bounds any validation-cache delay.
-`restish api auth logout` clears local cached tokens; server-side revoke remains
-available when a device is lost.
-
-Credentials are never recorded or redisplayed.
-
-## 15. Current Code Gaps
-
-- ZPan has bearer sessions and device authorization but is not yet an OAuth
-  authorization server with Agent resource scopes and workspace grants.
-- Legacy device authorization validates only `zpan-cli` with
-  `downloader:register` and yields only a single-use downloader bootstrap
-  credential.
-- `shared/api-key-templates.ts` lacks an Agent template.
-- `server/http/objects.ts` rejects ordinary API-key principals.
-- authenticated shares, quota, trash, and several task routes require a user
-  session instead of a permission.
-- the current principal model and `requireAuth` helper encourage routes to
-  branch on identity kind; all protected routes need shared scope declarations
-  and a protocol-neutral authorization boundary.
-- API-key authorization needs the personal-workspace ownership check.
-- the unified OpenAPI document lacks operation security and CLI/MCP annotations;
-- the current upload contract lacks explicit part descriptors, robust re-sign,
-  expiry, idempotent completion, and a Restish command plugin.
-
-These authorization-boundary changes require integration tests for OAuth and
-API-key success, missing scope/permission, wrong workspace, wrong client, role
-reduction, expiry, revocation, and personal/team spaces.
-
-## 16. Agent Auth Protocol Compatibility
-
-The [Agent Auth Protocol](https://agentauthprotocol.com/) is a strong long-term
-fit because it gives every Agent a cryptographic identity, scoped capability
-grants, an independent lifecycle, and per-Agent audit attribution. The
-[Better Auth Agent Auth plugin](https://better-auth.com/docs/plugins/agent-auth)
-also provides discovery, device/CIBA approval, short-lived signed JWTs, replay
-protection, OpenAPI/MCP adapters, and lifecycle events.
-
-It is not the required v2.9 production path:
-
-- the protocol is currently `v1.0-draft`, and the plugin documentation marks
-  the implementation as unstable;
-- Restish does not natively implement Agent Auth request signing;
-- production Cloudflare Workers need distributed JTI replay storage rather than
-  the plugin's default in-memory cache;
-- custom REST `location` handlers must validate grants and constraints in the
-  shared authorization layer;
-- converting the full ZPan OpenAPI document into capabilities would expose too
-  much surface.
-
-The intended future adapter is:
-
-```text
-Agent Auth JWT
-  -> verify signature, audience, expiry, and JTI
-  -> resolve delegated user and approved workspace
-  -> normalize capability grants to the canonical Scope set
-  -> create protocol-neutral principal and `agent` audit actor
-  -> run existing scope and policy middleware and use case
-```
-
-The effective permission remains:
-
-```text
-Agent Auth capability grant
-AND authorizing user's current workspace role
-AND request targets the approved workspace
-AND resource-specific policy allows the operation
-```
-
-Expected change surface:
-
-| Remains unchanged | Added for Agent Auth |
-|-------------------|----------------------|
-| Unified OpenAPI and operation IDs | Agent/host/grant/approval persistence |
-| ZPan Skill and upload-plugin workflows | Agent JWT credential adapter |
-| File, share, quota, and task use cases | Approval and Agent-management UI |
-| Route scope requirements and workspace policies | Distributed JTI replay storage |
-| Presigned direct-to-S3 upload sequence | Restish signing profile/helper |
-
-Agent Auth does not replace role, quota, storage, share, or ownership checks.
-Autonomous/anonymous Agent registration and later claim are outside the current
-product boundary; an initial integration supports delegated Agents only.
-
-Restish remains the operation client. Until it supports Agent Auth natively, a
-future profile may use its
-[external-tool authentication](https://rest.sh/docs/recipes/use-external-tool-auth/)
-to invoke the official Agent Auth client or a minimal reviewed signer. This is
-an authentication adapter, not a standalone ZPan CLI. The unified OpenAPI
-operations and Skill workflows remain unchanged.
-
-Before promotion from preview to the default interactive flow, require:
-
-- a maintained Restish signing integration or native Agent Auth support;
-- distributed JTI replay protection on Workers and an equivalent Node path;
-- cross-runtime tests for registration, approval, execution, replay, revoke,
-  role reduction, and workspace isolation;
-- an explicit Agent-grantable scope catalog rather than automatic authorization
-  for every operation in the unified OpenAPI document;
-- acceptable upstream protocol and package stability.
-
-## 17. Rejected Alternatives
-
-### Device Approval Mints an API Key
-
-Rejected because device approval must eventually issue the same delegated OAuth
-grant as authorization code + PKCE. Minting an API key would replace that
-short-lived and refreshable lifecycle with a proprietary exchange.
-
-### API Key for Every Agent
-
-Rejected because interactive user delegation benefits from consent, short access
-tokens, refresh-token revocation, and client identity. API keys remain
-appropriate for CI and unattended services.
-
-### OAuth for CI by Pretending a User Is Present
-
-Rejected because unattended automation should not depend on a human refresh
-grant. Use a scoped API key until workload identity federation is available.
-
-### Agent Auth as the Only v2.9 Credential
-
-Deferred because the protocol and current plugin remain unstable and Restish
-needs an external signer. The compatibility boundary is included now;
-production adoption can follow without making v2.9 depend on a draft protocol.
-
-### Browser Cookies
-
-Rejected because they are broad, mutable user-session credentials and unsafe to
-copy into Agent environments.
-
-### One Credential Across All User Workspaces
-
-Rejected because it makes compromise impact, audit interpretation, role changes,
-and revocation unnecessarily broad.
-
-### Anonymous Upload and Claim
-
-Deferred outside v2.9. File storage normally implies persistence and an
-accountable quota owner. Revisit only if ZPan deliberately builds a
-try-before-login artifact-delivery product.
-
-## 18. Future Evolution
-
-- Better Auth Agent Auth compatibility adapter, initially behind a feature flag
-- Delegated Agent approval and per-Agent revoke/management UI
-- Distributed JTI and Agent-key cache storage for Cloudflare Workers
-- Workload identity federation for supported CI providers
-- Dynamic client registration for trusted third-party Agent platforms
-- Standard Agent device authorization using the same workspace grant and scopes
-- Rich Authorization Requests if third-party clients need standardized
-  workspace selection in the authorization request
-- HTTP Message Signatures / Web Bot Auth for additional Agent-operator
-  attribution, never workspace authorization
+Administrative, billing, credential-management, WebDAV, downloader bootstrap,
+and purge authority are not grantable through this catalog.
+
+OAuth is a credential adapter, not a business-logic fork. Middleware resolves a
+protocol-neutral principal, bound workspace, scope set, and audit actor before
+calling the same file use cases used by other authenticated clients.
+
+## Self-Describing Direct Upload
+
+File bytes continue to bypass ZPan and go directly to S3-compatible storage.
+The create-object response is the upload workflow contract; an Agent does not
+need a plugin or skill to infer hidden follow-up steps.
+
+The response includes:
+
+- upload ID and object draft;
+- ordered part descriptors with part number, byte offset, byte length, method,
+  presigned URL, and required headers;
+- a `workflow` object describing the upload request;
+- the exact complete, re-presign, and abort operation IDs, methods, and paths;
+- instructions to preserve each upload response ETag and submit
+  `{ partNumber, etag }` to completion.
+
+An Agent follows this generic sequence:
+
+1. Call `createObject` with file name, size, type, and workspace context.
+2. Split the local file according to each returned `offset` and `length`.
+3. `PUT` each byte range to its returned presigned URL and retain the response
+   ETag.
+4. If a URL expires, call the returned re-presign operation for only the
+   unfinished part numbers.
+5. Call the returned complete operation with all part numbers and ETags.
+6. On an intentional cancellation, call the returned abort operation.
+
+Presigned URLs are bearer capabilities with short lifetimes. They must not be
+logged, cached in checkpoints, or sent through the controller. Completion and
+re-presigning re-enter ZPan authorization and workspace checks.
+
+## Compatibility Boundary
+
+The legacy `zpan-cli` device flow remains limited to downloader registration.
+Ordinary human-created API keys remain available for their existing product
+uses, but there is no Agent API-key template or Agent key management UI.
+
+Future client-registration approval can be added around dynamically registered
+client records without changing resource discovery, consent, token exchange,
+OpenAPI, upload responses, or file use cases.
+
+## Acceptance
+
+The integration is complete when a generic FlareAuth/Restish controller can:
+
+1. discover ZPan from `/api`;
+2. dynamically register and appear in administrator settings;
+3. create a user-visible authorization request;
+4. obtain a DPoP resource token after consent;
+5. discover file operations from OpenAPI and upload workflows from Arazzo;
+6. upload bytes and complete the upload using the Arazzo and returned runtime
+   workflow data;
+7. list, read, and rename the resulting object;
+8. lose access after grant or JWT revocation.

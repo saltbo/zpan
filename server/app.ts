@@ -1,9 +1,7 @@
 import { release as osRelease } from 'node:os'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
-import { AGENT_OAUTH_CLIENT_ID } from '@shared/agent-oauth'
-import { AGENT_API_KEY_SHORTCUT_SCOPES, AgentApiKeyShortcut } from '@shared/api-key-templates'
-import { AuthorizationScope } from '@shared/authorization'
+import { AGENT_OAUTH_SCOPE_DESCRIPTIONS, AGENT_OAUTH_SCOPES } from '@shared/agent-oauth'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
@@ -12,8 +10,8 @@ import { createDeps } from './composition'
 import { isPotentialWebDavPublicRequest, isWebDavPublicRequest } from './domain/webdav-public-url'
 import { adminOverview } from './http/admin-overview'
 import { adminStats } from './http/admin-stats'
-import agentApiKeys from './http/agent-api-keys'
 import { agentOAuthGrants } from './http/agent-oauth-grants'
+import { ARAZZO_DOCUMENT_PATH, ARAZZO_MEDIA_TYPE, createArazzoDocument } from './http/arazzo'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
 import { configz } from './http/configz'
@@ -24,6 +22,7 @@ import ihostConfig from './http/image-hosting/config'
 import ihost from './http/image-hosting/images'
 import internal from './http/internal'
 import { notifications } from './http/notifications'
+import { oauthResourceScopes } from './http/oauth-resource-scopes'
 import objects from './http/objects'
 import { adminQuotas, userQuotas } from './http/quotas'
 import redirect from './http/redirect'
@@ -137,7 +136,25 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
 
   app.on(['POST', 'GET', 'HEAD'], '/api/auth/*', async (c) => {
     const a = c.get('auth')
-    return a.handler(c.req.raw)
+    const revokeRequest = c.req.path === '/api/auth/oauth2/revoke' ? c.req.raw.clone() : null
+    const response = await a.handler(c.req.raw)
+    if (revokeRequest && response.status === 400) {
+      const error = (await response
+        .clone()
+        .json()
+        .catch(() => null)) as { error?: string } | null
+      if (error?.error === 'unsupported_token_type') {
+        const token = (await revokeRequest.formData()).get('token')
+        if (typeof token === 'string') {
+          await c.get('deps').agentOAuth.revokeJwtAccessToken(c.get('platform').db, token)
+          return new Response(null, {
+            status: 200,
+            headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' },
+          })
+        }
+      }
+    }
+    return response
   })
 
   app.on(['GET', 'HEAD'], '/.well-known/oauth-authorization-server/api/auth', async (c) => {
@@ -155,19 +172,30 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       resource: `${origin}/api`,
       authorization_servers: [authorizationServer],
       bearer_methods_supported: ['header'],
-      scopes_supported: [
-        'objects:read',
-        'objects:create',
-        'objects:update',
-        'objects:delete',
-        'shares:read',
-        'shares:create',
-        'shares:delete',
-        'quota:read',
-        'storage-usage:read',
-      ],
+      scopes_supported: AGENT_OAUTH_SCOPES.filter((scope) => scope.includes(':')),
+      dpop_signing_alg_values_supported: ['ES256', 'EdDSA'],
       resource_name: 'ZPan API',
     })
+  })
+
+  app.get('/api', (c) => {
+    c.header(
+      'Link',
+      [
+        '</api/openapi.json>; rel="service-desc"; type="application/openapi+json"',
+        `<${ARAZZO_DOCUMENT_PATH}>; rel="describedby"; type="application/vnd.oai.workflows+json"`,
+      ].join(', '),
+    )
+    return c.json({ name: 'ZPan API', openapi: '/api/openapi.json', workflows: ARAZZO_DOCUMENT_PATH })
+  })
+
+  app.on(['GET', 'HEAD'], ARAZZO_DOCUMENT_PATH, (c) => {
+    const headers = {
+      'Cache-Control': 'public, max-age=300',
+      'Content-Type': ARAZZO_MEDIA_TYPE,
+    }
+    if (c.req.method === 'HEAD') return c.newResponse(null, 200, headers)
+    return c.newResponse(JSON.stringify(createArazzoDocument(new URL(c.req.url).origin)), 200, headers)
   })
 
   // Global OpenAPI document. Aggregates every route defined with `.openapi()`
@@ -179,6 +207,10 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       openapi: '3.1.0',
       info: { title: 'ZPan API', version: '0.1.0' },
       servers: [{ url: '/', description: 'Current ZPan origin' }],
+      externalDocs: {
+        description: 'Machine-readable API workflows (Arazzo 1.1)',
+        url: ARAZZO_DOCUMENT_PATH,
+      },
       // Top-level tag order + descriptions; Scalar groups operations by these.
       tags: [
         { name: 'Objects', description: 'Files and folders, including S3 multipart upload sessions' },
@@ -218,14 +250,12 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
           },
         },
       },
-      agentApiKey: { type: 'http', scheme: 'bearer', description: 'Workspace-scoped Agent API key' },
     }
     doc.components.schemas = {
       ...(authDoc.components?.schemas as typeof doc.components.schemas),
       ...doc.components.schemas,
     }
     Object.assign(doc, {
-      'x-cli-config': restishCliConfig(),
       'x-zpan-discovery': {
         oauthAuthorizationServer: '/.well-known/oauth-authorization-server/api/auth',
         oauthProtectedResource: '/.well-known/oauth-protected-resource/api',
@@ -307,6 +337,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   // /s/:token is intentionally left for the SPA landing page.
   app.route('/api/shares', publicShares)
   app.route('/api/configz', configz)
+  app.route('/api/oauth-resource-scopes', oauthResourceScopes)
   // Self-hosted avatar blobs (CF + AVATARS R2 binding, no AVATARS_PUBLIC_URL). Public.
   app.get('/api/avatar-blobs/:scope/:id', serveAvatarBlob)
   app.route('/r', redirect)
@@ -326,7 +357,6 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/objects', objects)
   app.route('/api/shares', authedShares)
   app.route('/api/trash', trash)
-  app.route('/api/workspaces', agentApiKeys)
   app.route('/api', agentOAuthGrants)
   app.route('/api/teams', teams)
   app.route('/api/teams', adminTeams)
@@ -432,66 +462,7 @@ function getCorsOrigins(platform: Platform): Set<string> {
 }
 
 function agentScopeDescriptions(): Record<string, string> {
-  return {
-    [AuthorizationScope.OBJECTS_READ]: 'List, inspect, and download objects',
-    [AuthorizationScope.OBJECTS_CREATE]: 'Create folders and upload objects',
-    [AuthorizationScope.OBJECTS_UPDATE]: 'Rename, move, and copy objects',
-    [AuthorizationScope.OBJECTS_DELETE]: 'Soft-delete objects',
-    [AuthorizationScope.SHARES_READ]: 'List and inspect shares',
-    [AuthorizationScope.SHARES_CREATE]: 'Create public shares',
-    [AuthorizationScope.SHARES_DELETE]: 'Revoke shares',
-    [AuthorizationScope.QUOTA_READ]: 'Inspect workspace quota',
-    [AuthorizationScope.STORAGE_USAGE_READ]: 'Inspect workspace storage usage',
-  }
-}
-
-function restishCliConfig() {
-  const oauthCredential = (scopes: readonly AuthorizationScope[]) => ({
-    auth: {
-      type: 'oauth-authorization-code',
-      params: {
-        authorize_url: '/api/auth/oauth2/authorize',
-        token_url: '/api/auth/oauth2/token',
-        client_id: AGENT_OAUTH_CLIENT_ID,
-        scopes: ['openid', 'offline_access', ...scopes].join(' '),
-        redirect_path: '/callback',
-      },
-    },
-    satisfies: [...scopes],
-  })
-
-  return {
-    profiles: {
-      default: {
-        credentials: {
-          agentOAuth2: oauthCredential(AGENT_API_KEY_SHORTCUT_SCOPES[AgentApiKeyShortcut.READER]),
-        },
-      },
-      reader: {
-        credentials: {
-          agentOAuth2: oauthCredential(AGENT_API_KEY_SHORTCUT_SCOPES[AgentApiKeyShortcut.READER]),
-        },
-      },
-      'file-manager': {
-        credentials: {
-          agentOAuth2: oauthCredential(AGENT_API_KEY_SHORTCUT_SCOPES[AgentApiKeyShortcut.FILE_MANAGER]),
-        },
-      },
-      publisher: {
-        credentials: {
-          agentOAuth2: oauthCredential(AGENT_API_KEY_SHORTCUT_SCOPES[AgentApiKeyShortcut.PUBLISHER]),
-        },
-      },
-      ci: {
-        credentials: {
-          agentApiKey: {
-            auth: { type: 'bearer', params: { token: 'env:ZPAN_AGENT_API_KEY' } },
-            satisfies: [...AGENT_API_KEY_SHORTCUT_SCOPES[AgentApiKeyShortcut.FILE_MANAGER]],
-          },
-        },
-      },
-    },
-  }
+  return { ...AGENT_OAUTH_SCOPE_DESCRIPTIONS }
 }
 
 export type AppType = ReturnType<typeof createApp>
@@ -537,5 +508,5 @@ export type AdminAuditRoute = typeof adminAudit
 export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats
 export type StorageUsageRoute = typeof storageUsage
-export type AgentApiKeysRoute = typeof agentApiKeys
 export type AgentOAuthGrantsRoute = typeof agentOAuthGrants
+export type OAuthResourceScopesRoute = typeof oauthResourceScopes
