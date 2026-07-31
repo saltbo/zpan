@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { useSiteConfig } from '@/hooks/use-site-config'
+import { absoluteAuthCallbackURL } from '@/lib/auth-callback'
 import { authClient, signIn } from '@/lib/auth-client'
 import { isCredentialLoginMethod } from '@/lib/last-login-method'
 import { clearSignInRedirect, loadSignInRedirect } from '@/lib/sign-in-redirect'
@@ -24,7 +25,7 @@ function SignIn() {
   const [redirectTo] = useState(() =>
     loadSignInRedirect(window.location.search, window.location.origin, window.sessionStorage),
   )
-  const callbackURL = redirectTo ?? '/files'
+  const callbackURL = absoluteAuthCallbackURL(redirectTo ?? '/files', window.location.origin)
   const { data: siteConfig } = useSiteConfig()
   const authSignupMode = siteConfig?.auth.signupMode
   const captcha = siteConfig?.auth.captcha

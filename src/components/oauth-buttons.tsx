@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { OAuthProviderIcon } from '@/components/oauth-provider-icon'
 import { Button } from '@/components/ui/button'
 import { useSiteConfig } from '@/hooks/use-site-config'
+import { absoluteAuthCallbackURL } from '@/lib/auth-callback'
 import { authClient } from '@/lib/auth-client'
 
 export function useOAuthProviders() {
@@ -29,7 +30,10 @@ export function OAuthButtons({
   async function handleOAuth(providerId: string) {
     setError('')
     onSignIn?.()
-    const result = await authClient.signIn.social({ provider: providerId, callbackURL })
+    const result = await authClient.signIn.social({
+      provider: providerId,
+      callbackURL: absoluteAuthCallbackURL(callbackURL, window.location.origin),
+    })
     if (result.error) {
       setError(result.error.message ?? t('auth.signInFailed'))
     }

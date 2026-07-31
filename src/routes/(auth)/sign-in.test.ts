@@ -1,5 +1,6 @@
 import { SignupMode } from '@shared/constants'
 import { describe, expect, it } from 'vitest'
+import { absoluteAuthCallbackURL } from '@/lib/auth-callback'
 import { isCredentialLoginMethod } from '@/lib/last-login-method'
 
 // SignIn is a React rendering component. The project has no jsdom or
@@ -88,11 +89,12 @@ describe('SignIn — sign-up link visibility', () => {
 // Default callback URL used when no continuation is present
 // ---------------------------------------------------------------------------
 
-const DEFAULT_SIGN_IN_CALLBACK_URL = '/files'
+const PREVIEW_ORIGIN = 'https://feat-x402-paid-agent-uploads-zpan.saltbo.workers.dev'
+const DEFAULT_SIGN_IN_CALLBACK_URL = absoluteAuthCallbackURL('/files', PREVIEW_ORIGIN)
 
 describe('SignIn — default callback URL', () => {
-  it('uses "/files" for an ordinary sign-in', () => {
-    expect(DEFAULT_SIGN_IN_CALLBACK_URL).toBe('/files')
+  it('uses the absolute current-origin files URL for an ordinary sign-in', () => {
+    expect(DEFAULT_SIGN_IN_CALLBACK_URL).toBe(`${PREVIEW_ORIGIN}/files`)
   })
 })
 
