@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildPreviewAdminSeedSql, buildWranglerArgs } from '../../scripts/seed-preview-admin'
+import {
+  buildPreviewAdminSeedSql,
+  buildWranglerArgs,
+  CREDENTIAL_ACCOUNT_ISSUER,
+} from '../../scripts/seed-preview-admin'
 
 describe('seed-preview-admin script', () => {
   it('builds idempotent SQL for the preview admin account', () => {
@@ -18,7 +22,9 @@ describe('seed-preview-admin script', () => {
     expect(sql).toContain('ban_expires = NULL')
     expect(sql).toContain('UPDATE account')
     expect(sql).toContain("SET password = 'hash''quoted'")
-    expect(sql).toContain('INSERT INTO account')
+    expect(sql).toContain(`issuer = '${CREDENTIAL_ACCOUNT_ISSUER}'`)
+    expect(sql).toContain('INSERT INTO account (id, issuer, account_id, provider_id')
+    expect(sql).toContain(`SELECT 'account''quoted', '${CREDENTIAL_ACCOUNT_ISSUER}', u.id, 'credential'`)
     expect(sql).toContain('AND NOT EXISTS')
     expect(sql).not.toContain('BEGIN')
     expect(sql).not.toContain('COMMIT')

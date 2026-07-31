@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import { deriveDpopAth } from 'better-auth/oauth2'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
@@ -317,6 +319,46 @@ describe('isEmailConfigured — via emailVerification conditional', () => {
     })
     // The endpoint returns 200 regardless; the callback silently returns early
     expect(res.status).toBe(200)
+  })
+})
+
+describe('Better Auth account issuer migration', () => {
+  it('restores email sign-in for a legacy credential account', async () => {
+    const ctx = await createTestApp()
+    const email = 'legacy-issuer@example.com'
+    await signUp(ctx, email)
+    await ctx.db
+      .update(authSchema.account)
+      .set({ issuer: '' })
+      .where(
+        eq(
+          authSchema.account.userId,
+          (await ctx.db.query.user.findFirst({ where: eq(authSchema.user.email, email) }))!.id,
+        ),
+      )
+
+    const rejected = await ctx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'password123456' }),
+    })
+    expect(rejected.status).toBe(401)
+
+    const migration = readFileSync(
+      join(process.cwd(), 'migrations/0089_better-auth-account-issuer-backfill.sql'),
+      'utf-8',
+    )
+    for (const statement of migration.split('--> statement-breakpoint')) {
+      await ctx.db.run(sql.raw(statement))
+    }
+
+    const restored = await ctx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'password123456' }),
+    })
+    expect(restored.status).toBe(200)
+    expect(restored.headers.getSetCookie()).not.toHaveLength(0)
   })
 })
 

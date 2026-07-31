@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { nanoid } from 'nanoid'
 
 export const PREVIEW_ADMIN_EMAIL = 'admin@zpan.space'
+export const CREDENTIAL_ACCOUNT_ISSUER = 'local:credential'
 
 const STAGING_D1_DB = 'zpan-db-staging'
 const STAGING_ENV = 'staging'
@@ -37,12 +38,13 @@ ON CONFLICT(email) DO UPDATE SET
 
 UPDATE account
 SET password = ${passwordHash},
+    issuer = '${CREDENTIAL_ACCOUNT_ISSUER}',
     updated_at = ${options.now}
 WHERE provider_id = 'credential'
   AND user_id IN (SELECT id FROM user WHERE email = ${email});
 
-INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at)
-SELECT ${accountId}, u.id, 'credential', u.id, ${passwordHash}, ${options.now}, ${options.now}
+INSERT INTO account (id, issuer, account_id, provider_id, user_id, password, created_at, updated_at)
+SELECT ${accountId}, '${CREDENTIAL_ACCOUNT_ISSUER}', u.id, 'credential', u.id, ${passwordHash}, ${options.now}, ${options.now}
 FROM user AS u
 WHERE u.email = ${email}
   AND NOT EXISTS (
