@@ -1628,6 +1628,9 @@ describe('Download tasks API integration', () => {
     })
     expect(taskRes.status).toBe(201)
     const task = (await taskRes.json()) as DownloadTask
+    await db.run(
+      sql`UPDATE org_quota_entitlements SET bytes = ${10 * 1024 * 1024 * 1024} WHERE org_id = ${task.orgId} AND resource_type = 'storage'`,
+    )
     await claimTaskForDownloader(app, createdDownloader.token, task.id)
 
     const tasksRes = await app.request('/api/downloads/downloaders/me/tasks?status=assigned', {
@@ -1845,6 +1848,9 @@ describe('Download tasks API integration', () => {
       ...(await authedHeaders(app, 'multipart-complete-user@example.com')),
       'Content-Type': 'application/json',
     }
+    await db.run(
+      sql`UPDATE org_quota_entitlements SET bytes = ${10 * 1024 * 1024 * 1024} WHERE resource_type = 'storage'`,
+    )
 
     const createObjectRes = await app.request('/api/objects', {
       method: 'POST',

@@ -10,6 +10,10 @@ const appPort = Number(process.env.E2E_APP_PORT ?? 5185)
 const apiPort = Number(process.env.E2E_API_PORT ?? 8222)
 const appVersion = resolveAppVersion()
 const appCommit = resolveAppCommit()
+const configuredDevHosts = (process.env.ZPAN_DEV_ALLOWED_HOSTS ?? '')
+  .split(',')
+  .map((host) => host.trim())
+  .filter(Boolean)
 
 export default defineConfig(({ mode }) => ({
   define: {
@@ -53,7 +57,12 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: appPort,
-    allowedHosts: process.env.E2E_BASE_URL ? true : undefined,
+    allowedHosts:
+      process.env.E2E_BASE_URL
+        ? true
+        : mode === 'development'
+          ? ['.trycloudflare.com', ...configuredDevHosts]
+          : undefined,
     ...(mode === 'node'
       ? {
           proxy: {

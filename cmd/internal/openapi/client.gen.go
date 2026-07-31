@@ -1126,6 +1126,21 @@ func (e BrandingThemePreset) Valid() bool {
 	}
 }
 
+// Defines values for CapacityRequiredError.
+const (
+	CAPACITYREQUIRED CapacityRequiredError = "CAPACITY_REQUIRED"
+)
+
+// Valid indicates whether the value is a known member of the CapacityRequiredError enum.
+func (e CapacityRequiredError) Valid() bool {
+	switch e {
+	case CAPACITYREQUIRED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CaptchaProvider.
 const (
 	Captchafox          CaptchaProvider = "captchafox"
@@ -2035,6 +2050,7 @@ const (
 	GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsDelete    GetAgentOAuthConsentContext200JSONResponseBodyScopes = "objects:delete"
 	GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsRead      GetAgentOAuthConsentContext200JSONResponseBodyScopes = "objects:read"
 	GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsUpdate    GetAgentOAuthConsentContext200JSONResponseBodyScopes = "objects:update"
+	GetAgentOAuthConsentContext200JSONResponseBodyScopesQuotaPurchase    GetAgentOAuthConsentContext200JSONResponseBodyScopes = "quota:purchase"
 	GetAgentOAuthConsentContext200JSONResponseBodyScopesQuotaRead        GetAgentOAuthConsentContext200JSONResponseBodyScopes = "quota:read"
 	GetAgentOAuthConsentContext200JSONResponseBodyScopesSharesCreate     GetAgentOAuthConsentContext200JSONResponseBodyScopes = "shares:create"
 	GetAgentOAuthConsentContext200JSONResponseBodyScopesSharesDelete     GetAgentOAuthConsentContext200JSONResponseBodyScopes = "shares:delete"
@@ -2052,6 +2068,8 @@ func (e GetAgentOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 	case GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsRead:
 		return true
 	case GetAgentOAuthConsentContext200JSONResponseBodyScopesObjectsUpdate:
+		return true
+	case GetAgentOAuthConsentContext200JSONResponseBodyScopesQuotaPurchase:
 		return true
 	case GetAgentOAuthConsentContext200JSONResponseBodyScopesQuotaRead:
 		return true
@@ -2074,6 +2092,7 @@ const (
 	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete    ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:delete"
 	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsRead      ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:read"
 	ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsUpdate    ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "objects:update"
+	ListAgentOAuthGrants200JSONResponseBodyItemsScopesQuotaPurchase    ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "quota:purchase"
 	ListAgentOAuthGrants200JSONResponseBodyItemsScopesQuotaRead        ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "quota:read"
 	ListAgentOAuthGrants200JSONResponseBodyItemsScopesSharesCreate     ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "shares:create"
 	ListAgentOAuthGrants200JSONResponseBodyItemsScopesSharesDelete     ListAgentOAuthGrants200JSONResponseBodyItemsScopes = "shares:delete"
@@ -2091,6 +2110,8 @@ func (e ListAgentOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsRead:
 		return true
 	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesObjectsUpdate:
+		return true
+	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesQuotaPurchase:
 		return true
 	case ListAgentOAuthGrants200JSONResponseBodyItemsScopesQuotaRead:
 		return true
@@ -5005,6 +5026,31 @@ type BrandingThemeValues struct {
 	RingColor          string `json:"ringColor"`
 	SidebarAccentColor string `json:"sidebarAccentColor"`
 }
+
+// CapacityRequired defines model for CapacityRequired.
+type CapacityRequired struct {
+	Error  CapacityRequiredError `json:"error"`
+	Offers []struct {
+		Amount        int     `json:"amount"`
+		Currency      string  `json:"currency"`
+		Description   *string `json:"description"`
+		Interval      *string `json:"interval"`
+		IntervalCount *int    `json:"intervalCount"`
+		Name          string  `json:"name"`
+		PriceId       string  `json:"priceId"`
+		ProductId     string  `json:"productId"`
+		PurchaseUrl   string  `json:"purchaseUrl"`
+		ResourceId    string  `json:"resourceId"`
+		StorageBytes  int     `json:"storageBytes"`
+	} `json:"offers"`
+	QuotaBytes     int    `json:"quotaBytes"`
+	RequestHash    string `json:"requestHash"`
+	RequestedBytes int    `json:"requestedBytes"`
+	UsedBytes      int    `json:"usedBytes"`
+}
+
+// CapacityRequiredError defines model for CapacityRequired.Error.
+type CapacityRequiredError string
 
 // CaptchaProvider defines model for CaptchaProvider.
 type CaptchaProvider string
@@ -8322,6 +8368,17 @@ type ListStorageUsageItemsParamsSortDir string
 // ListStorageUsageItems200JSONResponseBodyItemsSource defines parameters for ListStorageUsageItems.
 type ListStorageUsageItems200JSONResponseBodyItemsSource string
 
+// PurchaseStorageCapacityJSONBody defines parameters for PurchaseStorageCapacity.
+type PurchaseStorageCapacityJSONBody struct {
+	IdempotencyKey string `json:"idempotencyKey"`
+	RequestHash    string `json:"requestHash"`
+}
+
+// PurchaseStorageCapacityParams defines parameters for PurchaseStorageCapacity.
+type PurchaseStorageCapacityParams struct {
+	PaymentSignature *string `json:"payment-signature,omitempty"`
+}
+
 // CreateCheckoutJSONBody defines parameters for CreateCheckout.
 type CreateCheckoutJSONBody struct {
 	PackageId     string  `json:"packageId"`
@@ -8763,6 +8820,9 @@ type ReplaceStorageJSONRequestBody ReplaceStorageJSONBody
 
 // UpdateStorageEgressBillingJSONRequestBody defines body for UpdateStorageEgressBilling for application/json ContentType.
 type UpdateStorageEgressBillingJSONRequestBody UpdateStorageEgressBillingJSONBody
+
+// PurchaseStorageCapacityJSONRequestBody defines body for PurchaseStorageCapacity for application/json ContentType.
+type PurchaseStorageCapacityJSONRequestBody PurchaseStorageCapacityJSONBody
 
 // CreateCheckoutJSONRequestBody defines body for CreateCheckout for application/json ContentType.
 type CreateCheckoutJSONRequestBody CreateCheckoutJSONBody
@@ -11356,6 +11416,11 @@ type ClientInterface interface {
 
 	// CreateBillingPortalSession request
 	CreateBillingPortalSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PurchaseStorageCapacityWithBody request with any body
+	PurchaseStorageCapacityWithBody(ctx context.Context, resourceId string, params *PurchaseStorageCapacityParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PurchaseStorageCapacity(ctx context.Context, resourceId string, params *PurchaseStorageCapacityParams, body PurchaseStorageCapacityJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateCheckoutWithBody request with any body
 	CreateCheckoutWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -15522,6 +15587,30 @@ func (c *Client) ListStorageUsageItems(ctx context.Context, params *ListStorageU
 
 func (c *Client) CreateBillingPortalSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateBillingPortalSessionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PurchaseStorageCapacityWithBody(ctx context.Context, resourceId string, params *PurchaseStorageCapacityParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPurchaseStorageCapacityRequestWithBody(c.Server, resourceId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PurchaseStorageCapacity(ctx context.Context, resourceId string, params *PurchaseStorageCapacityParams, body PurchaseStorageCapacityJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPurchaseStorageCapacityRequest(c.Server, resourceId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -26112,6 +26201,68 @@ func NewCreateBillingPortalSessionRequest(server string) (*http.Request, error) 
 	return req, nil
 }
 
+// NewPurchaseStorageCapacityRequest calls the generic PurchaseStorageCapacity builder with application/json body
+func NewPurchaseStorageCapacityRequest(server string, resourceId string, params *PurchaseStorageCapacityParams, body PurchaseStorageCapacityJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPurchaseStorageCapacityRequestWithBody(server, resourceId, params, "application/json", bodyReader)
+}
+
+// NewPurchaseStorageCapacityRequestWithBody generates requests for PurchaseStorageCapacity with any type of body
+func NewPurchaseStorageCapacityRequestWithBody(server string, resourceId string, params *PurchaseStorageCapacityParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "resourceId", resourceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/store/capacity-purchases/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.PaymentSignature != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "payment-signature", *params.PaymentSignature, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("payment-signature", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewCreateCheckoutRequest calls the generic CreateCheckout builder with application/json body
 func NewCreateCheckoutRequest(server string, body CreateCheckoutJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -28474,6 +28625,11 @@ type ClientWithResponsesInterface interface {
 
 	// CreateBillingPortalSessionWithResponse request
 	CreateBillingPortalSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CreateBillingPortalSessionResponse, error)
+
+	// PurchaseStorageCapacityWithBodyWithResponse request with any body
+	PurchaseStorageCapacityWithBodyWithResponse(ctx context.Context, resourceId string, params *PurchaseStorageCapacityParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PurchaseStorageCapacityResponse, error)
+
+	PurchaseStorageCapacityWithResponse(ctx context.Context, resourceId string, params *PurchaseStorageCapacityParams, body PurchaseStorageCapacityJSONRequestBody, reqEditors ...RequestEditorFn) (*PurchaseStorageCapacityResponse, error)
 
 	// CreateCheckoutWithBodyWithResponse request with any body
 	CreateCheckoutWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCheckoutResponse, error)
@@ -35947,6 +36103,7 @@ type CreateObjectResponse struct {
 		} `json:"upload,omitempty"`
 	}
 	JSON400 *Error
+	JSON402 *CapacityRequired
 	JSON403 *Error
 	JSON409 *Error
 	JSON503 *Error
@@ -38438,6 +38595,43 @@ func (r CreateBillingPortalSessionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateBillingPortalSessionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PurchaseStorageCapacityResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *CloudStoreValue
+	JSON202      *CloudStoreValue
+	JSON400      *Error
+	JSON402      *CloudStoreValue
+	JSON403      *Error
+	JSON409      *Error
+	JSON429      *Error
+	JSON502      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r PurchaseStorageCapacityResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PurchaseStorageCapacityResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PurchaseStorageCapacityResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -42519,6 +42713,23 @@ func (c *ClientWithResponses) CreateBillingPortalSessionWithResponse(ctx context
 		return nil, err
 	}
 	return ParseCreateBillingPortalSessionResponse(rsp)
+}
+
+// PurchaseStorageCapacityWithBodyWithResponse request with arbitrary body returning *PurchaseStorageCapacityResponse
+func (c *ClientWithResponses) PurchaseStorageCapacityWithBodyWithResponse(ctx context.Context, resourceId string, params *PurchaseStorageCapacityParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PurchaseStorageCapacityResponse, error) {
+	rsp, err := c.PurchaseStorageCapacityWithBody(ctx, resourceId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePurchaseStorageCapacityResponse(rsp)
+}
+
+func (c *ClientWithResponses) PurchaseStorageCapacityWithResponse(ctx context.Context, resourceId string, params *PurchaseStorageCapacityParams, body PurchaseStorageCapacityJSONRequestBody, reqEditors ...RequestEditorFn) (*PurchaseStorageCapacityResponse, error) {
+	rsp, err := c.PurchaseStorageCapacity(ctx, resourceId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePurchaseStorageCapacityResponse(rsp)
 }
 
 // CreateCheckoutWithBodyWithResponse request with arbitrary body returning *CreateCheckoutResponse
@@ -53825,6 +54036,13 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest CapacityRequired
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -56556,6 +56774,81 @@ func ParseCreateBillingPortalSessionResponse(rsp *http.Response) (*CreateBilling
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePurchaseStorageCapacityResponse parses an HTTP response from a PurchaseStorageCapacityWithResponse call
+func ParsePurchaseStorageCapacityResponse(rsp *http.Response) (*PurchaseStorageCapacityResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PurchaseStorageCapacityResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CloudStoreValue
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest CloudStoreValue
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest CloudStoreValue
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
 		var dest Error

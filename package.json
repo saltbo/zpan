@@ -29,6 +29,7 @@
     "storage:backfill": "tsx scripts/backfill-storage-usage.ts",
     "storage-status:backfill": "tsx scripts/backfill-storage-enabled-status.ts",
     "api-key-scopes:backfill": "tsx scripts/backfill-api-key-scopes.ts",
+    "agent-oauth-scopes:backfill": "tsx scripts/backfill-agent-oauth-scopes.ts",
     "typecheck": "tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p src/tsconfig.json",
     "test": "vitest run --project unit --project integration",
     "test:cf": "vitest run --project cloudflare",
@@ -108,7 +109,7 @@
     "tailwind-merge": "^3.5.0",
     "yet-another-react-lightbox": "^3.30.1",
     "zod": "^4.4.3",
-    "zpan-cloud-sdk": "^2.4.0"
+    "zpan-cloud-sdk": "^2.5.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",

@@ -682,7 +682,7 @@ describe('loadProviderConfigs — builtin social provider resolution', () => {
     expect(res.status).not.toBe(200)
   })
 
-  it('createAuth initializes provider config and the two OAuth resources with three DB reads', async () => {
+  it('createAuth initializes provider config and OAuth resources without scanning OAuth clients', async () => {
     const ctx = await createTestApp()
     let selectCalls = 0
     const countingDb = new Proxy(ctx.db, {

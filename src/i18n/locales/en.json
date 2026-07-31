@@ -1218,6 +1218,7 @@
   "settings.agentAccess.scope.sharesCreate": "Shares: create shares",
   "settings.agentAccess.scope.sharesDelete": "Shares: revoke shares",
   "settings.agentAccess.scope.quotaRead": "Quota: read workspace quota",
+  "settings.agentAccess.scope.quotaPurchase": "Quota: purchase workspace storage capacity",
   "settings.agentAccess.scope.storageUsageRead": "Storage usage: read workspace usage",
   "settings.agentAccess.colWorkspace": "Workspace",
   "settings.agentAccess.colScopes": "Scopes",

@@ -138,15 +138,30 @@ catalog includes:
 | `shares:create` | Create public shares |
 | `shares:delete` | Revoke shares |
 | `quota:read` | Inspect workspace quota |
+| `quota:purchase` | Purchase storage capacity for the bound workspace through x402 |
 | `storage-usage:read` | Inspect workspace storage usage |
 | `tasks:read` | Inspect task state |
 
-Administrative, billing, credential-management, WebDAV, downloader bootstrap,
-and purge authority are not grantable through this catalog.
+Administrative, general billing management, credential-management, WebDAV,
+downloader bootstrap, and purge authority are not grantable through this
+catalog. `quota:purchase` is the narrow exception for autonomous x402 capacity
+purchases and cannot manage subscriptions or other billing resources.
 
 OAuth is a credential adapter, not a business-logic fork. Middleware resolves a
 protocol-neutral principal, bound workspace, scope set, and audit actor before
 calling the same file use cases used by other authenticated clients.
+
+Upgrades that add Agent scopes do not mutate OAuth tables during authentication
+startup. Before deploying such an upgrade, operators run the idempotent scope
+backfill in dry-run mode and then apply it:
+
+```sh
+pnpm agent-oauth-scopes:backfill -- --d1 zpan-db --remote
+pnpm agent-oauth-scopes:backfill -- --d1 zpan-db --remote --apply
+```
+
+For Node/SQLite deployments, replace the D1 arguments with
+`--sqlite <database-path>`.
 
 ## Self-Describing Direct Upload
 

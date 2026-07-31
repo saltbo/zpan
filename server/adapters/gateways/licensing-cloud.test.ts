@@ -24,9 +24,7 @@ function makeResponse(body: unknown, status = 200): Response {
 }
 
 function headerValue(headers: HeadersInit | undefined, name: string): string | null {
-  if (headers instanceof Headers) return headers.get(name)
-  if (Array.isArray(headers)) return new Headers(headers).get(name)
-  return headers?.[name] ?? null
+  return new Headers(headers).get(name)
 }
 
 describe('licensing-cloud', () => {

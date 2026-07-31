@@ -19,6 +19,7 @@ import type {
   MatterListFilters,
   UpdateMatterInput,
 } from '../usecases/ports.js'
+import { createCapacityRequestHash } from './objects.js'
 
 type TestDbForMatter = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -84,6 +85,18 @@ beforeEach(() => {
     etag: 'abc',
   })
   vi.spyOn(S3Service.prototype, 'completeMultipartUpload').mockResolvedValue(undefined)
+})
+
+describe('capacity purchase challenges', () => {
+  it('creates a fresh request hash for repeated identical uploads', async () => {
+    const input = { name: 'same.bin', type: 'application/octet-stream', size: 1024 }
+    const first = await createCapacityRequestHash('org-1', input)
+    const second = await createCapacityRequestHash('org-1', input)
+
+    expect(first).toMatch(/^[0-9a-f]{64}$/)
+    expect(second).toMatch(/^[0-9a-f]{64}$/)
+    expect(second).not.toBe(first)
+  })
 })
 
 afterEach(() => {
@@ -1851,6 +1864,69 @@ describe('Objects API — quota enforcement', () => {
     })
   }
 
+  function stubCapacityStoreWithoutOffers() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input instanceof Request ? input.url : input)
+        if (url.includes('/products')) {
+          return Response.json({ items: [], total: 0, limit: 100, offset: 0 })
+        }
+        if (url.endsWith('/publication')) {
+          return Response.json({
+            storeId: 'store-test-binding',
+            mode: 'directory',
+            listingStatus: 'listed',
+            displayName: 'ZPan',
+            summary: null,
+            publicMetadata: {},
+            skillUrl: null,
+            termsUrl: null,
+            healthUrl: 'https://files.example/api/health',
+            healthStatus: 'healthy',
+            resources: [],
+            createdAt: '2026-07-30T00:00:00.000Z',
+            updatedAt: '2026-07-30T00:00:00.000Z',
+          })
+        }
+        throw new Error(`Unexpected Cloud request: ${url}`)
+      }),
+    )
+  }
+
+  it('surfaces capacity-offer lookup failures instead of reporting quota exhaustion', async () => {
+    const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await setOrgQuota(db, orgId, 100, 90)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ error: { code: 'cloud_unavailable' } }, { status: 503 })),
+    )
+
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dirtype: 0,
+        name: 'toobig.txt',
+        parent: '',
+        size: 50,
+        type: 'text/plain',
+      }),
+    })
+
+    expect(res.status).toBe(502)
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        message: 'cloud_unavailable',
+        details: [{ reason: 'UNAVAILABLE' }],
+      },
+    })
+  })
+
   // ─── POST /api/objects/copy — quota enforcement ──────────────────────────
 
   describe('POST /api/objects/copy — quota enforcement', () => {
@@ -2220,14 +2296,21 @@ describe('Objects API — quota enforcement', () => {
       headers: Record<string, string>,
       body: { name: string; size: number; onConflict?: string },
     ): Promise<{ id: string; sessionId: string }> {
-      const res = await app.request('/api/objects', {
+      const res = await createDraftResponse(app, headers, body)
+      if (res.status !== 201) throw new Error(`create failed: ${res.status} ${await res.text()}`)
+      const created = (await res.json()) as { id: string; upload: { sessionId: string } }
+      return { id: created.id, sessionId: created.upload.sessionId }
+    }
+    function createDraftResponse(
+      app: Awaited<ReturnType<typeof createTestApp>>['app'],
+      headers: Record<string, string>,
+      body: { name: string; size: number; onConflict?: string },
+    ) {
+      return app.request('/api/objects', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'text/plain', parent: '', dirtype: 0, ...body }),
       })
-      if (res.status !== 201) throw new Error(`create failed: ${res.status} ${await res.text()}`)
-      const created = (await res.json()) as { id: string; upload: { sessionId: string } }
-      return { id: created.id, sessionId: created.upload.sessionId }
     }
     // The conflict strategy is fixed at create time (stored on the session); the
     // completions body carries only the uploaded parts.
@@ -2279,7 +2362,7 @@ describe('Objects API — quota enforcement', () => {
       expect(quotaRows[0]).toEqual({ used: 140, quota: 100 })
     })
 
-    it('enforces storage entitlements when the legacy quota column is zero', async () => {
+    it('rejects upload preparation when storage entitlements are exhausted', async () => {
       const { app, db } = await createTestApp()
       await seedProLicense(db)
       const headers = await authedHeaders(app)
@@ -2287,9 +2370,8 @@ describe('Objects API — quota enforcement', () => {
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 0, 90)
       await addStorageEntitlement(db, orgId, 100)
-      const ref = await createDraft(app, headers, { name: 'limited.txt', size: 11 })
-
-      const res = await complete(app, headers, ref)
+      stubCapacityStoreWithoutOffers()
+      const res = await createDraftResponse(app, headers, { name: 'limited.txt', size: 11 })
       expect(res.status).toBe(422)
       await expect(res.json()).resolves.toMatchObject({ error: { message: 'Quota exceeded' } })
     })
@@ -2308,7 +2390,7 @@ describe('Objects API — quota enforcement', () => {
       expect(storageRows[0].used).toBe(500)
     })
 
-    it('returns 422 when finalizing upload would exceed quota', async () => {
+    it('returns 422 before upload when the file would exceed quota', async () => {
       const { app, db } = await createTestApp()
       await seedProLicense(db)
       const headers = await authedHeaders(app)
@@ -2316,9 +2398,8 @@ describe('Objects API — quota enforcement', () => {
       const orgId = await getOrgId(db)
       // quota = 100, used = 90, file size = 50 → exceeds
       await setOrgQuota(db, orgId, 100, 90)
-      const ref = await createDraft(app, headers, { name: 'toobig.txt', size: 50 })
-
-      const res = await complete(app, headers, ref)
+      stubCapacityStoreWithoutOffers()
+      const res = await createDraftResponse(app, headers, { name: 'toobig.txt', size: 50 })
       expect(res.status).toBe(422)
       const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
       expect(body.error.message).toBe('Quota exceeded')
@@ -2343,16 +2424,14 @@ describe('Objects API — quota enforcement', () => {
       expect(quotaRows[0].used).toBe(50)
     })
 
-    it('returns 422 when no quota row or entitlement exists', async () => {
+    it('returns 422 before upload when no quota row or entitlement exists', async () => {
       const { app, db } = await createTestApp()
       const headers = await authedHeaders(app)
       await insertStorage(db)
       const orgId = await getOrgId(db)
       await db.delete(orgQuotaEntitlements).where(eq(orgQuotaEntitlements.orgId, orgId))
       await db.delete(orgQuotas).where(eq(orgQuotas.orgId, orgId))
-      const ref = await createDraft(app, headers, { name: 'nolimit.txt', size: 5000 })
-
-      const res = await complete(app, headers, ref)
+      const res = await createDraftResponse(app, headers, { name: 'nolimit.txt', size: 5000 })
       expect(res.status).toBe(422)
       await expect(res.json()).resolves.toMatchObject({ error: { details: [{ reason: 'QUOTA_EXCEEDED' }] } })
     })

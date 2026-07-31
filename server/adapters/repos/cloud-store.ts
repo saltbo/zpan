@@ -98,8 +98,7 @@ async function requireTargetQuota(db: Database, orgId: string): Promise<void> {
 }
 
 function insertQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChange, now: Date): AtomicQuery[] {
-  return quotaEntitlementValues(event, now).flatMap((value) => [
-    ...revokeExistingPlanQueries(db, value, now),
+  return quotaEntitlementValues(event, now).map((value) =>
     db
       .insert(orgQuotaEntitlements)
       .values(value)
@@ -107,30 +106,7 @@ function insertQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChang
         target: [orgQuotaEntitlements.source, orgQuotaEntitlements.sourceId, orgQuotaEntitlements.resourceType],
         set: quotaEntitlementIncreaseValues(value, now),
       }),
-  ])
-}
-
-function revokeExistingPlanQueries(
-  db: Database,
-  value: typeof orgQuotaEntitlements.$inferInsert,
-  now: Date,
-): AtomicQuery[] {
-  if (value.entitlementType !== 'plan') return []
-  return [
-    db
-      .update(orgQuotaEntitlements)
-      .set({ status: 'revoked', updatedAt: now })
-      .where(
-        and(
-          eq(orgQuotaEntitlements.orgId, value.orgId),
-          eq(orgQuotaEntitlements.resourceType, value.resourceType),
-          eq(orgQuotaEntitlements.entitlementType, 'plan'),
-          eq(orgQuotaEntitlements.status, 'active'),
-          sql`${orgQuotaEntitlements.source} <> 'free_plan'`,
-          sql`${orgQuotaEntitlements.sourceId} != ${value.sourceId}`,
-        ),
-      ),
-  ]
+  )
 }
 
 function revokeQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChange, now: Date): AtomicQuery[] {
@@ -195,9 +171,10 @@ function quotaEntitlementValues(event: CloudOrderQuotaChange, now: Date): (typeo
 }
 
 function quotaEntitlementIncreaseValues(value: typeof orgQuotaEntitlements.$inferInsert, now: Date) {
-  const bytes = isSubscriptionSourceId(value.sourceId)
-    ? value.bytes
-    : (sql`CASE
+  const bytes =
+    value.entitlementType === 'plan'
+      ? value.bytes
+      : (sql`CASE
         WHEN ${orgQuotaEntitlements.status} = 'active' THEN ${orgQuotaEntitlements.bytes} + ${value.bytes}
         ELSE ${value.bytes}
       END` as unknown as number)
@@ -231,11 +208,11 @@ function quotaEntitlementValue(
     id: nanoid(),
     orgId: event.targetOrgId,
     resourceType,
-    entitlementType: isSubscriptionSourceId(event.cloudOrderId) ? 'plan' : 'grant',
+    entitlementType: entitlementType(event),
     source: 'cloud_order',
     sourceId: event.cloudOrderId,
     bytes,
-    startsAt: now,
+    startsAt: eventStart(event, now),
     expiresAt: event.expiresAt ? new Date(event.expiresAt) : null,
     status: 'active',
     metadata: JSON.stringify(quotaEntitlementMetadata(event)),
@@ -268,11 +245,25 @@ function quotaEntitlementMetadata(event: CloudOrderQuotaChange) {
     expiresAt: event.expiresAt ?? null,
     customerId: event.customerId ?? null,
     customerEmail: event.customerEmail ?? null,
+    paymentProvider: eventValue(event, 'paymentProvider'),
+    providerTransactionId: eventValue(event, 'providerTransactionId'),
+    x402AuditContext: eventValue(event, 'x402AuditContext'),
   }
 }
 
-function isSubscriptionSourceId(sourceId: string) {
-  return sourceId.startsWith('stripe_subscription:')
+function entitlementType(event: CloudOrderQuotaChange): 'plan' | 'grant' {
+  return eventValue(event, 'entitlementType') === 'plan' || event.cloudOrderId.startsWith('stripe_subscription:')
+    ? 'plan'
+    : 'grant'
+}
+
+function eventStart(event: CloudOrderQuotaChange, fallback: Date): Date {
+  const value = eventValue(event, 'startsAt')
+  return typeof value === 'string' ? new Date(value) : fallback
+}
+
+function eventValue(event: CloudOrderQuotaChange, key: string): unknown {
+  return key in event ? (event as unknown as Record<string, unknown>)[key] : null
 }
 
 async function beginWebhookEvent(

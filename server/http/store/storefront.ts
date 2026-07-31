@@ -16,6 +16,7 @@ import {
   listCreditProducts,
   listPackages,
   listTargets,
+  purchaseCapacity,
   redeemGiftCard,
 } from '../../usecases/store/store'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
@@ -27,6 +28,10 @@ import { getCloudOrders, getInstanceOrigin } from './shared'
 // opaque objects rather than mirrored field-for-field here.
 const cloudValue = z.unknown().openapi('CloudStoreValue')
 const cloudBody = (description: string) => jsonContent(cloudValue, description)
+const capacityPurchaseInputSchema = z.object({
+  requestHash: z.string().min(1).max(256),
+  idempotencyKey: z.string().min(1).max(200),
+})
 
 const packagesRoute = authRoute(
   { scopes: [AuthorizationScope.STORE_READ] },
@@ -149,6 +154,41 @@ const checkoutRoute = authRoute(
       400: errorResponse('Bad request'),
       403: errorResponse('License not bound'),
       409: errorResponse('Workspace plan already exists'),
+      502: errorResponse('Cloud error'),
+    },
+  },
+)
+
+const capacityPurchaseRoute = authRoute(
+  { scopes: [AuthorizationScope.QUOTA_PURCHASE], minTeamRole: 'owner' },
+  {
+    operationId: 'purchaseStorageCapacity',
+    summary: 'Purchase workspace storage capacity with x402',
+    description:
+      'Call without PAYMENT-SIGNATURE to receive a standard x402 PAYMENT-REQUIRED challenge. Pay it and retry this same request with PAYMENT-SIGNATURE. A delivered response means the workspace capacity entitlement is active; retry the original createObject request.',
+    tags: ['Store'],
+    method: 'post',
+    path: '/capacity-purchases/{resourceId}',
+    middleware: [requireFeature('quota_store')] as const,
+    request: {
+      params: z.object({ resourceId: z.string().min(1) }),
+      headers: z.object({
+        'payment-signature': z
+          .string()
+          .min(1)
+          .max(64 * 1024)
+          .optional(),
+      }),
+      ...jsonBody(capacityPurchaseInputSchema),
+    },
+    responses: {
+      200: cloudBody('Capacity delivered'),
+      202: cloudBody('Payment accepted; capacity fulfillment is pending'),
+      400: errorResponse('Invalid capacity offer'),
+      402: cloudBody('x402 payment required'),
+      403: errorResponse('License not bound'),
+      409: errorResponse('Purchase request conflict'),
+      429: errorResponse('Too many pending capacity purchases'),
       502: errorResponse('Cloud error'),
     },
   },
@@ -302,6 +342,27 @@ export const cloudStore = app
     })
     if (!result.ok) throw result.error
     return c.json(result.value, 200)
+  })
+  .openapi(capacityPurchaseRoute, async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) throw badRequest('No active organization')
+    const body = c.req.valid('json')
+    const result = await purchaseCapacity(c.get('deps'), getCloudBaseUrl(c), {
+      userId: c.get('userId')!,
+      orgId,
+      origin: await getInstanceOrigin(c),
+      resourceId: c.req.valid('param').resourceId,
+      requestHash: body.requestHash,
+      idempotencyKey: body.idempotencyKey,
+      paymentSignature: c.req.valid('header')['payment-signature'] ?? null,
+    })
+    if (!result.ok) throw result.error
+    if (result.kind === 'payment_required') {
+      c.header('PAYMENT-REQUIRED', result.paymentRequiredHeader)
+      return c.json(result.paymentRequired, 402)
+    }
+    if (result.paymentResponseHeader) c.header('PAYMENT-RESPONSE', result.paymentResponseHeader)
+    return c.json(result.attempt, result.kind === 'delivered' ? 200 : 202)
   })
   .openapi(discountRoute, async (c) => {
     const result = await getDiscountQuote(c.get('deps'), getCloudBaseUrl(c), c.req.valid('json'))
