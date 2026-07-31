@@ -617,6 +617,17 @@ describe('cloud-store usecase', () => {
       })
     })
 
+    it('rejects a capacity purchase when the x402 receiver is not active', async () => {
+      const { deps, requests } = makeDeps({
+        responses: [ok(publication()), ok(pkg()), ok({ ...receiver, status: 'pending_verification' })],
+      })
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, { httpStatus: 502, message: 'x402_receiver_not_active' })
+      expect(requests).toHaveLength(3)
+    })
+
     it('returns a retryable conflict when another request is creating the Cloud order', async () => {
       const { deps, requests } = makeDeps({
         responses: [ok(publication()), ok(pkg()), ok(receiver)],
