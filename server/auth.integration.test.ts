@@ -872,6 +872,57 @@ describe('Agent OAuth consent guards', () => {
     )
   })
 
+  it('returns a DPoP challenge for a foreign access token instead of an internal error', async () => {
+    const ctx = await createTestApp()
+    const apiUrl = 'http://localhost:3000/api/objects'
+    const { privateKey: foreignPrivateKey } = await generateKeyPair('ES256')
+    const { privateKey: dpopPrivateKey, publicKey: dpopPublicKey } = await generateKeyPair('ES256')
+    const dpopPublicJwk = await exportJWK(dpopPublicKey)
+    const accessToken = await new SignJWT({
+      sub: 'foreign-user',
+      client_id: 'foreign-client',
+      zpan_org_id: 'foreign-workspace',
+      act: { sub: 'foreign-agent', iss: 'https://identity.example.com/api/auth' },
+      scope: 'objects:create',
+      cnf: { jkt: 'foreign-thumbprint' },
+    })
+      .setProtectedHeader({ typ: 'JWT', alg: 'ES256', kid: 'foreign-key' })
+      .setIssuer('http://localhost:3000/api/auth')
+      .setAudience('http://localhost:3000/api')
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .setJti(crypto.randomUUID())
+      .sign(foreignPrivateKey)
+    const proof = await new SignJWT({
+      htm: 'POST',
+      htu: apiUrl,
+      ath: await deriveDpopAth(accessToken),
+    })
+      .setProtectedHeader({ typ: 'dpop+jwt', alg: 'ES256', jwk: dpopPublicJwk })
+      .setIssuedAt()
+      .setJti(crypto.randomUUID())
+      .sign(dpopPrivateKey)
+    const getJwks = ctx.auth.api.getJwks
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = input instanceof Request ? input.url : String(input)
+        if (url === 'http://localhost:3000/api/auth/jwks') return Response.json(await getJwks())
+        throw new Error(`unexpected fetch: ${url}`)
+      }),
+    )
+
+    const response = await ctx.app.request(apiUrl, {
+      method: 'POST',
+      headers: { Authorization: `DPoP ${accessToken}`, DPoP: proof, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'foreign.txt', size: 1, type: 'text/plain', dirtype: 0, parent: '' }),
+    })
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toContain('DPoP')
+    expect(response.headers.get('www-authenticate')).toContain('/.well-known/oauth-protected-resource/api')
+  })
+
   it('issues a DPoP API token through JWT bearer and token exchange grants', async () => {
     const ctx = await createTestApp()
     ctx.app.get('/api/test-agent-audit', async (c) => {

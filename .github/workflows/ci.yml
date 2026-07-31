@@ -231,7 +231,7 @@ jobs:
   e2e-cf:
     name: E2E (CF Workers)
     runs-on: ubuntu-latest
-    needs: check
+    needs: [check, e2e-node]
     env:
       BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
       E2E_CLOUD_BUSINESS_EMAIL_CF: ${{ secrets.E2E_CLOUD_BUSINESS_EMAIL_CF }}

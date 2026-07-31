@@ -1,6 +1,5 @@
 import { oauthProviderResourceClient } from '@better-auth/oauth-provider/resource-client'
 import { AuthorizationScope, isAuthorizationScope, permissionScopes } from '@shared/authorization'
-import { APIError } from 'better-auth'
 import { createDpopReplayStore } from 'better-auth/oauth2'
 import { createMiddleware } from 'hono/factory'
 import {
@@ -34,7 +33,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
           dpop: { replayStore: createDpopReplayStore(authContext.internalAdapter) },
         })
     } catch (error) {
-      if (error instanceof APIError) throw dpopUnauthorized(audience)
+      if (isUnauthorizedApiError(error)) throw dpopUnauthorized(audience)
       throw error
     }
     const userId = typeof payload.sub === 'string' ? payload.sub : null
@@ -230,4 +229,10 @@ function dpopUnauthorized(resource: string): AppError {
       'WWW-Authenticate': `DPoP resource_metadata="${new URL('/.well-known/oauth-protected-resource/api', resource).toString()}"`,
     },
   })
+}
+
+function isUnauthorizedApiError(error: unknown): boolean {
+  if (!(error instanceof Error) || error.name !== 'APIError') return false
+  const candidate = error as Error & { status?: unknown; statusCode?: unknown }
+  return candidate.status === 'UNAUTHORIZED' || candidate.status === 401 || candidate.statusCode === 401
 }
