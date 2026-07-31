@@ -427,10 +427,8 @@ export async function purchaseCapacity(
       }
     }
   }
-  if (intent.idempotencyKey !== params.idempotencyKey) {
-    return { ok: false, error: conflict('Purchase request conflict', 'X402_PURCHASE_CONFLICT') }
-  }
-
+  // The request hash is the stable recovery identity. A caller may not know the
+  // creation key after an Agent handoff or an interrupted initialization.
   let cloudOrderId = intent.cloudOrderId
   if (!cloudOrderId) {
     const claimed = await deps.x402CapacityPurchases.claimCloudOrder(

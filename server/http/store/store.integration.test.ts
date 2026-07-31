@@ -751,7 +751,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns the standard x402 challenge for an owner capacity purchase', async () => {
+  it('returns the standard x402 challenge and lets a fresh caller recover it', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'capacity-owner@example.com')
@@ -777,6 +777,10 @@ describe('Quota Store API', () => {
       )
       .mockResolvedValueOnce(response(cloudOrder({ status: 'pending', paymentStatus: 'pending' }), 201))
       .mockResolvedValueOnce(response({ ...capacityAttempt(), reused: false }, 201))
+      .mockResolvedValueOnce(response(capacityPublication()))
+      .mockResolvedValueOnce(response(cloudProduct()))
+      .mockResolvedValueOnce(response(capacityReceiver()))
+      .mockResolvedValueOnce(response(capacityAttempt()))
 
     const res = await app.request('/api/store/capacity-purchases/cloud-pkg-1%3Aprice-usd', {
       method: 'POST',
@@ -788,6 +792,16 @@ describe('Quota Store API', () => {
     expect(res.headers.get('PAYMENT-REQUIRED')).toBe('required-header')
     await expect(res.json()).resolves.toEqual(capacityAttempt().paymentRequired)
     expect(orderPayload().idempotencyKey).toMatch(/^zpan-x402-capacity:/)
+
+    const recovered = await app.request('/api/store/capacity-purchases/cloud-pkg-1%3Aprice-usd', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestHash: 'hash-1', idempotencyKey: 'fresh-caller-key' }),
+    })
+
+    expect(recovered.status).toBe(402)
+    expect(recovered.headers.get('PAYMENT-REQUIRED')).toBe('required-header')
+    await expect(recovered.json()).resolves.toEqual(capacityAttempt().paymentRequired)
   })
 
   it('rate-limits unpaid capacity purchases before creating another Cloud order', async () => {

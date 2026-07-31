@@ -165,7 +165,7 @@ const capacityPurchaseRoute = authRoute(
     operationId: 'purchaseStorageCapacity',
     summary: 'Purchase workspace storage capacity with x402',
     description:
-      'Call without PAYMENT-SIGNATURE to receive a standard x402 PAYMENT-REQUIRED challenge. Pay it and retry this same request with PAYMENT-SIGNATURE. A delivered response means the workspace capacity entitlement is active; retry the original createObject request.',
+      'Call without PAYMENT-SIGNATURE to receive a standard x402 PAYMENT-REQUIRED challenge. Pay it and retry this same request with PAYMENT-SIGNATURE. An authorized caller may recover an interrupted purchase by using the same requestHash with a fresh idempotencyKey. A delivered response means the workspace capacity entitlement is active; retry the original createObject request.',
     tags: ['Store'],
     method: 'post',
     path: '/capacity-purchases/{resourceId}',

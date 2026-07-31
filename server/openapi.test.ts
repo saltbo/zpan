@@ -507,6 +507,7 @@ describe('global OpenAPI document', () => {
     })
     expect(doc.paths['/api/store/capacity-purchases/{resourceId}']?.post).toMatchObject({
       operationId: 'purchaseStorageCapacity',
+      description: expect.stringContaining('same requestHash with a fresh idempotencyKey'),
       'x-zpan-auth': {
         public: false,
         scopes: [AuthorizationScope.QUOTA_PURCHASE],
