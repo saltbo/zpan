@@ -7,7 +7,8 @@ describe('auditActor', () => {
     const principal: AuthPrincipal = {
       kind: 'agent-oauth',
       userId: 'user-1',
-      grantId: 'grant-1',
+      actorIssuer: 'https://id.realmroot.dev/api/auth',
+      actorSubject: 'agt_agent-1',
       clientId: 'dynamic-client',
       orgId: 'org-1',
       scopes: [],
@@ -17,7 +18,8 @@ describe('auditActor', () => {
     expect(auditActor(principal)).toEqual({
       userId: 'user-1',
       actorType: 'agent_oauth',
-      actorRef: 'grant-1',
+      actorRef: 'agt_agent-1',
+      actorIssuer: 'https://id.realmroot.dev/api/auth',
     })
   })
 
@@ -34,6 +36,7 @@ describe('auditActor', () => {
       userId: 'user-1',
       actorType: 'user',
       actorRef: null,
+      actorIssuer: null,
     })
   })
 })

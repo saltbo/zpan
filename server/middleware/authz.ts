@@ -191,6 +191,7 @@ async function recordDenialAudit(c: Context<Env>, reason: AuthzDenialReason) {
     userId: context.userId,
     actorType: context.actor.type,
     actorRef: context.actor.ref,
+    actorIssuer: 'issuer' in context.actor ? context.actor.issuer : null,
     action: 'authorization_denied',
     targetType: 'route',
     targetName: 'scoped route',

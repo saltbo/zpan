@@ -622,7 +622,15 @@ export interface Announcement {
   updatedAt: string
 }
 
-export type AuditActorType = 'user' | 'api_key' | 'anonymous' | 'system' | 'downloader'
+export type AuditActorType =
+  | 'user'
+  | 'api_key'
+  | 'agent_oauth'
+  | 'agent'
+  | 'anonymous'
+  | 'system'
+  | 'downloader'
+  | 'task-upload'
 
 export interface AuditEvent {
   id: string
@@ -630,6 +638,7 @@ export interface AuditEvent {
   userId: string | null
   actorType: AuditActorType
   actorRef: string | null
+  actorIssuer: string | null
   action: string
   targetType: string
   targetId: string | null

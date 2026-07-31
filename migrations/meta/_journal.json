@@ -596,6 +596,13 @@
       "when": 1785388778835,
       "tag": "0085_oauth-jwt-revocation",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "6",
+      "when": 1785456041947,
+      "tag": "0086_agent-audit-identity",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `audit_events` ADD `actor_issuer` text;

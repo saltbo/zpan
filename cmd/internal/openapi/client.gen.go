@@ -4877,17 +4877,18 @@ type AnnouncementList struct {
 
 // AuditEvent defines model for AuditEvent.
 type AuditEvent struct {
-	Action     string              `json:"action"`
-	ActorRef   *string             `json:"actorRef"`
-	ActorType  AuditEventActorType `json:"actorType"`
-	CreatedAt  string              `json:"createdAt"`
-	Id         string              `json:"id"`
-	Metadata   *string             `json:"metadata"`
-	OrgId      string              `json:"orgId"`
-	TargetId   *string             `json:"targetId"`
-	TargetName string              `json:"targetName"`
-	TargetType string              `json:"targetType"`
-	User       struct {
+	Action      string              `json:"action"`
+	ActorIssuer *string             `json:"actorIssuer"`
+	ActorRef    *string             `json:"actorRef"`
+	ActorType   AuditEventActorType `json:"actorType"`
+	CreatedAt   string              `json:"createdAt"`
+	Id          string              `json:"id"`
+	Metadata    *string             `json:"metadata"`
+	OrgId       string              `json:"orgId"`
+	TargetId    *string             `json:"targetId"`
+	TargetName  string              `json:"targetName"`
+	TargetType  string              `json:"targetType"`
+	User        struct {
 		Id    *string `json:"id"`
 		Image *string `json:"image"`
 		Name  string  `json:"name"`

@@ -15,6 +15,7 @@ export interface RecordAuditEventInput {
   userId?: string | null
   actorType?: AuditActorType
   actorRef?: string | null
+  actorIssuer?: string | null
   action: string
   targetType: string
   targetId?: string
@@ -28,6 +29,7 @@ export interface AuditEvent {
   userId: string | null
   actorType: AuditActorType
   actorRef: string | null
+  actorIssuer: string | null
   action: string
   targetType: string
   targetId: string | null

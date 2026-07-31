@@ -11,6 +11,7 @@ import { createAuth } from './auth.js'
 import * as authSchema from './db/auth-schema.js'
 import * as schema from './db/schema.js'
 import { inviteCodes, siteInvitations } from './db/schema.js'
+import { auditActor } from './middleware/audit-actor.js'
 import { adminHeaders, createTestApp, seedProLicense } from './test/setup.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
@@ -788,6 +789,18 @@ describe('Agent OAuth consent guards', () => {
 
   it('issues a DPoP API token through JWT bearer and token exchange grants', async () => {
     const ctx = await createTestApp()
+    ctx.app.get('/api/test-agent-audit', async (c) => {
+      const principal = c.get('principal')
+      if (principal?.kind !== 'agent-oauth') return c.json({ error: 'agent principal required' }, 401)
+      await c.get('deps').audit.record({
+        ...auditActor(principal),
+        orgId: principal.orgId,
+        action: 'agent_identity_probe',
+        targetType: 'route',
+        targetName: 'Agent identity probe',
+      })
+      return c.json({ ok: true })
+    })
     const { privateKey: agentPrivateKey, publicKey: agentPublicKey } = await generateKeyPair('ES256')
     const agentPublicJwk = { ...(await exportJWK(agentPublicKey)), kid: 'agent-key', use: 'sig', alg: 'ES256' }
     const getJwks = ctx.auth.api.getJwks
@@ -934,7 +947,7 @@ describe('Agent OAuth consent guards', () => {
     expect(exchangeResponse.status).toBe(200)
     expect(exchanged).toMatchObject({ token_type: 'DPoP', scope: 'objects:read quota:read' })
 
-    const apiUrl = 'http://localhost:3000/api/objects'
+    const apiUrl = 'http://localhost:3000/api/test-agent-audit'
     const apiProof = await new SignJWT({
       htm: 'GET',
       htu: apiUrl,
@@ -948,6 +961,15 @@ describe('Agent OAuth consent guards', () => {
       headers: { Authorization: `DPoP ${exchanged.access_token}`, DPoP: apiProof },
     })
     expect(apiResponse.status).toBe(200)
+    const [auditEvent] = await ctx.db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.action, 'agent_identity_probe'))
+    expect(auditEvent).toMatchObject({
+      actorType: 'agent_oauth',
+      actorRef: 'agent-123',
+      actorIssuer: 'https://broker.example.com/api/auth',
+    })
 
     const revokeResponse = await ctx.app.request('http://localhost:3000/api/auth/oauth2/revoke', {
       method: 'POST',

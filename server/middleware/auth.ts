@@ -40,8 +40,12 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     const userId = typeof payload.sub === 'string' ? payload.sub : null
     const orgId = typeof payload.zpan_org_id === 'string' ? payload.zpan_org_id : null
     const clientId = typeof payload.client_id === 'string' ? payload.client_id : null
-    const actor = payload.act && typeof payload.act === 'object' ? (payload.act as Record<string, unknown>).sub : null
-    if (!userId || !orgId || !clientId || typeof actor !== 'string') throw unauthorized('Unauthorized')
+    const actorClaims = payload.act && typeof payload.act === 'object' ? (payload.act as Record<string, unknown>) : null
+    const actorSubject = actorClaims?.sub
+    const actorIssuer = actorClaims?.iss
+    if (!userId || !orgId || !clientId || typeof actorSubject !== 'string' || typeof actorIssuer !== 'string') {
+      throw unauthorized('Unauthorized')
+    }
     if (
       typeof payload.jti !== 'string' ||
       (await c.get('deps').agentOAuth.isJwtAccessTokenRevoked(c.get('platform').db, payload.jti))
@@ -50,10 +54,10 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     }
     if (await c.get('deps').userAdmin.isBanned(userId)) throw unauthorized('Unauthorized')
     const scopes = typeof payload.scope === 'string' ? payload.scope.split(/\s+/).filter(isAuthorizationScope) : []
-    const grantId = typeof payload.jti === 'string' ? payload.jti : actor
     c.set('principal', {
       kind: 'agent-oauth',
-      grantId,
+      actorIssuer,
+      actorSubject,
       clientId,
       orgId,
       userId,
@@ -65,7 +69,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       userId,
       workspace: { mode: 'bound', orgId },
       grantedScopes: new Set(scopes),
-      actor: { type: 'agent_oauth', ref: actor },
+      actor: { type: 'agent_oauth', ref: actorSubject, issuer: actorIssuer },
       state: { clientId },
     })
     c.set('userId', userId)

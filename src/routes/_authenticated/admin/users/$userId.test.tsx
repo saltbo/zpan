@@ -153,6 +153,7 @@ function auditEvent(overrides: Partial<AdminAuditEvent> = {}): AdminAuditEvent {
     userId: 'route-user-1',
     actorType: 'user',
     actorRef: null,
+    actorIssuer: null,
     action: 'upload',
     targetType: 'file',
     targetId: 'file-1',

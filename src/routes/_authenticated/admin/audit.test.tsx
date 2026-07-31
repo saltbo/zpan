@@ -79,6 +79,7 @@ function auditEvent(overrides: Partial<AdminAuditEvent> = {}): AdminAuditEvent {
     userId: 'user-1',
     actorType: 'user',
     actorRef: null,
+    actorIssuer: null,
     action: 'upload',
     targetType: 'file',
     targetId: 'file-1',
@@ -126,6 +127,23 @@ afterEach(() => {
 })
 
 describe('AuditLogsPage filters and pagination', () => {
+  it('shows the stable Agent identity instead of the delegated user', async () => {
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(
+      auditPage(1, [
+        auditEvent({
+          actorType: 'agent_oauth',
+          actorRef: 'agt_agent-1',
+          actorIssuer: 'https://id.realmroot.dev/api/auth',
+        }),
+      ]),
+    )
+
+    renderAuditPage()
+
+    expect(await screen.findByText('Agent:agt_agent-1 · https://id.realmroot.dev/api/auth')).toBeTruthy()
+    expect(screen.queryByText('Ava Stone')).toBeNull()
+  })
+
   it('uses structured filters and standard pagination', async () => {
     vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage(1, [auditEvent()], 21))
 

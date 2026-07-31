@@ -520,6 +520,7 @@ export const auditEvents = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
     actorType: text('actor_type'),
     actorRef: text('actor_ref'),
+    actorIssuer: text('actor_issuer'),
   },
   (t) => [
     index('audit_events_org_created_idx').on(t.orgId, t.createdAt),

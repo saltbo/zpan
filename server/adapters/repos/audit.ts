@@ -14,6 +14,7 @@ export function auditEventValues(event: RecordAuditEventInput): typeof auditEven
     userId: event.userId ?? null,
     actorType: event.actorType ?? (event.userId ? 'user' : 'anonymous'),
     actorRef: event.actorRef ?? null,
+    actorIssuer: event.actorIssuer ?? null,
     action: event.action,
     targetType: event.targetType,
     targetId: event.targetId ?? null,
@@ -32,6 +33,7 @@ export function idempotentSystemEventValues(input: {
   userId?: string | null
   actorType?: RecordAuditEventInput['actorType']
   actorRef?: string | null
+  actorIssuer?: string | null
   targetType: string
   occurredAt: Date
   metadata: Record<string, unknown>
@@ -43,6 +45,7 @@ export function idempotentSystemEventValues(input: {
       userId: input.userId ?? null,
       actorType: input.actorType ?? 'system',
       actorRef: input.actorRef ?? 'domain',
+      actorIssuer: input.actorIssuer ?? null,
       action: input.action,
       targetType: input.targetType,
       targetId,
@@ -108,6 +111,7 @@ export function createAuditRepo(db: Database): AuditRepo {
           userId: auditEvents.userId,
           actorType: auditEvents.actorType,
           actorRef: auditEvents.actorRef,
+          actorIssuer: auditEvents.actorIssuer,
           action: auditEvents.action,
           targetType: auditEvents.targetType,
           targetId: auditEvents.targetId,
@@ -138,6 +142,7 @@ export function createAuditRepo(db: Database): AuditRepo {
           userId: row.userId,
           actorType,
           actorRef: row.actorRef,
+          actorIssuer: row.actorIssuer,
           action: row.action,
           targetType: row.targetType,
           targetId: row.targetId,
@@ -177,6 +182,7 @@ export function createAuditRepo(db: Database): AuditRepo {
           userId: auditEvents.userId,
           actorType: auditEvents.actorType,
           actorRef: auditEvents.actorRef,
+          actorIssuer: auditEvents.actorIssuer,
           action: auditEvents.action,
           targetType: auditEvents.targetType,
           targetId: auditEvents.targetId,
@@ -209,6 +215,7 @@ export function createAuditRepo(db: Database): AuditRepo {
           userId: row.userId,
           actorType,
           actorRef: row.actorRef,
+          actorIssuer: row.actorIssuer,
           action: row.action,
           targetType: row.targetType,
           targetId: row.targetId,
@@ -257,6 +264,7 @@ export function createAuditRepo(db: Database): AuditRepo {
         items: rows.map(({ pageTotal: _, ...row }) => ({
           ...row,
           actorType: normalizeActorType(row.actorType, row.userId),
+          actorIssuer: row.actorIssuer,
         })),
         total,
         page,

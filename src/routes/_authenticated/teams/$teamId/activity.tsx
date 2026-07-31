@@ -59,12 +59,13 @@ function ActivityItem({ event }: { event: AuditEvent }) {
   }
 
   const createdAt = new Date(event.createdAt as unknown as string | number)
-  const actorLabel = event.user.name || formatActor(event)
+  const actorLabel = formatActor(event)
+  const actorImage = event.actorType === 'user' ? event.user.image : null
 
   return (
     <div className="flex items-start gap-3 py-3">
       <Avatar className="h-8 w-8 flex-shrink-0">
-        {event.user.image && <AvatarImage src={event.user.image} alt={event.user.name} />}
+        {actorImage && <AvatarImage src={actorImage} alt={actorLabel} />}
         <AvatarFallback className="text-xs">{userInitials(actorLabel)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
@@ -78,10 +79,18 @@ function ActivityItem({ event }: { event: AuditEvent }) {
 }
 
 function formatActor(event: AuditEvent): string {
+  if (event.actorType === 'agent_oauth') {
+    const identity = event.actorRef ?? 'unknown'
+    return event.actorIssuer ? `Agent:${identity} · ${event.actorIssuer}` : `Agent:${identity}`
+  }
+  if (event.user.name) return event.user.name
   if (event.userId) return event.userId
+  if (event.actorType === 'api_key') return event.actorRef ? `API key:${event.actorRef}` : 'API key'
+  if (event.actorType === 'agent') return event.actorRef ? `Agent:${event.actorRef}` : 'Agent'
   if (event.actorType === 'anonymous') return 'Anonymous'
   if (event.actorType === 'system') return event.actorRef ? `System:${event.actorRef}` : 'System'
   if (event.actorType === 'downloader') return event.actorRef ? `Downloader:${event.actorRef}` : 'Downloader'
+  if (event.actorType === 'task-upload') return event.actorRef ? `Task upload:${event.actorRef}` : 'Task upload'
   return 'Unknown'
 }
 

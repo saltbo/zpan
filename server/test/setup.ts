@@ -473,7 +473,8 @@ const APP_SCHEMA_SQL = `
 		    metadata TEXT,
 		    created_at INTEGER NOT NULL,
 		    actor_type TEXT,
-		    actor_ref TEXT
+		    actor_ref TEXT,
+		    actor_issuer TEXT
 		  );
 	  CREATE INDEX IF NOT EXISTS audit_events_org_created_idx ON audit_events(org_id, created_at);
 	  CREATE INDEX IF NOT EXISTS audit_events_user_created_idx ON audit_events(user_id, created_at);

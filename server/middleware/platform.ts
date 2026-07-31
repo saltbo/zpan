@@ -54,7 +54,8 @@ export type AuthPrincipal =
     }
   | {
       kind: 'agent-oauth'
-      grantId: string
+      actorIssuer: string
+      actorSubject: string
       clientId: string
       orgId: string
       userId: string
@@ -118,7 +119,7 @@ export type AuthzContext =
       userId: string
       workspace: { mode: 'bound'; orgId: string }
       grantedScopes: ReadonlySet<AuthorizationScope>
-      actor: { type: 'agent_oauth'; ref: string }
+      actor: { type: 'agent_oauth'; ref: string; issuer: string }
       state: { clientId: string }
     }
   | {
