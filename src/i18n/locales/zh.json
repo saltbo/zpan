@@ -1218,6 +1218,7 @@
   "settings.agentAccess.scope.sharesCreate": "分享：创建分享",
   "settings.agentAccess.scope.sharesDelete": "分享：撤销分享",
   "settings.agentAccess.scope.quotaRead": "配额：读取工作空间配额",
+  "settings.agentAccess.scope.quotaPurchase": "配额：购买工作空间存储容量",
   "settings.agentAccess.scope.storageUsageRead": "存储用量：读取工作空间用量",
   "settings.agentAccess.colWorkspace": "工作空间",
   "settings.agentAccess.colScopes": "权限",

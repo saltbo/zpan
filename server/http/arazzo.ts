@@ -24,7 +24,7 @@ export function createArazzoDocument(origin: string) {
         workflowId: 'prepareDirectFileUpload',
         summary: 'Prepare a direct file upload',
         description:
-          'Creates a file draft and returns the runtime upload descriptor. PUT every local file slice identified by upload.parts[].offset and upload.parts[].length to upload.parts[].url with upload.parts[].headers. Capture each response ETag, then invoke completeDirectFileUpload. If a presigned URL expires, invoke refreshDirectFileUploadParts. File bytes are sent directly to storage, not to ZPan.',
+          'Creates a file draft and returns the runtime upload descriptor. If capacity is insufficient, createObject returns 402 with requestHash and eligible offers; invoke purchaseStorageCapacityWithX402 for one offer, then retry createObject. PUT every local file slice identified by upload.parts[].offset and upload.parts[].length to upload.parts[].url with upload.parts[].headers. Capture each response ETag, then invoke completeDirectFileUpload. If a presigned URL expires, invoke refreshDirectFileUploadParts. File bytes are sent directly to storage, not to ZPan.',
         inputs: {
           type: 'object',
           properties: {
@@ -66,6 +66,42 @@ export function createArazzoDocument(origin: string) {
           objectId: '$steps.createUploadDraft.outputs.objectId',
           sessionId: '$steps.createUploadDraft.outputs.sessionId',
           upload: '$steps.createUploadDraft.outputs.upload',
+        },
+      },
+      {
+        workflowId: 'purchaseStorageCapacityWithX402',
+        summary: 'Purchase workspace storage capacity',
+        description:
+          'Select an offer returned by createObject 402. Call purchaseStorageCapacity without PAYMENT-SIGNATURE to obtain PAYMENT-REQUIRED, pay that challenge, then retry the same operation with PAYMENT-SIGNATURE. After a delivered response, retry the original createObject request.',
+        inputs: {
+          type: 'object',
+          properties: {
+            resourceId: { type: 'string', minLength: 1 },
+            requestHash: { type: 'string', minLength: 1 },
+            idempotencyKey: { type: 'string', minLength: 1 },
+          },
+          required: ['resourceId', 'requestHash', 'idempotencyKey'],
+        },
+        steps: [
+          {
+            stepId: 'requestPaymentChallenge',
+            operationId: 'purchaseStorageCapacity',
+            parameters: [{ name: 'resourceId', in: 'path', value: '$inputs.resourceId' }],
+            requestBody: {
+              contentType: 'application/json',
+              payload: {
+                requestHash: '$inputs.requestHash',
+                idempotencyKey: '$inputs.idempotencyKey',
+              },
+            },
+            successCriteria: [{ condition: '$statusCode == 402' }],
+            outputs: {
+              paymentRequired: '$response.body',
+            },
+          },
+        ],
+        outputs: {
+          paymentRequired: '$steps.requestPaymentChallenge.outputs.paymentRequired',
         },
       },
       {

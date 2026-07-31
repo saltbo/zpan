@@ -40,6 +40,40 @@ describe('[CF] Auth API', () => {
     expect(res.headers.get('set-cookie')).toBeTruthy()
   })
 
+  it('accepts official Workers commit and branch aliases but rejects unrelated workers.dev', async () => {
+    const platform = createCloudflarePlatform(env)
+    const configuredOrigin = 'https://zpan-staging.saltbo.workers.dev'
+    const commitOrigin = 'https://99dc50ae-zpan.saltbo.workers.dev'
+    const branchOrigin = 'https://feat-x402-paid-agent-uploads-zpan.saltbo.workers.dev'
+    const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET, configuredOrigin, [configuredOrigin])
+    const app = createApp(platform, auth)
+    const email = `cf-preview-${Date.now()}@example.com`
+    const password = 'password123456'
+    const signUp = await app.request(`${configuredOrigin}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { Origin: configuredOrigin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'CF Preview User', email, password }),
+    })
+    expect(signUp.status).toBe(200)
+
+    for (const origin of [commitOrigin, branchOrigin]) {
+      const signIn = await app.request(`${origin}/api/auth/sign-in/email`, {
+        method: 'POST',
+        headers: { Origin: origin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, callbackURL: `${origin}/files` }),
+      })
+      expect(signIn.status, await signIn.clone().text()).toBe(200)
+    }
+
+    const unrelatedOrigin = 'https://unrelated-worker.other-account.workers.dev'
+    const rejected = await app.request(`${unrelatedOrigin}/api/auth/sign-in/email`, {
+      method: 'POST',
+      headers: { Origin: unrelatedOrigin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, callbackURL: `${unrelatedOrigin}/files` }),
+    })
+    expect(rejected.status).toBe(403)
+  })
+
   it('completes managed Agent OAuth consent on D1', async () => {
     const app = await buildApp()
     const signUp = await app.request('/api/auth/sign-up/email', {

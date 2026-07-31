@@ -55,18 +55,29 @@ const storeDeliveryEventSchema = z
     quantity: z.number().int().positive(),
     deliverable: z.record(z.string(), z.unknown()),
     target: z.record(z.string(), z.unknown()).nullable(),
-    context: z.object({
-      storeId: z.string().min(1),
-      paymentProvider: z.enum(['stripe', 'gift_card', 'credits']).nullable(),
-      stripePriceId: z.string().nullable().optional(),
-      stripePriceLookupKey: z.string().nullable().optional(),
-      stripePriceRecurring: z.unknown().optional(),
-      stripePriceMetadata: z.record(z.string(), z.string()).optional(),
-      stripeSubscriptionId: z.string().nullable().optional(),
-      stripeInvoiceId: z.string().nullable().optional(),
-      billingPeriodStart: z.string().nullable().optional(),
-      billingPeriodEnd: z.string().nullable().optional(),
-    }),
+    context: z
+      .object({
+        storeId: z.string().min(1),
+        paymentProvider: z.enum(['stripe', 'gift_card', 'credits', 'x402']).nullable(),
+        providerTransactionId: z.string().nullable().optional(),
+        x402AuditContext: z.record(z.string(), z.unknown()).nullable().optional(),
+        stripePriceId: z.string().nullable().optional(),
+        stripePriceLookupKey: z.string().nullable().optional(),
+        stripePriceRecurring: z.unknown().optional(),
+        stripePriceMetadata: z.record(z.string(), z.string()).optional(),
+        stripeSubscriptionId: z.string().nullable().optional(),
+        stripeInvoiceId: z.string().nullable().optional(),
+        billingPeriodStart: z.string().datetime().nullable().optional(),
+        billingPeriodEnd: z.string().datetime().nullable().optional(),
+      })
+      .superRefine((context, ctx) => {
+        if (Boolean(context.billingPeriodStart) === Boolean(context.billingPeriodEnd)) return
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [context.billingPeriodStart ? 'billingPeriodEnd' : 'billingPeriodStart'],
+          message: 'Billing period start and end must be provided together',
+        })
+      }),
     occurredAt: z.string().min(1),
   })
   .superRefine((event, ctx) => {
@@ -104,6 +115,16 @@ function targetOrgId(target: Record<string, unknown> | null) {
 function sourceId(event: z.infer<typeof storeDeliveryEventSchema>) {
   const orgId = targetOrgId(event.target)
   if (event.context.stripeSubscriptionId) return `stripe_subscription:${event.context.stripeSubscriptionId}:${orgId}`
+  if (event.context.billingPeriodStart && event.context.billingPeriodEnd) {
+    return [
+      event.context.paymentProvider ?? 'commerce',
+      'period',
+      event.productId,
+      event.context.billingPeriodStart,
+      event.context.billingPeriodEnd,
+      orgId,
+    ].join(':')
+  }
   return event.orderId
 }
 
@@ -128,7 +149,12 @@ export const cloudOrderQuotaChangeSchema = z.union([
     storageBytes: numberDeliverableValue(event.deliverable, 'storageBytes'),
     trafficBytes: numberDeliverableValue(event.deliverable, 'trafficBytes'),
     trafficOveragePriceCents: optionalNumberDeliverableValue(event.deliverable, 'trafficOveragePriceCents'),
-    source: event.context.stripeSubscriptionId ? 'stripe_subscription' : 'stripe',
+    source: event.context.billingPeriodStart ? 'commerce_period' : (event.context.paymentProvider ?? 'commerce'),
+    entitlementType: event.context.billingPeriodStart ? ('plan' as const) : ('grant' as const),
+    startsAt: event.context.billingPeriodStart ?? event.occurredAt,
+    paymentProvider: event.context.paymentProvider,
+    providerTransactionId: event.context.providerTransactionId,
+    x402AuditContext: event.context.x402AuditContext,
     packageId: event.productId,
     packageName: stringDeliverableValue(event.deliverable, 'packageName') ?? event.productName,
     occurredAt: event.occurredAt,

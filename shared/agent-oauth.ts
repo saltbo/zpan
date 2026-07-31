@@ -17,6 +17,7 @@ export const AGENT_OAUTH_RESOURCE_SCOPES = [
   AuthorizationScope.SHARES_CREATE,
   AuthorizationScope.SHARES_DELETE,
   AuthorizationScope.QUOTA_READ,
+  AuthorizationScope.QUOTA_PURCHASE,
   AuthorizationScope.STORAGE_USAGE_READ,
 ] as const
 export const AGENT_OAUTH_SCOPES = [...AGENT_OAUTH_STANDARD_SCOPES, ...AGENT_OAUTH_RESOURCE_SCOPES] as const
@@ -29,5 +30,6 @@ export const AGENT_OAUTH_SCOPE_DESCRIPTIONS: Record<(typeof AGENT_OAUTH_RESOURCE
   [AuthorizationScope.SHARES_CREATE]: 'Create public shares',
   [AuthorizationScope.SHARES_DELETE]: 'Revoke shares',
   [AuthorizationScope.QUOTA_READ]: 'Inspect workspace quota',
+  [AuthorizationScope.QUOTA_PURCHASE]: 'Purchase workspace storage capacity',
   [AuthorizationScope.STORAGE_USAGE_READ]: 'Inspect workspace storage usage',
 }

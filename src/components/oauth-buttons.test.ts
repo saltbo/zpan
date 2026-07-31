@@ -2,6 +2,7 @@ import { BUILTIN_PROVIDER_IDS, OAuthProviderMeta } from '@shared/oauth-providers
 import type { SiteConfig } from '@shared/schemas'
 import { describe, expect, it } from 'vitest'
 import { hasOAuthProviderIcon } from '@/components/oauth-provider-icon'
+import { absoluteAuthCallbackURL } from '@/lib/auth-callback'
 
 // OAuthButtons is a React rendering component. The project has no jsdom or
 // @testing-library/react setup, so we cannot render it here.
@@ -91,22 +92,24 @@ describe('OAuthButtons — provider data contract', () => {
 })
 
 // ---------------------------------------------------------------------------
-// OAuth sign-in handler — callbackURL defaults to '/files' and can continue
+// OAuth sign-in handler — callbackURL defaults to the current origin's /files and can continue
 // an authorization request supplied by the sign-in page.
 // ---------------------------------------------------------------------------
 
+const PREVIEW_ORIGIN = 'https://feat-x402-paid-agent-uploads-zpan.saltbo.workers.dev'
+
 function buildOAuthCallbackUrl(callbackURL = '/files'): string {
-  return callbackURL
+  return absoluteAuthCallbackURL(callbackURL, PREVIEW_ORIGIN)
 }
 
 describe('OAuthButtons — OAuth callback URL', () => {
-  it('defaults the OAuth sign-in callback URL to "/files"', () => {
-    expect(buildOAuthCallbackUrl()).toBe('/files')
+  it('defaults the OAuth sign-in callback URL to the absolute current-origin files URL', () => {
+    expect(buildOAuthCallbackUrl()).toBe(`${PREVIEW_ORIGIN}/files`)
   })
 
   it('uses the supplied authorization continuation', () => {
     expect(buildOAuthCallbackUrl('/api/auth/oauth2/authorize?state=oauth-state')).toBe(
-      '/api/auth/oauth2/authorize?state=oauth-state',
+      `${PREVIEW_ORIGIN}/api/auth/oauth2/authorize?state=oauth-state`,
     )
   })
 })

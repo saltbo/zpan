@@ -31,10 +31,21 @@ import type { z } from 'zod'
 import {
   billingPortalSessionResponseSchema,
   type CloudClient,
+  type CommerceProduct,
   commerceProductSchema,
+  createX402PaymentAttempt,
+  getX402PaymentAttempt,
   paymentCreateResponseSchema,
   productListResponseSchema,
+  settleX402PaymentAttempt,
+  storePublicationSchema,
+  triggerX402PaymentAttemptFulfillment,
+  verifyX402PaymentAttempt,
+  x402PaymentAttemptSchema,
+  x402QuoteCreateResponseSchema,
+  x402ReceiverSchema,
 } from 'zpan-cloud-sdk'
+import type { Deps } from '../deps'
 import {
   AppError,
   badGateway,
@@ -45,6 +56,7 @@ import {
   type LicensingCloudGateway,
   notFound,
   type QuotaRepo,
+  rateLimited,
 } from '../ports'
 import { verifyCloudEventToken } from '../site/licensing'
 
@@ -58,6 +70,7 @@ const cloudBillingPortalSessionResponseSchema = billingPortalSessionResponseSche
 const cloudDiscountQuoteResponseSchema = discountQuoteSchema
 
 const CLOUD_STORE_REQUEST_TIMEOUT_MS = 10_000
+const X402_ORDER_CLAIM_TIMEOUT_MS = 30_000
 
 export type CloudStoreDeps = {
   cloudStore: CloudStoreRepo
@@ -69,7 +82,16 @@ export type CloudStoreDeps = {
 // proxy threads this through a request callback.
 export type BoundCloudClient = { client: CloudClient; storeId: string }
 
-type CloudError = { error: string }
+type CloudError = { error: string; status?: number }
+
+class CloudResponseError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message)
+  }
+}
 
 // Storefront proxy outcomes. An unbound store renders 403 (`forbidden`); an
 // upstream Cloud failure or malformed body renders 502 (`badGateway`). Each
@@ -132,7 +154,9 @@ export async function unwrapCloudResponse<T, U = T>(
 ): Promise<U> {
   if (response.status === 204) return null as U
   const data = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(cloudErrorCode(data) ?? `cloud_request_failed_${response.status}`)
+  if (!response.ok) {
+    throw new CloudResponseError(response.status, cloudErrorCode(data) ?? `cloud_request_failed_${response.status}`)
+  }
   const payload = data && typeof data === 'object' && 'data' in data ? data.data : data
   if (!responseSchema) return payload as U
   const parsed = responseSchema.safeParse(payload)
@@ -158,12 +182,25 @@ async function cloudRequest<T>(
   try {
     return await withCloudRequestTimeout(request(await buildBoundCloudClient(deps, cloudBaseUrl)))
   } catch (error) {
-    return { error: (error as Error).message }
+    return {
+      error: (error as Error).message,
+      ...(error instanceof CloudResponseError ? { status: error.status } : {}),
+    }
   }
 }
 
 function isCloudError(result: unknown): result is CloudError {
   return Boolean(result && typeof result === 'object' && 'error' in result)
+}
+
+function capacityPurchaseCloudError(error: CloudError): AppError {
+  if (error.error === 'capacity_offer_not_found') {
+    return badRequest('Invalid capacity offer', 'CAPACITY_OFFER_NOT_FOUND')
+  }
+  const reason = error.error.toUpperCase()
+  if (error.status === 400 || error.status === 422) return badRequest(error.error, reason)
+  if (error.status === 404 || error.status === 409) return conflict(error.error, reason)
+  return badGateway(error.error)
 }
 
 // ─── Storefront reads ────────────────────────────────────────────────────────
@@ -189,6 +226,394 @@ async function listDeliverables(
   if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
   const items = result.items.filter((item) => item.metadata.deliverable.type === deliverableType)
   return { ok: true, value: { ...result, items, total: items.length } }
+}
+
+export interface CapacityOffer {
+  resourceId: string
+  productId: string
+  priceId: string
+  name: string
+  description: string | null
+  storageBytes: number
+  amount: number
+  currency: string
+  interval: string | null
+  intervalCount: number | null
+  purchaseUrl: string
+}
+
+export async function listCapacityOffers(
+  deps: CloudStoreDeps,
+  cloudBaseUrl: string,
+  params: { orgId: string; requestedBytes: number },
+): Promise<StorefrontReadOutcome<CapacityOffer[]>> {
+  const packages = await listPackages(deps, cloudBaseUrl)
+  if (!packages.ok) return packages
+  const publication = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
+    unwrapCloudResponse(
+      await client.stores[':storeId'].publication.$get({ param: { storeId } }),
+      storePublicationSchema,
+    ),
+  )
+  if (isCloudError(publication)) return { ok: false, error: badGateway(publication.error) }
+  const quota = await deps.quota.getEffectiveQuota(params.orgId)
+  const capacityOutsideCurrentPlan = Math.max(0, quota.quota - (quota.currentPlan?.storageBytes ?? 0))
+  const minimumStorageBytes = Math.max(1, quota.used + params.requestedBytes - capacityOutsideCurrentPlan)
+  const offers = (packages.value.items as CommerceProduct[]).flatMap((product) => {
+    const storageBytes = product.metadata.deliverable.storageBytes
+    if (typeof storageBytes !== 'number' || !Number.isSafeInteger(storageBytes) || storageBytes < minimumStorageBytes) {
+      return []
+    }
+    return product.prices.flatMap((price) => {
+      if (!price.id || price.recurring?.usageType === 'metered') return []
+      const resource = publication.resources.find(
+        (candidate) =>
+          candidate.productId === product.id &&
+          candidate.priceId === price.id &&
+          candidate.status !== 'disabled' &&
+          candidate.capabilities.includes('storage.capacity.purchase'),
+      )
+      if (!resource) return []
+      return [
+        {
+          resourceId: resource.resourceId,
+          productId: product.id,
+          priceId: price.id,
+          name: product.name,
+          description: product.description,
+          storageBytes,
+          amount: price.amount,
+          currency: price.currency,
+          interval: price.recurring?.interval ?? null,
+          intervalCount: price.recurring?.intervalCount ?? null,
+          purchaseUrl: resource.postResourceUrl,
+        },
+      ]
+    })
+  })
+  return { ok: true, value: offers }
+}
+
+export async function describeCapacityRequirement(
+  deps: CloudStoreDeps,
+  cloudBaseUrl: string,
+  params: { orgId: string; requestedBytes: number },
+): Promise<
+  StorefrontReadOutcome<{
+    requestedBytes: number
+    usedBytes: number
+    quotaBytes: number
+    offers: CapacityOffer[]
+  }>
+> {
+  const offers = await listCapacityOffers(deps, cloudBaseUrl, params)
+  if (!offers.ok) return offers
+  const quota = await deps.quota.getEffectiveQuota(params.orgId)
+  return {
+    ok: true,
+    value: {
+      requestedBytes: params.requestedBytes,
+      usedBytes: quota.used,
+      quotaBytes: quota.quota,
+      offers: offers.value,
+    },
+  }
+}
+
+export type CapacityPurchaseOutcome =
+  | {
+      ok: true
+      kind: 'payment_required'
+      paymentRequired: unknown
+      paymentRequiredHeader: string
+    }
+  | {
+      ok: true
+      kind: 'pending' | 'delivered'
+      attempt: z.infer<typeof x402PaymentAttemptSchema>
+      paymentResponseHeader: string | null
+    }
+  | { ok: false; error: AppError }
+
+async function capacityQuoteRetryKey(idempotencyKey: string, expiredAttemptId: string): Promise<string> {
+  const input = new TextEncoder().encode(`${idempotencyKey}:${expiredAttemptId}`)
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', input))
+  return `x402-retry:${Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('')}`
+}
+
+function capacityAttemptExpired(attempt: z.infer<typeof x402PaymentAttemptSchema>, now = new Date()): boolean {
+  return (
+    attempt.status === 'expired' ||
+    (attempt.status === 'quoted' && new Date(attempt.expiresAt).getTime() <= now.getTime())
+  )
+}
+
+export async function purchaseCapacity(
+  deps: CloudStoreDeps & Pick<Deps, 'x402CapacityPurchases'>,
+  cloudBaseUrl: string,
+  params: {
+    userId: string
+    orgId: string
+    origin: string
+    resourceId: string
+    requestHash: string
+    idempotencyKey: string
+    paymentSignature: string | null
+  },
+): Promise<CapacityPurchaseOutcome> {
+  const ready = await getStoreReadiness(deps)
+  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
+
+  const context = await cloudRequest(deps, cloudBaseUrl, async (bound) => {
+    const publication = await unwrapCloudResponse(
+      await bound.client.stores[':storeId'].publication.$get({ param: { storeId: bound.storeId } }),
+      storePublicationSchema,
+    )
+    const resource = publication.resources.find(
+      (candidate) =>
+        candidate.resourceId === params.resourceId &&
+        candidate.status !== 'disabled' &&
+        candidate.capabilities.includes('storage.capacity.purchase'),
+    )
+    if (!resource) throw new Error('capacity_offer_not_found')
+    const { productId, priceId } = resource
+    const product = await unwrapCloudResponse(
+      await bound.client.stores[':storeId'].products[':productId'].$get({
+        param: { storeId: bound.storeId, productId },
+      }),
+      cloudPackageResponseSchema,
+    )
+    const storageBytes = product.metadata.deliverable.storageBytes
+    const price = product.prices.find((item) => item.id === priceId && item.recurring?.usageType !== 'metered')
+    if (
+      product.metadata.deliverable.type !== 'zpan.plan' ||
+      typeof storageBytes !== 'number' ||
+      !Number.isSafeInteger(storageBytes) ||
+      storageBytes <= 0 ||
+      !price
+    ) {
+      throw new Error('capacity_offer_not_found')
+    }
+    const receiver = await unwrapCloudResponse(
+      await bound.client.stores[':storeId']['payment-methods'].x402.receiver.$get({
+        param: { storeId: bound.storeId },
+      }),
+      x402ReceiverSchema,
+    )
+    if (receiver.status !== 'active') throw new Error('x402_receiver_not_active')
+    return { ...bound, productId, priceId, product, price, receiver }
+  })
+  if (isCloudError(context)) return { ok: false, error: capacityPurchaseCloudError(context) }
+
+  let intent = await deps.x402CapacityPurchases.get(params.orgId, params.resourceId, params.requestHash)
+  if (!intent) {
+    try {
+      intent = await deps.x402CapacityPurchases.create({
+        orgId: params.orgId,
+        resourceId: params.resourceId,
+        requestHash: params.requestHash,
+        idempotencyKey: params.idempotencyKey,
+      })
+      if (!intent) {
+        return {
+          ok: false,
+          error: rateLimited('Too many pending capacity purchases', 3600),
+        }
+      }
+    } catch {
+      intent = await deps.x402CapacityPurchases.get(params.orgId, params.resourceId, params.requestHash)
+      if (!intent) {
+        return { ok: false, error: conflict('Purchase request conflict', 'X402_PURCHASE_CONFLICT') }
+      }
+    }
+  }
+  if (intent.idempotencyKey !== params.idempotencyKey) {
+    return { ok: false, error: conflict('Purchase request conflict', 'X402_PURCHASE_CONFLICT') }
+  }
+
+  let cloudOrderId = intent.cloudOrderId
+  if (!cloudOrderId) {
+    const claimed = await deps.x402CapacityPurchases.claimCloudOrder(
+      intent.id,
+      new Date(Date.now() - X402_ORDER_CLAIM_TIMEOUT_MS),
+    )
+    if (!claimed) {
+      const currentIntent = await deps.x402CapacityPurchases.get(params.orgId, params.resourceId, params.requestHash)
+      cloudOrderId = currentIntent?.cloudOrderId ?? null
+      if (!cloudOrderId) {
+        return {
+          ok: false,
+          error: conflict('Purchase initialization is in progress', 'X402_PURCHASE_IN_PROGRESS'),
+        }
+      }
+    }
+  }
+  if (!cloudOrderId) {
+    const customerLabel = await deps.cloudStore.getCustomerLabel(params.userId, params.orgId)
+    const order = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].orders.$post({
+          param: { storeId },
+          json: {
+            items: [{ productId: context.productId, priceId: context.priceId, quantity: 1 }],
+            currency: context.price.currency,
+            idempotencyKey: `zpan-x402-capacity:${intent.id}`,
+            deliveryCallbackUrl: `${params.origin}/api/store/webhook`,
+            target: { orgId: params.orgId, customerId: params.orgId, customerLabel },
+          },
+        }),
+        cloudOrderResponseSchema,
+      ),
+    )
+    if (isCloudError(order)) {
+      await deps.x402CapacityPurchases.updateCloudState(intent.id, { status: 'created' })
+      return { ok: false, error: capacityPurchaseCloudError(order) }
+    }
+    cloudOrderId = order.id
+    await deps.x402CapacityPurchases.updateCloudState(intent.id, {
+      cloudOrderId,
+      status: 'ordered',
+    })
+  }
+
+  const createQuote = async (idempotencyKey: string) =>
+    cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await createX402PaymentAttempt(client, {
+          storeId,
+          orderId: cloudOrderId,
+          idempotencyKey,
+          requestHash: params.requestHash,
+          resourceId: params.resourceId,
+          resourceDescription: `Add ${context.product.name} capacity to workspace`,
+          network: context.receiver.network,
+          asset: context.receiver.asset,
+        }),
+        x402QuoteCreateResponseSchema,
+      ),
+    )
+
+  let attempt: z.infer<typeof x402PaymentAttemptSchema>
+  let quoteWasReplaced = false
+  if (intent.cloudAttemptId) {
+    const found = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await getX402PaymentAttempt(client, {
+          storeId,
+          orderId: cloudOrderId,
+          attemptId: intent.cloudAttemptId!,
+        }),
+        x402PaymentAttemptSchema,
+      ),
+    )
+    if (isCloudError(found)) return { ok: false, error: capacityPurchaseCloudError(found) }
+    attempt = found
+    if (capacityAttemptExpired(attempt)) {
+      const replacement = await createQuote(await capacityQuoteRetryKey(intent.idempotencyKey, attempt.id))
+      if (isCloudError(replacement)) return { ok: false, error: capacityPurchaseCloudError(replacement) }
+      attempt = replacement
+      quoteWasReplaced = true
+      await deps.x402CapacityPurchases.updateCloudState(intent.id, {
+        cloudOrderId,
+        cloudAttemptId: attempt.id,
+        status: attempt.status,
+        expiresAt: new Date(attempt.expiresAt),
+      })
+    }
+  } else {
+    const quoted = await createQuote(params.idempotencyKey)
+    if (isCloudError(quoted)) return { ok: false, error: capacityPurchaseCloudError(quoted) }
+    attempt = quoted
+    await deps.x402CapacityPurchases.updateCloudState(intent.id, {
+      cloudOrderId,
+      cloudAttemptId: attempt.id,
+      status: attempt.status,
+      expiresAt: new Date(attempt.expiresAt),
+    })
+  }
+
+  if (!params.paymentSignature || quoteWasReplaced) {
+    if (attempt.status !== 'quoted') {
+      return terminalCapacityPurchaseOutcome(attempt)
+    }
+    return {
+      ok: true,
+      kind: 'payment_required',
+      paymentRequired: attempt.paymentRequired,
+      paymentRequiredHeader: attempt.paymentRequiredHeader,
+    }
+  }
+
+  if (attempt.status === 'quoted') {
+    const verified = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await verifyX402PaymentAttempt(client, {
+          storeId,
+          orderId: cloudOrderId,
+          attemptId: attempt.id,
+          paymentSignature: params.paymentSignature!,
+          requestHash: params.requestHash,
+        }),
+        x402PaymentAttemptSchema,
+      ),
+    )
+    if (isCloudError(verified)) return { ok: false, error: capacityPurchaseCloudError(verified) }
+    attempt = verified
+  }
+
+  if (attempt.status === 'verified') {
+    const settled = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await settleX402PaymentAttempt(client, {
+          storeId,
+          orderId: cloudOrderId,
+          attemptId: attempt.id,
+          requestHash: params.requestHash,
+        }),
+        x402PaymentAttemptSchema,
+      ),
+    )
+    if (isCloudError(settled)) return { ok: false, error: capacityPurchaseCloudError(settled) }
+    attempt = settled
+  }
+
+  if (attempt.status === 'paid_pending_fulfillment') {
+    const delivered = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await triggerX402PaymentAttemptFulfillment(client, {
+          storeId,
+          orderId: cloudOrderId,
+          attemptId: attempt.id,
+        }),
+        x402PaymentAttemptSchema,
+      ),
+    )
+    if (isCloudError(delivered)) return { ok: false, error: capacityPurchaseCloudError(delivered) }
+    attempt = delivered
+  }
+
+  await deps.x402CapacityPurchases.updateCloudState(intent.id, {
+    cloudOrderId,
+    cloudAttemptId: attempt.id,
+    status: attempt.status,
+    expiresAt: new Date(attempt.expiresAt),
+  })
+  return terminalCapacityPurchaseOutcome(attempt)
+}
+
+function terminalCapacityPurchaseOutcome(attempt: z.infer<typeof x402PaymentAttemptSchema>): CapacityPurchaseOutcome {
+  if (attempt.status === 'failed' || attempt.status === 'canceled' || attempt.status === 'expired') {
+    return {
+      ok: false,
+      error: conflict('Payment was not completed', `X402_PAYMENT_${attempt.status.toUpperCase()}`),
+    }
+  }
+  return {
+    ok: true,
+    kind: attempt.status === 'delivered' ? 'delivered' : 'pending',
+    attempt,
+    paymentResponseHeader: attempt.settlementResponseHeader,
+  }
 }
 
 export function listPackages(deps: Pick<CloudStoreDeps, 'cloudStore' | 'licensingCloud'>, cloudBaseUrl: string) {

@@ -96,6 +96,131 @@ function cloudOrder(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function capacityPublication() {
+  return {
+    storeId: 'store-test-binding',
+    mode: 'directory',
+    listingStatus: 'listed',
+    displayName: 'ZPan',
+    summary: null,
+    publicMetadata: {},
+    skillUrl: null,
+    termsUrl: null,
+    healthUrl: 'https://files.example/api/health',
+    healthStatus: 'healthy',
+    resources: [
+      {
+        id: 'publication-resource-1',
+        storeId: 'store-test-binding',
+        resourceId: 'cloud-pkg-1:price-usd',
+        offerId: 'pro-monthly',
+        title: 'Pro',
+        description: null,
+        productId: 'cloud-pkg-1',
+        priceId: 'price-usd',
+        postResourceUrl: 'https://files.example/api/store/capacity-purchases/cloud-pkg-1%3Aprice-usd',
+        status: 'active',
+        tags: [],
+        capabilities: ['storage.capacity.purchase'],
+        publicDeliverable: { type: 'zpan.plan', storageBytes: 4096 },
+        productSnapshot: null,
+        bazaarRequestMethod: 'POST',
+        bazaarBodyType: 'json',
+        bazaarInput: null,
+        bazaarInputSchema: null,
+        bazaarOutput: null,
+        bazaarValidationStatus: 'unknown',
+        bazaarValidationDiagnostic: null,
+        bazaarValidatedAt: null,
+        createdAt: '2026-07-30T00:00:00.000Z',
+        updatedAt: '2026-07-30T00:00:00.000Z',
+      },
+    ],
+    createdAt: '2026-07-30T00:00:00.000Z',
+    updatedAt: '2026-07-30T00:00:00.000Z',
+  }
+}
+
+function capacityAttempt() {
+  const paymentRequired = {
+    x402Version: 2,
+    resource: { url: 'https://files.example/api/store/capacity-purchases/cloud-pkg-1%3Aprice-usd' },
+    accepts: [
+      {
+        scheme: 'exact',
+        network: 'eip155:8453',
+        asset: '0xusdc',
+        amount: '500',
+        payTo: '0xmerchant',
+        maxTimeoutSeconds: 300,
+        extra: {},
+      },
+    ],
+  }
+  return {
+    id: 'attempt-1',
+    storeId: 'store-test-binding',
+    orderId: 'order-cloud-1',
+    paymentId: null,
+    customerId: 'org-placeholder',
+    idempotencyKey: 'idem-1',
+    resourceId: 'cloud-pkg-1:price-usd',
+    offerId: 'pro-monthly',
+    resourceUrl: paymentRequired.resource.url,
+    resourceDescription: null,
+    requestHash: 'hash-1',
+    productId: 'cloud-pkg-1',
+    priceId: 'price-usd',
+    scheme: 'exact',
+    network: 'eip155:8453',
+    asset: '0xusdc',
+    amount: 500,
+    currency: 'usd',
+    payTo: '0xmerchant',
+    recurringPlan: true,
+    billingPeriodStart: '2026-08-01T00:00:00.000Z',
+    billingPeriodEnd: '2026-09-01T00:00:00.000Z',
+    paymentRequired,
+    paymentRequiredHeader: 'required-header',
+    paymentSignatureHeader: null,
+    payer: null,
+    paymentIdentifier: null,
+    authorizationHash: null,
+    planFamily: 'storage',
+    planKey: 'pro',
+    tierRank: 1,
+    billingInterval: 'month',
+    settlementTransaction: null,
+    settlementResponseHeader: null,
+    status: 'quoted',
+    lastErrorCode: null,
+    quotedAt: '2026-07-30T00:00:00.000Z',
+    expiresAt: '2099-07-30T00:05:00.000Z',
+    verifiedAt: null,
+    settlingAt: null,
+    settledAt: null,
+    canceledAt: null,
+    createdAt: '2026-07-30T00:00:00.000Z',
+    updatedAt: '2026-07-30T00:00:00.000Z',
+  }
+}
+
+function capacityReceiver() {
+  return {
+    id: 'receiver-1',
+    storeId: 'store-test-binding',
+    scheme: 'exact',
+    network: 'eip155:8453',
+    asset: '0xusdc',
+    networkFamily: 'evm',
+    payTo: '0xmerchant',
+    status: 'active',
+    verifiedAt: '2026-07-01T00:00:00.000Z',
+    createdAt: '2026-07-01T00:00:00.000Z',
+    updatedAt: '2026-07-01T00:00:00.000Z',
+  }
+}
+
 function paymentPayload() {
   const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url).includes('/payments')) as
     | [URL, RequestInit]
@@ -610,6 +735,154 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(403)
+  })
+
+  it('rejects team capacity purchases from non-owner members', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const { headers } = await memberInTeamOrg(app, db, 'editor')
+
+    const res = await app.request('/api/store/capacity-purchases/plan-monthly', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestHash: 'hash-1', idempotencyKey: 'idem-1' }),
+    })
+
+    expect(res.status).toBe(403)
+  })
+
+  it('returns the standard x402 challenge for an owner capacity purchase', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'capacity-owner@example.com')
+    const response = (body: unknown, status = 200) =>
+      ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(response(capacityPublication()))
+      .mockResolvedValueOnce(response(cloudProduct()))
+      .mockResolvedValueOnce(
+        response({
+          id: 'receiver-1',
+          storeId: 'store-test-binding',
+          scheme: 'exact',
+          network: 'eip155:8453',
+          asset: '0xusdc',
+          networkFamily: 'evm',
+          payTo: '0xmerchant',
+          status: 'active',
+          verifiedAt: '2026-07-01T00:00:00.000Z',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          updatedAt: '2026-07-01T00:00:00.000Z',
+        }),
+      )
+      .mockResolvedValueOnce(response(cloudOrder({ status: 'pending', paymentStatus: 'pending' }), 201))
+      .mockResolvedValueOnce(response({ ...capacityAttempt(), reused: false }, 201))
+
+    const res = await app.request('/api/store/capacity-purchases/cloud-pkg-1%3Aprice-usd', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestHash: 'hash-1', idempotencyKey: 'idem-1' }),
+    })
+
+    expect(res.status).toBe(402)
+    expect(res.headers.get('PAYMENT-REQUIRED')).toBe('required-header')
+    await expect(res.json()).resolves.toEqual(capacityAttempt().paymentRequired)
+    expect(orderPayload().idempotencyKey).toMatch(/^zpan-x402-capacity:/)
+  })
+
+  it('rate-limits unpaid capacity purchases before creating another Cloud order', async () => {
+    const { app, db, deps } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'capacity-limited@example.com')
+    const orgId = await getFirstOrgId(db)
+    for (let i = 0; i < 5; i += 1) {
+      const intent = await deps.x402CapacityPurchases.create({
+        orgId,
+        resourceId: `existing-resource-${i}`,
+        requestHash: `existing-hash-${i}`,
+        idempotencyKey: `existing-idempotency-${i}`,
+      })
+      expect(intent).not.toBeNull()
+    }
+    const response = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
+    vi.mocked(fetch)
+      .mockClear()
+      .mockResolvedValueOnce(response(capacityPublication()))
+      .mockResolvedValueOnce(response(cloudProduct()))
+      .mockResolvedValueOnce(
+        response({
+          id: 'receiver-1',
+          storeId: 'store-test-binding',
+          scheme: 'exact',
+          network: 'eip155:8453',
+          asset: '0xusdc',
+          networkFamily: 'evm',
+          payTo: '0xmerchant',
+          status: 'active',
+          verifiedAt: '2026-07-01T00:00:00.000Z',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          updatedAt: '2026-07-01T00:00:00.000Z',
+        }),
+      )
+
+    const res = await app.request('/api/store/capacity-purchases/cloud-pkg-1%3Aprice-usd', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestHash: 'limited-hash', idempotencyKey: 'limited-idempotency' }),
+    })
+
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('3600')
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith('/orders'))).toBe(false)
+  })
+
+  it('returns pending and delivered x402 attempts with their transport contracts', async () => {
+    const { app, db, deps } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'capacity-status@example.com')
+    const orgId = await getFirstOrgId(db)
+    const intent = await deps.x402CapacityPurchases.create({
+      orgId,
+      resourceId: 'cloud-pkg-1:price-usd',
+      requestHash: 'status-hash',
+      idempotencyKey: 'status-idempotency',
+    })
+    expect(intent).not.toBeNull()
+    await deps.x402CapacityPurchases.updateCloudState(intent!.id, {
+      cloudOrderId: 'order-cloud-1',
+      cloudAttemptId: 'attempt-1',
+      status: 'quoted',
+    })
+    const response = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
+    const verified = { ...capacityAttempt(), status: 'verified', verifiedAt: '2026-07-30T00:01:00.000Z' }
+    const delivered = {
+      ...capacityAttempt(),
+      status: 'delivered',
+      settlementResponseHeader: 'receipt-header',
+      settledAt: '2026-07-30T00:02:00.000Z',
+    }
+    vi.mocked(fetch)
+      .mockClear()
+      .mockResolvedValueOnce(response(capacityPublication()))
+      .mockResolvedValueOnce(response(cloudProduct()))
+      .mockResolvedValueOnce(response(capacityReceiver()))
+      .mockResolvedValueOnce(response(verified))
+      .mockResolvedValueOnce(response(capacityPublication()))
+      .mockResolvedValueOnce(response(cloudProduct()))
+      .mockResolvedValueOnce(response(capacityReceiver()))
+      .mockResolvedValueOnce(response(delivered))
+
+    const request = () =>
+      app.request('/api/store/capacity-purchases/cloud-pkg-1%3Aprice-usd', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestHash: 'status-hash', idempotencyKey: 'status-idempotency' }),
+      })
+    const pendingResponse = await request()
+    expect(pendingResponse.status).toBe(202)
+    const deliveredResponse = await request()
+    expect(deliveredResponse.status).toBe(200)
+    expect(deliveredResponse.headers.get('PAYMENT-RESPONSE')).toBe('receipt-header')
   })
 
   it('allows team checkout for the team owner and targets the team org [spec: quota-store/team-checkout]', async () => {
@@ -2404,13 +2677,18 @@ describe('Quota Store API — storefront proxy error branches', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId: 'cloud-pkg-1' }),
     })
+    const capacity = await app.request('/api/store/capacity-purchases/plan-monthly', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestHash: 'hash-1', idempotencyKey: 'idem-1' }),
+    })
     const redeem = await app.request('/api/store/credits/redemptions', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: 'ZS-TEST-1' }),
     })
 
-    for (const res of [credits, ledger, billing, checkout, redeem]) {
+    for (const res of [credits, ledger, billing, checkout, capacity, redeem]) {
       expect(res.status).toBe(403)
       const body = (await res.json()) as { error: { message: string } }
       expect(body.error.message).toBe('quota_store_binding_missing')

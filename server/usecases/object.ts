@@ -156,10 +156,11 @@ export const UPLOAD_PRESIGNED_URL_TTL_SECONDS = 15 * 60
 export type CreateObjectOutcome =
   | { ok: true; matter: Matter }
   | { ok: true; matter: Matter; upload: ObjectUploadInstructions }
+  | { ok: false; capacityRequired: { requestedBytes: number } }
   | { ok: false; error: AppError }
 
 export async function createObject(
-  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'downloaders' | 'downloadTasks'>,
+  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'downloaders' | 'downloadTasks' | 'quota'>,
   params: { orgId: string; actor: ObjectActor; input: CreateMatterInput },
 ): Promise<CreateObjectOutcome> {
   const { orgId, actor, input } = params
@@ -187,6 +188,10 @@ export async function createObject(
     return { ok: false, error: badRequest('File exceeds the 5 TiB maximum', 'FILE_TOO_LARGE') }
   }
 
+  const conflictPlan = isFolder
+    ? null
+    : await deps.matter.planConflictResolution(orgId, parent, name, onConflict ?? 'fail', { isFolder: false })
+
   let storage: StorageRecord
   try {
     storage = await deps.storages.select(input.storageId)
@@ -198,6 +203,13 @@ export async function createObject(
       }
     }
     throw error
+  }
+
+  if (!isFolder) {
+    const requestedBytes = Math.max(0, size - (conflictPlan?.toTrash?.size ?? 0))
+    if (!(await deps.quota.hasQuotaForBytes(orgId, requestedBytes))) {
+      return { ok: false, capacityRequired: { requestedBytes } }
+    }
   }
 
   const objectKey = isFolder ? '' : buildObjectKey({ uid: ownerUserId(actor), orgId, rawExt: fileExt(name) })

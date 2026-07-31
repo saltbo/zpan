@@ -403,11 +403,27 @@ const APP_SCHEMA_SQL = `
     ON org_quota_entitlements(org_id, resource_type, status);
   CREATE INDEX IF NOT EXISTS org_quota_entitlements_org_type_idx
     ON org_quota_entitlements(org_id, resource_type, entitlement_type, status);
-  CREATE UNIQUE INDEX IF NOT EXISTS org_quota_entitlements_active_plan_uniq
-    ON org_quota_entitlements(org_id, resource_type, entitlement_type)
-    WHERE status = 'active' AND entitlement_type = 'plan' AND source <> 'free_plan';
   CREATE UNIQUE INDEX IF NOT EXISTS org_quota_entitlements_source_resource_uniq
     ON org_quota_entitlements(source, source_id, resource_type);
+  CREATE TABLE IF NOT EXISTS x402_capacity_purchase_intents (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    cloud_order_id TEXT,
+    cloud_attempt_id TEXT,
+    status TEXT NOT NULL DEFAULT 'created',
+    expires_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS x402_capacity_purchase_intents_org_request_uniq
+    ON x402_capacity_purchase_intents(org_id, resource_id, request_hash);
+  CREATE UNIQUE INDEX IF NOT EXISTS x402_capacity_purchase_intents_org_idempotency_uniq
+    ON x402_capacity_purchase_intents(org_id, idempotency_key);
+  CREATE INDEX IF NOT EXISTS x402_capacity_purchase_intents_attempt_idx
+    ON x402_capacity_purchase_intents(cloud_attempt_id);
   CREATE TABLE IF NOT EXISTS webhook_events (
     id TEXT PRIMARY KEY,
     source TEXT NOT NULL,

@@ -2,6 +2,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { Resolver } from 'node:dns/promises'
 import { createRequire } from 'node:module'
+import { cloudE2eAttemptCount, isRetryableQuickTunnelFailure } from './cloud-e2e-resilience.mjs'
 
 const args = process.argv.slice(2)
 const require = createRequire(import.meta.url)
@@ -26,49 +27,60 @@ const cloudEnv = {
 }
 const credentialsEnv = runtimeCloudCredentials(runtime)
 
-const tunnel = local ? null : await startTunnel(localBaseUrl)
-const tunnelHost = tunnel ? new URL(tunnel.url).hostname : ''
-const tunnelIp = tunnel ? await waitForPublicTunnelIp(tunnelHost) : ''
-const baseUrl = tunnel?.url ?? localBaseUrl
-const tunnelEnv = {
-  E2E_BASE_URL: baseUrl,
-  E2E_LOCAL_BASE_URL: localBaseUrl,
-  E2E_APP_PORT: String(appPort),
-  E2E_API_PORT: String(apiPort),
-  BETTER_AUTH_URL: baseUrl,
-  TRUSTED_ORIGINS: `${baseUrl},${localBaseUrl}`,
-  ...(tunnel ? { E2E_CHROME_HOST_RESOLVER_RULES: `MAP ${tunnelHost} ${tunnelIp}` } : {}),
-}
-const e2eEnv = {
-  ...cloudEnv,
-  ...tunnelEnv,
-  ...s3MockEnv(),
-  ...credentialsEnv,
-  ...(runtime === 'cf' ? { E2E_RUNTIME: 'cf' } : {}),
-}
+if (runtime === 'cf' && local) rmSync('.wrangler/state/v3/d1', { recursive: true, force: true })
 
-if (runtime === 'cf') {
-  if (local) rmSync('.wrangler/state/v3/d1', { recursive: true, force: true })
-  writeDevVars(e2eEnv)
-  await run('pnpm', ['exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--local'], e2eEnv)
-}
-
-try {
-  await run(process.execPath, [require.resolve('@playwright/test/cli'), 'test', ...specs, `--project=${project}`], e2eEnv)
-} finally {
-  if (tunnel) {
-    try {
-      tunnel.process.kill()
-    } catch {}
-  }
-  if (existsSync(pidFile)) {
-    const pid = Number(readFileSync(pidFile, 'utf8'))
-    if (Number.isInteger(pid)) {
-      try {
-        process.kill(pid)
-      } catch {}
+const maxRunAttempts = local ? 1 : cloudE2eAttemptCount(process.env.E2E_TUNNEL_RUN_ATTEMPTS)
+for (let attempt = 1; attempt <= maxRunAttempts; attempt += 1) {
+  const tunnel = local ? null : await startTunnel(localBaseUrl)
+  try {
+    const e2eEnv = await buildE2eEnv(tunnel)
+    if (runtime === 'cf') {
+      writeDevVars(e2eEnv)
+      await run('pnpm', ['exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--local'], e2eEnv)
     }
-    rmSync(pidFile, { force: true })
+
+    try {
+      await run(
+        process.execPath,
+        [require.resolve('@playwright/test/cli'), 'test', ...specs, `--project=${project}`],
+        e2eEnv,
+        true,
+      )
+      break
+    } catch (error) {
+      const retryable =
+        error instanceof CommandError &&
+        tunnel &&
+        isRetryableQuickTunnelFailure({
+          commandOutput: error.output,
+          tunnelOutput: tunnel.output(),
+        })
+      if (!retryable || attempt === maxRunAttempts) throw error
+      console.warn(
+        `Quick Tunnel failed during cloud E2E; restarting the tunnel and test harness (${attempt + 1}/${maxRunAttempts})...`,
+      )
+    }
+  } finally {
+    stopTunnel(tunnel)
+  }
+}
+
+async function buildE2eEnv(tunnel) {
+  const tunnelHost = tunnel ? new URL(tunnel.url).hostname : ''
+  const tunnelIp = tunnel ? await waitForPublicTunnelIp(tunnelHost) : ''
+  const baseUrl = tunnel?.url ?? localBaseUrl
+  return {
+    ...cloudEnv,
+    E2E_BASE_URL: baseUrl,
+    E2E_LOCAL_BASE_URL: localBaseUrl,
+    E2E_APP_PORT: String(appPort),
+    E2E_API_PORT: String(apiPort),
+    BETTER_AUTH_URL: baseUrl,
+    TRUSTED_ORIGINS: `${baseUrl},${localBaseUrl}`,
+    ...(tunnel ? { E2E_CHROME_HOST_RESOLVER_RULES: `MAP ${tunnelHost} ${tunnelIp}` } : {}),
+    ...s3MockEnv(),
+    ...credentialsEnv,
+    ...(runtime === 'cf' ? { E2E_RUNTIME: 'cf' } : {}),
   }
 }
 
@@ -137,6 +149,7 @@ function startTunnelOnce(target) {
   return new Promise((resolve, reject) => {
     let tunnelUrl = null
     let registered = false
+    let output = ''
     const timeout = setTimeout(() => {
       child.kill()
       reject(new Error('Timed out waiting for cloudflared tunnel registration'))
@@ -144,13 +157,14 @@ function startTunnelOnce(target) {
 
     function handleOutput(chunk) {
       const text = chunk.toString()
+      output += text
       process.stdout.write(text)
       const match = text.match(tunnelUrlPattern)
       if (match) tunnelUrl = match[0]
       if (text.includes('Registered tunnel connection')) registered = true
       if (!tunnelUrl || !registered) return
       clearTimeout(timeout)
-      resolve({ process: child, url: tunnelUrl })
+      resolve({ process: child, url: tunnelUrl, output: () => output })
     }
 
     child.stdout.on('data', handleOutput)
@@ -160,6 +174,18 @@ function startTunnelOnce(target) {
       reject(new Error(`cloudflared exited before tunnel URL was available: ${code}`))
     })
   })
+}
+
+function stopTunnel(tunnel) {
+  if (tunnel) tunnel.process.kill()
+  if (!existsSync(pidFile)) return
+  const pid = Number(readFileSync(pidFile, 'utf8'))
+  if (Number.isInteger(pid)) {
+    try {
+      process.kill(pid)
+    } catch {}
+  }
+  rmSync(pidFile, { force: true })
 }
 
 function writeDevVars(env) {
@@ -201,16 +227,33 @@ async function waitForPublicTunnelIp(hostname) {
   throw new Error(`Timed out waiting for public tunnel DNS: ${hostname}`)
 }
 
-function run(command, commandArgs, env = {}) {
+class CommandError extends Error {
+  constructor(command, commandArgs, code, output) {
+    super(`${command} ${commandArgs.join(' ')} exited with ${code}`)
+    this.output = output
+  }
+}
+
+function run(command, commandArgs, env = {}, captureOutput = false) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, commandArgs, {
-      stdio: 'inherit',
+      stdio: captureOutput ? ['inherit', 'pipe', 'pipe'] : 'inherit',
       env: { ...process.env, ...env },
       shell: process.platform === 'win32',
     })
+    let output = ''
+    if (captureOutput) {
+      for (const stream of [child.stdout, child.stderr]) {
+        stream.on('data', (chunk) => {
+          const text = chunk.toString()
+          output += text
+          process.stdout.write(text)
+        })
+      }
+    }
     child.on('exit', (code) => {
       if (code === 0) resolve()
-      else reject(new Error(`${command} ${commandArgs.join(' ')} exited with ${code}`))
+      else reject(new CommandError(command, commandArgs, code, output))
     })
   })
 }

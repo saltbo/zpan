@@ -8,6 +8,7 @@ export const AuthorizationScope = {
   SHARES_CREATE: 'shares:create',
   SHARES_DELETE: 'shares:delete',
   QUOTA_READ: 'quota:read',
+  QUOTA_PURCHASE: 'quota:purchase',
   STORAGE_USAGE_READ: 'storage-usage:read',
   IMAGES_UPLOAD: 'images:upload',
   DOWNLOAD_TASKS_READ: 'download-tasks:read',

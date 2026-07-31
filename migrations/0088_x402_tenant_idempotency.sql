@@ -1,0 +1,2 @@
+DROP INDEX `x402_capacity_purchase_intents_idempotency_uniq`;--> statement-breakpoint
+CREATE UNIQUE INDEX `x402_capacity_purchase_intents_org_idempotency_uniq` ON `x402_capacity_purchase_intents` (`org_id`,`idempotency_key`);

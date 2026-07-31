@@ -32,7 +32,8 @@ import {
   trashObject,
   updateObject,
 } from '../usecases/object'
-import { badRequest, forbidden, type Matter, type MatterListItem } from '../usecases/ports'
+import { badRequest, forbidden, type Matter, type MatterListItem, quotaExceeded } from '../usecases/ports'
+import { describeCapacityRequirement } from '../usecases/store/store'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import { decodeOptionalPageToken, directoryCursorCodec, encodeNextPageToken, pageQueryFingerprint } from './page-token'
@@ -86,6 +87,12 @@ function toMatterDTO(m: Matter): MatterDTO {
   }
 }
 
+export async function createCapacityRequestHash(orgId: string, input: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify({ orgId, input, challengeId: crypto.randomUUID() }))
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
 const objectListItemSchema = matterSchema.extend({ hasChildren: z.boolean() }).openapi('ObjectListItem')
 type ObjectListItemDTO = z.infer<typeof objectListItemSchema>
 
@@ -99,6 +106,30 @@ const objectPageSchema = cursorPageSchema(objectListItemSchema, 'ObjectPage')
 // instructions: the server-decided part size and the presigned URLs to PUT each
 // slice to (1 URL = single PutObject, N URLs = multipart).
 const objectCreateResultSchema = matterSchema.extend({ upload: objectUploadInstructionsSchema.optional() })
+const capacityRequiredSchema = z
+  .object({
+    error: z.literal('CAPACITY_REQUIRED'),
+    requestHash: z.string(),
+    requestedBytes: z.number().int().nonnegative(),
+    usedBytes: z.number().int().nonnegative(),
+    quotaBytes: z.number().int().nonnegative(),
+    offers: z.array(
+      z.object({
+        resourceId: z.string(),
+        productId: z.string(),
+        priceId: z.string(),
+        name: z.string(),
+        description: z.string().nullable(),
+        storageBytes: z.number().int().nonnegative(),
+        amount: z.number().int().positive(),
+        currency: z.string(),
+        interval: z.string().nullable(),
+        intervalCount: z.number().int().positive().nullable(),
+        purchaseUrl: z.string(),
+      }),
+    ),
+  })
+  .openapi('CapacityRequired')
 
 // GET /{id} returns the object plus, when egress is metered/allowed, a presigned
 // download URL.
@@ -209,6 +240,7 @@ const createObjectRoute = authRoute(
     request: jsonBody(createMatterSchema),
     responses: {
       201: jsonContent(objectCreateResultSchema, 'Created object (folder, or file draft with upload instructions)'),
+      402: jsonContent(capacityRequiredSchema, 'Additional workspace storage capacity is required'),
       400: errorResponse('No active organization or file too large'),
       403: errorResponse('Forbidden'),
       409: errorResponse('Name conflict'),
@@ -431,7 +463,34 @@ const objects = app
     if (input.storageId && c.get('userRole') !== 'admin') throw forbidden('Forbidden')
 
     const result = await createObject(c.get('deps'), { orgId, actor: objectActor(c), input })
-    if (!result.ok) throw result.error
+    if (!result.ok) {
+      if ('error' in result) throw result.error
+      const capacity = await describeCapacityRequirement(c.get('deps'), cloudBaseUrl(c), {
+        orgId,
+        requestedBytes: result.capacityRequired.requestedBytes,
+      })
+      if (!capacity.ok) {
+        // Paid capacity is optional. An instance without a bound Cloud store
+        // still enforces its local quota using the established 422 contract.
+        // Once a store is bound, however, Cloud failures must remain visible so
+        // callers do not mistake a broken payment path for exhausted capacity.
+        if (capacity.error.message === 'quota_store_binding_missing') throw quotaExceeded()
+        throw capacity.error
+      }
+      if (capacity.value.offers.length === 0) throw quotaExceeded()
+      const requestHash = await createCapacityRequestHash(orgId, input)
+      return c.json(
+        {
+          error: 'CAPACITY_REQUIRED' as const,
+          requestHash,
+          requestedBytes: capacity.value.requestedBytes,
+          usedBytes: capacity.value.usedBytes,
+          quotaBytes: capacity.value.quotaBytes,
+          offers: capacity.value.offers,
+        },
+        402,
+      )
+    }
     if ('upload' in result) return c.json({ ...toMatterDTO(result.matter), upload: result.upload }, 201)
     return c.json(toMatterDTO(result.matter), 201)
   })

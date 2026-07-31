@@ -53,6 +53,7 @@ import { createTeamInviteRepo } from './adapters/repos/team-invite'
 import { createUserAdminRepo } from './adapters/repos/user-admin'
 import { createWebDavPathRepo } from './adapters/repos/webdav-path'
 import { createWebDavStateRepo } from './adapters/repos/webdav-state'
+import { createX402CapacityPurchaseRepo } from './adapters/repos/x402-capacity-purchase'
 import { createZipPlanRepo } from './adapters/repos/zip'
 import type { Platform } from './platform/interface'
 import type { Deps } from './usecases/deps'
@@ -128,5 +129,6 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     webdavState: createWebDavStateRepo(db),
     zip: createZipGateway(),
     zipPlan: createZipPlanRepo(db),
+    x402CapacityPurchases: createX402CapacityPurchaseRepo(db),
   }
 }

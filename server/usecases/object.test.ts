@@ -151,6 +151,7 @@ function makeDeps(
     licenseBinding: {} as unknown as LicenseBindingRepo,
     licensingCloud: {} as unknown as LicensingCloudGateway,
     quota: {
+      hasQuotaForBytes: async () => true,
       incrementUsageIfEffectiveQuotaAllows: async () => true,
       refundTraffic: async () => {},
       ...overrides.quota,
@@ -293,6 +294,93 @@ describe('object usecase', () => {
   })
 
   describe('createObject', () => {
+    it('requires capacity before creating a draft or presigning storage', async () => {
+      const create = vi.fn()
+      const presignUpload = vi.fn()
+      const hasQuotaForBytes = vi.fn(async () => false)
+      const { deps } = makeDeps({
+        matter: { create },
+        s3: { presignUpload },
+        quota: { hasQuotaForBytes },
+      })
+
+      const out = await createObject(deps, {
+        orgId: 'o1',
+        actor: user,
+        input: { name: 'large.bin', size: 50, dirtype: DirType.FILE, parent: '' },
+      })
+
+      expect(out).toEqual({ ok: false, capacityRequired: { requestedBytes: 50 } })
+      expect(hasQuotaForBytes).toHaveBeenCalledWith('o1', 50)
+      expect(create).not.toHaveBeenCalled()
+      expect(presignUpload).not.toHaveBeenCalled()
+    })
+
+    it('checks only the net additional bytes for a replace upload', async () => {
+      const hasQuotaForBytes = vi.fn(async () => false)
+      const incumbent = file('old', { size: 40, parent: '', name: 'same.bin' })
+      const planConflictResolution = vi.fn(async () => ({ finalName: 'same.bin', toTrash: incumbent }))
+      const { deps } = makeDeps({
+        matter: { planConflictResolution },
+        quota: { hasQuotaForBytes },
+      })
+
+      const out = await createObject(deps, {
+        orgId: 'o1',
+        actor: user,
+        input: { name: 'same.bin', size: 50, dirtype: DirType.FILE, parent: '', onConflict: 'replace' },
+      })
+
+      expect(out).toEqual({ ok: false, capacityRequired: { requestedBytes: 10 } })
+      expect(planConflictResolution).toHaveBeenCalledWith('o1', '', 'same.bin', 'replace', { isFolder: false })
+      expect(hasQuotaForBytes).toHaveBeenCalledWith('o1', 10)
+    })
+
+    it('rejects a deterministic name conflict before checking quota or selecting storage', async () => {
+      const conflict = file('existing', { parent: '', name: 'same.bin' })
+      const planConflictResolution = vi.fn(async () => {
+        throw new (await import('./ports')).NameConflictError(conflict.name, conflict.id)
+      })
+      const select = vi.fn()
+      const hasQuotaForBytes = vi.fn(async () => false)
+      const { deps } = makeDeps({
+        matter: { planConflictResolution },
+        storages: { select },
+        quota: { hasQuotaForBytes },
+      })
+
+      await expect(
+        createObject(deps, {
+          orgId: 'o1',
+          actor: user,
+          input: { name: 'same.bin', size: 50, dirtype: DirType.FILE, parent: '' },
+        }),
+      ).rejects.toMatchObject({ name: 'NameConflictError', conflictingId: 'existing' })
+      expect(hasQuotaForBytes).not.toHaveBeenCalled()
+      expect(select).not.toHaveBeenCalled()
+    })
+
+    it('rejects unavailable storage before checking quota', async () => {
+      const hasQuotaForBytes = vi.fn(async () => false)
+      const { deps } = makeDeps({
+        storages: {
+          select: async () => {
+            throw new Error('No available storage')
+          },
+        },
+        quota: { hasQuotaForBytes },
+      })
+
+      const out = await createObject(deps, {
+        orgId: 'o1',
+        actor: user,
+        input: { name: 'large.bin', size: 50, dirtype: DirType.FILE, parent: '', storageId: 'missing' },
+      })
+
+      expectError(out, 503, 'Storage is not active or has no available capacity', 'NO_STORAGE_CONFIGURED')
+      expect(hasQuotaForBytes).not.toHaveBeenCalled()
+    })
+
     it('creates a folder without presigning an upload', async () => {
       const create = vi.fn(async () => folder('f1', { name: 'My Folder' }))
       const presignUpload = vi.fn()

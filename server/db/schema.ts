@@ -189,9 +189,6 @@ export const orgQuotaEntitlements = sqliteTable(
   (t) => [
     index('org_quota_entitlements_org_resource_idx').on(t.orgId, t.resourceType, t.status),
     index('org_quota_entitlements_org_type_idx').on(t.orgId, t.resourceType, t.entitlementType, t.status),
-    uniqueIndex('org_quota_entitlements_active_plan_uniq')
-      .on(t.orgId, t.resourceType, t.entitlementType)
-      .where(sql`status = 'active' AND entitlement_type = 'plan' AND source <> 'free_plan'`),
     uniqueIndex('org_quota_entitlements_source_resource_uniq').on(t.source, t.sourceId, t.resourceType),
   ],
 )
@@ -215,6 +212,28 @@ export const webhookEvents = sqliteTable(
     index('webhook_events_source_created_idx').on(t.source, t.createdAt),
     index('webhook_events_status_idx').on(t.status),
     index('webhook_events_processed_idx').on(t.processedAt),
+  ],
+)
+
+export const x402CapacityPurchaseIntents = sqliteTable(
+  'x402_capacity_purchase_intents',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    resourceId: text('resource_id').notNull(),
+    requestHash: text('request_hash').notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    cloudOrderId: text('cloud_order_id'),
+    cloudAttemptId: text('cloud_attempt_id'),
+    status: text('status').notNull().default('created'),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('x402_capacity_purchase_intents_org_request_uniq').on(t.orgId, t.resourceId, t.requestHash),
+    uniqueIndex('x402_capacity_purchase_intents_org_idempotency_uniq').on(t.orgId, t.idempotencyKey),
+    index('x402_capacity_purchase_intents_attempt_idx').on(t.cloudAttemptId),
   ],
 )
 

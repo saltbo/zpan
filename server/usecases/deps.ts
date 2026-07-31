@@ -50,6 +50,7 @@ import type {
   UserAdminRepo,
   WebDavPathRepo,
   WebDavStateRepo,
+  X402CapacityPurchaseRepo,
   ZipGateway,
   ZipPlanRepo,
 } from './ports'
@@ -104,4 +105,5 @@ export interface Deps {
   webdavState: WebDavStateRepo
   zip: ZipGateway
   zipPlan: ZipPlanRepo
+  x402CapacityPurchases: X402CapacityPurchaseRepo
 }

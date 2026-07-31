@@ -14,5 +14,6 @@ export const oauthResourceScopeLabels = {
   [AuthorizationScope.SHARES_CREATE]: 'settings.agentAccess.scope.sharesCreate',
   [AuthorizationScope.SHARES_DELETE]: 'settings.agentAccess.scope.sharesDelete',
   [AuthorizationScope.QUOTA_READ]: 'settings.agentAccess.scope.quotaRead',
+  [AuthorizationScope.QUOTA_PURCHASE]: 'settings.agentAccess.scope.quotaPurchase',
   [AuthorizationScope.STORAGE_USAGE_READ]: 'settings.agentAccess.scope.storageUsageRead',
 } as const satisfies Record<OAuthResourceScope, string>

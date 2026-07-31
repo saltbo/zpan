@@ -94,6 +94,7 @@ describe('global OpenAPI document', () => {
     })
     expect(workflows.workflows?.map((workflow) => workflow.workflowId)).toEqual([
       'prepareDirectFileUpload',
+      'purchaseStorageCapacityWithX402',
       'refreshDirectFileUploadParts',
       'completeDirectFileUpload',
       'abortDirectFileUpload',
@@ -103,6 +104,7 @@ describe('global OpenAPI document', () => {
       .map((step) => step.operationId)
     expect(workflowOperationIds).toEqual([
       'createObject',
+      'purchaseStorageCapacity',
       'presignObjectUploadParts',
       'completeObjectUpload',
       'abortObjectUpload',
@@ -153,6 +155,7 @@ describe('global OpenAPI document', () => {
             [AuthorizationScope.OBJECTS_READ]: 'List, inspect, and download objects',
             [AuthorizationScope.OBJECTS_CREATE]: 'Create folders and upload objects',
             [AuthorizationScope.SHARES_CREATE]: 'Create public shares',
+            [AuthorizationScope.QUOTA_PURCHASE]: 'Purchase workspace storage capacity',
           }),
         },
       },
@@ -184,6 +187,10 @@ describe('global OpenAPI document', () => {
         {
           value: AuthorizationScope.OBJECTS_UPDATE,
           description: 'Rename, move, and copy objects',
+        },
+        {
+          value: AuthorizationScope.QUOTA_PURCHASE,
+          description: 'Purchase workspace storage capacity',
         },
       ]),
     )
@@ -497,6 +504,14 @@ describe('global OpenAPI document', () => {
         public: false,
         scopes: [AuthorizationScope.OBJECTS_CREATE],
       },
+    })
+    expect(doc.paths['/api/store/capacity-purchases/{resourceId}']?.post).toMatchObject({
+      operationId: 'purchaseStorageCapacity',
+      'x-zpan-auth': {
+        public: false,
+        scopes: [AuthorizationScope.QUOTA_PURCHASE],
+      },
+      responses: { 429: expect.any(Object) },
     })
     expect(doc.paths['/api/objects']?.post?.security).toBeUndefined()
     expect(doc.paths['/api/objects']?.post?.responses?.['201']).toBeDefined()

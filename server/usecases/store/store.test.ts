@@ -8,6 +8,8 @@ import {
   type EffectiveQuota,
   type LicensingCloudGateway,
   type QuotaRepo,
+  type X402CapacityPurchaseIntent,
+  type X402CapacityPurchaseRepo,
 } from '../ports'
 
 // Asserts a failed outcome carries the expected AppError (status / reason / message).
@@ -32,10 +34,12 @@ import {
   createCheckout,
   getCreditBalance,
   getStoreReadiness,
+  listCapacityOffers,
   listCreditProducts,
   listPackages,
   listTargets,
   processDeliveryWebhook,
+  purchaseCapacity,
   redeemGiftCard,
 } from './store'
 
@@ -60,14 +64,25 @@ const BINDING: CloudStoreBinding = {
 type CloudResponse = { status: number; ok: boolean; json: () => Promise<unknown> }
 function fakeCloudClient(responses: CloudResponse[]) {
   let i = 0
+  const requests: Array<{ method: string; path: string; input: unknown }> = []
   const next = () => responses[i++] ?? { status: 200, ok: true, json: async () => ({}) }
-  const handler: ProxyHandler<Record<string, unknown>> = {
-    get(_t, prop) {
-      if (prop === '$get' || prop === '$post' || prop === '$patch') return async () => next()
-      return new Proxy({}, handler)
-    },
-  }
-  return new Proxy({}, handler) as never
+  const proxy = (path: string[]): Record<string, unknown> =>
+    new Proxy(
+      {},
+      {
+        get(_target, property) {
+          const segment = String(property)
+          if (segment === '$get' || segment === '$post' || segment === '$patch') {
+            return async (input: unknown) => {
+              requests.push({ method: segment.slice(1).toUpperCase(), path: path.join('/'), input })
+              return next()
+            }
+          }
+          return proxy([...path, segment])
+        },
+      },
+    )
+  return { client: proxy([]) as never, requests }
 }
 
 const ok = (body: unknown): CloudResponse => ({ status: 200, ok: true, json: async () => body })
@@ -86,6 +101,52 @@ function pkg(overrides: Record<string, unknown> = {}) {
     sortOrder: 1,
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function publication(overrides: Record<string, unknown> = {}) {
+  return {
+    storeId: 'store-1',
+    mode: 'directory',
+    listingStatus: 'listed',
+    displayName: 'ZPan',
+    summary: null,
+    publicMetadata: {},
+    skillUrl: null,
+    termsUrl: null,
+    healthUrl: 'https://files.example/api/health',
+    healthStatus: 'healthy',
+    resources: [
+      {
+        id: 'publication-resource-1',
+        storeId: 'store-1',
+        resourceId: 'pkg-1:price-usd',
+        offerId: 'pro-monthly',
+        title: 'Pro',
+        description: null,
+        productId: 'pkg-1',
+        priceId: 'price-usd',
+        postResourceUrl: 'https://files.example/api/store/capacity-purchases/pkg-1%3Aprice-usd',
+        status: 'active',
+        tags: [],
+        capabilities: ['storage.capacity.purchase'],
+        publicDeliverable: { type: 'zpan.plan', storageBytes: 4096 },
+        productSnapshot: null,
+        bazaarRequestMethod: 'POST',
+        bazaarBodyType: 'json',
+        bazaarInput: null,
+        bazaarInputSchema: null,
+        bazaarOutput: null,
+        bazaarValidationStatus: 'unknown',
+        bazaarValidationDiagnostic: null,
+        bazaarValidatedAt: null,
+        createdAt: '2026-07-30T00:00:00.000Z',
+        updatedAt: '2026-07-30T00:00:00.000Z',
+      },
+    ],
+    createdAt: '2026-07-30T00:00:00.000Z',
+    updatedAt: '2026-07-30T00:00:00.000Z',
     ...overrides,
   }
 }
@@ -114,6 +175,82 @@ function order(overrides: Record<string, unknown> = {}) {
 }
 
 const payment = { status: 'pending', paymentId: 'pay-1', orderId: 'order-1', url: 'https://cloud.example/checkout' }
+const receiver = {
+  id: 'receiver-1',
+  storeId: 'store-1',
+  scheme: 'exact',
+  network: 'eip155:8453',
+  asset: '0xusdc',
+  networkFamily: 'evm',
+  payTo: '0xmerchant',
+  status: 'active',
+  verifiedAt: '2026-07-01T00:00:00.000Z',
+  createdAt: '2026-07-01T00:00:00.000Z',
+  updatedAt: '2026-07-01T00:00:00.000Z',
+}
+
+function attempt(status = 'quoted') {
+  return {
+    id: 'attempt-1',
+    storeId: 'store-1',
+    orderId: 'order-1',
+    paymentId: status === 'delivered' ? 'payment-1' : null,
+    customerId: 'org-1',
+    idempotencyKey: 'idem-1',
+    resourceId: 'pkg-1:price-usd',
+    offerId: null,
+    resourceUrl: 'https://files.example/api/store/capacity-purchases/pkg-1%3Aprice-usd',
+    resourceDescription: null,
+    requestHash: 'hash-1',
+    productId: 'pkg-1',
+    priceId: 'price-usd',
+    scheme: 'exact',
+    network: receiver.network,
+    asset: receiver.asset,
+    amount: 500,
+    currency: 'usd',
+    payTo: receiver.payTo,
+    recurringPlan: true,
+    billingPeriodStart: '2026-08-01T00:00:00.000Z',
+    billingPeriodEnd: '2026-09-01T00:00:00.000Z',
+    paymentRequired: {
+      x402Version: 2,
+      resource: { url: 'https://files.example/api/store/capacity-purchases/pkg-1%3Aprice-usd' },
+      accepts: [
+        {
+          scheme: 'exact',
+          network: receiver.network,
+          asset: receiver.asset,
+          amount: '500',
+          payTo: receiver.payTo,
+          maxTimeoutSeconds: 300,
+          extra: {},
+        },
+      ],
+    },
+    paymentRequiredHeader: 'required-header',
+    paymentSignatureHeader: status === 'quoted' ? null : 'signature',
+    payer: status === 'quoted' ? null : '0xpayer',
+    paymentIdentifier: null,
+    authorizationHash: null,
+    planFamily: 'storage',
+    planKey: 'pro',
+    tierRank: 1,
+    billingInterval: 'month',
+    settlementTransaction: status === 'delivered' ? '0xtx' : null,
+    settlementResponseHeader: status === 'delivered' ? 'response-header' : null,
+    status,
+    lastErrorCode: null,
+    quotedAt: '2026-07-30T00:00:00.000Z',
+    expiresAt: '2099-07-30T00:05:00.000Z',
+    verifiedAt: status === 'quoted' ? null : '2026-07-30T00:01:00.000Z',
+    settlingAt: null,
+    settledAt: status === 'delivered' ? '2026-07-30T00:02:00.000Z' : null,
+    canceledAt: null,
+    createdAt: '2026-07-30T00:00:00.000Z',
+    updatedAt: '2026-07-30T00:00:00.000Z',
+  }
+}
 
 const noPlanQuota = { currentPlan: null } as EffectiveQuota
 const subscribedQuota = { currentPlan: { subscription: true } } as EffectiveQuota
@@ -147,12 +284,43 @@ function makeDeps(
   // every cloudRequest), so the fake must be a single instance whose response queue
   // advances across calls — rebuilding it per call would reset the counter and replay
   // response #0, breaking multi-call flows (checkout, continue/cancel order).
-  const client = fakeCloudClient(options.responses ?? [])
-  const createBoundCloudClient = vi.fn(() => client)
+  const fake = fakeCloudClient(options.responses ?? [])
+  const createBoundCloudClient = vi.fn(() => fake.client)
   const licensingCloud = { createBoundCloudClient } as unknown as LicensingCloudGateway
   const quota = { getEffectiveQuota: async () => options.quota ?? noPlanQuota } as unknown as QuotaRepo
-  const deps: CloudStoreDeps = { cloudStore, licensingCloud, quota }
-  return { deps, getCloudStoreBinding, processCloudOrderQuotaChange, createBoundCloudClient }
+  let purchaseIntent: X402CapacityPurchaseIntent | null = null
+  const x402CapacityPurchases: X402CapacityPurchaseRepo = {
+    get: async () => purchaseIntent,
+    create: async (input) => {
+      purchaseIntent = {
+        id: 'intent-1',
+        ...input,
+        cloudOrderId: null,
+        cloudAttemptId: null,
+        status: 'created',
+        expiresAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      return purchaseIntent
+    },
+    claimCloudOrder: async () => {
+      if (!purchaseIntent || purchaseIntent.cloudOrderId) return false
+      purchaseIntent = { ...purchaseIntent, status: 'ordering', updatedAt: new Date() }
+      return true
+    },
+    updateCloudState: async (_id, input) => {
+      if (!purchaseIntent) throw new Error('missing_intent')
+      purchaseIntent = { ...purchaseIntent, ...input, updatedAt: new Date() }
+    },
+  }
+  const deps: CloudStoreDeps & { x402CapacityPurchases: X402CapacityPurchaseRepo } = {
+    cloudStore,
+    licensingCloud,
+    quota,
+    x402CapacityPurchases,
+  }
+  return { deps, getCloudStoreBinding, processCloudOrderQuotaChange, createBoundCloudClient, requests: fake.requests }
 }
 
 const CLOUD = 'https://cloud.example'
@@ -213,6 +381,58 @@ describe('cloud-store usecase', () => {
     it('listPackages surfaces a malformed cloud response', async () => {
       const { deps } = makeDeps({ responses: [ok({ nope: true })] })
       expectError(await listPackages(deps, CLOUD), { httpStatus: 502, message: 'invalid_cloud_response' })
+    })
+
+    it('lists every standard capacity price that closes the workspace gap', async () => {
+      const { deps } = makeDeps({
+        responses: [
+          ok({
+            items: [
+              pkg({
+                prices: [
+                  { id: 'monthly', currency: 'usd', amount: 500, recurring: { interval: 'month', intervalCount: 1 } },
+                  { id: 'yearly', currency: 'usd', amount: 5000, recurring: { interval: 'year', intervalCount: 1 } },
+                ],
+              }),
+              pkg({
+                id: 'too-small',
+                metadata: { deliverable: { type: 'zpan.plan', storageBytes: 100 } },
+              }),
+            ],
+            total: 2,
+            limit: 100,
+            offset: 0,
+          }),
+          ok(
+            publication({
+              resources: [
+                {
+                  ...publication().resources[0],
+                  priceId: 'monthly',
+                  resourceId: 'pro-monthly',
+                },
+                {
+                  ...publication().resources[0],
+                  priceId: 'yearly',
+                  resourceId: 'pro-yearly',
+                },
+              ],
+            }),
+          ),
+        ],
+        quota: {
+          used: 1000,
+          quota: 900,
+          currentPlan: { storageBytes: 800 },
+        } as EffectiveQuota,
+      })
+
+      const out = await listCapacityOffers(deps, CLOUD, { orgId: 'org-1', requestedBytes: 200 })
+
+      expect(out.ok && out.value).toMatchObject([
+        { resourceId: 'pro-monthly', productId: 'pkg-1', priceId: 'monthly', storageBytes: 4096 },
+        { resourceId: 'pro-yearly', productId: 'pkg-1', priceId: 'yearly', storageBytes: 4096 },
+      ])
     })
 
     it('listTargets returns the accessible targets without a cloud call', async () => {
@@ -330,6 +550,366 @@ describe('cloud-store usecase', () => {
     })
   })
 
+  describe('purchaseCapacity', () => {
+    const params = {
+      userId: 'user-1',
+      orgId: 'org-1',
+      origin: 'https://files.example',
+      resourceId: 'pkg-1:price-usd',
+      requestHash: 'hash-1',
+      idempotencyKey: 'idem-1',
+      paymentSignature: null,
+    }
+
+    it('creates an idempotent order and returns the standard x402 challenge', async () => {
+      const quote = { ...attempt(), reused: false }
+      const { deps, requests } = makeDeps({
+        responses: [ok(publication()), ok(pkg()), ok(receiver), ok(order()), ok(quote)],
+      })
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expect(out).toEqual({
+        ok: true,
+        kind: 'payment_required',
+        paymentRequired: quote.paymentRequired,
+        paymentRequiredHeader: quote.paymentRequiredHeader,
+      })
+      expect(requests[3]?.input).toMatchObject({
+        json: {
+          idempotencyKey: 'zpan-x402-capacity:intent-1',
+        },
+      })
+      expect(requests[4]).toMatchObject({
+        method: 'POST',
+        path: 'stores/:storeId/orders/:orderId/x402/payment-attempts',
+        input: {
+          header: { 'Idempotency-Key': params.idempotencyKey },
+          json: {
+            requestHash: params.requestHash,
+            resourceId: params.resourceId,
+          },
+        },
+      })
+      expect(requests[4]?.input).not.toMatchObject({ json: { idempotencyKey: expect.anything() } })
+    })
+
+    it('returns forbidden before calling Cloud when the quota store is not bound', async () => {
+      const { deps, createBoundCloudClient } = makeDeps({ binding: 'missing' })
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, { httpStatus: 403, message: 'quota_store_binding_missing' })
+      expect(createBoundCloudClient).not.toHaveBeenCalled()
+    })
+
+    it('returns bad request when the published capacity offer does not exist', async () => {
+      const { deps } = makeDeps({
+        responses: [ok(publication({ resources: [] }))],
+      })
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, {
+        httpStatus: 400,
+        reason: 'CAPACITY_OFFER_NOT_FOUND',
+        message: 'Invalid capacity offer',
+      })
+    })
+
+    it('returns a retryable conflict when another request is creating the Cloud order', async () => {
+      const { deps, requests } = makeDeps({
+        responses: [ok(publication()), ok(pkg()), ok(receiver)],
+      })
+      deps.x402CapacityPurchases.claimCloudOrder = vi.fn(async () => false)
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, {
+        httpStatus: 409,
+        reason: 'X402_PURCHASE_IN_PROGRESS',
+        message: 'Purchase initialization is in progress',
+      })
+      expect(requests).toHaveLength(3)
+    })
+
+    it('rate-limits new unpaid purchase intents before creating a Cloud order', async () => {
+      const { deps, requests } = makeDeps({
+        responses: [ok(publication()), ok(pkg()), ok(receiver)],
+      })
+      deps.x402CapacityPurchases.create = vi.fn(async () => null)
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, {
+        httpStatus: 429,
+        message: 'Too many pending capacity purchases',
+      })
+      expect((out as { error: AppError }).error.meta.headers).toEqual({ 'Retry-After': '3600' })
+      expect(requests).toHaveLength(3)
+    })
+
+    it('returns a purchase conflict when intent reservation fails without a concurrent winner', async () => {
+      const { deps, requests } = makeDeps({
+        responses: [ok(publication()), ok(pkg()), ok(receiver)],
+      })
+      deps.x402CapacityPurchases.create = vi.fn(async () => {
+        throw new Error('unique constraint')
+      })
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, {
+        httpStatus: 409,
+        reason: 'X402_PURCHASE_CONFLICT',
+        message: 'Purchase request conflict',
+      })
+      expect(requests).toHaveLength(3)
+    })
+
+    it('rejects a different idempotency key for an existing purchase request', async () => {
+      const { deps, requests } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...attempt(), reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, idempotencyKey: 'different-key' })
+
+      expectError(out, {
+        httpStatus: 409,
+        reason: 'X402_PURCHASE_CONFLICT',
+        message: 'Purchase request conflict',
+      })
+      expect(requests).toHaveLength(8)
+    })
+
+    it('releases the local order claim when Cloud order creation fails', async () => {
+      const { deps } = makeDeps({
+        responses: [ok(publication()), ok(pkg()), ok(receiver), fail(503, { error: 'cloud_down' })],
+      })
+      const updateCloudState = vi.spyOn(deps.x402CapacityPurchases, 'updateCloudState')
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, { httpStatus: 502, message: 'cloud_down' })
+      expect(updateCloudState).toHaveBeenCalledWith('intent-1', { status: 'created' })
+    })
+
+    it('reuses the intent, verifies payment, settles, and returns the receipt', async () => {
+      const quoted = attempt()
+      const verifiedAttempt = attempt('verified')
+      const paidPendingFulfillment = attempt('paid_pending_fulfillment')
+      const delivered = attempt('delivered')
+      const { deps, requests } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(quoted),
+          ok(verifiedAttempt),
+          ok(paidPendingFulfillment),
+          ok(delivered),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, paymentSignature: 'signature' })
+
+      expect(out).toMatchObject({
+        ok: true,
+        kind: 'delivered',
+        paymentResponseHeader: 'response-header',
+        attempt: { id: 'attempt-1', status: 'delivered' },
+      })
+      expect(requests[8]).toMatchObject({
+        method: 'GET',
+        path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId',
+      })
+      expect(requests[9]).toMatchObject({
+        method: 'POST',
+        path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/verifications',
+        input: {
+          header: { 'PAYMENT-SIGNATURE': 'signature' },
+          json: { requestHash: params.requestHash },
+        },
+      })
+      expect(requests[9]?.input).not.toMatchObject({ json: { paymentSignature: expect.anything() } })
+      expect(requests[10]).toMatchObject({
+        method: 'POST',
+        path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/settlements',
+      })
+      expect(requests[11]).toMatchObject({
+        method: 'POST',
+        path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/fulfillment-attempts',
+      })
+    })
+
+    it('returns an already delivered attempt after quote expiry without creating a replacement quote', async () => {
+      const quoted = attempt()
+      const delivered = { ...attempt('delivered'), expiresAt: '2026-07-30T00:00:00.000Z' }
+      const { deps, requests } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(delivered),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expect(out).toMatchObject({
+        ok: true,
+        kind: 'delivered',
+        paymentResponseHeader: 'response-header',
+        attempt: { id: 'attempt-1', status: 'delivered' },
+      })
+      expect(
+        requests.filter((request) => request.path === 'stores/:storeId/orders/:orderId/x402/payment-attempts'),
+      ).toHaveLength(1)
+    })
+
+    it('retries paid-pending fulfillment after quote expiry without creating a replacement quote', async () => {
+      const quoted = attempt()
+      const paidPending = { ...attempt('paid_pending_fulfillment'), expiresAt: '2026-07-30T00:00:00.000Z' }
+      const delivered = { ...attempt('delivered'), expiresAt: '2026-07-30T00:00:00.000Z' }
+      const { deps, requests } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(paidPending),
+          ok(delivered),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, paymentSignature: 'signature' })
+
+      expect(out).toMatchObject({
+        ok: true,
+        kind: 'delivered',
+        paymentResponseHeader: 'response-header',
+        attempt: { id: 'attempt-1', status: 'delivered' },
+      })
+      expect(
+        requests.filter((request) => request.path === 'stores/:storeId/orders/:orderId/x402/payment-attempts'),
+      ).toHaveLength(1)
+      expect(requests.at(-1)).toMatchObject({
+        method: 'POST',
+        path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/fulfillment-attempts',
+      })
+    })
+
+    it('returns a client error when Cloud rejects the payment signature', async () => {
+      const quoted = attempt()
+      const { deps } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(quoted),
+          fail(400, { error: 'x402_payment_proof_invalid' }),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, paymentSignature: 'invalid-signature' })
+
+      expectError(out, {
+        httpStatus: 400,
+        reason: 'X402_PAYMENT_PROOF_INVALID',
+        message: 'x402_payment_proof_invalid',
+      })
+    })
+
+    it('replaces an expired quote with a fresh challenge for the same purchase intent', async () => {
+      const quoted = attempt()
+      const expired = { ...attempt(), expiresAt: '2026-07-30T00:00:00.000Z' }
+      const replacement = {
+        ...attempt(),
+        id: 'attempt-2',
+        idempotencyKey: 'replacement-idempotency',
+        paymentRequiredHeader: 'replacement-required-header',
+        expiresAt: '2099-07-30T00:05:00.000Z',
+        reused: false,
+      }
+      const { deps, requests } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(expired),
+          ok(replacement),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, paymentSignature: 'expired-signature' })
+
+      expect(out).toMatchObject({
+        ok: true,
+        kind: 'payment_required',
+        paymentRequiredHeader: 'replacement-required-header',
+      })
+      const quoteRequests = requests.filter(
+        (request) =>
+          request.method === 'POST' &&
+          typeof request.input === 'object' &&
+          request.input !== null &&
+          'json' in request.input &&
+          typeof request.input.json === 'object' &&
+          request.input.json !== null &&
+          'requestHash' in request.input.json,
+      )
+      expect(quoteRequests).toHaveLength(2)
+      expect(quoteRequests[1]?.input).toMatchObject({
+        header: {
+          'Idempotency-Key': expect.stringMatching(/^x402-retry:[0-9a-f]{64}$/),
+        },
+        json: {
+          requestHash: params.requestHash,
+          resourceId: params.resourceId,
+        },
+      })
+    })
+  })
+
   describe('order actions', () => {
     it('continueOrderPayment returns not_found for an empty orderId', async () => {
       const { deps } = makeDeps()
@@ -384,9 +964,17 @@ describe('cloud-store usecase', () => {
   describe('createBillingPortalSession', () => {
     it('proxies a portal session with the org return URL', async () => {
       const session = { url: 'https://billing.example', stripeSubscriptionId: 'sub_1' }
-      const { deps } = makeDeps({ responses: [ok(session)] })
+      const { deps, requests } = makeDeps({ responses: [ok(session)] })
       const out = await createBillingPortalSession(deps, CLOUD, { orgId: 'org-1', origin: 'https://files.example' })
       expect(out).toEqual({ ok: true, value: session })
+      expect(requests[0]).toMatchObject({
+        method: 'POST',
+        path: 'stores/:storeId/billing/portal-sessions',
+        input: {
+          param: { storeId: 'store-1' },
+          json: { customerId: 'org-1', returnUrl: 'https://files.example/storage' },
+        },
+      })
     })
   })
 
@@ -447,6 +1035,49 @@ describe('cloud-store usecase', () => {
       expect(processCloudOrderQuotaChange).toHaveBeenCalledWith(
         expect.objectContaining({ eventId: 'evt-1', direction: 'increase' }),
         JSON.stringify(validEvent),
+        'hash',
+      )
+    })
+
+    it('accepts x402 recurring fulfillment with a provider-neutral billing period identity', async () => {
+      const body = {
+        eventId: 'evt-x402',
+        eventType: 'commerce.order_item.fulfilled',
+        orderId: 'order-x402',
+        orderItemId: 'item-x402',
+        productId: 'product-pro',
+        productName: 'Pro',
+        quantity: 1,
+        deliverable: { type: 'zpan.plan', storageBytes: 1024 },
+        target: { orgId: 'org-1', customerId: 'org-1' },
+        context: {
+          storeId: 'store-1',
+          paymentProvider: 'x402',
+          providerTransactionId: '0xtx',
+          x402AuditContext: { network: 'eip155:8453' },
+          billingPeriodStart: '2026-08-01T00:00:00.000Z',
+          billingPeriodEnd: '2026-09-01T00:00:00.000Z',
+        },
+        occurredAt: '2026-07-30T00:00:00.000Z',
+      }
+      verified('evt-x402')
+      const { deps, processCloudOrderQuotaChange } = makeDeps({
+        processResult: { duplicate: false, eventId: 'evt-x402' },
+      })
+
+      const out = await processDeliveryWebhook(deps, params(body))
+
+      expect(out).toMatchObject({ ok: true, eventId: 'evt-x402' })
+      expect(processCloudOrderQuotaChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cloudOrderId: 'x402:period:product-pro:2026-08-01T00:00:00.000Z:2026-09-01T00:00:00.000Z:org-1',
+          entitlementType: 'plan',
+          startsAt: '2026-08-01T00:00:00.000Z',
+          expiresAt: '2026-09-01T00:00:00.000Z',
+          paymentProvider: 'x402',
+          providerTransactionId: '0xtx',
+        }),
+        JSON.stringify(body),
         'hash',
       )
     })

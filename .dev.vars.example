@@ -7,6 +7,9 @@ BETTER_AUTH_SECRET=
 # Local ZPan URL.
 BETTER_AUTH_URL=http://localhost:5185
 TRUSTED_ORIGINS=http://localhost:5185
+# Optional comma-separated hosts accepted by the Vite development server.
+# Cloudflare Quick Tunnel (*.trycloudflare.com) is already allowed in development.
+ZPAN_DEV_ALLOWED_HOSTS=
 
 # Local ZPan Cloud URL.
 ZPAN_CLOUD_URL=http://localhost:5186
