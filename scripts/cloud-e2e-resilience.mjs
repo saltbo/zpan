@@ -10,6 +10,17 @@ export class CloudE2eCommandError extends Error {
   }
 }
 
+export function cloudE2eEndpoints(localBaseUrl, tunnelUrl) {
+  return {
+    browserBaseUrl: localBaseUrl,
+    publicBaseUrl: tunnelUrl ?? localBaseUrl,
+  }
+}
+
+export function cloudflaredQuickTunnelArgs(target) {
+  return ['tunnel', '--url', target, '--protocol', 'http2', '--no-autoupdate']
+}
+
 export function isRetryableQuickTunnelFailure({ commandOutput, tunnelOutput }) {
   if (QUICK_TUNNEL_502.test(commandOutput)) return true
   return (
