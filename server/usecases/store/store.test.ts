@@ -667,29 +667,32 @@ describe('cloud-store usecase', () => {
       expect(requests).toHaveLength(3)
     })
 
-    it('rejects a different idempotency key for an existing purchase request', async () => {
+    it('recovers an existing purchase request with a different idempotency key', async () => {
+      const quoted = attempt()
       const { deps, requests } = makeDeps({
         responses: [
           ok(publication()),
           ok(pkg()),
           ok(receiver),
           ok(order()),
-          ok({ ...attempt(), reused: false }),
+          ok({ ...quoted, reused: false }),
           ok(publication()),
           ok(pkg()),
           ok(receiver),
+          ok(quoted),
         ],
       })
       await purchaseCapacity(deps, CLOUD, params)
 
       const out = await purchaseCapacity(deps, CLOUD, { ...params, idempotencyKey: 'different-key' })
 
-      expectError(out, {
-        httpStatus: 409,
-        reason: 'X402_PURCHASE_CONFLICT',
-        message: 'Purchase request conflict',
+      expect(out).toEqual({
+        ok: true,
+        kind: 'payment_required',
+        paymentRequired: quoted.paymentRequired,
+        paymentRequiredHeader: quoted.paymentRequiredHeader,
       })
-      expect(requests).toHaveLength(8)
+      expect(requests).toHaveLength(9)
     })
 
     it('releases the local order claim when Cloud order creation fails', async () => {
@@ -702,6 +705,38 @@ describe('cloud-store usecase', () => {
 
       expectError(out, { httpStatus: 502, message: 'cloud_down' })
       expect(updateCloudState).toHaveBeenCalledWith('intent-1', { status: 'created' })
+    })
+
+    it('lets a fresh caller recover an intent after Cloud order creation fails', async () => {
+      const quoted = attempt()
+      const { deps } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          fail(503, { error: 'cloud_down' }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+        ],
+      })
+
+      const first = await purchaseCapacity(deps, CLOUD, params)
+      expectError(first, { httpStatus: 502, message: 'cloud_down' })
+
+      const recovered = await purchaseCapacity(deps, CLOUD, {
+        ...params,
+        idempotencyKey: 'fresh-caller-key',
+      })
+
+      expect(recovered).toEqual({
+        ok: true,
+        kind: 'payment_required',
+        paymentRequired: quoted.paymentRequired,
+        paymentRequiredHeader: quoted.paymentRequiredHeader,
+      })
     })
 
     it('reuses the intent, verifies payment, settles, and returns the receipt', async () => {
