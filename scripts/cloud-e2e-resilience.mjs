@@ -3,6 +3,24 @@ const CLIENT_TRANSPORT_FAILURE = /(?:\b502\b|ERR_(?:FAILED|TUNNEL_CONNECTION_FAI
 const TUNNEL_CONTEXT_CANCELED = /(?:Incoming request ended abruptly|Request failed)[^\n]*context canceled/i
 const QUICK_TUNNEL_REQUEST = /trycloudflare\.com/i
 
+export class CloudE2eCommandError extends Error {
+  constructor(command, commandArgs, code, output) {
+    super(`${command} ${commandArgs.join(' ')} exited with ${code}`)
+    this.output = output
+  }
+}
+
+export function cloudE2eEndpoints(localBaseUrl, tunnelUrl) {
+  return {
+    browserBaseUrl: localBaseUrl,
+    publicBaseUrl: tunnelUrl ?? localBaseUrl,
+  }
+}
+
+export function cloudflaredQuickTunnelArgs(target) {
+  return ['tunnel', '--url', target, '--protocol', 'http2', '--no-autoupdate']
+}
+
 export function isRetryableQuickTunnelFailure({ commandOutput, tunnelOutput }) {
   if (QUICK_TUNNEL_502.test(commandOutput)) return true
   return (
