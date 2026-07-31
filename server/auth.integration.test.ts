@@ -710,6 +710,49 @@ describe('loadProviderConfigs — builtin social provider resolution', () => {
   })
 })
 
+describe('Cloudflare Workers preview auth origins', () => {
+  const configuredOrigin = 'https://zpan-staging.saltbo.workers.dev'
+  const commitOrigin = 'https://99dc50ae-zpan.saltbo.workers.dev'
+  const branchOrigin = 'https://feat-x402-paid-agent-uploads-zpan.saltbo.workers.dev'
+
+  it('accepts official commit and branch aliases on the same cached auth instance', async () => {
+    const ctx = await createTestApp()
+    const auth = await createAuth(ctx.platform, 'test-secret', configuredOrigin, [configuredOrigin])
+    const app = createApp(ctx.platform, auth)
+    const email = `preview-${Date.now()}@example.com`
+    const password = 'password123456'
+    const signUp = await app.request(`${configuredOrigin}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { Origin: configuredOrigin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Preview User', email, password }),
+    })
+    expect(signUp.status).toBe(200)
+
+    for (const origin of [commitOrigin, branchOrigin]) {
+      const signIn = await app.request(`${origin}/api/auth/sign-in/email`, {
+        method: 'POST',
+        headers: { Origin: origin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, callbackURL: `${origin}/files` }),
+      })
+      expect(signIn.status, await signIn.clone().text()).toBe(200)
+    }
+  })
+
+  it('rejects unrelated workers.dev origins', async () => {
+    const ctx = await createTestApp()
+    const auth = await createAuth(ctx.platform, 'test-secret', configuredOrigin, [configuredOrigin])
+    const app = createApp(ctx.platform, auth)
+    const origin = 'https://unrelated-worker.other-account.workers.dev'
+    const signIn = await app.request(`${origin}/api/auth/sign-in/email`, {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'nobody@example.com', password: 'password123456', callbackURL: `${origin}/files` }),
+    })
+
+    expect(signIn.status).toBe(403)
+  })
+})
+
 describe('Agent OAuth consent guards', () => {
   it('publishes the external resource discovery contract at the exact API URL', async () => {
     const ctx = await createTestApp()

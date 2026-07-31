@@ -205,6 +205,22 @@ function capacityAttempt() {
   }
 }
 
+function capacityReceiver() {
+  return {
+    id: 'receiver-1',
+    storeId: 'store-test-binding',
+    scheme: 'exact',
+    network: 'eip155:8453',
+    asset: '0xusdc',
+    networkFamily: 'evm',
+    payTo: '0xmerchant',
+    status: 'active',
+    verifiedAt: '2026-07-01T00:00:00.000Z',
+    createdAt: '2026-07-01T00:00:00.000Z',
+    updatedAt: '2026-07-01T00:00:00.000Z',
+  }
+}
+
 function paymentPayload() {
   const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url).includes('/payments')) as
     | [URL, RequestInit]
@@ -818,6 +834,55 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(429)
     expect(res.headers.get('Retry-After')).toBe('3600')
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith('/orders'))).toBe(false)
+  })
+
+  it('returns pending and delivered x402 attempts with their transport contracts', async () => {
+    const { app, db, deps } = await createTestApp()
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'capacity-status@example.com')
+    const orgId = await getFirstOrgId(db)
+    const intent = await deps.x402CapacityPurchases.create({
+      orgId,
+      resourceId: 'cloud-pkg-1:price-usd',
+      requestHash: 'status-hash',
+      idempotencyKey: 'status-idempotency',
+    })
+    expect(intent).not.toBeNull()
+    await deps.x402CapacityPurchases.updateCloudState(intent!.id, {
+      cloudOrderId: 'order-cloud-1',
+      cloudAttemptId: 'attempt-1',
+      status: 'quoted',
+    })
+    const response = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
+    const verified = { ...capacityAttempt(), status: 'verified', verifiedAt: '2026-07-30T00:01:00.000Z' }
+    const delivered = {
+      ...capacityAttempt(),
+      status: 'delivered',
+      settlementResponseHeader: 'receipt-header',
+      settledAt: '2026-07-30T00:02:00.000Z',
+    }
+    vi.mocked(fetch)
+      .mockClear()
+      .mockResolvedValueOnce(response(capacityPublication()))
+      .mockResolvedValueOnce(response(cloudProduct()))
+      .mockResolvedValueOnce(response(capacityReceiver()))
+      .mockResolvedValueOnce(response(verified))
+      .mockResolvedValueOnce(response(capacityPublication()))
+      .mockResolvedValueOnce(response(cloudProduct()))
+      .mockResolvedValueOnce(response(capacityReceiver()))
+      .mockResolvedValueOnce(response(delivered))
+
+    const request = () =>
+      app.request('/api/store/capacity-purchases/cloud-pkg-1%3Aprice-usd', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestHash: 'status-hash', idempotencyKey: 'status-idempotency' }),
+      })
+    const pendingResponse = await request()
+    expect(pendingResponse.status).toBe(202)
+    const deliveredResponse = await request()
+    expect(deliveredResponse.status).toBe(200)
+    expect(deliveredResponse.headers.get('PAYMENT-RESPONSE')).toBe('receipt-header')
   })
 
   it('allows team checkout for the team owner and targets the team org [spec: quota-store/team-checkout]', async () => {

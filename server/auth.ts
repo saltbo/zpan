@@ -136,6 +136,42 @@ async function dynamicRegistrationOrigins(request: Request): Promise<string[]> {
   }
 }
 
+export function officialWorkersPreviewOrigin(
+  baseURL: string | undefined,
+  candidate: string | null | undefined,
+): string | null {
+  if (!baseURL || !candidate) return null
+  try {
+    const configured = new URL(baseURL)
+    const preview = new URL(candidate)
+    if (configured.protocol !== 'https:' || preview.protocol !== 'https:') return null
+
+    const configuredLabels = configured.hostname.toLowerCase().split('.')
+    const previewLabels = preview.hostname.toLowerCase().split('.')
+    if (
+      configuredLabels.length !== 4 ||
+      previewLabels.length !== 4 ||
+      configuredLabels[2] !== 'workers' ||
+      configuredLabels[3] !== 'dev' ||
+      previewLabels[2] !== 'workers' ||
+      previewLabels[3] !== 'dev' ||
+      configuredLabels[1] !== previewLabels[1]
+    ) {
+      return null
+    }
+
+    const configuredWorker = configuredLabels[0]
+    const workerName = configuredWorker.endsWith('-staging')
+      ? configuredWorker.slice(0, -'-staging'.length)
+      : configuredWorker.replace(/^[0-9a-f]{8}-/, '')
+    const previewWorker = previewLabels[0]
+    if (!workerName || (previewWorker !== workerName && !previewWorker.endsWith(`-${workerName}`))) return null
+    return preview.origin
+  } catch {
+    return null
+  }
+}
+
 // One query loads every oauth_provider_* row. Configs are snapshotted at auth
 // instance creation: better-auth resolves social providers eagerly during its
 // context init, so per-request dynamic loading is not possible anyway. Admin
@@ -405,7 +441,13 @@ export async function createAuth(
       const origin = request?.headers.get('origin')
       const list = trustedOrigins ?? []
       const registrationOrigins = request ? await dynamicRegistrationOrigins(request) : []
-      return [...list, ...(origin && isLocalNetworkOrigin(origin) ? [origin] : []), ...registrationOrigins]
+      const previewOrigin = officialWorkersPreviewOrigin(baseURL, origin)
+      return [
+        ...list,
+        ...(origin && isLocalNetworkOrigin(origin) ? [origin] : []),
+        ...(previewOrigin ? [previewOrigin] : []),
+        ...registrationOrigins,
+      ]
     },
     advanced: {
       cookiePrefix: 'zp',

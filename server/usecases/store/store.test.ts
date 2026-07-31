@@ -649,6 +649,61 @@ describe('cloud-store usecase', () => {
       expect(requests).toHaveLength(3)
     })
 
+    it('returns a purchase conflict when intent reservation fails without a concurrent winner', async () => {
+      const { deps, requests } = makeDeps({
+        responses: [ok(publication()), ok(pkg()), ok(receiver)],
+      })
+      deps.x402CapacityPurchases.create = vi.fn(async () => {
+        throw new Error('unique constraint')
+      })
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, {
+        httpStatus: 409,
+        reason: 'X402_PURCHASE_CONFLICT',
+        message: 'Purchase request conflict',
+      })
+      expect(requests).toHaveLength(3)
+    })
+
+    it('rejects a different idempotency key for an existing purchase request', async () => {
+      const { deps, requests } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...attempt(), reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, idempotencyKey: 'different-key' })
+
+      expectError(out, {
+        httpStatus: 409,
+        reason: 'X402_PURCHASE_CONFLICT',
+        message: 'Purchase request conflict',
+      })
+      expect(requests).toHaveLength(8)
+    })
+
+    it('releases the local order claim when Cloud order creation fails', async () => {
+      const { deps } = makeDeps({
+        responses: [ok(publication()), ok(pkg()), ok(receiver), fail(503, { error: 'cloud_down' })],
+      })
+      const updateCloudState = vi.spyOn(deps.x402CapacityPurchases, 'updateCloudState')
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, { httpStatus: 502, message: 'cloud_down' })
+      expect(updateCloudState).toHaveBeenCalledWith('intent-1', { status: 'created' })
+    })
+
     it('reuses the intent, verifies payment, settles, and returns the receipt', async () => {
       const quoted = attempt()
       const verifiedAttempt = attempt('verified')
