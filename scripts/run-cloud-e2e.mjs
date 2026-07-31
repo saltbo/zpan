@@ -2,7 +2,11 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { Resolver } from 'node:dns/promises'
 import { createRequire } from 'node:module'
-import { cloudE2eAttemptCount, isRetryableQuickTunnelFailure } from './cloud-e2e-resilience.mjs'
+import {
+  CloudE2eCommandError,
+  cloudE2eAttemptCount,
+  isRetryableQuickTunnelFailure,
+} from './cloud-e2e-resilience.mjs'
 
 const args = process.argv.slice(2)
 const require = createRequire(import.meta.url)
@@ -49,7 +53,7 @@ for (let attempt = 1; attempt <= maxRunAttempts; attempt += 1) {
       break
     } catch (error) {
       const retryable =
-        error instanceof CommandError &&
+        error instanceof CloudE2eCommandError &&
         tunnel &&
         isRetryableQuickTunnelFailure({
           commandOutput: error.output,
@@ -227,13 +231,6 @@ async function waitForPublicTunnelIp(hostname) {
   throw new Error(`Timed out waiting for public tunnel DNS: ${hostname}`)
 }
 
-class CommandError extends Error {
-  constructor(command, commandArgs, code, output) {
-    super(`${command} ${commandArgs.join(' ')} exited with ${code}`)
-    this.output = output
-  }
-}
-
 function run(command, commandArgs, env = {}, captureOutput = false) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, commandArgs, {
@@ -253,7 +250,7 @@ function run(command, commandArgs, env = {}, captureOutput = false) {
     }
     child.on('exit', (code) => {
       if (code === 0) resolve()
-      else reject(new CommandError(command, commandArgs, code, output))
+      else reject(new CloudE2eCommandError(command, commandArgs, code, output))
     })
   })
 }

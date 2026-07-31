@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { cloudE2eAttemptCount, isRetryableQuickTunnelFailure } from './cloud-e2e-resilience.mjs'
+import {
+  CloudE2eCommandError,
+  cloudE2eAttemptCount,
+  isRetryableQuickTunnelFailure,
+} from './cloud-e2e-resilience.mjs'
 
 describe('cloud E2E resilience', () => {
+  it('provides the command error type before the runner executes', () => {
+    const error = new CloudE2eCommandError('node', ['playwright', 'test'], 1, 'gateway response')
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error).toBeInstanceOf(CloudE2eCommandError)
+    expect(error.message).toBe('node playwright test exited with 1')
+    expect(error.output).toBe('gateway response')
+  })
+
   it('retries a Cloudflare Quick Tunnel gateway page', () => {
     expect(
       isRetryableQuickTunnelFailure({
