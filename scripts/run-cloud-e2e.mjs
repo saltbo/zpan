@@ -2,7 +2,13 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { Resolver } from 'node:dns/promises'
 import { createRequire } from 'node:module'
-import { cloudE2eAttemptCount, isRetryableQuickTunnelFailure } from './cloud-e2e-resilience.mjs'
+import {
+  CloudE2eCommandError,
+  cloudE2eAttemptCount,
+  cloudE2eEndpoints,
+  cloudflaredQuickTunnelArgs,
+  isRetryableQuickTunnelFailure,
+} from './cloud-e2e-resilience.mjs'
 
 const args = process.argv.slice(2)
 const require = createRequire(import.meta.url)
@@ -49,7 +55,7 @@ for (let attempt = 1; attempt <= maxRunAttempts; attempt += 1) {
       break
     } catch (error) {
       const retryable =
-        error instanceof CommandError &&
+        error instanceof CloudE2eCommandError &&
         tunnel &&
         isRetryableQuickTunnelFailure({
           commandOutput: error.output,
@@ -67,17 +73,17 @@ for (let attempt = 1; attempt <= maxRunAttempts; attempt += 1) {
 
 async function buildE2eEnv(tunnel) {
   const tunnelHost = tunnel ? new URL(tunnel.url).hostname : ''
-  const tunnelIp = tunnel ? await waitForPublicTunnelIp(tunnelHost) : ''
-  const baseUrl = tunnel?.url ?? localBaseUrl
+  if (tunnel) await waitForPublicTunnelIp(tunnelHost)
+  const { browserBaseUrl, publicBaseUrl } = cloudE2eEndpoints(localBaseUrl, tunnel?.url)
   return {
     ...cloudEnv,
-    E2E_BASE_URL: baseUrl,
+    E2E_BASE_URL: browserBaseUrl,
     E2E_LOCAL_BASE_URL: localBaseUrl,
+    E2E_PUBLIC_BASE_URL: publicBaseUrl,
     E2E_APP_PORT: String(appPort),
     E2E_API_PORT: String(apiPort),
-    BETTER_AUTH_URL: baseUrl,
-    TRUSTED_ORIGINS: `${baseUrl},${localBaseUrl}`,
-    ...(tunnel ? { E2E_CHROME_HOST_RESOLVER_RULES: `MAP ${tunnelHost} ${tunnelIp}` } : {}),
+    BETTER_AUTH_URL: publicBaseUrl,
+    TRUSTED_ORIGINS: `${publicBaseUrl},${localBaseUrl}`,
     ...s3MockEnv(),
     ...credentialsEnv,
     ...(runtime === 'cf' ? { E2E_RUNTIME: 'cf' } : {}),
@@ -141,7 +147,7 @@ async function startTunnel(target) {
 }
 
 function startTunnelOnce(target) {
-  const child = spawn(cloudflared, ['tunnel', '--url', target, '--no-autoupdate'], {
+  const child = spawn(cloudflared, cloudflaredQuickTunnelArgs(target), {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   writeFileSync(pidFile, String(child.pid))
@@ -227,13 +233,6 @@ async function waitForPublicTunnelIp(hostname) {
   throw new Error(`Timed out waiting for public tunnel DNS: ${hostname}`)
 }
 
-class CommandError extends Error {
-  constructor(command, commandArgs, code, output) {
-    super(`${command} ${commandArgs.join(' ')} exited with ${code}`)
-    this.output = output
-  }
-}
-
 function run(command, commandArgs, env = {}, captureOutput = false) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, commandArgs, {
@@ -253,7 +252,7 @@ function run(command, commandArgs, env = {}, captureOutput = false) {
     }
     child.on('exit', (code) => {
       if (code === 0) resolve()
-      else reject(new CommandError(command, commandArgs, code, output))
+      else reject(new CloudE2eCommandError(command, commandArgs, code, output))
     })
   })
 }

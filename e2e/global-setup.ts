@@ -3,13 +3,13 @@
  * The webServer is already running when this executes.
  * Ensures an admin user and a storage backend exist.
  */
-import { request as playwrightRequest, test as setup } from '@playwright/test'
+import { expect, request as playwrightRequest, test as setup } from '@playwright/test'
 import Database from 'better-sqlite3'
 import { hashPassword } from '../server/lib/password'
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from './helpers'
 
 const localBaseUrl = process.env.E2E_LOCAL_BASE_URL ?? 'http://localhost:5185'
-const publicBaseUrl = process.env.E2E_BASE_URL ?? localBaseUrl
+const publicBaseUrl = process.env.E2E_PUBLIC_BASE_URL ?? process.env.E2E_BASE_URL ?? localBaseUrl
 const defaultOrgQuota = process.env.E2E_DEFAULT_ORG_QUOTA ?? String(1024 * 1024 * 1024)
 
 const storageConfig = {
@@ -170,6 +170,7 @@ setup('seed admin and storage', async () => {
   const request = await playwrightRequest.newContext({ baseURL: localBaseUrl })
   const headers = { Origin: localBaseUrl }
   try {
+    await expectPublicCallbackReady()
     prepareNodeDatabase()
 
     let authResp = await request.post('/api/auth/sign-in/email', {
@@ -246,3 +247,21 @@ setup('seed admin and storage', async () => {
     await request.dispose()
   }
 })
+
+async function expectPublicCallbackReady() {
+  if (publicBaseUrl === localBaseUrl) return
+  const request = await playwrightRequest.newContext({ baseURL: publicBaseUrl })
+  try {
+    await expect
+      .poll(
+        async () => {
+          const response = await request.get('/api/health')
+          return response.ok() ? ((await response.json()) as { status?: string }).status : await response.text()
+        },
+        { message: `public callback URL did not become ready: ${publicBaseUrl}`, timeout: 60_000 },
+      )
+      .toBe('ok')
+  } finally {
+    await request.dispose()
+  }
+}

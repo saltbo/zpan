@@ -18,6 +18,9 @@ import {
 
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
 const CLOUD_BASE_ORIGIN = new URL(process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev').origin
+const PUBLIC_BASE_ORIGIN = new URL(
+  process.env.E2E_PUBLIC_BASE_URL ?? process.env.E2E_BASE_URL ?? 'http://localhost:5185',
+).origin
 
 type CloudProduct = {
   id: string
@@ -57,10 +60,7 @@ test.describe
       await unbindCurrentCloudBinding()
     })
 
-    test('@desktop covers pairing, Cloud store setup, gift-card credit redemption, and checkout', async ({
-      page,
-      baseURL,
-    }) => {
+    test('@desktop covers pairing, Cloud store setup, gift-card credit redemption, and checkout', async ({ page }) => {
       test.setTimeout(420_000)
 
       await signInAsAdmin(page)
@@ -85,7 +85,7 @@ test.describe
         await redeemGiftCard(page, giftCard.code)
         await expect.poll(() => getCreditBalance(page), { timeout: 20_000 }).toBeGreaterThanOrEqual(creditsBefore + 200)
 
-        const hasPublicCallbackUrl = Boolean(baseURL && !LOCALHOST_RE.test(new URL(baseURL).origin))
+        const hasPublicCallbackUrl = !LOCALHOST_RE.test(PUBLIC_BASE_ORIGIN)
         if (!hasPublicCallbackUrl) {
           test.info().annotations.push({
             type: 'checkout-delivery-skipped',
