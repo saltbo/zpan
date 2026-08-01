@@ -94,7 +94,7 @@ describe('downloaderBootstrapCredential table', () => {
   })
 })
 
-describe('Agent OAuth tables', () => {
+describe('OAuth tables', () => {
   it('declares the managed client columns and indexes', () => {
     const { foreignKeys, indexes } = getTableConfig(oauthClient)
 

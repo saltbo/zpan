@@ -4,7 +4,6 @@
 
 import type {
   AdminStatsRepo,
-  AgentOAuthGateway,
   AnnouncementRepo,
   ApiKeyGateway,
   ArchiveJobsGateway,
@@ -31,6 +30,7 @@ import type {
   MatterRepo,
   MemberCountRepo,
   NotificationRepo,
+  OAuthGateway,
   ObjectUploadSessionRepo,
   OrgRepo,
   ProfileRepo,
@@ -58,7 +58,7 @@ import type {
 export interface Deps {
   audit: AuditRepo
   adminStats: AdminStatsRepo
-  agentOAuth: AgentOAuthGateway
+  oauth: OAuthGateway
   announcements: AnnouncementRepo
   apiKeys: ApiKeyGateway
   archiveJobs: ArchiveJobsGateway

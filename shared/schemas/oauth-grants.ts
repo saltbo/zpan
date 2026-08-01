@@ -1,0 +1,64 @@
+import { z } from 'zod'
+import { OAUTH_ACCESS_TOKEN_SECONDS, OAUTH_REFRESH_TOKEN_SECONDS } from '../oauth'
+import { oauthResourceScopeSchema } from './oauth-resource'
+
+export const oauthGrantStatusSchema = z.enum(['active'])
+export type OAuthGrantStatus = z.infer<typeof oauthGrantStatusSchema>
+
+export const oauthGrantSchema = z.object({
+  id: z.string(),
+  clientId: z.string(),
+  clientName: z.string(),
+  userId: z.string(),
+  orgId: z.string(),
+  workspaceName: z.string().nullable(),
+  scopes: z.array(oauthResourceScopeSchema),
+  createdAt: z.string(),
+  lastUsedAt: z.string().nullable(),
+  status: oauthGrantStatusSchema,
+})
+export type OAuthGrant = z.infer<typeof oauthGrantSchema>
+
+export const oauthGrantListSchema = z.object({ items: z.array(oauthGrantSchema) })
+export type OAuthGrantList = z.infer<typeof oauthGrantListSchema>
+
+export const oauthConsentContextSchema = z.object({
+  clientId: z.string(),
+  clientName: z.string(),
+  instanceOrigin: z.string(),
+  workspace: z.object({
+    id: z.string(),
+    name: z.string().nullable(),
+  }),
+  scopes: z.array(oauthResourceScopeSchema),
+  standardScopes: z.array(z.string()),
+  redirectUri: z.string(),
+  grantLifetime: z.object({
+    accessTokenSeconds: z.number().int().default(OAUTH_ACCESS_TOKEN_SECONDS),
+    refreshTokenSeconds: z.number().int().default(OAUTH_REFRESH_TOKEN_SECONDS),
+  }),
+})
+export type OAuthConsentContext = z.infer<typeof oauthConsentContextSchema>
+
+export const oauthConsentContextRequestSchema = z.object({
+  oauthQuery: z.string().min(1),
+})
+export type OAuthConsentContextRequest = z.infer<typeof oauthConsentContextRequestSchema>
+
+export const oauthConsentSubmitSchema = z.object({
+  accept: z.boolean(),
+  oauthQuery: z.string().min(1),
+})
+export type OAuthConsentSubmit = z.infer<typeof oauthConsentSubmitSchema>
+
+export const oauthConsentResultSchema = z.object({
+  url: z.string(),
+})
+export type OAuthConsentResult = z.infer<typeof oauthConsentResultSchema>
+
+export function oauthGrantDTO(input: Omit<OAuthGrant, 'status'>): OAuthGrant {
+  return {
+    ...input,
+    status: 'active',
+  }
+}

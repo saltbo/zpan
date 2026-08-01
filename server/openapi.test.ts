@@ -144,7 +144,7 @@ describe('global OpenAPI document', () => {
       'x-cli-config'?: unknown
     }
 
-    expect(doc.components?.securitySchemes?.agentOAuth2).toMatchObject({
+    expect(doc.components?.securitySchemes?.oauth2).toMatchObject({
       type: 'oauth2',
       flows: {
         authorizationCode: {
@@ -197,7 +197,7 @@ describe('global OpenAPI document', () => {
     expect(document.paths['/api/oauth-resource-scopes']?.get).toMatchObject({
       security: [
         {
-          agentOAuth2: expect.arrayContaining([
+          oauth2: expect.arrayContaining([
             AuthorizationScope.OBJECTS_READ,
             AuthorizationScope.OBJECTS_CREATE,
             AuthorizationScope.OBJECTS_UPDATE,
@@ -450,8 +450,8 @@ describe('global OpenAPI document', () => {
     }
 
     const ignoredOperations = [
-      doc.paths['/api/agent-oauth-grants']?.get,
-      doc.paths['/api/agent-oauth-grants/{grantId}']?.delete,
+      doc.paths['/api/oauth-grants']?.get,
+      doc.paths['/api/oauth-grants/{grantId}']?.delete,
       doc.paths['/api/site/storages']?.post,
       doc.paths['/api/auth/sign-in/email']?.post,
       doc.paths['/api/auth/sign-out']?.post,

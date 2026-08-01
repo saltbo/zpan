@@ -1,7 +1,7 @@
 import type { AuthorizationScope } from '@shared/authorization'
 import type { Database } from '../../platform/interface'
 
-export interface AgentOAuthGrant {
+export interface OAuthGrant {
   id: string
   clientId: string
   clientName: string
@@ -12,7 +12,7 @@ export interface AgentOAuthGrant {
   lastUsedAt: string | null
 }
 
-export interface AgentOAuthClient {
+export interface OAuthClient {
   clientId: string
   clientName: string
   disabled: boolean
@@ -32,11 +32,11 @@ export interface RegisteredOAuthApplication {
   createdAt: string
 }
 
-export interface AgentOAuthGateway {
-  findClient(db: Database, clientId: string): Promise<AgentOAuthClient | null>
+export interface OAuthGateway {
+  findClient(db: Database, clientId: string): Promise<OAuthClient | null>
   listRegisteredApplications(db: Database): Promise<RegisteredOAuthApplication[]>
   revokeJwtAccessToken(db: Database, token: string): Promise<void>
   isJwtAccessTokenRevoked(db: Database, tokenId: string): Promise<boolean>
-  listGrants(db: Database, userId: string): Promise<AgentOAuthGrant[]>
+  listGrants(db: Database, userId: string): Promise<OAuthGrant[]>
   revokeGrant(db: Database, input: { userId: string; grantId: string; now: Date }): Promise<boolean>
 }

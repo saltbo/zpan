@@ -20,17 +20,17 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
-  type AgentOAuthGrant,
-  getAgentOAuthConsentContext,
-  listAgentOAuthGrants,
-  revokeAgentOAuthGrant,
-  submitAgentOAuthConsent,
+  getOAuthConsentContext,
+  listOAuthGrants,
+  type OAuthGrant,
+  revokeOAuthGrant,
+  submitOAuthConsent,
 } from '@/lib/api'
 import { setActive, useListOrganizations } from '@/lib/auth-client'
 import { redirectExternal } from '@/lib/browser-navigation'
 
-export const Route = createFileRoute('/_authenticated/settings/agent-access')({
-  component: OAuthAccessSettingsPage,
+export const Route = createFileRoute('/_authenticated/settings/oauth-apps')({
+  component: OAuthAppsSettingsPage,
 })
 
 interface Organization {
@@ -56,15 +56,15 @@ function OAuthConsentPanel({ oauthQuery, organizations }: { oauthQuery: string; 
   const [submitError, setSubmitError] = useState<string | null>(null)
   const consentQuery = useQuery({
     queryKey: ['oauth-consent', oauthQuery],
-    queryFn: () => getAgentOAuthConsentContext(oauthQuery),
+    queryFn: () => getOAuthConsentContext(oauthQuery),
     enabled: !!oauthQuery,
     retry: false,
   })
   const submitMutation = useMutation({
-    mutationFn: (accept: boolean) => submitAgentOAuthConsent({ accept, oauthQuery }),
+    mutationFn: (accept: boolean) => submitOAuthConsent({ accept, oauthQuery }),
     onSuccess: (result) => redirectExternal(result.url),
     onError: (error) =>
-      setSubmitError(error instanceof Error ? error.message : t('settings.agentAccess.oauthConsentFailed')),
+      setSubmitError(error instanceof Error ? error.message : t('settings.oauthApps.oauthConsentFailed')),
   })
 
   async function changeWorkspace(nextOrgId: string) {
@@ -75,7 +75,7 @@ function OAuthConsentPanel({ oauthQuery, organizations }: { oauthQuery: string; 
       if (error) throw error
       await queryClient.invalidateQueries({ queryKey: ['oauth-consent', oauthQuery] })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('settings.agentAccess.oauthWorkspaceFailed'))
+      toast.error(error instanceof Error ? error.message : t('settings.oauthApps.oauthWorkspaceFailed'))
     } finally {
       setSwitchingOrgId(null)
     }
@@ -89,8 +89,8 @@ function OAuthConsentPanel({ oauthQuery, organizations }: { oauthQuery: string; 
       <div className="flex max-w-3xl items-start gap-3 rounded-md border bg-background p-6">
         <ShieldAlert className="mt-0.5 size-5 text-destructive" />
         <div className="space-y-2">
-          <h1 className="text-xl font-semibold">{t('settings.agentAccess.oauthExpiredTitle')}</h1>
-          <p className="text-sm text-muted-foreground">{t('settings.agentAccess.oauthExpiredDescription')}</p>
+          <h1 className="text-xl font-semibold">{t('settings.oauthApps.oauthExpiredTitle')}</h1>
+          <p className="text-sm text-muted-foreground">{t('settings.oauthApps.oauthExpiredDescription')}</p>
         </div>
       </div>
     )
@@ -103,31 +103,31 @@ function OAuthConsentPanel({ oauthQuery, organizations }: { oauthQuery: string; 
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <Plug className="size-4" />
-          {t('settings.agentAccess.oauthConsentEyebrow')}
+          {t('settings.oauthApps.oauthConsentEyebrow')}
         </div>
-        <h1 className="text-2xl font-semibold">{t('settings.agentAccess.oauthConsentTitle')}</h1>
-        <p className="text-sm text-muted-foreground">{t('settings.agentAccess.oauthConsentDescription')}</p>
+        <h1 className="text-2xl font-semibold">{t('settings.oauthApps.oauthConsentTitle')}</h1>
+        <p className="text-sm text-muted-foreground">{t('settings.oauthApps.oauthConsentDescription')}</p>
       </div>
       <dl className="mt-6 grid gap-4 rounded-md border bg-muted/30 p-4 sm:grid-cols-2">
         <div>
-          <dt className="text-xs font-medium text-muted-foreground">{t('settings.agentAccess.oauthClient')}</dt>
+          <dt className="text-xs font-medium text-muted-foreground">{t('settings.oauthApps.oauthClient')}</dt>
           <dd className="mt-1 font-medium">{context.clientName}</dd>
         </div>
         <div>
-          <dt className="text-xs font-medium text-muted-foreground">{t('settings.agentAccess.oauthOrigin')}</dt>
+          <dt className="text-xs font-medium text-muted-foreground">{t('settings.oauthApps.oauthOrigin')}</dt>
           <dd className="mt-1 break-all font-medium">{context.instanceOrigin}</dd>
         </div>
         <div>
-          <dt className="text-xs font-medium text-muted-foreground">{t('settings.agentAccess.oauthReturn')}</dt>
+          <dt className="text-xs font-medium text-muted-foreground">{t('settings.oauthApps.oauthReturn')}</dt>
           <dd className="mt-1 break-all font-medium">{context.redirectUri}</dd>
         </div>
         <div>
-          <dt className="text-xs font-medium text-muted-foreground">{t('settings.agentAccess.oauthLifetime')}</dt>
-          <dd className="mt-1 font-medium">{t('settings.agentAccess.oauthLifetimeValue', { days: lifetimeDays })}</dd>
+          <dt className="text-xs font-medium text-muted-foreground">{t('settings.oauthApps.oauthLifetime')}</dt>
+          <dd className="mt-1 font-medium">{t('settings.oauthApps.oauthLifetimeValue', { days: lifetimeDays })}</dd>
         </div>
       </dl>
       <div className="mt-6 space-y-2">
-        <Label htmlFor="oauth-workspace">{t('settings.agentAccess.workspaceLabel')}</Label>
+        <Label htmlFor="oauth-workspace">{t('settings.oauthApps.workspaceLabel')}</Label>
         <Select value={context.workspace.id} onValueChange={changeWorkspace} disabled={!!switchingOrgId}>
           <SelectTrigger id="oauth-workspace">
             <SelectValue />
@@ -161,7 +161,7 @@ function OAuthConsentPanel({ oauthQuery, organizations }: { oauthQuery: string; 
           onClick={() => submitMutation.mutate(false)}
         >
           <X className="size-4" />
-          {t('settings.agentAccess.oauthDeny')}
+          {t('settings.oauthApps.oauthDeny')}
         </Button>
         <Button
           type="button"
@@ -169,19 +169,19 @@ function OAuthConsentPanel({ oauthQuery, organizations }: { oauthQuery: string; 
           onClick={() => submitMutation.mutate(true)}
         >
           <Check className="size-4" />
-          {submitMutation.isPending ? t('common.loading') : t('settings.agentAccess.oauthApprove')}
+          {submitMutation.isPending ? t('common.loading') : t('settings.oauthApps.oauthApprove')}
         </Button>
       </div>
     </div>
   )
 }
 
-function RevokeGrantDialog({ grant, onClose }: { grant: AgentOAuthGrant | null; onClose: () => void }) {
+function RevokeGrantDialog({ grant, onClose }: { grant: OAuthGrant | null; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: async () => {
-      if (grant) await revokeAgentOAuthGrant(grant.id)
+      if (grant) await revokeOAuthGrant(grant.id)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['oauth-grants'] })
@@ -194,9 +194,9 @@ function RevokeGrantDialog({ grant, onClose }: { grant: AgentOAuthGrant | null; 
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('settings.agentAccess.oauthGrantRevokeTitle')}</DialogTitle>
+          <DialogTitle>{t('settings.oauthApps.oauthGrantRevokeTitle')}</DialogTitle>
           <DialogDescription>
-            {t('settings.agentAccess.oauthGrantRevokeConfirm', {
+            {t('settings.oauthApps.oauthGrantRevokeConfirm', {
               client: grant.clientName,
               workspace: grant.workspaceName ?? grant.orgId,
             })}
@@ -208,7 +208,7 @@ function RevokeGrantDialog({ grant, onClose }: { grant: AgentOAuthGrant | null; 
           </Button>
           <Button type="button" variant="destructive" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
             <Trash2 className="size-4" />
-            {mutation.isPending ? t('common.loading') : t('settings.agentAccess.revoke')}
+            {mutation.isPending ? t('common.loading') : t('settings.oauthApps.revoke')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -218,32 +218,32 @@ function RevokeGrantDialog({ grant, onClose }: { grant: AgentOAuthGrant | null; 
 
 function OAuthGrants() {
   const { t } = useTranslation()
-  const [revoking, setRevoking] = useState<AgentOAuthGrant | null>(null)
-  const query = useQuery({ queryKey: ['oauth-grants'], queryFn: listAgentOAuthGrants })
+  const [revoking, setRevoking] = useState<OAuthGrant | null>(null)
+  const query = useQuery({ queryKey: ['oauth-grants'], queryFn: listOAuthGrants })
   const grants = query.data?.items ?? []
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('settings.agentAccess.oauthGrantsSection')}</CardTitle>
-        <CardDescription>{t('settings.agentAccess.oauthGrantsDescription')}</CardDescription>
+        <CardTitle>{t('settings.oauthApps.oauthGrantsSection')}</CardTitle>
+        <CardDescription>{t('settings.oauthApps.oauthGrantsDescription')}</CardDescription>
       </CardHeader>
       <CardContent>
         {query.isLoading ? (
           <p className="py-6 text-center text-sm text-muted-foreground">{t('common.loading')}</p>
         ) : query.isError ? (
-          <p className="py-6 text-center text-sm text-destructive">{t('settings.agentAccess.oauthGrantsError')}</p>
+          <p className="py-6 text-center text-sm text-destructive">{t('settings.oauthApps.oauthGrantsError')}</p>
         ) : grants.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">{t('settings.agentAccess.oauthNoGrants')}</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t('settings.oauthApps.oauthNoGrants')}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('settings.agentAccess.oauthClient')}</TableHead>
-                <TableHead>{t('settings.agentAccess.colWorkspace')}</TableHead>
-                <TableHead>{t('settings.agentAccess.colScopes')}</TableHead>
-                <TableHead>{t('settings.agentAccess.colCreated')}</TableHead>
-                <TableHead>{t('settings.agentAccess.colLastUsed')}</TableHead>
-                <TableHead className="w-20 text-right">{t('settings.agentAccess.colActions')}</TableHead>
+                <TableHead>{t('settings.oauthApps.oauthClient')}</TableHead>
+                <TableHead>{t('settings.oauthApps.colWorkspace')}</TableHead>
+                <TableHead>{t('settings.oauthApps.colScopes')}</TableHead>
+                <TableHead>{t('settings.oauthApps.colCreated')}</TableHead>
+                <TableHead>{t('settings.oauthApps.colLastUsed')}</TableHead>
+                <TableHead className="w-20 text-right">{t('settings.oauthApps.colActions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -261,13 +261,13 @@ function OAuthGrants() {
                     </div>
                   </TableCell>
                   <TableCell>{formatDate(grant.createdAt)}</TableCell>
-                  <TableCell>{formatDate(grant.lastUsedAt) ?? t('settings.agentAccess.never')}</TableCell>
+                  <TableCell>{formatDate(grant.lastUsedAt) ?? t('settings.oauthApps.never')}</TableCell>
                   <TableCell className="text-right">
                     <Button
                       type="button"
                       size="icon"
                       variant="ghost"
-                      aria-label={t('settings.agentAccess.revoke')}
+                      aria-label={t('settings.oauthApps.revoke')}
                       onClick={() => setRevoking(grant)}
                     >
                       <Trash2 className="size-4" />
@@ -284,7 +284,7 @@ function OAuthGrants() {
   )
 }
 
-export function OAuthAccessSettingsPage() {
+export function OAuthAppsSettingsPage() {
   const { data } = useListOrganizations()
   const organizations = (data ?? []) as Organization[]
   const oauthQuery = oauthQueryFromLocation()

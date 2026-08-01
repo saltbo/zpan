@@ -1,4 +1,4 @@
-# External Agent Access — Design
+# External OAuth Apps — Design
 
 > Status: Implemented
 > Scope: dynamic OAuth clients, external resource authorization, DPoP, resource
@@ -13,8 +13,7 @@ grant for a DPoP-bound ZPan resource token.
 
 ZPan does not ship or require:
 
-- a fixed first-party Agent OAuth client;
-- an Agent-specific API key;
+- a fixed first-party OAuth client;
 - Restish credential profiles in OpenAPI;
 - a Restish upload plugin;
 - a ZPan-specific Agent skill.
@@ -100,7 +99,7 @@ Each consent is bound to:
 
 The request cannot replace that workspace with a query or body field. Team
 membership and role checks still apply. Revoking a consent removes its access
-tokens, revokes its refresh tokens, and deletes the consent. The Agent Access
+tokens, revokes its refresh tokens, and deletes the consent. The OAuth Apps
 page lists the real client name and workspace for every current-user grant.
 
 ## External Resource Token Flow
@@ -116,7 +115,7 @@ FlareAuth-style controllers use three credentials with separate purposes:
 The exchanged access token is a JWT containing the user, workspace,
 `zpan_actor`, delegated actor (`act`), audience, scopes, client ID, expiry, and
 JTI. API requests use `Authorization: DPoP` plus a proof bound to the method,
-URL, access token, and Agent key. ZPan verifies issuer, audience, signature,
+URL, access token, and DPoP key. ZPan verifies issuer, audience, signature,
 expiry, scopes, DPoP proof, and JTI revocation.
 
 Revoking an exchanged JWT stores its JTI until token expiry. The resource API
@@ -125,7 +124,7 @@ assertions are intentionally not part of this path.
 
 ## Scope Model
 
-Resource scopes use stable `<resource>:<action>` names. The external Agent scope
+Resource scopes use stable `<resource>:<action>` names. The external OAuth scope
 catalog includes:
 
 | Scope | Authority |
@@ -151,13 +150,13 @@ OAuth is a credential adapter, not a business-logic fork. Middleware resolves a
 protocol-neutral principal, bound workspace, scope set, and audit actor before
 calling the same file use cases used by other authenticated clients.
 
-Upgrades that add Agent scopes do not mutate OAuth tables during authentication
+Upgrades that add OAuth resource scopes do not mutate OAuth tables during authentication
 startup. Before deploying such an upgrade, operators run the idempotent scope
 backfill in dry-run mode and then apply it:
 
 ```sh
-pnpm agent-oauth-scopes:backfill -- --d1 zpan-db --remote
-pnpm agent-oauth-scopes:backfill -- --d1 zpan-db --remote --apply
+pnpm oauth-scopes:backfill -- --d1 zpan-db --remote
+pnpm oauth-scopes:backfill -- --d1 zpan-db --remote --apply
 ```
 
 For Node/SQLite deployments, replace the D1 arguments with
@@ -197,8 +196,8 @@ re-presigning re-enter ZPan authorization and workspace checks.
 ## Compatibility Boundary
 
 The legacy `zpan-cli` device flow remains limited to downloader registration.
-Ordinary human-created API keys remain available for their existing product
-uses, but there is no Agent API-key template or Agent key management UI.
+API keys remain available for image hosting, WebDAV, and remote-download access.
+They are separate credentials and are not used by OAuth applications.
 
 Future client-registration approval can be added around dynamically registered
 client records without changing resource discovery, consent, token exchange,

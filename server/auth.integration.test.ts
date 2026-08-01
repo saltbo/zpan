@@ -795,7 +795,7 @@ describe('Cloudflare Workers preview auth origins', () => {
   })
 })
 
-describe('Agent OAuth consent guards', () => {
+describe('OAuth consent guards', () => {
   it('publishes the external resource discovery contract at the exact API URL', async () => {
     const ctx = await createTestApp()
     const resource = await ctx.app.request('http://localhost:3000/api')
@@ -927,7 +927,7 @@ describe('Agent OAuth consent guards', () => {
     const ctx = await createTestApp()
     ctx.app.get('/api/test-agent-audit', async (c) => {
       const principal = c.get('principal')
-      if (principal?.kind !== 'agent-oauth') return c.json({ error: 'agent principal required' }, 401)
+      if (principal?.kind !== 'oauth') return c.json({ error: 'agent principal required' }, 401)
       await c.get('deps').audit.record({
         ...auditActor(principal),
         orgId: principal.orgId,
@@ -937,15 +937,15 @@ describe('Agent OAuth consent guards', () => {
       })
       return c.json({ ok: true })
     })
-    const { privateKey: agentPrivateKey, publicKey: agentPublicKey } = await generateKeyPair('ES256')
-    const agentPublicJwk = { ...(await exportJWK(agentPublicKey)), kid: 'agent-key', use: 'sig', alg: 'ES256' }
+    const { privateKey: actorPrivateKey, publicKey: actorPublicKey } = await generateKeyPair('ES256')
+    const actorPublicJwk = { ...(await exportJWK(actorPublicKey)), kid: 'actor-key', use: 'sig', alg: 'ES256' }
     const getJwks = ctx.auth.api.getJwks
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request) => {
         const url = input instanceof Request ? input.url : String(input)
         if (url === 'https://broker.example.com/api/auth/jwks') {
-          return Response.json({ keys: [agentPublicJwk] })
+          return Response.json({ keys: [actorPublicJwk] })
         }
         if (url === 'http://localhost:3000/api/auth/jwks') {
           return Response.json(await getJwks())
@@ -1000,7 +1000,7 @@ describe('Agent OAuth consent guards', () => {
     )
     const consentLocation = authorize.headers.get('location')
     expect(authorize.status).toBe(302)
-    expect(consentLocation).toMatch(/^\/settings\/agent-access\?/)
+    expect(consentLocation).toMatch(/^\/settings\/oauth-apps\?/)
     const consent = await ctx.app.request('http://localhost:3000/api/auth/oauth2/consent', {
       method: 'POST',
       headers: { Cookie: cookie, Origin: 'http://localhost:3000', 'Content-Type': 'application/json' },
@@ -1032,14 +1032,14 @@ describe('Agent OAuth consent guards', () => {
 
     const now = Math.floor(Date.now() / 1000)
     const assertion = await new SignJWT({})
-      .setProtectedHeader({ typ: 'JWT', alg: 'ES256', kid: 'agent-key' })
+      .setProtectedHeader({ typ: 'JWT', alg: 'ES256', kid: 'actor-key' })
       .setIssuer('https://broker.example.com/api/auth')
       .setSubject('agent-123')
       .setAudience(tokenEndpoint)
       .setIssuedAt(now)
       .setExpirationTime(now + 300)
       .setJti(crypto.randomUUID())
-      .sign(agentPrivateKey)
+      .sign(actorPrivateKey)
     const actorResponse = await ctx.app.request(tokenEndpoint, {
       method: 'POST',
       headers: { Authorization: basic, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1102,7 +1102,7 @@ describe('Agent OAuth consent guards', () => {
       .from(schema.auditEvents)
       .where(eq(schema.auditEvents.action, 'agent_identity_probe'))
     expect(auditEvent).toMatchObject({
-      actorType: 'agent_oauth',
+      actorType: 'oauth',
       actorRef: 'agent-123',
       actorIssuer: 'https://broker.example.com/api/auth',
     })
@@ -1138,7 +1138,7 @@ describe('Agent OAuth consent guards', () => {
     const previewOrigin = 'https://preview-zpan.example.com'
     const auth = await createAuth(ctx.platform, 'test-secret', 'https://zpan-staging.example.com', [previewOrigin])
     const app = createApp(ctx.platform, auth)
-    const signUpResponse = await signUp({ ...ctx, app }, 'agent-oauth-consent@example.com')
+    const signUpResponse = await signUp({ ...ctx, app }, 'oauth-consent@example.com')
     const cookie = signUpResponse.headers
       .getSetCookie()
       .map((value) => value.split(';', 1)[0])
@@ -1171,7 +1171,7 @@ describe('Agent OAuth consent guards', () => {
     })
     const consentLocation = authorize.headers.get('location')
     expect(authorize.status).toBe(302)
-    expect(consentLocation).toMatch(/^\/settings\/agent-access\?/)
+    expect(consentLocation).toMatch(/^\/settings\/oauth-apps\?/)
 
     const consent = await app.request(`${previewOrigin}/api/auth/oauth2/consent`, {
       method: 'POST',
@@ -1193,7 +1193,7 @@ describe('Agent OAuth consent guards', () => {
     })
   })
 
-  it('blocks partial Agent OAuth consent changes through the Better Auth endpoint', async () => {
+  it('blocks partial OAuth consent changes through the Better Auth endpoint', async () => {
     const ctx = await createTestApp()
 
     const res = await ctx.app.request('/api/auth/oauth2/consent', {
@@ -1205,7 +1205,7 @@ describe('Agent OAuth consent guards', () => {
     expect(res.status).toBe(400)
     await expect(res.json()).resolves.toMatchObject({
       error: 'invalid_request',
-      error_description: 'Partial Agent OAuth consent is not supported',
+      error_description: 'Partial OAuth consent is not supported',
     })
   })
 })

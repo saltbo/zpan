@@ -4,7 +4,6 @@
 // resource owns its own file under ports/.
 
 export * from './ports/admin-stats'
-export * from './ports/agent-oauth'
 export * from './ports/announcement'
 export * from './ports/api-keys'
 export * from './ports/app-error'
@@ -30,6 +29,7 @@ export * from './ports/licensing-cloud'
 export * from './ports/matter'
 export * from './ports/member-count'
 export * from './ports/notification'
+export * from './ports/oauth'
 export * from './ports/object-upload-session'
 export * from './ports/org'
 export * from './ports/profile'

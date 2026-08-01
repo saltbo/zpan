@@ -38,8 +38,8 @@ import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSettingsWebdavRouteImport } from './routes/_authenticated/settings/webdav'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
 import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
+import { Route as AuthenticatedSettingsOauthAppsRouteImport } from './routes/_authenticated/settings/oauth-apps'
 import { Route as AuthenticatedSettingsApiKeysRouteImport } from './routes/_authenticated/settings/api-keys'
-import { Route as AuthenticatedSettingsAgentAccessRouteImport } from './routes/_authenticated/settings/agent-access'
 import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authenticated/admin/licensing'
 import { Route as AuthenticatedAdminDownloadersRouteImport } from './routes/_authenticated/admin/downloaders'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
@@ -217,16 +217,16 @@ const AuthenticatedSettingsPasswordRoute =
     path: '/password',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedSettingsOauthAppsRoute =
+  AuthenticatedSettingsOauthAppsRouteImport.update({
+    id: '/oauth-apps',
+    path: '/oauth-apps',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
 const AuthenticatedSettingsApiKeysRoute =
   AuthenticatedSettingsApiKeysRouteImport.update({
     id: '/api-keys',
     path: '/api-keys',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
-const AuthenticatedSettingsAgentAccessRoute =
-  AuthenticatedSettingsAgentAccessRouteImport.update({
-    id: '/agent-access',
-    path: '/agent-access',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
 const AuthenticatedAdminLicensingRoute =
@@ -383,8 +383,8 @@ export interface FileRoutesByFullPath {
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/settings/agent-access': typeof AuthenticatedSettingsAgentAccessRoute
   '/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
+  '/settings/oauth-apps': typeof AuthenticatedSettingsOauthAppsRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
@@ -434,8 +434,8 @@ export interface FileRoutesByTo {
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/settings/agent-access': typeof AuthenticatedSettingsAgentAccessRoute
   '/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
+  '/settings/oauth-apps': typeof AuthenticatedSettingsOauthAppsRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
@@ -490,8 +490,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/_authenticated/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/_authenticated/settings/agent-access': typeof AuthenticatedSettingsAgentAccessRoute
   '/_authenticated/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
+  '/_authenticated/settings/oauth-apps': typeof AuthenticatedSettingsOauthAppsRoute
   '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/_authenticated/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
@@ -546,8 +546,8 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/downloaders'
     | '/admin/licensing'
-    | '/settings/agent-access'
     | '/settings/api-keys'
+    | '/settings/oauth-apps'
     | '/settings/password'
     | '/settings/profile'
     | '/settings/webdav'
@@ -597,8 +597,8 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/downloaders'
     | '/admin/licensing'
-    | '/settings/agent-access'
     | '/settings/api-keys'
+    | '/settings/oauth-apps'
     | '/settings/password'
     | '/settings/profile'
     | '/settings/webdav'
@@ -652,8 +652,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/downloaders'
     | '/_authenticated/admin/licensing'
-    | '/_authenticated/settings/agent-access'
     | '/_authenticated/settings/api-keys'
+    | '/_authenticated/settings/oauth-apps'
     | '/_authenticated/settings/password'
     | '/_authenticated/settings/profile'
     | '/_authenticated/settings/webdav'
@@ -901,18 +901,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsPasswordRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/settings/oauth-apps': {
+      id: '/_authenticated/settings/oauth-apps'
+      path: '/oauth-apps'
+      fullPath: '/settings/oauth-apps'
+      preLoaderRoute: typeof AuthenticatedSettingsOauthAppsRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
     '/_authenticated/settings/api-keys': {
       id: '/_authenticated/settings/api-keys'
       path: '/api-keys'
       fullPath: '/settings/api-keys'
       preLoaderRoute: typeof AuthenticatedSettingsApiKeysRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/settings/agent-access': {
-      id: '/_authenticated/settings/agent-access'
-      path: '/agent-access'
-      fullPath: '/settings/agent-access'
-      preLoaderRoute: typeof AuthenticatedSettingsAgentAccessRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
     '/_authenticated/admin/licensing': {
@@ -1117,8 +1117,8 @@ const AuthenticatedAdminRouteRouteWithChildren =
   )
 
 interface AuthenticatedSettingsRouteRouteChildren {
-  AuthenticatedSettingsAgentAccessRoute: typeof AuthenticatedSettingsAgentAccessRoute
   AuthenticatedSettingsApiKeysRoute: typeof AuthenticatedSettingsApiKeysRoute
+  AuthenticatedSettingsOauthAppsRoute: typeof AuthenticatedSettingsOauthAppsRoute
   AuthenticatedSettingsPasswordRoute: typeof AuthenticatedSettingsPasswordRoute
   AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
   AuthenticatedSettingsWebdavRoute: typeof AuthenticatedSettingsWebdavRoute
@@ -1127,9 +1127,8 @@ interface AuthenticatedSettingsRouteRouteChildren {
 
 const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
   {
-    AuthenticatedSettingsAgentAccessRoute:
-      AuthenticatedSettingsAgentAccessRoute,
     AuthenticatedSettingsApiKeysRoute: AuthenticatedSettingsApiKeysRoute,
+    AuthenticatedSettingsOauthAppsRoute: AuthenticatedSettingsOauthAppsRoute,
     AuthenticatedSettingsPasswordRoute: AuthenticatedSettingsPasswordRoute,
     AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
     AuthenticatedSettingsWebdavRoute: AuthenticatedSettingsWebdavRoute,

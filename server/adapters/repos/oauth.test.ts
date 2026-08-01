@@ -3,27 +3,27 @@ import { isNull } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../../db/auth-schema'
 import { createTestApp } from '../../test/setup'
-import { createAgentOAuthGateway } from './agent-oauth'
+import { createOAuthGateway } from './oauth'
 
 const CLIENT_ID = 'dynamic-client'
 
-describe('Agent OAuth gateway', () => {
+describe('OAuth gateway', () => {
   it('finds and lists dynamically registered applications', async () => {
     const { db } = await createTestApp()
     await insertClient(db, CLIENT_ID, 'FlareAuth')
     await insertClient(db, 'retired-system-client', 'Retired', 'system')
 
-    await expect(createAgentOAuthGateway().findClient(db, CLIENT_ID)).resolves.toMatchObject({
+    await expect(createOAuthGateway().findClient(db, CLIENT_ID)).resolves.toMatchObject({
       clientId: CLIENT_ID,
       clientName: 'FlareAuth',
       disabled: false,
       redirectUris: ['https://flareauth.example/callback'],
       responseTypes: ['code'],
     })
-    await expect(createAgentOAuthGateway().listRegisteredApplications(db)).resolves.toEqual([
+    await expect(createOAuthGateway().listRegisteredApplications(db)).resolves.toEqual([
       expect.objectContaining({ clientId: CLIENT_ID, name: 'FlareAuth' }),
     ])
-    await expect(createAgentOAuthGateway().findClient(db, 'retired-system-client')).resolves.toBeNull()
+    await expect(createOAuthGateway().findClient(db, 'retired-system-client')).resolves.toBeNull()
   })
 
   it('lists workspace-bound grants with their registered application names', async () => {
@@ -54,7 +54,7 @@ describe('Agent OAuth gateway', () => {
       },
     ])
 
-    await expect(createAgentOAuthGateway().listGrants(db, userId)).resolves.toEqual([
+    await expect(createOAuthGateway().listGrants(db, userId)).resolves.toEqual([
       {
         id: 'grant-1',
         clientId: CLIENT_ID,
@@ -106,7 +106,7 @@ describe('Agent OAuth gateway', () => {
     })
 
     await expect(
-      createAgentOAuthGateway().revokeGrant(db, {
+      createOAuthGateway().revokeGrant(db, {
         userId,
         grantId: 'grant-1',
         now: new Date('2026-07-29T12:30:00.000Z'),
@@ -127,7 +127,7 @@ describe('Agent OAuth gateway', () => {
       JSON.stringify({ jti: 'token-1', client_id: CLIENT_ID, exp: Math.floor(Date.now() / 1000) + 60 }),
     ).toString('base64url')
     const token = `e30.${payload}.signature`
-    const gateway = createAgentOAuthGateway()
+    const gateway = createOAuthGateway()
 
     await gateway.revokeJwtAccessToken(db, token)
 

@@ -19,7 +19,6 @@ import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
 import { customAlphabet, nanoid } from 'nanoid'
-import { AGENT_OAUTH_SCOPES, JWT_BEARER_GRANT_TYPE, TOKEN_EXCHANGE_GRANT_TYPE } from '../shared/agent-oauth'
 import {
   API_KEY_TEMPLATES,
   ApiKeyTemplate,
@@ -32,6 +31,7 @@ import {
   WEBDAV_RATE_LIMITER_BINDING,
 } from '../shared/api-key-templates'
 import { DEFAULT_ORG_QUOTA, DEFAULT_ORG_TRAFFIC_QUOTA, SignupMode } from '../shared/constants'
+import { JWT_BEARER_GRANT_TYPE, OAUTH_SCOPES, TOKEN_EXCHANGE_GRANT_TYPE } from '../shared/oauth'
 import {
   BUILTIN_PROVIDER_IDS,
   OAUTH_PROVIDER_KEY_PATTERN,
@@ -54,7 +54,7 @@ import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { initialStorageUsageProjectionQueries } from './adapters/repos/storage-usage-breakdown'
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { recordUserActivity } from './adapters/repos/user-activity'
-import { createAgentOAuthProviderOptions } from './auth/agent-oauth-provider'
+import { createOAuthProviderOptions } from './auth/oauth-provider'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { executeWriteTransaction } from './db/transaction'
@@ -520,7 +520,7 @@ export async function createAuth(
           if (body?.scope !== undefined) {
             throw new APIError('BAD_REQUEST', {
               error: 'invalid_request',
-              error_description: 'Partial Agent OAuth consent is not supported',
+              error_description: 'Partial OAuth consent is not supported',
             })
           }
           return
@@ -528,14 +528,14 @@ export async function createAuth(
         if (ctx.path === '/oauth2/register') {
           const body = ctx.body as Record<string, unknown> | undefined
           if (body && isExternalResourceClientRegistration(body)) {
-            body.scope = AGENT_OAUTH_SCOPES.join(' ')
+            body.scope = OAUTH_SCOPES.join(' ')
           }
           return
         }
         if (ctx.path === '/oauth2/update-consent' || ctx.path === '/oauth2/delete-consent') {
           throw new APIError('FORBIDDEN', {
             error: 'invalid_request',
-            error_description: 'Manage Agent OAuth grants from the Agent Access API',
+            error_description: 'Manage OAuth grants from the OAuth grants API',
           })
         }
         if (ctx.path !== '/api-key/create') return
@@ -721,7 +721,7 @@ export async function createAuth(
         validateClient: async (clientId) => clientId === LEGACY_DOWNLOADER_CLIENT_ID,
       }),
       jwt(),
-      oauthProvider(createAgentOAuthProviderOptions({ db, resourceAudience })),
+      oauthProvider(createOAuthProviderOptions({ db, resourceAudience })),
       apiKey([
         {
           configId: ApiKeyTemplate.IHOST,

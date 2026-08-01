@@ -625,7 +625,7 @@ export interface Announcement {
 export type AuditActorType =
   | 'user'
   | 'api_key'
-  | 'agent_oauth'
+  | 'oauth'
   | 'agent'
   | 'anonymous'
   | 'system'

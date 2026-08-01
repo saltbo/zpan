@@ -10,25 +10,6 @@ export {
   adminOverviewSchema,
 } from './admin-analytics'
 export type {
-  AgentOAuthConsentContext,
-  AgentOAuthConsentContextRequest,
-  AgentOAuthConsentResult,
-  AgentOAuthConsentSubmit,
-  AgentOAuthGrant,
-  AgentOAuthGrantList,
-  AgentOAuthGrantStatus,
-} from './agent-oauth-grants'
-export {
-  agentOAuthConsentContextRequestSchema,
-  agentOAuthConsentContextSchema,
-  agentOAuthConsentResultSchema,
-  agentOAuthConsentSubmitSchema,
-  agentOAuthGrantDTO,
-  agentOAuthGrantListSchema,
-  agentOAuthGrantSchema,
-  agentOAuthGrantStatusSchema,
-} from './agent-oauth-grants'
-export type {
   AnnouncementInput,
   AnnouncementStatus,
   ListAdminAnnouncementsQuery,
@@ -162,6 +143,25 @@ export {
 } from './errors'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
+export type {
+  OAuthConsentContext,
+  OAuthConsentContextRequest,
+  OAuthConsentResult,
+  OAuthConsentSubmit,
+  OAuthGrant,
+  OAuthGrantList,
+  OAuthGrantStatus,
+} from './oauth-grants'
+export {
+  oauthConsentContextRequestSchema,
+  oauthConsentContextSchema,
+  oauthConsentResultSchema,
+  oauthConsentSubmitSchema,
+  oauthGrantDTO,
+  oauthGrantListSchema,
+  oauthGrantSchema,
+  oauthGrantStatusSchema,
+} from './oauth-grants'
 export type { OAuthResourceScope } from './oauth-resource'
 export { oauthResourceScopeLabels, oauthResourceScopeSchema } from './oauth-resource'
 export type { CursorPage, CursorPageQuery, Page, PageQuery } from './pagination'

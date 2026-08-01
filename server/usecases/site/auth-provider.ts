@@ -22,12 +22,12 @@ import type { AuthProvider } from '@shared/types'
 import { hasFeature } from '../../domain/licensing'
 import type { Database } from '../../platform/interface'
 import {
-  type AgentOAuthGateway,
   type AppError,
   badRequest,
   type CacheService,
   featureBlocked,
   type LicenseBindingRepo,
+  type OAuthGateway,
   type SystemOptionsRepo,
 } from '../ports'
 import { invalidateSiteConfig } from './config-cache'
@@ -108,13 +108,13 @@ export async function listAuthProviders(
 }
 
 export async function listAuthProviderSettings(
-  deps: Pick<AuthProviderDeps, 'systemOptions'> & { agentOAuth: AgentOAuthGateway },
+  deps: Pick<AuthProviderDeps, 'systemOptions'> & { oauth: OAuthGateway },
   db: Database,
   { authOrigin }: { authOrigin: string },
 ) {
   const [{ items }, registeredApplications] = await Promise.all([
     listAuthProviders(deps, { authOrigin }),
-    deps.agentOAuth.listRegisteredApplications(db),
+    deps.oauth.listRegisteredApplications(db),
   ])
   return { items, registeredApplications }
 }

@@ -1,30 +1,30 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
-  agentOAuthConsentContextSchema,
-  agentOAuthConsentResultSchema,
-  agentOAuthConsentSubmitSchema,
-  agentOAuthGrantListSchema,
+  oauthConsentContextSchema,
+  oauthConsentResultSchema,
+  oauthConsentSubmitSchema,
+  oauthGrantListSchema,
 } from '@shared/schemas'
 import type { Env } from '../middleware/platform'
-import { getAgentOAuthConsentContext } from '../usecases/agent-oauth-consent'
-import { listAgentOAuthGrants, revokeAgentOAuthGrant } from '../usecases/agent-oauth-grants'
+import { getOAuthConsentContext } from '../usecases/oauth-consent'
+import { listOAuthGrants, revokeOAuthGrant } from '../usecases/oauth-grants'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 
 const paramsSchema = z.object({ grantId: z.string().min(1) })
 const consentContextQuerySchema = z.object({ oauthQuery: z.string().min(1) })
 
 const consentContextRoute = authRoute(
-  { scopes: [AuthorizationScope.AGENT_OAUTH_GRANTS_CREATE] },
+  { scopes: [AuthorizationScope.OAUTH_GRANTS_CREATE] },
   {
-    operationId: 'getAgentOAuthConsentContext',
-    summary: 'Get pending Agent OAuth consent context',
-    tags: ['Agent Access'],
+    operationId: 'getOAuthConsentContext',
+    summary: 'Get pending OAuth consent context',
+    tags: ['OAuth Apps'],
     method: 'get',
-    path: '/agent-oauth-consent',
+    path: '/oauth-consent',
     request: { query: consentContextQuerySchema },
     responses: {
-      200: jsonContent(agentOAuthConsentContextSchema, 'Agent OAuth consent context'),
+      200: jsonContent(oauthConsentContextSchema, 'OAuth consent context'),
       400: errorResponse('Invalid OAuth request'),
       403: errorResponse('Workspace access is required'),
     },
@@ -32,16 +32,16 @@ const consentContextRoute = authRoute(
 )
 
 const consentSubmitRoute = authRoute(
-  { scopes: [AuthorizationScope.AGENT_OAUTH_GRANTS_CREATE] },
+  { scopes: [AuthorizationScope.OAUTH_GRANTS_CREATE] },
   {
-    operationId: 'submitAgentOAuthConsent',
-    summary: 'Submit Agent OAuth consent decision',
-    tags: ['Agent Access'],
+    operationId: 'submitOAuthConsent',
+    summary: 'Submit OAuth consent decision',
+    tags: ['OAuth Apps'],
     method: 'post',
-    path: '/agent-oauth-consent',
-    request: jsonBody(agentOAuthConsentSubmitSchema),
+    path: '/oauth-consent',
+    request: jsonBody(oauthConsentSubmitSchema),
     responses: {
-      200: jsonContent(agentOAuthConsentResultSchema, 'Agent OAuth consent result'),
+      200: jsonContent(oauthConsentResultSchema, 'OAuth consent result'),
       400: errorResponse('Invalid OAuth request'),
       403: errorResponse('Workspace access is required'),
     },
@@ -49,39 +49,39 @@ const consentSubmitRoute = authRoute(
 )
 
 const listRoute = authRoute(
-  { scopes: [AuthorizationScope.AGENT_OAUTH_GRANTS_READ] },
+  { scopes: [AuthorizationScope.OAUTH_GRANTS_READ] },
   {
-    operationId: 'listAgentOAuthGrants',
-    summary: 'List Agent OAuth grants',
-    tags: ['Agent Access'],
+    operationId: 'listOAuthGrants',
+    summary: 'List OAuth grants',
+    tags: ['OAuth Apps'],
     method: 'get',
-    path: '/agent-oauth-grants',
+    path: '/oauth-grants',
     responses: {
-      200: jsonContent(agentOAuthGrantListSchema, 'Agent OAuth grants'),
+      200: jsonContent(oauthGrantListSchema, 'OAuth grants'),
     },
   },
 )
 
 const revokeRoute = authRoute(
-  { scopes: [AuthorizationScope.AGENT_OAUTH_GRANTS_DELETE] },
+  { scopes: [AuthorizationScope.OAUTH_GRANTS_DELETE] },
   {
-    operationId: 'revokeAgentOAuthGrant',
-    summary: 'Revoke an Agent OAuth grant',
-    tags: ['Agent Access'],
+    operationId: 'revokeOAuthGrant',
+    summary: 'Revoke an OAuth grant',
+    tags: ['OAuth Apps'],
     method: 'delete',
-    path: '/agent-oauth-grants/{grantId}',
+    path: '/oauth-grants/{grantId}',
     request: { params: paramsSchema },
     responses: {
       204: { description: 'Revoked' },
-      404: errorResponse('Agent OAuth grant not found'),
+      404: errorResponse('OAuth grant not found'),
     },
   },
 )
 
-export const agentOAuthGrants = new OpenAPIHono<Env>()
+export const oauthGrants = new OpenAPIHono<Env>()
   .openapi(consentContextRoute, async (c) => {
     const { oauthQuery } = c.req.valid('query')
-    const context = await getAgentOAuthConsentContext(c.get('deps'), {
+    const context = await getOAuthConsentContext(c.get('deps'), {
       db: c.get('platform').db,
       userId: c.get('userId')!,
       orgId: c.get('orgId'),
@@ -92,7 +92,7 @@ export const agentOAuthGrants = new OpenAPIHono<Env>()
   })
   .openapi(consentSubmitRoute, async (c) => {
     const { accept, oauthQuery } = c.req.valid('json')
-    await getAgentOAuthConsentContext(c.get('deps'), {
+    await getOAuthConsentContext(c.get('deps'), {
       db: c.get('platform').db,
       userId: c.get('userId')!,
       orgId: c.get('orgId'),
@@ -111,15 +111,15 @@ export const agentOAuthGrants = new OpenAPIHono<Env>()
     )
     const body = await response.json().catch(() => null)
     if (!response.ok) return c.json(body ?? { error: response.statusText }, response.status as 400 | 403)
-    return c.json(agentOAuthConsentResultSchema.parse(body), 200)
+    return c.json(oauthConsentResultSchema.parse(body), 200)
   })
   .openapi(listRoute, async (c) => {
-    const result = await listAgentOAuthGrants(c.get('deps'), c.get('platform').db, { userId: c.get('userId')! })
+    const result = await listOAuthGrants(c.get('deps'), c.get('platform').db, { userId: c.get('userId')! })
     return c.json(result, 200)
   })
   .openapi(revokeRoute, async (c) => {
     const { grantId } = c.req.valid('param')
-    await revokeAgentOAuthGrant(c.get('deps'), c.get('platform').db, {
+    await revokeOAuthGrant(c.get('deps'), c.get('platform').db, {
       userId: c.get('userId')!,
       grantId,
     })

@@ -53,7 +53,7 @@ export type AuthPrincipal =
       authMethod: 'api-key'
     }
   | {
-      kind: 'agent-oauth'
+      kind: 'oauth'
       actorIssuer: string
       actorSubject: string
       clientId: string
@@ -115,11 +115,11 @@ export type AuthzContext =
       state: { configId: string; enabled: true }
     }
   | {
-      credential: 'agent_oauth'
+      credential: 'oauth'
       userId: string
       workspace: { mode: 'bound'; orgId: string }
       grantedScopes: ReadonlySet<AuthorizationScope>
-      actor: { type: 'agent_oauth'; ref: string; issuer: string }
+      actor: { type: 'oauth'; ref: string; issuer: string }
       state: { clientId: string }
     }
   | {

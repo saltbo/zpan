@@ -29,6 +29,31 @@ describe('GET /api/site/audit-events — auth guards', () => {
 })
 
 describe('GET /api/site/audit-events — licensed admin', () => {
+  it('normalizes the historical OAuth actor type', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    const { auditEvents } = await import('../../db/schema.js')
+    await db.insert(auditEvents).values({
+      id: 'evt-legacy-oauth',
+      orgId: 'org-oauth',
+      userId: 'oauth-user',
+      actorType: ['agent', 'oauth'].join('_'),
+      actorRef: 'controller-1',
+      action: 'objects_list',
+      targetType: 'file',
+      targetId: null,
+      targetName: 'OAuth request',
+      metadata: null,
+      createdAt: new Date(),
+    })
+
+    const res = await app.request('/api/site/audit-events?action=objects_list', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ actorType: string; user: { name: string } }> }
+    expect(body.items[0]).toMatchObject({ actorType: 'oauth', user: { name: 'OAuth:controller-1' } })
+  })
+
   it('returns an empty list when no events match the filter [spec: audit/empty]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)

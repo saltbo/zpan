@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_OAUTH_RESOURCE_SCOPES } from './agent-oauth'
 import { WEBDAV_API_KEY_PERMISSIONS } from './api-key-templates'
 import {
   AuthorizationScope,
@@ -7,6 +6,7 @@ import {
   CANONICAL_AUTHORIZATION_SCOPES,
   scopePermissions,
 } from './authorization'
+import { OAUTH_RESOURCE_SCOPES } from './oauth'
 
 describe('authorization scope registry', () => {
   it('uses lowercase resource:action scopes without wildcard semantics', () => {
@@ -22,7 +22,7 @@ describe('authorization scope registry', () => {
 
   it('keeps permanent object purge out of agent-grantable scopes', () => {
     expect(CANONICAL_AUTHORIZATION_SCOPES).toContain(AuthorizationScope.OBJECTS_PURGE)
-    expect(AGENT_OAUTH_RESOURCE_SCOPES).not.toContain(AuthorizationScope.OBJECTS_PURGE)
+    expect(OAUTH_RESOURCE_SCOPES).not.toContain(AuthorizationScope.OBJECTS_PURGE)
     expect(scopePermissions([AuthorizationScope.OBJECTS_DELETE])).toEqual({ objects: ['delete'] })
   })
 

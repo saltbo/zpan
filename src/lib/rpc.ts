@@ -6,7 +6,6 @@ import type {
   AdminSiteInvitationsRoute,
   AdminStatsRoute,
   AdminTeamsRoute,
-  AgentOAuthGrantsRoute,
   AnnouncementsRoute,
   AuthedSharesRoute,
   AuthProvidersRoute,
@@ -25,6 +24,7 @@ import type {
   LicensingAdminRoute,
   LicensingRoute,
   NotificationsRoute,
+  OAuthGrantsRoute,
   ObjectsRoute,
   PublicSharesRoute,
   PublicSiteInvitationsRoute,
@@ -50,7 +50,7 @@ export const objects = hc<ObjectsRoute>('/api/objects', opts)
 export const downloadTasksApi = hc<DownloadTasksRoute>('/api/downloads/tasks', opts)
 export const downloaderSelfApi = hc<DownloaderSelfRoute>('/api/downloads/downloaders', opts)
 export const trash = hc<TrashRoute>('/api/trash', opts)
-export const agentOAuthGrantsApi = hc<AgentOAuthGrantsRoute>('/api', opts)
+export const oauthGrantsApi = hc<OAuthGrantsRoute>('/api', opts)
 export const storages = hc<StoragesRoute>('/api/site/storages', opts)
 export const storageUsageApi = hc<StorageUsageRoute>('/api/storage', opts)
 export const adminDownloadersApi = hc<DownloadersRoute>('/api/downloads/downloaders', opts)

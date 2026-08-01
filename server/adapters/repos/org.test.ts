@@ -159,19 +159,3 @@ describe('isPersonalOrg', () => {
     expect(result).toBe(false)
   })
 })
-
-describe('canManageAgentAccess', () => {
-  it.each([
-    ['owner', true],
-    ['admin', true],
-    ['editor', false],
-    ['viewer', false],
-  ])('allows Agent Access management for %s: %s', async (role, expected) => {
-    const { db } = await createTestApp()
-    const userId = await insertUser(db)
-    const orgId = await insertOrg(db, { metadata: '{"type":"team"}' })
-    await insertMember(db, orgId, userId, role)
-
-    expect(await createOrgRepo(db).canManageAgentAccess(userId, orgId)).toBe(expected)
-  })
-})

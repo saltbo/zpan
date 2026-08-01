@@ -9,9 +9,9 @@ import {
   oauthRefreshToken,
 } from '../../db/auth-schema'
 import { executeWriteTransaction } from '../../db/transaction'
-import type { AgentOAuthClient, AgentOAuthGateway } from '../../usecases/ports'
+import type { OAuthClient, OAuthGateway } from '../../usecases/ports'
 
-export function createAgentOAuthGateway(): AgentOAuthGateway {
+export function createOAuthGateway(): OAuthGateway {
   return {
     async findClient(db, clientId) {
       const [row] = await db
@@ -35,7 +35,7 @@ export function createAgentOAuthGateway(): AgentOAuthGateway {
         redirectUris: parseStringArray(row.redirectUris),
         responseTypes: parseStringArray(row.responseTypes),
         scopes: parseStringArray(row.scopes),
-      } satisfies AgentOAuthClient
+      } satisfies OAuthClient
     },
 
     async listRegisteredApplications(db) {

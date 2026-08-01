@@ -90,7 +90,6 @@ function makeDeps(
       getOrgNames: async () => new Map(),
       canReadOrg: async () => false,
       canWriteToOrg: async () => false,
-      canManageAgentAccess: async () => false,
       isPersonalOrg: async () => false,
       ...overrides.org,
     },
